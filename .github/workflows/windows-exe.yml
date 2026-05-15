@@ -1,0 +1,80 @@
+name: Windows EXE (release)
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "vercel.json"
+      - "scripts/vercel-build.sh"
+      - "web/**"
+  workflow_dispatch:
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    env:
+      FLUTTER_VERSION: "3.41.9"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Patch pubspec.yaml (drop record + flutter_webrtc)
+        shell: pwsh
+        run: |
+          # 这俩包跟 Flutter 3.41 embedding 不兼容，在 mock 阶段也没用上。
+          $pubspec = Get-Content pubspec.yaml -Raw
+          $patched = $pubspec -replace '(?m)^\s*record:.*$\r?\n?', '' -replace '(?m)^\s*flutter_webrtc:.*$\r?\n?', ''
+          Set-Content -Path pubspec.yaml -Value $patched -NoNewline
+          # pubspec.lock 跟不上手术后的 pubspec，删掉让 pub 重新解锁
+          if (Test-Path pubspec.lock) { Remove-Item pubspec.lock }
+          Write-Host "Patched pubspec.yaml:"
+          Select-String -Path pubspec.yaml -Pattern "record|flutter_webrtc" -SimpleMatch -Quiet
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Code generation (freezed / riverpod / json_serializable)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build Windows (release)
+        run: flutter build windows --release --no-tree-shake-icons
+
+      - name: Package output
+        shell: pwsh
+        run: |
+          $shortSha = git rev-parse --short HEAD
+          $zipName = "p2p-matrix-client-$shortSha-windows.zip"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $releaseDir = "build/windows/x64/runner/Release"
+          if (-not (Test-Path $releaseDir)) {
+            Write-Error "Release directory not found: $releaseDir"
+            exit 1
+          }
+          Write-Host "Contents of release dir:"
+          Get-ChildItem $releaseDir | Select-Object Name, Length | Format-Table
+          Compress-Archive -Path "$releaseDir/*" -DestinationPath "dist/$zipName" -CompressionLevel Optimal
+          Write-Host "Created: dist/$zipName"
+          Get-Item "dist/$zipName" | Select-Object Name, Length
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe-release
+          path: dist/*.zip
+          retention-days: 14
+          if-no-files-found: error

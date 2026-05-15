@@ -3,7 +3,7 @@
 # 下载 Flutter SDK → pub get → build_runner → build web
 set -euo pipefail
 
-FLUTTER_VERSION="${FLUTTER_VERSION:-3.27.1}"
+FLUTTER_VERSION="${FLUTTER_VERSION:-3.41.9}"
 FLUTTER_CHANNEL="${FLUTTER_CHANNEL:-stable}"
 FLUTTER_SDK_DIR="${PWD}/.flutter-sdk"
 FLUTTER_ARCHIVE="flutter_linux_${FLUTTER_VERSION}-${FLUTTER_CHANNEL}.tar.xz"

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:matrix/matrix.dart';
 import '../providers/auth_provider.dart';
+import '../../data/well_known_service.dart';
 
 class AddContactPage extends ConsumerStatefulWidget {
   const AddContactPage({super.key});
@@ -28,25 +28,29 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
     if (domain.isEmpty) return;
     setState(() { _loading = true; _error = null; _resolved = null; });
     try {
-      // Try .well-known/portal/owner.json first
+      // §2.2 域名发现：调 .well-known/portal/owner.json
       final client = ref.read(matrixClientProvider);
-      final resp = await client.httpClient.get(
-        Uri.parse('https://$domain/.well-known/portal/owner.json'),
-      );
-      if (resp.statusCode == 200) {
-        // Parse as JSON — simple string parsing for demo
-        final mxid = RegExp(r'"matrix_user_id"\s*:\s*"([^"]+)"')
-            .firstMatch(resp.body)
-            ?.group(1);
-        final displayName = RegExp(r'"display_name"\s*:\s*"([^"]+)"')
-            .firstMatch(resp.body)
-            ?.group(1);
-        setState(() => _resolved = {'mxid': mxid ?? '@owner:$domain', 'display_name': displayName ?? domain});
-      } else {
-        setState(() => _resolved = {'mxid': '@owner:$domain', 'display_name': domain});
+      final wk = WellKnownService(httpClient: client.httpClient);
+      final result = await wk.discoverOwner(domain);
+      switch (result.availability) {
+        case PortalAvailability.online:
+          setState(() => _resolved = {
+                'mxid': result.owner!.matrixUserId,
+                'display_name': result.owner!.displayName.isEmpty
+                    ? domain
+                    : result.owner!.displayName,
+              });
+        case PortalAvailability.notDeployed:
+          setState(() => _error = '$domain 未部署 Portal');
+        case PortalAvailability.unreachable:
+          // well-known 没配但域名可能仍是有效 Portal —— 回退到约定 MXID
+          setState(() => _resolved = {
+                'mxid': '@owner:$domain',
+                'display_name': domain,
+              });
       }
     } catch (e) {
-      setState(() => _resolved = {'mxid': '@owner:$domain', 'display_name': domain});
+      setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }

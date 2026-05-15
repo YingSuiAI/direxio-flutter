@@ -147,7 +147,7 @@ flutter run -d windows             # Windows desktop
 | `push` 到 `main` | Android + Windows 各跑一次构建 |
 | `pull_request` 目标 `main` | Android + Windows 各跑一次构建（PR 页面显示 status check） |
 | 手动 `workflow_dispatch` | 单独触发某一个 workflow |
-| `paths-ignore` | `**/*.md` / `vercel.json` / `scripts/vercel-build.sh` / `web/**` 不触发原生构建 |
+| `paths-ignore` | `**/*.md` / `web/**` 不触发原生构建 |
 
 ### Workflow 一览
 
@@ -184,12 +184,6 @@ flutter run -d windows             # Windows desktop
 
 代码里没真正调用这俩包，CI 阶段直接删依赖编译，等未来集成真 VoIP 时再升级到能用的版本。
 
-### Vercel Web 部署（实验中）
-
-仓库带 `vercel.json` 和 `scripts/vercel-build.sh`，理论上接 Vercel 后能自动部署 web 端。但：
-- Vercel 免费版（Hobby）**不支持组织 private repo**，要 Pro $20/月
-- 暂未投产，待选择免费替代（Cloudflare Pages / Netlify / GitHub Pages public mirror）
-
 ---
 
 ## 项目结构
@@ -203,8 +197,6 @@ p2p-matrix-client/
 ├── windows/                     # Windows 原生工程（同上）
 ├── web/                         # Web 入口
 ├── assets/                      # 静态资源（占位）
-├── scripts/
-│   └── vercel-build.sh         # Vercel 自定义构建脚本
 ├── lib/
 │   ├── core/
 │   │   ├── router/             # go_router
@@ -229,7 +221,6 @@ p2p-matrix-client/
 │   └── main.dart
 ├── pubspec.yaml
 ├── pubspec.lock
-├── vercel.json
 └── README.md
 ```
 
@@ -289,7 +280,7 @@ p2p-matrix-client/
 
 PR 提到 `main` 即可。CI 会自动跑 Android + Windows 构建，两个绿才推荐 merge。
 
-如果改动只涉及文档 / Vercel 配置 / web/，CI 会自动跳过原生构建（`paths-ignore`）。
+如果改动只涉及文档（`**/*.md`）或 web 入口（`web/`），CI 会自动跳过原生构建（`paths-ignore`）。
 
 ---
 

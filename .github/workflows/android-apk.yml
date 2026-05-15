@@ -5,15 +5,11 @@ on:
     branches: [main]
     paths-ignore:
       - "**/*.md"
-      - "vercel.json"
-      - "scripts/vercel-build.sh"
       - "web/**"
   pull_request:
     branches: [main]
     paths-ignore:
       - "**/*.md"
-      - "vercel.json"
-      - "scripts/vercel-build.sh"
       - "web/**"
   workflow_dispatch:
 

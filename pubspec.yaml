@@ -1,0 +1,77 @@
+name: portal_app
+description: P2P-IM Portal — Matrix-based decentralized messenger
+publish_to: none
+version: 2.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Matrix SDK
+  matrix: ^0.30.0
+
+  # WebRTC（matrix VoIP 必需，不是自动传递依赖，必须显式声明）
+  flutter_webrtc: ^0.9.47
+
+  # Local persistence（matrix SDK HiveCollectionsDatabase 需要）
+  hive_ce: ^2.6.0
+  hive_ce_flutter: ^2.2.0
+
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # Immutable models
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Secure storage (tokens)
+  flutter_secure_storage: ^9.2.2
+
+  # UI
+  google_fonts: ^6.2.1
+  flutter_lucide: ^1.11.0
+  cached_network_image: ^3.3.1
+  image_picker: ^1.1.2
+  file_picker: ^8.1.2
+  emoji_picker_flutter: ^4.4.0
+  flutter_linkify: ^6.0.0
+  gpt_markdown: ^1.0.20
+  timeago: ^3.6.1
+  intl: ^0.19.0
+  shimmer: ^3.0.0
+
+  # Media
+  record: ^5.1.2
+  audioplayers: ^6.0.0
+  video_player: ^2.9.1
+
+  # Utils
+  path_provider: ^2.1.4
+  share_plus: ^10.0.2
+  url_launcher: ^6.3.0
+  permission_handler: ^11.3.1
+  connectivity_plus: ^6.0.5
+  package_info_plus: ^8.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.12
+  riverpod_generator: ^2.4.3
+  freezed: ^2.5.7
+  json_serializable: ^6.8.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/

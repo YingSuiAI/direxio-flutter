@@ -37,5 +37,4 @@ build/
 # macOS
 .DS_Store
 
-# CI (will be added separately once mock-mode build is validated)
-.github/
+# CI workflows live in .github/workflows (kept under version control)

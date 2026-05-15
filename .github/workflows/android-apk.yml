@@ -1,0 +1,77 @@
+name: Android APK (debug)
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "vercel.json"
+      - "scripts/vercel-build.sh"
+      - "web/**"
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      FLUTTER_VERSION: "3.27.1"
+      JAVA_VERSION: "17"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Patch pubspec.yaml (drop record + flutter_webrtc)
+        run: |
+          set -euo pipefail
+          # 这俩包跟 Flutter 3.27/3.41 embedding 不兼容，在 mock 阶段也没用上。
+          # 删 pubspec.yaml 里的对应行；不动锁文件，pub get 会基于剩余依赖重解锁。
+          before=$(grep -c -E '^\s*(record|flutter_webrtc):' pubspec.yaml || true)
+          sed -i -E '/^\s*record:/d; /^\s*flutter_webrtc:/d' pubspec.yaml
+          after=$(grep -c -E '^\s*(record|flutter_webrtc):' pubspec.yaml || true)
+          echo "removed=$((before - after))"
+          # pubspec.lock 跟不上手术后的 pubspec，删掉让 pub 重新解锁
+          rm -f pubspec.lock
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Code generation (freezed / riverpod / json_serializable)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build APK (debug)
+        run: flutter build apk --debug --no-tree-shake-icons
+
+      - name: Rename APK with commit short SHA
+        run: |
+          mkdir -p dist
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          cp build/app/outputs/flutter-apk/app-debug.apk "dist/p2p-matrix-client-${SHORT_SHA}-debug.apk"
+          ls -lh dist/
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-debug
+          path: dist/*.apk
+          retention-days: 14
+          if-no-files-found: error

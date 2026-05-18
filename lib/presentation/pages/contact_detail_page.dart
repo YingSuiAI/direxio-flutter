@@ -62,6 +62,7 @@ class ContactDetailPage extends ConsumerWidget {
                         initial: initial,
                         username: '@$localpart',
                         nodeUrl: nodeUrl,
+                        avatarUrl: mock?.avatarUrl,
                       ),
                       // 快捷操作 —— 真房间用 room.id，mock 路径用 mock.id。
                       _QuickActions(
@@ -140,11 +141,13 @@ class _ProfileHeader extends StatelessWidget {
     required this.initial,
     required this.username,
     required this.nodeUrl,
+    this.avatarUrl,
   });
   final String name;
   final String initial;
   final String username;
   final String nodeUrl;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +161,7 @@ class _ProfileHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // 方形 72×72 头像
+          // 方形 72×72 头像 —— 有图就用图，没图退回首字母色块
           Container(
             width: 72,
             height: 72,
@@ -173,15 +176,30 @@ class _ProfileHeader extends StatelessWidget {
                 ),
               ],
             ),
+            clipBehavior: Clip.antiAlias,
             alignment: Alignment.center,
-            child: Text(
-              initial,
-              style: AppTheme.sans(
-                size: 30,
-                weight: FontWeight.w600,
-                color: t.onAccent,
-              ),
-            ),
+            child: avatarUrl != null
+                ? Image.network(
+                    avatarUrl!,
+                    fit: BoxFit.cover,
+                    width: 72,
+                    height: 72,
+                    errorBuilder: (_, __, ___) => Text(
+                      initial,
+                      style: AppTheme.sans(
+                          size: 30,
+                          weight: FontWeight.w600,
+                          color: t.onAccent),
+                    ),
+                  )
+                : Text(
+                    initial,
+                    style: AppTheme.sans(
+                      size: 30,
+                      weight: FontWeight.w600,
+                      color: t.onAccent,
+                    ),
+                  ),
           ),
           const SizedBox(width: 16),
           Expanded(

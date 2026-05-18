@@ -52,6 +52,7 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                 children: [
                   _PeerHeader(
                     name: name,
+                    avatarUrl: mock?.avatarUrl,
                     // 仅真 Matrix 房间允许进 contact-detail（mock 路径下 contact-detail
                     // 拿不到房间数据，跳过去是死页）。
                     onTap: room != null && peerId != null
@@ -141,9 +142,10 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
 }
 
 class _PeerHeader extends StatelessWidget {
-  const _PeerHeader({required this.name, this.onTap});
+  const _PeerHeader({required this.name, this.onTap, this.avatarUrl});
   final String name;
   final VoidCallback? onTap;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -162,6 +164,7 @@ class _PeerHeader extends StatelessWidget {
                 seed: name,
                 size: 56,
                 shape: AvatarShape.squircle,
+                imageUrl: avatarUrl,
               ),
               const SizedBox(width: 12),
               Expanded(

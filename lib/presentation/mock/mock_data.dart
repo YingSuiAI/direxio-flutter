@@ -2,6 +2,19 @@
 /// 真登录后 client.rooms 非空，自动走真数据。
 import 'package:flutter/material.dart';
 
+/// 头像 URL：抓自 P2P-APP-UI/index.html 设计稿（lh3.googleusercontent.com/aida-public）。
+/// 集中放在这里，方便联系人/聊天/详情等多处复用同一张图。
+class MockAvatars {
+  static const me =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuDLvifagTSHVJO5ZPyKTIj9TERBMcxGFMdC6lNB42q2HLrc25zQG_W6P9xQQdDyyWml4q6K0OuxfyQN1m3wlHzzjQWzATmfuKQJdP937nxZZ2UfP9H_29MtNMTE2zkMSYP1QfZEUOOA4lSPFYKJW_CnzgAxKuqHAl_6KT9t-MkCpKIdBEggNOwydo5L20g1NdZNhHsGp1n-7LYU3ukWK97Q7Gp5T4YzLNvf9wum5cOkzsVcNfR4bYE323XQpN5hFCvBrJE1ASKahgM';
+  static const alice =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuD6NWImSaJK0C05V6-WJiwBVOsclTU6Jd08B1oViyDovVbf-tY0rFq74uvo1MxsiJVuRfnTZML-rUaNEoHZiE86eiqdMMDDZAof78YMBan_BxeOP163tjBbBMaUswvo5E2Ti_4DPnWEh7_eDcB7z9pRieLF2BhX-lG4chTKS_Vp0w0yLBeKVtnrwxKuQ50uw3Di-cpyJ_-DyPQYzENgsYei-bkVsTh_VtU90CD0vsdKOOMTGO340AXuXk49b1xWjrROSngFVqKz1Ac';
+  static const bob =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuCCH7duarxI5Gs6vPvMAK7nksjqbvGGQT8QppTjLPq3x2jnNs4P6pkcn5aFQw-iXRpMncXepMw8IewG2uL2EishD8brZl1AB3gtDaTIUZYJW946jt0mqK4dfC47XiQoT5AzS-xvl-_CapIsNOp8DZa-oOqmpXLHTYRHkpUbPKU6PClzz1b2bG4GsG7OZDDMpnnMSDLDgqF7AoMCKC46xXx-ZlxLIhfq2W0VL0PREiWzuVO1LHB0_ZSWJFgBSI6Bko_jUT8W9AFlgw8';
+  static const dave =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBt1HbYj3yl6qqlO6LoOpUKyH-m9bAjXV00pnlJVWDb7mRTWlgsAgqJB3WJcbGBMVWQvPNb-Y6EI801GmIhjTXzgNWGAqzjQF4fORAse8JZKSBUrAXbpOZI2CzAIh1p5lTVL-LaCuw7Yx6HAd4lbuWeGW-TC7La-S5FVu3sDHEao1Mpt_LPxyutggyIKzxSvi7JVm8X0cO4w4emSXjPxt-X65giKXW8IL0WDF6CUBv_9Fg6vc4uoCSdSlR25tlkFwsB153wgrxxe4M';
+}
+
 enum MockMsgKind { text, toolCall, typing, system }
 
 class MockMessage {
@@ -37,6 +50,8 @@ class MockConversation {
     required this.messages,
     this.unread = 0,
     this.accentColor,
+    this.avatarUrl,
+    this.isGroup = false,
   });
   final String id;
   final String name;
@@ -45,6 +60,8 @@ class MockConversation {
   final int unread;
   final List<MockMessage> messages;
   final Color? accentColor;
+  final String? avatarUrl;
+  final bool isGroup;
 
   MockMessage? get lastMessage =>
       messages.isEmpty ? null : messages.last;
@@ -99,6 +116,7 @@ class MockData {
       mxid: '@alice:portal.local',
       subtitle: '好的，明天见！',
       unread: 2,
+      avatarUrl: MockAvatars.alice,
       messages: [
         MockMessage(isMe: false, text: '你好！',
             time: _now.subtract(const Duration(minutes: 30))),
@@ -120,6 +138,7 @@ class MockData {
       mxid: '#design-group:portal.local',
       subtitle: 'Carol: 原型图更新了',
       unread: 5,
+      isGroup: true,
       messages: [
         MockMessage(isMe: false, text: 'Alice: 大家好，今天来讨论一下新版本的设计方案',
             time: _now.subtract(const Duration(days: 1, hours: 5))),
@@ -137,6 +156,7 @@ class MockData {
       mxid: '@bob:portal.local',
       subtitle: '文件已发送，请查收',
       unread: 0,
+      avatarUrl: MockAvatars.bob,
       messages: [
         MockMessage(isMe: false, text: '文件已发送，请查收',
             time: _now.subtract(const Duration(days: 1, hours: 2))),
@@ -148,6 +168,7 @@ class MockData {
       mxid: '@dave:portal.local',
       subtitle: '好的，我会在会议前审阅',
       unread: 0,
+      avatarUrl: MockAvatars.dave,
       messages: [
         MockMessage(isMe: true, text: '请帮我看看这份文档',
             time: _now.subtract(const Duration(days: 2, hours: 1))),

@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../mock/mock_data.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/m3/glass_header.dart';
 
@@ -28,22 +29,25 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     final t = context.tk;
     final client = ref.read(matrixClientProvider);
     final room = client.getRoomById(widget.roomId);
-    if (room == null) {
+    // 找不到真房间时回退 mock（产品设计组等以 mock_ 起头）。
+    final mock = room == null ? MockData.byId(widget.roomId) : null;
+    if (room == null && mock == null) {
       return Scaffold(
         backgroundColor: t.bg,
         body: const Center(child: Text('群组不存在')),
       );
     }
 
-    final realMembers = room.getParticipants();
+    final realMembers = room?.getParticipants() ?? const <User>[];
     final members = _buildMemberStripData(realMembers);
+    final memberCount = realMembers.isEmpty ? members.length : realMembers.length;
 
     return Scaffold(
       backgroundColor: t.bg,
       body: Column(
         children: [
           GlassHeader.detail(
-            title: '聊天信息(${realMembers.isEmpty ? members.length : realMembers.length})',
+            title: '聊天信息($memberCount)',
             actions: [
               GlassHeaderButton(
                 icon: Symbols.search,
@@ -112,7 +116,7 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                     _RowDanger(
                       label: '退出群聊',
                       onTap: () async {
-                        await room.leave();
+                        if (room != null) await room.leave();
                         if (mounted) Navigator.of(context).pop();
                       },
                     ),

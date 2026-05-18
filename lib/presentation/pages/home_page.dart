@@ -108,7 +108,8 @@ class _HomePageState extends ConsumerState<HomePage> {
             leading: _tab == 0
                 ? GestureDetector(
                     onTap: () => setState(() => _tab = 3),
-                    child: const PortalAvatar(seed: 'me', size: 32),
+                    child: const PortalAvatar(
+                        seed: 'me', size: 32, imageUrl: MockAvatars.me),
                   )
                 : null,
             title: _tabTitles[_tab],
@@ -270,7 +271,9 @@ class _ChatList extends ConsumerWidget {
             time: last == null ? '' : DateFormat('HH:mm').format(last.time),
             unread: c.unread,
             isAgent: c.id == 'mock_aibot',
-            online: true,
+            isGroup: c.isGroup,
+            avatarUrl: c.avatarUrl,
+            online: !c.isGroup && c.id != 'mock_aibot',
             isLast: i == convs.length - 1,
             onTap: () => context.push('/chat/${c.id}'),
           );
@@ -338,6 +341,8 @@ class _ConvRow extends StatelessWidget {
     required this.unread,
     required this.onTap,
     this.isAgent = false,
+    this.isGroup = false,
+    this.avatarUrl,
     this.online = false,
     this.isLast = false,
   });
@@ -347,15 +352,26 @@ class _ConvRow extends StatelessWidget {
   final int unread;
   final VoidCallback onTap;
   final bool isAgent;
+  final bool isGroup;
+  final String? avatarUrl;
   final bool online;
   final bool isLast;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    Offset rcPos = Offset.zero;
     return Material(
       color: Colors.transparent,
-      child: InkWell(
+      child: GestureDetector(
+        // 桌面端右键 / 移动端长按 → 弹 chat-ctx-menu（置顶/不显示/删除聊天）。
+        onSecondaryTapDown: (d) => rcPos = d.globalPosition,
+        onSecondaryTap: () => _showChatCtxMenu(context, rcPos, name),
+        onLongPressStart: (d) {
+          rcPos = d.globalPosition;
+          _showChatCtxMenu(context, rcPos, name);
+        },
+        child: InkWell(
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
@@ -379,8 +395,20 @@ class _ConvRow extends StatelessWidget {
                         child: Icon(Symbols.robot_2,
                             size: 24, color: t.onPrimaryContainer, fill: 1),
                       )
+                    else if (isGroup)
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: t.surfaceHigh,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(Symbols.groups,
+                            size: 24, color: t.textMute, fill: 1),
+                      )
                     else
-                      PortalAvatar(seed: name, size: 48),
+                      PortalAvatar(seed: name, size: 48, imageUrl: avatarUrl),
                     if (online)
                       const Positioned(bottom: 0, right: 0, child: OnlineDot()),
                   ],
@@ -475,6 +503,122 @@ class _ConvRow extends StatelessWidget {
           ),
         ),
       ),
+      ),
+    );
+  }
+}
+
+void _showChatCtxMenu(BuildContext context, Offset pos, String name) {
+  final size = MediaQuery.of(context).size;
+  const menuW = 176.0;
+  const menuH = 148.0;
+  var left = pos.dx;
+  var top = pos.dy;
+  if (left + menuW > size.width - 8) left = size.width - menuW - 8;
+  if (top + menuH > size.height - 8) top = size.height - menuH - 8;
+  if (left < 8) left = 8;
+  if (top < 8) top = 8;
+
+  showGeneralDialog<String>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'chat-ctx',
+    barrierColor: Colors.black.withValues(alpha: 0.15),
+    transitionDuration: const Duration(milliseconds: 120),
+    pageBuilder: (ctx, _, __) => Stack(
+      children: [
+        Positioned(
+          left: left,
+          top: top,
+          width: menuW,
+          child: _ChatCtxMenuCard(name: name),
+        ),
+      ],
+    ),
+    transitionBuilder: (ctx, a, _, child) =>
+        FadeTransition(opacity: a, child: child),
+  );
+}
+
+class _ChatCtxMenuCard extends StatelessWidget {
+  const _ChatCtxMenuCard({required this.name});
+  final String name;
+
+  // chat-ctx-menu 用固定深色，与 light/dark 主题无关（对齐 index.html#chat-ctx-menu）。
+  static const _dark = Color(0xFF1E2026);
+  static const _divider = Color(0x1AFFFFFF);
+  static const _icon = Color(0xB3FFFFFF);
+  static const _label = Colors.white;
+  static const _danger = Color(0xFFFF6B6B);
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _dark,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _row(context, Symbols.push_pin, '置顶', () {
+              Navigator.of(context).pop();
+              _toast(context, '已置顶「$name」');
+            }),
+            const Divider(height: 1, color: _divider, indent: 16, endIndent: 16),
+            _row(context, Symbols.visibility_off, '不显示', () {
+              Navigator.of(context).pop();
+              _toast(context, '已隐藏「$name」');
+            }),
+            const Divider(height: 1, color: _divider, indent: 16, endIndent: 16),
+            _row(
+              context,
+              Symbols.delete,
+              '删除聊天',
+              () {
+                Navigator.of(context).pop();
+                _toast(context, '已删除「$name」');
+              },
+              danger: true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(BuildContext ctx, IconData icon, String label, VoidCallback onTap,
+      {bool danger = false}) {
+    final color = danger ? _danger : _label;
+    final iconColor = danger ? _danger : _icon;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: iconColor),
+            const SizedBox(width: 12),
+            Text(label, style: AppTheme.sans(size: 15, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _toast(BuildContext ctx, String msg) {
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 1)),
     );
   }
 }
@@ -629,6 +773,7 @@ class _ContactList extends ConsumerWidget {
                     name: c.name,
                     subtitle: c.mxid,
                     online: true,
+                    avatarUrl: c.avatarUrl,
                     onTap: () => context
                         .push('/contact/${Uri.encodeComponent(c.mxid)}'),
                   ),
@@ -818,12 +963,14 @@ class _ContactEntryTile extends StatelessWidget {
     required this.onTap,
     this.subtitle,
     this.online = false,
+    this.avatarUrl,
   });
 
   final String name;
   final String? subtitle;
   final VoidCallback onTap;
   final bool online;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -839,7 +986,7 @@ class _ContactEntryTile extends StatelessWidget {
               height: 40,
               child: Stack(
                 children: [
-                  PortalAvatar(seed: name, size: 40),
+                  PortalAvatar(seed: name, size: 40, imageUrl: avatarUrl),
                   if (online)
                     const Positioned(
                       right: 0,
@@ -916,7 +1063,8 @@ class _MePage extends ConsumerWidget {
                     border: Border.all(color: t.surfaceHover, width: 2),
                   ),
                   child: ClipOval(
-                    child: PortalAvatar(seed: domain, size: 96),
+                    child: PortalAvatar(
+                        seed: domain, size: 96, imageUrl: MockAvatars.me),
                   ),
                 ),
                 Positioned(

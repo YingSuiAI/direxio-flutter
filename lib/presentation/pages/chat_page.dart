@@ -678,21 +678,40 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
           // 普通联系人用 s-chat 头部（头像 + 在线 + call/video/more）。
           GlassHeader.detail(
             title: c.name,
-            subtitle: _isAiBot ? '端对端加密' : '在线',
+            subtitle: _isAiBot
+                ? '端对端加密'
+                : (c.isGroup ? '6 名成员' : '在线'),
             subtitleIcon: _isAiBot ? Symbols.lock : null,
             centerLeading: _isAiBot
                 ? _AgentBadge(color: t.accent)
-                : SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: Stack(
-                      children: [
-                        PortalAvatar(seed: c.name, size: 36),
-                        const Positioned(
-                            bottom: 0, right: 0, child: OnlineDot(size: 10)),
-                      ],
-                    ),
-                  ),
+                : c.isGroup
+                    ? Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: t.surfaceHigh,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(Symbols.groups,
+                            size: 20, color: t.textMute, fill: 1),
+                      )
+                    : SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Stack(
+                          children: [
+                            PortalAvatar(
+                                seed: c.name,
+                                size: 36,
+                                imageUrl: c.avatarUrl),
+                            const Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: OnlineDot(size: 10)),
+                          ],
+                        ),
+                      ),
             actions: _isAiBot
                 ? [
                     GlassHeaderButton(
@@ -716,7 +735,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                       icon: Symbols.more_vert,
                       color: t.accent,
                       onTap: () => context.push(
-                          '/chat-info/${Uri.encodeComponent(c.id)}'),
+                          '${c.isGroup ? '/group-detail' : '/chat-info'}/${Uri.encodeComponent(c.id)}'),
                     ),
                   ],
           ),
@@ -908,6 +927,9 @@ class _SChatBubble extends StatelessWidget {
       onTapDown: (d) => pos = d.globalPosition,
       onTap: onTap,
       onLongPress: () => onLongPressAt?.call(pos),
+      // 桌面端右键：记录位置 + 触发同一菜单。
+      onSecondaryTapDown: (d) => pos = d.globalPosition,
+      onSecondaryTap: () => onLongPressAt?.call(pos),
       child: Container(
         decoration: BoxDecoration(
           color: bubbleColor,

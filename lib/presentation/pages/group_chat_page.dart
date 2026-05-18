@@ -2,9 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
+import '../../core/theme/design_tokens.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/chat_widgets.dart';
+import '../widgets/m3/glass_header.dart';
 
 class GroupChatPage extends ConsumerStatefulWidget {
   const GroupChatPage({super.key, required this.roomId});
@@ -82,39 +85,39 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   @override
   Widget build(BuildContext context) {
     final room = _room;
-    if (room == null) return const Scaffold(body: Center(child: Text('群组不存在')));
-    final events = _timeline?.events
-        .where((e) => e.type == EventTypes.Message)
-        .toList() ?? [];
+    if (room == null) {
+      return const Scaffold(body: Center(child: Text('群组不存在')));
+    }
+    final t = context.tk;
+    final events =
+        _timeline?.events.where((e) => e.type == EventTypes.Message).toList() ??
+            [];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(room.getLocalizedDisplayname(),
-                style: const TextStyle(fontSize: 16)),
-            Text('${room.summary.mJoinedMemberCount ?? 0} 位成员',
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal)),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.group_outlined),
-            onPressed: () => context.push('/group-detail/${Uri.encodeComponent(widget.roomId)}'),
-          ),
-        ],
-      ),
       body: Column(
         children: [
+          GlassHeader.detail(
+            title: room.getLocalizedDisplayname(),
+            subtitle: '${room.summary.mJoinedMemberCount ?? 0} 位成员',
+            subtitleIcon: Symbols.group,
+            actions: [
+              GlassHeaderButton(
+                icon: Symbols.group,
+                color: t.accent,
+                onTap: () => context.push(
+                    '/group-detail/${Uri.encodeComponent(widget.roomId)}'),
+              ),
+            ],
+          ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : ListView.builder(
                     reverse: true,
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     itemCount: events.length,
-                    itemBuilder: (context, i) => MessageBubble(event: events[i]),
+                    itemBuilder: (context, i) =>
+                        MessageBubble(event: events[i]),
                   ),
           ),
           MessageInputBar(ctrl: _msgCtrl, onSend: _send, room: room),

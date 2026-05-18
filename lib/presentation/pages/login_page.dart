@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../providers/auth_provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/m3/m3_card.dart';
 
+/// 登录页 —— 对齐 Agent P2P 设计稿 s-login。
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -15,9 +17,10 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _domainCtrl = TextEditingController();
+  final _domainCtrl = TextEditingController(text: 'https://portal.agent-p2p.io');
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
+  bool _obscure = true;
   String? _error;
 
   @override
@@ -29,7 +32,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _loadLastDomain() async {
     const storage = FlutterSecureStorage();
     final hs = await storage.read(key: 'matrix_homeserver');
-    if (hs != null && mounted && _domainCtrl.text.isEmpty) {
+    if (hs != null && mounted) {
       final host = Uri.tryParse(hs)?.host ?? '';
       if (host.isNotEmpty) setState(() => _domainCtrl.text = host);
     }
@@ -62,151 +65,110 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
+      backgroundColor: t.surface,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Wordmark
-                  Row(
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: t.accent.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: t.accent.withValues(alpha: 0.4),
-                          ),
+                  // App icon — squircle 112
+                  Container(
+                    width: 112,
+                    height: 112,
+                    decoration: BoxDecoration(
+                      color: t.primaryContainer,
+                      borderRadius: BorderRadius.circular(112 * 0.225),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
-                        alignment: Alignment.center,
-                        child: Icon(LucideIcons.message_square,
-                            size: 16, color: t.accent),
-                      ),
-                      const SizedBox(width: 10),
-                      Text('Portal IM', style: AppTheme.mono(
-                          size: 17, weight: FontWeight.w700, color: t.text)),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text('去中心化 P2P 通讯',
-                      style: AppTheme.sans(size: 13, color: t.textMute)),
-
-                  const SizedBox(height: 48),
-
-                  _Label(text: '域名'),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _domainCtrl,
-                    decoration: const InputDecoration(
-                      hintText: 'liyananp2p.com',
+                      ],
                     ),
-                    style: AppTheme.mono(size: 14, color: t.text),
-                    keyboardType: TextInputType.url,
-                    autocorrect: false,
+                    alignment: Alignment.center,
+                    child: Icon(Symbols.communication,
+                        size: 56, color: t.onPrimaryContainer, fill: 1),
                   ),
+                  const SizedBox(height: 24),
+                  Text('Agent P2P',
+                      style: AppTheme.sans(
+                          size: 28,
+                          weight: FontWeight.w700,
+                          color: t.text)),
+                  const SizedBox(height: 4),
+                  Text('去中心化 · 端对端加密 · 安全通讯',
+                      style: AppTheme.sans(size: 15, color: t.textMute)),
+                  const SizedBox(height: 40),
 
-                  const SizedBox(height: 16),
-                  _Label(text: '密码'),
-                  const SizedBox(height: 6),
-                  TextField(
+                  // Portal 地址
+                  M3InputField(
+                    controller: _domainCtrl,
+                    icon: Symbols.link,
+                    hint: 'Portal 地址',
+                    keyboardType: TextInputType.url,
+                  ),
+                  const SizedBox(height: 12),
+                  // 密码
+                  M3InputField(
                     controller: _passwordCtrl,
-                    decoration: const InputDecoration(hintText: '••••••••'),
-                    style: AppTheme.sans(size: 14, color: t.text),
-                    obscureText: true,
+                    icon: Symbols.lock,
+                    hint: '密码',
+                    obscure: _obscure,
                     onSubmitted: (_) => _login(),
+                    trailing: IconButton(
+                      icon: Icon(
+                        _obscure
+                            ? Symbols.visibility
+                            : Symbols.visibility_off,
+                        size: 20,
+                        color: t.textMute,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscure = !_obscure),
+                    ),
                   ),
 
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: t.danger.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: t.danger.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(LucideIcons.circle_alert,
-                              size: 14, color: t.danger),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(_error!,
-                                style: AppTheme.mono(
-                                    size: 12, color: t.danger)),
-                          ),
-                        ],
-                      ),
-                    ),
+                    _ErrorBanner(message: _error!),
                   ],
 
-                  const SizedBox(height: 24),
-                  FilledButton(
+                  const SizedBox(height: 12),
+                  M3PrimaryButton(
+                    label: _loading ? '登录中…' : '登录',
                     onPressed: _loading ? null : _login,
-                    child: _loading
-                        ? SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(t.bg),
-                            ),
-                          )
-                        : const Text('登录'),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
+                  // 「或」分割线
+                  Row(
+                    children: [
+                      Expanded(
+                          child: Divider(
+                              color: t.border.withValues(alpha: 0.4))),
+                      Padding(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('或',
+                            style: AppTheme.sans(
+                                size: 15, color: t.textMute)),
+                      ),
+                      Expanded(
+                          child: Divider(
+                              color: t.border.withValues(alpha: 0.4))),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
                   TextButton(
                     onPressed: () => context.go('/init'),
-                    child: const Text('首次使用？创建 Portal 账号 →'),
-                  ),
-
-                  const SizedBox(height: 32),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: t.surface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: t.border),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(LucideIcons.info,
-                            size: 14, color: t.accentCool),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('域名即是你的身份',
-                                  style: AppTheme.sans(
-                                      size: 12,
-                                      color: t.text,
-                                      weight: FontWeight.w600)),
-                              const SizedBox(height: 4),
-                              Text(
-                                '每个 Portal 一台 server，登录用自己控制的域名。\n例：',
-                                style: AppTheme.sans(
-                                    size: 12, color: t.textMute),
-                              ),
-                              Text('liyananp2p.com',
-                                  style: AppTheme.mono(
-                                      size: 12, color: t.accentCool)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: Text('注册新账号',
+                        style: AppTheme.sans(
+                            size: 15, color: t.accent)),
                   ),
                 ],
               ),
@@ -218,16 +180,31 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 }
 
-class _Label extends StatelessWidget {
-  const _Label({required this.text});
-  final String text;
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: AppTheme.sans(
-          size: 12, color: context.tk.textMute, weight: FontWeight.w500),
+    final t = context.tk;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: t.danger.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.danger.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Symbols.error, size: 16, color: t.danger),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(message,
+                style: AppTheme.sans(size: 13, color: t.danger)),
+          ),
+        ],
+      ),
     );
   }
 }

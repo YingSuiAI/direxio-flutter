@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
@@ -13,7 +15,7 @@ import '../mock/mcp_policy.dart';
 import '../mock/mock_mcp_client.dart';
 import '../widgets/agent_message_body.dart';
 import '../widgets/tool_call_bubble.dart';
-import 'package:shimmer/shimmer.dart';
+import '../widgets/m3/glass_header.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import 'package:intl/intl.dart';
@@ -31,8 +33,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Timeline? _timeline;
   bool _loading = true;
 
-  Room? get _room =>
-      ref.read(matrixClientProvider).getRoomById(widget.roomId);
+  Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
 
   /// 未登录且 roomId 命中 mock 数据时走 mock 渲染；
   /// 已登录则一律走真 Matrix timeline（真房间 id 不会以 mock_ 开头）。
@@ -82,7 +83,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     var attempts = 0;
     while (attempts < 5 &&
         timeline.canRequestHistory &&
-        timeline.events.where((e) => e.type == EventTypes.Message).length < 50) {
+        timeline.events.where((e) => e.type == EventTypes.Message).length <
+            50) {
       try {
         await timeline.requestHistory(historyCount: 30);
       } on Object catch (e) {
@@ -123,69 +125,55 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     // Timeline.events is newest-first; ListView reverse:true puts index 0 at
     // bottom — so we keep newest-first to render newest at the bottom.
-    final events = _timeline?.events
-            .where((e) => e.type == EventTypes.Message)
-            .toList() ??
-        [];
+    final events =
+        _timeline?.events.where((e) => e.type == EventTypes.Message).toList() ??
+            [];
 
     final mxid = room.directChatMatrixID ?? '';
     final name = room.getLocalizedDisplayname();
 
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            PortalAvatar(seed: name, size: 32),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+      body: Column(
+        children: [
+          GlassHeader.detail(
+            title: name,
+            subtitle: mxid.isNotEmpty ? mxid : '端对端加密',
+            subtitleIcon: mxid.isEmpty ? Symbols.lock : null,
+            centerLeading: SizedBox(
+              width: 36,
+              height: 36,
+              child: Stack(
                 children: [
-                  Text(name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(
-                          size: 14,
-                          weight: FontWeight.w600,
-                          color: t.text)),
-                  if (mxid.isNotEmpty)
-                    Text(mxid,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            AppTheme.mono(size: 11, color: t.accentCool)),
+                  PortalAvatar(seed: name, size: 36),
+                  const Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: OnlineDot(size: 10),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(LucideIcons.phone, size: 18, color: t.text),
-            onPressed: () => context.push(
-                '/call/${Uri.encodeComponent(widget.roomId)}'),
+            actions: [
+              GlassHeaderButton(
+                icon: Symbols.call,
+                color: t.accent,
+                onTap: () => context
+                    .push('/call/${Uri.encodeComponent(widget.roomId)}'),
+              ),
+              GlassHeaderButton(
+                icon: Symbols.videocam,
+                color: t.accent,
+                onTap: () => context
+                    .push('/call/${Uri.encodeComponent(widget.roomId)}'),
+              ),
+              GlassHeaderButton(
+                icon: Symbols.info,
+                color: t.accent,
+                onTap: () => context
+                    .push('/contact/${Uri.encodeComponent(mxid)}'),
+              ),
+            ],
           ),
-          IconButton(
-            icon: Icon(LucideIcons.video, size: 18, color: t.text),
-            onPressed: () => context.push(
-                '/call/${Uri.encodeComponent(widget.roomId)}'),
-          ),
-          IconButton(
-            icon: Icon(LucideIcons.info, size: 18, color: t.text),
-            onPressed: () => context.push(
-                '/contact/${Uri.encodeComponent(mxid)}'),
-          ),
-          const SizedBox(width: 4),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: t.border),
-        ),
-      ),
-      body: Column(
-        children: [
           Expanded(
             child: _loading
                 ? Center(
@@ -199,8 +187,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 : events.isEmpty
                     ? Center(
                         child: Text('开始你们的第一条消息',
-                            style: AppTheme.sans(
-                                size: 13, color: t.textMute)))
+                            style: AppTheme.sans(size: 13, color: t.textMute)))
                     : ListView.builder(
                         reverse: true,
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -272,8 +259,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     });
     // AI Bot 自动 echo 一条流式回复（mock）
     if (_isAiBot) {
-      _streamAgentReply(
-          '收到："$text"。\n\n（这是 mock 回复，真接 LLM 后会基于上下文回答）');
+      _streamAgentReply('收到："$text"。\n\n（这是 mock 回复，真接 LLM 后会基于上下文回答）');
     }
   }
 
@@ -346,16 +332,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     );
   }
 
-  void _addAgentReply(String text) {
-    _messages.add(
-      MockMessage(
-        isMe: false,
-        text: text,
-        time: DateTime.now().add(const Duration(seconds: 1)),
-      ),
-    );
-  }
-
   Future<void> _onTokenUsage() async {
     setState(() => _addUserAction('/查询 token 用量'));
     try {
@@ -380,7 +356,8 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     setState(() => _addUserAction('/总结最近谁和我聊了什么'));
     try {
       // Step 1: 解析 Jack
-      final who = await _callToolWithBubble('list_conversations', {'query': 'jack'});
+      final who =
+          await _callToolWithBubble('list_conversations', {'query': 'jack'});
       final convs = who.data['conversations'] as List;
       if (convs.isEmpty) {
         _streamAgentReply('没有匹配到名为 Jack 的会话。');
@@ -389,16 +366,16 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
       final target = convs.first;
       // Step 2: 拉历史
       final r = await _callToolWithBubble(
-          'get_recent_messages',
-          {'room_id': target['id'], 'limit': 50});
+          'get_recent_messages', {'room_id': target['id'], 'limit': 50});
       final msgs = (r.data['messages'] as List).cast<Map>();
-      final preview = msgs.take(3).map((m) =>
-          '> **${m['sender_name']}**：${m['text']}').join('\n>\n');
+      final preview = msgs
+          .take(3)
+          .map((m) => '> **${m['sender_name']}**：${m['text']}')
+          .join('\n>\n');
 
       final policy = ref.read(mcpPolicyStoreProvider)[_agentId]!;
       final warnLines = <String>[
-        if (r.warnings.isNotEmpty)
-          ...r.warnings.map((w) => '> ⚠️ $w'),
+        if (r.warnings.isNotEmpty) ...r.warnings.map((w) => '> ⚠️ $w'),
         '> 当前窗口：**${policy.historyWindow.label}**；范围：**${policy.summary}**',
       ];
 
@@ -478,8 +455,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
               _menuTile(t, LucideIcons.sparkles, '让 AI Bot 解读', 'ai',
                   highlight: true),
               if (m.isMe)
-                _menuTile(t, LucideIcons.trash_2, '删除', 'delete',
-                    danger: true),
+                _menuTile(t, LucideIcons.trash_2, '删除', 'delete', danger: true),
             ],
           ),
         );
@@ -523,8 +499,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   }
 
   /// 包装：先 precheck，需确认就弹 banner；否则直接调
-  Future<ToolResult> _callToolWithBubble(
-      String tool, Map<String, dynamic> args,
+  Future<ToolResult> _callToolWithBubble(String tool, Map<String, dynamic> args,
       {bool userConfirmed = false}) async {
     final client = ref.read(mockMcpClientProvider);
     final pre = client.precheck(_agentId, tool);
@@ -562,55 +537,41 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     final t = context.tk;
     final c = widget.conv;
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            PortalAvatar(seed: c.name, size: 32),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+      body: Column(
+        children: [
+          GlassHeader.detail(
+            title: c.name,
+            subtitle: _isAiBot ? '端对端加密' : '在线',
+            subtitleIcon: _isAiBot ? Symbols.lock : null,
+            centerLeading: SizedBox(
+              width: 36,
+              height: 36,
+              child: Stack(
                 children: [
-                  Text(c.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(
-                          size: 14,
-                          weight: FontWeight.w600,
-                          color: t.text)),
-                  Text(c.mxid,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.mono(size: 11, color: t.accentCool)),
+                  PortalAvatar(seed: c.name, size: 36),
+                  const Positioned(
+                      bottom: 0, right: 0, child: OnlineDot(size: 10)),
                 ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(LucideIcons.phone, size: 18, color: t.text),
-            onPressed: () {},
+            actions: [
+              GlassHeaderButton(
+                icon: Symbols.call,
+                color: t.accent,
+                onTap: () {},
+              ),
+              GlassHeaderButton(
+                icon: Symbols.videocam,
+                color: t.accent,
+                onTap: () {},
+              ),
+              GlassHeaderButton(
+                icon: Symbols.more_vert,
+                color: t.accent,
+                onTap: () {},
+              ),
+            ],
           ),
-          IconButton(
-            icon: Icon(LucideIcons.video, size: 18, color: t.text),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: Icon(LucideIcons.info, size: 18, color: t.text),
-            onPressed: () {},
-          ),
-          const SizedBox(width: 4),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: t.border),
-        ),
-      ),
-      body: Column(
-        children: [
           Expanded(
             child: _messages.isEmpty
                 ? _EmptyState(isAiBot: _isAiBot)
@@ -631,10 +592,9 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                           warnings: m.toolWarnings ?? const [],
                           denied: m.toolResultSummary?.isEmpty == true &&
                               (m.toolWarnings?.isNotEmpty ?? false),
-                          deniedReason:
-                              m.toolResultSummary?.isEmpty == true
-                                  ? m.toolWarnings?.first
-                                  : null,
+                          deniedReason: m.toolResultSummary?.isEmpty == true
+                              ? m.toolWarnings?.first
+                              : null,
                         );
                       }
                       return _MockBubble(
@@ -679,7 +639,8 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
 }
 
 class _MockBubble extends StatelessWidget {
-  const _MockBubble({required this.msg, this.isAgent = false, this.onLongPress});
+  const _MockBubble(
+      {required this.msg, this.isAgent = false, this.onLongPress});
   final MockMessage msg;
   final bool isAgent;
   final VoidCallback? onLongPress;
@@ -689,75 +650,74 @@ class _MockBubble extends StatelessWidget {
     final t = context.tk;
     final isMe = msg.isMe;
     final time = DateFormat('HH:mm').format(msg.time);
-    final sideColor = isMe ? t.accent : t.accentCool;
 
-    return GestureDetector(
+    // 气泡：对方 surfaceHigh / 自己 accent；外侧圆角大，靠身侧小圆角
+    final bubbleColor = isMe ? t.accent : t.surfaceHigh;
+    final textColor = isMe ? t.onAccent : t.text;
+    final radius = BorderRadius.only(
+      topLeft: const Radius.circular(16),
+      topRight: const Radius.circular(16),
+      bottomLeft: Radius.circular(isMe ? 16 : 4),
+      bottomRight: Radius.circular(isMe ? 4 : 16),
+    );
+
+    final bubble = GestureDetector(
       onLongPress: onLongPress,
-      child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bubbleColor,
+          borderRadius: radius,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: (isAgent && !isMe)
+            ? AgentMessageBody(msg.text)
+            : Text(
+                msg.text,
+                style: AppTheme.sans(size: 17, color: textColor),
+              ),
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment:
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
-          if (!isMe)
-            Container(
-              width: 2,
-              constraints:
-                  const BoxConstraints(minHeight: 24, maxHeight: 80),
-              margin: const EdgeInsets.only(top: 2),
-              decoration: BoxDecoration(
-                color: sideColor,
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
+          if (!isMe) ...[
+            PortalAvatar(seed: msg.isMe ? 'me' : 'agent', size: 28),
+            const SizedBox(width: 8),
+          ],
           Flexible(
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.72,
+                maxWidth: MediaQuery.of(context).size.width * 0.78,
               ),
               child: Column(
-                crossAxisAlignment: isMe
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
+                  bubble,
+                  const SizedBox(height: 4),
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                    child: (isAgent && !isMe)
-                        ? AgentMessageBody(msg.text)
-                        : Text(
-                            msg.text,
-                            style: AppTheme.sans(
-                                size: 14,
-                                color: t.text,
-                                weight: FontWeight.w400),
-                          ),
-                  ),
-                  const SizedBox(height: 2),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(time,
-                        style: AppTheme.mono(size: 10, color: t.textMute)),
+                        style: AppTheme.sans(size: 11, color: t.textMute)),
                   ),
                 ],
               ),
             ),
           ),
-          if (isMe)
-            Container(
-              width: 2,
-              constraints:
-                  const BoxConstraints(minHeight: 24, maxHeight: 80),
-              margin: const EdgeInsets.only(top: 2),
-              decoration: BoxDecoration(
-                color: sideColor,
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
         ],
       ),
-    ),
     );
   }
 }
@@ -816,9 +776,7 @@ class _ConfirmBanner extends StatelessWidget {
                       style: AppTheme.sans(size: 12, color: t.textMute)),
                   Text(pending.tool,
                       style: AppTheme.mono(
-                          size: 12,
-                          color: t.accent,
-                          weight: FontWeight.w600)),
+                          size: 12, color: t.accent, weight: FontWeight.w600)),
                   Text(' · 需你确认',
                       style: AppTheme.sans(size: 12, color: t.textMute)),
                 ]),
@@ -922,122 +880,132 @@ class _MockInputBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.bg,
-        border: Border(top: BorderSide(color: t.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (suggestions.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: SizedBox(
-                  height: 30,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: t.bg.withValues(alpha: 0.85),
+            border:
+                Border(top: BorderSide(color: t.border.withValues(alpha: 0.5))),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (suggestions.isNotEmpty)
+                  SizedBox(
+                    height: 38,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Row(children: [
+                            Icon(Symbols.auto_awesome,
+                                size: 14, color: t.accent),
+                            const SizedBox(width: 4),
+                            Text('AI 建议',
+                                style: AppTheme.sans(
+                                    size: 12,
+                                    color: t.textMute,
+                                    weight: FontWeight.w600)),
+                          ]),
+                        ),
+                        ...suggestions.map((s) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Material(
+                                color: t.surfaceHigh,
+                                borderRadius: BorderRadius.circular(16),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(16),
+                                  onTap: () => onPickSuggestion?.call(s),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 6),
+                                    child: Text(s,
+                                        style: AppTheme.sans(
+                                            size: 13, color: t.text)),
+                                  ),
+                                ),
+                              ),
+                            )),
+                      ],
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Row(children: [
-                          Icon(LucideIcons.sparkles,
-                              size: 11, color: t.accentCool),
-                          const SizedBox(width: 4),
-                          Text('AI 建议',
-                              style: AppTheme.mono(
-                                  size: 10,
-                                  color: t.textMute,
-                                  weight: FontWeight.w600)),
-                          const SizedBox(width: 6),
-                        ]),
+                      IconButton(
+                        icon: Icon(Symbols.add_circle,
+                            size: 28, color: t.textMute),
+                        onPressed: () => _showCommonMenu(context),
                       ),
-                      ...suggestions.map((s) => Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: ActionChip(
-                              label: Text(s,
-                                  style: AppTheme.sans(
-                                      size: 12, color: t.text)),
-                              visualDensity: VisualDensity.compact,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                              onPressed: () => onPickSuggestion?.call(s),
-                            ),
-                          )),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: t.surfaceHigh,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: ctrl,
+                                  textInputAction: TextInputAction.send,
+                                  onSubmitted: (_) => onSend(),
+                                  maxLines: 5,
+                                  minLines: 1,
+                                  style: AppTheme.sans(size: 17, color: t.text),
+                                  decoration: InputDecoration(
+                                    hintText: '消息…',
+                                    hintStyle: AppTheme.sans(
+                                        size: 17, color: t.textMute),
+                                    isCollapsed: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 11),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: Icon(Symbols.mood,
+                                    size: 24, color: t.accent),
+                                onPressed: () {},
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Material(
+                        color: t.accent,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: onSend,
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
+                            child:
+                                Icon(Symbols.send, size: 20, color: t.onAccent),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-            Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: ctrl,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => onSend(),
-                  decoration: InputDecoration(
-                    hintText: '',
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    fillColor: t.surface,
-                    filled: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: t.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: t.border),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: t.accent),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Material(
-                color: t.surface,
-                borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => _showCommonMenu(context),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: t.border),
-                    ),
-                    child: Icon(LucideIcons.plus, size: 18, color: t.text),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Material(
-                color: t.accent,
-                borderRadius: BorderRadius.circular(8),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: onSend,
-                  child: const Padding(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                    child: Icon(LucideIcons.send_horizontal,
-                        size: 16, color: Colors.black),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-          ],
         ),
       ),
     );
@@ -1069,8 +1037,7 @@ class _CommonAction extends StatelessWidget {
             child: Icon(icon, size: 22, color: t.text),
           ),
           const SizedBox(height: 6),
-          Text(label,
-              style: AppTheme.sans(size: 11, color: t.textMute)),
+          Text(label, style: AppTheme.sans(size: 11, color: t.textMute)),
         ],
       ),
     );
@@ -1101,30 +1068,32 @@ class _AgentFloatingBar extends ConsumerWidget {
         side: BorderSide(color: t.border),
       ),
       position: RelativeRect.fromLTRB(
-        anchor.dx, anchor.dy, anchor.dx + 1, anchor.dy + 1,
+        anchor.dx,
+        anchor.dy,
+        anchor.dx + 1,
+        anchor.dy + 1,
       ),
       items: [
-        _shortcutItem(t, LucideIcons.gauge, '查询 Token 用量',
-            '查看本月消耗与配额', onTokenUsage),
-        _shortcutItem(t, LucideIcons.list_collapse, '总结最近的聊天',
-            '汇总最近联系人聊了什么', onSummarizeRecent),
-        _shortcutItem(t, LucideIcons.send, '代我回复 Jack',
-            '让 Agent 起草并经你确认后发送', onDraftReply),
-        _shortcutItem(t, LucideIcons.message_square_plus, '新建会话',
-            '清空当前对话开始新一轮', onNewSession),
+        _shortcutItem(
+            t, LucideIcons.gauge, '查询 Token 用量', '查看本月消耗与配额', onTokenUsage),
+        _shortcutItem(t, LucideIcons.list_collapse, '总结最近的聊天', '汇总最近联系人聊了什么',
+            onSummarizeRecent),
+        _shortcutItem(t, LucideIcons.send, '代我回复 Jack', '让 Agent 起草并经你确认后发送',
+            onDraftReply),
+        _shortcutItem(t, LucideIcons.message_square_plus, '新建会话', '清空当前对话开始新一轮',
+            onNewSession),
       ],
     );
   }
 
-  PopupMenuItem<void> _shortcutItem(PortalTokens t, IconData icon,
-      String title, String subtitle, VoidCallback onTap) {
+  PopupMenuItem<void> _shortcutItem(PortalTokens t, IconData icon, String title,
+      String subtitle, VoidCallback onTap) {
     return PopupMenuItem<void>(
       onTap: onTap,
       padding: EdgeInsets.zero,
       child: Container(
         width: 260,
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
             Icon(icon, size: 16, color: t.accent),
@@ -1136,9 +1105,7 @@ class _AgentFloatingBar extends ConsumerWidget {
                 children: [
                   Text(title,
                       style: AppTheme.sans(
-                          size: 13,
-                          color: t.text,
-                          weight: FontWeight.w500)),
+                          size: 13, color: t.text, weight: FontWeight.w500)),
                   const SizedBox(height: 2),
                   Text(subtitle,
                       style: AppTheme.sans(size: 11, color: t.textMute)),
@@ -1167,41 +1134,36 @@ class _AgentFloatingBar extends ConsumerWidget {
               child: Row(
                 children: [
                   Icon(LucideIcons.shield_check,
-                      size: 11,
-                      color: policy.enabled ? t.accent : t.textMute),
+                      size: 11, color: policy.enabled ? t.accent : t.textMute),
                   const SizedBox(width: 4),
                   Text(
-                    policy.enabled
-                        ? '权限：${policy.summary}'
-                        : '权限：已禁用',
-                    style:
-                        AppTheme.mono(size: 10, color: t.textMute),
+                    policy.enabled ? '权限：${policy.summary}' : '权限：已禁用',
+                    style: AppTheme.mono(size: 10, color: t.textMute),
                   ),
                 ],
               ),
             ),
           Row(children: [
-          Builder(builder: (btnCtx) {
-            return _CapsuleButton(
-              icon: LucideIcons.chevron_down,
-              iconLeading: false,
-              label: '快捷指令',
-              onTap: () {
-                final box = btnCtx.findRenderObject() as RenderBox?;
-                final offset = box?.localToGlobal(Offset.zero) ??
-                    Offset.zero;
-                _showShortcuts(btnCtx, offset);
-              },
-            );
-          }),
-          const SizedBox(width: 8),
-          _CapsuleButton(
-            icon: LucideIcons.settings_2,
-            iconLeading: true,
-            label: '管理',
-            onTap: () => context.push('/mcp-permission/local-aibot'),
-          ),
-        ]),
+            Builder(builder: (btnCtx) {
+              return _CapsuleButton(
+                icon: LucideIcons.chevron_down,
+                iconLeading: false,
+                label: '快捷指令',
+                onTap: () {
+                  final box = btnCtx.findRenderObject() as RenderBox?;
+                  final offset = box?.localToGlobal(Offset.zero) ?? Offset.zero;
+                  _showShortcuts(btnCtx, offset);
+                },
+              );
+            }),
+            const SizedBox(width: 8),
+            _CapsuleButton(
+              icon: LucideIcons.settings_2,
+              iconLeading: true,
+              label: '管理',
+              onTap: () => context.push('/mcp-permission/local-aibot'),
+            ),
+          ]),
         ],
       ),
     );
@@ -1224,33 +1186,30 @@ class _CapsuleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Material(
-      color: t.surface,
-      borderRadius: BorderRadius.circular(16),
+      color: t.primaryContainer.withValues(alpha: 0.14),
+      borderRadius: BorderRadius.circular(9999),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(9999),
         onTap: onTap,
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: t.border),
+            borderRadius: BorderRadius.circular(9999),
+            border: Border.all(color: t.accent.withValues(alpha: 0.25)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (iconLeading) ...[
-                Icon(icon, size: 13, color: t.text),
+                Icon(icon, size: 15, color: t.accent),
                 const SizedBox(width: 5),
               ],
               Text(label,
                   style: AppTheme.sans(
-                      size: 12,
-                      color: t.text,
-                      weight: FontWeight.w500)),
+                      size: 13, color: t.accent, weight: FontWeight.w600)),
               if (!iconLeading) ...[
                 const SizedBox(width: 4),
-                Icon(icon, size: 13, color: t.textMute),
+                Icon(icon, size: 15, color: t.accent),
               ],
             ],
           ),

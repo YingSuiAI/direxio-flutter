@@ -20,6 +20,31 @@ import '../../presentation/providers/auth_provider.dart';
 
 part 'app_router.g.dart';
 
+/// 横向滑入转场 —— 对齐设计稿 .screen translateX 动画。
+/// 新页从右滑入，旧页同时左移 28%（视差），320ms。
+CustomTransitionPage<void> _slidePage(Widget child) {
+  return CustomTransitionPage<void>(
+    transitionDuration: const Duration(milliseconds: 320),
+    reverseTransitionDuration: const Duration(milliseconds: 320),
+    child: child,
+    transitionsBuilder: (context, animation, secondary, child) {
+      const curve = Curves.easeInOutCubic;
+      final inSlide = Tween<Offset>(
+        begin: const Offset(1, 0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: curve));
+      final outSlide = Tween<Offset>(
+        begin: Offset.zero,
+        end: const Offset(-0.28, 0),
+      ).animate(CurvedAnimation(parent: secondary, curve: curve));
+      return SlideTransition(
+        position: outSlide,
+        child: SlideTransition(position: inSlide, child: child),
+      );
+    },
+  );
+}
+
 @riverpod
 GoRouter appRouter(Ref ref) {
   final authState = ref.watch(authStateNotifierProvider);
@@ -48,35 +73,54 @@ GoRouter appRouter(Ref ref) {
       GoRoute(path: '/home', builder: (_, __) => const HomePage()),
       GoRoute(
         path: '/chat/:roomId',
-        builder: (_, state) => ChatPage(roomId: state.pathParameters['roomId']!),
+        pageBuilder: (_, state) =>
+            _slidePage(ChatPage(roomId: state.pathParameters['roomId']!)),
       ),
       GoRoute(
         path: '/group/:roomId',
-        builder: (_, state) => GroupChatPage(roomId: state.pathParameters['roomId']!),
+        pageBuilder: (_, state) => _slidePage(
+            GroupChatPage(roomId: state.pathParameters['roomId']!)),
       ),
       GoRoute(
         path: '/contact/:userId',
-        builder: (_, state) => ContactDetailPage(userId: state.pathParameters['userId']!),
+        pageBuilder: (_, state) => _slidePage(
+            ContactDetailPage(userId: state.pathParameters['userId']!)),
       ),
-      GoRoute(path: '/add-contact', builder: (_, __) => const AddContactPage()),
-      GoRoute(path: '/requests', builder: (_, __) => const RequestsPage()),
+      GoRoute(
+        path: '/add-contact',
+        pageBuilder: (_, __) => _slidePage(const AddContactPage()),
+      ),
+      GoRoute(
+        path: '/requests',
+        pageBuilder: (_, __) => _slidePage(const RequestsPage()),
+      ),
       GoRoute(
         path: '/group-detail/:roomId',
-        builder: (_, state) => GroupDetailPage(roomId: state.pathParameters['roomId']!),
+        pageBuilder: (_, state) => _slidePage(
+            GroupDetailPage(roomId: state.pathParameters['roomId']!)),
       ),
       GoRoute(
         path: '/call/:roomId',
-        builder: (_, state) => CallPage(roomId: state.pathParameters['roomId']!),
+        pageBuilder: (_, state) =>
+            _slidePage(CallPage(roomId: state.pathParameters['roomId']!)),
       ),
-      GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
-      GoRoute(path: '/search', builder: (_, __) => const SearchPage()),
       GoRoute(
-          path: '/mcp-permission',
-          builder: (_, __) => const McpPermissionPage()),
+        path: '/settings',
+        pageBuilder: (_, __) => _slidePage(const SettingsPage()),
+      ),
       GoRoute(
-          path: '/mcp-permission/:agentId',
-          builder: (_, state) =>
-              McpPolicyEditPage(agentId: state.pathParameters['agentId']!)),
+        path: '/search',
+        pageBuilder: (_, __) => _slidePage(const SearchPage()),
+      ),
+      GoRoute(
+        path: '/mcp-permission',
+        pageBuilder: (_, __) => _slidePage(const McpPermissionPage()),
+      ),
+      GoRoute(
+        path: '/mcp-permission/:agentId',
+        pageBuilder: (_, state) => _slidePage(
+            McpPolicyEditPage(agentId: state.pathParameters['agentId']!)),
+      ),
     ],
   );
 }

@@ -14,6 +14,9 @@ import '../../data/as_client.dart';
 import '../../data/mock_as_client.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/m3/glass_header.dart';
+import '../widgets/m3/m3_bottom_nav.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 /// Portal 整体状态 —— 对应 INTERFACE_SPEC.md §5.5。
 /// autoDispose + 30s 内复用，避免每次 rebuild 都打 AS API。
@@ -50,99 +53,193 @@ class _HomePageState extends ConsumerState<HomePage> {
     super.dispose();
   }
 
+  static const _tabTitles = ['消息', '通讯录', 'Agent', '我'];
+
+  List<Widget> _headerActions(BuildContext context, Client client) {
+    switch (_tab) {
+      case 0:
+        return [
+          GlassHeaderButton(
+            icon: Symbols.search,
+            onTap: () => context.push('/search'),
+          ),
+          _HomePlusMenuButton(client: client),
+        ];
+      case 1:
+        return [
+          GlassHeaderButton(
+            icon: Symbols.search,
+            onTap: () => context.push('/search'),
+          ),
+          GlassHeaderButton(
+            icon: Symbols.person_add,
+            color: context.tk.accent,
+            onTap: () => context.push('/add-contact'),
+          ),
+        ];
+      case 2:
+        return [
+          GlassHeaderButton(
+            icon: Symbols.settings,
+            color: context.tk.accent,
+            onTap: () => context.push('/mcp-permission'),
+          ),
+        ];
+      default:
+        return [
+          GlassHeaderButton(
+            icon: Symbols.settings,
+            color: context.tk.accent,
+            onTap: () => context.push('/settings'),
+          ),
+        ];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
     final t = context.tk;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: t.accent.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: t.accent.withValues(alpha: 0.4)),
-              ),
-              alignment: Alignment.center,
-              child: Icon(LucideIcons.message_square,
-                  size: 12, color: t.accent),
+      body: Column(
+        children: [
+          GlassHeader.primary(
+            leading: _tab == 0
+                ? GestureDetector(
+                    onTap: () => setState(() => _tab = 3),
+                    child: const PortalAvatar(seed: 'me', size: 32),
+                  )
+                : null,
+            title: _tabTitles[_tab],
+            titleColor: _tab == 0 ? t.accent : t.text,
+            actions: _headerActions(context, client),
+          ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (ctx, c) {
+                final wide = c.maxWidth >= 900;
+                final pane = switch (_tab) {
+                  0 => _ChatList(client: client),
+                  1 => _ContactList(client: client),
+                  2 => _AgentTabBody(),
+                  _ => _MePage(client: client),
+                };
+                if (!wide) return pane;
+                return Row(
+                  children: [
+                    SizedBox(width: 340, child: pane),
+                    VerticalDivider(width: 1, color: t.border),
+                    Expanded(child: _DetailPlaceholder()),
+                  ],
+                );
+              },
             ),
-            const SizedBox(width: 8),
-            Text('Portal IM',
-                style:
-                    AppTheme.mono(size: 15, weight: FontWeight.w700, color: t.text)),
-            const SizedBox(width: 8),
-            const _PortalStatusChip(),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(LucideIcons.search, size: 18, color: t.text),
-            onPressed: () => context.push('/search'),
           ),
-          IconButton(
-            icon: Icon(LucideIcons.settings, size: 18, color: t.text),
-            onPressed: () => context.push('/settings'),
-          ),
-          const SizedBox(width: 4),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (ctx, c) {
-          final wide = c.maxWidth >= 900;
-          final pane = switch (_tab) {
-            0 => _ChatList(client: client),
-            1 => _ContactList(client: client),
-            2 => _AgentTabBody(),
-            _ => _MePage(client: client),
-          };
-          if (!wide) return pane;
-          // 宽屏：左侧栏 + master pane，详情区放占位/欢迎卡
-          return Row(
-            children: [
-              SizedBox(width: 340, child: pane),
-              VerticalDivider(width: 1, color: t.border),
-              Expanded(child: _DetailPlaceholder()),
-            ],
-          );
-        },
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(LucideIcons.message_square, size: 18),
-            selectedIcon: Icon(LucideIcons.message_square, size: 18),
+      bottomNavigationBar: M3BottomNav(
+        currentIndex: _tab,
+        onTap: (i) => setState(() => _tab = i),
+        items: const [
+          M3NavItem(
+            icon: Symbols.chat_bubble,
+            activeIcon: Symbols.chat_bubble,
             label: '消息',
           ),
-          NavigationDestination(
-            icon: Icon(LucideIcons.users, size: 18),
-            selectedIcon: Icon(LucideIcons.users, size: 18),
-            label: '联系人',
+          M3NavItem(
+            icon: Symbols.contacts,
+            activeIcon: Symbols.contacts,
+            label: '通讯录',
           ),
-          NavigationDestination(
-            icon: Icon(LucideIcons.bot, size: 18),
-            selectedIcon: Icon(LucideIcons.bot, size: 18),
+          M3NavItem(
+            icon: Symbols.robot_2,
+            activeIcon: Symbols.robot_2,
             label: 'Agent',
           ),
-          NavigationDestination(
-            icon: Icon(LucideIcons.user, size: 18),
-            selectedIcon: Icon(LucideIcons.user, size: 18),
+          M3NavItem(
+            icon: Symbols.person,
+            activeIcon: Symbols.person,
             label: '我',
           ),
         ],
       ),
-      floatingActionButton: _tab == 0
-          ? FloatingActionButton(
-              onPressed: () => context.push('/add-contact'),
-              child: const Icon(LucideIcons.plus, size: 22),
-            )
-          : null,
+    );
+  }
+}
+
+enum _PlusAction { group, contact, scan, file }
+
+class _HomePlusMenuButton extends StatelessWidget {
+  const _HomePlusMenuButton({required this.client});
+  final Client client;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return PopupMenuButton<_PlusAction>(
+      tooltip: '更多',
+      color: const Color(0xFF1E2026),
+      elevation: 12,
+      offset: const Offset(0, 48),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (action) {
+        switch (action) {
+          case _PlusAction.group:
+            _showCreateGroupDialog(context, client);
+          case _PlusAction.contact:
+            context.push('/add-contact');
+          case _PlusAction.scan:
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('扫一扫功能待接入')));
+          case _PlusAction.file:
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('文件传输功能待接入')));
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: _PlusAction.group,
+          child: _PlusMenuItem(icon: Symbols.group_add, label: '发起群聊'),
+        ),
+        PopupMenuItem(
+          value: _PlusAction.contact,
+          child: _PlusMenuItem(icon: Symbols.person_add, label: '添加朋友'),
+        ),
+        PopupMenuItem(
+          value: _PlusAction.scan,
+          child: _PlusMenuItem(icon: Symbols.qr_code_scanner, label: '扫一扫'),
+        ),
+        PopupMenuItem(
+          value: _PlusAction.file,
+          child: _PlusMenuItem(icon: Symbols.file_present, label: '文件传输'),
+        ),
+      ],
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: Icon(Symbols.add, size: 22, color: t.textMute),
+      ),
+    );
+  }
+}
+
+class _PlusMenuItem extends StatelessWidget {
+  const _PlusMenuItem({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: Colors.white.withValues(alpha: 0.82)),
+        const SizedBox(width: 12),
+        Text(
+          label,
+          style: AppTheme.sans(size: 14, color: Colors.white),
+        ),
+      ],
     );
   }
 }
@@ -154,20 +251,29 @@ class _ChatList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rooms = client.rooms;
-    final t = context.tk;
     final isLoggedIn =
         ref.watch(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
 
     // 未登录时展示 mock 会话用于演示；已登录则始终走真数据，
     // rooms 为空也显示真实空态，不回退 mock。
     if (!isLoggedIn) {
-      return ListView.separated(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
-        itemCount: MockData.conversations.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+      final convs = MockData.conversations;
+      return ListView.builder(
+        padding: const EdgeInsets.only(top: 4, bottom: 96),
+        itemCount: convs.length,
         itemBuilder: (context, i) {
-          final c = MockData.conversations[i];
-          return _MockChatTile(conv: c, t: t);
+          final c = convs[i];
+          final last = c.lastMessage;
+          return _ConvRow(
+            name: c.name,
+            lastMessage: _previewText(last?.text ?? ''),
+            time: last == null ? '' : DateFormat('HH:mm').format(last.time),
+            unread: c.unread,
+            isAgent: c.id == 'mock_aibot',
+            online: true,
+            isLast: i == convs.length - 1,
+            onTap: () => context.push('/chat/${c.id}'),
+          );
         },
       );
     }
@@ -180,212 +286,189 @@ class _ChatList extends ConsumerWidget {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 4, bottom: 96),
       itemCount: rooms.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, i) {
         final room = rooms[i];
-        return _ChatTile(room: room, t: t);
+        final isDm = room.isDirectChat;
+        final lastEvent = room.lastEvent;
+        return _ConvRow(
+          name: room.getLocalizedDisplayname(),
+          lastMessage: _previewText(lastEvent?.body ?? ''),
+          time: lastEvent == null
+              ? ''
+              : _formatConvTime(
+                  lastEvent.originServerTs.millisecondsSinceEpoch),
+          unread: room.notificationCount,
+          isLast: i == rooms.length - 1,
+          onTap: () => isDm
+              ? context.push('/chat/${Uri.encodeComponent(room.id)}')
+              : context.push('/group/${Uri.encodeComponent(room.id)}'),
+        );
       },
     );
   }
 }
 
-class _MockChatTile extends StatelessWidget {
-  const _MockChatTile({required this.conv, required this.t});
-  final MockConversation conv;
-  final PortalTokens t;
+String _formatConvTime(int ts) {
+  final dt = DateTime.fromMillisecondsSinceEpoch(ts);
+  final now = DateTime.now();
+  if (now.difference(dt).inDays == 0) return DateFormat('HH:mm').format(dt);
+  if (now.difference(dt).inDays == 1) return '昨天';
+  if (now.difference(dt).inDays < 7) return DateFormat('EEE', 'zh').format(dt);
+  return DateFormat('MM/dd').format(dt);
+}
+
+/// 会话列表"最后一条消息"预览：去掉 Markdown 标记 + 折行，保留纯文本。
+String _previewText(String raw) {
+  return raw
+      .replaceAll(RegExp(r'[*_`#~]'), '')
+      .replaceAll(RegExp(r'\s*\n+\s*'), ' ')
+      .trim();
+}
+
+/// 会话列表行 —— 对齐设计稿 s-messages chat-list item。
+/// 列表式（贴边、底分隔线、整行 ripple），头像 48 圆形。
+class _ConvRow extends StatelessWidget {
+  const _ConvRow({
+    required this.name,
+    required this.lastMessage,
+    required this.time,
+    required this.unread,
+    required this.onTap,
+    this.isAgent = false,
+    this.online = false,
+    this.isLast = false,
+  });
+  final String name;
+  final String lastMessage;
+  final String time;
+  final int unread;
+  final VoidCallback onTap;
+  final bool isAgent;
+  final bool online;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    final last = conv.lastMessage;
-    final time = last == null
-        ? ''
-        : DateFormat('HH:mm').format(last.time);
-
+    final t = context.tk;
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => context.push('/chat/${conv.id}'),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: t.border),
-          ),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              PortalAvatar(seed: conv.name, size: 44),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+              // 头像 48 + 在线点
+              SizedBox(
+                width: 48,
+                height: 48,
+                child: Stack(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(conv.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.sans(
-                                  size: 15,
-                                  weight: FontWeight.w600,
-                                  color: t.text)),
+                    if (isAgent)
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: t.primaryContainer,
+                          shape: BoxShape.circle,
                         ),
-                        Text(time,
-                            style: AppTheme.mono(size: 11, color: t.textMute)),
-                      ],
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(conv.mxid,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              AppTheme.mono(size: 11, color: t.accentCool)),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            last?.text ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style:
-                                AppTheme.sans(size: 13, color: t.textMute),
-                          ),
-                        ),
-                        if (conv.unread > 0) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: t.accent,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text('${conv.unread}',
-                                style: AppTheme.mono(
-                                    size: 10,
-                                    color: Colors.black,
-                                    weight: FontWeight.w700)),
-                          ),
-                        ],
-                      ],
-                    ),
+                        alignment: Alignment.center,
+                        child: Icon(Symbols.robot_2,
+                            size: 24, color: t.onPrimaryContainer, fill: 1),
+                      )
+                    else
+                      PortalAvatar(seed: name, size: 48),
+                    if (online)
+                      const Positioned(bottom: 0, right: 0, child: OnlineDot()),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChatTile extends StatelessWidget {
-  const _ChatTile({required this.room, required this.t});
-  final Room room;
-  final PortalTokens t;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDm = room.isDirectChat;
-    final name = room.getLocalizedDisplayname();
-    final lastEvent = room.lastEvent;
-    final mxid = room.directChatMatrixID ?? '';
-    final unread = room.notificationCount;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => isDm
-            ? context.push('/chat/${Uri.encodeComponent(room.id)}')
-            : context.push('/group/${Uri.encodeComponent(room.id)}'),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: t.border),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              PortalAvatar(seed: name, size: 44),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
+              // 内容区 + 底分隔线
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.sans(
-                                  size: 15,
-                                  weight: FontWeight.w600,
-                                  color: t.text)),
+                child: Container(
+                  padding: const EdgeInsets.only(top: 6, bottom: 12),
+                  decoration: isLast
+                      ? null
+                      : BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(color: t.surfaceHigh),
+                          ),
                         ),
-                        if (lastEvent != null)
-                          Text(
-                              _formatTime(
-                                  lastEvent.originServerTs.millisecondsSinceEpoch),
-                              style: AppTheme.mono(
-                                  size: 11, color: t.textMute)),
-                      ],
-                    ),
-                    if (isDm && mxid.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(mxid,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTheme.mono(
-                                size: 11, color: t.accentCool)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Flexible(
+                            child: Text(name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                    size: 20,
+                                    weight: FontWeight.w600,
+                                    color: t.text)),
+                          ),
+                          if (isAgent) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: t.primaryContainer,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text('AI',
+                                  style: AppTheme.sans(
+                                      size: 11,
+                                      weight: FontWeight.w700,
+                                      color: t.onPrimaryContainer)),
+                            ),
+                          ],
+                          const Spacer(),
+                          Text(time,
+                              style: AppTheme.sans(
+                                  size: 13,
+                                  color: unread > 0 ? t.accent : t.textMute)),
+                        ],
                       ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            lastEvent?.body ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTheme.sans(
-                                size: 13, color: t.textMute),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(lastMessage,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style:
+                                    AppTheme.sans(size: 15, color: t.textMute)),
                           ),
-                        ),
-                        if (unread > 0) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: t.accent,
-                              borderRadius: BorderRadius.circular(10),
+                          if (unread > 0) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: t.accent,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: Text('$unread',
+                                  style: AppTheme.sans(
+                                      size: 11,
+                                      weight: FontWeight.w700,
+                                      color: t.onAccent)),
                             ),
-                            child: Text('$unread',
-                                style: AppTheme.mono(
-                                    size: 10,
-                                    color: Colors.black,
-                                    weight: FontWeight.w700)),
-                          ),
+                          ],
                         ],
-                      ],
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -394,19 +477,9 @@ class _ChatTile extends StatelessWidget {
       ),
     );
   }
-
-  String _formatTime(int ts) {
-    final dt = DateTime.fromMillisecondsSinceEpoch(ts);
-    final now = DateTime.now();
-    if (now.difference(dt).inDays == 0) return DateFormat('HH:mm').format(dt);
-    if (now.difference(dt).inDays == 1) return '昨天';
-    if (now.difference(dt).inDays < 7) return DateFormat('EEE', 'zh').format(dt);
-    return DateFormat('MM/dd').format(dt);
-  }
 }
 
-Future<void> _showCreateGroupDialog(
-    BuildContext context, Client client) async {
+Future<void> _showCreateGroupDialog(BuildContext context, Client client) async {
   final nameCtrl = TextEditingController();
   final inviteCtrl = TextEditingController();
 
@@ -479,48 +552,320 @@ class _ContactList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
+    final isLoggedIn =
+        ref.watch(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
     final dmRooms = client.rooms.where((r) => r.isDirectChat).toList();
+    final mockContacts =
+        MockData.conversations.where((c) => c.id != 'mock_aibot').toList();
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
       children: [
-        _ActionTile(
-          icon: LucideIcons.user_plus,
-          label: '添加联系人',
-          subtitle: '通过域名',
-          onTap: () => context.push('/add-contact'),
+        HomeSearchBox(
+          hint: '搜索',
+          onTap: () => context.push('/search'),
         ),
-        const SizedBox(height: 8),
-        _ActionTile(
-          icon: LucideIcons.users,
-          label: '创建群组',
-          subtitle: '邀请联系人',
-          onTap: () => _showCreateGroupDialog(context, client),
+        const SizedBox(height: 14),
+        _ActionSection(
+          children: [
+            _SectionAction(
+              icon: Symbols.person_add,
+              label: '新朋友',
+              badge: '2',
+              iconColor: t.accent,
+              onTap: () => context.push('/requests'),
+            ),
+            _SectionAction(
+              icon: Symbols.group,
+              label: '群聊',
+              iconColor: t.accentCool,
+              onTap: () => _showCreateGroupDialog(context, client),
+            ),
+            _SectionAction(
+              icon: Symbols.person_add,
+              label: '添加联系人',
+              subtitle: '通过域名',
+              iconColor: t.primaryContainer,
+              onTap: () => context.push('/add-contact'),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        _ActionTile(
-          icon: LucideIcons.bell_dot,
-          label: '好友/群邀请',
-          subtitle: 'Pending',
-          onTap: () => context.push('/requests'),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Text(
-            '联系人 (${dmRooms.length})',
+            '联系人 (${isLoggedIn ? dmRooms.length : mockContacts.length})',
             style: AppTheme.mono(
-                size: 11,
-                color: t.textMute,
-                weight: FontWeight.w600),
+                size: 11, color: t.textMute, weight: FontWeight.w600),
           ),
         ),
         const SizedBox(height: 8),
-        ...dmRooms.map((room) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _ChatTile(room: room, t: t),
-            )),
+        if (isLoggedIn)
+          _ActionSection(
+            children: dmRooms
+                .map(
+                  (room) => _ContactEntryTile(
+                    name: room.getLocalizedDisplayname(),
+                    subtitle: room.directChatMatrixID,
+                    online: true,
+                    onTap: () =>
+                        context.push('/chat/${Uri.encodeComponent(room.id)}'),
+                  ),
+                )
+                .toList(),
+          )
+        else
+          _ActionSection(
+            children: mockContacts
+                .map(
+                  (c) => _ContactEntryTile(
+                    name: c.name,
+                    subtitle: c.mxid,
+                    online: true,
+                    onTap: () => context.push('/chat/${c.id}'),
+                  ),
+                )
+                .toList(),
+          ),
       ],
+    );
+  }
+}
+
+class HomeSearchBox extends StatelessWidget {
+  const HomeSearchBox({
+    super.key,
+    required this.hint,
+    required this.onTap,
+  });
+  final String hint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Material(
+      color: t.surfaceHover,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(Symbols.search, size: 18, color: t.textMute),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  hint,
+                  style: AppTheme.sans(size: 14, color: t.textMute),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionSection extends StatelessWidget {
+  const _ActionSection({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    if (children.isEmpty) {
+      return const _Empty(
+        icon: LucideIcons.user,
+        title: '还没有联系人',
+        subtitle: '添加联系人后会显示在这里',
+      );
+    }
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.border.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i != children.length - 1)
+              Divider(
+                height: 1,
+                indent: 52,
+                color: t.border.withValues(alpha: 0.16),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionAction extends StatelessWidget {
+  const _SectionAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.iconColor,
+    this.subtitle,
+    this.badge,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color iconColor;
+  final String? subtitle;
+  final String? badge;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final textColor = danger ? t.danger : t.text;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: iconColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 18, color: t.onAccent, fill: 1),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w500,
+                  color: textColor,
+                ),
+              ),
+            ),
+            if (subtitle != null) ...[
+              Text(
+                subtitle!,
+                style: AppTheme.sans(size: 13, color: t.textMute),
+              ),
+              const SizedBox(width: 8),
+            ],
+            if (badge != null) ...[
+              Container(
+                width: 20,
+                height: 20,
+                alignment: Alignment.center,
+                decoration:
+                    BoxDecoration(color: t.danger, shape: BoxShape.circle),
+                child: Text(
+                  badge!,
+                  style: AppTheme.sans(
+                    size: 10,
+                    weight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Icon(Symbols.chevron_right, size: 20, color: t.textMute),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactEntryTile extends StatelessWidget {
+  const _ContactEntryTile({
+    required this.name,
+    required this.onTap,
+    this.subtitle,
+    this.online = false,
+  });
+
+  final String name;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool online;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: Stack(
+                children: [
+                  PortalAvatar(seed: name, size: 40),
+                  if (online)
+                    const Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: OnlineDot(size: 10),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 16,
+                      weight: FontWeight.w500,
+                      color: t.text,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(size: 12, color: t.textMute),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Symbols.chevron_right, size: 20, color: t.textMute),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -533,21 +878,30 @@ class _MePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
     final userId = client.userID ?? '';
-    final domain = userId.contains(':') ? userId.split(':').last : userId;
+    final displayId = userId.isEmpty ? '@me:portal.agent-p2p.io' : userId;
+    final domain =
+        displayId.contains(':') ? displayId.split(':').last : displayId;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 24, 12, 24),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 96),
       children: [
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
           decoration: BoxDecoration(
             color: t.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: t.border),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: t.border.withValues(alpha: 0.18)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             children: [
-              PortalAvatar(seed: domain, size: 64),
+              PortalAvatar(seed: domain, size: 72),
               const SizedBox(height: 12),
               FutureBuilder<Profile?>(
                 future: client.userID != null
@@ -556,90 +910,75 @@ class _MePage extends ConsumerWidget {
                 builder: (_, snap) => Text(
                   snap.data?.displayName ?? '未设置昵称',
                   style: AppTheme.sans(
-                      size: 18, weight: FontWeight.w600, color: t.text),
+                      size: 20, weight: FontWeight.w600, color: t.text),
                 ),
               ),
               const SizedBox(height: 4),
-              PortalMxid(userId, size: 12),
+              PortalMxid(displayId, size: 12),
+              const SizedBox(height: 14),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: t.primaryContainer.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Symbols.lock, size: 12, color: t.accent),
+                    const SizedBox(width: 4),
+                    Text(
+                      '端对端加密',
+                      style: AppTheme.sans(size: 12, color: t.accent),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 16),
-        _ActionTile(
-          icon: LucideIcons.settings,
-          label: '设置',
-          onTap: () => context.push('/settings'),
+        _ActionSection(
+          children: [
+            _SectionAction(
+              icon: Symbols.settings,
+              label: '设置',
+              subtitle: '隐私与通知',
+              iconColor: t.accent,
+              onTap: () => context.push('/settings'),
+            ),
+            _SectionAction(
+              icon: Symbols.admin_panel_settings,
+              label: 'Agent 权限',
+              subtitle: 'MCP 工具授权',
+              iconColor: t.accentCool,
+              onTap: () => context.push('/mcp-permission'),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        _ActionTile(
-          icon: LucideIcons.log_out,
-          label: '退出登录',
-          danger: true,
-          onTap: () async {
-            await ref.read(authStateNotifierProvider.notifier).logout();
-          },
+        const SizedBox(height: 14),
+        _ActionSection(
+          children: [
+            _SectionAction(
+              icon: Symbols.logout,
+              label: '退出登录',
+              iconColor: t.danger,
+              danger: true,
+              onTap: () async {
+                await ref.read(authStateNotifierProvider.notifier).logout();
+              },
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    this.subtitle,
-    this.onTap,
-    this.danger = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final String? subtitle;
-  final VoidCallback? onTap;
-  final bool danger;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final color = danger ? t.danger : t.text;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: t.border),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(label,
-                    style: AppTheme.sans(
-                        size: 14, weight: FontWeight.w500, color: color)),
-              ),
-              if (subtitle != null) ...[
-                Text(subtitle!,
-                    style: AppTheme.mono(size: 11, color: t.textMute)),
-                const SizedBox(width: 6),
-              ],
-              Icon(LucideIcons.chevron_right, size: 16, color: t.textMute),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _Empty extends StatelessWidget {
-  const _Empty({required this.icon, required this.title, required this.subtitle});
+  const _Empty(
+      {required this.icon, required this.title, required this.subtitle});
   final IconData icon;
   final String title;
   final String subtitle;
@@ -671,51 +1010,85 @@ class _AgentTabBody extends ConsumerWidget {
     final policies = ref.watch(mcpPolicyStoreProvider);
     final audit = ref.watch(mcpAuditStoreProvider);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 96),
       children: [
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: t.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: t.border),
-          ),
-          child: Row(children: [
-            Icon(LucideIcons.bot, size: 20, color: t.accent),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Agent 中心',
-                      style: AppTheme.sans(
-                          size: 15,
-                          weight: FontWeight.w600,
-                          color: t.text)),
-                  const SizedBox(height: 4),
-                  Text(
-                      '已授权 ${policies.values.where((p) => p.enabled).length} / ${policies.length} · 今日活动 ${audit.length} 次',
-                      style:
-                          AppTheme.sans(size: 12, color: t.textMute)),
-                ],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: t.border.withValues(alpha: 0.18)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
-            ),
-          ]),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: t.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Symbols.smart_toy,
+                    size: 24, color: t.onPrimaryContainer, fill: 1),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Agent 中心',
+                        style: AppTheme.sans(
+                            size: 17, weight: FontWeight.w600, color: t.text)),
+                    const SizedBox(height: 4),
+                    Text(
+                        '已授权 ${policies.values.where((p) => p.enabled).length} / ${policies.length} · 今日活动 ${audit.length} 次',
+                        style: AppTheme.sans(size: 12, color: t.textMute)),
+                  ],
+                ),
+              ),
+              const _PortalStatusChip(),
+            ],
+          ),
         ),
-        const SizedBox(height: 16),
-        _SectionHead('我的 Agent'),
+        const SizedBox(height: 14),
+        _ActionSection(
+          children: [
+            _SectionAction(
+              icon: Symbols.smart_toy,
+              label: '打开 AI Bot',
+              subtitle: '聊天与工具调用',
+              iconColor: t.accent,
+              onTap: () => context.push('/chat/mock_aibot'),
+            ),
+            _SectionAction(
+              icon: Symbols.admin_panel_settings,
+              label: '权限管理',
+              subtitle: 'MCP Policy',
+              iconColor: t.accentCool,
+              onTap: () => context.push('/mcp-permission'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        const _SectionHead('我的 Agent'),
         ...policies.values.map((p) => Padding(
               padding: const EdgeInsets.only(top: 8),
               child: _AgentCard(p: p),
             )),
         const SizedBox(height: 16),
-        _SectionHead('最近活动'),
+        const _SectionHead('最近活动'),
         if (audit.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Text('暂无活动',
-                style:
-                    AppTheme.sans(size: 12, color: t.textMute)),
+            child:
+                Text('暂无活动', style: AppTheme.sans(size: 12, color: t.textMute)),
           )
         else
           ...audit.take(5).map((e) => Padding(
@@ -724,8 +1097,8 @@ class _AgentTabBody extends ConsumerWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: t.surface,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: t.border),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: t.border.withValues(alpha: 0.18)),
                   ),
                   child: Row(children: [
                     Icon(
@@ -740,21 +1113,16 @@ class _AgentTabBody extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Text(e.tool,
                         style: AppTheme.mono(
-                            size: 12,
-                            color: t.text,
-                            weight: FontWeight.w600)),
+                            size: 12, color: t.text, weight: FontWeight.w600)),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                          e.deniedReason ?? e.resultSummary ?? '',
+                      child: Text(e.deniedReason ?? e.resultSummary ?? '',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTheme.sans(
-                              size: 11, color: t.textMute)),
+                          style: AppTheme.sans(size: 11, color: t.textMute)),
                     ),
                     Text(DateFormat('HH:mm').format(e.ts),
-                        style: AppTheme.mono(
-                            size: 10, color: t.textMute)),
+                        style: AppTheme.mono(size: 10, color: t.textMute)),
                   ]),
                 ),
               )),
@@ -772,9 +1140,7 @@ class _SectionHead extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 0, 0, 6),
       child: Text(text.toUpperCase(),
           style: AppTheme.mono(
-              size: 11,
-              color: context.tk.textMute,
-              weight: FontWeight.w600)),
+              size: 11, color: context.tk.textMute, weight: FontWeight.w600)),
     );
   }
 }
@@ -788,14 +1154,21 @@ class _AgentCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         onTap: () => context.push('/chat/mock_aibot'),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: t.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: t.border),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: t.border.withValues(alpha: 0.18)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(children: [
             PortalAvatar(seed: p.mxid, size: 36),
@@ -807,9 +1180,7 @@ class _AgentCard extends StatelessWidget {
                   Row(children: [
                     Text(p.displayName,
                         style: AppTheme.sans(
-                            size: 14,
-                            weight: FontWeight.w600,
-                            color: t.text)),
+                            size: 14, weight: FontWeight.w600, color: t.text)),
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -823,23 +1194,18 @@ class _AgentCard extends StatelessWidget {
                           style: AppTheme.mono(
                               size: 9,
                               weight: FontWeight.w600,
-                              color: p.enabled
-                                  ? t.accent
-                                  : t.textMute)),
+                              color: p.enabled ? t.accent : t.textMute)),
                     ),
                   ]),
                   const SizedBox(height: 2),
                   Text(p.summary,
-                      style:
-                          AppTheme.sans(size: 11, color: t.textMute)),
+                      style: AppTheme.sans(size: 11, color: t.textMute)),
                 ],
               ),
             ),
             IconButton(
-              icon: Icon(LucideIcons.settings_2,
-                  size: 16, color: t.textMute),
-              onPressed: () =>
-                  context.push('/mcp-permission/${p.agentId}'),
+              icon: Icon(LucideIcons.settings_2, size: 16, color: t.textMute),
+              onPressed: () => context.push('/mcp-permission/${p.agentId}'),
             ),
           ]),
         ),

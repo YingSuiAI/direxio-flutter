@@ -10,8 +10,17 @@ import '../widgets/portal_avatar.dart';
 import '../mock/mock_data.dart';
 import '../mock/mcp_policy.dart';
 import '../mock/mcp_audit.dart';
+import '../../data/as_client.dart';
+import '../../data/mock_as_client.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+
+/// Portal 整体状态 —— 对应 INTERFACE_SPEC.md §5.5。
+/// autoDispose + 30s 内复用，避免每次 rebuild 都打 AS API。
+final portalStatusProvider = FutureProvider.autoDispose<PortalStatus>((ref) {
+  ref.keepAlive();
+  return ref.read(asClientProvider).getPortalStatus();
+});
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -66,6 +75,8 @@ class _HomePageState extends ConsumerState<HomePage> {
             Text('Portal IM',
                 style:
                     AppTheme.mono(size: 15, weight: FontWeight.w700, color: t.text)),
+            const SizedBox(width: 8),
+            const _PortalStatusChip(),
           ],
         ),
         actions: [
@@ -144,9 +155,12 @@ class _ChatList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final rooms = client.rooms;
     final t = context.tk;
+    final isLoggedIn =
+        ref.watch(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
 
-    // MOCK: 未登录或没数据时,展示 mock 会话
-    if (rooms.isEmpty) {
+    // 未登录时展示 mock 会话用于演示；已登录则始终走真数据，
+    // rooms 为空也显示真实空态，不回退 mock。
+    if (!isLoggedIn) {
       return ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
         itemCount: MockData.conversations.length,
@@ -155,6 +169,14 @@ class _ChatList extends ConsumerWidget {
           final c = MockData.conversations[i];
           return _MockChatTile(conv: c, t: t);
         },
+      );
+    }
+
+    if (rooms.isEmpty) {
+      return const _Empty(
+        icon: LucideIcons.message_square_dashed,
+        title: '还没有会话',
+        subtitle: '去添加联系人开始聊天',
       );
     }
 
@@ -844,6 +866,54 @@ class _DetailPlaceholder extends StatelessWidget {
             const SizedBox(height: 6),
             Text('或在 Agent 标签里与 AI Bot 协作',
                 style: AppTheme.sans(size: 12, color: t.textMute)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// AppBar 上的 Portal 状态指示。三态：在线 / 异常 / 离线 / 连接中。
+class _PortalStatusChip extends ConsumerWidget {
+  const _PortalStatusChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = context.tk;
+    final async = ref.watch(portalStatusProvider);
+
+    final (Color color, String label) = switch (async) {
+      AsyncData(:final value) when value.allHealthy => (t.accent, '在线'),
+      AsyncData() => (Colors.amber, '异常'),
+      AsyncError() => (t.danger, '离线'),
+      _ => (t.textMute, '连接中'),
+    };
+
+    return Tooltip(
+      message: switch (async) {
+        AsyncData(:final value) =>
+          'Dendrite: ${value.dendrite}\nFederation: ${value.federation}\n'
+              'Agent: ${value.agent}\nUptime: ${value.uptime}',
+        AsyncError() => 'Portal 不可达',
+        _ => '正在查询 Portal 状态',
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 5),
+            Text(label, style: AppTheme.mono(size: 10, color: color)),
           ],
         ),
       ),

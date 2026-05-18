@@ -34,11 +34,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Room? get _room =>
       ref.read(matrixClientProvider).getRoomById(widget.roomId);
 
+  /// 未登录且 roomId 命中 mock 数据时走 mock 渲染；
+  /// 已登录则一律走真 Matrix timeline（真房间 id 不会以 mock_ 开头）。
+  bool get _useMock {
+    final isLoggedIn =
+        ref.read(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
+    return !isLoggedIn && MockData.byId(widget.roomId) != null;
+  }
+
   @override
   void initState() {
     super.initState();
-    // MOCK: 命中 mock 就不走真 Matrix timeline
-    if (MockData.byId(widget.roomId) != null) {
+    if (_useMock) {
       _loading = false;
       return;
     }
@@ -103,10 +110,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    // MOCK: roomId 命中 mock → 走 mock 渲染
-    final mock = MockData.byId(widget.roomId);
-    if (mock != null) {
-      return _MockChatScaffold(conv: mock);
+    // 未登录 + mock roomId → 走 mock 渲染
+    if (_useMock) {
+      return _MockChatScaffold(conv: MockData.byId(widget.roomId)!);
     }
 
     final room = _room;

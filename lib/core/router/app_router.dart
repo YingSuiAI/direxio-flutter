@@ -11,6 +11,11 @@ import '../../presentation/pages/contact_detail_page.dart';
 import '../../presentation/pages/add_contact_page.dart';
 import '../../presentation/pages/requests_page.dart';
 import '../../presentation/pages/group_detail_page.dart';
+import '../../presentation/pages/group_manage_page.dart';
+import '../../presentation/pages/groups_list_page.dart';
+import '../../presentation/pages/chat_info_page.dart';
+import '../../presentation/pages/me_account_page.dart';
+import '../../presentation/pages/me_notifications_page.dart';
 import '../../presentation/pages/call_page.dart';
 import '../../presentation/pages/settings_page.dart';
 import '../../presentation/pages/search_page.dart';
@@ -98,6 +103,28 @@ GoRouter appRouter(Ref ref) {
         path: '/group-detail/:roomId',
         pageBuilder: (_, state) => _slidePage(
             GroupDetailPage(roomId: state.pathParameters['roomId']!)),
+      ),
+      GoRoute(
+        path: '/group-manage/:roomId',
+        pageBuilder: (_, state) => _slidePage(
+            GroupManagePage(roomId: state.pathParameters['roomId']!)),
+      ),
+      GoRoute(
+        path: '/groups',
+        pageBuilder: (_, __) => _slidePage(const GroupsListPage()),
+      ),
+      GoRoute(
+        path: '/chat-info/:roomId',
+        pageBuilder: (_, state) => _slidePage(
+            ChatInfoPage(roomId: state.pathParameters['roomId']!)),
+      ),
+      GoRoute(
+        path: '/me/account',
+        pageBuilder: (_, __) => _slidePage(const MeAccountPage()),
+      ),
+      GoRoute(
+        path: '/me/notifications',
+        pageBuilder: (_, __) => _slidePage(const MeNotificationsPage()),
       ),
       GoRoute(
         path: '/call/:roomId',

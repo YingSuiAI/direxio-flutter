@@ -56,11 +56,11 @@ class MockData {
   static final List<MockConversation> conversations = [
     MockConversation(
       id: 'mock_aibot',
-      name: 'AI Bot',
+      name: 'My Agent',
       mxid: '@aibot:portal.ai',
-      subtitle: 'AI 助手',
-      unread: 0,
-      accentColor: const Color(0xFF6FA8FF),
+      subtitle: '今日摘要已准备好，有 3 条新警报',
+      unread: 1,
+      accentColor: const Color(0xFF0058BC),
       messages: [
         MockMessage(
           isMe: true,
@@ -94,10 +94,85 @@ class MockData {
       ],
     ),
     MockConversation(
+      id: 'mock_alice',
+      name: 'Alice Chen',
+      mxid: '@alice:portal.local',
+      subtitle: '好的，明天见！',
+      unread: 2,
+      messages: [
+        MockMessage(isMe: false, text: '你好！',
+            time: _now.subtract(const Duration(minutes: 30))),
+        MockMessage(isMe: true, text: '嗨，最近怎么样？',
+            time: _now.subtract(const Duration(minutes: 28))),
+        MockMessage(isMe: false, text: '还不错，在忙一个新项目',
+            time: _now.subtract(const Duration(minutes: 25))),
+        MockMessage(isMe: true, text: '听起来不错！是什么项目呢？',
+            time: _now.subtract(const Duration(minutes: 23))),
+        MockMessage(isMe: false, text: '是一个去中心化通讯应用，我整理了一份设计文档',
+            time: _now.subtract(const Duration(minutes: 20))),
+        MockMessage(isMe: true, text: '好的，明天见！',
+            time: _now.subtract(const Duration(minutes: 15))),
+      ],
+    ),
+    MockConversation(
+      id: 'mock_design_group',
+      name: '产品设计组',
+      mxid: '#design-group:portal.local',
+      subtitle: 'Carol: 原型图更新了',
+      unread: 5,
+      messages: [
+        MockMessage(isMe: false, text: 'Alice: 大家好，今天来讨论一下新版本的设计方案',
+            time: _now.subtract(const Duration(days: 1, hours: 5))),
+        MockMessage(isMe: false, text: 'Bob: 好的，我这边准备了几个方案',
+            time: _now.subtract(const Duration(days: 1, hours: 4, minutes: 30))),
+        MockMessage(isMe: true, text: '方案发出来看看',
+            time: _now.subtract(const Duration(days: 1, hours: 4))),
+        MockMessage(isMe: false, text: 'Carol: 原型图更新了',
+            time: _now.subtract(const Duration(days: 1))),
+      ],
+    ),
+    MockConversation(
+      id: 'mock_bob',
+      name: 'Bob Smith',
+      mxid: '@bob:portal.local',
+      subtitle: '文件已发送，请查收',
+      unread: 0,
+      messages: [
+        MockMessage(isMe: false, text: '文件已发送，请查收',
+            time: _now.subtract(const Duration(days: 1, hours: 2))),
+      ],
+    ),
+    MockConversation(
+      id: 'mock_dave',
+      name: 'Dave Lee',
+      mxid: '@dave:portal.local',
+      subtitle: '好的，我会在会议前审阅',
+      unread: 0,
+      messages: [
+        MockMessage(isMe: true, text: '请帮我看看这份文档',
+            time: _now.subtract(const Duration(days: 2, hours: 1))),
+        MockMessage(isMe: false, text: '好的，我会在会议前审阅',
+            time: _now.subtract(const Duration(days: 2))),
+      ],
+    ),
+    MockConversation(
+      id: 'mock_eve',
+      name: 'Eve Wang',
+      mxid: '@eve:portal.local',
+      subtitle: '收到，稍后处理',
+      unread: 0,
+      messages: [
+        MockMessage(isMe: true, text: '帮忙处理一下这个 issue',
+            time: _now.subtract(const Duration(days: 3, hours: 1))),
+        MockMessage(isMe: false, text: '收到，稍后处理',
+            time: _now.subtract(const Duration(days: 3))),
+      ],
+    ),
+    MockConversation(
       id: 'mock_jack',
       name: 'Jack',
       mxid: '@jack:liyananp2p.com',
-      subtitle: '工作伙伴',
+      subtitle: '另外周末有空吗？想约你打球',
       unread: 2,
       messages: [
         MockMessage(
@@ -137,6 +212,13 @@ class MockData {
   static MockConversation? byId(String id) {
     for (final c in conversations) {
       if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  static MockConversation? byMxid(String mxid) {
+    for (final c in conversations) {
+      if (c.mxid == mxid) return c;
     }
     return null;
   }

@@ -18,7 +18,7 @@ class PortalApp extends ConsumerWidget {
       title: 'Portal IM',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       debugShowCheckedModeBanner: false,
       routerConfig: router,
     );

@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
@@ -16,7 +16,6 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_bottom_nav.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 /// Portal 整体状态 —— 对应 INTERFACE_SPEC.md §5.5。
 /// autoDispose + 30s 内复用，避免每次 rebuild 都打 AS API。
@@ -179,7 +178,7 @@ class _HomePlusMenuButton extends StatelessWidget {
     final t = context.tk;
     return PopupMenuButton<_PlusAction>(
       tooltip: '更多',
-      color: const Color(0xFF1E2026),
+      color: const Color(0xFF1E2026), // theme-fixed: 原型 + 菜单恒为深色弹层
       elevation: 12,
       offset: const Offset(0, 48),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -280,7 +279,7 @@ class _ChatList extends ConsumerWidget {
 
     if (rooms.isEmpty) {
       return const _Empty(
-        icon: LucideIcons.message_square_dashed,
+        icon: Symbols.forum,
         title: '还没有会话',
         subtitle: '去添加联系人开始聊天',
       );
@@ -680,7 +679,7 @@ class _ActionSection extends StatelessWidget {
     final t = context.tk;
     if (children.isEmpty) {
       return const _Empty(
-        icon: LucideIcons.user,
+        icon: Symbols.person,
         title: '还没有联系人',
         subtitle: '添加联系人后会显示在这里',
       );
@@ -1103,8 +1102,8 @@ class _AgentTabBody extends ConsumerWidget {
                   child: Row(children: [
                     Icon(
                       e.outcome == McpAuditOutcome.denied
-                          ? LucideIcons.circle_x
-                          : LucideIcons.circle_check,
+                          ? Symbols.cancel
+                          : Symbols.check_circle,
                       size: 12,
                       color: e.outcome == McpAuditOutcome.denied
                           ? t.danger
@@ -1204,7 +1203,7 @@ class _AgentCard extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: Icon(LucideIcons.settings_2, size: 16, color: t.textMute),
+              icon: Icon(Symbols.tune, size: 16, color: t.textMute),
               onPressed: () => context.push('/mcp-permission/${p.agentId}'),
             ),
           ]),
@@ -1224,7 +1223,7 @@ class _DetailPlaceholder extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.message_square_dashed,
+            Icon(Symbols.forum,
                 size: 48, color: t.textMute),
             const SizedBox(height: 14),
             Text('选择左侧的会话开始对话',

@@ -1,7 +1,7 @@
 /// MCP / Agent 权限：编辑页
 /// 按维度分组：总开关 / 工具 / 会话 / 时间 / 内容 / 频次 / 生命周期
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +11,7 @@ import '../mock/mcp_policy.dart';
 import '../mock/mock_data.dart';
 import '../mock/mcp_audit.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/m3/glass_header.dart';
 
 class McpPolicyEditPage extends ConsumerStatefulWidget {
   const McpPolicyEditPage({super.key, required this.agentId});
@@ -63,30 +64,52 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-      appBar: AppBar(
-        title: Text(_draft.displayName),
-        actions: [
-          TextButton(
-            onPressed: _save,
-            child: Text('保存',
-                style: AppTheme.sans(
-                    size: 14, weight: FontWeight.w600, color: t.accent)),
-          ),
-        ],
-        bottom: TabBar(
-          labelColor: t.accent,
-          unselectedLabelColor: t.textMute,
-          indicatorColor: t.accent,
-          tabs: [
-            const Tab(text: '配置'),
-            Tab(text: '今日活动 (${audit.length})'),
+        body: Column(
+          children: [
+            GlassHeader.detail(
+              title: _draft.displayName,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: TextButton(
+                    onPressed: _save,
+                    child: Text('保存',
+                        style: AppTheme.sans(
+                            size: 14,
+                            weight: FontWeight.w600,
+                            color: t.accent)),
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              decoration: BoxDecoration(
+                color: t.bg,
+                border: Border(
+                  bottom: BorderSide(color: t.border.withValues(alpha: 0.5)),
+                ),
+              ),
+              child: TabBar(
+                labelColor: t.accent,
+                unselectedLabelColor: t.textMute,
+                indicatorColor: t.accent,
+                labelStyle:
+                    AppTheme.sans(size: 14, weight: FontWeight.w600),
+                unselectedLabelStyle: AppTheme.sans(size: 14),
+                tabs: [
+                  const Tab(text: '配置'),
+                  Tab(text: '今日活动 (${audit.length})'),
+                ],
+              ),
+            ),
+            Expanded(
+              child: TabBarView(children: [
+                _buildConfigTab(t),
+                _AuditTab(entries: audit),
+              ]),
+            ),
           ],
         ),
-      ),
-      body: TabBarView(children: [
-        _buildConfigTab(t),
-        _AuditTab(entries: audit),
-      ]),
       ),
     );
   }
@@ -187,7 +210,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
           _SectionHeader('时间范围'),
           _Group(children: [
             _ChoiceRow<HistoryWindow>(
-              icon: LucideIcons.clock,
+              icon: Symbols.schedule,
               label: '历史窗口',
               value: _draft.historyWindow,
               options: HistoryWindow.values,
@@ -195,7 +218,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
               onPick: (v) => setState(() => _draft.historyWindow = v),
             ),
             _SwitchRow(
-              icon: LucideIcons.sun,
+              icon: Symbols.light_mode,
               label: '活跃时段',
               subtitle: _draft.activeHours?.toString() ?? '全天可用',
               value: _draft.activeHours != null,
@@ -209,14 +232,14 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
           _SectionHeader('内容脱敏'),
           _Group(children: [
             _SwitchRow(
-              icon: LucideIcons.image_off,
+              icon: Symbols.hide_image,
               label: '图片/文件只给元数据',
               subtitle: '不向 Agent 暴露原始媒体内容',
               value: _draft.maskMedia,
               onChanged: (v) => setState(() => _draft.maskMedia = v),
             ),
             _ChipsRow(
-              icon: LucideIcons.eye_off,
+              icon: Symbols.visibility_off,
               label: '屏蔽关键词',
               chips: _draft.redactKeywords.toList(),
               onAdd: (kw) => setState(() => _draft.redactKeywords.add(kw)),
@@ -229,7 +252,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
           _SectionHeader('频次限制'),
           _Group(children: [
             _ChoiceRow<int>(
-              icon: LucideIcons.gauge,
+              icon: Symbols.speed,
               label: '每日调用上限',
               value: _draft.dailyCallLimit ?? 0,
               options: const [50, 100, 200, 500, 1000, 0],
@@ -238,7 +261,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
                   setState(() => _draft.dailyCallLimit = v == 0 ? null : v),
             ),
             _ChoiceRow<int>(
-              icon: LucideIcons.list,
+              icon: Symbols.list,
               label: '单次返回消息上限',
               value: _draft.perCallMessageLimit ?? 0,
               options: const [20, 50, 100, 200, 0],
@@ -252,7 +275,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
           _SectionHeader('生命周期'),
           _Group(children: [
             _ChoiceRow<ExpiryOption>(
-              icon: LucideIcons.timer,
+              icon: Symbols.timer,
               label: '授权有效期',
               value: _draft.expiryOption,
               options: ExpiryOption.values,
@@ -264,13 +287,13 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
             ),
             if (_draft.expiresAt != null)
               _InfoRow(
-                icon: LucideIcons.calendar,
+                icon: Symbols.calendar_today,
                 label: '到期时间',
                 value: DateFormat('yyyy-MM-dd HH:mm')
                     .format(_draft.expiresAt!),
               ),
             _InfoRow(
-              icon: LucideIcons.shield_check,
+              icon: Symbols.verified_user,
               label: '审计日志',
               value: '强制开启',
               valueColor: t.accent,
@@ -317,7 +340,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.shield_off,
+                      Icon(Symbols.gpp_bad,
                           size: 16, color: t.danger),
                       const SizedBox(width: 8),
                       Text('撤销授权',
@@ -348,7 +371,7 @@ class _AuditTab extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.scroll_text, size: 32, color: t.textMute),
+            Icon(Symbols.description, size: 32, color: t.textMute),
             const SizedBox(height: 8),
             Text('暂无活动',
                 style: AppTheme.sans(size: 13, color: t.textMute)),
@@ -376,13 +399,13 @@ class _AuditRow extends StatelessWidget {
     switch (e.outcome) {
       case McpAuditOutcome.ok:
       case McpAuditOutcome.confirmed:
-        return LucideIcons.circle_check;
+        return Symbols.check_circle;
       case McpAuditOutcome.denied:
-        return LucideIcons.circle_x;
+        return Symbols.cancel;
       case McpAuditOutcome.confirmRequired:
-        return LucideIcons.shield_alert;
+        return Symbols.gpp_maybe;
       case McpAuditOutcome.cancelled:
-        return LucideIcons.circle_minus;
+        return Symbols.do_not_disturb_on;
     }
   }
 
@@ -438,7 +461,7 @@ class _AuditRow extends StatelessWidget {
                   ...e.warnings.map((w) => Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(LucideIcons.triangle_alert,
+                          Icon(Symbols.warning,
                               size: 11, color: Colors.amber),
                           const SizedBox(width: 4),
                           Expanded(
@@ -524,8 +547,8 @@ class _ToolRow extends StatelessWidget {
         children: [
           Icon(
               tool.isWrite
-                  ? LucideIcons.pencil
-                  : LucideIcons.eye,
+                  ? Symbols.edit
+                  : Symbols.visibility,
               size: 16,
               color: tool.isWrite ? t.danger : t.textMute),
           const SizedBox(width: 12),
@@ -603,8 +626,8 @@ class _RadioRow extends StatelessWidget {
           children: [
             Icon(
                 selected
-                    ? LucideIcons.circle_dot
-                    : LucideIcons.circle,
+                    ? Symbols.radio_button_checked
+                    : Symbols.radio_button_unchecked,
                 size: 18,
                 color: selected ? t.accent : t.textMute),
             const SizedBox(width: 12),
@@ -720,7 +743,7 @@ class _ChoiceRow<T> extends StatelessWidget {
                   .map((o) => ListTile(
                         title: Text(labelOf(o)),
                         trailing: o == value
-                            ? Icon(LucideIcons.check,
+                            ? Icon(Symbols.check,
                                 size: 16, color: t.accent)
                             : null,
                         onTap: () => Navigator.pop(context, o),
@@ -743,7 +766,7 @@ class _ChoiceRow<T> extends StatelessWidget {
             Text(labelOf(value),
                 style: AppTheme.sans(size: 13, color: t.textMute)),
             const SizedBox(width: 4),
-            Icon(LucideIcons.chevron_right, size: 14, color: t.textMute),
+            Icon(Symbols.chevron_right, size: 14, color: t.textMute),
           ],
         ),
       ),

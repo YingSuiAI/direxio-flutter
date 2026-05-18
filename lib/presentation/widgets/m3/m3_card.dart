@@ -109,6 +109,8 @@ class M3InputField extends StatelessWidget {
     this.keyboardType,
     this.trailing,
     this.onSubmitted,
+    this.onChanged,
+    this.autofocus = false,
   });
   final TextEditingController controller;
   final IconData icon;
@@ -117,6 +119,8 @@ class M3InputField extends StatelessWidget {
   final TextInputType? keyboardType;
   final Widget? trailing;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -145,6 +149,8 @@ class M3InputField extends StatelessWidget {
               obscureText: obscure,
               keyboardType: keyboardType,
               onSubmitted: onSubmitted,
+              onChanged: onChanged,
+              autofocus: autofocus,
               style: AppTheme.sans(size: 17, color: t.text),
               decoration: InputDecoration(
                 hintText: hint,

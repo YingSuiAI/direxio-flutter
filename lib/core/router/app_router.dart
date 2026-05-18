@@ -6,6 +6,8 @@ import '../../presentation/pages/login_page.dart';
 import '../../presentation/pages/init_page.dart';
 import '../../presentation/pages/home_page.dart';
 import '../../presentation/pages/chat_page.dart';
+import '../../presentation/pages/chat_info_page.dart';
+import '../../presentation/pages/group_info_page.dart';
 import '../../presentation/pages/group_chat_page.dart';
 import '../../presentation/pages/contact_detail_page.dart';
 import '../../presentation/pages/add_contact_page.dart';
@@ -75,6 +77,16 @@ GoRouter appRouter(Ref ref) {
         path: '/chat/:roomId',
         pageBuilder: (_, state) =>
             _slidePage(ChatPage(roomId: state.pathParameters['roomId']!)),
+      ),
+      GoRoute(
+        path: '/chat-info/:roomId',
+        pageBuilder: (_, state) => _slidePage(
+            ChatInfoPage(roomId: state.pathParameters['roomId']!)),
+      ),
+      GoRoute(
+        path: '/group-info/:roomId',
+        pageBuilder: (_, state) => _slidePage(
+            GroupInfoPage(roomId: state.pathParameters['roomId']!)),
       ),
       GoRoute(
         path: '/group/:roomId',

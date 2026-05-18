@@ -1,12 +1,13 @@
 /// MCP / Agent 权限：入口列表页
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../mock/mcp_policy.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/m3/glass_header.dart';
 
 class McpPermissionPage extends ConsumerWidget {
   const McpPermissionPage({super.key});
@@ -17,8 +18,11 @@ class McpPermissionPage extends ConsumerWidget {
     final policies = ref.watch(mcpPolicyStoreProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('MCP / Agent 权限')),
-      body: ListView(
+      body: Column(
+        children: [
+          GlassHeader.detail(title: 'MCP / Agent 权限'),
+          Expanded(
+            child: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
           Container(
@@ -30,7 +34,7 @@ class McpPermissionPage extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.info, size: 16, color: t.textMute),
+                Icon(Symbols.info, size: 16, color: t.textMute),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -46,10 +50,13 @@ class McpPermissionPage extends ConsumerWidget {
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: () {},
-            icon: const Icon(LucideIcons.plus, size: 14),
+            icon: const Icon(Symbols.add, size: 14),
             label: const Text('授权新的 Agent'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ],
             ),
           ),
         ],
@@ -135,7 +142,7 @@ class _AgentRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(LucideIcons.chevron_right,
+                Icon(Symbols.chevron_right,
                     size: 16, color: t.textMute),
               ],
             ),

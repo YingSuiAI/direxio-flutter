@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import '../mock/mcp_policy.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/m3/glass_header.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -22,8 +23,11 @@ class SettingsPage extends ConsumerWidget {
     final mcpActive = mcpPolicies.values.where((p) => p.enabled).length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
-      body: ListView(
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '设置'),
+          Expanded(
+            child: ListView(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
         children: [
           // Profile card
@@ -68,19 +72,19 @@ class SettingsPage extends ConsumerWidget {
           _SettingsGroup(
             children: [
               _SettingsRow(
-                icon: LucideIcons.user_round,
+                icon: Symbols.person,
                 label: '显示名称',
                 value: client.userID != null ? '点击编辑' : '',
                 onTap: () {},
               ),
               _SettingsRow(
-                icon: LucideIcons.globe,
+                icon: Symbols.language,
                 label: 'Portal 域名',
                 value: domain,
                 valueIsMono: true,
               ),
               _SettingsRow(
-                icon: LucideIcons.lock_keyhole,
+                icon: Symbols.lock,
                 label: '修改密码',
                 onTap: () {},
               ),
@@ -92,23 +96,23 @@ class SettingsPage extends ConsumerWidget {
           _SettingsGroup(
             children: [
               _SettingsRow(
-                icon: LucideIcons.shield_check,
+                icon: Symbols.shield,
                 label: '端到端加密',
                 value: '已启用',
                 valueColor: t.accent,
               ),
               _SettingsRow(
-                icon: LucideIcons.key_round,
+                icon: Symbols.key,
                 label: '密钥备份',
                 onTap: () {},
               ),
               _SettingsRow(
-                icon: LucideIcons.smartphone,
+                icon: Symbols.smartphone,
                 label: '已登录设备',
                 onTap: () {},
               ),
               _SettingsRow(
-                icon: LucideIcons.bot,
+                icon: Symbols.robot_2,
                 label: 'MCP / Agent 权限',
                 value: '$mcpActive 个 Agent 已授权',
                 onTap: () => context.push('/mcp-permission'),
@@ -121,19 +125,19 @@ class SettingsPage extends ConsumerWidget {
           _SettingsGroup(
             children: [
               _SettingsRow(
-                icon: LucideIcons.tag,
+                icon: Symbols.sell,
                 label: '版本',
                 value: 'v2.0.0',
                 valueIsMono: true,
               ),
               _SettingsRow(
-                icon: LucideIcons.server,
+                icon: Symbols.dns,
                 label: 'Matrix Server',
                 value: 'continuwuity',
                 valueIsMono: true,
               ),
               _SettingsRow(
-                icon: LucideIcons.book_open,
+                icon: Symbols.menu_book,
                 label: '帮助与文档',
                 onTap: () {},
               ),
@@ -159,7 +163,7 @@ class SettingsPage extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.log_out, size: 16, color: t.danger),
+                      Icon(Symbols.logout, size: 16, color: t.danger),
                       const SizedBox(width: 8),
                       Text('退出登录',
                           style: AppTheme.sans(
@@ -170,6 +174,9 @@ class SettingsPage extends ConsumerWidget {
                   ),
                 ),
               ),
+            ),
+          ),
+        ],
             ),
           ),
         ],
@@ -272,7 +279,7 @@ class _SettingsRow extends StatelessWidget {
                   ),
                 ),
               if (onTap != null)
-                Icon(LucideIcons.chevron_right,
+                Icon(Symbols.chevron_right,
                     size: 14, color: t.textMute),
             ],
           ),

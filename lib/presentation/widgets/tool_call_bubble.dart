@@ -1,7 +1,7 @@
 /// Agent 工具调用气泡：可折叠卡片，显示 tool name / args / result summary / latency
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -56,8 +56,8 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                   children: [
                     Icon(
                       widget.denied
-                          ? LucideIcons.circle_x
-                          : LucideIcons.wrench,
+                          ? Symbols.cancel
+                          : Symbols.build,
                       size: 12,
                       color: color,
                     ),
@@ -86,8 +86,8 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                     const SizedBox(width: 6),
                     Icon(
                       _expanded
-                          ? LucideIcons.chevron_up
-                          : LucideIcons.chevron_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 12,
                       color: t.textMute,
                     ),
@@ -138,7 +138,7 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                               crossAxisAlignment:
                                   CrossAxisAlignment.start,
                               children: [
-                                Icon(LucideIcons.triangle_alert,
+                                Icon(Symbols.warning,
                                     size: 11, color: Colors.amber),
                                 const SizedBox(width: 4),
                                 Expanded(

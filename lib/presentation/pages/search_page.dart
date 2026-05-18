@@ -1,8 +1,14 @@
+/// 消息搜索 —— 对应 INTERFACE_SPEC.md §5.1
+/// 走 AsClient（当前 MockAsClient）的 /_as/search，全文搜消息内容。
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:matrix/matrix.dart';
-import '../providers/auth_provider.dart';
+import 'package:intl/intl.dart';
+import '../../data/as_client.dart';
+import '../../data/mock_as_client.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../core/theme/app_theme.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -13,59 +19,121 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final _ctrl = TextEditingController();
-  List<Room> _results = [];
+  Timer? _debounce;
+  List<AsSearchResult> _results = [];
+  bool _loading = false;
+  String _lastQuery = '';
 
-  void _search(String query) {
-    if (query.isEmpty) {
-      setState(() => _results = []);
+  void _onChanged(String query) {
+    _debounce?.cancel();
+    final q = query.trim();
+    if (q.isEmpty) {
+      setState(() {
+        _results = [];
+        _loading = false;
+        _lastQuery = '';
+      });
       return;
     }
-    final client = ref.read(matrixClientProvider);
-    setState(() {
-      _results = client.rooms
-          .where((r) => r.getLocalizedDisplayname()
-              .toLowerCase()
-              .contains(query.toLowerCase()))
-          .toList();
-    });
+    _debounce = Timer(const Duration(milliseconds: 300), () => _search(q));
+  }
+
+  Future<void> _search(String query) async {
+    setState(() => _loading = true);
+    try {
+      final as = ref.read(asClientProvider);
+      final results = await as.search(query, limit: 30);
+      if (!mounted) return;
+      setState(() {
+        _results = results;
+        _loading = false;
+        _lastQuery = query;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _results = [];
+        _loading = false;
+        _lastQuery = query;
+      });
+    }
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Scaffold(
       appBar: AppBar(
         title: TextField(
           controller: _ctrl,
           autofocus: true,
           decoration: const InputDecoration(
-            hintText: '搜索联系人、群组、消息...',
+            hintText: '搜索消息内容...',
             border: InputBorder.none,
           ),
-          onChanged: _search,
+          onChanged: _onChanged,
         ),
       ),
-      body: ListView.builder(
-        itemCount: _results.length,
-        itemBuilder: (context, i) {
-          final room = _results[i];
-          return ListTile(
-            leading: CircleAvatar(
-              child: Text(room.getLocalizedDisplayname().characters.first.toUpperCase()),
+      body: _buildBody(t),
+    );
+  }
+
+  Widget _buildBody(PortalTokens t) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_lastQuery.isEmpty) {
+      return Center(
+        child: Text('输入关键词搜索聊天记录',
+            style: AppTheme.sans(size: 13, color: t.textMute)),
+      );
+    }
+    if (_results.isEmpty) {
+      return Center(
+        child: Text('没有找到包含「$_lastQuery」的消息',
+            style: AppTheme.sans(size: 13, color: t.textMute)),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: _results.length,
+      separatorBuilder: (_, __) => Divider(height: 1, color: t.border, indent: 16),
+      itemBuilder: (context, i) {
+        final r = _results[i];
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundColor: t.accent.withValues(alpha: 0.15),
+            child: Text(
+              r.senderName.isEmpty
+                  ? '?'
+                  : r.senderName.characters.first.toUpperCase(),
+              style: AppTheme.sans(size: 14, color: t.accent),
             ),
-            title: Text(room.getLocalizedDisplayname()),
-            subtitle: Text(room.isDirectChat ? '联系人' : '群组'),
-            onTap: () => room.isDirectChat
-                ? context.push('/chat/${Uri.encodeComponent(room.id)}')
-                : context.push('/group/${Uri.encodeComponent(room.id)}'),
-          );
-        },
-      ),
+          ),
+          title: Text(r.senderName,
+              style: AppTheme.sans(
+                  size: 14, weight: FontWeight.w600, color: t.text)),
+          subtitle: Text(
+            r.content,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.sans(size: 12, color: t.textMute),
+          ),
+          trailing: Text(
+            DateFormat('MM-dd HH:mm').format(r.timestamp),
+            style: AppTheme.mono(size: 10, color: t.textMute),
+          ),
+          onTap: () =>
+              context.push('/chat/${Uri.encodeComponent(r.roomId)}'),
+        );
+      },
     );
   }
 }

@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../../data/as_client.dart';
 import '../../data/mock_as_client.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/m3/glass_header.dart';
+import '../widgets/m3/m3_card.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -70,18 +73,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      appBar: AppBar(
-        title: TextField(
-          controller: _ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '搜索消息内容...',
-            border: InputBorder.none,
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '搜索消息'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: M3InputField(
+              controller: _ctrl,
+              icon: Symbols.search,
+              hint: '搜索消息内容…',
+              autofocus: true,
+              onChanged: _onChanged,
+            ),
           ),
-          onChanged: _onChanged,
-        ),
+          Expanded(child: _buildBody(t)),
+        ],
       ),
-      body: _buildBody(t),
     );
   }
 

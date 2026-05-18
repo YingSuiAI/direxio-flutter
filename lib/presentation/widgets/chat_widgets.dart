@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:intl/intl.dart';
 import 'package:matrix/matrix.dart';
 
@@ -122,7 +122,7 @@ class MessageInputBar extends StatelessWidget {
                 children: [
                   IconButton(
                     icon: Icon(
-                      LucideIcons.circle_plus,
+                      Symbols.add_circle,
                       size: 26,
                       color: t.textMute,
                     ),
@@ -166,7 +166,7 @@ class MessageInputBar extends StatelessWidget {
                           ),
                           IconButton(
                             icon: Icon(
-                              LucideIcons.smile,
+                              Symbols.sentiment_satisfied,
                               size: 22,
                               color: t.accent,
                             ),
@@ -187,7 +187,7 @@ class MessageInputBar extends StatelessWidget {
                         width: 40,
                         height: 40,
                         child: Icon(
-                          LucideIcons.send,
+                          Symbols.send,
                           size: 18,
                           color: t.onAccent,
                         ),

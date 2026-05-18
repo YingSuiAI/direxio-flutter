@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -449,13 +448,13 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _menuTile(t, LucideIcons.copy, '复制', 'copy'),
-              _menuTile(t, LucideIcons.quote, '引用', 'quote'),
-              _menuTile(t, LucideIcons.forward, '转发', 'forward'),
-              _menuTile(t, LucideIcons.sparkles, '让 AI Bot 解读', 'ai',
+              _menuTile(t, Symbols.content_copy, '复制', 'copy'),
+              _menuTile(t, Symbols.format_quote, '引用', 'quote'),
+              _menuTile(t, Symbols.forward, '转发', 'forward'),
+              _menuTile(t, Symbols.auto_awesome, '让 AI Bot 解读', 'ai',
                   highlight: true),
               if (m.isMe)
-                _menuTile(t, LucideIcons.trash_2, '删除', 'delete', danger: true),
+                _menuTile(t, Symbols.delete, '删除', 'delete', danger: true),
             ],
           ),
         );
@@ -541,34 +540,45 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
         children: [
           GlassHeader.detail(
             title: c.name,
-            subtitle: _isAiBot ? '端对端加密' : '在线',
-            subtitleIcon: _isAiBot ? Symbols.lock : null,
+            subtitle: c.isGroup
+                ? '${c.members!.length} 名成员'
+                : (_isAiBot ? '端对端加密' : '在线'),
+            subtitleIcon: c.isGroup
+                ? Symbols.group
+                : (_isAiBot ? Symbols.lock : null),
             centerLeading: SizedBox(
               width: 36,
               height: 36,
-              child: Stack(
-                children: [
-                  PortalAvatar(seed: c.name, size: 36),
-                  const Positioned(
-                      bottom: 0, right: 0, child: OnlineDot(size: 10)),
-                ],
-              ),
+              child: c.isGroup
+                  ? PortalAvatar(seed: c.name, size: 36)
+                  : Stack(
+                      children: [
+                        PortalAvatar(seed: c.name, size: 36),
+                        const Positioned(
+                            bottom: 0, right: 0, child: OnlineDot(size: 10)),
+                      ],
+                    ),
             ),
             actions: [
-              GlassHeaderButton(
-                icon: Symbols.call,
-                color: t.accent,
-                onTap: () {},
-              ),
+              if (!c.isGroup)
+                GlassHeaderButton(
+                  icon: Symbols.call,
+                  color: t.accent,
+                  onTap: () => context
+                      .push('/call/${Uri.encodeComponent(c.id)}'),
+                ),
               GlassHeaderButton(
                 icon: Symbols.videocam,
                 color: t.accent,
-                onTap: () {},
+                onTap: () => context
+                    .push('/call/${Uri.encodeComponent(c.id)}'),
               ),
               GlassHeaderButton(
                 icon: Symbols.more_vert,
                 color: t.accent,
-                onTap: () {},
+                onTap: () => context.push(
+                    '${c.isGroup ? '/group-info' : '/chat-info'}'
+                    '/${Uri.encodeComponent(c.id)}'),
               ),
             ],
           ),
@@ -600,6 +610,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                       return _MockBubble(
                         msg: m,
                         isAgent: _isAiBot,
+                        isGroup: c.isGroup,
                         onLongPress: () => _showMessageMenu(m),
                       );
                     },
@@ -620,6 +631,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
           _MockInputBar(
             ctrl: _ctrl,
             onSend: _send,
+            roomId: widget.conv.id,
             suggestions: _isAiBot
                 ? const []
                 : const [
@@ -640,10 +652,14 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
 
 class _MockBubble extends StatelessWidget {
   const _MockBubble(
-      {required this.msg, this.isAgent = false, this.onLongPress});
+      {required this.msg,
+      this.isAgent = false,
+      this.onLongPress,
+      this.isGroup = false});
   final MockMessage msg;
   final bool isAgent;
   final VoidCallback? onLongPress;
+  final bool isGroup;
 
   @override
   Widget build(BuildContext context) {
@@ -693,7 +709,11 @@ class _MockBubble extends StatelessWidget {
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (!isMe) ...[
-            PortalAvatar(seed: msg.isMe ? 'me' : 'agent', size: 28),
+            PortalAvatar(
+                seed: isGroup
+                    ? (msg.senderName ?? 'member')
+                    : (isAgent ? 'agent' : 'contact'),
+                size: 28),
             const SizedBox(width: 8),
           ],
           Flexible(
@@ -705,6 +725,13 @@ class _MockBubble extends StatelessWidget {
                 crossAxisAlignment:
                     isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
+                  if (isGroup && !isMe && msg.senderName != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                      child: Text(msg.senderName!,
+                          style: AppTheme.sans(
+                              size: 12, color: t.textMute)),
+                    ),
                   bubble,
                   const SizedBox(height: 4),
                   Padding(
@@ -733,7 +760,7 @@ class _EmptyState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isAiBot ? LucideIcons.sparkles : LucideIcons.message_circle,
+            isAiBot ? Symbols.auto_awesome : Symbols.chat_bubble,
             size: 36,
             color: t.textMute,
           ),
@@ -765,7 +792,7 @@ class _ConfirmBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(LucideIcons.shield_alert, size: 16, color: t.accent),
+          Icon(Symbols.gpp_maybe, size: 16, color: t.accent),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -823,11 +850,13 @@ class _MockInputBar extends StatelessWidget {
   const _MockInputBar({
     required this.ctrl,
     required this.onSend,
+    required this.roomId,
     this.suggestions = const [],
     this.onPickSuggestion,
   });
   final TextEditingController ctrl;
   final VoidCallback onSend;
+  final String roomId;
   final List<String> suggestions;
   final ValueChanged<String>? onPickSuggestion;
 
@@ -858,16 +887,29 @@ class _MockInputBar extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 4,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                children: const [
-                  _CommonAction(icon: LucideIcons.image, label: '相册'),
-                  _CommonAction(icon: LucideIcons.camera, label: '拍摄'),
-                  _CommonAction(icon: LucideIcons.file, label: '文件'),
-                  _CommonAction(icon: LucideIcons.video, label: '视频通话'),
-                  _CommonAction(icon: LucideIcons.phone, label: '语音通话'),
-                  _CommonAction(icon: LucideIcons.map_pin, label: '位置'),
-                  _CommonAction(icon: LucideIcons.user, label: '名片'),
-                  _CommonAction(icon: LucideIcons.mic, label: '语音输入'),
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+                mainAxisSpacing: 20,
+                crossAxisSpacing: 8,
+                childAspectRatio: 0.82,
+                children: [
+                  const _CommonAction(icon: Symbols.photo_library, label: '相册'),
+                  const _CommonAction(
+                      icon: Symbols.photo_camera, label: '拍摄'),
+                  _CommonAction(
+                    icon: Symbols.videocam,
+                    label: '视频通话',
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      context.push(
+                          '/call/${Uri.encodeComponent(roomId)}');
+                    },
+                  ),
+                  const _CommonAction(
+                      icon: Symbols.location_on, label: '位置'),
+                  const _CommonAction(
+                      icon: Symbols.contact_page, label: '个人名片'),
+                  const _CommonAction(
+                      icon: Symbols.description, label: '文件'),
                 ],
               ),
             ],
@@ -1013,30 +1055,30 @@ class _MockInputBar extends StatelessWidget {
 }
 
 class _CommonAction extends StatelessWidget {
-  const _CommonAction({required this.icon, required this.label});
+  const _CommonAction({required this.icon, required this.label, this.onTap});
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () {},
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 48,
-            height: 48,
+            width: 56,
+            height: 56,
             decoration: BoxDecoration(
-              color: t.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: t.border),
+              color: t.surfaceHigh,
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(icon, size: 22, color: t.text),
+            child: Icon(icon, size: 26, color: t.textMute),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(label, style: AppTheme.sans(size: 11, color: t.textMute)),
         ],
       ),
@@ -1075,12 +1117,12 @@ class _AgentFloatingBar extends ConsumerWidget {
       ),
       items: [
         _shortcutItem(
-            t, LucideIcons.gauge, '查询 Token 用量', '查看本月消耗与配额', onTokenUsage),
-        _shortcutItem(t, LucideIcons.list_collapse, '总结最近的聊天', '汇总最近联系人聊了什么',
+            t, Symbols.speed, '查询 Token 用量', '查看本月消耗与配额', onTokenUsage),
+        _shortcutItem(t, Symbols.summarize, '总结最近的聊天', '汇总最近联系人聊了什么',
             onSummarizeRecent),
-        _shortcutItem(t, LucideIcons.send, '代我回复 Jack', '让 Agent 起草并经你确认后发送',
+        _shortcutItem(t, Symbols.send, '代我回复 Jack', '让 Agent 起草并经你确认后发送',
             onDraftReply),
-        _shortcutItem(t, LucideIcons.message_square_plus, '新建会话', '清空当前对话开始新一轮',
+        _shortcutItem(t, Symbols.add_comment, '新建会话', '清空当前对话开始新一轮',
             onNewSession),
       ],
     );
@@ -1133,7 +1175,7 @@ class _AgentFloatingBar extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 6, left: 2),
               child: Row(
                 children: [
-                  Icon(LucideIcons.shield_check,
+                  Icon(Symbols.verified_user,
                       size: 11, color: policy.enabled ? t.accent : t.textMute),
                   const SizedBox(width: 4),
                   Text(
@@ -1146,7 +1188,7 @@ class _AgentFloatingBar extends ConsumerWidget {
           Row(children: [
             Builder(builder: (btnCtx) {
               return _CapsuleButton(
-                icon: LucideIcons.chevron_down,
+                icon: Symbols.keyboard_arrow_down,
                 iconLeading: false,
                 label: '快捷指令',
                 onTap: () {
@@ -1158,7 +1200,7 @@ class _AgentFloatingBar extends ConsumerWidget {
             }),
             const SizedBox(width: 8),
             _CapsuleButton(
-              icon: LucideIcons.settings_2,
+              icon: Symbols.tune,
               iconLeading: true,
               label: '管理',
               onTap: () => context.push('/mcp-permission/local-aibot'),

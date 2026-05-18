@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/m3/glass_header.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -61,13 +62,16 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('好友申请')),
-      body: invites.isEmpty
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '好友申请'),
+          Expanded(
+            child: invites.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(LucideIcons.bell_off,
+                  Icon(Symbols.notifications_off,
                       size: 32, color: t.textMute),
                   const SizedBox(height: 12),
                   Text('暂无待处理申请',
@@ -138,13 +142,13 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       ),
                       const SizedBox(width: 8),
                       _IconBtn(
-                        icon: LucideIcons.x,
+                        icon: Symbols.close,
                         color: t.danger,
                         onTap: _busy ? null : () => _reject(room),
                       ),
                       const SizedBox(width: 6),
                       _IconBtn(
-                        icon: LucideIcons.check,
+                        icon: Symbols.check,
                         color: t.accent,
                         onTap: _busy ? null : () => _accept(room),
                       ),
@@ -153,6 +157,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                 );
               },
             ),
+          ),
+        ],
+      ),
     );
   }
 }

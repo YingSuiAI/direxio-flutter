@@ -32,29 +32,19 @@ class MockMcpClient {
   String _genId() => 'audit_${DateTime.now().millisecondsSinceEpoch}_${++_seq}';
 
   /// 调用前预检：返回是否需要二次确认。UI 可在确认 banner 里展示。
-  ({bool needConfirm, String? deniedReason, McpPolicy? policy})
-      precheck(String agentId, String tool) {
+  ({bool needConfirm, String? deniedReason, McpPolicy? policy}) precheck(
+    String agentId,
+    String tool,
+  ) {
     final policy = ref.read(mcpPolicyStoreProvider)[agentId];
     if (policy == null) {
-      return (
-        needConfirm: false,
-        deniedReason: '未授权 Agent',
-        policy: null,
-      );
+      return (needConfirm: false, deniedReason: '未授权 Agent', policy: null);
     }
     if (!policy.enabled) {
-      return (
-        needConfirm: false,
-        deniedReason: 'Agent 已禁用',
-        policy: policy,
-      );
+      return (needConfirm: false, deniedReason: 'Agent 已禁用', policy: policy);
     }
     if (!policy.allowedTools.contains(tool)) {
-      return (
-        needConfirm: false,
-        deniedReason: '工具未授权：$tool',
-        policy: policy,
-      );
+      return (needConfirm: false, deniedReason: '工具未授权：$tool', policy: policy);
     }
     return (
       needConfirm: policy.confirmTools.contains(tool),
@@ -73,26 +63,30 @@ class MockMcpClient {
     final audit = ref.read(mcpAuditStoreProvider.notifier);
 
     if (pre.deniedReason != null) {
-      audit.log(McpAuditEntry(
-        id: _genId(),
-        agentId: agentId,
-        tool: tool,
-        args: args,
-        outcome: McpAuditOutcome.denied,
-        ts: DateTime.now(),
-        deniedReason: pre.deniedReason,
-      ));
+      audit.log(
+        McpAuditEntry(
+          id: _genId(),
+          agentId: agentId,
+          tool: tool,
+          args: args,
+          outcome: McpAuditOutcome.denied,
+          ts: DateTime.now(),
+          deniedReason: pre.deniedReason,
+        ),
+      );
       throw McpDeniedException(pre.deniedReason!);
     }
     if (pre.needConfirm && !userConfirmed) {
-      audit.log(McpAuditEntry(
-        id: _genId(),
-        agentId: agentId,
-        tool: tool,
-        args: args,
-        outcome: McpAuditOutcome.confirmRequired,
-        ts: DateTime.now(),
-      ));
+      audit.log(
+        McpAuditEntry(
+          id: _genId(),
+          agentId: agentId,
+          tool: tool,
+          args: args,
+          outcome: McpAuditOutcome.confirmRequired,
+          ts: DateTime.now(),
+        ),
+      );
       throw McpDeniedException('需用户二次确认');
     }
 
@@ -107,24 +101,27 @@ class MockMcpClient {
       summary: summary,
     );
 
-    audit.log(McpAuditEntry(
-      id: _genId(),
-      agentId: agentId,
-      tool: tool,
-      args: args,
-      outcome: userConfirmed
-          ? McpAuditOutcome.confirmed
-          : McpAuditOutcome.ok,
-      ts: DateTime.now(),
-      latencyMs: result.latencyMs,
-      warnings: result.warnings,
-      resultSummary: summary,
-    ));
+    audit.log(
+      McpAuditEntry(
+        id: _genId(),
+        agentId: agentId,
+        tool: tool,
+        args: args,
+        outcome: userConfirmed ? McpAuditOutcome.confirmed : McpAuditOutcome.ok,
+        ts: DateTime.now(),
+        latencyMs: result.latencyMs,
+        warnings: result.warnings,
+        resultSummary: summary,
+      ),
+    );
     return result;
   }
 
   ToolResult _dispatch(
-      String tool, Map<String, dynamic> args, McpPolicy policy) {
+    String tool,
+    Map<String, dynamic> args,
+    McpPolicy policy,
+  ) {
     switch (tool) {
       case 'list_conversations':
         return _listConversations(args, policy);
@@ -137,14 +134,17 @@ class MockMcpClient {
       case 'search_messages':
         return _searchMessages(args, policy);
       case 'token_usage':
-        return ToolResult(data: {
-          'input': 234567,
-          'output': 156890,
-          'total': 391457,
-          'limit': 1000000,
-          'model': 'claude-opus-4',
-          'cost_cny': 9.39,
-        }, latencyMs: 80);
+        return ToolResult(
+          data: {
+            'input': 234567,
+            'output': 156890,
+            'total': 391457,
+            'limit': 1000000,
+            'model': 'claude-opus-4',
+            'cost_cny': 9.39,
+          },
+          latencyMs: 80,
+        );
       default:
         throw McpDeniedException('未知工具：$tool');
     }
@@ -160,20 +160,24 @@ class MockMcpClient {
     }
     if (q != null && q.isNotEmpty) {
       rooms = rooms
-          .where((r) =>
-              r.name.toLowerCase().contains(q) ||
-              r.mxid.toLowerCase().contains(q))
+          .where(
+            (r) =>
+                r.name.toLowerCase().contains(q) ||
+                r.mxid.toLowerCase().contains(q),
+          )
           .toList();
     }
     return ToolResult(
       data: {
         'conversations': rooms
-            .map((r) => {
-                  'id': r.id,
-                  'name': r.name,
-                  'mxid': r.mxid,
-                  'unread': r.unread,
-                })
+            .map(
+              (r) => {
+                'id': r.id,
+                'name': r.name,
+                'mxid': r.mxid,
+                'unread': r.unread,
+              },
+            )
             .toList(),
       },
       latencyMs: 120,
@@ -192,9 +196,7 @@ class MockMcpClient {
     if (conv == null) throw McpDeniedException('会话不存在');
 
     final window = p.historyWindow.duration;
-    final cutoff = window == null
-        ? null
-        : DateTime.now().subtract(window);
+    final cutoff = window == null ? null : DateTime.now().subtract(window);
 
     var msgs = conv.messages;
     var truncated = false;
@@ -209,7 +211,7 @@ class MockMcpClient {
       if (r) redactCount++;
       return {
         'sender': m.isMe ? '@me' : conv.mxid,
-        'sender_name': m.isMe ? '我' : conv.name,
+        'sender_name': m.isMe ? '我' : (m.senderName ?? conv.name),
         'text': r ? '[REDACTED]' : m.text,
         'ts': m.time.toIso8601String(),
         'redacted': r,
@@ -242,10 +244,13 @@ class MockMcpClient {
     if (p.roomScope == RoomScope.whitelist && !p.roomIds.contains(roomId)) {
       throw McpDeniedException('该会话不在授权白名单');
     }
-    return ToolResult(data: {
-      'msg_id': 'mock_msg_${DateTime.now().millisecondsSinceEpoch}',
-      'room_id': roomId,
-    }, latencyMs: 180);
+    return ToolResult(
+      data: {
+        'msg_id': 'mock_msg_${DateTime.now().millisecondsSinceEpoch}',
+        'room_id': roomId,
+      },
+      latencyMs: 180,
+    );
   }
 
   ToolResult _whoIs(Map<String, dynamic> args, McpPolicy p) {
@@ -254,29 +259,30 @@ class MockMcpClient {
       (c) => c.name.toLowerCase().contains(q) || c.mxid.contains(q),
       orElse: () => MockData.conversations.first,
     );
-    return ToolResult(data: {
-      'mxid': r.mxid,
-      'name': r.name,
-      'last_seen': r.lastMessage?.time.toIso8601String(),
-    }, latencyMs: 90);
+    return ToolResult(
+      data: {
+        'mxid': r.mxid,
+        'name': r.name,
+        'last_seen': r.lastMessage?.time.toIso8601String(),
+      },
+      latencyMs: 90,
+    );
   }
 
   ToolResult _searchMessages(Map<String, dynamic> args, McpPolicy p) {
     final q = (args['query'] as String).toLowerCase();
     final results = <Map<String, dynamic>>[];
     for (final conv in MockData.conversations) {
-      if (p.roomScope == RoomScope.whitelist &&
-          !p.roomIds.contains(conv.id)) continue;
-      if (p.roomScope == RoomScope.blacklist &&
-          p.roomIds.contains(conv.id)) continue;
+      if (p.roomScope == RoomScope.whitelist && !p.roomIds.contains(conv.id))
+        continue;
+      if (p.roomScope == RoomScope.blacklist && p.roomIds.contains(conv.id))
+        continue;
       for (final m in conv.messages) {
         if (m.text.toLowerCase().contains(q)) {
           results.add({
             'room': conv.name,
             'sender': m.isMe ? '我' : conv.name,
-            'text': m.text.length > 60
-                ? '${m.text.substring(0, 60)}…'
-                : m.text,
+            'text': m.text.length > 60 ? '${m.text.substring(0, 60)}…' : m.text,
             'ts': m.time.toIso8601String(),
           });
         }
@@ -308,5 +314,6 @@ class MockMcpClient {
   }
 }
 
-final mockMcpClientProvider =
-    Provider<MockMcpClient>((ref) => MockMcpClient(ref));
+final mockMcpClientProvider = Provider<MockMcpClient>(
+  (ref) => MockMcpClient(ref),
+);

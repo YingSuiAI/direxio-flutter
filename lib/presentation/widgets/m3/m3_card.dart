@@ -78,9 +78,14 @@ class M3PrimaryButton extends StatelessWidget {
           Icon(icon, size: 18, color: t.onAccent),
           const SizedBox(width: 6),
         ],
-        Text(label,
-            style: AppTheme.sans(
-                size: 17, weight: FontWeight.w600, color: t.onAccent)),
+        Text(
+          label,
+          style: AppTheme.sans(
+            size: 17,
+            weight: FontWeight.w600,
+            color: t.onAccent,
+          ),
+        ),
       ],
     );
     return Material(

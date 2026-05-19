@@ -59,7 +59,8 @@ class M3BottomNav extends StatelessWidget {
                       AnimatedPositioned(
                         duration: const Duration(milliseconds: 320),
                         curve: Curves.easeInOutCubic,
-                        left: tabWidth * currentIndex +
+                        left:
+                            tabWidth * currentIndex +
                             (tabWidth - _pillWidth(tabWidth)) / 2,
                         top: (_height - _pillHeight) / 2,
                         child: Container(

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/portal_avatar.dart';
@@ -9,6 +9,7 @@ import '../widgets/m3/glass_header.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 
+/// `s-new-friends` — 新朋友 (index.html L1494-1564)
 class RequestsPage extends ConsumerStatefulWidget {
   const RequestsPage({super.key});
 
@@ -18,6 +19,7 @@ class RequestsPage extends ConsumerStatefulWidget {
 
 class _RequestsPageState extends ConsumerState<RequestsPage> {
   StreamSubscription<SyncUpdate>? _syncSub;
+  final _searchCtrl = TextEditingController();
   bool _busy = false;
 
   @override
@@ -32,6 +34,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   @override
   void dispose() {
     _syncSub?.cancel();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -39,15 +42,6 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     setState(() => _busy = true);
     try {
       await room.join();
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _reject(Room room) async {
-    setState(() => _busy = true);
-    try {
-      await room.leave();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -62,100 +56,36 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         .toList();
 
     return Scaffold(
+      backgroundColor: t.bg,
       body: Column(
         children: [
-          GlassHeader.detail(title: '好友申请'),
+          GlassHeader.detail(title: '新朋友'),
           Expanded(
-            child: invites.isEmpty
-          ? Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Symbols.notifications_off,
-                      size: 32, color: t.textMute),
-                  const SizedBox(height: 12),
-                  Text('暂无待处理申请',
-                      style: AppTheme.sans(
-                          size: 14,
-                          color: t.text,
-                          weight: FontWeight.w500)),
-                  const SizedBox(height: 4),
-                  Text('好友/群邀请会出现在这里',
-                      style: AppTheme.sans(size: 12, color: t.textMute)),
+                  // 添加朋友搜索框
+                  _SearchBox(controller: _searchCtrl, onSearch: () {}),
+                  const SizedBox(height: 20),
+
+                  // 待接受请求
+                  _SectionLabel(text: '待接受'),
+                  const SizedBox(height: 8),
+                  _PendingSection(
+                    invites: invites,
+                    busy: _busy,
+                    onAccept: _accept,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // 已添加
+                  _SectionLabel(text: '已添加'),
+                  const SizedBox(height: 8),
+                  _AcceptedSection(),
                 ],
               ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-              itemCount: invites.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (context, i) {
-                final room = invites[i];
-                final isDm = room.isDirectChat;
-                final inviterId = room.directChatMatrixID ??
-                    room
-                        .getState(EventTypes.RoomCreate)
-                        ?.senderId ??
-                    '';
-                final domain = inviterId.contains(':')
-                    ? inviterId.split(':').last
-                    : inviterId;
-                return Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: t.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: t.border),
-                  ),
-                  child: Row(
-                    children: [
-                      PortalAvatar(seed: domain, size: 44),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              room.getLocalizedDisplayname(),
-                              style: AppTheme.sans(
-                                  size: 14,
-                                  weight: FontWeight.w600,
-                                  color: t.text),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isDm ? '好友申请' : '群邀请',
-                              style:
-                                  AppTheme.sans(size: 11, color: t.textMute),
-                            ),
-                            if (inviterId.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                inviterId,
-                                style: AppTheme.mono(
-                                    size: 11, color: t.accentCool),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _IconBtn(
-                        icon: Symbols.close,
-                        color: t.danger,
-                        onTap: _busy ? null : () => _reject(room),
-                      ),
-                      const SizedBox(width: 6),
-                      _IconBtn(
-                        icon: Symbols.check,
-                        color: t.accent,
-                        onTap: _busy ? null : () => _accept(room),
-                      ),
-                    ],
-                  ),
-                );
-              },
             ),
           ),
         ],
@@ -164,25 +94,310 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   }
 }
 
-class _IconBtn extends StatelessWidget {
-  const _IconBtn({required this.icon, required this.color, this.onTap});
-  final IconData icon;
-  final Color color;
+class _SearchBox extends StatelessWidget {
+  const _SearchBox({required this.controller, required this.onSearch});
+  final TextEditingController controller;
+  final VoidCallback onSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.border.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Icon(Symbols.search, size: 20, color: t.textMute),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              style: AppTheme.sans(size: 15, color: t.text),
+              decoration: InputDecoration(
+                isCollapsed: true,
+                border: InputBorder.none,
+                hintText: '手机号 / 用户名 / Node ID',
+                hintStyle: AppTheme.sans(size: 15, color: t.textMute),
+              ),
+              onSubmitted: (_) => onSearch(),
+            ),
+          ),
+          InkWell(
+            onTap: onSearch,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Text(
+                '搜索',
+                style: AppTheme.sans(
+                  size: 13,
+                  weight: FontWeight.w500,
+                  color: t.accent,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text,
+        style: AppTheme.sans(
+          size: 13,
+          weight: FontWeight.w500,
+          color: t.textMute,
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingSection extends StatelessWidget {
+  const _PendingSection({
+    required this.invites,
+    required this.busy,
+    required this.onAccept,
+  });
+  final List<Room> invites;
+  final bool busy;
+  final void Function(Room) onAccept;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+
+    // 真实 invites 优先；如无,展示设计稿 mock 内容。
+    final List<Widget> rows;
+    if (invites.isNotEmpty) {
+      rows = [];
+      for (var i = 0; i < invites.length; i++) {
+        if (i > 0) rows.add(_RowDivider());
+        final room = invites[i];
+        final inviterId =
+            room.directChatMatrixID ??
+            room.getState(EventTypes.RoomCreate)?.senderId ??
+            '';
+        rows.add(
+          _PendingRow(
+            name: room.getLocalizedDisplayname(),
+            message: inviterId.isEmpty ? '请求加为好友' : inviterId,
+            seed: inviterId.isEmpty
+                ? room.getLocalizedDisplayname()
+                : inviterId,
+            onAccept: busy ? null : () => onAccept(room),
+          ),
+        );
+      }
+    } else {
+      rows = [
+        _PendingRow(
+          name: 'Frank Liu',
+          message: '我是 Frank，来自产品组',
+          seed: 'Frank',
+          onAccept: () {},
+        ),
+        _RowDivider(),
+        _PendingRow(
+          name: 'Grace Zhou',
+          message: '你好，我是 Grace',
+          seed: 'Grace',
+          onAccept: () {},
+        ),
+      ];
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.border.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: rows),
+    );
+  }
+}
+
+class _PendingRow extends StatelessWidget {
+  const _PendingRow({
+    required this.name,
+    required this.message,
+    required this.seed,
+    required this.onAccept,
+  });
+  final String name;
+  final String message;
+  final String seed;
+  final VoidCallback? onAccept;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          PortalAvatar(seed: seed, size: 48),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 20,
+                    weight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(size: 15, color: t.textMute),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _AcceptButton(onTap: onAccept),
+        ],
+      ),
+    );
+  }
+}
+
+class _AcceptButton extends StatelessWidget {
+  const _AcceptButton({required this.onTap});
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: color.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(6),
+      color: t.accent,
+      borderRadius: BorderRadius.circular(9999),
       child: InkWell(
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(9999),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Icon(icon, size: 16, color: color),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Text(
+            '接受',
+            style: AppTheme.sans(
+              size: 13,
+              weight: FontWeight.w500,
+              color: t.onAccent,
+            ),
+          ),
         ),
       ),
     );
+  }
+}
+
+class _AcceptedSection extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.border.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            PortalAvatar(seed: 'Alice', size: 48),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Alice Chen',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 20,
+                      weight: FontWeight.w600,
+                      color: t.text,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '3 天前接受了你的请求',
+                    style: AppTheme.sans(size: 15, color: t.textMute),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '已添加',
+              style: AppTheme.sans(
+                size: 13,
+                weight: FontWeight.w500,
+                color: t.textMute,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RowDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(height: 1, color: t.border.withValues(alpha: 0.2));
   }
 }

@@ -55,8 +55,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       children: [
-                        for (final m in members)
-                          _MemberChip(name: m),
+                        for (final m in members) _MemberChip(name: m),
                         _InviteChip(onTap: () {}),
                       ],
                     ),
@@ -100,17 +99,12 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                         onChanged: (v) => setState(() => _pinned = v),
                       ),
                       const InfoDivider(),
-                      InfoNavRow(
-                        label: '我在群里的昵称',
-                        value: 'Alex',
-                        onTap: () {},
-                      ),
+                      InfoNavRow(label: '我在群里的昵称', value: 'Alex', onTap: () {}),
                       const InfoDivider(),
                       InfoSwitchRow(
                         label: '显示群成员昵称',
                         value: _showMemberNick,
-                        onChanged: (v) =>
-                            setState(() => _showMemberNick = v),
+                        onChanged: (v) => setState(() => _showMemberNick = v),
                       ),
                     ],
                   ),
@@ -161,8 +155,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
               Navigator.of(ctx).pop();
               if (context.mounted) context.go('/home');
             },
-            child: Text('退出',
-                style: TextStyle(color: context.tk.danger)),
+            child: Text('退出', style: TextStyle(color: context.tk.danger)),
           ),
         ],
       ),
@@ -187,11 +180,13 @@ class _MemberChip extends StatelessWidget {
           const SizedBox(height: 4),
           SizedBox(
             width: 52,
-            child: Text(short,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: AppTheme.sans(size: 10, color: t.textMute)),
+            child: Text(
+              short,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(size: 10, color: t.textMute),
+            ),
           ),
         ],
       ),
@@ -219,17 +214,13 @@ class _InviteChip extends StatelessWidget {
               height: 48,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: t.border,
-                  width: 1.5,
-                ),
+                border: Border.all(color: t.border, width: 1.5),
               ),
               child: Icon(Symbols.add, size: 22, color: t.textMute),
             ),
           ),
           const SizedBox(height: 4),
-          Text('邀请',
-              style: AppTheme.sans(size: 10, color: t.textMute)),
+          Text('邀请', style: AppTheme.sans(size: 10, color: t.textMute)),
         ],
       ),
     );

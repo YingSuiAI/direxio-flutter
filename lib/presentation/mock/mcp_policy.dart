@@ -18,35 +18,41 @@ class McpToolDef {
 
   static const all = <McpToolDef>[
     McpToolDef(
-        id: 'list_conversations',
-        label: '列出会话',
-        description: '让 Agent 看到你有哪些会话',
-        isWrite: false),
+      id: 'list_conversations',
+      label: '列出会话',
+      description: '让 Agent 看到你有哪些会话',
+      isWrite: false,
+    ),
     McpToolDef(
-        id: 'search_messages',
-        label: '搜索消息',
-        description: '允许 Agent 对历史消息做全文检索',
-        isWrite: false),
+      id: 'search_messages',
+      label: '搜索消息',
+      description: '允许 Agent 对历史消息做全文检索',
+      isWrite: false,
+    ),
     McpToolDef(
-        id: 'get_recent_messages',
-        label: '拉取最近消息',
-        description: '按 room 拉一段历史消息',
-        isWrite: false),
+      id: 'get_recent_messages',
+      label: '拉取最近消息',
+      description: '按 room 拉一段历史消息',
+      isWrite: false,
+    ),
     McpToolDef(
-        id: 'summarize_room',
-        label: '总结会话',
-        description: '让 Agent 总结某个会话',
-        isWrite: false),
+      id: 'summarize_room',
+      label: '总结会话',
+      description: '让 Agent 总结某个会话',
+      isWrite: false,
+    ),
     McpToolDef(
-        id: 'send_message',
-        label: '发送消息',
-        description: '允许 Agent 替你发消息（写）',
-        isWrite: true),
+      id: 'send_message',
+      label: '发送消息',
+      description: '允许 Agent 替你发消息（写）',
+      isWrite: true,
+    ),
     McpToolDef(
-        id: 'who_is',
-        label: '查询身份',
-        description: '解析联系人 mxid / 显示名',
-        isWrite: false),
+      id: 'who_is',
+      label: '查询身份',
+      description: '解析联系人 mxid / 显示名',
+      isWrite: false,
+    ),
   ];
 }
 
@@ -55,7 +61,7 @@ enum RoomScope { all, whitelist, blacklist }
 class TimeRange {
   const TimeRange(this.startHour, this.endHour);
   final int startHour; // 0-23
-  final int endHour;   // 0-23
+  final int endHour; // 0-23
   @override
   String toString() =>
       '${startHour.toString().padLeft(2, '0')}:00 — ${endHour.toString().padLeft(2, '0')}:00';
@@ -104,19 +110,20 @@ class McpPolicy {
     this.perCallMessageLimit = 50,
     this.expiryOption = ExpiryOption.h4,
     DateTime? grantedAt,
-  })  : allowedTools = allowedTools ??
-            {
-              'list_conversations',
-              'search_messages',
-              'get_recent_messages',
-              'summarize_room',
-              'send_message',
-              'who_is',
-            },
-        confirmTools = confirmTools ?? {'send_message'},
-        roomIds = roomIds ?? {},
-        redactKeywords = redactKeywords ?? {'密码', '身份证', '验证码'},
-        grantedAt = grantedAt ?? DateTime.now();
+  }) : allowedTools =
+           allowedTools ??
+           {
+             'list_conversations',
+             'search_messages',
+             'get_recent_messages',
+             'summarize_room',
+             'send_message',
+             'who_is',
+           },
+       confirmTools = confirmTools ?? {'send_message'},
+       roomIds = roomIds ?? {},
+       redactKeywords = redactKeywords ?? {'密码', '身份证', '验证码'},
+       grantedAt = grantedAt ?? DateTime.now();
 
   final String agentId;
   final String displayName;
@@ -177,13 +184,13 @@ class McpPolicy {
 /// 全局 mock 策略表（agentId -> policy）
 class McpPolicyStore extends StateNotifier<Map<String, McpPolicy>> {
   McpPolicyStore()
-      : super({
-          'local-aibot': McpPolicy(
-            agentId: 'local-aibot',
-            displayName: 'AI Bot',
-            mxid: '@aibot:portal.ai',
-          ),
-        });
+    : super({
+        'local-aibot': McpPolicy(
+          agentId: 'local-aibot',
+          displayName: 'AI Bot',
+          mxid: '@aibot:portal.ai',
+        ),
+      });
 
   void update(String agentId, McpPolicy newPolicy) {
     state = {...state, agentId: newPolicy};
@@ -192,4 +199,5 @@ class McpPolicyStore extends StateNotifier<Map<String, McpPolicy>> {
 
 final mcpPolicyStoreProvider =
     StateNotifierProvider<McpPolicyStore, Map<String, McpPolicy>>(
-        (ref) => McpPolicyStore());
+      (ref) => McpPolicyStore(),
+    );

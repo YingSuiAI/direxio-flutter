@@ -12,8 +12,7 @@ class InfoDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Divider(
-        height: 1, color: context.tk.border.withValues(alpha: 0.5));
+    return Divider(height: 1, color: context.tk.border.withValues(alpha: 0.5));
   }
 }
 
@@ -41,13 +40,16 @@ class InfoNavRow extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text(label,
-                  style: AppTheme.sans(
-                      size: 15, color: danger ? t.danger : t.text)),
+              child: Text(
+                label,
+                style: AppTheme.sans(
+                  size: 15,
+                  color: danger ? t.danger : t.text,
+                ),
+              ),
             ),
             if (value != null) ...[
-              Text(value!,
-                  style: AppTheme.sans(size: 13, color: t.textMute)),
+              Text(value!, style: AppTheme.sans(size: 13, color: t.textMute)),
               const SizedBox(width: 4),
             ],
             Icon(Symbols.chevron_right, size: 18, color: t.textMute),
@@ -78,8 +80,7 @@ class InfoSwitchRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(label,
-                style: AppTheme.sans(size: 15, color: t.text)),
+            child: Text(label, style: AppTheme.sans(size: 15, color: t.text)),
           ),
           Switch(
             value: value,
@@ -113,11 +114,14 @@ class InfoCenterRow extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 15),
         child: Center(
-          child: Text(label,
-              style: AppTheme.sans(
-                  size: 15,
-                  weight: FontWeight.w500,
-                  color: danger ? t.danger : t.text)),
+          child: Text(
+            label,
+            style: AppTheme.sans(
+              size: 15,
+              weight: FontWeight.w500,
+              color: danger ? t.danger : t.text,
+            ),
+          ),
         ),
       ),
     );

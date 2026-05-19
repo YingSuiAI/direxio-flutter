@@ -13,13 +13,12 @@ class AppTheme {
     Color? color,
     FontWeight? fontWeight,
     double letterSpacing = 0,
-  }) =>
-      GoogleFonts.notoSansSc(
-        fontSize: fontSize,
-        color: color,
-        fontWeight: fontWeight ?? FontWeight.w400,
-        letterSpacing: letterSpacing,
-      );
+  }) => GoogleFonts.notoSansSc(
+    fontSize: fontSize,
+    color: color,
+    fontWeight: fontWeight ?? FontWeight.w400,
+    letterSpacing: letterSpacing,
+  );
 
   static ThemeData _buildTheme(PortalTokens t, Brightness brightness) {
     final scheme = ColorScheme.fromSeed(
@@ -42,10 +41,9 @@ class AppTheme {
       canvasColor: t.bg,
       dividerColor: t.border,
       extensions: [t],
-      textTheme: GoogleFonts.notoSansScTextTheme(base.textTheme).apply(
-        bodyColor: t.text,
-        displayColor: t.text,
-      ),
+      textTheme: GoogleFonts.notoSansScTextTheme(
+        base.textTheme,
+      ).apply(bodyColor: t.text, displayColor: t.text),
       appBarTheme: AppBarTheme(
         backgroundColor: t.bg,
         foregroundColor: t.text,
@@ -62,8 +60,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: t.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         hintStyle: _font(color: t.textMute, fontSize: 15),
         labelStyle: _font(color: t.textMute, fontSize: 13),
         border: OutlineInputBorder(
@@ -84,8 +84,9 @@ class AppTheme {
           backgroundColor: t.accent,
           foregroundColor: scheme.onPrimary,
           minimumSize: const Size.fromHeight(52),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           textStyle: _font(
             fontSize: 17,
             fontWeight: FontWeight.w600,
@@ -132,10 +133,7 @@ class AppTheme {
           fontWeight: FontWeight.w500,
           letterSpacing: 0,
         ),
-        subtitleTextStyle: _font(
-          color: t.textMute,
-          fontSize: 13,
-        ),
+        subtitleTextStyle: _font(color: t.textMute, fontSize: 13),
       ),
     );
   }

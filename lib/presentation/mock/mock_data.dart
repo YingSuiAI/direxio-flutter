@@ -2,6 +2,19 @@
 /// 真登录后 client.rooms 非空，自动走真数据。
 import 'package:flutter/material.dart';
 
+/// 头像 URL：抓自 P2P-APP-UI/index.html 设计稿（lh3.googleusercontent.com/aida-public）。
+/// 集中放在这里，方便联系人/聊天/详情等多处复用同一张图。
+class MockAvatars {
+  static const me =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuDLvifagTSHVJO5ZPyKTIj9TERBMcxGFMdC6lNB42q2HLrc25zQG_W6P9xQQdDyyWml4q6K0OuxfyQN1m3wlHzzjQWzATmfuKQJdP937nxZZ2UfP9H_29MtNMTE2zkMSYP1QfZEUOOA4lSPFYKJW_CnzgAxKuqHAl_6KT9t-MkCpKIdBEggNOwydo5L20g1NdZNhHsGp1n-7LYU3ukWK97Q7Gp5T4YzLNvf9wum5cOkzsVcNfR4bYE323XQpN5hFCvBrJE1ASKahgM';
+  static const alice =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuD6NWImSaJK0C05V6-WJiwBVOsclTU6Jd08B1oViyDovVbf-tY0rFq74uvo1MxsiJVuRfnTZML-rUaNEoHZiE86eiqdMMDDZAof78YMBan_BxeOP163tjBbBMaUswvo5E2Ti_4DPnWEh7_eDcB7z9pRieLF2BhX-lG4chTKS_Vp0w0yLBeKVtnrwxKuQ50uw3Di-cpyJ_-DyPQYzENgsYei-bkVsTh_VtU90CD0vsdKOOMTGO340AXuXk49b1xWjrROSngFVqKz1Ac';
+  static const bob =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuCCH7duarxI5Gs6vPvMAK7nksjqbvGGQT8QppTjLPq3x2jnNs4P6pkcn5aFQw-iXRpMncXepMw8IewG2uL2EishD8brZl1AB3gtDaTIUZYJW946jt0mqK4dfC47XiQoT5AzS-xvl-_CapIsNOp8DZa-oOqmpXLHTYRHkpUbPKU6PClzz1b2bG4GsG7OZDDMpnnMSDLDgqF7AoMCKC46xXx-ZlxLIhfq2W0VL0PREiWzuVO1LHB0_ZSWJFgBSI6Bko_jUT8W9AFlgw8';
+  static const dave =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBt1HbYj3yl6qqlO6LoOpUKyH-m9bAjXV00pnlJVWDb7mRTWlgsAgqJB3WJcbGBMVWQvPNb-Y6EI801GmIhjTXzgNWGAqzjQF4fORAse8JZKSBUrAXbpOZI2CzAIh1p5lTVL-LaCuw7Yx6HAd4lbuWeGW-TC7La-S5FVu3sDHEao1Mpt_LPxyutggyIKzxSvi7JVm8X0cO4w4emSXjPxt-X65giKXW8IL0WDF6CUBv_9Fg6vc4uoCSdSlR25tlkFwsB153wgrxxe4M';
+}
+
 enum MockMsgKind { text, toolCall, typing, system }
 
 class MockMessage {
@@ -41,8 +54,10 @@ class MockConversation {
     required this.messages,
     this.unread = 0,
     this.accentColor,
+    this.avatarUrl,
     this.members,
-  });
+    bool? isGroup,
+  }) : isGroup = isGroup ?? members != null;
   final String id;
   final String name;
   final String mxid;
@@ -50,14 +65,11 @@ class MockConversation {
   final int unread;
   final List<MockMessage> messages;
   final Color? accentColor;
-
-  /// 群聊成员名；为 null 表示单聊。
+  final String? avatarUrl;
   final List<String>? members;
+  final bool isGroup;
 
-  bool get isGroup => members != null;
-
-  MockMessage? get lastMessage =>
-      messages.isEmpty ? null : messages.last;
+  MockMessage? get lastMessage => messages.isEmpty ? null : messages.last;
 }
 
 class MockData {
@@ -66,11 +78,11 @@ class MockData {
   static final List<MockConversation> conversations = [
     MockConversation(
       id: 'mock_aibot',
-      name: 'AI Bot',
+      name: 'My Agent',
       mxid: '@aibot:portal.ai',
-      subtitle: 'AI 助手',
-      unread: 0,
-      accentColor: const Color(0xFF6FA8FF),
+      subtitle: '今日摘要已准备好，有 3 条新警报',
+      unread: 1,
+      accentColor: const Color(0xFF0058BC),
       messages: [
         MockMessage(
           isMe: true,
@@ -104,10 +116,144 @@ class MockData {
       ],
     ),
     MockConversation(
+      id: 'mock_alice',
+      name: 'Alice Chen',
+      mxid: '@alice:portal.local',
+      subtitle: '好的，明天见！',
+      unread: 2,
+      avatarUrl: MockAvatars.alice,
+      messages: [
+        MockMessage(
+          isMe: false,
+          text: '你好！',
+          time: _now.subtract(const Duration(minutes: 30)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '嗨，最近怎么样？',
+          time: _now.subtract(const Duration(minutes: 28)),
+        ),
+        MockMessage(
+          isMe: false,
+          text: '还不错，在忙一个新项目',
+          time: _now.subtract(const Duration(minutes: 25)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '听起来不错！是什么项目呢？',
+          time: _now.subtract(const Duration(minutes: 23)),
+        ),
+        MockMessage(
+          isMe: false,
+          text: '是一个去中心化通讯应用，我整理了一份设计文档',
+          time: _now.subtract(const Duration(minutes: 20)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '好的，明天见！',
+          time: _now.subtract(const Duration(minutes: 15)),
+        ),
+      ],
+    ),
+    MockConversation(
+      id: 'mock_design_group',
+      name: '产品设计组',
+      mxid: '!design:portal.local',
+      subtitle: 'Carol: 原型图更新了',
+      unread: 5,
+      members: const [
+        'Alice Chen',
+        'Bob Smith',
+        'Carol',
+        'Dave',
+        'Eve',
+        'Frank',
+      ],
+      messages: [
+        MockMessage(
+          isMe: false,
+          senderName: 'Alice Chen',
+          text: '大家好，今天来讨论一下新版本的设计方案',
+          time: _now.subtract(const Duration(days: 1, hours: 5)),
+        ),
+        MockMessage(
+          isMe: false,
+          senderName: 'Bob Smith',
+          text: '好的，我这边准备了几个方案',
+          time: _now.subtract(const Duration(days: 1, hours: 4, minutes: 30)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '方案发出来看看',
+          time: _now.subtract(const Duration(days: 1, hours: 4)),
+        ),
+        MockMessage(
+          isMe: false,
+          senderName: 'Carol',
+          text: '原型图更新了',
+          time: _now.subtract(const Duration(days: 1)),
+        ),
+      ],
+    ),
+    MockConversation(
+      id: 'mock_bob',
+      name: 'Bob Smith',
+      mxid: '@bob:portal.local',
+      subtitle: '文件已发送，请查收',
+      unread: 0,
+      avatarUrl: MockAvatars.bob,
+      messages: [
+        MockMessage(
+          isMe: false,
+          text: '文件已发送，请查收',
+          time: _now.subtract(const Duration(days: 1, hours: 2)),
+        ),
+      ],
+    ),
+    MockConversation(
+      id: 'mock_dave',
+      name: 'Dave Lee',
+      mxid: '@dave:portal.local',
+      subtitle: '好的，我会在会议前审阅',
+      unread: 0,
+      avatarUrl: MockAvatars.dave,
+      messages: [
+        MockMessage(
+          isMe: true,
+          text: '请帮我看看这份文档',
+          time: _now.subtract(const Duration(days: 2, hours: 1)),
+        ),
+        MockMessage(
+          isMe: false,
+          text: '好的，我会在会议前审阅',
+          time: _now.subtract(const Duration(days: 2)),
+        ),
+      ],
+    ),
+    MockConversation(
+      id: 'mock_eve',
+      name: 'Eve Wang',
+      mxid: '@eve:portal.local',
+      subtitle: '收到，稍后处理',
+      unread: 0,
+      messages: [
+        MockMessage(
+          isMe: true,
+          text: '帮忙处理一下这个 issue',
+          time: _now.subtract(const Duration(days: 3, hours: 1)),
+        ),
+        MockMessage(
+          isMe: false,
+          text: '收到，稍后处理',
+          time: _now.subtract(const Duration(days: 3)),
+        ),
+      ],
+    ),
+    MockConversation(
       id: 'mock_jack',
       name: 'Jack',
       mxid: '@jack:liyananp2p.com',
-      subtitle: '工作伙伴',
+      subtitle: '另外周末有空吗？想约你打球',
       unread: 2,
       messages: [
         MockMessage(
@@ -142,45 +288,18 @@ class MockData {
         ),
       ],
     ),
-    MockConversation(
-      id: 'mock_design_group',
-      name: '产品设计组',
-      mxid: '!design:liyananp2p.com',
-      subtitle: '6 名成员',
-      unread: 0,
-      accentColor: const Color(0xFF34C759),
-      members: const ['Alice Chen', 'Bob Smith', 'Carol', 'Dave', 'Eve', 'Frank'],
-      messages: [
-        MockMessage(
-          isMe: false,
-          senderName: 'Alice Chen',
-          text: '大家好，今天来讨论一下新版本的设计方案',
-          time: _now.subtract(const Duration(hours: 2, minutes: 10)),
-        ),
-        MockMessage(
-          isMe: false,
-          senderName: 'Bob Smith',
-          text: '好的，我这边准备了几个方案',
-          time: _now.subtract(const Duration(hours: 2, minutes: 5)),
-        ),
-        MockMessage(
-          isMe: true,
-          text: '方案发出来看看',
-          time: _now.subtract(const Duration(hours: 2)),
-        ),
-        MockMessage(
-          isMe: false,
-          senderName: 'Alice Chen',
-          text: '稍等，我整理一下文档链接',
-          time: _now.subtract(const Duration(minutes: 30)),
-        ),
-      ],
-    ),
   ];
 
   static MockConversation? byId(String id) {
     for (final c in conversations) {
       if (c.id == id) return c;
+    }
+    return null;
+  }
+
+  static MockConversation? byMxid(String mxid) {
+    for (final c in conversations) {
+      if (c.mxid == mxid) return c;
     }
     return null;
   }

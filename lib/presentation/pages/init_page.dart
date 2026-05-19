@@ -38,7 +38,9 @@ class _InitPageState extends ConsumerState<InitPage> {
       _error = null;
     });
     try {
-      await ref.read(authStateNotifierProvider.notifier).register(
+      await ref
+          .read(authStateNotifierProvider.notifier)
+          .register(
             _domainCtrl.text.trim(),
             _passwordCtrl.text,
             _displayNameCtrl.text.trim(),
@@ -57,14 +59,10 @@ class _InitPageState extends ConsumerState<InitPage> {
       backgroundColor: t.surface,
       body: Column(
         children: [
-          GlassHeader.detail(
-            title: '创建账号',
-            onBack: () => context.go('/login'),
-          ),
+          GlassHeader.detail(title: '创建账号', onBack: () => context.go('/login')),
           Expanded(
             child: SingleChildScrollView(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
@@ -79,23 +77,29 @@ class _InitPageState extends ConsumerState<InitPage> {
                           borderRadius: BorderRadius.circular(96 * 0.225),
                         ),
                         alignment: Alignment.center,
-                        child: Icon(Symbols.person_add,
-                            size: 48,
-                            color: t.onPrimaryContainer,
-                            fill: 1),
+                        child: Icon(
+                          Symbols.person_add,
+                          size: 48,
+                          color: t.onPrimaryContainer,
+                          fill: 1,
+                        ),
                       ),
                       const SizedBox(height: 20),
-                      Text('创建你的 Portal 账号',
-                          textAlign: TextAlign.center,
-                          style: AppTheme.sans(
-                              size: 20,
-                              weight: FontWeight.w700,
-                              color: t.text)),
+                      Text(
+                        '创建你的 Portal 账号',
+                        textAlign: TextAlign.center,
+                        style: AppTheme.sans(
+                          size: 20,
+                          weight: FontWeight.w700,
+                          color: t.text,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text('域名须是你控制、已部署 homeserver 的服务器',
-                          textAlign: TextAlign.center,
-                          style:
-                              AppTheme.sans(size: 13, color: t.textMute)),
+                      Text(
+                        '域名须是你控制、已部署 homeserver 的服务器',
+                        textAlign: TextAlign.center,
+                        style: AppTheme.sans(size: 13, color: t.textMute),
+                      ),
                       const SizedBox(height: 28),
                       M3InputField(
                         controller: _domainCtrl,
@@ -124,8 +128,7 @@ class _InitPageState extends ConsumerState<InitPage> {
                             size: 20,
                             color: t.textMute,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
+                          onPressed: () => setState(() => _obscure = !_obscure),
                         ),
                       ),
                       if (_error != null) ...[
@@ -140,9 +143,10 @@ class _InitPageState extends ConsumerState<InitPage> {
                       const SizedBox(height: 16),
                       TextButton(
                         onPressed: () => context.go('/login'),
-                        child: Text('已有账号？登录',
-                            style:
-                                AppTheme.sans(size: 15, color: t.accent)),
+                        child: Text(
+                          '已有账号？登录',
+                          style: AppTheme.sans(size: 15, color: t.accent),
+                        ),
                       ),
                     ],
                   ),
@@ -176,8 +180,10 @@ class _ErrorBanner extends StatelessWidget {
           Icon(Symbols.error, size: 16, color: t.danger),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message,
-                style: AppTheme.sans(size: 13, color: t.danger)),
+            child: Text(
+              message,
+              style: AppTheme.sans(size: 13, color: t.danger),
+            ),
           ),
         ],
       ),

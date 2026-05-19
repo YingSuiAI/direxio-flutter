@@ -14,10 +14,7 @@ import '../../../core/theme/design_tokens.dart';
 import '../../../core/theme/app_theme.dart';
 
 class GlassHeader extends StatelessWidget {
-  const GlassHeader._({
-    required this.contentHeight,
-    required this.child,
-  });
+  const GlassHeader._({required this.contentHeight, required this.child});
 
   /// 消息列表式头部：左侧自定义内容 + 右侧按钮组。
   factory GlassHeader.primary({
@@ -104,16 +101,14 @@ class _PrimaryContent extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          if (leading != null) ...[
-            leading!,
-            const SizedBox(width: 12),
-          ],
+          if (leading != null) ...[leading!, const SizedBox(width: 12)],
           Text(
             title,
             style: AppTheme.sans(
-                size: 24,
-                weight: FontWeight.w600,
-                color: titleColor ?? t.accent),
+              size: 24,
+              weight: FontWeight.w600,
+              color: titleColor ?? t.accent,
+            ),
           ),
           const Spacer(),
           ...actions,
@@ -166,7 +161,10 @@ class _DetailContent extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTheme.sans(
-                      size: 20, weight: FontWeight.w600, color: t.text),
+                    size: 20,
+                    weight: FontWeight.w600,
+                    color: t.text,
+                  ),
                 ),
                 if (subtitle != null)
                   Row(

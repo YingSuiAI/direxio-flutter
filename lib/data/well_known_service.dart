@@ -16,9 +16,9 @@ class PortalOwner {
   final String displayName;
 
   factory PortalOwner.fromJson(Map<String, dynamic> json) => PortalOwner(
-        matrixUserId: json['matrix_user_id'] as String,
-        displayName: (json['display_name'] as String?) ?? '',
-      );
+    matrixUserId: json['matrix_user_id'] as String,
+    displayName: (json['display_name'] as String?) ?? '',
+  );
 }
 
 /// Portal 部署状态
@@ -58,14 +58,16 @@ class WellKnownResult {
 /// 域名发现。可注入自定义 [http.Client]（默认复用调用方传入的，便于测试 / 复用 matrix SDK 的 client）。
 class WellKnownService {
   WellKnownService({http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+    : _http = httpClient ?? http.Client();
 
   final http.Client _http;
 
   static const _timeout = Duration(seconds: 8);
 
-  String _normalizeDomain(String input) =>
-      input.trim().replaceAll(RegExp(r'^https?://'), '').replaceAll(RegExp(r'/+$'), '');
+  String _normalizeDomain(String input) => input
+      .trim()
+      .replaceAll(RegExp(r'^https?://'), '')
+      .replaceAll(RegExp(r'/+$'), '');
 
   /// 发现 Homeserver —— §2.1
   /// GET https://{domain}/.well-known/matrix/client
@@ -89,7 +91,8 @@ class WellKnownService {
   ///
   /// 返回结果区分三态：online / notDeployed(404) / unreachable。
   Future<({PortalAvailability availability, PortalOwner? owner})> discoverOwner(
-      String domain) async {
+    String domain,
+  ) async {
     final d = _normalizeDomain(domain);
     try {
       final resp = await _http

@@ -32,8 +32,10 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
   }
 
   Future<void> _resolve() async {
-    final domain =
-        _domainCtrl.text.trim().replaceAll(RegExp(r'^https?://'), '');
+    final domain = _domainCtrl.text.trim().replaceAll(
+      RegExp(r'^https?://'),
+      '',
+    );
     if (domain.isEmpty) return;
     setState(() {
       _loading = true;
@@ -64,10 +66,7 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
           // well-known 没配但域名可能仍是有效 Portal —— 回退到约定 MXID
           setState(() {
             _resolvedDomain = domain;
-            _resolved = {
-              'mxid': '@owner:$domain',
-              'display_name': domain,
-            };
+            _resolved = {'mxid': '@owner:$domain', 'display_name': domain};
           });
       }
     } catch (e) {
@@ -124,7 +123,9 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                           style: TextButton.styleFrom(
                             foregroundColor: t.accent,
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 6),
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
                             minimumSize: const Size(0, 0),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
@@ -356,10 +357,7 @@ class _Banner extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              message,
-              style: AppTheme.sans(size: 13, color: color),
-            ),
+            child: Text(message, style: AppTheme.sans(size: 13, color: color)),
           ),
         ],
       ),

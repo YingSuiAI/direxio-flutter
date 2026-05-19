@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
@@ -16,7 +16,6 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_bottom_nav.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 /// Portal 整体状态 —— 对应 INTERFACE_SPEC.md §5.5。
 /// autoDispose + 30s 内复用，避免每次 rebuild 都打 AS API。
@@ -53,7 +52,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     super.dispose();
   }
 
-  static const _tabTitles = ['消息', '通讯录', '探索', '我'];
+  static const _tabTitles = ['消息', '通讯录', 'Agent', '探索', '我'];
 
   List<Widget> _headerActions(BuildContext context, Client client) {
     switch (_tab) {
@@ -78,6 +77,14 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         ];
       case 2:
+        return [
+          GlassHeaderButton(
+            icon: Symbols.settings,
+            color: context.tk.accent,
+            onTap: () => context.push('/mcp-permission'),
+          ),
+        ];
+      case 3:
         return [
           GlassHeaderButton(
             icon: Symbols.search,
@@ -107,9 +114,12 @@ class _HomePageState extends ConsumerState<HomePage> {
           GlassHeader.primary(
             leading: _tab == 0
                 ? GestureDetector(
-                    onTap: () => setState(() => _tab = 3),
+                    onTap: () => setState(() => _tab = 4),
                     child: const PortalAvatar(
-                        seed: 'me', size: 32, imageUrl: MockAvatars.me),
+                      seed: 'me',
+                      size: 32,
+                      imageUrl: MockAvatars.me,
+                    ),
                   )
                 : null,
             title: _tabTitles[_tab],
@@ -123,7 +133,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                 final pane = switch (_tab) {
                   0 => _ChatList(client: client),
                   1 => _ContactList(client: client),
-                  2 => const _ExploreTab(),
+                  2 => _AgentTabBody(),
+                  3 => const _ExploreTab(),
                   _ => _MePage(client: client),
                 };
                 if (!wide) return pane;
@@ -154,6 +165,11 @@ class _HomePageState extends ConsumerState<HomePage> {
             label: '通讯录',
           ),
           M3NavItem(
+            icon: Symbols.robot_2,
+            activeIcon: Symbols.robot_2,
+            label: 'Agent',
+          ),
+          M3NavItem(
             icon: Symbols.explore,
             activeIcon: Symbols.explore,
             label: '探索',
@@ -180,7 +196,7 @@ class _HomePlusMenuButton extends StatelessWidget {
     final t = context.tk;
     return PopupMenuButton<_PlusAction>(
       tooltip: '更多',
-      color: const Color(0xFF1E2026),
+      color: const Color(0xFF1E2026), // theme-fixed: 原型 + 菜单恒为深色弹层
       elevation: 12,
       offset: const Offset(0, 48),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -191,11 +207,13 @@ class _HomePlusMenuButton extends StatelessWidget {
           case _PlusAction.contact:
             context.push('/add-contact');
           case _PlusAction.scan:
-            ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('扫一扫功能待接入')));
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('扫一扫功能待接入')));
           case _PlusAction.file:
-            ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('文件传输功能待接入')));
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('文件传输功能待接入')));
         }
       },
       itemBuilder: (context) => const [
@@ -236,10 +254,7 @@ class _PlusMenuItem extends StatelessWidget {
       children: [
         Icon(icon, size: 20, color: Colors.white.withValues(alpha: 0.82)),
         const SizedBox(width: 12),
-        Text(
-          label,
-          style: AppTheme.sans(size: 14, color: Colors.white),
-        ),
+        Text(label, style: AppTheme.sans(size: 14, color: Colors.white)),
       ],
     );
   }
@@ -283,7 +298,7 @@ class _ChatList extends ConsumerWidget {
 
     if (rooms.isEmpty) {
       return const _Empty(
-        icon: LucideIcons.message_square_dashed,
+        icon: Symbols.forum,
         title: '还没有会话',
         subtitle: '去添加联系人开始聊天',
       );
@@ -302,7 +317,8 @@ class _ChatList extends ConsumerWidget {
           time: lastEvent == null
               ? ''
               : _formatConvTime(
-                  lastEvent.originServerTs.millisecondsSinceEpoch),
+                  lastEvent.originServerTs.millisecondsSinceEpoch,
+                ),
           unread: room.notificationCount,
           isLast: i == rooms.length - 1,
           onTap: () => isDm
@@ -372,137 +388,167 @@ class _ConvRow extends StatelessWidget {
           _showChatCtxMenu(context, rcPos, name);
         },
         child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-          child: Row(
-            children: [
-              // 头像 48 + 在线点
-              SizedBox(
-                width: 48,
-                height: 48,
-                child: Stack(
-                  children: [
-                    if (isAgent)
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: t.primaryContainer,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(Symbols.robot_2,
-                            size: 24, color: t.onPrimaryContainer, fill: 1),
-                      )
-                    else if (isGroup)
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: t.surfaceHigh,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(Symbols.groups,
-                            size: 24, color: t.textMute, fill: 1),
-                      )
-                    else
-                      PortalAvatar(seed: name, size: 48, imageUrl: avatarUrl),
-                    if (online)
-                      const Positioned(bottom: 0, right: 0, child: OnlineDot()),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              // 内容区 + 底分隔线
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.only(top: 6, bottom: 12),
-                  decoration: isLast
-                      ? null
-                      : BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: t.surfaceHigh),
-                          ),
-                        ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            child: Row(
+              children: [
+                // 头像 48 + 在线点
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Stack(
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Flexible(
-                            child: Text(name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(
-                                    size: 20,
-                                    weight: FontWeight.w600,
-                                    color: t.text)),
+                      if (isAgent)
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: t.primaryContainer,
+                            shape: BoxShape.circle,
                           ),
-                          if (isAgent) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: t.primaryContainer,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text('AI',
-                                  style: AppTheme.sans(
-                                      size: 11,
-                                      weight: FontWeight.w700,
-                                      color: t.onPrimaryContainer)),
-                            ),
-                          ],
-                          const Spacer(),
-                          Text(time,
-                              style: AppTheme.sans(
-                                  size: 13,
-                                  color: unread > 0 ? t.accent : t.textMute)),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(lastMessage,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style:
-                                    AppTheme.sans(size: 15, color: t.textMute)),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Symbols.robot_2,
+                            size: 24,
+                            color: t.onPrimaryContainer,
+                            fill: 1,
                           ),
-                          if (unread > 0) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              width: 18,
-                              height: 18,
-                              decoration: BoxDecoration(
-                                color: t.accent,
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: Text('$unread',
-                                  style: AppTheme.sans(
-                                      size: 11,
-                                      weight: FontWeight.w700,
-                                      color: t.onAccent)),
-                            ),
-                          ],
-                        ],
-                      ),
+                        )
+                      else if (isGroup)
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: t.surfaceHigh,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Symbols.groups,
+                            size: 24,
+                            color: t.textMute,
+                            fill: 1,
+                          ),
+                        )
+                      else
+                        PortalAvatar(seed: name, size: 48, imageUrl: avatarUrl),
+                      if (online)
+                        const Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: OnlineDot(),
+                        ),
                     ],
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 16),
+                // 内容区 + 底分隔线
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.only(top: 6, bottom: 12),
+                    decoration: isLast
+                        ? null
+                        : BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: t.surfaceHigh),
+                            ),
+                          ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 20,
+                                  weight: FontWeight.w600,
+                                  color: t.text,
+                                ),
+                              ),
+                            ),
+                            if (isAgent) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: t.primaryContainer,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'AI',
+                                  style: AppTheme.sans(
+                                    size: 11,
+                                    weight: FontWeight.w700,
+                                    color: t.onPrimaryContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const Spacer(),
+                            Text(
+                              time,
+                              style: AppTheme.sans(
+                                size: 13,
+                                color: unread > 0 ? t.accent : t.textMute,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                lastMessage,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 15,
+                                  color: t.textMute,
+                                ),
+                              ),
+                            ),
+                            if (unread > 0) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: t.accent,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '$unread',
+                                  style: AppTheme.sans(
+                                    size: 11,
+                                    weight: FontWeight.w700,
+                                    color: t.onAccent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -575,30 +621,39 @@ class _ChatCtxMenuCard extends StatelessWidget {
               Navigator.of(context).pop();
               _toast(context, '已置顶「$name」');
             }),
-            const Divider(height: 1, color: _divider, indent: 16, endIndent: 16),
+            const Divider(
+              height: 1,
+              color: _divider,
+              indent: 16,
+              endIndent: 16,
+            ),
             _row(context, Symbols.visibility_off, '不显示', () {
               Navigator.of(context).pop();
               _toast(context, '已隐藏「$name」');
             }),
-            const Divider(height: 1, color: _divider, indent: 16, endIndent: 16),
-            _row(
-              context,
-              Symbols.delete,
-              '删除聊天',
-              () {
-                Navigator.of(context).pop();
-                _toast(context, '已删除「$name」');
-              },
-              danger: true,
+            const Divider(
+              height: 1,
+              color: _divider,
+              indent: 16,
+              endIndent: 16,
             ),
+            _row(context, Symbols.delete, '删除聊天', () {
+              Navigator.of(context).pop();
+              _toast(context, '已删除「$name」');
+            }, danger: true),
           ],
         ),
       ),
     );
   }
 
-  Widget _row(BuildContext ctx, IconData icon, String label, VoidCallback onTap,
-      {bool danger = false}) {
+  Widget _row(
+    BuildContext ctx,
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    bool danger = false,
+  }) {
     final color = danger ? _danger : _label;
     final iconColor = danger ? _danger : _icon;
     return InkWell(
@@ -683,8 +738,9 @@ Future<void> _showCreateGroupDialog(BuildContext context, Client client) async {
     if (context.mounted) context.push('/group/${Uri.encodeComponent(roomId)}');
   } catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('创建失败: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('创建失败: $e')));
     }
   }
 }
@@ -708,10 +764,7 @@ class _ContactList extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
       children: [
-        HomeSearchBox(
-          hint: '搜索',
-          onTap: () => context.push('/search'),
-        ),
+        HomeSearchBox(hint: '搜索', onTap: () => context.push('/search')),
         const SizedBox(height: 14),
         _ActionSection(
           children: [
@@ -743,7 +796,10 @@ class _ContactList extends ConsumerWidget {
           child: Text(
             '联系人 (${isLoggedIn ? dmRooms.length : mockContacts.length})',
             style: AppTheme.mono(
-                size: 11, color: t.textMute, weight: FontWeight.w600),
+              size: 11,
+              color: t.textMute,
+              weight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -774,8 +830,8 @@ class _ContactList extends ConsumerWidget {
                     subtitle: c.mxid,
                     online: true,
                     avatarUrl: c.avatarUrl,
-                    onTap: () => context
-                        .push('/contact/${Uri.encodeComponent(c.mxid)}'),
+                    onTap: () =>
+                        context.push('/contact/${Uri.encodeComponent(c.mxid)}'),
                   ),
                 )
                 .toList(),
@@ -786,11 +842,7 @@ class _ContactList extends ConsumerWidget {
 }
 
 class HomeSearchBox extends StatelessWidget {
-  const HomeSearchBox({
-    super.key,
-    required this.hint,
-    required this.onTap,
-  });
+  const HomeSearchBox({super.key, required this.hint, required this.onTap});
   final String hint;
   final VoidCallback onTap;
 
@@ -833,7 +885,7 @@ class _ActionSection extends StatelessWidget {
     final t = context.tk;
     if (children.isEmpty) {
       return const _Empty(
-        icon: LucideIcons.user,
+        icon: Symbols.person,
         title: '还没有联系人',
         subtitle: '添加联系人后会显示在这里',
       );
@@ -908,10 +960,12 @@ class _SectionAction extends StatelessWidget {
                 color: bg ?? iconColor,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon,
-                  size: 18,
-                  color: bg == null ? t.onAccent : iconColor,
-                  fill: 1),
+              child: Icon(
+                icon,
+                size: 18,
+                color: bg == null ? t.onAccent : iconColor,
+                fill: 1,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -936,8 +990,10 @@ class _SectionAction extends StatelessWidget {
                 width: 20,
                 height: 20,
                 alignment: Alignment.center,
-                decoration:
-                    BoxDecoration(color: t.danger, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: t.danger,
+                  shape: BoxShape.circle,
+                ),
                 child: Text(
                   badge!,
                   style: AppTheme.sans(
@@ -1040,8 +1096,9 @@ class _MePage extends ConsumerWidget {
     final t = context.tk;
     final userId = client.userID ?? '';
     final displayId = userId.isEmpty ? '@me:portal.agent-p2p.io' : userId;
-    final domain =
-        displayId.contains(':') ? displayId.split(':').last : displayId;
+    final domain = displayId.contains(':')
+        ? displayId.split(':').last
+        : displayId;
     final shortId = displayId.length > 16
         ? '${displayId.substring(0, 6)}…${displayId.substring(displayId.length - 6)}'
         : displayId;
@@ -1064,7 +1121,10 @@ class _MePage extends ConsumerWidget {
                   ),
                   child: ClipOval(
                     child: PortalAvatar(
-                        seed: domain, size: 96, imageUrl: MockAvatars.me),
+                      seed: domain,
+                      size: 96,
+                      imageUrl: MockAvatars.me,
+                    ),
                   ),
                 ),
                 Positioned(
@@ -1078,8 +1138,11 @@ class _MePage extends ConsumerWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: t.bg, width: 2),
                     ),
-                    child: Icon(Symbols.photo_camera,
-                        size: 16, color: t.textMute),
+                    child: Icon(
+                      Symbols.photo_camera,
+                      size: 16,
+                      color: t.textMute,
+                    ),
                   ),
                 ),
               ],
@@ -1092,16 +1155,20 @@ class _MePage extends ConsumerWidget {
               builder: (_, snap) => Text(
                 snap.data?.displayName ?? 'Alex Chen',
                 style: AppTheme.sans(
-                    size: 20, weight: FontWeight.w600, color: t.text),
+                  size: 20,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ),
               ),
             ),
             const SizedBox(height: 4),
-            Text('@${domain.split(':').first}',
-                style: AppTheme.sans(size: 15, color: t.textMute)),
+            Text(
+              '@${domain.split(':').first}',
+              style: AppTheme.sans(size: 15, color: t.textMute),
+            ),
             const SizedBox(height: 8),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: t.surfaceHigh,
                 borderRadius: BorderRadius.circular(9999),
@@ -1119,8 +1186,10 @@ class _MePage extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text('Node: $shortId',
-                      style: AppTheme.sans(size: 13, color: t.textMute)),
+                  Text(
+                    'Node: $shortId',
+                    style: AppTheme.sans(size: 13, color: t.textMute),
+                  ),
                   const SizedBox(width: 6),
                   Icon(Symbols.content_copy, size: 14, color: t.accent),
                 ],
@@ -1185,11 +1254,14 @@ class _MePage extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 child: Center(
-                  child: Text('退出登录',
-                      style: AppTheme.sans(
-                          size: 17,
-                          weight: FontWeight.w500,
-                          color: t.danger)),
+                  child: Text(
+                    '退出登录',
+                    style: AppTheme.sans(
+                      size: 17,
+                      weight: FontWeight.w500,
+                      color: t.danger,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1201,8 +1273,11 @@ class _MePage extends ConsumerWidget {
 }
 
 class _Empty extends StatelessWidget {
-  const _Empty(
-      {required this.icon, required this.title, required this.subtitle});
+  const _Empty({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
   final IconData icon;
   final String title;
   final String subtitle;
@@ -1216,9 +1291,14 @@ class _Empty extends StatelessWidget {
         children: [
           Icon(icon, size: 32, color: t.textMute),
           const SizedBox(height: 12),
-          Text(title,
-              style: AppTheme.sans(
-                  size: 14, color: t.text, weight: FontWeight.w500)),
+          Text(
+            title,
+            style: AppTheme.sans(
+              size: 14,
+              color: t.text,
+              weight: FontWeight.w500,
+            ),
+          ),
           const SizedBox(height: 4),
           Text(subtitle, style: AppTheme.sans(size: 12, color: t.textMute)),
         ],
@@ -1259,21 +1339,31 @@ class _AgentTabBody extends ConsumerWidget {
                   color: t.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Symbols.smart_toy,
-                    size: 24, color: t.onPrimaryContainer, fill: 1),
+                child: Icon(
+                  Symbols.smart_toy,
+                  size: 24,
+                  color: t.onPrimaryContainer,
+                  fill: 1,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Agent 中心',
-                        style: AppTheme.sans(
-                            size: 17, weight: FontWeight.w600, color: t.text)),
+                    Text(
+                      'Agent 中心',
+                      style: AppTheme.sans(
+                        size: 17,
+                        weight: FontWeight.w600,
+                        color: t.text,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                        '已授权 ${policies.values.where((p) => p.enabled).length} / ${policies.length} · 今日活动 ${audit.length} 次',
-                        style: AppTheme.sans(size: 12, color: t.textMute)),
+                      '已授权 ${policies.values.where((p) => p.enabled).length} / ${policies.length} · 今日活动 ${audit.length} 次',
+                      style: AppTheme.sans(size: 12, color: t.textMute),
+                    ),
                   ],
                 ),
               ),
@@ -1302,54 +1392,75 @@ class _AgentTabBody extends ConsumerWidget {
         ),
         const SizedBox(height: 18),
         const _SectionHead('我的 Agent'),
-        ...policies.values.map((p) => Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: _AgentCard(p: p),
-            )),
+        ...policies.values.map(
+          (p) => Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _AgentCard(p: p),
+          ),
+        ),
         const SizedBox(height: 16),
         const _SectionHead('最近活动'),
         if (audit.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child:
-                Text('暂无活动', style: AppTheme.sans(size: 12, color: t.textMute)),
+            child: Text(
+              '暂无活动',
+              style: AppTheme.sans(size: 12, color: t.textMute),
+            ),
           )
         else
-          ...audit.take(5).map((e) => Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: t.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: t.border.withValues(alpha: 0.18)),
+          ...audit
+              .take(5)
+              .map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: t.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: t.border.withValues(alpha: 0.18),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          e.outcome == McpAuditOutcome.denied
+                              ? Symbols.cancel
+                              : Symbols.check_circle,
+                          size: 12,
+                          color: e.outcome == McpAuditOutcome.denied
+                              ? t.danger
+                              : t.accent,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          e.tool,
+                          style: AppTheme.mono(
+                            size: 12,
+                            color: t.text,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            e.deniedReason ?? e.resultSummary ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.sans(size: 11, color: t.textMute),
+                          ),
+                        ),
+                        Text(
+                          DateFormat('HH:mm').format(e.ts),
+                          style: AppTheme.mono(size: 10, color: t.textMute),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(children: [
-                    Icon(
-                      e.outcome == McpAuditOutcome.denied
-                          ? LucideIcons.circle_x
-                          : LucideIcons.circle_check,
-                      size: 12,
-                      color: e.outcome == McpAuditOutcome.denied
-                          ? t.danger
-                          : t.accent,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(e.tool,
-                        style: AppTheme.mono(
-                            size: 12, color: t.text, weight: FontWeight.w600)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(e.deniedReason ?? e.resultSummary ?? '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTheme.sans(size: 11, color: t.textMute)),
-                    ),
-                    Text(DateFormat('HH:mm').format(e.ts),
-                        style: AppTheme.mono(size: 10, color: t.textMute)),
-                  ]),
                 ),
-              )),
+              ),
       ],
     );
   }
@@ -1362,9 +1473,14 @@ class _SectionHead extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 0, 0, 6),
-      child: Text(text.toUpperCase(),
-          style: AppTheme.mono(
-              size: 11, color: context.tk.textMute, weight: FontWeight.w600)),
+      child: Text(
+        text.toUpperCase(),
+        style: AppTheme.mono(
+          size: 11,
+          color: context.tk.textMute,
+          weight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
@@ -1394,44 +1510,60 @@ class _AgentCard extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(children: [
-            PortalAvatar(seed: p.mxid, size: 36),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Text(p.displayName,
-                        style: AppTheme.sans(
-                            size: 14, weight: FontWeight.w600, color: t.text)),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: (p.enabled ? t.accent : t.textMute)
-                            .withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: Text(p.enabled ? '已授权' : '已停用',
-                          style: AppTheme.mono(
+          child: Row(
+            children: [
+              PortalAvatar(seed: p.mxid, size: 36),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          p.displayName,
+                          style: AppTheme.sans(
+                            size: 14,
+                            weight: FontWeight.w600,
+                            color: t.text,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (p.enabled ? t.accent : t.textMute)
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            p.enabled ? '已授权' : '已停用',
+                            style: AppTheme.mono(
                               size: 9,
                               weight: FontWeight.w600,
-                              color: p.enabled ? t.accent : t.textMute)),
+                              color: p.enabled ? t.accent : t.textMute,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ]),
-                  const SizedBox(height: 2),
-                  Text(p.summary,
-                      style: AppTheme.sans(size: 11, color: t.textMute)),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      p.summary,
+                      style: AppTheme.sans(size: 11, color: t.textMute),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            IconButton(
-              icon: Icon(LucideIcons.settings_2, size: 16, color: t.textMute),
-              onPressed: () => context.push('/mcp-permission/${p.agentId}'),
-            ),
-          ]),
+              IconButton(
+                icon: Icon(Symbols.tune, size: 16, color: t.textMute),
+                onPressed: () => context.push('/mcp-permission/${p.agentId}'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1448,14 +1580,17 @@ class _DetailPlaceholder extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.message_square_dashed,
-                size: 48, color: t.textMute),
+            Icon(Symbols.forum, size: 48, color: t.textMute),
             const SizedBox(height: 14),
-            Text('选择左侧的会话开始对话',
-                style: AppTheme.sans(size: 14, color: t.textMute)),
+            Text(
+              '选择左侧的会话开始对话',
+              style: AppTheme.sans(size: 14, color: t.textMute),
+            ),
             const SizedBox(height: 6),
-            Text('或在 Agent 标签里与 AI Bot 协作',
-                style: AppTheme.sans(size: 12, color: t.textMute)),
+            Text(
+              '或在 Agent 标签里与 AI Bot 协作',
+              style: AppTheme.sans(size: 12, color: t.textMute),
+            ),
           ],
         ),
       ),
@@ -1526,48 +1661,59 @@ class _ExploreTab extends StatelessWidget {
         const SizedBox(height: 16),
         _ExploreBanner(),
         const SizedBox(height: 24),
-        Text('功能亮点',
-            style: AppTheme.sans(
-                size: 20, weight: FontWeight.w600, color: t.text)),
+        Text(
+          '功能亮点',
+          style: AppTheme.sans(
+            size: 20,
+            weight: FontWeight.w600,
+            color: t.text,
+          ),
+        ),
         const SizedBox(height: 12),
-        _ExploreFeatureCard(items: [
-          _FeatureItem(
-            icon: Symbols.hub,
-            iconBg: t.accent,
-            iconColor: t.onAccent,
-            title: 'WebRTC P2P 通讯',
-            subtitle: '直连加密传输，零中转',
-            tags: const ['安全', '低延迟'],
-          ),
-          const _FeatureItem(
-            icon: Symbols.videocam,
-            iconBg: Color(0xFFFF9500),
-            iconColor: Colors.white,
-            title: '视频 / 语音通话',
-            subtitle: '端对端加密，高清音视频',
-            tags: ['P2P'],
-          ),
-          const _FeatureItem(
-            icon: Symbols.fingerprint,
-            iconBg: Color(0xFF5856D6),
-            iconColor: Colors.white,
-            title: '多因素认证',
-            subtitle: '生物识别 + 密钥双重保护',
-            tags: ['安全'],
-          ),
-        ]),
+        _ExploreFeatureCard(
+          items: [
+            _FeatureItem(
+              icon: Symbols.hub,
+              iconBg: t.accent,
+              iconColor: t.onAccent,
+              title: 'WebRTC P2P 通讯',
+              subtitle: '直连加密传输，零中转',
+              tags: const ['安全', '低延迟'],
+            ),
+            const _FeatureItem(
+              icon: Symbols.videocam,
+              iconBg: Color(0xFFFF9500),
+              iconColor: Colors.white,
+              title: '视频 / 语音通话',
+              subtitle: '端对端加密，高清音视频',
+              tags: ['P2P'],
+            ),
+            const _FeatureItem(
+              icon: Symbols.fingerprint,
+              iconBg: Color(0xFF5856D6),
+              iconColor: Colors.white,
+              title: '多因素认证',
+              subtitle: '生物识别 + 密钥双重保护',
+              tags: ['安全'],
+            ),
+          ],
+        ),
         const SizedBox(height: 24),
         Row(
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
             Expanded(
-              child: Text('发现',
-                  style: AppTheme.sans(
-                      size: 20, weight: FontWeight.w600, color: t.text)),
+              child: Text(
+                '发现',
+                style: AppTheme.sans(
+                  size: 20,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ),
+              ),
             ),
-            Text('查看全部',
-                style: AppTheme.sans(size: 15, color: t.accent)),
+            Text('查看全部', style: AppTheme.sans(size: 15, color: t.accent)),
           ],
         ),
         const SizedBox(height: 12),
@@ -1593,8 +1739,10 @@ class _ExploreSearchBar extends StatelessWidget {
           Icon(Symbols.search, size: 18, color: hint),
           const SizedBox(width: 8),
           Expanded(
-            child: Text('搜索功能、文档…',
-                style: AppTheme.sans(size: 15, color: hint)),
+            child: Text(
+              '搜索功能、文档…',
+              style: AppTheme.sans(size: 15, color: hint),
+            ),
           ),
         ],
       ),
@@ -1625,7 +1773,9 @@ class _ExploreBanner extends StatelessWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(9999),
@@ -1635,25 +1785,34 @@ class _ExploreBanner extends StatelessWidget {
                       children: [
                         const Text('🔐', style: TextStyle(fontSize: 12)),
                         const SizedBox(width: 6),
-                        Text('新功能',
-                            style: AppTheme.sans(
-                                size: 13,
-                                weight: FontWeight.w500,
-                                color: Colors.white)),
+                        Text(
+                          '新功能',
+                          style: AppTheme.sans(
+                            size: 13,
+                            weight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text('Agent P2P\n去中心化安全通讯',
-                      style: AppTheme.sans(
-                          size: 20,
-                          weight: FontWeight.w600,
-                          color: Colors.white)),
+                  Text(
+                    'Agent P2P\n去中心化安全通讯',
+                    style: AppTheme.sans(
+                      size: 20,
+                      weight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text('端对端加密 · 零知识架构 · 无服务器',
-                      style: AppTheme.sans(
-                          size: 15,
-                          color: Colors.white.withValues(alpha: 0.75))),
+                  Text(
+                    '端对端加密 · 零知识架构 · 无服务器',
+                    style: AppTheme.sans(
+                      size: 15,
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1662,8 +1821,12 @@ class _ExploreBanner extends StatelessWidget {
               top: 16,
               child: Opacity(
                 opacity: 0.2,
-                child: Icon(Symbols.security,
-                    size: 72, color: Colors.white, fill: 1),
+                child: Icon(
+                  Symbols.security,
+                  size: 72,
+                  color: Colors.white,
+                  fill: 1,
+                ),
               ),
             ),
           ],
@@ -1701,10 +1864,12 @@ class _ExploreFeatureCard extends StatelessWidget {
     for (int i = 0; i < items.length; i++) {
       children.add(_buildRow(context, items[i]));
       if (i < items.length - 1) {
-        children.add(Padding(
-          padding: const EdgeInsets.only(left: 64),
-          child: Divider(height: 1, color: t.surfaceHigh),
-        ));
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 64),
+            child: Divider(height: 1, color: t.surfaceHigh),
+          ),
+        );
       }
     }
     return Container(
@@ -1739,12 +1904,19 @@ class _ExploreFeatureCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(item.title,
-                    style: AppTheme.sans(
-                        size: 17, weight: FontWeight.w600, color: t.text)),
+                Text(
+                  item.title,
+                  style: AppTheme.sans(
+                    size: 17,
+                    weight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(item.subtitle,
-                    style: AppTheme.sans(size: 15, color: t.textMute)),
+                Text(
+                  item.subtitle,
+                  style: AppTheme.sans(size: 15, color: t.textMute),
+                ),
               ],
             ),
           ),
@@ -1755,22 +1927,30 @@ class _ExploreFeatureCard extends StatelessWidget {
               for (final tag in item.tags)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 2),
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFD8E2FF),
                     borderRadius: BorderRadius.circular(9999),
                   ),
-                  child: Text(tag,
-                      style: AppTheme.sans(
-                          size: 11,
-                          weight: FontWeight.w500,
-                          color: const Color(0xFF004493))),
+                  child: Text(
+                    tag,
+                    style: AppTheme.sans(
+                      size: 11,
+                      weight: FontWeight.w500,
+                      color: const Color(0xFF004493),
+                    ),
+                  ),
                 ),
             ],
           ),
           const SizedBox(width: 4),
-          Icon(Symbols.chevron_right,
-              size: 20, color: t.textMute.withValues(alpha: 0.6)),
+          Icon(
+            Symbols.chevron_right,
+            size: 20,
+            color: t.textMute.withValues(alpha: 0.6),
+          ),
         ],
       ),
     );
@@ -1783,10 +1963,22 @@ class _ExploreDiscoverGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      (Symbols.play_circle, Color(0xFF5856D6), Colors.white, '公开频道', '加入感兴趣的群组'),
+      (
+        Symbols.play_circle,
+        Color(0xFF5856D6),
+        Colors.white,
+        '公开频道',
+        '加入感兴趣的群组',
+      ),
       (Symbols.smart_toy, Color(0xFF008733), Colors.white, 'AI 助手', '智能对话与分析'),
       (Symbols.videocam, Color(0xFFFF9500), Colors.white, '视频通话', '一键高清通话'),
-      (Symbols.folder_shared, Color(0xFF5AC8FA), Colors.white, '文件传输', '安全端对端传输'),
+      (
+        Symbols.folder_shared,
+        Color(0xFF5AC8FA),
+        Colors.white,
+        '文件传输',
+        '安全端对端传输',
+      ),
     ];
     return GridView.builder(
       shrinkWrap: true,
@@ -1823,14 +2015,21 @@ class _ExploreDiscoverGrid extends StatelessWidget {
                 child: Icon(icon, size: 22, color: fg, fill: 1),
               ),
               const SizedBox(height: 12),
-              Text(title,
-                  style: AppTheme.sans(
-                      size: 17, weight: FontWeight.w600, color: t.text)),
+              Text(
+                title,
+                style: AppTheme.sans(
+                  size: 17,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(sub,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 15, color: t.textMute)),
+              Text(
+                sub,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(size: 15, color: t.textMute),
+              ),
             ],
           ),
         );

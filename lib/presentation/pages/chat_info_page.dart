@@ -34,7 +34,8 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     // 真房间走 Matrix；否则回退 mock 数据（id 以 mock_ 开头，例如 mock_jack）。
     final mock = room == null ? MockData.byId(widget.roomId) : null;
     final peerId = room?.directChatMatrixID ?? mock?.mxid;
-    final name = room?.getLocalizedDisplayname() ??
+    final name =
+        room?.getLocalizedDisplayname() ??
         mock?.name ??
         peerId ??
         widget.roomId;
@@ -56,8 +57,9 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                     // 仅真 Matrix 房间允许进 contact-detail（mock 路径下 contact-detail
                     // 拿不到房间数据，跳过去是死页）。
                     onTap: room != null && peerId != null
-                        ? () => context
-                            .push('/contact/${Uri.encodeComponent(peerId)}')
+                        ? () => context.push(
+                            '/contact/${Uri.encodeComponent(peerId)}',
+                          )
                         : null,
                   ),
                   const SizedBox(height: 16),
@@ -66,41 +68,48 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _GroupedCard(children: [
-                          _RowChevron(label: '查找聊天记录', onTap: () {}),
-                        ]),
+                        _GroupedCard(
+                          children: [
+                            _RowChevron(label: '查找聊天记录', onTap: () {}),
+                          ],
+                        ),
                         const SizedBox(height: 16),
-                        _GroupedCard(children: [
-                          _RowSwitch(
-                            label: '消息免打扰',
-                            value: _mute,
-                            onChanged: (v) => setState(() => _mute = v),
-                          ),
-                          _Divider(),
-                          _RowSwitch(
-                            label: '置顶聊天',
-                            value: _pinned,
-                            onChanged: (v) => setState(() => _pinned = v),
-                          ),
-                          _Divider(),
-                          _RowSwitch(
-                            label: '提醒',
-                            value: _alert,
-                            onChanged: (v) => setState(() => _alert = v),
-                          ),
-                        ]),
+                        _GroupedCard(
+                          children: [
+                            _RowSwitch(
+                              label: '消息免打扰',
+                              value: _mute,
+                              onChanged: (v) => setState(() => _mute = v),
+                            ),
+                            _Divider(),
+                            _RowSwitch(
+                              label: '置顶聊天',
+                              value: _pinned,
+                              onChanged: (v) => setState(() => _pinned = v),
+                            ),
+                            _Divider(),
+                            _RowSwitch(
+                              label: '提醒',
+                              value: _alert,
+                              onChanged: (v) => setState(() => _alert = v),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 16),
-                        _GroupedCard(children: [
-                          _RowChevron(
-                              label: '设置当前聊天背景', onTap: () {}),
-                        ]),
+                        _GroupedCard(
+                          children: [
+                            _RowChevron(label: '设置当前聊天背景', onTap: () {}),
+                          ],
+                        ),
                         const SizedBox(height: 16),
-                        _GroupedCard(children: [
-                          _RowDanger(
-                            label: '清空聊天记录',
-                            onTap: () => _confirmClear(context),
-                          ),
-                        ]),
+                        _GroupedCard(
+                          children: [
+                            _RowDanger(
+                              label: '清空聊天记录',
+                              onTap: () => _confirmClear(context),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -118,21 +127,32 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text('清空聊天记录',
-            style: AppTheme.sans(size: 17, weight: FontWeight.w600)),
-        content: Text('确定清空所有聊天记录？该操作不可恢复。',
-            style: AppTheme.sans(size: 15, color: t.textMute)),
+        title: Text(
+          '清空聊天记录',
+          style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+        ),
+        content: Text(
+          '确定清空所有聊天记录？该操作不可恢复。',
+          style: AppTheme.sans(size: 15, color: t.textMute),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(c).pop(false),
-            child: Text('取消',
-                style: AppTheme.sans(size: 15, color: t.textMute)),
+            child: Text(
+              '取消',
+              style: AppTheme.sans(size: 15, color: t.textMute),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(c).pop(true),
-            child: Text('清空',
-                style: AppTheme.sans(
-                    size: 15, weight: FontWeight.w600, color: t.danger)),
+            child: Text(
+              '清空',
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: t.danger,
+              ),
+            ),
           ),
         ],
       ),
@@ -173,7 +193,10 @@ class _PeerHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTheme.sans(
-                      size: 17, weight: FontWeight.w500, color: t.text),
+                    size: 17,
+                    weight: FontWeight.w500,
+                    color: t.text,
+                  ),
                 ),
               ),
               if (onTap != null)
@@ -233,8 +256,11 @@ class _RowChevron extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                  child: Text(label,
-                      style: AppTheme.sans(size: 17, color: t.text))),
+                child: Text(
+                  label,
+                  style: AppTheme.sans(size: 17, color: t.text),
+                ),
+              ),
               Icon(Symbols.chevron_right, size: 22, color: t.border),
             ],
           ),
@@ -262,8 +288,8 @@ class _RowSwitch extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-              child: Text(label,
-                  style: AppTheme.sans(size: 17, color: t.text))),
+            child: Text(label, style: AppTheme.sans(size: 17, color: t.text)),
+          ),
           Switch(
             value: value,
             onChanged: onChanged,
@@ -295,8 +321,10 @@ class _RowDanger extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text(label,
-                    style: AppTheme.sans(size: 17, color: t.danger)),
+                child: Text(
+                  label,
+                  style: AppTheme.sans(size: 17, color: t.danger),
+                ),
               ),
               Icon(Symbols.chevron_right, size: 22, color: t.border),
             ],

@@ -6,6 +6,8 @@ import '../../presentation/pages/login_page.dart';
 import '../../presentation/pages/init_page.dart';
 import '../../presentation/pages/home_page.dart';
 import '../../presentation/pages/chat_page.dart';
+import '../../presentation/pages/chat_info_page.dart';
+import '../../presentation/pages/group_info_page.dart';
 import '../../presentation/pages/group_chat_page.dart';
 import '../../presentation/pages/contact_detail_page.dart';
 import '../../presentation/pages/add_contact_page.dart';
@@ -13,7 +15,6 @@ import '../../presentation/pages/requests_page.dart';
 import '../../presentation/pages/group_detail_page.dart';
 import '../../presentation/pages/group_manage_page.dart';
 import '../../presentation/pages/groups_list_page.dart';
-import '../../presentation/pages/chat_info_page.dart';
 import '../../presentation/pages/me_account_page.dart';
 import '../../presentation/pages/me_notifications_page.dart';
 import '../../presentation/pages/call_page.dart';
@@ -65,8 +66,8 @@ GoRouter appRouter(Ref ref) {
       return null;
       // ignore: dead_code
       final isLoggedIn = authState.valueOrNull?.isLoggedIn ?? false;
-      final isLoginRoute = state.matchedLocation == '/login' ||
-          state.matchedLocation == '/init';
+      final isLoginRoute =
+          state.matchedLocation == '/login' || state.matchedLocation == '/init';
 
       if (!isLoggedIn && !isLoginRoute) return '/login';
       if (isLoggedIn && isLoginRoute) return '/home';
@@ -82,14 +83,25 @@ GoRouter appRouter(Ref ref) {
             _slidePage(ChatPage(roomId: state.pathParameters['roomId']!)),
       ),
       GoRoute(
+        path: '/chat-info/:roomId',
+        pageBuilder: (_, state) =>
+            _slidePage(ChatInfoPage(roomId: state.pathParameters['roomId']!)),
+      ),
+      GoRoute(
+        path: '/group-info/:roomId',
+        pageBuilder: (_, state) =>
+            _slidePage(GroupInfoPage(roomId: state.pathParameters['roomId']!)),
+      ),
+      GoRoute(
         path: '/group/:roomId',
-        pageBuilder: (_, state) => _slidePage(
-            GroupChatPage(roomId: state.pathParameters['roomId']!)),
+        pageBuilder: (_, state) =>
+            _slidePage(GroupChatPage(roomId: state.pathParameters['roomId']!)),
       ),
       GoRoute(
         path: '/contact/:userId',
         pageBuilder: (_, state) => _slidePage(
-            ContactDetailPage(userId: state.pathParameters['userId']!)),
+          ContactDetailPage(userId: state.pathParameters['userId']!),
+        ),
       ),
       GoRoute(
         path: '/add-contact',
@@ -102,21 +114,18 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/group-detail/:roomId',
         pageBuilder: (_, state) => _slidePage(
-            GroupDetailPage(roomId: state.pathParameters['roomId']!)),
+          GroupDetailPage(roomId: state.pathParameters['roomId']!),
+        ),
       ),
       GoRoute(
         path: '/group-manage/:roomId',
         pageBuilder: (_, state) => _slidePage(
-            GroupManagePage(roomId: state.pathParameters['roomId']!)),
+          GroupManagePage(roomId: state.pathParameters['roomId']!),
+        ),
       ),
       GoRoute(
         path: '/groups',
         pageBuilder: (_, __) => _slidePage(const GroupsListPage()),
-      ),
-      GoRoute(
-        path: '/chat-info/:roomId',
-        pageBuilder: (_, state) => _slidePage(
-            ChatInfoPage(roomId: state.pathParameters['roomId']!)),
       ),
       GoRoute(
         path: '/me/account',
@@ -146,7 +155,8 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/mcp-permission/:agentId',
         pageBuilder: (_, state) => _slidePage(
-            McpPolicyEditPage(agentId: state.pathParameters['agentId']!)),
+          McpPolicyEditPage(agentId: state.pathParameters['agentId']!),
+        ),
       ),
     ],
   );

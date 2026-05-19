@@ -25,8 +25,7 @@ class SettingsPage extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: t.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: t.border.withValues(alpha: 0.2)),
+                  border: Border.all(color: t.border.withValues(alpha: 0.2)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -128,10 +127,7 @@ class _GeneralRow extends StatelessWidget {
                   style: AppTheme.sans(size: 17, color: t.text),
                 ),
               ),
-              Text(
-                value,
-                style: AppTheme.sans(size: 15, color: t.textMute),
-              ),
+              Text(value, style: AppTheme.sans(size: 15, color: t.textMute)),
               const SizedBox(width: 8),
               Icon(Symbols.chevron_right, size: 22, color: t.textMute),
             ],

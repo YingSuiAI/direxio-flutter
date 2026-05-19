@@ -43,4 +43,5 @@ class McpAuditStore extends StateNotifier<List<McpAuditEntry>> {
 
 final mcpAuditStoreProvider =
     StateNotifierProvider<McpAuditStore, List<McpAuditEntry>>(
-        (ref) => McpAuditStore());
+      (ref) => McpAuditStore(),
+    );

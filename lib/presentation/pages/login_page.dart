@@ -17,7 +17,9 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _domainCtrl = TextEditingController(text: 'https://portal.agent-p2p.io');
+  final _domainCtrl = TextEditingController(
+    text: 'https://portal.agent-p2p.io',
+  );
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
@@ -71,8 +73,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: SingleChildScrollView(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
               child: Column(
                 children: [
                   // App icon — squircle 112
@@ -91,18 +92,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ],
                     ),
                     alignment: Alignment.center,
-                    child: Icon(Symbols.communication,
-                        size: 56, color: t.onPrimaryContainer, fill: 1),
+                    child: Icon(
+                      Symbols.communication,
+                      size: 56,
+                      color: t.onPrimaryContainer,
+                      fill: 1,
+                    ),
                   ),
                   const SizedBox(height: 24),
-                  Text('Agent P2P',
-                      style: AppTheme.sans(
-                          size: 28,
-                          weight: FontWeight.w700,
-                          color: t.text)),
+                  Text(
+                    'Agent P2P',
+                    style: AppTheme.sans(
+                      size: 28,
+                      weight: FontWeight.w700,
+                      color: t.text,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text('去中心化 · 端对端加密 · 安全通讯',
-                      style: AppTheme.sans(size: 15, color: t.textMute)),
+                  Text(
+                    '去中心化 · 端对端加密 · 安全通讯',
+                    style: AppTheme.sans(size: 15, color: t.textMute),
+                  ),
                   const SizedBox(height: 40),
 
                   // Portal 地址
@@ -122,14 +132,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     onSubmitted: (_) => _login(),
                     trailing: IconButton(
                       icon: Icon(
-                        _obscure
-                            ? Symbols.visibility
-                            : Symbols.visibility_off,
+                        _obscure ? Symbols.visibility : Symbols.visibility_off,
                         size: 20,
                         color: t.textMute,
                       ),
-                      onPressed: () =>
-                          setState(() => _obscure = !_obscure),
+                      onPressed: () => setState(() => _obscure = !_obscure),
                     ),
                   ),
 
@@ -149,26 +156,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   Row(
                     children: [
                       Expanded(
-                          child: Divider(
-                              color: t.border.withValues(alpha: 0.4))),
+                        child: Divider(color: t.border.withValues(alpha: 0.4)),
+                      ),
                       Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text('或',
-                            style: AppTheme.sans(
-                                size: 15, color: t.textMute)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          '或',
+                          style: AppTheme.sans(size: 15, color: t.textMute),
+                        ),
                       ),
                       Expanded(
-                          child: Divider(
-                              color: t.border.withValues(alpha: 0.4))),
+                        child: Divider(color: t.border.withValues(alpha: 0.4)),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 24),
                   TextButton(
                     onPressed: () => context.go('/init'),
-                    child: Text('注册新账号',
-                        style: AppTheme.sans(
-                            size: 15, color: t.accent)),
+                    child: Text(
+                      '注册新账号',
+                      style: AppTheme.sans(size: 15, color: t.accent),
+                    ),
                   ),
                 ],
               ),
@@ -200,8 +208,10 @@ class _ErrorBanner extends StatelessWidget {
           Icon(Symbols.error, size: 16, color: t.danger),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message,
-                style: AppTheme.sans(size: 13, color: t.danger)),
+            child: Text(
+              message,
+              style: AppTheme.sans(size: 13, color: t.danger),
+            ),
           ),
         ],
       ),

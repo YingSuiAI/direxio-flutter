@@ -17,12 +17,12 @@ class ContactDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
     final client = ref.read(matrixClientProvider);
-    final room =
-        client.rooms.where((r) => r.directChatMatrixID == userId).firstOrNull;
+    final room = client.rooms
+        .where((r) => r.directChatMatrixID == userId)
+        .firstOrNull;
     // 找不到真房间时按 mxid 回退到 mock，否则名字会显示成原始 mxid。
     final mock = room == null ? MockData.byMxid(userId) : null;
-    final displayName =
-        room?.getLocalizedDisplayname() ?? mock?.name ?? userId;
+    final displayName = room?.getLocalizedDisplayname() ?? mock?.name ?? userId;
     // @username 取 userId 的 localpart（@xxx:domain → xxx）
     final localpart = userId.startsWith('@') && userId.contains(':')
         ? userId.substring(1, userId.indexOf(':'))
@@ -30,8 +30,9 @@ class ContactDetailPage extends ConsumerWidget {
     // Node URL：用 mxid 后半段作为节点占位
     final domain = userId.contains(':') ? userId.split(':').last : userId;
     final nodeUrl = 'Node: $domain';
-    final initial =
-        displayName.isNotEmpty ? displayName.characters.first.toUpperCase() : '?';
+    final initial = displayName.isNotEmpty
+        ? displayName.characters.first.toUpperCase()
+        : '?';
 
     return Scaffold(
       backgroundColor: t.bg,
@@ -187,9 +188,10 @@ class _ProfileHeader extends StatelessWidget {
                     errorBuilder: (_, __, ___) => Text(
                       initial,
                       style: AppTheme.sans(
-                          size: 30,
-                          weight: FontWeight.w600,
-                          color: t.onAccent),
+                        size: 30,
+                        weight: FontWeight.w600,
+                        color: t.onAccent,
+                      ),
                     ),
                   )
                 : Text(
@@ -426,8 +428,10 @@ class _InfoRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 64,
-            child: Text(label,
-                style: AppTheme.sans(size: 15, color: t.textMute)),
+            child: Text(
+              label,
+              style: AppTheme.sans(size: 15, color: t.textMute),
+            ),
           ),
           Expanded(
             child: Text(
@@ -435,9 +439,13 @@ class _InfoRow extends StatelessWidget {
               textAlign: TextAlign.right,
               style: valueSmall
                   ? AppTheme.sans(
-                      size: 15, color: valueMuted ? t.textMute : t.text)
+                      size: 15,
+                      color: valueMuted ? t.textMute : t.text,
+                    )
                   : AppTheme.sans(
-                      size: 17, color: valueMuted ? t.textMute : t.text),
+                      size: 17,
+                      color: valueMuted ? t.textMute : t.text,
+                    ),
             ),
           ),
         ],
@@ -488,11 +496,7 @@ class _ActionGroup extends StatelessWidget {
 }
 
 class _ActionRow extends StatelessWidget {
-  const _ActionRow({
-    required this.label,
-    this.danger = false,
-    this.onTap,
-  });
+  const _ActionRow({required this.label, this.danger = false, this.onTap});
   final String label;
   final bool danger;
   final VoidCallback? onTap;

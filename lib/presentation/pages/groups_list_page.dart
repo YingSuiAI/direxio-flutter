@@ -38,15 +38,19 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           return tb.compareTo(ta);
         });
       for (final r in groups) {
-        items.add(_GroupItem(
-          id: r.id,
-          name: r.getLocalizedDisplayname(),
-          preview: _previewText(r.lastEvent?.body ?? ''),
-          time: r.lastEvent == null
-              ? ''
-              : _formatTime(r.lastEvent!.originServerTs.millisecondsSinceEpoch),
-          unread: r.notificationCount,
-        ));
+        items.add(
+          _GroupItem(
+            id: r.id,
+            name: r.getLocalizedDisplayname(),
+            preview: _previewText(r.lastEvent?.body ?? ''),
+            time: r.lastEvent == null
+                ? ''
+                : _formatTime(
+                    r.lastEvent!.originServerTs.millisecondsSinceEpoch,
+                  ),
+            unread: r.notificationCount,
+          ),
+        );
       }
     } else {
       // Mock 模式：把 mxid 不以 @ 起头的会话视为群组。
@@ -55,22 +59,25 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           .toList();
       for (final c in mocks) {
         final last = c.lastMessage;
-        items.add(_GroupItem(
-          id: c.id,
-          name: c.name,
-          preview: _previewText(last?.text ?? ''),
-          time: last == null ? '' : _formatTime(last.time.millisecondsSinceEpoch),
-          unread: c.unread,
-        ));
+        items.add(
+          _GroupItem(
+            id: c.id,
+            name: c.name,
+            preview: _previewText(last?.text ?? ''),
+            time: last == null
+                ? ''
+                : _formatTime(last.time.millisecondsSinceEpoch),
+            unread: c.unread,
+          ),
+        );
       }
     }
 
     final filtered = _query.isEmpty
         ? items
         : items
-            .where((g) =>
-                g.name.toLowerCase().contains(_query.toLowerCase()))
-            .toList();
+              .where((g) => g.name.toLowerCase().contains(_query.toLowerCase()))
+              .toList();
 
     return Scaffold(
       backgroundColor: t.bg,
@@ -88,9 +95,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: _SearchBar(
-              onChanged: (v) => setState(() => _query = v),
-            ),
+            child: _SearchBar(onChanged: (v) => setState(() => _query = v)),
           ),
           Expanded(
             child: filtered.isEmpty
@@ -186,11 +191,12 @@ class _GroupRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () =>
-            context.push('/group/${Uri.encodeComponent(item.id)}'),
+        onTap: () {
+          final path = item.id.startsWith('mock_') ? '/chat' : '/group';
+          context.push('$path/${Uri.encodeComponent(item.id)}');
+        },
         child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -206,9 +212,10 @@ class _GroupRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
-                          size: 17,
-                          weight: FontWeight.w600,
-                          color: t.text),
+                        size: 17,
+                        weight: FontWeight.w600,
+                        color: t.text,
+                      ),
                     ),
                     if (preview.isNotEmpty) ...[
                       const SizedBox(height: 2),
@@ -216,8 +223,7 @@ class _GroupRow extends StatelessWidget {
                         preview,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            AppTheme.sans(size: 13, color: t.textMute),
+                        style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
                     ],
                   ],
@@ -229,22 +235,27 @@ class _GroupRow extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (time.isNotEmpty)
-                    Text(time,
-                        style: AppTheme.sans(size: 11, color: t.textMute)),
+                    Text(
+                      time,
+                      style: AppTheme.sans(size: 11, color: t.textMute),
+                    ),
                   if (unread > 0) ...[
                     const SizedBox(height: 4),
                     Container(
                       width: 18,
                       height: 18,
                       alignment: Alignment.center,
-                      decoration:
-                          BoxDecoration(color: t.accent, shape: BoxShape.circle),
+                      decoration: BoxDecoration(
+                        color: t.accent,
+                        shape: BoxShape.circle,
+                      ),
                       child: Text(
                         unread > 99 ? '99+' : '$unread',
                         style: AppTheme.sans(
-                            size: 11,
-                            weight: FontWeight.w700,
-                            color: t.onAccent),
+                          size: 11,
+                          weight: FontWeight.w700,
+                          color: t.onAccent,
+                        ),
                       ),
                     ),
                   ],

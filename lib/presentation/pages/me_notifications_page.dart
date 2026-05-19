@@ -30,38 +30,40 @@ class _MeNotificationsPageState extends State<MeNotificationsPage> {
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-              child: _GroupedCard(children: [
-                _IconSwitchRow(
-                  icon: Symbols.notifications,
-                  color: _orange,
-                  label: '消息通知',
-                  value: _msgPush,
-                  onChanged: (v) => setState(() => _msgPush = v),
-                ),
-                _Divider(),
-                _IconSwitchRow(
-                  icon: Symbols.do_not_disturb_on,
-                  color: _orange,
-                  label: '勿扰模式',
-                  value: _dnd,
-                  onChanged: (v) => setState(() => _dnd = v),
-                ),
-                _Divider(),
-                _IconChevronRow(
-                  icon: Symbols.vibration,
-                  color: _orange,
-                  label: '声音与震动',
-                  onTap: () {},
-                ),
-                _Divider(),
-                _IconChevronRow(
-                  icon: Symbols.schedule,
-                  color: _orange,
-                  label: '勿扰时段',
-                  trailingText: '22:00–08:00',
-                  onTap: () {},
-                ),
-              ]),
+              child: _GroupedCard(
+                children: [
+                  _IconSwitchRow(
+                    icon: Symbols.notifications,
+                    color: _orange,
+                    label: '消息通知',
+                    value: _msgPush,
+                    onChanged: (v) => setState(() => _msgPush = v),
+                  ),
+                  _Divider(),
+                  _IconSwitchRow(
+                    icon: Symbols.do_not_disturb_on,
+                    color: _orange,
+                    label: '勿扰模式',
+                    value: _dnd,
+                    onChanged: (v) => setState(() => _dnd = v),
+                  ),
+                  _Divider(),
+                  _IconChevronRow(
+                    icon: Symbols.vibration,
+                    color: _orange,
+                    label: '声音与震动',
+                    onTap: () {},
+                  ),
+                  _Divider(),
+                  _IconChevronRow(
+                    icon: Symbols.schedule,
+                    color: _orange,
+                    label: '勿扰时段',
+                    trailingText: '22:00–08:00',
+                    onTap: () {},
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -128,12 +130,16 @@ class _IconChevronRow extends StatelessWidget {
               _IconBadge(icon: icon, color: color),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(label,
-                    style: AppTheme.sans(size: 17, color: t.text)),
+                child: Text(
+                  label,
+                  style: AppTheme.sans(size: 17, color: t.text),
+                ),
               ),
               if (trailingText != null) ...[
-                Text(trailingText!,
-                    style: AppTheme.sans(size: 15, color: t.textMute)),
+                Text(
+                  trailingText!,
+                  style: AppTheme.sans(size: 15, color: t.textMute),
+                ),
                 const SizedBox(width: 4),
               ],
               Icon(Symbols.chevron_right, size: 22, color: t.border),
@@ -169,8 +175,8 @@ class _IconSwitchRow extends StatelessWidget {
           _IconBadge(icon: icon, color: color),
           const SizedBox(width: 12),
           Expanded(
-              child:
-                  Text(label, style: AppTheme.sans(size: 17, color: t.text))),
+            child: Text(label, style: AppTheme.sans(size: 17, color: t.text)),
+          ),
           Switch(
             value: value,
             onChanged: onChanged,

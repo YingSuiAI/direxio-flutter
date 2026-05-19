@@ -5,9 +5,9 @@
 
 ## 1. 总原则
 
-- **不要硬编码颜色**。所有颜色走 `context.tk.xxx`（`PortalTokens`）。需要新色先在 `core/theme/design_tokens.dart` 加 token。
+- **不要硬编码颜色**。所有颜色走 `context.tk.xxx`（`PortalTokens`）。需要新色先在 `core/theme/design_tokens.dart` 加 token。设计稿要求的固定配色（如通话页深色背景）行尾标 `// theme-fixed`，`check-ui.sh` 据此白名单放行。
 - **不要硬编码字号 / 字体**。文字统一走 `AppTheme.sans(...)`。
-- **不要直接 `import 'package:flutter_lucide'` 作主图标**。新代码用 `material_symbols_icons` 的 `Symbols.*`。`flutter_lucide` 仅存量代码保留，不新增。
+- **图标只用 `material_symbols_icons` 的 `Symbols.*`**。`flutter_lucide` 已从依赖移除，禁止再引入。
 - 复用已有 M3 组件（见 §5），不要重复造头部 / 卡片 / 按钮 / 底栏。
 
 ## 2. 配色 token（`context.tk`）

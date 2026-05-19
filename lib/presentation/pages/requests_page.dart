@@ -129,8 +129,7 @@ class _SearchBox extends StatelessWidget {
                 isCollapsed: true,
                 border: InputBorder.none,
                 hintText: '手机号 / 用户名 / Node ID',
-                hintStyle:
-                    AppTheme.sans(size: 15, color: t.textMute),
+                hintStyle: AppTheme.sans(size: 15, color: t.textMute),
               ),
               onSubmitted: (_) => onSearch(),
             ),
@@ -138,14 +137,14 @@ class _SearchBox extends StatelessWidget {
           InkWell(
             onTap: onSearch,
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 4, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
               child: Text(
                 '搜索',
                 style: AppTheme.sans(
-                    size: 13,
-                    weight: FontWeight.w500,
-                    color: t.accent),
+                  size: 13,
+                  weight: FontWeight.w500,
+                  color: t.accent,
+                ),
               ),
             ),
           ),
@@ -167,7 +166,10 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         text,
         style: AppTheme.sans(
-            size: 13, weight: FontWeight.w500, color: t.textMute),
+          size: 13,
+          weight: FontWeight.w500,
+          color: t.textMute,
+        ),
       ),
     );
   }
@@ -194,17 +196,20 @@ class _PendingSection extends StatelessWidget {
       for (var i = 0; i < invites.length; i++) {
         if (i > 0) rows.add(_RowDivider());
         final room = invites[i];
-        final inviterId = room.directChatMatrixID ??
+        final inviterId =
+            room.directChatMatrixID ??
             room.getState(EventTypes.RoomCreate)?.senderId ??
             '';
-        rows.add(_PendingRow(
-          name: room.getLocalizedDisplayname(),
-          message: inviterId.isEmpty ? '请求加为好友' : inviterId,
-          seed: inviterId.isEmpty
-              ? room.getLocalizedDisplayname()
-              : inviterId,
-          onAccept: busy ? null : () => onAccept(room),
-        ));
+        rows.add(
+          _PendingRow(
+            name: room.getLocalizedDisplayname(),
+            message: inviterId.isEmpty ? '请求加为好友' : inviterId,
+            seed: inviterId.isEmpty
+                ? room.getLocalizedDisplayname()
+                : inviterId,
+            onAccept: busy ? null : () => onAccept(room),
+          ),
+        );
       }
     } else {
       rows = [
@@ -274,9 +279,10 @@ class _PendingRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTheme.sans(
-                      size: 20,
-                      weight: FontWeight.w600,
-                      color: t.text),
+                    size: 20,
+                    weight: FontWeight.w600,
+                    color: t.text,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -310,14 +316,14 @@ class _AcceptButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(9999),
         onTap: onTap,
         child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           child: Text(
             '接受',
             style: AppTheme.sans(
-                size: 13,
-                weight: FontWeight.w500,
-                color: t.onAccent),
+              size: 13,
+              weight: FontWeight.w500,
+              color: t.onAccent,
+            ),
           ),
         ),
       ),
@@ -359,15 +365,15 @@ class _AcceptedSection extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.sans(
-                        size: 20,
-                        weight: FontWeight.w600,
-                        color: t.text),
+                      size: 20,
+                      weight: FontWeight.w600,
+                      color: t.text,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '3 天前接受了你的请求',
-                    style:
-                        AppTheme.sans(size: 15, color: t.textMute),
+                    style: AppTheme.sans(size: 15, color: t.textMute),
                   ),
                 ],
               ),
@@ -376,9 +382,10 @@ class _AcceptedSection extends StatelessWidget {
             Text(
               '已添加',
               style: AppTheme.sans(
-                  size: 13,
-                  weight: FontWeight.w500,
-                  color: t.textMute),
+                size: 13,
+                weight: FontWeight.w500,
+                color: t.textMute,
+              ),
             ),
           ],
         ),
@@ -391,9 +398,6 @@ class _RowDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return Container(
-      height: 1,
-      color: t.border.withValues(alpha: 0.2),
-    );
+    return Container(height: 1, color: t.border.withValues(alpha: 0.2));
   }
 }

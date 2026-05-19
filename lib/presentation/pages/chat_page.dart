@@ -125,19 +125,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _togglePlus() => setState(() {
-        _showPlusPanel = !_showPlusPanel;
-        if (_showPlusPanel) _showEmojiPanel = false;
-      });
+    _showPlusPanel = !_showPlusPanel;
+    if (_showPlusPanel) _showEmojiPanel = false;
+  });
 
   void _toggleEmoji() => setState(() {
-        _showEmojiPanel = !_showEmojiPanel;
-        if (_showEmojiPanel) _showPlusPanel = false;
-      });
+    _showEmojiPanel = !_showEmojiPanel;
+    if (_showEmojiPanel) _showPlusPanel = false;
+  });
 
   void _closePanels() => setState(() {
-        _showPlusPanel = false;
-        _showEmojiPanel = false;
-      });
+    _showPlusPanel = false;
+    _showEmojiPanel = false;
+  });
 
   Future<void> _onLongPressEvent(BuildContext ctx, Event e, Offset pos) async {
     final action = await _showMsgContextMenu(ctx, pos);
@@ -147,7 +147,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         await Clipboard.setData(ClipboardData(text: e.body));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)));
+            const SnackBar(
+              content: Text('已复制'),
+              duration: Duration(seconds: 1),
+            ),
+          );
         }
         break;
       case 'quote':
@@ -183,7 +187,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final events =
         _timeline?.events.where((e) => e.type == EventTypes.Message).toList() ??
-            [];
+        [];
 
     final mxid = room.directChatMatrixID ?? '';
     final name = room.getLocalizedDisplayname();
@@ -213,20 +217,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               GlassHeaderButton(
                 icon: Symbols.call,
                 color: t.accent,
-                onTap: () => context
-                    .push('/call/${Uri.encodeComponent(widget.roomId)}'),
+                onTap: () =>
+                    context.push('/call/${Uri.encodeComponent(widget.roomId)}'),
               ),
               GlassHeaderButton(
                 icon: Symbols.videocam,
                 color: t.accent,
-                onTap: () => context
-                    .push('/call/${Uri.encodeComponent(widget.roomId)}'),
+                onTap: () =>
+                    context.push('/call/${Uri.encodeComponent(widget.roomId)}'),
               ),
               GlassHeaderButton(
                 icon: Symbols.more_vert,
                 color: t.accent,
-                onTap: () => context
-                    .push('/chat-info/${Uri.encodeComponent(widget.roomId)}'),
+                onTap: () => context.push(
+                  '/chat-info/${Uri.encodeComponent(widget.roomId)}',
+                ),
               ),
             ],
           ),
@@ -240,48 +245,51 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: t.accent),
+                          strokeWidth: 2,
+                          color: t.accent,
+                        ),
                       ),
                     )
                   : events.isEmpty
-                      ? Center(
-                          child: Text('开始你们的第一条消息',
-                              style:
-                                  AppTheme.sans(size: 13, color: t.textMute)))
-                      : ListView.builder(
-                          reverse: true,
-                          padding: const EdgeInsets.fromLTRB(0, 12, 0, 12),
-                          itemCount: events.length + 1,
-                          itemBuilder: (context, i) {
-                            if (i == events.length) {
-                              return const _E2eFooter();
-                            }
-                            final e = events[i];
-                            final isMe = e.senderId == e.room.client.userID;
-                            final selected = _selected.contains(e.eventId);
-                            return _SChatBubble(
-                              isMe: isMe,
-                              text: e.body,
-                              time:
-                                  DateFormat('HH:mm').format(e.originServerTs),
-                              showRead: isMe,
-                              avatarSeed: e.senderId,
-                              selected: selected,
-                              multiSelect: _multiSelect,
-                              onTap: _multiSelect
-                                  ? () => setState(() {
-                                        if (selected) {
-                                          _selected.remove(e.eventId);
-                                        } else {
-                                          _selected.add(e.eventId);
-                                        }
-                                      })
-                                  : null,
-                              onLongPressAt: (pos) =>
-                                  _onLongPressEvent(context, e, pos),
-                            );
-                          },
-                        ),
+                  ? Center(
+                      child: Text(
+                        '开始你们的第一条消息',
+                        style: AppTheme.sans(size: 13, color: t.textMute),
+                      ),
+                    )
+                  : ListView.builder(
+                      reverse: true,
+                      padding: const EdgeInsets.fromLTRB(0, 12, 0, 12),
+                      itemCount: events.length + 1,
+                      itemBuilder: (context, i) {
+                        if (i == events.length) {
+                          return const _E2eFooter();
+                        }
+                        final e = events[i];
+                        final isMe = e.senderId == e.room.client.userID;
+                        final selected = _selected.contains(e.eventId);
+                        return _SChatBubble(
+                          isMe: isMe,
+                          text: e.body,
+                          time: DateFormat('HH:mm').format(e.originServerTs),
+                          showRead: isMe,
+                          avatarSeed: e.senderId,
+                          selected: selected,
+                          multiSelect: _multiSelect,
+                          onTap: _multiSelect
+                              ? () => setState(() {
+                                  if (selected) {
+                                    _selected.remove(e.eventId);
+                                  } else {
+                                    _selected.add(e.eventId);
+                                  }
+                                })
+                              : null,
+                          onLongPressAt: (pos) =>
+                              _onLongPressEvent(context, e, pos),
+                        );
+                      },
+                    ),
             ),
           ),
           if (_replyTo != null)
@@ -330,12 +338,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               emojiActive: _showEmojiPanel,
             ),
           if (_showPlusPanel) const _PlusPanel(),
-          if (_showEmojiPanel) _EmojiPanel(onPick: (e) {
-            final c = _msgCtrl;
-            final base = c.text;
-            c.text = base + e;
-            c.selection = TextSelection.collapsed(offset: c.text.length);
-          }),
+          if (_showEmojiPanel)
+            _EmojiPanel(
+              onPick: (e) {
+                final c = _msgCtrl;
+                final base = c.text;
+                c.text = base + e;
+                c.selection = TextSelection.collapsed(offset: c.text.length);
+              },
+            ),
         ],
       ),
     );
@@ -401,9 +412,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
     setState(() {
-      _messages.add(
-        MockMessage(isMe: true, text: text, time: DateTime.now()),
-      );
+      _messages.add(MockMessage(isMe: true, text: text, time: DateTime.now()));
       _ctrl.clear();
       _replyTo = null;
     });
@@ -417,11 +426,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     _streamTimer?.cancel();
     setState(() {
       _agentBusy = true;
-      _messages.add(MockMessage(
-        isMe: false,
-        text: '',
-        time: DateTime.now(),
-      ));
+      _messages.add(MockMessage(isMe: false, text: '', time: DateTime.now()));
     });
     int i = 0;
     _streamTimer = Timer.periodic(Duration(milliseconds: charDelayMs), (t) {
@@ -456,27 +461,24 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     String? deniedReason,
   }) {
     setState(() {
-      _messages.add(MockMessage(
-        isMe: false,
-        text: '',
-        time: DateTime.now(),
-        kind: MockMsgKind.toolCall,
-        toolName: tool,
-        toolArgs: args,
-        toolResultSummary: denied ? (deniedReason ?? '被拒') : summary,
-        toolLatencyMs: latencyMs,
-        toolWarnings: [
-          ...warnings,
-          if (denied) deniedReason ?? '权限不足',
-        ],
-      ));
+      _messages.add(
+        MockMessage(
+          isMe: false,
+          text: '',
+          time: DateTime.now(),
+          kind: MockMsgKind.toolCall,
+          toolName: tool,
+          toolArgs: args,
+          toolResultSummary: denied ? (deniedReason ?? '被拒') : summary,
+          toolLatencyMs: latencyMs,
+          toolWarnings: [...warnings, if (denied) deniedReason ?? '权限不足'],
+        ),
+      );
     });
   }
 
   void _addUserAction(String text) {
-    _messages.add(
-      MockMessage(isMe: true, text: text, time: DateTime.now()),
-    );
+    _messages.add(MockMessage(isMe: true, text: text, time: DateTime.now()));
   }
 
   Future<void> _onTokenUsage() async {
@@ -496,22 +498,27 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
         '**本月预计支出**：¥${d['cost_cny']}\n\n'
         '> ⏰ 配额重置时间：**2026-06-01**',
       );
-    } on McpDeniedException {/* 已写气泡 */}
+    } on McpDeniedException {
+      /* 已写气泡 */
+    }
   }
 
   Future<void> _onSummarizeRecent() async {
     setState(() => _addUserAction('/总结最近谁和我聊了什么'));
     try {
-      final who =
-          await _callToolWithBubble('list_conversations', {'query': 'jack'});
+      final who = await _callToolWithBubble('list_conversations', {
+        'query': 'jack',
+      });
       final convs = who.data['conversations'] as List;
       if (convs.isEmpty) {
         _streamAgentReply('没有匹配到名为 Jack 的会话。');
         return;
       }
       final target = convs.first;
-      final r = await _callToolWithBubble(
-          'get_recent_messages', {'room_id': target['id'], 'limit': 50});
+      final r = await _callToolWithBubble('get_recent_messages', {
+        'room_id': target['id'],
+        'limit': 50,
+      });
       final msgs = (r.data['messages'] as List).cast<Map>();
       final preview = msgs
           .take(3)
@@ -541,7 +548,9 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
         '- 💬 待回复：周末是否打球（**提示**：点下方"代我回复"按钮，将经你确认后发送）\n\n'
         '${warnLines.join('\n')}',
       );
-    } on McpDeniedException {/* 已写气泡 */}
+    } on McpDeniedException {
+      /* 已写气泡 */
+    }
   }
 
   void _onNewSession() {
@@ -565,19 +574,21 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     setState(() {
       _pendingConfirm = _PendingConfirm(
         tool: 'send_message',
-        args: {
-          'room_id': 'mock_jack',
-          'text': '周日下午 3 点万体馆见，到时候打你电话。',
-        },
+        args: {'room_id': 'mock_jack', 'text': '周日下午 3 点万体馆见，到时候打你电话。'},
         preview: '将发送给 **Jack**：\n\n> 周日下午 3 点万体馆见，到时候打你电话。',
         onConfirm: () async {
           final args = _pendingConfirm!.args;
           setState(() => _pendingConfirm = null);
           try {
-            await _callToolWithBubble('send_message', args,
-                userConfirmed: true);
+            await _callToolWithBubble(
+              'send_message',
+              args,
+              userConfirmed: true,
+            );
             _streamAgentReply('✅ 已替你发送给 Jack。');
-          } on McpDeniedException {/* 已写气泡 */}
+          } on McpDeniedException {
+            /* 已写气泡 */
+          }
         },
       );
     });
@@ -592,7 +603,11 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
         await Clipboard.setData(ClipboardData(text: m.text));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)));
+            const SnackBar(
+              content: Text('已复制'),
+              duration: Duration(seconds: 1),
+            ),
+          );
         }
         break;
       case 'quote':
@@ -604,7 +619,11 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
       case 'fav':
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('已收藏'), duration: Duration(seconds: 1)));
+            const SnackBar(
+              content: Text('已收藏'),
+              duration: Duration(seconds: 1),
+            ),
+          );
         }
         break;
       case 'multi':
@@ -620,16 +639,23 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   }
 
   /// 包装：先 precheck，需确认就弹 banner；否则直接调
-  Future<ToolResult> _callToolWithBubble(String tool, Map<String, dynamic> args,
-      {bool userConfirmed = false}) async {
+  Future<ToolResult> _callToolWithBubble(
+    String tool,
+    Map<String, dynamic> args, {
+    bool userConfirmed = false,
+  }) async {
     final client = ref.read(mockMcpClientProvider);
     final pre = client.precheck(_agentId, tool);
     if (pre.needConfirm && !userConfirmed) {
       throw McpDeniedException('需用户二次确认');
     }
     try {
-      final r =
-          await client.call(_agentId, tool, args, userConfirmed: userConfirmed);
+      final r = await client.call(
+        _agentId,
+        tool,
+        args,
+        userConfirmed: userConfirmed,
+      );
       _addToolBubble(
         tool: tool,
         args: args,
@@ -652,19 +678,19 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   }
 
   void _togglePlus() => setState(() {
-        _showPlusPanel = !_showPlusPanel;
-        if (_showPlusPanel) _showEmojiPanel = false;
-      });
+    _showPlusPanel = !_showPlusPanel;
+    if (_showPlusPanel) _showEmojiPanel = false;
+  });
 
   void _toggleEmoji() => setState(() {
-        _showEmojiPanel = !_showEmojiPanel;
-        if (_showEmojiPanel) _showPlusPanel = false;
-      });
+    _showEmojiPanel = !_showEmojiPanel;
+    if (_showEmojiPanel) _showPlusPanel = false;
+  });
 
   void _closePanels() => setState(() {
-        _showPlusPanel = false;
-        _showEmojiPanel = false;
-      });
+    _showPlusPanel = false;
+    _showEmojiPanel = false;
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -678,40 +704,44 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
           // 普通联系人用 s-chat 头部（头像 + 在线 + call/video/more）。
           GlassHeader.detail(
             title: c.name,
-            subtitle: _isAiBot
-                ? '端对端加密'
-                : (c.isGroup ? '6 名成员' : '在线'),
+            subtitle: _isAiBot ? '端对端加密' : (c.isGroup ? '6 名成员' : '在线'),
             subtitleIcon: _isAiBot ? Symbols.lock : null,
             centerLeading: _isAiBot
                 ? _AgentBadge(color: t.accent)
                 : c.isGroup
-                    ? Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: t.surfaceHigh,
-                          shape: BoxShape.circle,
+                ? Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: t.surfaceHigh,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Symbols.groups,
+                      size: 20,
+                      color: t.textMute,
+                      fill: 1,
+                    ),
+                  )
+                : SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Stack(
+                      children: [
+                        PortalAvatar(
+                          seed: c.name,
+                          size: 36,
+                          imageUrl: c.avatarUrl,
                         ),
-                        alignment: Alignment.center,
-                        child: Icon(Symbols.groups,
-                            size: 20, color: t.textMute, fill: 1),
-                      )
-                    : SizedBox(
-                        width: 36,
-                        height: 36,
-                        child: Stack(
-                          children: [
-                            PortalAvatar(
-                                seed: c.name,
-                                size: 36,
-                                imageUrl: c.avatarUrl),
-                            const Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: OnlineDot(size: 10)),
-                          ],
+                        const Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: OnlineDot(size: 10),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
             actions: _isAiBot
                 ? [
                     GlassHeaderButton(
@@ -735,7 +765,8 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                       icon: Symbols.more_vert,
                       color: t.accent,
                       onTap: () => context.push(
-                          '${c.isGroup ? '/group-detail' : '/chat-info'}/${Uri.encodeComponent(c.id)}'),
+                        '${c.isGroup ? '/group-detail' : '/chat-info'}/${Uri.encodeComponent(c.id)}',
+                      ),
                     ),
                   ],
           ),
@@ -765,7 +796,8 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                             resultSummary: m.toolResultSummary ?? '',
                             latencyMs: m.toolLatencyMs ?? 0,
                             warnings: m.toolWarnings ?? const [],
-                            denied: m.toolResultSummary?.isEmpty == true &&
+                            denied:
+                                m.toolResultSummary?.isEmpty == true &&
                                 (m.toolWarnings?.isNotEmpty ?? false),
                             deniedReason: m.toolResultSummary?.isEmpty == true
                                 ? m.toolWarnings?.first
@@ -786,12 +818,12 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                           multiSelect: _multiSelect,
                           onTap: _multiSelect
                               ? () => setState(() {
-                                    if (selected) {
-                                      _selected.remove(i);
-                                    } else {
-                                      _selected.add(i);
-                                    }
-                                  })
+                                  if (selected) {
+                                    _selected.remove(i);
+                                  } else {
+                                    _selected.add(i);
+                                  }
+                                })
                               : null,
                           onLongPressAt: (pos) => _onLongPressMsg(m, pos),
                         );
@@ -852,11 +884,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
               emojiActive: _showEmojiPanel,
               suggestions: _isAiBot
                   ? const []
-                  : const [
-                      '周日下午有空',
-                      '周日要加班，下次',
-                      '几点？',
-                    ],
+                  : const ['周日下午有空', '周日要加班，下次', '几点？'],
               onPickSuggestion: (s) {
                 _ctrl.text = s;
                 _send();
@@ -866,12 +894,14 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
           // ── Plus / Emoji panel ────────────────────────────────
           if (_showPlusPanel) const _PlusPanel(),
           if (_showEmojiPanel)
-            _EmojiPanel(onPick: (e) {
-              final c = _ctrl;
-              final base = c.text;
-              c.text = base + e;
-              c.selection = TextSelection.collapsed(offset: c.text.length);
-            }),
+            _EmojiPanel(
+              onPick: (e) {
+                final c = _ctrl;
+                final base = c.text;
+                c.text = base + e;
+                c.selection = TextSelection.collapsed(offset: c.text.length);
+              },
+            ),
         ],
       ),
     );
@@ -943,7 +973,8 @@ class _SChatBubble extends StatelessWidget {
           ],
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: markdownChild ??
+        child:
+            markdownChild ??
             Text(text, style: AppTheme.sans(size: 17, color: textColor)),
       ),
     );
@@ -962,13 +993,16 @@ class _SChatBubble extends StatelessWidget {
           )
         : Padding(
             padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-            child: Text(time,
-                style: AppTheme.sans(size: 11, color: t.textMute)),
+            child: Text(
+              time,
+              style: AppTheme.sans(size: 11, color: t.textMute),
+            ),
           );
 
     final column = Column(
-      crossAxisAlignment:
-          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: isMe
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [bubble, timeRow],
     );
 
@@ -977,8 +1011,9 @@ class _SChatBubble extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           if (multiSelect) ...[
             Padding(
@@ -1082,35 +1117,51 @@ class _SChatInputBar extends StatelessWidget {
                       children: [
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
-                          child: Row(children: [
-                            Icon(Symbols.auto_awesome,
-                                size: 14, color: t.accent),
-                            const SizedBox(width: 4),
-                            Text('AI 建议',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Symbols.auto_awesome,
+                                size: 14,
+                                color: t.accent,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'AI 建议',
                                 style: AppTheme.sans(
-                                    size: 12,
-                                    color: t.textMute,
-                                    weight: FontWeight.w600)),
-                          ]),
+                                  size: 12,
+                                  color: t.textMute,
+                                  weight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        ...suggestions.map((s) => Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Material(
-                                color: t.surfaceHigh,
+                        ...suggestions.map(
+                          (s) => Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Material(
+                              color: t.surfaceHigh,
+                              borderRadius: BorderRadius.circular(16),
+                              child: InkWell(
                                 borderRadius: BorderRadius.circular(16),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(16),
-                                  onTap: () => onPickSuggestion?.call(s),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 6),
-                                    child: Text(s,
-                                        style: AppTheme.sans(
-                                            size: 13, color: t.text)),
+                                onTap: () => onPickSuggestion?.call(s),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  child: Text(
+                                    s,
+                                    style: AppTheme.sans(
+                                      size: 13,
+                                      color: t.text,
+                                    ),
                                   ),
                                 ),
                               ),
-                            )),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1143,15 +1194,18 @@ class _SChatInputBar extends StatelessWidget {
                                   textInputAction: TextInputAction.newline,
                                   maxLines: 5,
                                   minLines: 1,
-                                  style:
-                                      AppTheme.sans(size: 17, color: t.text),
+                                  style: AppTheme.sans(size: 17, color: t.text),
                                   decoration: InputDecoration(
                                     hintText: '消息…',
                                     hintStyle: AppTheme.sans(
-                                        size: 17, color: t.textMute),
+                                      size: 17,
+                                      color: t.textMute,
+                                    ),
                                     isCollapsed: true,
                                     contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 11),
+                                      horizontal: 14,
+                                      vertical: 11,
+                                    ),
                                     border: InputBorder.none,
                                     enabledBorder: InputBorder.none,
                                     focusedBorder: InputBorder.none,
@@ -1162,8 +1216,7 @@ class _SChatInputBar extends StatelessWidget {
                                 icon: Icon(
                                   Symbols.mood,
                                   size: 24,
-                                  color:
-                                      emojiActive ? t.accent : t.textMute,
+                                  color: emojiActive ? t.accent : t.textMute,
                                 ),
                                 onPressed: onEmoji,
                               ),
@@ -1296,10 +1349,38 @@ class _EmojiPanel extends StatelessWidget {
   final ValueChanged<String> onPick;
 
   static const _emojis = [
-    '😀','😂','🥲','😍','🥰','😘','😭','😤',
-    '👍','❤️','🙏','💪','👏','✌️','🤝','🫡',
-    '🎉','🔥','💯','✨','😅','😆','🤣','😋',
-    '😎','🤓','🤗','😏','😢','😡','🥹','🫶',
+    '😀',
+    '😂',
+    '🥲',
+    '😍',
+    '🥰',
+    '😘',
+    '😭',
+    '😤',
+    '👍',
+    '❤️',
+    '🙏',
+    '💪',
+    '👏',
+    '✌️',
+    '🤝',
+    '🫡',
+    '🎉',
+    '🔥',
+    '💯',
+    '✨',
+    '😅',
+    '😆',
+    '🤣',
+    '😋',
+    '😎',
+    '🤓',
+    '🤗',
+    '😏',
+    '😢',
+    '😡',
+    '🥹',
+    '🫶',
   ];
 
   @override
@@ -1318,17 +1399,19 @@ class _EmojiPanel extends StatelessWidget {
             mainAxisSpacing: 4,
             crossAxisSpacing: 4,
             children: _emojis
-                .map((e) => Material(
-                      color: Colors.transparent,
+                .map(
+                  (e) => Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
                       borderRadius: BorderRadius.circular(8),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () => onPick(e),
-                        child: Center(
-                          child: Text(e, style: const TextStyle(fontSize: 24)),
-                        ),
+                      onTap: () => onPick(e),
+                      child: Center(
+                        child: Text(e, style: const TextStyle(fontSize: 24)),
                       ),
-                    ))
+                    ),
+                  ),
+                )
                 .toList(),
           ),
         ),
@@ -1339,8 +1422,11 @@ class _EmojiPanel extends StatelessWidget {
 
 /// 引用回复栏：消息上方一行预览 + 关闭按钮。
 class _ReplyBar extends StatelessWidget {
-  const _ReplyBar(
-      {required this.text, required this.sender, required this.onClose});
+  const _ReplyBar({
+    required this.text,
+    required this.sender,
+    required this.onClose,
+  });
   final String text;
   final String sender;
   final VoidCallback onClose;
@@ -1370,7 +1456,10 @@ class _ReplyBar extends StatelessWidget {
                 Text(
                   '回复 $sender',
                   style: AppTheme.sans(
-                      size: 11, color: t.accent, weight: FontWeight.w600),
+                    size: 11,
+                    color: t.accent,
+                    weight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -1428,17 +1517,20 @@ class _MultiSelectBar extends StatelessWidget {
                   TextButton.icon(
                     onPressed: onExit,
                     icon: Icon(Symbols.close, size: 18, color: t.text),
-                    label: Text('取消',
-                        style: AppTheme.sans(size: 13, color: t.text)),
+                    label: Text(
+                      '取消',
+                      style: AppTheme.sans(size: 13, color: t.text),
+                    ),
                   ),
                   Expanded(
                     child: Center(
                       child: Text(
                         '已选 $count 条',
                         style: AppTheme.sans(
-                            size: 13,
-                            color: t.textMute,
-                            weight: FontWeight.w600),
+                          size: 13,
+                          color: t.textMute,
+                          weight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -1478,14 +1570,16 @@ Future<String?> _showMsgContextMenu(BuildContext context, Offset pos) {
       if (left < 12) left = 12;
       if (left + menuW > size.width - 12) left = size.width - menuW - 12;
       if (top < 60) top = pos.dy + 12;
-      return Stack(children: [
-        Positioned(
-          left: left,
-          top: top,
-          width: menuW,
-          child: const _MsgCtxMenuCard(),
-        ),
-      ]);
+      return Stack(
+        children: [
+          Positioned(
+            left: left,
+            top: top,
+            width: menuW,
+            child: const _MsgCtxMenuCard(),
+          ),
+        ],
+      );
     },
     transitionBuilder: (ctx, a, _, child) =>
         FadeTransition(opacity: a, child: child),
@@ -1523,14 +1617,32 @@ class _MsgCtxMenuCard extends StatelessWidget {
             IntrinsicHeight(
               child: Row(
                 children: [
-                  _ctxBtn(context, Symbols.content_copy, '复制', 'copy',
-                      iconColor, labelColor),
+                  _ctxBtn(
+                    context,
+                    Symbols.content_copy,
+                    '复制',
+                    'copy',
+                    iconColor,
+                    labelColor,
+                  ),
                   const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(context, Symbols.forward, '转发', 'forward', iconColor,
-                      labelColor),
+                  _ctxBtn(
+                    context,
+                    Symbols.forward,
+                    '转发',
+                    'forward',
+                    iconColor,
+                    labelColor,
+                  ),
                   const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(context, Symbols.star, '收藏', 'fav', iconColor,
-                      labelColor),
+                  _ctxBtn(
+                    context,
+                    Symbols.star,
+                    '收藏',
+                    'fav',
+                    iconColor,
+                    labelColor,
+                  ),
                 ],
               ),
             ),
@@ -1538,14 +1650,32 @@ class _MsgCtxMenuCard extends StatelessWidget {
             IntrinsicHeight(
               child: Row(
                 children: [
-                  _ctxBtn(context, Symbols.delete, '删除', 'delete', danger,
-                      danger),
+                  _ctxBtn(
+                    context,
+                    Symbols.delete,
+                    '删除',
+                    'delete',
+                    danger,
+                    danger,
+                  ),
                   const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(context, Symbols.checklist, '多选', 'multi', iconColor,
-                      labelColor),
+                  _ctxBtn(
+                    context,
+                    Symbols.checklist,
+                    '多选',
+                    'multi',
+                    iconColor,
+                    labelColor,
+                  ),
                   const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(context, Symbols.format_quote, '引用', 'quote',
-                      iconColor, labelColor),
+                  _ctxBtn(
+                    context,
+                    Symbols.format_quote,
+                    '引用',
+                    'quote',
+                    iconColor,
+                    labelColor,
+                  ),
                 ],
               ),
             ),
@@ -1555,8 +1685,14 @@ class _MsgCtxMenuCard extends StatelessWidget {
     );
   }
 
-  Widget _ctxBtn(BuildContext context, IconData icon, String label,
-      String value, Color iconColor, Color labelColor) {
+  Widget _ctxBtn(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+    Color iconColor,
+    Color labelColor,
+  ) {
     return Expanded(
       child: InkWell(
         onTap: () => Navigator.of(context).pop(value),
@@ -1567,9 +1703,7 @@ class _MsgCtxMenuCard extends StatelessWidget {
             children: [
               Icon(icon, size: 22, color: iconColor),
               const SizedBox(height: 6),
-              Text(label,
-                  style:
-                      AppTheme.sans(size: 11, color: labelColor)),
+              Text(label, style: AppTheme.sans(size: 11, color: labelColor)),
             ],
           ),
         ),
@@ -1595,8 +1729,7 @@ class _E2eFooter extends StatelessWidget {
             children: [
               Icon(Symbols.lock, size: 12, color: t.textMute),
               const SizedBox(width: 4),
-              Text('端对端加密',
-                  style: AppTheme.sans(size: 11, color: t.textMute)),
+              Text('端对端加密', style: AppTheme.sans(size: 11, color: t.textMute)),
             ],
           ),
         ),
@@ -1654,15 +1787,26 @@ class _ConfirmBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  Text('Agent 想调用 ',
-                      style: AppTheme.sans(size: 12, color: t.textMute)),
-                  Text(pending.tool,
+                Row(
+                  children: [
+                    Text(
+                      'Agent 想调用 ',
+                      style: AppTheme.sans(size: 12, color: t.textMute),
+                    ),
+                    Text(
+                      pending.tool,
                       style: AppTheme.mono(
-                          size: 12, color: t.accent, weight: FontWeight.w600)),
-                  Text(' · 需你确认',
-                      style: AppTheme.sans(size: 12, color: t.textMute)),
-                ]),
+                        size: 12,
+                        color: t.accent,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      ' · 需你确认',
+                      style: AppTheme.sans(size: 12, color: t.textMute),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 AgentMessageBody(pending.preview, selectable: false),
               ],
@@ -1677,8 +1821,10 @@ class _ConfirmBanner extends StatelessWidget {
                   minimumSize: const Size(60, 32),
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
-                child: Text('取消',
-                    style: AppTheme.sans(size: 12, color: t.textMute)),
+                child: Text(
+                  '取消',
+                  style: AppTheme.sans(size: 12, color: t.textMute),
+                ),
               ),
               const SizedBox(height: 4),
               FilledButton(
@@ -1688,11 +1834,14 @@ class _ConfirmBanner extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   backgroundColor: t.accent,
                 ),
-                child: Text('确认发送',
-                    style: AppTheme.sans(
-                        size: 12,
-                        color: t.onAccent,
-                        weight: FontWeight.w600)),
+                child: Text(
+                  '确认发送',
+                  style: AppTheme.sans(
+                    size: 12,
+                    color: t.onAccent,
+                    weight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
           ),
@@ -1733,19 +1882,44 @@ class _AgentFloatingBar extends ConsumerWidget {
       ),
       items: [
         _shortcutItem(
-            t, Symbols.speed, '查询 Token 用量', '查看本月消耗与配额', onTokenUsage),
-        _shortcutItem(t, Symbols.format_list_bulleted, '总结最近的聊天',
-            '汇总最近联系人聊了什么', onSummarizeRecent),
-        _shortcutItem(t, Symbols.send, '代我回复 Jack',
-            '让 Agent 起草并经你确认后发送', onDraftReply),
-        _shortcutItem(t, Symbols.add_comment, '新建会话', '清空当前对话开始新一轮',
-            onNewSession),
+          t,
+          Symbols.speed,
+          '查询 Token 用量',
+          '查看本月消耗与配额',
+          onTokenUsage,
+        ),
+        _shortcutItem(
+          t,
+          Symbols.format_list_bulleted,
+          '总结最近的聊天',
+          '汇总最近联系人聊了什么',
+          onSummarizeRecent,
+        ),
+        _shortcutItem(
+          t,
+          Symbols.send,
+          '代我回复 Jack',
+          '让 Agent 起草并经你确认后发送',
+          onDraftReply,
+        ),
+        _shortcutItem(
+          t,
+          Symbols.add_comment,
+          '新建会话',
+          '清空当前对话开始新一轮',
+          onNewSession,
+        ),
       ],
     );
   }
 
-  PopupMenuItem<void> _shortcutItem(PortalTokens t, IconData icon, String title,
-      String subtitle, VoidCallback onTap) {
+  PopupMenuItem<void> _shortcutItem(
+    PortalTokens t,
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+  ) {
     return PopupMenuItem<void>(
       onTap: onTap,
       padding: EdgeInsets.zero,
@@ -1761,12 +1935,19 @@ class _AgentFloatingBar extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(title,
-                      style: AppTheme.sans(
-                          size: 13, color: t.text, weight: FontWeight.w500)),
+                  Text(
+                    title,
+                    style: AppTheme.sans(
+                      size: 13,
+                      color: t.text,
+                      weight: FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: AppTheme.sans(size: 11, color: t.textMute)),
+                  Text(
+                    subtitle,
+                    style: AppTheme.sans(size: 11, color: t.textMute),
+                  ),
                 ],
               ),
             ),
@@ -1791,8 +1972,11 @@ class _AgentFloatingBar extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 6, left: 2),
               child: Row(
                 children: [
-                  Icon(Symbols.verified_user,
-                      size: 11, color: policy.enabled ? t.accent : t.textMute),
+                  Icon(
+                    Symbols.verified_user,
+                    size: 11,
+                    color: policy.enabled ? t.accent : t.textMute,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     policy.enabled ? '权限：${policy.summary}' : '权限：已禁用',
@@ -1801,27 +1985,32 @@ class _AgentFloatingBar extends ConsumerWidget {
                 ],
               ),
             ),
-          Row(children: [
-            Builder(builder: (btnCtx) {
-              return _CapsuleButton(
-                icon: Symbols.keyboard_arrow_down,
-                iconLeading: false,
-                label: '快捷指令',
-                onTap: () {
-                  final box = btnCtx.findRenderObject() as RenderBox?;
-                  final offset = box?.localToGlobal(Offset.zero) ?? Offset.zero;
-                  _showShortcuts(btnCtx, offset);
+          Row(
+            children: [
+              Builder(
+                builder: (btnCtx) {
+                  return _CapsuleButton(
+                    icon: Symbols.keyboard_arrow_down,
+                    iconLeading: false,
+                    label: '快捷指令',
+                    onTap: () {
+                      final box = btnCtx.findRenderObject() as RenderBox?;
+                      final offset =
+                          box?.localToGlobal(Offset.zero) ?? Offset.zero;
+                      _showShortcuts(btnCtx, offset);
+                    },
+                  );
                 },
-              );
-            }),
-            const SizedBox(width: 8),
-            _CapsuleButton(
-              icon: Symbols.tune,
-              iconLeading: true,
-              label: '管理',
-              onTap: () => context.push('/mcp-permission/local-aibot'),
-            ),
-          ]),
+              ),
+              const SizedBox(width: 8),
+              _CapsuleButton(
+                icon: Symbols.tune,
+                iconLeading: true,
+                label: '管理',
+                onTap: () => context.push('/mcp-permission/local-aibot'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1862,9 +2051,14 @@ class _CapsuleButton extends StatelessWidget {
                 Icon(icon, size: 15, color: t.accent),
                 const SizedBox(width: 5),
               ],
-              Text(label,
-                  style: AppTheme.sans(
-                      size: 13, color: t.accent, weight: FontWeight.w600)),
+              Text(
+                label,
+                style: AppTheme.sans(
+                  size: 13,
+                  color: t.accent,
+                  weight: FontWeight.w600,
+                ),
+              ),
               if (!iconLeading) ...[
                 const SizedBox(width: 4),
                 Icon(icon, size: 15, color: t.accent),

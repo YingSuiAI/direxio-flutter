@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:intl/intl.dart';
 import 'package:matrix/matrix.dart';
 
@@ -32,8 +32,9 @@ class MessageBubble extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           if (!isMe) ...[
             PortalAvatar(seed: event.senderId, size: 28),
@@ -45,8 +46,9 @@ class MessageBubble extends StatelessWidget {
                 maxWidth: MediaQuery.of(context).size.width * 0.78,
               ),
               child: Column(
-                crossAxisAlignment:
-                    isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                crossAxisAlignment: isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
                 children: [
                   Container(
                     decoration: BoxDecoration(
@@ -121,11 +123,7 @@ class MessageInputBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   IconButton(
-                    icon: Icon(
-                      LucideIcons.circle_plus,
-                      size: 26,
-                      color: t.textMute,
-                    ),
+                    icon: Icon(Symbols.add_circle, size: 26, color: t.textMute),
                     onPressed: () {},
                   ),
                   const SizedBox(width: 4),
@@ -166,7 +164,7 @@ class MessageInputBar extends StatelessWidget {
                           ),
                           IconButton(
                             icon: Icon(
-                              LucideIcons.smile,
+                              Symbols.sentiment_satisfied,
                               size: 22,
                               color: t.accent,
                             ),
@@ -186,11 +184,7 @@ class MessageInputBar extends StatelessWidget {
                       child: SizedBox(
                         width: 40,
                         height: 40,
-                        child: Icon(
-                          LucideIcons.send,
-                          size: 18,
-                          color: t.onAccent,
-                        ),
+                        child: Icon(Symbols.send, size: 18, color: t.onAccent),
                       ),
                     ),
                   ),

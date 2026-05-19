@@ -33,13 +33,15 @@ class MockAsClient implements AsClient {
       if (roomId != null && conv.id != roomId) continue;
       for (final m in conv.messages) {
         if (m.text.toLowerCase().contains(q)) {
-          results.add(AsSearchResult(
-            eventId: 'mock_evt_${results.length}',
-            roomId: conv.id,
-            senderName: m.isMe ? '我' : conv.name,
-            content: m.text,
-            timestamp: m.time,
-          ));
+          results.add(
+            AsSearchResult(
+              eventId: 'mock_evt_${results.length}',
+              roomId: conv.id,
+              senderName: m.isMe ? '我' : conv.name,
+              content: m.text,
+              timestamp: m.time,
+            ),
+          );
           if (results.length >= limit) return results;
         }
       }
@@ -82,11 +84,7 @@ class MockAsClient implements AsClient {
     await Future.delayed(_latency);
     final d = domain.trim();
     if (_follows.any((f) => f.domain == d)) return;
-    _follows.add(FollowEntry(
-      domain: d,
-      name: d,
-      followedAt: DateTime.now(),
-    ));
+    _follows.add(FollowEntry(domain: d, name: d, followedAt: DateTime.now()));
   }
 
   @override

@@ -41,27 +41,23 @@ class PortalAvatar extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: radius,
-      ),
+      decoration: BoxDecoration(color: bg, borderRadius: radius),
       clipBehavior: Clip.antiAlias,
       alignment: Alignment.center,
       child: imageUrl != null
-          ? Image.network(imageUrl!, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _letter(letter, fg))
+          ? Image.network(
+              imageUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _letter(letter, fg),
+            )
           : _letter(letter, fg),
     );
   }
 
   Widget _letter(String letter, Color fg) => Text(
-        letter,
-        style: AppTheme.sans(
-          size: size * 0.42,
-          color: fg,
-          weight: FontWeight.w600,
-        ),
-      );
+    letter,
+    style: AppTheme.sans(size: size * 0.42, color: fg, weight: FontWeight.w600),
+  );
 }
 
 /// 在线状态绿点 —— 叠在头像右下角。

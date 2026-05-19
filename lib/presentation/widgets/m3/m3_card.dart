@@ -78,9 +78,14 @@ class M3PrimaryButton extends StatelessWidget {
           Icon(icon, size: 18, color: t.onAccent),
           const SizedBox(width: 6),
         ],
-        Text(label,
-            style: AppTheme.sans(
-                size: 17, weight: FontWeight.w600, color: t.onAccent)),
+        Text(
+          label,
+          style: AppTheme.sans(
+            size: 17,
+            weight: FontWeight.w600,
+            color: t.onAccent,
+          ),
+        ),
       ],
     );
     return Material(
@@ -109,6 +114,8 @@ class M3InputField extends StatelessWidget {
     this.keyboardType,
     this.trailing,
     this.onSubmitted,
+    this.onChanged,
+    this.autofocus = false,
   });
   final TextEditingController controller;
   final IconData icon;
@@ -117,6 +124,8 @@ class M3InputField extends StatelessWidget {
   final TextInputType? keyboardType;
   final Widget? trailing;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -145,6 +154,8 @@ class M3InputField extends StatelessWidget {
               obscureText: obscure,
               keyboardType: keyboardType,
               onSubmitted: onSubmitted,
+              onChanged: onChanged,
+              autofocus: autofocus,
               style: AppTheme.sans(size: 17, color: t.text),
               decoration: InputDecoration(
                 hintText: hint,

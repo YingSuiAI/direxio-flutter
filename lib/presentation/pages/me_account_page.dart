@@ -26,39 +26,41 @@ class _MeAccountPageState extends State<MeAccountPage> {
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-              child: _GroupedCard(children: [
-                _IconChevronRow(
-                  icon: Symbols.shield_person,
-                  label: '账号安全',
-                  onTap: () {},
-                ),
-                _Divider(),
-                _IconChevronRow(
-                  icon: Symbols.key,
-                  label: '修改密码',
-                  onTap: () {},
-                ),
-                _Divider(),
-                _IconSwitchRow(
-                  icon: Symbols.fingerprint,
-                  label: '生物识别解锁',
-                  value: _biometric,
-                  onChanged: (v) => setState(() => _biometric = v),
-                ),
-                _Divider(),
-                _IconChevronRow(
-                  icon: Symbols.lock,
-                  label: '隐私设置',
-                  onTap: () {},
-                ),
-                _Divider(),
-                _IconChevronRow(
-                  icon: Symbols.devices,
-                  label: '已登录设备',
-                  trailingText: '2 台',
-                  onTap: () {},
-                ),
-              ]),
+              child: _GroupedCard(
+                children: [
+                  _IconChevronRow(
+                    icon: Symbols.shield_person,
+                    label: '账号安全',
+                    onTap: () {},
+                  ),
+                  _Divider(),
+                  _IconChevronRow(
+                    icon: Symbols.key,
+                    label: '修改密码',
+                    onTap: () {},
+                  ),
+                  _Divider(),
+                  _IconSwitchRow(
+                    icon: Symbols.fingerprint,
+                    label: '生物识别解锁',
+                    value: _biometric,
+                    onChanged: (v) => setState(() => _biometric = v),
+                  ),
+                  _Divider(),
+                  _IconChevronRow(
+                    icon: Symbols.lock,
+                    label: '隐私设置',
+                    onTap: () {},
+                  ),
+                  _Divider(),
+                  _IconChevronRow(
+                    icon: Symbols.devices,
+                    label: '已登录设备',
+                    trailingText: '2 台',
+                    onTap: () {},
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -124,12 +126,16 @@ class _IconChevronRow extends StatelessWidget {
               _IconBadge(icon: icon, color: t.accent),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(label,
-                    style: AppTheme.sans(size: 17, color: t.text)),
+                child: Text(
+                  label,
+                  style: AppTheme.sans(size: 17, color: t.text),
+                ),
               ),
               if (trailingText != null) ...[
-                Text(trailingText!,
-                    style: AppTheme.sans(size: 15, color: t.textMute)),
+                Text(
+                  trailingText!,
+                  style: AppTheme.sans(size: 15, color: t.textMute),
+                ),
                 const SizedBox(width: 4),
               ],
               Icon(Symbols.chevron_right, size: 22, color: t.border),
@@ -163,8 +169,8 @@ class _IconSwitchRow extends StatelessWidget {
           _IconBadge(icon: icon, color: t.accent),
           const SizedBox(width: 12),
           Expanded(
-              child:
-                  Text(label, style: AppTheme.sans(size: 17, color: t.text))),
+            child: Text(label, style: AppTheme.sans(size: 17, color: t.text)),
+          ),
           Switch(
             value: value,
             onChanged: onChanged,

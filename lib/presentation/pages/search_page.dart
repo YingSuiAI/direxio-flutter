@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../../data/as_client.dart';
 import '../../data/mock_as_client.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/m3/glass_header.dart';
+import '../widgets/m3/m3_card.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -70,18 +73,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      appBar: AppBar(
-        title: TextField(
-          controller: _ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '搜索消息内容...',
-            border: InputBorder.none,
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '搜索消息'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: M3InputField(
+              controller: _ctrl,
+              icon: Symbols.search,
+              hint: '搜索消息内容…',
+              autofocus: true,
+              onChanged: _onChanged,
+            ),
           ),
-          onChanged: _onChanged,
-        ),
+          Expanded(child: _buildBody(t)),
+        ],
       ),
-      body: _buildBody(t),
     );
   }
 
@@ -91,20 +98,25 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
     if (_lastQuery.isEmpty) {
       return Center(
-        child: Text('输入关键词搜索聊天记录',
-            style: AppTheme.sans(size: 13, color: t.textMute)),
+        child: Text(
+          '输入关键词搜索聊天记录',
+          style: AppTheme.sans(size: 13, color: t.textMute),
+        ),
       );
     }
     if (_results.isEmpty) {
       return Center(
-        child: Text('没有找到包含「$_lastQuery」的消息',
-            style: AppTheme.sans(size: 13, color: t.textMute)),
+        child: Text(
+          '没有找到包含「$_lastQuery」的消息',
+          style: AppTheme.sans(size: 13, color: t.textMute),
+        ),
       );
     }
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: _results.length,
-      separatorBuilder: (_, __) => Divider(height: 1, color: t.border, indent: 16),
+      separatorBuilder: (_, __) =>
+          Divider(height: 1, color: t.border, indent: 16),
       itemBuilder: (context, i) {
         final r = _results[i];
         return ListTile(
@@ -117,9 +129,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               style: AppTheme.sans(size: 14, color: t.accent),
             ),
           ),
-          title: Text(r.senderName,
-              style: AppTheme.sans(
-                  size: 14, weight: FontWeight.w600, color: t.text)),
+          title: Text(
+            r.senderName,
+            style: AppTheme.sans(
+              size: 14,
+              weight: FontWeight.w600,
+              color: t.text,
+            ),
+          ),
           subtitle: Text(
             r.content,
             maxLines: 2,
@@ -130,8 +147,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             DateFormat('MM-dd HH:mm').format(r.timestamp),
             style: AppTheme.mono(size: 10, color: t.textMute),
           ),
-          onTap: () =>
-              context.push('/chat/${Uri.encodeComponent(r.roomId)}'),
+          onTap: () => context.push('/chat/${Uri.encodeComponent(r.roomId)}'),
         );
       },
     );

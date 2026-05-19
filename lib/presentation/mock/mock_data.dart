@@ -23,6 +23,7 @@ class MockMessage {
     required this.text,
     required this.time,
     this.kind = MockMsgKind.text,
+    this.senderName,
     this.toolName,
     this.toolArgs,
     this.toolResultSummary,
@@ -32,6 +33,9 @@ class MockMessage {
   final bool isMe;
   final String text;
   final DateTime time;
+
+  /// 群聊中对方消息的发送者名；单聊或自己发的为 null。
+  final String? senderName;
   final MockMsgKind kind;
   // 工具调用专用
   final String? toolName;
@@ -51,8 +55,9 @@ class MockConversation {
     this.unread = 0,
     this.accentColor,
     this.avatarUrl,
-    this.isGroup = false,
-  });
+    this.members,
+    bool? isGroup,
+  }) : isGroup = isGroup ?? members != null;
   final String id;
   final String name;
   final String mxid;
@@ -61,10 +66,10 @@ class MockConversation {
   final List<MockMessage> messages;
   final Color? accentColor;
   final String? avatarUrl;
+  final List<String>? members;
   final bool isGroup;
 
-  MockMessage? get lastMessage =>
-      messages.isEmpty ? null : messages.last;
+  MockMessage? get lastMessage => messages.isEmpty ? null : messages.last;
 }
 
 class MockData {
@@ -118,36 +123,76 @@ class MockData {
       unread: 2,
       avatarUrl: MockAvatars.alice,
       messages: [
-        MockMessage(isMe: false, text: '你好！',
-            time: _now.subtract(const Duration(minutes: 30))),
-        MockMessage(isMe: true, text: '嗨，最近怎么样？',
-            time: _now.subtract(const Duration(minutes: 28))),
-        MockMessage(isMe: false, text: '还不错，在忙一个新项目',
-            time: _now.subtract(const Duration(minutes: 25))),
-        MockMessage(isMe: true, text: '听起来不错！是什么项目呢？',
-            time: _now.subtract(const Duration(minutes: 23))),
-        MockMessage(isMe: false, text: '是一个去中心化通讯应用，我整理了一份设计文档',
-            time: _now.subtract(const Duration(minutes: 20))),
-        MockMessage(isMe: true, text: '好的，明天见！',
-            time: _now.subtract(const Duration(minutes: 15))),
+        MockMessage(
+          isMe: false,
+          text: '你好！',
+          time: _now.subtract(const Duration(minutes: 30)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '嗨，最近怎么样？',
+          time: _now.subtract(const Duration(minutes: 28)),
+        ),
+        MockMessage(
+          isMe: false,
+          text: '还不错，在忙一个新项目',
+          time: _now.subtract(const Duration(minutes: 25)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '听起来不错！是什么项目呢？',
+          time: _now.subtract(const Duration(minutes: 23)),
+        ),
+        MockMessage(
+          isMe: false,
+          text: '是一个去中心化通讯应用，我整理了一份设计文档',
+          time: _now.subtract(const Duration(minutes: 20)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '好的，明天见！',
+          time: _now.subtract(const Duration(minutes: 15)),
+        ),
       ],
     ),
     MockConversation(
       id: 'mock_design_group',
       name: '产品设计组',
-      mxid: '#design-group:portal.local',
+      mxid: '!design:portal.local',
       subtitle: 'Carol: 原型图更新了',
       unread: 5,
-      isGroup: true,
+      members: const [
+        'Alice Chen',
+        'Bob Smith',
+        'Carol',
+        'Dave',
+        'Eve',
+        'Frank',
+      ],
       messages: [
-        MockMessage(isMe: false, text: 'Alice: 大家好，今天来讨论一下新版本的设计方案',
-            time: _now.subtract(const Duration(days: 1, hours: 5))),
-        MockMessage(isMe: false, text: 'Bob: 好的，我这边准备了几个方案',
-            time: _now.subtract(const Duration(days: 1, hours: 4, minutes: 30))),
-        MockMessage(isMe: true, text: '方案发出来看看',
-            time: _now.subtract(const Duration(days: 1, hours: 4))),
-        MockMessage(isMe: false, text: 'Carol: 原型图更新了',
-            time: _now.subtract(const Duration(days: 1))),
+        MockMessage(
+          isMe: false,
+          senderName: 'Alice Chen',
+          text: '大家好，今天来讨论一下新版本的设计方案',
+          time: _now.subtract(const Duration(days: 1, hours: 5)),
+        ),
+        MockMessage(
+          isMe: false,
+          senderName: 'Bob Smith',
+          text: '好的，我这边准备了几个方案',
+          time: _now.subtract(const Duration(days: 1, hours: 4, minutes: 30)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '方案发出来看看',
+          time: _now.subtract(const Duration(days: 1, hours: 4)),
+        ),
+        MockMessage(
+          isMe: false,
+          senderName: 'Carol',
+          text: '原型图更新了',
+          time: _now.subtract(const Duration(days: 1)),
+        ),
       ],
     ),
     MockConversation(
@@ -158,8 +203,11 @@ class MockData {
       unread: 0,
       avatarUrl: MockAvatars.bob,
       messages: [
-        MockMessage(isMe: false, text: '文件已发送，请查收',
-            time: _now.subtract(const Duration(days: 1, hours: 2))),
+        MockMessage(
+          isMe: false,
+          text: '文件已发送，请查收',
+          time: _now.subtract(const Duration(days: 1, hours: 2)),
+        ),
       ],
     ),
     MockConversation(
@@ -170,10 +218,16 @@ class MockData {
       unread: 0,
       avatarUrl: MockAvatars.dave,
       messages: [
-        MockMessage(isMe: true, text: '请帮我看看这份文档',
-            time: _now.subtract(const Duration(days: 2, hours: 1))),
-        MockMessage(isMe: false, text: '好的，我会在会议前审阅',
-            time: _now.subtract(const Duration(days: 2))),
+        MockMessage(
+          isMe: true,
+          text: '请帮我看看这份文档',
+          time: _now.subtract(const Duration(days: 2, hours: 1)),
+        ),
+        MockMessage(
+          isMe: false,
+          text: '好的，我会在会议前审阅',
+          time: _now.subtract(const Duration(days: 2)),
+        ),
       ],
     ),
     MockConversation(
@@ -183,10 +237,16 @@ class MockData {
       subtitle: '收到，稍后处理',
       unread: 0,
       messages: [
-        MockMessage(isMe: true, text: '帮忙处理一下这个 issue',
-            time: _now.subtract(const Duration(days: 3, hours: 1))),
-        MockMessage(isMe: false, text: '收到，稍后处理',
-            time: _now.subtract(const Duration(days: 3))),
+        MockMessage(
+          isMe: true,
+          text: '帮忙处理一下这个 issue',
+          time: _now.subtract(const Duration(days: 3, hours: 1)),
+        ),
+        MockMessage(
+          isMe: false,
+          text: '收到，稍后处理',
+          time: _now.subtract(const Duration(days: 3)),
+        ),
       ],
     ),
     MockConversation(

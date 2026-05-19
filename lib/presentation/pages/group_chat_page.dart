@@ -94,7 +94,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final memberCount = room.summary.mJoinedMemberCount ?? 0;
     final events =
         _timeline?.events.where((e) => e.type == EventTypes.Message).toList() ??
-            [];
+        [];
     final myId = ref.read(matrixClientProvider).userID;
 
     return Scaffold(
@@ -108,14 +108,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
               GlassHeaderButton(
                 icon: Symbols.videocam,
                 color: t.accent,
-                onTap: () => context
-                    .push('/call/${Uri.encodeComponent(widget.roomId)}'),
+                onTap: () =>
+                    context.push('/call/${Uri.encodeComponent(widget.roomId)}'),
               ),
               GlassHeaderButton(
                 icon: Symbols.more_vert,
                 color: t.textMute,
                 onTap: () => context.push(
-                    '/group-detail/${Uri.encodeComponent(widget.roomId)}'),
+                  '/group-detail/${Uri.encodeComponent(widget.roomId)}',
+                ),
               ),
             ],
           ),
@@ -126,27 +127,33 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: t.accent),
+                        strokeWidth: 2,
+                        color: t.accent,
+                      ),
                     ),
                   )
                 : events.isEmpty
-                    ? Center(
-                        child: Text('还没有消息',
-                            style: AppTheme.sans(size: 13, color: t.textMute)),
-                      )
-                    : ListView.builder(
-                        reverse: true,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        itemCount: events.length,
-                        itemBuilder: (context, i) {
-                          final e = events[i];
-                          return _GroupMessageBubble(
-                            event: e,
-                            isMe: e.senderId == myId,
-                          );
-                        },
-                      ),
+                ? Center(
+                    child: Text(
+                      '还没有消息',
+                      style: AppTheme.sans(size: 13, color: t.textMute),
+                    ),
+                  )
+                : ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    itemCount: events.length,
+                    itemBuilder: (context, i) {
+                      final e = events[i];
+                      return _GroupMessageBubble(
+                        event: e,
+                        isMe: e.senderId == myId,
+                      );
+                    },
+                  ),
           ),
           _GroupChatInputBar(ctrl: _msgCtrl, onSend: _send),
         ],
@@ -163,8 +170,7 @@ class _GroupAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final letter =
-        seed.isNotEmpty ? seed.characters.first.toUpperCase() : '#';
+    final letter = seed.isNotEmpty ? seed.characters.first.toUpperCase() : '#';
     return Container(
       width: 36,
       height: 36,
@@ -195,8 +201,7 @@ class _GroupMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final senderName =
-        event.senderFromMemoryOrFallback.calcDisplayname();
+    final senderName = event.senderFromMemoryOrFallback.calcDisplayname();
     final body = event.body;
 
     final bubble = Container(
@@ -219,10 +224,7 @@ class _GroupMessageBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Text(
         body,
-        style: AppTheme.sans(
-          size: 17,
-          color: isMe ? t.onAccent : t.text,
-        ),
+        style: AppTheme.sans(size: 17, color: isMe ? t.onAccent : t.text),
       ),
     );
 
@@ -230,8 +232,9 @@ class _GroupMessageBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           if (!isMe) ...[
             _MemberAvatar(seed: event.senderId, name: senderName),
@@ -243,8 +246,9 @@ class _GroupMessageBubble extends StatelessWidget {
                 maxWidth: MediaQuery.of(context).size.width * 0.72,
               ),
               child: Column(
-                crossAxisAlignment:
-                    isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                crossAxisAlignment: isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
                 children: [
                   if (!isMe)
                     Padding(
@@ -282,8 +286,8 @@ class _MemberAvatar extends StatelessWidget {
     ];
     final hash = seed.codeUnits.fold<int>(0, (a, b) => a + b);
     final (bg, fg) = palette[hash % palette.length];
-    final letter =
-        (name.isNotEmpty ? name : seed).characters.first.toUpperCase();
+    final letter = (name.isNotEmpty ? name : seed).characters.first
+        .toUpperCase();
     return Container(
       width: 32,
       height: 32,
@@ -324,8 +328,7 @@ class _GroupChatInputBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   IconButton(
-                    icon: Icon(Symbols.add_circle,
-                        size: 28, color: t.textMute),
+                    icon: Icon(Symbols.add_circle, size: 28, color: t.textMute),
                     onPressed: () {},
                   ),
                   const SizedBox(width: 4),
@@ -346,15 +349,17 @@ class _GroupChatInputBar extends StatelessWidget {
                               onSubmitted: (_) => onSend(),
                               minLines: 1,
                               maxLines: 5,
-                              style:
-                                  AppTheme.sans(size: 17, color: t.text),
+                              style: AppTheme.sans(size: 17, color: t.text),
                               decoration: InputDecoration(
                                 hintText: '消息…',
                                 hintStyle: AppTheme.sans(
-                                    size: 17, color: t.textMute),
+                                  size: 17,
+                                  color: t.textMute,
+                                ),
                                 isCollapsed: true,
                                 contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 10),
+                                  vertical: 10,
+                                ),
                                 border: InputBorder.none,
                                 enabledBorder: InputBorder.none,
                                 focusedBorder: InputBorder.none,
@@ -364,8 +369,11 @@ class _GroupChatInputBar extends StatelessWidget {
                           const SizedBox(width: 4),
                           GestureDetector(
                             onTap: () {},
-                            child: Icon(Symbols.mood,
-                                size: 20, color: t.textMute),
+                            child: Icon(
+                              Symbols.mood,
+                              size: 20,
+                              color: t.textMute,
+                            ),
                           ),
                         ],
                       ),
@@ -381,8 +389,11 @@ class _GroupChatInputBar extends StatelessWidget {
                       child: SizedBox(
                         width: 40,
                         height: 40,
-                        child: Icon(Symbols.arrow_upward,
-                            size: 20, color: t.onAccent),
+                        child: Icon(
+                          Symbols.arrow_upward,
+                          size: 20,
+                          color: t.onAccent,
+                        ),
                       ),
                     ),
                   ),

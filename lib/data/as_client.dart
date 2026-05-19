@@ -24,32 +24,29 @@ class AsSearchResult {
   final DateTime timestamp;
 
   factory AsSearchResult.fromJson(Map<String, dynamic> j) => AsSearchResult(
-        eventId: j['event_id'] as String,
-        roomId: j['room_id'] as String,
-        senderName: j['sender_name'] as String? ?? '',
-        content: j['content'] as String? ?? '',
-        timestamp: DateTime.parse(j['timestamp'] as String),
-      );
+    eventId: j['event_id'] as String,
+    roomId: j['room_id'] as String,
+    senderName: j['sender_name'] as String? ?? '',
+    content: j['content'] as String? ?? '',
+    timestamp: DateTime.parse(j['timestamp'] as String),
+  );
 }
 
 /// §5.2 Agent 配置
 class AgentConfig {
-  const AgentConfig({
-    required this.displayName,
-    required this.contextWindow,
-  });
+  const AgentConfig({required this.displayName, required this.contextWindow});
   final String displayName;
   final int contextWindow;
 
   factory AgentConfig.fromJson(Map<String, dynamic> j) => AgentConfig(
-        displayName: j['display_name'] as String? ?? '小A',
-        contextWindow: j['context_window'] as int? ?? 20,
-      );
+    displayName: j['display_name'] as String? ?? '小A',
+    contextWindow: j['context_window'] as int? ?? 20,
+  );
 
   Map<String, dynamic> toJson() => {
-        'display_name': displayName,
-        'context_window': contextWindow,
-      };
+    'display_name': displayName,
+    'context_window': contextWindow,
+  };
 
   AgentConfig copyWith({String? displayName, int? contextWindow}) =>
       AgentConfig(
@@ -72,13 +69,13 @@ class AgentStatus {
   final int messagesToday;
 
   factory AgentStatus.fromJson(Map<String, dynamic> j) => AgentStatus(
-        connected: j['connected'] as bool? ?? false,
-        lastSeen: j['last_seen'] != null
-            ? DateTime.parse(j['last_seen'] as String)
-            : null,
-        roomsJoined: j['rooms_joined'] as int? ?? 0,
-        messagesToday: j['messages_today'] as int? ?? 0,
-      );
+    connected: j['connected'] as bool? ?? false,
+    lastSeen: j['last_seen'] != null
+        ? DateTime.parse(j['last_seen'] as String)
+        : null,
+    roomsJoined: j['rooms_joined'] as int? ?? 0,
+    messagesToday: j['messages_today'] as int? ?? 0,
+  );
 }
 
 /// §5.4 关注列表单项
@@ -93,12 +90,12 @@ class FollowEntry {
   final DateTime? followedAt;
 
   factory FollowEntry.fromJson(Map<String, dynamic> j) => FollowEntry(
-        domain: j['domain'] as String,
-        name: j['name'] as String? ?? '',
-        followedAt: j['followed_at'] != null
-            ? DateTime.tryParse(j['followed_at'] as String)
-            : null,
-      );
+    domain: j['domain'] as String,
+    name: j['name'] as String? ?? '',
+    followedAt: j['followed_at'] != null
+        ? DateTime.tryParse(j['followed_at'] as String)
+        : null,
+  );
 }
 
 /// §5.5 Portal 整体状态
@@ -123,16 +120,14 @@ class PortalStatus {
   final String uptime;
 
   factory PortalStatus.fromJson(Map<String, dynamic> j) => PortalStatus(
-        dendrite: j['dendrite'] as String? ?? 'unknown',
-        federation: j['federation'] as String? ?? 'unknown',
-        agent: j['agent'] as String? ?? 'unknown',
-        uptime: j['uptime'] as String? ?? '',
-      );
+    dendrite: j['dendrite'] as String? ?? 'unknown',
+    federation: j['federation'] as String? ?? 'unknown',
+    agent: j['agent'] as String? ?? 'unknown',
+    uptime: j['uptime'] as String? ?? '',
+  );
 
   bool get allHealthy =>
-      dendrite == 'connected' &&
-      federation == 'ok' &&
-      agent == 'connected';
+      dendrite == 'connected' && federation == 'ok' && agent == 'connected';
 }
 
 /// AS API 调用失败

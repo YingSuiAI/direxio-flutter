@@ -1,7 +1,7 @@
 /// Agent 工具调用气泡：可折叠卡片，显示 tool name / args / result summary / latency
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -55,18 +55,19 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                 child: Row(
                   children: [
                     Icon(
-                      widget.denied
-                          ? LucideIcons.circle_x
-                          : LucideIcons.wrench,
+                      widget.denied ? Symbols.cancel : Symbols.build,
                       size: 12,
                       color: color,
                     ),
                     const SizedBox(width: 8),
-                    Text(widget.toolName,
-                        style: AppTheme.mono(
-                            size: 12,
-                            color: t.text,
-                            weight: FontWeight.w600)),
+                    Text(
+                      widget.toolName,
+                      style: AppTheme.mono(
+                        size: 12,
+                        color: t.text,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -75,19 +76,19 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                             : widget.resultSummary,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            AppTheme.sans(size: 11, color: t.textMute),
+                        style: AppTheme.sans(size: 11, color: t.textMute),
                       ),
                     ),
                     if (!widget.denied)
-                      Text('${widget.latencyMs}ms',
-                          style: AppTheme.mono(
-                              size: 10, color: t.textMute)),
+                      Text(
+                        '${widget.latencyMs}ms',
+                        style: AppTheme.mono(size: 10, color: t.textMute),
+                      ),
                     const SizedBox(width: 6),
                     Icon(
                       _expanded
-                          ? LucideIcons.chevron_up
-                          : LucideIcons.chevron_down,
+                          ? Symbols.keyboard_arrow_up
+                          : Symbols.keyboard_arrow_down,
                       size: 12,
                       color: t.textMute,
                     ),
@@ -104,11 +105,14 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                   children: [
                     Divider(height: 1, color: t.border),
                     const SizedBox(height: 6),
-                    Text('参数',
-                        style: AppTheme.mono(
-                            size: 10,
-                            color: t.textMute,
-                            weight: FontWeight.w600)),
+                    Text(
+                      '参数',
+                      style: AppTheme.mono(
+                        size: 10,
+                        color: t.textMute,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Container(
                       width: double.infinity,
@@ -125,30 +129,40 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                     ),
                     if (widget.warnings.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text('警告',
-                          style: AppTheme.mono(
-                              size: 10,
-                              color: t.textMute,
-                              weight: FontWeight.w600)),
+                      Text(
+                        '警告',
+                        style: AppTheme.mono(
+                          size: 10,
+                          color: t.textMute,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      ...widget.warnings.map((w) => Padding(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 1),
-                            child: Row(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Icon(LucideIcons.triangle_alert,
-                                    size: 11, color: Colors.amber),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(w,
-                                      style: AppTheme.sans(
-                                          size: 11, color: t.textMute)),
+                      ...widget.warnings.map(
+                        (w) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 1),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Symbols.warning,
+                                size: 11,
+                                color: Colors.amber,
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  w,
+                                  style: AppTheme.sans(
+                                    size: 11,
+                                    color: t.textMute,
+                                  ),
                                 ),
-                              ],
-                            ),
-                          )),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -198,7 +212,8 @@ class _TypingIndicatorState extends State<TypingIndicator>
             mainAxisSize: MainAxisSize.min,
             children: List.generate(3, (i) {
               final phase = (_c.value + i * 0.2) % 1.0;
-              final scale = 0.7 + 0.5 * (phase < 0.5 ? phase * 2 : (1 - phase) * 2);
+              final scale =
+                  0.7 + 0.5 * (phase < 0.5 ? phase * 2 : (1 - phase) * 2);
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: Transform.scale(

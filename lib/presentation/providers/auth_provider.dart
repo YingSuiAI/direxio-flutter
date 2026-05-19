@@ -57,7 +57,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           newDeviceID: await _storage.read(key: 'matrix_device_id'),
           newDeviceName: 'PortalIM',
         );
-        return AuthState(isLoggedIn: true, userId: userId, homeserver: homeserver);
+        return AuthState(
+          isLoggedIn: true,
+          userId: userId,
+          homeserver: homeserver,
+        );
       } catch (_) {
         await _storage.deleteAll();
       }
@@ -68,7 +72,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   Future<void> login(String homeserverUrl, String password) async {
     final client = ref.read(matrixClientProvider);
     final uri = Uri.parse(
-      homeserverUrl.startsWith('http') ? homeserverUrl : 'https://$homeserverUrl',
+      homeserverUrl.startsWith('http')
+          ? homeserverUrl
+          : 'https://$homeserverUrl',
     );
     // §3.1 / §7 步骤 3：先确认 Portal 已部署
     await _assertPortalDeployed(uri.host);
@@ -81,28 +87,38 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _persistSession(client, uri);
     // §7 步骤 6：登录后确保与 Agent 的 DM 存在
     await _ensureAgentDm(client, uri.host);
-    state = AsyncData(AuthState(
-      isLoggedIn: true,
-      userId: client.userID,
-      homeserver: uri.toString(),
-    ));
+    state = AsyncData(
+      AuthState(
+        isLoggedIn: true,
+        userId: client.userID,
+        homeserver: uri.toString(),
+      ),
+    );
   }
 
-  Future<void> register(String homeserverUrl, String password, String displayName) async {
+  Future<void> register(
+    String homeserverUrl,
+    String password,
+    String displayName,
+  ) async {
     final client = ref.read(matrixClientProvider);
     final uri = Uri.parse(
-      homeserverUrl.startsWith('http') ? homeserverUrl : 'https://$homeserverUrl',
+      homeserverUrl.startsWith('http')
+          ? homeserverUrl
+          : 'https://$homeserverUrl',
     );
     await client.checkHomeserver(uri);
     await client.register(username: 'owner', password: password);
     await client.setDisplayName(client.userID!, displayName);
     await _persistSession(client, uri);
     await _ensureAgentDm(client, uri.host);
-    state = AsyncData(AuthState(
-      isLoggedIn: true,
-      userId: client.userID,
-      homeserver: uri.toString(),
-    ));
+    state = AsyncData(
+      AuthState(
+        isLoggedIn: true,
+        userId: client.userID,
+        homeserver: uri.toString(),
+      ),
+    );
   }
 
   /// §3.1 / §7 步骤 3：调 owner.json，确认 Portal 在该域名部署。

@@ -102,7 +102,9 @@ class CallPage extends ConsumerWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFF72FE88).withValues(alpha: 0.20),
                         border: Border.all(
-                          color: const Color(0xFF72FE88).withValues(alpha: 0.30),
+                          color: const Color(
+                            0xFF72FE88,
+                          ).withValues(alpha: 0.30),
                         ),
                         borderRadius: BorderRadius.circular(9999),
                       ),
@@ -147,9 +149,7 @@ class CallPage extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 32),
-                    _HangupButton(
-                      onTap: () => Navigator.of(context).pop(),
-                    ),
+                    _HangupButton(onTap: () => Navigator.of(context).pop()),
                   ],
                 ),
               ),
@@ -200,9 +200,7 @@ class _ControlButton extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.white.withValues(alpha: 0.1),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.12),
-            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
           child: Icon(icon, size: 26, color: Colors.white),
         ),
@@ -240,9 +238,10 @@ class _HangupButtonState extends State<_HangupButton>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat();
-    _pulse = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
-    );
+    _pulse = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
   }
 
   @override
@@ -271,8 +270,9 @@ class _HangupButtonState extends State<_HangupButton>
                   color: const Color(0xFFBA1A1A),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFBA1A1A)
-                          .withValues(alpha: 0.6 * (1.0 - t)),
+                      color: const Color(
+                        0xFFBA1A1A,
+                      ).withValues(alpha: 0.6 * (1.0 - t)),
                       blurRadius: 0,
                       spreadRadius: 18 * t,
                     ),

@@ -40,7 +40,9 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
 
     final realMembers = room?.getParticipants() ?? const <User>[];
     final members = _buildMemberStripData(realMembers);
-    final memberCount = realMembers.isEmpty ? members.length : realMembers.length;
+    final memberCount = realMembers.isEmpty
+        ? members.length
+        : realMembers.length;
 
     return Scaffold(
       backgroundColor: t.bg,
@@ -64,63 +66,72 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                 children: [
                   _MemberStrip(members: members, onInvite: () {}),
                   const SizedBox(height: 16),
-                  _GroupedCard(children: [
-                    _RowChevron(label: '群公告', onTap: () {}),
-                    _Divider(),
-                    _RowChevron(
-                      label: '群管理',
-                      onTap: () => context.push(
-                          '/group-manage/${Uri.encodeComponent(widget.roomId)}'),
-                    ),
-                    _Divider(),
-                    _RowChevron(label: '备注', onTap: () {}),
-                  ]),
+                  _GroupedCard(
+                    children: [
+                      _RowChevron(label: '群公告', onTap: () {}),
+                      _Divider(),
+                      _RowChevron(
+                        label: '群管理',
+                        onTap: () => context.push(
+                          '/group-manage/${Uri.encodeComponent(widget.roomId)}',
+                        ),
+                      ),
+                      _Divider(),
+                      _RowChevron(label: '备注', onTap: () {}),
+                    ],
+                  ),
                   const SizedBox(height: 16),
-                  _GroupedCard(children: [
-                    _RowChevron(label: '查找聊天记录', onTap: () {}),
-                  ]),
+                  _GroupedCard(
+                    children: [_RowChevron(label: '查找聊天记录', onTap: () {})],
+                  ),
                   const SizedBox(height: 16),
-                  _GroupedCard(children: [
-                    _RowSwitch(
-                      label: '消息免打扰',
-                      value: _mute,
-                      onChanged: (v) => setState(() => _mute = v),
-                    ),
-                    _Divider(),
-                    _RowSwitch(
-                      label: '置顶聊天',
-                      value: _pinned,
-                      onChanged: (v) => setState(() => _pinned = v),
-                    ),
-                    _Divider(),
-                    _RowChevron(
-                      label: '我在群里的昵称',
-                      trailingText: 'Alex',
-                      onTap: () {},
-                    ),
-                    _Divider(),
-                    _RowSwitch(
-                      label: '显示群成员昵称',
-                      value: _showNicknames,
-                      onChanged: (v) => setState(() => _showNicknames = v),
-                    ),
-                  ]),
+                  _GroupedCard(
+                    children: [
+                      _RowSwitch(
+                        label: '消息免打扰',
+                        value: _mute,
+                        onChanged: (v) => setState(() => _mute = v),
+                      ),
+                      _Divider(),
+                      _RowSwitch(
+                        label: '置顶聊天',
+                        value: _pinned,
+                        onChanged: (v) => setState(() => _pinned = v),
+                      ),
+                      _Divider(),
+                      _RowChevron(
+                        label: '我在群里的昵称',
+                        trailingText: 'Alex',
+                        onTap: () {},
+                      ),
+                      _Divider(),
+                      _RowSwitch(
+                        label: '显示群成员昵称',
+                        value: _showNicknames,
+                        onChanged: (v) => setState(() => _showNicknames = v),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
-                  _GroupedCard(children: [
-                    _RowChevron(label: '设置当前聊天背景', onTap: () {}),
-                    _Divider(),
-                    _RowChevron(label: '清空聊天记录', onTap: () {}),
-                  ]),
+                  _GroupedCard(
+                    children: [
+                      _RowChevron(label: '设置当前聊天背景', onTap: () {}),
+                      _Divider(),
+                      _RowChevron(label: '清空聊天记录', onTap: () {}),
+                    ],
+                  ),
                   const SizedBox(height: 16),
-                  _GroupedCard(children: [
-                    _RowDanger(
-                      label: '退出群聊',
-                      onTap: () async {
-                        if (room != null) await room.leave();
-                        if (mounted) Navigator.of(context).pop();
-                      },
-                    ),
-                  ]),
+                  _GroupedCard(
+                    children: [
+                      _RowDanger(
+                        label: '退出群聊',
+                        onTap: () async {
+                          if (room != null) await room.leave();
+                          if (mounted) Navigator.of(context).pop();
+                        },
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -155,12 +166,14 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
       final name = i < real.length
           ? (real[i].displayName ?? real[i].id.replaceFirst('@', ''))
           : mockNames[i];
-      out.add(_Member(
-        initial: name.characters.first.toUpperCase(),
-        name: name,
-        bg: palette[i],
-        fg: onColors[i],
-      ));
+      out.add(
+        _Member(
+          initial: name.characters.first.toUpperCase(),
+          name: name,
+          bg: palette[i],
+          fg: onColors[i],
+        ),
+      );
     }
     return out;
   }
@@ -227,10 +240,7 @@ class _MemberTile extends StatelessWidget {
         Container(
           width: 48,
           height: 48,
-          decoration: BoxDecoration(
-            color: member.bg,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: member.bg, shape: BoxShape.circle),
           alignment: Alignment.center,
           child: Text(
             member.initial,
@@ -274,10 +284,7 @@ class _InviteTile extends StatelessWidget {
               child: Icon(Symbols.add, size: 20, color: t.border),
             ),
             const SizedBox(height: 4),
-            Text(
-              '邀请',
-              style: AppTheme.sans(size: 10, color: t.textMute),
-            ),
+            Text('邀请', style: AppTheme.sans(size: 10, color: t.textMute)),
           ],
         ),
       ),
@@ -337,8 +344,7 @@ class _DashedCirclePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _DashedCirclePainter old) =>
-      old.color != color;
+  bool shouldRepaint(covariant _DashedCirclePainter old) => old.color != color;
 }
 
 // ─────────────────────────── 分组卡片 / 行 ───────────────────────────
@@ -395,8 +401,7 @@ class _RowChevron extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
               Expanded(
@@ -439,10 +444,7 @@ class _RowSwitch extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              label,
-              style: AppTheme.sans(size: 17, color: t.text),
-            ),
+            child: Text(label, style: AppTheme.sans(size: 17, color: t.text)),
           ),
           Switch(
             value: value,
@@ -471,8 +473,7 @@ class _RowDanger extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Center(
             child: Text(
               label,

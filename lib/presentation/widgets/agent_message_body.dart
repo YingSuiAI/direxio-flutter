@@ -14,8 +14,10 @@ class AgentMessageBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final baseStyle =
-        AppTheme.sans(size: 14, color: t.text).copyWith(height: 1.55);
+    final baseStyle = AppTheme.sans(
+      size: 14,
+      color: t.text,
+    ).copyWith(height: 1.55);
 
     final md = GptMarkdown(
       text,
@@ -27,8 +29,7 @@ class AgentMessageBody extends StatelessWidget {
       codeBuilder: (ctx, name, code, closed) =>
           _CodeBlock(language: name, code: code),
       highlightBuilder: (ctx, code, style) => _InlineCode(text: code),
-      tableBuilder: (ctx, rows, textStyle, config) =>
-          _M3Table(rows: rows),
+      tableBuilder: (ctx, rows, textStyle, config) => _M3Table(rows: rows),
     );
 
     // 收敛标题字号——气泡内不需要 headlineLarge 那么夸张
@@ -60,10 +61,7 @@ class _InlineCode extends StatelessWidget {
         borderRadius: BorderRadius.circular(3),
         border: Border.all(color: t.border),
       ),
-      child: Text(
-        text,
-        style: AppTheme.mono(size: 12, color: t.accentCool),
-      ),
+      child: Text(text, style: AppTheme.mono(size: 12, color: t.accentCool)),
     );
   }
 }
@@ -87,12 +85,12 @@ class _CodeBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: t.bg.withValues(alpha: 0.4),
               borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(6)),
+                top: Radius.circular(6),
+              ),
               border: Border(bottom: BorderSide(color: t.border)),
             ),
             child: Row(
@@ -100,21 +98,24 @@ class _CodeBlock extends StatelessWidget {
                 Text(
                   language.isEmpty ? 'code' : language,
                   style: AppTheme.mono(
-                      size: 10,
-                      color: t.textMute,
-                      weight: FontWeight.w600),
+                    size: 10,
+                    color: t.textMute,
+                    weight: FontWeight.w600,
+                  ),
                 ),
                 const Spacer(),
                 InkWell(
-                  onTap: () =>
-                      Clipboard.setData(ClipboardData(text: code)),
+                  onTap: () => Clipboard.setData(ClipboardData(text: code)),
                   borderRadius: BorderRadius.circular(4),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    child: Text('复制',
-                        style: AppTheme.mono(
-                            size: 10, color: t.textMute)),
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    child: Text(
+                      '复制',
+                      style: AppTheme.mono(size: 10, color: t.textMute),
+                    ),
                   ),
                 ),
               ],
@@ -124,8 +125,10 @@ class _CodeBlock extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             child: SelectableText(
               code,
-              style: AppTheme.mono(size: 12, color: t.text)
-                  .copyWith(height: 1.5),
+              style: AppTheme.mono(
+                size: 12,
+                color: t.text,
+              ).copyWith(height: 1.5),
             ),
           ),
         ],
@@ -166,7 +169,9 @@ class _M3Table extends StatelessWidget {
                 for (final field in row.fields)
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     child: Text(
                       // cell 内的简单 md 标记（**粗体** 等）直接剥离
                       field.data.replaceAll(RegExp(r'[*_`]'), ''),

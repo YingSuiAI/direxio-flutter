@@ -23,23 +23,23 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
   });
 
   // —— 历史稳定字段 ——
-  final Color bg;            // background
-  final Color surface;       // surface-container-lowest
-  final Color surfaceHover;  // surface-container
-  final Color border;        // outline-variant
-  final Color text;          // on-background
-  final Color textMute;      // on-surface-variant
-  final Color accent;        // primary
-  final Color accentCool;    // tertiary
-  final Color danger;        // error
+  final Color bg; // background
+  final Color surface; // surface-container-lowest
+  final Color surfaceHover; // surface-container
+  final Color border; // outline-variant
+  final Color text; // on-background
+  final Color textMute; // on-surface-variant
+  final Color accent; // primary
+  final Color accentCool; // tertiary
+  final Color danger; // error
 
   // —— M3 扩展字段 ——
-  final Color onAccent;            // on-primary（accent 上的文字色）
-  final Color primaryContainer;    // primary-container
-  final Color onPrimaryContainer;  // on-primary-container
-  final Color surfaceHigh;         // surface-container-high（对方气泡背景等）
-  final Color secondaryContainer;  // secondary-container（nav pill 等）
-  final Color tertiaryFixed;       // tertiary-fixed（在线状态绿点）
+  final Color onAccent; // on-primary（accent 上的文字色）
+  final Color primaryContainer; // primary-container
+  final Color onPrimaryContainer; // on-primary-container
+  final Color surfaceHigh; // surface-container-high（对方气泡背景等）
+  final Color secondaryContainer; // secondary-container（nav pill 等）
+  final Color tertiaryFixed; // tertiary-fixed（在线状态绿点）
 
   // M3 浅色（来自设计稿 tailwind.config）
   static const light = PortalTokens(
@@ -96,24 +96,23 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     Color? surfaceHigh,
     Color? secondaryContainer,
     Color? tertiaryFixed,
-  }) =>
-      PortalTokens(
-        bg: bg ?? this.bg,
-        surface: surface ?? this.surface,
-        surfaceHover: surfaceHover ?? this.surfaceHover,
-        border: border ?? this.border,
-        text: text ?? this.text,
-        textMute: textMute ?? this.textMute,
-        accent: accent ?? this.accent,
-        accentCool: accentCool ?? this.accentCool,
-        danger: danger ?? this.danger,
-        onAccent: onAccent ?? this.onAccent,
-        primaryContainer: primaryContainer ?? this.primaryContainer,
-        onPrimaryContainer: onPrimaryContainer ?? this.onPrimaryContainer,
-        surfaceHigh: surfaceHigh ?? this.surfaceHigh,
-        secondaryContainer: secondaryContainer ?? this.secondaryContainer,
-        tertiaryFixed: tertiaryFixed ?? this.tertiaryFixed,
-      );
+  }) => PortalTokens(
+    bg: bg ?? this.bg,
+    surface: surface ?? this.surface,
+    surfaceHover: surfaceHover ?? this.surfaceHover,
+    border: border ?? this.border,
+    text: text ?? this.text,
+    textMute: textMute ?? this.textMute,
+    accent: accent ?? this.accent,
+    accentCool: accentCool ?? this.accentCool,
+    danger: danger ?? this.danger,
+    onAccent: onAccent ?? this.onAccent,
+    primaryContainer: primaryContainer ?? this.primaryContainer,
+    onPrimaryContainer: onPrimaryContainer ?? this.onPrimaryContainer,
+    surfaceHigh: surfaceHigh ?? this.surfaceHigh,
+    secondaryContainer: secondaryContainer ?? this.secondaryContainer,
+    tertiaryFixed: tertiaryFixed ?? this.tertiaryFixed,
+  );
 
   @override
   PortalTokens lerp(ThemeExtension<PortalTokens>? other, double t) {
@@ -129,12 +128,22 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
       accentCool: Color.lerp(accentCool, other.accentCool, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
       onAccent: Color.lerp(onAccent, other.onAccent, t)!,
-      primaryContainer: Color.lerp(primaryContainer, other.primaryContainer, t)!,
-      onPrimaryContainer:
-          Color.lerp(onPrimaryContainer, other.onPrimaryContainer, t)!,
+      primaryContainer: Color.lerp(
+        primaryContainer,
+        other.primaryContainer,
+        t,
+      )!,
+      onPrimaryContainer: Color.lerp(
+        onPrimaryContainer,
+        other.onPrimaryContainer,
+        t,
+      )!,
       surfaceHigh: Color.lerp(surfaceHigh, other.surfaceHigh, t)!,
-      secondaryContainer:
-          Color.lerp(secondaryContainer, other.secondaryContainer, t)!,
+      secondaryContainer: Color.lerp(
+        secondaryContainer,
+        other.secondaryContainer,
+        t,
+      )!,
       tertiaryFixed: Color.lerp(tertiaryFixed, other.tertiaryFixed, t)!,
     );
   }

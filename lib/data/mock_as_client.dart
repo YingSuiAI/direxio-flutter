@@ -1,8 +1,6 @@
-/// [AsClient] 的 Mock 实现 —— 当前阶段使用。
+/// [AsClient] 的 Mock 实现。
 ///
-/// p2p-matrix-as 服务未上线，本实现用本地 mock 数据 + 假延迟模拟 AS Admin API。
-/// 服务上线后新增 HttpAsClient 真实现，替换 [asClientProvider] 注入即可。
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+/// 真实 App 注入点已经切到 HttpAsClient；本类保留给本地 UI / 单测兜底使用。
 import '../presentation/mock/mock_data.dart';
 import 'as_client.dart';
 
@@ -104,7 +102,3 @@ class MockAsClient implements AsClient {
     );
   }
 }
-
-/// 全局 AsClient 注入点。
-/// 当前注入 [MockAsClient]；接入 p2p-matrix-as 后改为 HttpAsClient。
-final asClientProvider = Provider<AsClient>((ref) => MockAsClient());

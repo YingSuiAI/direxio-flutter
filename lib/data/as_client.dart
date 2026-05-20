@@ -3,8 +3,7 @@
 /// Matrix 标准协议不覆盖的能力（消息搜索、Agent 配置、关注系统、Portal 状态）
 /// 由 p2p-matrix-as 的 Admin API 补齐，端点统一走 `https://{domain}/_as/` 前缀。
 ///
-/// 本文件只定义抽象接口与数据模型；当前阶段用 [MockAsClient]（见 mock_as_client.dart），
-/// p2p-matrix-as 服务上线后再补 HttpAsClient 真实现，UI 与上层 provider 无需改动。
+/// 本文件只定义抽象接口与数据模型；真实 HTTP 实现在 http_as_client.dart。
 
 // ─────────────────────────── 数据模型 ───────────────────────────
 
@@ -24,12 +23,12 @@ class AsSearchResult {
   final DateTime timestamp;
 
   factory AsSearchResult.fromJson(Map<String, dynamic> j) => AsSearchResult(
-    eventId: j['event_id'] as String,
-    roomId: j['room_id'] as String,
-    senderName: j['sender_name'] as String? ?? '',
-    content: j['content'] as String? ?? '',
-    timestamp: DateTime.parse(j['timestamp'] as String),
-  );
+        eventId: j['event_id'] as String,
+        roomId: j['room_id'] as String,
+        senderName: j['sender_name'] as String? ?? '',
+        content: j['content'] as String? ?? '',
+        timestamp: DateTime.parse(j['timestamp'] as String),
+      );
 }
 
 /// §5.2 Agent 配置
@@ -39,14 +38,14 @@ class AgentConfig {
   final int contextWindow;
 
   factory AgentConfig.fromJson(Map<String, dynamic> j) => AgentConfig(
-    displayName: j['display_name'] as String? ?? '小A',
-    contextWindow: j['context_window'] as int? ?? 20,
-  );
+        displayName: j['display_name'] as String? ?? '小A',
+        contextWindow: j['context_window'] as int? ?? 20,
+      );
 
   Map<String, dynamic> toJson() => {
-    'display_name': displayName,
-    'context_window': contextWindow,
-  };
+        'display_name': displayName,
+        'context_window': contextWindow,
+      };
 
   AgentConfig copyWith({String? displayName, int? contextWindow}) =>
       AgentConfig(
@@ -69,13 +68,13 @@ class AgentStatus {
   final int messagesToday;
 
   factory AgentStatus.fromJson(Map<String, dynamic> j) => AgentStatus(
-    connected: j['connected'] as bool? ?? false,
-    lastSeen: j['last_seen'] != null
-        ? DateTime.parse(j['last_seen'] as String)
-        : null,
-    roomsJoined: j['rooms_joined'] as int? ?? 0,
-    messagesToday: j['messages_today'] as int? ?? 0,
-  );
+        connected: j['connected'] as bool? ?? false,
+        lastSeen: j['last_seen'] != null
+            ? DateTime.parse(j['last_seen'] as String)
+            : null,
+        roomsJoined: j['rooms_joined'] as int? ?? 0,
+        messagesToday: j['messages_today'] as int? ?? 0,
+      );
 }
 
 /// §5.4 关注列表单项
@@ -90,12 +89,12 @@ class FollowEntry {
   final DateTime? followedAt;
 
   factory FollowEntry.fromJson(Map<String, dynamic> j) => FollowEntry(
-    domain: j['domain'] as String,
-    name: j['name'] as String? ?? '',
-    followedAt: j['followed_at'] != null
-        ? DateTime.tryParse(j['followed_at'] as String)
-        : null,
-  );
+        domain: j['domain'] as String,
+        name: j['name'] as String? ?? '',
+        followedAt: j['followed_at'] != null
+            ? DateTime.tryParse(j['followed_at'] as String)
+            : null,
+      );
 }
 
 /// §5.5 Portal 整体状态
@@ -120,14 +119,16 @@ class PortalStatus {
   final String uptime;
 
   factory PortalStatus.fromJson(Map<String, dynamic> j) => PortalStatus(
-    dendrite: j['dendrite'] as String? ?? 'unknown',
-    federation: j['federation'] as String? ?? 'unknown',
-    agent: j['agent'] as String? ?? 'unknown',
-    uptime: j['uptime'] as String? ?? '',
-  );
+        dendrite: j['dendrite'] as String? ?? 'unknown',
+        federation: j['federation'] as String? ?? 'unknown',
+        agent: j['agent'] as String? ?? 'unknown',
+        uptime: j['uptime'] as String? ?? '',
+      );
 
   bool get allHealthy =>
-      dendrite == 'connected' && federation == 'ok' && agent == 'connected';
+      dendrite == 'connected' &&
+      federation == 'ok' &&
+      agent.startsWith('connected');
 }
 
 /// AS API 调用失败

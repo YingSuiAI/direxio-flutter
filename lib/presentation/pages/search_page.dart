@@ -1,5 +1,5 @@
 /// 消息搜索 —— 对应 INTERFACE_SPEC.md §5.1
-/// 走 AsClient（当前 MockAsClient）的 /_as/search，全文搜消息内容。
+/// 走 AsClient 的 /_as/search，全文搜消息内容。
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

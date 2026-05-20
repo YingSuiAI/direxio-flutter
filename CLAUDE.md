@@ -1,6 +1,6 @@
 # p2p-matrix-client — 项目开发规范
 
-P2P-IM 的多端 Flutter 客户端。当前阶段：纯 UI / Mock 演示版。
+P2P-IM 的多端 Flutter 客户端。当前阶段：UI Mock + Matrix / AS 接入过渡版。
 
 ## 开始任何任务前
 
@@ -15,7 +15,7 @@ lib/
 ├── core/
 │   ├── router/        go_router 路由
 │   └── theme/         design_tokens.dart（M3 配色）+ app_theme.dart（主题/字体）
-├── data/              后端接口层：well_known_service / as_client / mock_as_client
+├── data/              后端接口层：well_known_service / as_client / http_as_client / mock_as_client
 └── presentation/
     ├── pages/         路由页（见 lib/presentation/CLAUDE.md）
     ├── widgets/       可复用 widget；widgets/m3/ 是 M3 组件库
@@ -31,8 +31,10 @@ lib/
 
 ### 架构
 - 状态管理：Riverpod 2 + riverpod_annotation。
-- 后端能力走接口 + Mock 实现的模式（如 `AsClient` → `MockAsClient`）。新接外部能力照此抽象，便于真后端上线时只换 provider 注入。
-- Mock 优先：真后端未就绪前，Agent / Matrix 通路都用 Mock 替身。Mock 房间 id 以 `mock_` 开头。
+- 后端能力走接口 + 实现注入模式（如 `AsClient` → `HttpAsClient` / `MockAsClient`）。新接外部能力照此抽象。
+- AS Admin API 默认走 `HttpAsClient`，复用 Matrix `access_token` 调 `/_as/*`；AS 不单独登录。
+- Mock 兜底：真后端未就绪前，Agent / MCP 通路仍用 Mock 替身。Mock 房间 id 以 `mock_` 开头。
+- 当前 `app_router.dart` 仍保留 mock redirect 跳过登录；启用真实登录时先移除该 redirect，再走 `AuthStateNotifier.login/register`。
 
 ### 代码风格
 - 默认不写注释；仅在「为什么」非显然时写一行。不写「做了什么」的注释。

@@ -1,6 +1,6 @@
 # p2p-matrix-client
 
-> P2P-IM 的多端客户端（Flutter）。当前阶段：纯 UI / Mock 演示版
+> P2P-IM 的多端客户端（Flutter）。当前阶段：UI Mock + Matrix / AS 接入过渡版
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-3.41.9-blue.svg)](https://flutter.dev)
@@ -13,13 +13,17 @@
 
 P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / Windows / Linux**。
 
-当前仓库是**纯 UI Mock 演示版**：架构铺好、Matrix SDK 集成代码保留，运行时数据全部走本地 Mock，不连真后端。用来快速演示产品形态、对齐设计、迭代 Agent 交互。
+当前仓库保留完整 UI Mock 兜底，同时已经开始接入真实 Matrix / AS：
+
+- Matrix 登录、注册、session 持久化代码已在 `auth_provider.dart` 内实现。
+- AS Admin API 已有 HTTP 客户端，复用 Matrix `access_token` 调 `/_as/*`。
+- 聊天、Agent / MCP 工具调用仍以 Mock 演示为主，真后端未完整跑通时不影响 UI 迭代。
 
 > 真后端接入路径见组织内 [`p2p-matrix-as`](https://github.com/P2P-IM/p2p-matrix-as)（Matrix Application Service）+ [`p2p-matrix-ops`](https://github.com/P2P-IM/p2p-matrix-ops)（Dendrite homeserver）。
 
 ---
 
-## 当前进度（2026-05-15）
+## 当前进度（2026-05-20）
 
 ### 已完成
 
@@ -39,7 +43,9 @@ P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / W
 | PC 响应式布局 | ✅ | ≥ 900px 自动 master-detail 双栏 |
 | **Android APK CI** | ✅ | push / PR 自动出 debug APK |
 | **Windows EXE CI** | ✅ | push / PR 自动出 release zip |
-| 真 Matrix 通路 | 📦 保留 | 代码在但跳过登录走 Mock；后端 ready 后删 router redirect 即接入 |
+| Matrix 登录 / 注册 | ⚠️ 代码就绪 | `AuthStateNotifier` 已实现；当前演示路由仍跳过登录直进首页 |
+| AS Admin API | ✅ HTTP | `HttpAsClient` 已接 `/_as/*`，复用 Matrix token |
+| 真 Matrix 会话通路 | ⚠️ 部分 | 真 room / timeline 代码在，Mock 房间仍作为兜底 |
 
 ### 进行中 / 计划
 
@@ -48,7 +54,9 @@ P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / W
 - [ ] Web 部署（待定方案：Cloudflare Pages / Netlify / public mirror + GitHub Pages）
 - [ ] Tag 触发 GitHub Releases（产物长期可下载链接）
 - [ ] APK release 签名（接 keystore）
-- [ ] 接入真 Matrix homeserver（从 mock_ 前缀切真 timeline）
+- [ ] 启用真实登录路由守卫（移除 `app_router.dart` 的 mock redirect）
+- [ ] 用 Dendrite + p2p-matrix-as 做端到端登录 / AS Admin API 验证
+- [ ] 接入真 Matrix homeserver（从 `mock_` 前缀切真 timeline）
 - [ ] 接入真 MCP server（替换 `MockMcpClient` 为 stdio MCP adapter）
 
 ---
@@ -114,6 +122,39 @@ flutter run -d <android-device>    # Android
 flutter run -d windows             # Windows desktop
 ```
 
+### 登录与 AS Admin API
+
+当前认证模型只有一套登录态：**Matrix 登录态**。AS 不单独发登录 token。
+
+1. App 用 Matrix SDK 调 homeserver 的 `/_matrix/client/v3/login` 登录 `@owner:{domain}`。
+2. Matrix SDK 返回 `access_token`、`user_id`、`device_id`。
+3. App 把 session 写入 `flutter_secure_storage`。
+4. `asClientProvider` 从当前 Matrix client 读取 homeserver 和 `accessToken`。
+5. `HttpAsClient` 请求 `/_as/*` 时统一带：
+
+```http
+Authorization: Bearer {matrix_access_token}
+```
+
+AS 侧会把这个 token 转发给 homeserver 的 `/_matrix/client/v3/account/whoami` 校验，所以 client 不需要也不应该保存另一套 AS 密码。
+
+AS Admin API 当前对接端点：
+
+| 能力 | 方法 |
+|------|------|
+| 消息搜索 | `GET /_as/search?q=&room_id=&limit=` |
+| Agent 配置 | `GET /_as/agent/config` / `PUT /_as/agent/config` |
+| Agent 状态 | `GET /_as/agent/status` |
+| 关注列表 | `GET /_as/follows` / `POST /_as/follows` / `DELETE /_as/follows/{domain}` |
+| Portal 状态 | `GET /_as/portal/status` |
+
+部署路径约定：
+
+- 生产：`https://{domain}/_as/*`
+- 本地 AS：如果 homeserver 是 `http://127.0.0.1:8008` / `localhost`，client 自动映射到 `http://127.0.0.1:9090/_as/*`
+
+注意：`p2p-matrix-as` 当前 `/_as/search` 仍返回 501，client 已真实请求该接口；AS 未实现前搜索页会按空结果处理。
+
 ### 已知本地编译坑
 
 | 问题 | 原因 | 处理 |
@@ -125,7 +166,7 @@ flutter run -d windows             # Windows desktop
 
 ### 路径速览
 
-启动后默认跳过登录直接进首页：
+当前演示路由默认跳过登录直接进首页。真实登录页和登录逻辑已经实现，但 `app_router.dart` 里仍保留 mock redirect，启用真登录时需要移除这段 redirect。
 
 - **消息 tab** → AI Bot / Jack 两个 mock 会话
 - **Agent tab** → Agent 中心、Agent 列表、最近活动
@@ -201,6 +242,11 @@ p2p-matrix-client/
 │   ├── core/
 │   │   ├── router/             # go_router
 │   │   └── theme/              # 设计 token
+│   ├── data/
+│   │   ├── as_client.dart            # AS Admin API 抽象与模型
+│   │   ├── http_as_client.dart       # AS HTTP 实现，复用 Matrix access_token
+│   │   ├── mock_as_client.dart       # AS Mock 兜底
+│   │   └── well_known_service.dart   # Matrix / Portal well-known 发现
 │   ├── presentation/
 │   │   ├── mock/
 │   │   │   ├── mock_data.dart           # 会话/消息 mock
@@ -213,7 +259,9 @@ p2p-matrix-client/
 │   │   │   ├── mcp_permission_page.dart # 权限入口
 │   │   │   ├── mcp_policy_edit_page.dart# 权限编辑（配置 + 审计双 tab）
 │   │   │   └── ...
-│   │   ├── providers/auth_provider.dart # Matrix Client + Auth state
+│   │   ├── providers/
+│   │   │   ├── auth_provider.dart      # Matrix Client + Auth state
+│   │   │   └── as_client_provider.dart # 注入真实 AS HTTP client
 │   │   └── widgets/
 │   │       ├── agent_message_body.dart  # Markdown 渲染
 │   │       ├── tool_call_bubble.dart    # 工具调用气泡 + Typing
@@ -233,7 +281,7 @@ p2p-matrix-client/
 | 状态管理 | Riverpod 2 + riverpod_annotation |
 | 路由 | go_router |
 | Markdown | gpt_markdown（专为 LLM 输出优化，支持流式） |
-| Matrix SDK | matrix ^0.30（mock 阶段保留 import，未调用） |
+| Matrix SDK | matrix ^0.30（登录 / session / room timeline 通路） |
 | 图标 | flutter_lucide |
 | 代码生成 | freezed + json_serializable + build_runner |
 | 多端原生 | Android (Gradle 8.x) / Windows (CMake) / Web (CanvasKit) |
@@ -268,9 +316,9 @@ p2p-matrix-client/
 
 ## 开发约定
 
-- **Mock 优先**：所有 Agent / Matrix 真实通路在跑通真后端前都用 Mock 替身
+- **Mock 兜底**：Agent / MCP 真实通路在跑通真后端前仍用 Mock 替身；AS Admin API 已切到 HTTP 实现
 - **检测前缀**：Mock 房间 id 以 `mock_` 开头，命中后走 mock 通路
-- **接 backend 时**：删 `app_router.dart` 里的 mock redirect、把 `MockMcpClient` 换成真实 MCP server adapter，UI 一行不用改
+- **接 backend 时**：删 `app_router.dart` 里的 mock redirect、把 `MockMcpClient` 换成真实 MCP server adapter，AS Admin API 已通过 `HttpAsClient` 接入
 - **代码风格**：默认不写注释；非显然意图（why）才注释，不要写 what
 - **PR 流程**：开 feature 分支 → PR 到 main → 两个 CI 都绿 → merge
 

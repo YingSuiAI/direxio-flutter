@@ -11,9 +11,9 @@ import '../mock/mock_data.dart';
 import '../mock/mcp_policy.dart';
 import '../mock/mcp_audit.dart';
 import '../../data/as_client.dart';
-import '../../data/mock_as_client.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../providers/as_client_provider.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_bottom_nav.dart';
 

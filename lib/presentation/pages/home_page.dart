@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1167,32 +1168,43 @@ class _MePage extends ConsumerWidget {
               style: AppTheme.sans(size: 15, color: t.textMute),
             ),
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: t.surfaceHigh,
-                borderRadius: BorderRadius.circular(9999),
-                border: Border.all(color: t.border.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: t.tertiaryFixed,
-                      shape: BoxShape.circle,
-                    ),
+            Tooltip(
+              message: displayId,
+              child: GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: displayId));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Node ID 已复制'), duration: Duration(seconds: 1)),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: t.surfaceHigh,
+                    borderRadius: BorderRadius.circular(9999),
+                    border: Border.all(color: t.border.withValues(alpha: 0.3)),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Node: $shortId',
-                    style: AppTheme.sans(size: 13, color: t.textMute),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: t.tertiaryFixed,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Node: $shortId',
+                        style: AppTheme.sans(size: 13, color: t.textMute),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(Symbols.content_copy, size: 14, color: t.accent),
+                    ],
                   ),
-                  const SizedBox(width: 6),
-                  Icon(Symbols.content_copy, size: 14, color: t.accent),
-                ],
+                ),
               ),
             ),
           ],
@@ -1249,7 +1261,26 @@ class _MePage extends ConsumerWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () async {
-                await ref.read(authStateNotifierProvider.notifier).logout();
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('退出登录'),
+                    content: const Text('确定要退出登录吗？'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('取消'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: Text('退出', style: TextStyle(color: context.tk.danger)),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  await ref.read(authStateNotifierProvider.notifier).logout();
+                }
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 14),

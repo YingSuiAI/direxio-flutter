@@ -18,7 +18,7 @@ class LoginPage extends ConsumerStatefulWidget {
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _domainCtrl = TextEditingController(
-    text: 'https://portal.agent-p2p.io',
+    text: 'https://liyananp2p.com',
   );
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
@@ -32,6 +32,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _loadLastDomain() async {
+    // ?hs= URL param overrides storage (useful for testing)
+    final hsParam = Uri.base.queryParameters['hs'];
+    if (hsParam != null && hsParam.isNotEmpty) {
+      if (mounted) setState(() => _domainCtrl.text = hsParam);
+      return;
+    }
     const storage = FlutterSecureStorage();
     final hs = await storage.read(key: 'matrix_homeserver');
     if (hs != null && mounted) {

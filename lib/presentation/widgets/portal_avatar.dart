@@ -32,7 +32,11 @@ class PortalAvatar extends StatelessWidget {
       (const Color(0xFFC8E6C9), const Color(0xFF002107)), // tertiary tint
     ];
     final (bg, fg) = palette[hash % palette.length];
-    final letter = seed.isNotEmpty ? seed.characters.first.toUpperCase() : '?';
+    // Matrix ID @localpart:domain → use localpart's first letter, not '@'
+    final effective = (seed.startsWith('@') && seed.contains(':'))
+        ? seed.substring(1, seed.indexOf(':'))
+        : seed;
+    final letter = effective.isNotEmpty ? effective.characters.first.toUpperCase() : '?';
 
     final radius = shape == AvatarShape.circle
         ? BorderRadius.circular(size / 2)

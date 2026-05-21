@@ -212,23 +212,17 @@ class _PendingSection extends StatelessWidget {
         );
       }
     } else {
-      rows = [
-        _PendingRow(
-          name: 'Frank Liu',
-          message: '我是 Frank，来自产品组',
-          seed: 'Frank',
-          onAccept: () {},
-        ),
-        _RowDivider(),
-        _PendingRow(
-          name: 'Grace Zhou',
-          message: '你好，我是 Grace',
-          seed: 'Grace',
-          onAccept: () {},
-        ),
-      ];
+      rows = [];
     }
 
+    if (rows.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Text('暂无好友请求', style: AppTheme.sans(size: 14, color: t.textMute)),
+        ),
+      );
+    }
     return Container(
       decoration: BoxDecoration(
         color: t.surface,

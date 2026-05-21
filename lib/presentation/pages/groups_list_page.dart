@@ -8,6 +8,7 @@ import '../../core/theme/design_tokens.dart';
 import '../mock/mock_data.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/m3/glass_header.dart';
+import '../widgets/m3/m3_card.dart';
 
 /// `s-groups-list` — 群聊列表 (index.html L1566-1643)
 ///
@@ -21,6 +22,38 @@ class GroupsListPage extends ConsumerStatefulWidget {
 
 class _GroupsListPageState extends ConsumerState<GroupsListPage> {
   String _query = '';
+
+  Future<void> _showCreateGroupDialog(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final client = ref.read(matrixClientProvider);
+    final t = context.tk;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('创建群聊', style: AppTheme.sans(size: 17, weight: FontWeight.w600, color: t.text)),
+        content: M3InputField(controller: ctrl, icon: Symbols.group, hint: '群聊名称'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+            child: const Text('创建'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (name == null || name.isEmpty || !context.mounted) return;
+    try {
+      final roomId = await client.createGroupChat(groupName: name);
+      if (context.mounted) context.push('/group/${Uri.encodeComponent(roomId)}');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('创建失败: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +122,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
               GlassHeaderButton(
                 icon: Symbols.group_add,
                 color: t.accent,
-                onTap: () => context.push('/add-contact'),
+                onTap: () => _showCreateGroupDialog(context),
               ),
             ],
           ),

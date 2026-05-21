@@ -1,41 +1,63 @@
-/// 群「群信息」—— 对齐原型 s-group-info。M3 风格，mock 数据。
+/// 群「群信息」—— 对齐原型 s-group-info。M3 风格，真实 Matrix 数据。
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
-import '../mock/mock_data.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/info_rows.dart';
 
-class GroupInfoPage extends StatefulWidget {
+class GroupInfoPage extends ConsumerStatefulWidget {
   const GroupInfoPage({super.key, required this.roomId});
   final String roomId;
 
   @override
-  State<GroupInfoPage> createState() => _GroupInfoPageState();
+  ConsumerState<GroupInfoPage> createState() => _GroupInfoPageState();
 }
 
-class _GroupInfoPageState extends State<GroupInfoPage> {
+class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   bool _mute = false;
   bool _pinned = false;
   bool _showMemberNick = true;
 
   @override
+  void initState() {
+    super.initState();
+    _fetchMembers();
+  }
+
+  Future<void> _fetchMembers() async {
+    final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
+    if (room == null) return;
+    await room.requestParticipants();
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final conv = MockData.byId(widget.roomId);
-    final members = conv?.members ?? const <String>[];
+    final client = ref.watch(matrixClientProvider);
+    final room = client.getRoomById(widget.roomId);
+    // 真实成员列表（已加入）；降级到空列表
+    final members = room?.getParticipants()
+            .where((m) => m.membership == Membership.join)
+            .map((m) => m.calcDisplayname())
+            .toList() ??
+        const <String>[];
+    final memberCount = room?.summary.mJoinedMemberCount ?? members.length;
 
     return Scaffold(
       body: Column(
         children: [
           GlassHeader.detail(
-            title: '聊天信息(${members.length})',
+            title: '聊天信息($memberCount)',
             actions: [
               GlassHeaderButton(
                 icon: Symbols.search,
@@ -69,7 +91,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                     children: [
                       InfoNavRow(label: '群公告', onTap: () {}),
                       const InfoDivider(),
-                      InfoNavRow(label: '群管理', onTap: () {}),
+                      InfoNavRow(label: '群管理', onTap: () => context.push('/group-manage/${Uri.encodeComponent(widget.roomId)}')),
                       const InfoDivider(),
                       InfoNavRow(label: '备注', onTap: () {}),
                     ],

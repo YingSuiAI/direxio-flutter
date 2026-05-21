@@ -7,8 +7,9 @@ import '../providers/auth_provider.dart';
 // TODO Day 4: wire up matrix_dart_sdk CallSession
 // client.voip.inviteToCall(roomId, CallType.kVideo) / callSession.answer() / hangup()
 class CallPage extends ConsumerWidget {
-  const CallPage({super.key, required this.roomId});
+  const CallPage({super.key, required this.roomId, this.isVideo = false});
   final String roomId;
+  final bool isVideo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,7 +40,7 @@ class CallPage extends ConsumerWidget {
                     Expanded(
                       child: Center(
                         child: Text(
-                          '语音通话',
+                          isVideo ? '视频通话' : '语音通话',
                           style: AppTheme.sans(
                             size: 13,
                             weight: FontWeight.w500,
@@ -53,9 +54,44 @@ class CallPage extends ConsumerWidget {
                 ),
               ),
 
-              // ── Center: avatar + info + e2e pill ───────────────────
+              // ── Center: video preview (video) / avatar (voice) ─────
               Expanded(
-                child: Column(
+                child: isVideo
+                    ? Stack(
+                        children: [
+                          Container(
+                            color: Colors.black,
+                            child: Center(
+                              child: Icon(
+                                Symbols.videocam_off,
+                                size: 48,
+                                color: Colors.white.withValues(alpha: 0.3),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 16,
+                            top: 16,
+                            child: Container(
+                              width: 100,
+                              height: 140,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2C2C2E),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                ),
+                              ),
+                              child: Icon(
+                                Symbols.person,
+                                size: 40,
+                                color: Colors.white.withValues(alpha: 0.4),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(

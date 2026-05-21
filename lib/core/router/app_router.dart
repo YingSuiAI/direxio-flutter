@@ -56,15 +56,8 @@ GoRouter appRouter(Ref ref) {
   final authState = ref.watch(authStateNotifierProvider);
 
   return GoRouter(
-    initialLocation: '/home',
+    initialLocation: '/login',
     redirect: (context, state) {
-      // MOCK: skip auth, go straight to home
-      if (state.matchedLocation == '/login' ||
-          state.matchedLocation == '/init') {
-        return '/home';
-      }
-      return null;
-      // ignore: dead_code
       final isLoggedIn = authState.valueOrNull?.isLoggedIn ?? false;
       final isLoginRoute =
           state.matchedLocation == '/login' || state.matchedLocation == '/init';
@@ -139,6 +132,12 @@ GoRouter appRouter(Ref ref) {
         path: '/call/:roomId',
         pageBuilder: (_, state) =>
             _slidePage(CallPage(roomId: state.pathParameters['roomId']!)),
+      ),
+      GoRoute(
+        path: '/video-call/:roomId',
+        pageBuilder: (_, state) => _slidePage(
+          CallPage(roomId: state.pathParameters['roomId']!, isVideo: true),
+        ),
       ),
       GoRoute(
         path: '/settings',

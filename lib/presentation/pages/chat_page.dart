@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,6 +29,15 @@ import '../../core/theme/app_theme.dart';
 // (第 245-371 行) 重写：头部 / 气泡 / 输入栏 / +号面板 / 表情面板 / 长按上下文
 // 菜单 / 多选栏 / 回复栏。
 // ═══════════════════════════════════════════════════════════════════════════
+
+String _formatMsgTime(DateTime dt) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final msgDay = DateTime(dt.year, dt.month, dt.day);
+  if (msgDay == today) return DateFormat('HH:mm').format(dt);
+  if (today.difference(msgDay).inDays == 1) return '昨天 ${DateFormat('HH:mm').format(dt)}';
+  return '${DateFormat('M月d日').format(dt)} ${DateFormat('HH:mm').format(dt)}';
+}
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key, required this.roomId});
@@ -224,7 +235,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 icon: Symbols.videocam,
                 color: t.accent,
                 onTap: () =>
-                    context.push('/call/${Uri.encodeComponent(widget.roomId)}'),
+                    context.push('/video-call/${Uri.encodeComponent(widget.roomId)}'),
               ),
               GlassHeaderButton(
                 icon: Symbols.more_vert,
@@ -271,9 +282,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         return _SChatBubble(
                           isMe: isMe,
                           text: e.body,
-                          time: DateFormat('HH:mm').format(e.originServerTs),
+                          time: _formatMsgTime(e.originServerTs),
                           showRead: isMe,
-                          avatarSeed: e.senderId,
+                          avatarSeed: e.senderFromMemoryOrFallback.calcDisplayname(),
                           selected: selected,
                           multiSelect: _multiSelect,
                           onTap: _multiSelect
@@ -337,7 +348,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               plusActive: _showPlusPanel,
               emojiActive: _showEmojiPanel,
             ),
-          if (_showPlusPanel) const _PlusPanel(),
+          if (_showPlusPanel)
+            _PlusPanel(
+              room: _room,
+              roomId: widget.roomId,
+              onClose: () => setState(() => _showPlusPanel = false),
+            ),
           if (_showEmojiPanel)
             _EmojiPanel(
               onPick: (e) {
@@ -808,7 +824,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                         return _SChatBubble(
                           isMe: m.isMe,
                           text: m.text,
-                          time: DateFormat('HH:mm').format(m.time),
+                          time: _formatMsgTime(m.time),
                           showRead: m.isMe,
                           avatarSeed: m.isMe ? 'me' : c.name,
                           markdownChild: (_isAiBot && !m.isMe)
@@ -892,7 +908,12 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
             ),
 
           // ── Plus / Emoji panel ────────────────────────────────
-          if (_showPlusPanel) const _PlusPanel(),
+          if (_showPlusPanel)
+            _PlusPanel(
+              room: null,
+              roomId: '',
+              onClose: () => setState(() => _showPlusPanel = false),
+            ),
           if (_showEmojiPanel)
             _EmojiPanel(
               onPick: (e) {
@@ -1029,8 +1050,8 @@ class _SChatBubble extends StatelessWidget {
           ],
           if (!isMe) ...[
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: PortalAvatar(seed: avatarSeed, size: 28),
+              padding: const EdgeInsets.only(bottom: 20),
+              child: PortalAvatar(seed: avatarSeed, size: 36),
             ),
             const SizedBox(width: 8),
           ],
@@ -1260,22 +1281,61 @@ class _SChatInputBar extends StatelessWidget {
   }
 }
 
-/// `chat-plus-panel` 1:1 复刻：4 列网格、6 个动作（相册/拍摄/视频通话/位置/名片/文件）。
+/// `chat-plus-panel`：6 个动作（相册/拍摄/视频通话/位置/名片/文件）。
 class _PlusPanel extends StatelessWidget {
-  const _PlusPanel();
+  const _PlusPanel({
+    required this.room,
+    required this.roomId,
+    required this.onClose,
+  });
+  final Room? room;
+  final String roomId;
+  final VoidCallback onClose;
 
-  static const _items = <_PlusItem>[
-    _PlusItem(Symbols.photo_library, '相册'),
-    _PlusItem(Symbols.photo_camera, '拍摄'),
-    _PlusItem(Symbols.videocam, '视频通话'),
-    _PlusItem(Symbols.location_on, '位置'),
-    _PlusItem(Symbols.contact_page, '个人名片'),
-    _PlusItem(Symbols.folder_open, '文件'),
-  ];
+  Future<void> _pickImage(BuildContext context) async {
+    onClose();
+    try {
+      final xFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (xFile == null || room == null) return;
+      final bytes = await xFile.readAsBytes();
+      await room!.sendFileEvent(
+        MatrixFile(bytes: bytes, name: xFile.name, mimeType: xFile.mimeType ?? 'image/jpeg'),
+        shrinkImageMaxDimension: 1600,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('发送失败: $e')));
+      }
+    }
+  }
+
+  Future<void> _pickFile(BuildContext context) async {
+    onClose();
+    try {
+      final result = await FilePicker.platform.pickFiles(withData: true);
+      if (result == null || result.files.isEmpty || room == null) return;
+      final f = result.files.first;
+      if (f.bytes == null) return;
+      await room!.sendFileEvent(MatrixFile(bytes: f.bytes!, name: f.name));
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('发送失败: $e')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final items = <(IconData, String, VoidCallback?)>[
+      (Symbols.photo_library, '相册', () => _pickImage(context)),
+      (Symbols.photo_camera, '拍摄', () => _pickImage(context)),
+      (Symbols.videocam, '视频通话',
+          roomId.isNotEmpty ? () { onClose(); context.push('/video-call/${Uri.encodeComponent(roomId)}'); } : null),
+      (Symbols.location_on, '位置', null),
+      (Symbols.contact_page, '个人名片', null),
+      (Symbols.folder_open, '文件', () => _pickFile(context)),
+    ];
     return Container(
       color: t.surfaceHover,
       child: SafeArea(
@@ -1289,8 +1349,8 @@ class _PlusPanel extends StatelessWidget {
             mainAxisSpacing: 20,
             crossAxisSpacing: 8,
             childAspectRatio: 0.82,
-            children: _items
-                .map((it) => _PlusButton(icon: it.icon, label: it.label))
+            children: items
+                .map((it) => _PlusButton(icon: it.$1, label: it.$2, onTap: it.$3))
                 .toList(),
           ),
         ),
@@ -1299,23 +1359,19 @@ class _PlusPanel extends StatelessWidget {
   }
 }
 
-class _PlusItem {
-  const _PlusItem(this.icon, this.label);
-  final IconData icon;
-  final String label;
-}
-
 class _PlusButton extends StatelessWidget {
-  const _PlusButton({required this.icon, required this.label});
+  const _PlusButton({required this.icon, required this.label, required this.onTap});
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final enabled = onTap != null;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () {},
+      onTap: onTap,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1333,10 +1389,10 @@ class _PlusButton extends StatelessWidget {
                 ),
               ],
             ),
-            child: Icon(icon, size: 26, color: t.textMute),
+            child: Icon(icon, size: 26, color: enabled ? t.text : t.textMute.withValues(alpha: 0.4)),
           ),
           const SizedBox(height: 8),
-          Text(label, style: AppTheme.sans(size: 11, color: t.textMute)),
+          Text(label, style: AppTheme.sans(size: 11, color: enabled ? t.textMute : t.textMute.withValues(alpha: 0.4))),
         ],
       ),
     );

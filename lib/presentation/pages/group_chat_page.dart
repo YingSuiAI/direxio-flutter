@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
@@ -259,6 +260,17 @@ class _GroupMessageBubble extends StatelessWidget {
                       ),
                     ),
                   bubble,
+                  Padding(
+                    padding: EdgeInsets.only(
+                      top: 4,
+                      left: isMe ? 0 : 4,
+                      right: isMe ? 4 : 0,
+                    ),
+                    child: Text(
+                      DateFormat('HH:mm').format(event.originServerTs.toLocal()),
+                      style: AppTheme.sans(size: 11, color: t.textMute),
+                    ),
+                  ),
                 ],
               ),
             ),

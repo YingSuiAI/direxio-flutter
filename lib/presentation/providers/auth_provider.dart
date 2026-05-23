@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../data/http_as_client.dart';
 import '../../data/well_known_service.dart';
 
 part 'auth_provider.g.dart';
@@ -30,10 +31,17 @@ Client matrixClient(Ref ref) {
 }
 
 class AuthState {
-  const AuthState({required this.isLoggedIn, this.userId, this.homeserver});
+  const AuthState({
+    required this.isLoggedIn,
+    this.userId,
+    this.homeserver,
+    this.portalToken,
+  });
+
   final bool isLoggedIn;
   final String? userId;
   final String? homeserver;
+  final String? portalToken;
 }
 
 @riverpod
@@ -46,21 +54,25 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final token = await _storage.read(key: 'matrix_token');
     final homeserver = await _storage.read(key: 'matrix_homeserver');
     final userId = await _storage.read(key: 'matrix_user_id');
+    final portalToken = await _storage.read(key: 'portal_token');
 
     if (token != null && homeserver != null && userId != null) {
       try {
         await client.checkHomeserver(Uri.parse(homeserver));
+        final deviceId =
+            await _storage.read(key: 'matrix_device_id') ?? _createDeviceId();
         await client.init(
           newToken: token,
           newUserID: userId,
-          newHomeserver: Uri.parse(homeserver),
-          newDeviceID: await _storage.read(key: 'matrix_device_id'),
+          newHomeserver: client.homeserver ?? Uri.parse(homeserver),
+          newDeviceID: deviceId,
           newDeviceName: 'PortalIM',
         );
         return AuthState(
           isLoggedIn: true,
           userId: userId,
           homeserver: homeserver,
+          portalToken: portalToken,
         );
       } catch (_) {
         await _storage.deleteAll();
@@ -69,55 +81,73 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     return const AuthState(isLoggedIn: false);
   }
 
-  Future<void> login(String homeserverUrl, String password) async {
+  Future<void> login(String homeserverUrl, String portalToken) async {
+    await _loginWithPortal(homeserverUrl, portalToken);
+  }
+
+  Future<void> _loginWithPortal(
+    String homeserverUrl,
+    String portalToken, {
+    String? displayName,
+  }) async {
     final client = ref.read(matrixClientProvider);
-    final uri = Uri.parse(
-      homeserverUrl.startsWith('http')
-          ? homeserverUrl
-          : 'https://$homeserverUrl',
+    final inputUri = _normalizeHomeserverUri(homeserverUrl);
+    final cleanPortalToken = portalToken.trim();
+    if (cleanPortalToken.isEmpty) {
+      throw ArgumentError('Portal Token 不能为空');
+    }
+
+    // §3.1 / §7 步骤 3：先确认 Portal 已部署。
+    await _assertPortalDeployed(inputUri.host);
+    final session = await HttpAsClient.authenticatePortal(
+      baseUri: HttpAsClient.defaultAdminBaseUri(inputUri),
+      portalToken: cleanPortalToken,
+      httpClient: client.httpClient,
     );
-    // §3.1 / §7 步骤 3：先确认 Portal 已部署
-    await _assertPortalDeployed(uri.host);
-    await client.checkHomeserver(uri);
-    await client.login(
-      LoginType.mLoginPassword,
-      identifier: AuthenticationUserIdentifier(user: '@owner:${uri.host}'),
-      password: password,
+
+    final matrixUri = _resolveClientHomeserver(inputUri, session.homeserver);
+    await client.checkHomeserver(matrixUri);
+    final checkedHomeserver = client.homeserver ?? matrixUri;
+    final storedDeviceId = await _storage.read(key: 'matrix_device_id');
+    final deviceId = session.deviceId ?? storedDeviceId ?? _createDeviceId();
+
+    await client.init(
+      newToken: session.accessToken,
+      newUserID: session.userId,
+      newHomeserver: checkedHomeserver,
+      newDeviceID: deviceId,
+      newDeviceName: 'PortalIM',
     );
-    await _persistSession(client, uri);
+    if (displayName != null && displayName.trim().isNotEmpty) {
+      await client.setDisplayName(session.userId, displayName.trim());
+    }
+    await _persistSession(
+      client,
+      checkedHomeserver,
+      portalToken: cleanPortalToken,
+      deviceId: deviceId,
+    );
     // §7 步骤 6：登录后确保与 Agent 的 DM 存在
-    await _ensureAgentDm(client, uri.host);
+    await _ensureAgentDm(client, inputUri.host);
     state = AsyncData(
       AuthState(
         isLoggedIn: true,
         userId: client.userID,
-        homeserver: uri.toString(),
+        homeserver: checkedHomeserver.toString(),
+        portalToken: cleanPortalToken,
       ),
     );
   }
 
   Future<void> register(
     String homeserverUrl,
-    String password,
+    String portalToken,
     String displayName,
   ) async {
-    final client = ref.read(matrixClientProvider);
-    final uri = Uri.parse(
-      homeserverUrl.startsWith('http')
-          ? homeserverUrl
-          : 'https://$homeserverUrl',
-    );
-    await client.checkHomeserver(uri);
-    await client.register(username: 'owner', password: password);
-    await client.setDisplayName(client.userID!, displayName);
-    await _persistSession(client, uri);
-    await _ensureAgentDm(client, uri.host);
-    state = AsyncData(
-      AuthState(
-        isLoggedIn: true,
-        userId: client.userID,
-        homeserver: uri.toString(),
-      ),
+    await _loginWithPortal(
+      homeserverUrl,
+      portalToken,
+      displayName: displayName,
     );
   }
 
@@ -147,11 +177,46 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
   }
 
-  Future<void> _persistSession(Client client, Uri uri) async {
+  Uri _normalizeHomeserverUri(String input) {
+    final trimmed = input.trim().replaceAll(RegExp(r'/+$'), '');
+    if (trimmed.isEmpty) throw ArgumentError('Portal 地址不能为空');
+    return Uri.parse(trimmed.startsWith('http') ? trimmed : 'https://$trimmed');
+  }
+
+  Uri _resolveClientHomeserver(Uri inputUri, String asHomeserver) {
+    final parsed = Uri.tryParse(asHomeserver);
+    if (parsed == null || parsed.host.isEmpty) return inputUri;
+    if (_isLocalHost(parsed.host) && !_isLocalHost(inputUri.host)) {
+      return inputUri;
+    }
+    return parsed;
+  }
+
+  bool _isLocalHost(String host) {
+    return host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '::1' ||
+        host == '0.0.0.0';
+  }
+
+  String _createDeviceId() {
+    return 'PORTALIM${DateTime.now().microsecondsSinceEpoch}';
+  }
+
+  Future<void> _persistSession(
+    Client client,
+    Uri uri, {
+    required String portalToken,
+    required String deviceId,
+  }) async {
     await _storage.write(key: 'matrix_token', value: client.accessToken);
     await _storage.write(key: 'matrix_homeserver', value: uri.toString());
     await _storage.write(key: 'matrix_user_id', value: client.userID);
-    await _storage.write(key: 'matrix_device_id', value: client.deviceID);
+    await _storage.write(
+      key: 'matrix_device_id',
+      value: client.deviceID ?? deviceId,
+    );
+    await _storage.write(key: 'portal_token', value: portalToken);
   }
 
   Future<void> logout() async {

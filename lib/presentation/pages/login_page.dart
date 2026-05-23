@@ -20,7 +20,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _domainCtrl = TextEditingController(
     text: 'https://liyananp2p.com',
   );
-  final _passwordCtrl = TextEditingController();
+  final _portalTokenCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
   String? _error;
@@ -49,7 +49,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   void dispose() {
     _domainCtrl.dispose();
-    _passwordCtrl.dispose();
+    _portalTokenCtrl.dispose();
     super.dispose();
   }
 
@@ -61,7 +61,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     try {
       await ref
           .read(authStateNotifierProvider.notifier)
-          .login(_domainCtrl.text.trim(), _passwordCtrl.text);
+          .login(_domainCtrl.text.trim(), _portalTokenCtrl.text);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -129,11 +129,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     keyboardType: TextInputType.url,
                   ),
                   const SizedBox(height: 12),
-                  // 密码
+                  // Portal Token
                   M3InputField(
-                    controller: _passwordCtrl,
-                    icon: Symbols.lock,
-                    hint: '密码',
+                    controller: _portalTokenCtrl,
+                    icon: Symbols.key,
+                    hint: 'Portal Token',
                     obscure: _obscure,
                     onSubmitted: (_) => _login(),
                     trailing: IconButton(
@@ -180,7 +180,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   TextButton(
                     onPressed: () => context.go('/init'),
                     child: Text(
-                      '注册新账号',
+                      '初始化 Portal',
                       style: AppTheme.sans(size: 15, color: t.accent),
                     ),
                   ),

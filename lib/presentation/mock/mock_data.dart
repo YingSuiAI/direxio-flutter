@@ -1,5 +1,5 @@
-/// Mock 数据：在没真连 Matrix homeserver 时让 UI 能展示出聊天列表 + 消息。
-/// 真登录后 client.rooms 非空，自动走真数据。
+// Mock 数据：在没真连 Matrix homeserver 时让 UI 能展示出聊天列表 + 消息。
+// 真登录后 client.rooms 非空，自动走真数据。
 import 'package:flutter/material.dart';
 
 /// 头像 URL：抓自 P2P-APP-UI/index.html 设计稿（lh3.googleusercontent.com/aida-public）。
@@ -76,44 +76,14 @@ class MockData {
   static final DateTime _now = DateTime.now();
 
   static final List<MockConversation> conversations = [
-    MockConversation(
+    const MockConversation(
       id: 'mock_aibot',
-      name: 'My Agent',
-      mxid: '@aibot:portal.ai',
-      subtitle: '今日摘要已准备好，有 3 条新警报',
-      unread: 1,
-      accentColor: const Color(0xFF0058BC),
-      messages: [
-        MockMessage(
-          isMe: true,
-          text: '请帮我查询今天天气',
-          time: _now.subtract(const Duration(minutes: 3)),
-        ),
-        MockMessage(
-          isMe: false,
-          text:
-              '## ☀️ 今日上海天气\n\n'
-              '| 指标 | 值 |\n'
-              '| --- | --- |\n'
-              '| 天气 | 多云转晴 |\n'
-              '| 气温 | **18 ~ 26°C** |\n'
-              '| 风向 | 东南风 3 级 |\n'
-              '| 空气质量 | 良 |\n'
-              '| 紫外线 | 中等 |\n\n'
-              '> ☔ 上午有零星阵雨可能，建议出门带把伞；下午会逐渐放晴。',
-          time: _now.subtract(const Duration(minutes: 2, seconds: 30)),
-        ),
-        MockMessage(
-          isMe: true,
-          text: '那适合户外活动吗？',
-          time: _now.subtract(const Duration(minutes: 2)),
-        ),
-        MockMessage(
-          isMe: false,
-          text: '下午 **15:00 之后** 比较适合，建议轻便外套即可。\n\n需要我帮你查附近的公园吗？',
-          time: _now.subtract(const Duration(minutes: 1, seconds: 50)),
-        ),
-      ],
+      name: 'OpenClaw',
+      mxid: '@openclaw:local',
+      subtitle: '本机 OpenClaw 已接入',
+      unread: 0,
+      accentColor: Color(0xFF0058BC),
+      messages: [],
     ),
     MockConversation(
       id: 'mock_alice',

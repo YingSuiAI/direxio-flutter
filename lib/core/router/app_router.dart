@@ -26,6 +26,11 @@ import '../../presentation/providers/auth_provider.dart';
 
 part 'app_router.g.dart';
 
+const _mockAuthEnabled = bool.fromEnvironment(
+  'P2P_MATRIX_MOCK_AUTH',
+  defaultValue: true,
+);
+
 /// 横向滑入转场 —— 对齐设计稿 .screen translateX 动画。
 /// 新页从右滑入，旧页同时左移 28%（视差），320ms。
 CustomTransitionPage<void> _slidePage(Widget child) {
@@ -56,8 +61,10 @@ GoRouter appRouter(Ref ref) {
   final authState = ref.watch(authStateNotifierProvider);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: _mockAuthEnabled ? '/home' : '/login',
     redirect: (context, state) {
+      if (_mockAuthEnabled) return null;
+
       final isLoggedIn = authState.valueOrNull?.isLoggedIn ?? false;
       final isLoginRoute =
           state.matchedLocation == '/login' || state.matchedLocation == '/init';

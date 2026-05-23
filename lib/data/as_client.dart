@@ -1,9 +1,11 @@
-/// AS Admin API 客户端 —— 对应 INTERFACE_SPEC.md §5 / §6
-///
-/// Matrix 标准协议不覆盖的能力（消息搜索、Agent 配置、关注系统、Portal 状态）
-/// 由 p2p-matrix-as 的 Admin API 补齐，端点统一走 `https://{domain}/_as/` 前缀。
-///
-/// 本文件只定义抽象接口与数据模型；真实 HTTP 实现在 http_as_client.dart。
+// AS Admin API 客户端 —— 对应 INTERFACE_SPEC.md §5 / §6
+//
+// Matrix 标准协议不覆盖的能力（消息搜索、Agent 配置、关注系统、Portal 状态）
+// 由 p2p-matrix-as 的 Admin API 补齐，端点统一走 `https://{domain}/_as/` 前缀。
+// Admin API 使用 `portal_token` 作为 Bearer；Matrix SDK 自身继续使用
+// Matrix `access_token`。
+//
+// 本文件只定义抽象接口与数据模型；真实 HTTP 实现在 http_as_client.dart。
 
 // ─────────────────────────── 数据模型 ───────────────────────────
 
@@ -144,7 +146,7 @@ class AsClientException implements Exception {
 
 /// p2p-matrix-as 的 Admin API 客户端。
 ///
-/// 所有实现都用 Matrix `access_token` 做认证（Bearer），AS 向 Dendrite 校验。
+/// 所有实现都用 `portal_token` 做认证（Bearer）。
 abstract class AsClient {
   /// §5.1 GET /_as/search?q=&room_id=&limit=
   Future<List<AsSearchResult>> search(

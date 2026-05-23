@@ -15,16 +15,16 @@ void main() {
     expect(base.toString(), 'http://127.0.0.1:9090/_as');
   });
 
-  test('search calls AS admin API with Matrix bearer token', () async {
+  test('search calls AS admin API with portal bearer token', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
-      accessToken: 'matrix-token',
+      portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
         expect(request.url.path, '/_as/search');
         expect(request.url.queryParameters['q'], 'hello');
         expect(request.url.queryParameters['limit'], '30');
-        expect(request.headers['Authorization'], 'Bearer matrix-token');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
         return http.Response(
           jsonEncode({
             'results': [
@@ -56,7 +56,7 @@ void main() {
       final seen = <String>[];
       final client = HttpAsClient(
         baseUri: Uri.parse('https://example.com/_as'),
-        accessToken: 'matrix-token',
+        portalToken: 'portal-token',
         httpClient: MockClient((request) async {
           seen.add('${request.method} ${request.url.path}');
           if (request.method == 'PUT') {
@@ -88,7 +88,7 @@ void main() {
   test('follow mutations keep mock-compatible idempotency', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
-      accessToken: 'matrix-token',
+      portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         if (request.method == 'POST') {
           return http.Response(jsonEncode({'status': 'already_followed'}), 409);
@@ -107,7 +107,7 @@ void main() {
   test('unexpected AS errors surface status code', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
-      accessToken: 'matrix-token',
+      portalToken: 'portal-token',
       httpClient: MockClient((_) async {
         return http.Response(jsonEncode({'error': 'M_UNKNOWN_TOKEN'}), 401);
       }),
@@ -126,7 +126,7 @@ void main() {
   test('portal status treats AS connected session label as healthy', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
-      accessToken: 'matrix-token',
+      portalToken: 'portal-token',
       httpClient: MockClient((_) async {
         return http.Response(
           jsonEncode({
@@ -144,5 +144,64 @@ void main() {
 
     expect(status.agent, 'connected (1 sessions)');
     expect(status.allHealthy, isTrue);
+  });
+
+  test('authenticatePortal bootstraps with body token', () async {
+    final session = await HttpAsClient.authenticatePortal(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/bootstrap');
+        expect(request.headers['Authorization'], isNull);
+        expect(jsonDecode(request.body), {'token': 'portal-token'});
+        return http.Response(
+          jsonEncode({
+            'access_token': 'matrix-access-token',
+            'user_id': '@owner:example.com',
+            'homeserver': 'https://example.com',
+            'device_id': 'DEVICE1',
+          }),
+          200,
+        );
+      }),
+    );
+
+    expect(session.accessToken, 'matrix-access-token');
+    expect(session.userId, '@owner:example.com');
+    expect(session.homeserver, 'https://example.com');
+    expect(session.deviceId, 'DEVICE1');
+  });
+
+  test('authenticatePortal falls back to auth when already initialized',
+      () async {
+    var calls = 0;
+    final session = await HttpAsClient.authenticatePortal(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        calls += 1;
+        if (calls == 1) {
+          expect(request.url.path, '/_as/bootstrap');
+          return http.Response(
+            jsonEncode({'error': 'portal already initialised'}),
+            409,
+          );
+        }
+        expect(request.url.path, '/_as/auth');
+        expect(jsonDecode(request.body), {'token': 'portal-token'});
+        return http.Response(
+          jsonEncode({
+            'access_token': 'fresh-matrix-token',
+            'user_id': '@owner:example.com',
+            'homeserver': 'https://example.com',
+          }),
+          200,
+        );
+      }),
+    );
+
+    expect(calls, 2);
+    expect(session.accessToken, 'fresh-matrix-token');
   });
 }

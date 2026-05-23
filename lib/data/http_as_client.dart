@@ -15,12 +15,31 @@ import 'as_client.dart';
 class HttpAsClient implements AsClient {
   HttpAsClient({
     required Uri baseUri,
-    required String accessToken,
+    String? portalToken,
+    String? accessToken,
     http.Client? httpClient,
   })  : _baseUri = _normalizeBaseUri(baseUri),
-        _accessToken = accessToken,
+        _portalToken = _requireToken(portalToken ?? accessToken),
         _http = httpClient ?? http.Client();
 
+  factory HttpAsClient.fromPortalSession(
+    Client client, {
+    required String portalToken,
+    Uri? baseUri,
+  }) {
+    final homeserver = client.homeserver;
+    if (homeserver == null) {
+      throw AsClientException('Matrix session is not initialized');
+    }
+    return HttpAsClient(
+      baseUri: baseUri ?? defaultAdminBaseUri(homeserver),
+      portalToken: portalToken,
+      httpClient: client.httpClient,
+    );
+  }
+
+  /// Backward-compatible constructor for sessions created before AS v2 auth.
+  /// New p2p-matrix-as deployments expect [fromPortalSession] instead.
   factory HttpAsClient.fromMatrixClient(Client client, {Uri? baseUri}) {
     final token = client.accessToken;
     final homeserver = client.homeserver;
@@ -35,7 +54,7 @@ class HttpAsClient implements AsClient {
   }
 
   final Uri _baseUri;
-  final String _accessToken;
+  final String _portalToken;
   final http.Client _http;
 
   static const _timeout = Duration(seconds: 10);
@@ -51,6 +70,30 @@ class HttpAsClient implements AsClient {
       port: port,
       path: '/_as',
     );
+  }
+
+  static Future<AsPortalSession> authenticatePortal({
+    required Uri baseUri,
+    required String portalToken,
+    http.Client? httpClient,
+  }) async {
+    final ownsClient = httpClient == null;
+    final client = httpClient ?? http.Client();
+    final normalizedBase = _normalizeBaseUri(baseUri);
+    try {
+      return await _postPortalAuth(
+        client,
+        normalizedBase,
+        'bootstrap',
+        portalToken,
+        allowAlreadyInitialized: true,
+      );
+    } on AsClientException catch (e) {
+      if (e.statusCode != 409) rethrow;
+      return _postPortalAuth(client, normalizedBase, 'auth', portalToken);
+    } finally {
+      if (ownsClient) client.close();
+    }
   }
 
   @override
@@ -150,7 +193,7 @@ class HttpAsClient implements AsClient {
   }) async {
     final uri = _resolve(path, queryParameters: queryParameters);
     final request = http.Request(method, uri);
-    request.headers['Authorization'] = 'Bearer $_accessToken';
+    request.headers['Authorization'] = 'Bearer $_portalToken';
     request.headers['Accept'] = 'application/json';
     if (body != null) {
       request.encoding = utf8;
@@ -206,5 +249,92 @@ class HttpAsClient implements AsClient {
       // Fall through to a generic HTTP error message.
     }
     return response.reasonPhrase ?? 'AS request failed';
+  }
+
+  static String _requireToken(String? token) {
+    if (token == null || token.isEmpty) {
+      throw AsClientException('AS portal token is required');
+    }
+    return token;
+  }
+
+  static Future<AsPortalSession> _postPortalAuth(
+    http.Client client,
+    Uri baseUri,
+    String path,
+    String portalToken, {
+    bool allowAlreadyInitialized = false,
+  }) async {
+    final uri = _resolveStatic(baseUri, path);
+    final response = await client
+        .post(
+          uri,
+          headers: const {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+          body: jsonEncode({'token': portalToken}),
+        )
+        .timeout(_timeout);
+
+    if (allowAlreadyInitialized && response.statusCode == 409) {
+      throw AsClientException(
+        _extractErrorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+    if (response.statusCode != 200) {
+      throw AsClientException(
+        _extractErrorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw AsClientException(
+        'AS returned a non-object JSON response',
+        statusCode: response.statusCode,
+      );
+    }
+    final session = AsPortalSession.fromJson(decoded);
+    if (session.accessToken.isEmpty ||
+        session.userId.isEmpty ||
+        session.homeserver.isEmpty) {
+      throw AsClientException(
+        'AS auth response is missing access_token, user_id, or homeserver',
+        statusCode: response.statusCode,
+      );
+    }
+    return session;
+  }
+
+  static Uri _resolveStatic(Uri baseUri, String path) {
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    final basePath =
+        baseUri.path.endsWith('/') ? baseUri.path : '${baseUri.path}/';
+    return baseUri.replace(path: '$basePath$cleanPath');
+  }
+}
+
+class AsPortalSession {
+  const AsPortalSession({
+    required this.accessToken,
+    required this.userId,
+    required this.homeserver,
+    this.deviceId,
+  });
+
+  final String accessToken;
+  final String userId;
+  final String homeserver;
+  final String? deviceId;
+
+  factory AsPortalSession.fromJson(Map<String, dynamic> json) {
+    return AsPortalSession(
+      accessToken: json['access_token'] as String? ?? '',
+      userId: json['user_id'] as String? ?? '',
+      homeserver: json['homeserver'] as String? ?? '',
+      deviceId: json['device_id'] as String?,
+    );
   }
 }

@@ -1,4 +1,4 @@
-/// 创建账号页 —— 沿用 s-login 的 M3 视觉语言。
+// 创建账号页 —— 沿用 s-login 的 M3 视觉语言。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,7 +19,7 @@ class InitPage extends ConsumerStatefulWidget {
 class _InitPageState extends ConsumerState<InitPage> {
   final _domainCtrl = TextEditingController();
   final _displayNameCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
+  final _portalTokenCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
   String? _error;
@@ -28,7 +28,7 @@ class _InitPageState extends ConsumerState<InitPage> {
   void dispose() {
     _domainCtrl.dispose();
     _displayNameCtrl.dispose();
-    _passwordCtrl.dispose();
+    _portalTokenCtrl.dispose();
     super.dispose();
   }
 
@@ -38,11 +38,9 @@ class _InitPageState extends ConsumerState<InitPage> {
       _error = null;
     });
     try {
-      await ref
-          .read(authStateNotifierProvider.notifier)
-          .register(
+      await ref.read(authStateNotifierProvider.notifier).register(
             _domainCtrl.text.trim(),
-            _passwordCtrl.text,
+            _portalTokenCtrl.text,
             _displayNameCtrl.text.trim(),
           );
     } catch (e) {
@@ -86,7 +84,7 @@ class _InitPageState extends ConsumerState<InitPage> {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        '创建你的 Portal 账号',
+                        '初始化你的 Portal',
                         textAlign: TextAlign.center,
                         style: AppTheme.sans(
                           size: 20,
@@ -96,7 +94,7 @@ class _InitPageState extends ConsumerState<InitPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '域名须是你控制、已部署 homeserver 的服务器',
+                        '输入 AS 启动时生成的 Portal Token',
                         textAlign: TextAlign.center,
                         style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
@@ -115,9 +113,9 @@ class _InitPageState extends ConsumerState<InitPage> {
                       ),
                       const SizedBox(height: 12),
                       M3InputField(
-                        controller: _passwordCtrl,
-                        icon: Symbols.lock,
-                        hint: '密码',
+                        controller: _portalTokenCtrl,
+                        icon: Symbols.key,
+                        hint: 'Portal Token',
                         obscure: _obscure,
                         onSubmitted: (_) => _register(),
                         trailing: IconButton(
@@ -137,7 +135,7 @@ class _InitPageState extends ConsumerState<InitPage> {
                       ],
                       const SizedBox(height: 20),
                       M3PrimaryButton(
-                        label: _loading ? '创建中…' : '创建账号',
+                        label: _loading ? '初始化中…' : '初始化 Portal',
                         onPressed: _loading ? null : _register,
                       ),
                       const SizedBox(height: 16),

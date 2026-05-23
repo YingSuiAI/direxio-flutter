@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/as_gateway_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../mock/mock_data.dart';
 import '../mock/mcp_policy.dart';
@@ -18,6 +20,7 @@ import '../mock/mock_mcp_client.dart';
 import '../widgets/agent_message_body.dart';
 import '../widgets/tool_call_bubble.dart';
 import '../widgets/m3/glass_header.dart';
+import '../../data/as_gateway_client.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -35,7 +38,9 @@ String _formatMsgTime(DateTime dt) {
   final today = DateTime(now.year, now.month, now.day);
   final msgDay = DateTime(dt.year, dt.month, dt.day);
   if (msgDay == today) return DateFormat('HH:mm').format(dt);
-  if (today.difference(msgDay).inDays == 1) return '昨天 ${DateFormat('HH:mm').format(dt)}';
+  if (today.difference(msgDay).inDays == 1) {
+    return '昨天 ${DateFormat('HH:mm').format(dt)}';
+  }
   return '${DateFormat('M月d日').format(dt)} ${DateFormat('HH:mm').format(dt)}';
 }
 
@@ -136,19 +141,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _togglePlus() => setState(() {
-    _showPlusPanel = !_showPlusPanel;
-    if (_showPlusPanel) _showEmojiPanel = false;
-  });
+        _showPlusPanel = !_showPlusPanel;
+        if (_showPlusPanel) _showEmojiPanel = false;
+      });
 
   void _toggleEmoji() => setState(() {
-    _showEmojiPanel = !_showEmojiPanel;
-    if (_showEmojiPanel) _showPlusPanel = false;
-  });
+        _showEmojiPanel = !_showEmojiPanel;
+        if (_showEmojiPanel) _showPlusPanel = false;
+      });
 
   void _closePanels() => setState(() {
-    _showPlusPanel = false;
-    _showEmojiPanel = false;
-  });
+        _showPlusPanel = false;
+        _showEmojiPanel = false;
+      });
 
   Future<void> _onLongPressEvent(BuildContext ctx, Event e, Offset pos) async {
     final action = await _showMsgContextMenu(ctx, pos);
@@ -198,7 +203,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final events =
         _timeline?.events.where((e) => e.type == EventTypes.Message).toList() ??
-        [];
+            [];
 
     final mxid = room.directChatMatrixID ?? '';
     final name = room.getLocalizedDisplayname();
@@ -234,8 +239,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               GlassHeaderButton(
                 icon: Symbols.videocam,
                 color: t.accent,
-                onTap: () =>
-                    context.push('/video-call/${Uri.encodeComponent(widget.roomId)}'),
+                onTap: () => context.push(
+                  '/video-call/${Uri.encodeComponent(widget.roomId)}',
+                ),
               ),
               GlassHeaderButton(
                 icon: Symbols.more_vert,
@@ -262,45 +268,46 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       ),
                     )
                   : events.isEmpty
-                  ? Center(
-                      child: Text(
-                        '开始你们的第一条消息',
-                        style: AppTheme.sans(size: 13, color: t.textMute),
-                      ),
-                    )
-                  : ListView.builder(
-                      reverse: true,
-                      padding: const EdgeInsets.fromLTRB(0, 12, 0, 12),
-                      itemCount: events.length + 1,
-                      itemBuilder: (context, i) {
-                        if (i == events.length) {
-                          return const _E2eFooter();
-                        }
-                        final e = events[i];
-                        final isMe = e.senderId == e.room.client.userID;
-                        final selected = _selected.contains(e.eventId);
-                        return _SChatBubble(
-                          isMe: isMe,
-                          text: e.body,
-                          time: _formatMsgTime(e.originServerTs),
-                          showRead: isMe,
-                          avatarSeed: e.senderFromMemoryOrFallback.calcDisplayname(),
-                          selected: selected,
-                          multiSelect: _multiSelect,
-                          onTap: _multiSelect
-                              ? () => setState(() {
-                                  if (selected) {
-                                    _selected.remove(e.eventId);
-                                  } else {
-                                    _selected.add(e.eventId);
-                                  }
-                                })
-                              : null,
-                          onLongPressAt: (pos) =>
-                              _onLongPressEvent(context, e, pos),
-                        );
-                      },
-                    ),
+                      ? Center(
+                          child: Text(
+                            '开始你们的第一条消息',
+                            style: AppTheme.sans(size: 13, color: t.textMute),
+                          ),
+                        )
+                      : ListView.builder(
+                          reverse: true,
+                          padding: const EdgeInsets.fromLTRB(0, 12, 0, 12),
+                          itemCount: events.length + 1,
+                          itemBuilder: (context, i) {
+                            if (i == events.length) {
+                              return const _E2eFooter();
+                            }
+                            final e = events[i];
+                            final isMe = e.senderId == e.room.client.userID;
+                            final selected = _selected.contains(e.eventId);
+                            return _SChatBubble(
+                              isMe: isMe,
+                              text: e.body,
+                              time: _formatMsgTime(e.originServerTs),
+                              showRead: isMe,
+                              avatarSeed: e.senderFromMemoryOrFallback
+                                  .calcDisplayname(),
+                              selected: selected,
+                              multiSelect: _multiSelect,
+                              onTap: _multiSelect
+                                  ? () => setState(() {
+                                        if (selected) {
+                                          _selected.remove(e.eventId);
+                                        } else {
+                                          _selected.add(e.eventId);
+                                        }
+                                      })
+                                  : null,
+                              onLongPressAt: (pos) =>
+                                  _onLongPressEvent(context, e, pos),
+                            );
+                          },
+                        ),
             ),
           ),
           if (_replyTo != null)
@@ -396,10 +403,14 @@ class _PendingConfirm {
 
 class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   final _ctrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
   late List<MockMessage> _messages;
   bool _agentBusy = false;
   _PendingConfirm? _pendingConfirm;
   Timer? _streamTimer;
+  Timer? _gatewaySyncTimer;
+  bool _gatewaySyncing = false;
+  int _gatewayFailureCount = 0;
   static const _agentId = 'local-aibot';
 
   // s-chat 视觉状态
@@ -414,27 +425,119 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   @override
   void initState() {
     super.initState();
-    _messages = List.of(widget.conv.messages);
+    _messages = _isAiBot ? <MockMessage>[] : List.of(widget.conv.messages);
+    _scheduleGatewaySync(immediate: true);
+    _scrollToLatest(jump: true);
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _scrollCtrl.dispose();
     _streamTimer?.cancel();
+    _gatewaySyncTimer?.cancel();
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
+    final sent = MockMessage(isMe: true, text: text, time: DateTime.now());
     setState(() {
-      _messages.add(MockMessage(isMe: true, text: text, time: DateTime.now()));
+      _messages.add(sent);
       _ctrl.clear();
       _replyTo = null;
     });
-    if (_isAiBot) {
-      _streamAgentReply('收到："$text"。\n\n（这是 mock 回复，真接 LLM 后会基于上下文回答）');
+    _scrollToLatest();
+
+    try {
+      final gateway = ref.read(asGatewayClientProvider);
+      await gateway.sendMessage(_gatewayRoomId, text);
+      await _loadAsGatewayMessages();
+      _scheduleGatewaySync();
+    } on AsGatewayException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('发送失败：${e.message}')),
+      );
+      _scheduleGatewaySync();
     }
+  }
+
+  void _scheduleGatewaySync({bool immediate = false}) {
+    _gatewaySyncTimer?.cancel();
+    final delay = immediate ? Duration.zero : _gatewayPollDelay;
+    _gatewaySyncTimer = Timer(
+      delay,
+      () => unawaited(_loadAsGatewayMessages(scheduleNext: true)),
+    );
+  }
+
+  Duration get _gatewayPollDelay {
+    final seconds = math.min(15, 3 * (1 << math.min(_gatewayFailureCount, 3)));
+    return Duration(seconds: seconds);
+  }
+
+  Future<void> _loadAsGatewayMessages({bool scheduleNext = false}) async {
+    if (_gatewaySyncing) {
+      if (scheduleNext && mounted) _scheduleGatewaySync();
+      return;
+    }
+    _gatewaySyncing = true;
+    try {
+      final gateway = ref.read(asGatewayClientProvider);
+      final data = await gateway.readRoomMessages(_gatewayRoomId, limit: 80);
+      final rows = (data['messages'] as List? ?? const []);
+      final next = rows
+          .whereType<Map>()
+          .map((row) => _messageFromAs(Map<String, dynamic>.from(row)))
+          .toList();
+      if (!mounted) return;
+      if (next.isEmpty && !_isAiBot) return;
+      _gatewayFailureCount = 0;
+      setState(() => _messages = next);
+      _scrollToLatest();
+    } on AsGatewayException catch (e) {
+      _gatewayFailureCount = math.min(_gatewayFailureCount + 1, 4);
+      debugPrint('AS Gateway sync failed: $e');
+      // Non-agent mock conversations can still fall back to bundled demo data.
+    } finally {
+      _gatewaySyncing = false;
+      if (scheduleNext && mounted) _scheduleGatewaySync();
+    }
+  }
+
+  void _scrollToLatest({bool jump = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollCtrl.hasClients) return;
+      final offset = _scrollCtrl.position.maxScrollExtent;
+      if (jump) {
+        _scrollCtrl.jumpTo(offset);
+        return;
+      }
+      unawaited(
+        _scrollCtrl.animateTo(
+          offset,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    });
+  }
+
+  String get _gatewayRoomId => widget.conv.id;
+
+  MockMessage _messageFromAs(Map<String, dynamic> row) {
+    final sender = row['sender_mxid'] as String? ?? '';
+    final senderName = row['sender_name'] as String? ?? '';
+    final isMe = sender == '@me:mock.local' || senderName == '我';
+    final timestamp = DateTime.tryParse(row['timestamp'] as String? ?? '');
+    return MockMessage(
+      isMe: isMe,
+      text: row['content'] as String? ?? '',
+      time: timestamp ?? DateTime.now(),
+      senderName: isMe ? null : senderName,
+    );
   }
 
   /// 流式输出：按字符 append，制造打字机感
@@ -497,6 +600,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     _messages.add(MockMessage(isMe: true, text: text, time: DateTime.now()));
   }
 
+  // ignore: unused_element
   Future<void> _onTokenUsage() async {
     setState(() => _addUserAction('/查询 token 用量'));
     try {
@@ -519,6 +623,80 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     }
   }
 
+  Future<void> _onTestAsConnector() async {
+    setState(() => _addUserAction('/测试 AS Connector'));
+    final gateway = ref.read(asGatewayClientProvider);
+
+    try {
+      final auth = await _callAsGatewayWithBubble(
+          'p2p_auth_status',
+          {
+            'as_url': gateway.asUrl,
+            'auth_mode': 'mock_agent_token',
+          },
+          gateway.authProbe);
+      final roomsData = await _callAsGatewayWithBubble(
+        'p2p_rooms_list',
+        {},
+        gateway.listRooms,
+      );
+      final contactsData = await _callAsGatewayWithBubble(
+        'p2p_contacts_list',
+        {},
+        gateway.listContacts,
+      );
+
+      final rooms = (roomsData['rooms'] as List? ?? const []);
+      final contacts = (contactsData['contacts'] as List? ?? const []);
+      Map<String, dynamic>? firstRoom;
+      if (rooms.isNotEmpty && rooms.first is Map) {
+        firstRoom = Map<String, dynamic>.from(rooms.first as Map);
+      }
+
+      Map<String, dynamic>? messagesData;
+      if (firstRoom != null) {
+        final roomId = firstRoom['room_id'] as String;
+        messagesData = await _callAsGatewayWithBubble(
+          'p2p_room_messages_read',
+          {'room_id': roomId, 'limit': 5},
+          () => gateway.readRoomMessages(roomId, limit: 5),
+        );
+        await _callAsGatewayWithBubble(
+            'p2p_room_members_list',
+            {
+              'room_id': roomId,
+            },
+            () => gateway.listRoomMembers(roomId));
+        await _callAsGatewayWithBubble(
+          'p2p_messages_search',
+          {'query': '评审', 'room_id': roomId, 'limit': 5},
+          () => gateway.searchMessages('评审', roomId: roomId, limit: 5),
+        );
+      }
+
+      final messages = (messagesData?['messages'] as List? ?? const []);
+      _streamAgentReply(
+        '## AS Connector mock 已接通\n\n'
+        '- AS：`${auth['as_url']}`\n'
+        '- 鉴权：`${auth['auth_mode']}`，token 已加载：`${auth['token_loaded']}`\n'
+        '- 房间：**${rooms.length}** 个\n'
+        '- 联系人：**${contacts.length}** 个\n'
+        '- 首个房间：${firstRoom?['name'] ?? '无'}\n'
+        '- 读取消息：**${messages.length}** 条\n\n'
+        '这次测试走的是 `client -> mock AS Gateway /api/*`，没有经过 Flutter Matrix 登录。'
+        '后端 connector token 定稿后，只需要把 mock token 替换为正式签发的 token。',
+      );
+    } on AsGatewayException catch (e) {
+      _streamAgentReply(
+        '## AS Connector 连接失败\n\n'
+        '- AS：`${gateway.asUrl}`\n'
+        '- 错误：`${e.toString()}`\n\n'
+        '请确认本地 mock AS Gateway 已启动，并且 token 使用 `mock-agent-token`。',
+      );
+    }
+  }
+
+  // ignore: unused_element
   Future<void> _onSummarizeRecent() async {
     setState(() => _addUserAction('/总结最近谁和我聊了什么'));
     try {
@@ -575,17 +753,9 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
       _messages.clear();
       _agentBusy = false;
     });
-    _streamAgentReply(
-      '你好，我是 **AI Bot**，新会话已开始 👋\n\n'
-      '你可以让我：\n\n'
-      '- 总结某个联系人最近的聊天\n'
-      '- 查询 Token 用量\n'
-      '- 起草回复消息（写操作会经你确认）\n'
-      '- 查找历史消息\n\n'
-      '> 我的权限范围可在右上角 **管理** 中调整。',
-    );
   }
 
+  // ignore: unused_element
   void _onAgentDraftReply() {
     setState(() {
       _pendingConfirm = _PendingConfirm(
@@ -693,20 +863,69 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     }
   }
 
+  Future<Map<String, dynamic>> _callAsGatewayWithBubble(
+    String tool,
+    Map<String, dynamic> args,
+    Future<Map<String, dynamic>> Function() call,
+  ) async {
+    final sw = Stopwatch()..start();
+    try {
+      final data = await call();
+      sw.stop();
+      _addToolBubble(
+        tool: tool,
+        args: args,
+        summary: _asGatewaySummary(tool, data),
+        latencyMs: sw.elapsedMilliseconds,
+      );
+      return data;
+    } on AsGatewayException catch (e) {
+      sw.stop();
+      _addToolBubble(
+        tool: tool,
+        args: args,
+        summary: '',
+        latencyMs: sw.elapsedMilliseconds,
+        denied: true,
+        deniedReason: e.toString(),
+      );
+      rethrow;
+    }
+  }
+
+  String _asGatewaySummary(String tool, Map<String, dynamic> data) {
+    final key = switch (tool) {
+      'p2p_rooms_list' => 'rooms',
+      'p2p_contacts_list' => 'contacts',
+      'p2p_room_messages_read' => 'messages',
+      'p2p_room_members_list' => 'members',
+      'p2p_messages_search' => 'results',
+      _ => null,
+    };
+    if (key != null) {
+      final count = (data[key] as List?)?.length ?? 0;
+      return '$key: $count';
+    }
+    if (tool == 'p2p_auth_status') {
+      return 'mock token loaded: ${data['token_loaded']}';
+    }
+    return 'ok';
+  }
+
   void _togglePlus() => setState(() {
-    _showPlusPanel = !_showPlusPanel;
-    if (_showPlusPanel) _showEmojiPanel = false;
-  });
+        _showPlusPanel = !_showPlusPanel;
+        if (_showPlusPanel) _showEmojiPanel = false;
+      });
 
   void _toggleEmoji() => setState(() {
-    _showEmojiPanel = !_showEmojiPanel;
-    if (_showEmojiPanel) _showPlusPanel = false;
-  });
+        _showEmojiPanel = !_showEmojiPanel;
+        if (_showEmojiPanel) _showPlusPanel = false;
+      });
 
   void _closePanels() => setState(() {
-    _showPlusPanel = false;
-    _showEmojiPanel = false;
-  });
+        _showPlusPanel = false;
+        _showEmojiPanel = false;
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -725,39 +944,39 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
             centerLeading: _isAiBot
                 ? _AgentBadge(color: t.accent)
                 : c.isGroup
-                ? Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: t.surfaceHigh,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      Symbols.groups,
-                      size: 20,
-                      color: t.textMute,
-                      fill: 1,
-                    ),
-                  )
-                : SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: Stack(
-                      children: [
-                        PortalAvatar(
-                          seed: c.name,
-                          size: 36,
-                          imageUrl: c.avatarUrl,
+                    ? Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: t.surfaceHigh,
+                          shape: BoxShape.circle,
                         ),
-                        const Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: OnlineDot(size: 10),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Symbols.groups,
+                          size: 20,
+                          color: t.textMute,
+                          fill: 1,
                         ),
-                      ],
-                    ),
-                  ),
+                      )
+                    : SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Stack(
+                          children: [
+                            PortalAvatar(
+                              seed: c.name,
+                              size: 36,
+                              imageUrl: c.avatarUrl,
+                            ),
+                            const Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: OnlineDot(size: 10),
+                            ),
+                          ],
+                        ),
+                      ),
             actions: _isAiBot
                 ? [
                     GlassHeaderButton(
@@ -795,6 +1014,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
               child: _messages.isEmpty
                   ? _EmptyState(isAiBot: _isAiBot)
                   : ListView.builder(
+                      controller: _scrollCtrl,
                       padding: const EdgeInsets.fromLTRB(0, 12, 0, 12),
                       itemCount: _messages.length + (_agentBusy ? 1 : 0) + 1,
                       itemBuilder: (context, i) {
@@ -812,8 +1032,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                             resultSummary: m.toolResultSummary ?? '',
                             latencyMs: m.toolLatencyMs ?? 0,
                             warnings: m.toolWarnings ?? const [],
-                            denied:
-                                m.toolResultSummary?.isEmpty == true &&
+                            denied: m.toolResultSummary?.isEmpty == true &&
                                 (m.toolWarnings?.isNotEmpty ?? false),
                             deniedReason: m.toolResultSummary?.isEmpty == true
                                 ? m.toolWarnings?.first
@@ -834,12 +1053,12 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                           multiSelect: _multiSelect,
                           onTap: _multiSelect
                               ? () => setState(() {
-                                  if (selected) {
-                                    _selected.remove(i);
-                                  } else {
-                                    _selected.add(i);
-                                  }
-                                })
+                                    if (selected) {
+                                      _selected.remove(i);
+                                    } else {
+                                      _selected.add(i);
+                                    }
+                                  })
                               : null,
                           onLongPressAt: (pos) => _onLongPressMsg(m, pos),
                         );
@@ -858,10 +1077,8 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
           // ── AI 快捷指令悬浮栏 ──────────────────────────────────
           if (_isAiBot)
             _AgentFloatingBar(
-              onTokenUsage: _onTokenUsage,
-              onSummarizeRecent: _onSummarizeRecent,
+              onTestAsConnector: _onTestAsConnector,
               onNewSession: _onNewSession,
-              onDraftReply: _onAgentDraftReply,
             ),
 
           // ── Reply bar / Multi-select bar / Input bar ──────────
@@ -898,9 +1115,8 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
               onEmoji: _toggleEmoji,
               plusActive: _showPlusPanel,
               emojiActive: _showEmojiPanel,
-              suggestions: _isAiBot
-                  ? const []
-                  : const ['周日下午有空', '周日要加班，下次', '几点？'],
+              suggestions:
+                  _isAiBot ? const [] : const ['周日下午有空', '周日要加班，下次', '几点？'],
               onPickSuggestion: (s) {
                 _ctrl.text = s;
                 _send();
@@ -994,8 +1210,7 @@ class _SChatBubble extends StatelessWidget {
           ],
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child:
-            markdownChild ??
+        child: markdownChild ??
             Text(text, style: AppTheme.sans(size: 17, color: textColor)),
       ),
     );
@@ -1021,9 +1236,8 @@ class _SChatBubble extends StatelessWidget {
           );
 
     final column = Column(
-      crossAxisAlignment: isMe
-          ? CrossAxisAlignment.end
-          : CrossAxisAlignment.start,
+      crossAxisAlignment:
+          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [bubble, timeRow],
     );
 
@@ -1032,9 +1246,8 @@ class _SChatBubble extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment: isMe
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (multiSelect) ...[
             Padding(
@@ -1299,12 +1512,18 @@ class _PlusPanel extends StatelessWidget {
       if (xFile == null || room == null) return;
       final bytes = await xFile.readAsBytes();
       await room!.sendFileEvent(
-        MatrixFile(bytes: bytes, name: xFile.name, mimeType: xFile.mimeType ?? 'image/jpeg'),
+        MatrixFile(
+          bytes: bytes,
+          name: xFile.name,
+          mimeType: xFile.mimeType ?? 'image/jpeg',
+        ),
         shrinkImageMaxDimension: 1600,
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('发送失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('发送失败: $e')));
       }
     }
   }
@@ -1319,7 +1538,9 @@ class _PlusPanel extends StatelessWidget {
       await room!.sendFileEvent(MatrixFile(bytes: f.bytes!, name: f.name));
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('发送失败: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('发送失败: $e')));
       }
     }
   }
@@ -1330,8 +1551,16 @@ class _PlusPanel extends StatelessWidget {
     final items = <(IconData, String, VoidCallback?)>[
       (Symbols.photo_library, '相册', () => _pickImage(context)),
       (Symbols.photo_camera, '拍摄', () => _pickImage(context)),
-      (Symbols.videocam, '视频通话',
-          roomId.isNotEmpty ? () { onClose(); context.push('/video-call/${Uri.encodeComponent(roomId)}'); } : null),
+      (
+        Symbols.videocam,
+        '视频通话',
+        roomId.isNotEmpty
+            ? () {
+                onClose();
+                context.push('/video-call/${Uri.encodeComponent(roomId)}');
+              }
+            : null,
+      ),
       (Symbols.location_on, '位置', null),
       (Symbols.contact_page, '个人名片', null),
       (Symbols.folder_open, '文件', () => _pickFile(context)),
@@ -1350,7 +1579,9 @@ class _PlusPanel extends StatelessWidget {
             crossAxisSpacing: 8,
             childAspectRatio: 0.82,
             children: items
-                .map((it) => _PlusButton(icon: it.$1, label: it.$2, onTap: it.$3))
+                .map(
+                  (it) => _PlusButton(icon: it.$1, label: it.$2, onTap: it.$3),
+                )
                 .toList(),
           ),
         ),
@@ -1360,7 +1591,11 @@ class _PlusPanel extends StatelessWidget {
 }
 
 class _PlusButton extends StatelessWidget {
-  const _PlusButton({required this.icon, required this.label, required this.onTap});
+  const _PlusButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
@@ -1389,10 +1624,20 @@ class _PlusButton extends StatelessWidget {
                 ),
               ],
             ),
-            child: Icon(icon, size: 26, color: enabled ? t.text : t.textMute.withValues(alpha: 0.4)),
+            child: Icon(
+              icon,
+              size: 26,
+              color: enabled ? t.text : t.textMute.withValues(alpha: 0.4),
+            ),
           ),
           const SizedBox(height: 8),
-          Text(label, style: AppTheme.sans(size: 11, color: enabled ? t.textMute : t.textMute.withValues(alpha: 0.4))),
+          Text(
+            label,
+            style: AppTheme.sans(
+              size: 11,
+              color: enabled ? t.textMute : t.textMute.withValues(alpha: 0.4),
+            ),
+          ),
         ],
       ),
     );
@@ -1910,16 +2155,12 @@ class _ConfirmBanner extends StatelessWidget {
 /// AI Bot 输入框上方悬浮的两个胶囊按钮 —— 飞书风格
 class _AgentFloatingBar extends ConsumerWidget {
   const _AgentFloatingBar({
-    required this.onTokenUsage,
-    required this.onSummarizeRecent,
+    required this.onTestAsConnector,
     required this.onNewSession,
-    required this.onDraftReply,
   });
 
-  final VoidCallback onTokenUsage;
-  final VoidCallback onSummarizeRecent;
+  final VoidCallback onTestAsConnector;
   final VoidCallback onNewSession;
-  final VoidCallback onDraftReply;
 
   void _showShortcuts(BuildContext context, Offset anchor) {
     final t = context.tk;
@@ -1939,24 +2180,10 @@ class _AgentFloatingBar extends ConsumerWidget {
       items: [
         _shortcutItem(
           t,
-          Symbols.speed,
-          '查询 Token 用量',
-          '查看本月消耗与配额',
-          onTokenUsage,
-        ),
-        _shortcutItem(
-          t,
-          Symbols.format_list_bulleted,
-          '总结最近的聊天',
-          '汇总最近联系人聊了什么',
-          onSummarizeRecent,
-        ),
-        _shortcutItem(
-          t,
-          Symbols.send,
-          '代我回复 Jack',
-          '让 Agent 起草并经你确认后发送',
-          onDraftReply,
+          Symbols.api,
+          '测试 AS 连接',
+          'mock token 调用 /api/*',
+          onTestAsConnector,
         ),
         _shortcutItem(
           t,

@@ -15,8 +15,8 @@ P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / W
 
 当前仓库保留完整 UI Mock 兜底，同时已经开始接入真实 Matrix / AS：
 
-- Matrix 登录、注册、session 持久化代码已在 `auth_provider.dart` 内实现。
-- AS Admin API 已有 HTTP 客户端，复用 Matrix `access_token` 调 `/_as/*`。
+- Portal Token 登录、Matrix session 持久化代码已在 `auth_provider.dart` 内实现。
+- AS Admin API 已有 HTTP 客户端，用 `portal_token` 调 `/_as/*`。
 - 聊天、Agent / MCP 工具调用仍以 Mock 演示为主，真后端未完整跑通时不影响 UI 迭代。
 
 > 真后端接入路径见组织内 [`p2p-matrix-as`](https://github.com/P2P-IM/p2p-matrix-as)（Matrix Application Service）+ [`p2p-matrix-ops`](https://github.com/P2P-IM/p2p-matrix-ops)（Dendrite homeserver）。
@@ -43,8 +43,8 @@ P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / W
 | PC 响应式布局 | ✅ | ≥ 900px 自动 master-detail 双栏 |
 | **Android APK CI** | ✅ | push / PR 自动出 debug APK |
 | **Windows EXE CI** | ✅ | push / PR 自动出 release zip |
-| Matrix 登录 / 注册 | ⚠️ 代码就绪 | `AuthStateNotifier` 已实现；当前演示路由仍跳过登录直进首页 |
-| AS Admin API | ✅ HTTP | `HttpAsClient` 已接 `/_as/*`，复用 Matrix token |
+| Portal Token 登录 / 初始化 | ⚠️ 代码就绪 | `AuthStateNotifier` 已实现；当前演示路由仍跳过登录直进首页 |
+| AS Admin API | ✅ HTTP | `HttpAsClient` 已接 `/_as/*`，使用 `portal_token` |
 | 真 Matrix 会话通路 | ⚠️ 部分 | 真 room / timeline 代码在，Mock 房间仍作为兜底 |
 
 ### 进行中 / 计划
@@ -124,19 +124,19 @@ flutter run -d windows             # Windows desktop
 
 ### 登录与 AS Admin API
 
-当前认证模型只有一套登录态：**Matrix 登录态**。AS 不单独发登录 token。
+当前认证模型是两套凭证、职责分离：
 
-1. App 用 Matrix SDK 调 homeserver 的 `/_matrix/client/v3/login` 登录 `@owner:{domain}`。
-2. Matrix SDK 返回 `access_token`、`user_id`、`device_id`。
-3. App 把 session 写入 `flutter_secure_storage`。
-4. `asClientProvider` 从当前 Matrix client 读取 homeserver 和 `accessToken`。
-5. `HttpAsClient` 请求 `/_as/*` 时统一带：
+1. 用户输入域名和 AS 启动时生成的 `portal_token`。
+2. App 先调 `POST /_as/bootstrap`，如果 AS 已初始化则自动降级到 `POST /_as/auth`。
+3. AS 返回 Matrix `access_token`、`user_id`、`homeserver`。
+4. Matrix SDK 用 `access_token` 走标准 Matrix 消息/房间 API。
+5. `asClientProvider` 请求 `/_as/*` 时统一带：
 
 ```http
-Authorization: Bearer {matrix_access_token}
+Authorization: Bearer {portal_token}
 ```
 
-AS 侧会把这个 token 转发给 homeserver 的 `/_matrix/client/v3/account/whoami` 校验，所以 client 不需要也不应该保存另一套 AS 密码。
+`portal_token` 和 Matrix `access_token` 都写入 `flutter_secure_storage`，但用途不同：前者只给 AS Admin API，后者只给 Matrix SDK。
 
 AS Admin API 当前对接端点：
 

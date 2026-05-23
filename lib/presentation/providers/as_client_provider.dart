@@ -6,9 +6,14 @@ import 'auth_provider.dart';
 
 /// Global AS Admin API client.
 ///
-/// It reuses the active Matrix session's homeserver and access token, matching
-/// p2p-matrix-as Admin API authentication.
+/// It reuses the active Matrix session's homeserver and the persisted
+/// `portal_token`, matching p2p-matrix-as v2 Admin API authentication.
 final asClientProvider = Provider<AsClient>((ref) {
   final client = ref.watch(matrixClientProvider);
+  final portalToken =
+      ref.watch(authStateNotifierProvider).valueOrNull?.portalToken;
+  if (portalToken != null && portalToken.isNotEmpty) {
+    return HttpAsClient.fromPortalSession(client, portalToken: portalToken);
+  }
   return HttpAsClient.fromMatrixClient(client);
 });

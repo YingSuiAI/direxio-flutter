@@ -1,0 +1,55 @@
+﻿flutter : Flutter assets will be downloaded from https://storage.flutter-io.cn. Make sure you trust this source!
+At line:3 char:1
++ flutter analyze --no-pub 2>&1 | Out-File analyze_out.txt -Encoding ut ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Flutter assets ...st this source!:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Analyzing p2p-matrix-client...                                  
+
+   info - Dangling library doc comment - lib\data\as_client.dart:7:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\data\mock_as_client.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\data\well_known_service.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\presentation\mock\mcp_audit.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\presentation\mock\mcp_policy.dart:1:1 - dangling_library_doc_comments
+warning - Unused import: 'package:flutter/material.dart' - lib\presentation\mock\mcp_policy.dart:3:8 - unused_import
+   info - Dangling library doc comment - lib\presentation\mock\mock_data.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\presentation\mock\mock_mcp_client.dart:1:1 - dangling_library_doc_comments
+   info - Statements in an if should be enclosed in a block - lib\presentation\mock\mock_mcp_client.dart:269:41 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\presentation\mock\mock_mcp_client.dart:271:40 - curly_braces_in_flow_control_structures
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\call_page.dart:141:21 - prefer_const_constructors
+warning - Unused import: 'package:matrix/matrix.dart' - lib\presentation\pages\contact_detail_page.dart:5:8 - unused_import
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\contact_detail_page.dart:78:23 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\contact_detail_page.dart:80:32 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\presentation\pages\contact_detail_page.dart:81:37 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\contact_detail_page.dart:82:29 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\contact_detail_page.dart:83:29 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\contact_detail_page.dart:84:29 - prefer_const_constructors
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\presentation\pages\group_detail_page.dart:111:51 - use_build_context_synchronously
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\presentation\pages\group_detail_page.dart:441:13 - deprecated_member_use
+warning - A value for optional parameter 'danger' isn't ever given - lib\presentation\pages\home_page.dart:728:10 - unused_element_parameter
+warning - The declaration '_AgentTabBody' isn't referenced - lib\presentation\pages\home_page.dart:1074:7 - unused_element
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\home_page.dart:1504:13 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\home_page.dart:1507:22 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\home_page.dart:1509:24 - prefer_const_constructors
+   info - Dangling library doc comment - lib\presentation\pages\mcp_permission_page.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\presentation\pages\mcp_policy_edit_page.dart:1:1 - dangling_library_doc_comments
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\mcp_policy_edit_page.dart:135:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\mcp_policy_edit_page.dart:164:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\mcp_policy_edit_page.dart:187:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\mcp_policy_edit_page.dart:209:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\mcp_policy_edit_page.dart:229:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\mcp_policy_edit_page.dart:252:11 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\mcp_policy_edit_page.dart:441:27 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\requests_page.dart:74:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\requests_page.dart:84:19 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\presentation\pages\requests_page.dart:350:13 - prefer_const_constructors
+   info - Dangling library doc comment - lib\presentation\pages\search_page.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\presentation\widgets\agent_message_body.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\presentation\widgets\m3\glass_header.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\presentation\widgets\m3\m3_bottom_nav.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\presentation\widgets\m3\m3_card.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\presentation\widgets\tool_call_bubble.dart:1:1 - dangling_library_doc_comments
+   info - Use 'const' with the constructor to improve performance - lib\presentation\widgets\tool_call_bubble.dart:141:33 - prefer_const_constructors
+
+44 issues found. (ran in 20.4s)

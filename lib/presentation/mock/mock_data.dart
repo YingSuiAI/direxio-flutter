@@ -15,7 +15,7 @@ class MockAvatars {
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBt1HbYj3yl6qqlO6LoOpUKyH-m9bAjXV00pnlJVWDb7mRTWlgsAgqJB3WJcbGBMVWQvPNb-Y6EI801GmIhjTXzgNWGAqzjQF4fORAse8JZKSBUrAXbpOZI2CzAIh1p5lTVL-LaCuw7Yx6HAd4lbuWeGW-TC7La-S5FVu3sDHEao1Mpt_LPxyutggyIKzxSvi7JVm8X0cO4w4emSXjPxt-X65giKXW8IL0WDF6CUBv_9Fg6vc4uoCSdSlR25tlkFwsB153wgrxxe4M';
 }
 
-enum MockMsgKind { text, toolCall, typing, system }
+enum MockMsgKind { text, toolCall, typing, system, image, file }
 
 class MockMessage {
   const MockMessage({
@@ -24,6 +24,10 @@ class MockMessage {
     required this.time,
     this.kind = MockMsgKind.text,
     this.senderName,
+    this.imageUrl,
+    this.fileName,
+    this.fileSize,
+    this.fileMime,
     this.toolName,
     this.toolArgs,
     this.toolResultSummary,
@@ -37,6 +41,14 @@ class MockMessage {
   /// 群聊中对方消息的发送者名；单聊或自己发的为 null。
   final String? senderName;
   final MockMsgKind kind;
+
+  // 图片消息专用（kind == image）
+  final String? imageUrl;
+
+  // 文件消息专用（kind == file）
+  final String? fileName;
+  final String? fileSize; // 已格式化好的展示文本，如 "PDF · 2.8 MB"
+  final String? fileMime;
   // 工具调用专用
   final String? toolName;
   final Map<String, dynamic>? toolArgs;
@@ -117,6 +129,29 @@ class MockData {
           isMe: false,
           text: '是一个去中心化通讯应用，我整理了一份设计文档',
           time: _now.subtract(const Duration(minutes: 20)),
+        ),
+        MockMessage(
+          isMe: false,
+          text: 'design_v2.pdf',
+          time: _now.subtract(const Duration(minutes: 19)),
+          kind: MockMsgKind.file,
+          fileName: 'design_v2.pdf',
+          fileSize: 'PDF · 2.8 MB',
+          fileMime: 'application/pdf',
+        ),
+        MockMessage(
+          isMe: false,
+          text: '[图片]',
+          time: _now.subtract(const Duration(minutes: 18)),
+          kind: MockMsgKind.image,
+          imageUrl: 'https://picsum.photos/seed/alice1/600/450',
+        ),
+        MockMessage(
+          isMe: true,
+          text: '[图片]',
+          time: _now.subtract(const Duration(minutes: 17)),
+          kind: MockMsgKind.image,
+          imageUrl: 'https://picsum.photos/seed/sent1/600/450',
         ),
         MockMessage(
           isMe: true,

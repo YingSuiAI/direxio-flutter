@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
@@ -42,6 +42,37 @@ String _formatMsgTime(DateTime dt) {
     return '昨天 ${DateFormat('HH:mm').format(dt)}';
   }
   return '${DateFormat('M月d日').format(dt)} ${DateFormat('HH:mm').format(dt)}';
+}
+
+/// 字节数 → 人类可读，如 `2.8 MB`。
+String _formatBytes(int bytes) {
+  if (bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  var size = bytes.toDouble();
+  var i = 0;
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024;
+    i++;
+  }
+  final str = i == 0 ? size.toStringAsFixed(0) : size.toStringAsFixed(1);
+  return '$str ${units[i]}';
+}
+
+/// 从 mimetype 推断文件类型短标签，如 `application/pdf` → `PDF`。
+String _fileKindLabel(String mime, String name) {
+  final m = mime.toLowerCase();
+  if (m.contains('pdf')) return 'PDF';
+  if (m.contains('word') || m.contains('msword')) return 'DOC';
+  if (m.contains('sheet') || m.contains('excel')) return 'XLS';
+  if (m.contains('presentation') || m.contains('powerpoint')) return 'PPT';
+  if (m.contains('zip') || m.contains('compressed')) return 'ZIP';
+  if (m.startsWith('audio/')) return '音频';
+  if (m.startsWith('video/')) return '视频';
+  final dot = name.lastIndexOf('.');
+  if (dot != -1 && dot < name.length - 1) {
+    return name.substring(dot + 1).toUpperCase();
+  }
+  return '文件';
 }
 
 class ChatPage extends ConsumerStatefulWidget {
@@ -189,6 +220,56 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  /// 左键点击图片：下载并解密原图后全屏预览。
+  Future<void> _openImageEvent(Event e, String meta) async {
+    try {
+      final file = await e.downloadAndDecryptAttachment();
+      if (!mounted) return;
+      await _openImgPreview(
+        context,
+        provider: MemoryImage(file.bytes),
+        meta: meta,
+      );
+    } on Object catch (err) {
+      debugPrint('open image failed: $err');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('图片加载失败：$err')),
+        );
+      }
+    }
+  }
+
+  /// 左键点击文件：弹出操作 sheet；下载/打开均走真正的附件下载解密。
+  Future<void> _openFileEvent(Event e, String sender, String sizeLabel) async {
+    Future<void> download() async {
+      try {
+        final file = await e.downloadAndDecryptAttachment();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('已下载 ${e.body}（${_formatBytes(file.bytes.length)}）')),
+          );
+        }
+      } on Object catch (err) {
+        debugPrint('download file failed: $err');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('下载失败：$err')),
+          );
+        }
+      }
+    }
+
+    await _openFileSheet(
+      context,
+      fileName: e.body,
+      meta: '$sizeLabel · $sender',
+      onOpen: download,
+      onDownload: download,
+      onForward: () {},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_useMock) {
@@ -285,24 +366,81 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             final e = events[i];
                             final isMe = e.senderId == e.room.client.userID;
                             final selected = _selected.contains(e.eventId);
+                            final senderName =
+                                e.senderFromMemoryOrFallback.calcDisplayname();
+                            final time = _formatMsgTime(e.originServerTs);
+                            void toggle() => setState(() {
+                                  if (selected) {
+                                    _selected.remove(e.eventId);
+                                  } else {
+                                    _selected.add(e.eventId);
+                                  }
+                                });
+
+                            // 图片消息 → 缩略图气泡，点击全屏预览
+                            if (e.messageType == MessageTypes.Image &&
+                                e.hasAttachment) {
+                              return _SChatImageBubble(
+                                isMe: isMe,
+                                time: time,
+                                showRead: isMe,
+                                avatarSeed: senderName,
+                                thumb: _MatrixThumb(event: e),
+                                selected: selected,
+                                multiSelect: _multiSelect,
+                                onTap: _multiSelect
+                                    ? toggle
+                                    : () => _openImageEvent(
+                                          e,
+                                          '${isMe ? '我' : senderName} · $time',
+                                        ),
+                                onLongPressAt: (pos) =>
+                                    _onLongPressEvent(context, e, pos),
+                              );
+                            }
+
+                            // 文件 / 音视频附件 → 文件卡片，点击弹操作 sheet
+                            if ((e.messageType == MessageTypes.File ||
+                                    e.messageType == MessageTypes.Video ||
+                                    e.messageType == MessageTypes.Audio) &&
+                                e.hasAttachment) {
+                              final size = e.infoMap['size'];
+                              final sizeBytes = size is int ? size : 0;
+                              final kind = _fileKindLabel(
+                                  e.attachmentMimetype, e.body);
+                              final sizeLabel = sizeBytes > 0
+                                  ? '$kind · ${_formatBytes(sizeBytes)}'
+                                  : kind;
+                              return _SChatFileBubble(
+                                isMe: isMe,
+                                time: time,
+                                showRead: isMe,
+                                avatarSeed: senderName,
+                                fileName: e.body,
+                                sizeLabel: sizeLabel,
+                                selected: selected,
+                                multiSelect: _multiSelect,
+                                onTap: _multiSelect
+                                    ? toggle
+                                    : () => _openFileEvent(
+                                          e,
+                                          isMe ? '我' : senderName,
+                                          sizeLabel,
+                                        ),
+                                onLongPressAt: (pos) =>
+                                    _onLongPressEvent(context, e, pos),
+                              );
+                            }
+
                             return _SChatBubble(
                               isMe: isMe,
                               text: e.body,
-                              time: _formatMsgTime(e.originServerTs),
+                              time: time,
                               showRead: isMe,
-                              avatarSeed: e.senderFromMemoryOrFallback
-                                  .calcDisplayname(),
+                              avatarSeed: senderName,
                               selected: selected,
                               multiSelect: _multiSelect,
-                              onTap: _multiSelect
-                                  ? () => setState(() {
-                                        if (selected) {
-                                          _selected.remove(e.eventId);
-                                        } else {
-                                          _selected.add(e.eventId);
-                                        }
-                                      })
-                                  : null,
+                              onTap: _multiSelect ? toggle : null,
                               onLongPressAt: (pos) =>
                                   _onLongPressEvent(context, e, pos),
                             );
@@ -755,6 +893,77 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     });
   }
 
+  /// AI Bot 头部右上角角标菜单：快捷指令两项（测试 AS 连接 / 新建会话）+ 管理。
+  /// 原先在输入框上方的 `_AgentFloatingBar` 已收进此菜单。
+  void _showAgentMenu(BuildContext anchorCtx, Offset offset) {
+    final t = anchorCtx.tk;
+    PopupMenuItem<void> item(
+      IconData icon,
+      String title,
+      String subtitle,
+      VoidCallback onTap,
+    ) {
+      return PopupMenuItem<void>(
+        onTap: onTap,
+        padding: EdgeInsets.zero,
+        child: Container(
+          width: 240,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: t.accent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTheme.sans(
+                        size: 13,
+                        color: t.text,
+                        weight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: AppTheme.sans(size: 11, color: t.textMute),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    showMenu<void>(
+      context: anchorCtx,
+      color: t.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: t.border),
+      ),
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy,
+        offset.dx + 1,
+        offset.dy + 1,
+      ),
+      items: [
+        item(
+          Symbols.tune,
+          '管理',
+          'MCP 权限与策略',
+          () => context.push('/mcp-permission/local-aibot'),
+        ),
+      ],
+    );
+  }
+
   // ignore: unused_element
   void _onAgentDraftReply() {
     setState(() {
@@ -781,7 +990,11 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   }
 
   Future<void> _onLongPressMsg(MockMessage m, Offset pos) async {
-    if (m.kind != MockMsgKind.text) return;
+    if (m.kind != MockMsgKind.text &&
+        m.kind != MockMsgKind.image &&
+        m.kind != MockMsgKind.file) {
+      return;
+    }
     final action = await _showMsgContextMenu(context, pos);
     if (!mounted || action == null) return;
     switch (action) {
@@ -979,10 +1192,28 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                       ),
             actions: _isAiBot
                 ? [
-                    GlassHeaderButton(
-                      icon: Symbols.more_horiz,
-                      color: t.accent,
-                      onTap: () {},
+                    _LabeledHeaderAction(
+                      icon: Symbols.api,
+                      label: 'AS测试',
+                      onTap: _onTestAsConnector,
+                    ),
+                    _LabeledHeaderAction(
+                      icon: Symbols.add_comment,
+                      label: '新建会话',
+                      onTap: _onNewSession,
+                    ),
+                    Builder(
+                      builder: (btnCtx) => GlassHeaderButton(
+                        icon: Symbols.more_vert,
+                        color: t.accent,
+                        onTap: () {
+                          final box =
+                              btnCtx.findRenderObject() as RenderBox?;
+                          final pos =
+                              box?.localToGlobal(Offset.zero) ?? Offset.zero;
+                          _showAgentMenu(btnCtx, pos);
+                        },
+                      ),
                     ),
                   ]
                 : [
@@ -1040,10 +1271,74 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                           );
                         }
                         final selected = _selected.contains(i);
+                        final time = _formatMsgTime(m.time);
+                        void toggle() => setState(() {
+                              if (selected) {
+                                _selected.remove(i);
+                              } else {
+                                _selected.add(i);
+                              }
+                            });
+
+                        // 图片消息 → 缩略图气泡，点击全屏预览
+                        if (m.kind == MockMsgKind.image &&
+                            m.imageUrl != null) {
+                          return _SChatImageBubble(
+                            isMe: m.isMe,
+                            time: time,
+                            showRead: m.isMe,
+                            avatarSeed: m.isMe ? 'me' : c.name,
+                            thumb: Image.network(m.imageUrl!, fit: BoxFit.cover),
+                            selected: selected,
+                            multiSelect: _multiSelect,
+                            onTap: _multiSelect
+                                ? toggle
+                                : () => _openImgPreview(
+                                      context,
+                                      provider: NetworkImage(m.imageUrl!),
+                                      meta:
+                                          '${m.isMe ? '我' : c.name} · $time',
+                                    ),
+                            onLongPressAt: (pos) => _onLongPressMsg(m, pos),
+                          );
+                        }
+
+                        // 文件消息 → 文件卡片，点击弹操作 sheet
+                        if (m.kind == MockMsgKind.file) {
+                          final name = m.fileName ?? m.text;
+                          return _SChatFileBubble(
+                            isMe: m.isMe,
+                            time: time,
+                            showRead: m.isMe,
+                            avatarSeed: m.isMe ? 'me' : c.name,
+                            fileName: name,
+                            sizeLabel: m.fileSize ?? '文件',
+                            selected: selected,
+                            multiSelect: _multiSelect,
+                            onTap: _multiSelect
+                                ? toggle
+                                : () => _openFileSheet(
+                                      context,
+                                      fileName: name,
+                                      meta:
+                                          '${m.fileSize ?? '文件'} · ${m.isMe ? '我' : c.name}',
+                                      onOpen: () {},
+                                      onDownload: () {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(content: Text('开始下载')),
+                                        );
+                                      },
+                                      onForward: () {},
+                                    ),
+                            onLongPressAt: (pos) => _onLongPressMsg(m, pos),
+                          );
+                        }
+
                         return _SChatBubble(
                           isMe: m.isMe,
                           text: m.text,
-                          time: _formatMsgTime(m.time),
+                          time: time,
                           showRead: m.isMe,
                           avatarSeed: m.isMe ? 'me' : c.name,
                           markdownChild: (_isAiBot && !m.isMe)
@@ -1072,13 +1367,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
             _ConfirmBanner(
               pending: _pendingConfirm!,
               onCancel: () => setState(() => _pendingConfirm = null),
-            ),
-
-          // ── AI 快捷指令悬浮栏 ──────────────────────────────────
-          if (_isAiBot)
-            _AgentFloatingBar(
-              onTestAsConnector: _onTestAsConnector,
-              onNewSession: _onNewSession,
             ),
 
           // ── Reply bar / Multi-select bar / Input bar ──────────
@@ -1277,6 +1565,530 @@ class _SChatBubble extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 气泡外层行：左侧 36px 头像（对方）+ 多选勾选框 + 限宽内容列。
+/// 抽出来给文本 / 图片 / 文件三种气泡共用，保证三者排版一致。
+Widget _bubbleRow({
+  required BuildContext context,
+  required bool isMe,
+  required bool multiSelect,
+  required bool selected,
+  required String avatarSeed,
+  required Widget child,
+}) {
+  final t = context.tk;
+  return Container(
+    color: selected ? t.accent.withValues(alpha: 0.10) : Colors.transparent,
+    padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: [
+        if (multiSelect)
+          Padding(
+            padding: const EdgeInsets.only(right: 8, bottom: 14),
+            child: Icon(
+              selected ? Symbols.check_circle : Symbols.radio_button_unchecked,
+              size: 20,
+              color: selected ? t.accent : t.textMute,
+            ),
+          ),
+        if (!isMe) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: PortalAvatar(seed: avatarSeed, size: 36),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Flexible(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
+            ),
+            child: child,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// 气泡时间戳行：自己发的（showRead）多一个 `done_all` 已读标记。
+Widget _bubbleTimeRow(BuildContext context, String time, bool showRead) {
+  final t = context.tk;
+  if (showRead) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, right: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(time, style: AppTheme.sans(size: 11, color: t.textMute)),
+          const SizedBox(width: 4),
+          Icon(Symbols.done_all, size: 14, color: t.accent),
+        ],
+      ),
+    );
+  }
+  return Padding(
+    padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+    child: Text(time, style: AppTheme.sans(size: 11, color: t.textMute)),
+  );
+}
+
+/// 图片消息气泡（`s-chat` 收/发图片）：208×160 圆角缩略图，
+/// 左键点击 → 全屏预览（openImgPreview），长按 / 右键 → 上下文菜单。
+class _SChatImageBubble extends StatelessWidget {
+  const _SChatImageBubble({
+    required this.isMe,
+    required this.time,
+    required this.showRead,
+    required this.avatarSeed,
+    required this.thumb,
+    required this.onTap,
+    this.selected = false,
+    this.multiSelect = false,
+    this.onLongPressAt,
+  });
+
+  final bool isMe;
+  final String time;
+  final bool showRead;
+  final String avatarSeed;
+  final Widget thumb;
+  final VoidCallback? onTap;
+  final bool selected;
+  final bool multiSelect;
+  final void Function(Offset globalPos)? onLongPressAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.only(
+      topLeft: const Radius.circular(16),
+      topRight: const Radius.circular(16),
+      bottomLeft: Radius.circular(isMe ? 16 : 4),
+      bottomRight: Radius.circular(isMe ? 4 : 16),
+    );
+    Offset pos = Offset.zero;
+    final image = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (d) => pos = d.globalPosition,
+      onTap: onTap,
+      onLongPress: () => onLongPressAt?.call(pos),
+      onSecondaryTapDown: (d) => pos = d.globalPosition,
+      onSecondaryTap: () => onLongPressAt?.call(pos),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: SizedBox(width: 208, height: 160, child: thumb),
+      ),
+    );
+    return _bubbleRow(
+      context: context,
+      isMe: isMe,
+      multiSelect: multiSelect,
+      selected: selected,
+      avatarSeed: avatarSeed,
+      child: Column(
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [image, _bubbleTimeRow(context, time, showRead)],
+      ),
+    );
+  }
+}
+
+/// 文件消息气泡（`s-chat` 文件附件卡片）：红色文档图标 + 文件名 + 大小，
+/// 左键点击 → 文件操作 sheet（openFileSheet），长按 / 右键 → 上下文菜单。
+class _SChatFileBubble extends StatelessWidget {
+  const _SChatFileBubble({
+    required this.isMe,
+    required this.time,
+    required this.showRead,
+    required this.avatarSeed,
+    required this.fileName,
+    required this.sizeLabel,
+    required this.onTap,
+    this.selected = false,
+    this.multiSelect = false,
+    this.onLongPressAt,
+  });
+
+  final bool isMe;
+  final String time;
+  final bool showRead;
+  final String avatarSeed;
+  final String fileName;
+  final String sizeLabel;
+  final VoidCallback? onTap;
+  final bool selected;
+  final bool multiSelect;
+  final void Function(Offset globalPos)? onLongPressAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final radius = BorderRadius.only(
+      topLeft: const Radius.circular(16),
+      topRight: const Radius.circular(16),
+      bottomLeft: Radius.circular(isMe ? 16 : 4),
+      bottomRight: Radius.circular(isMe ? 4 : 16),
+    );
+    Offset pos = Offset.zero;
+    final card = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (d) => pos = d.globalPosition,
+      onTap: onTap,
+      onLongPress: () => onLongPressAt?.call(pos),
+      onSecondaryTapDown: (d) => pos = d.globalPosition,
+      onSecondaryTap: () => onLongPressAt?.call(pos),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 260),
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: radius,
+          border: Border.all(color: t.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: t.danger.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.all(8),
+              child: Icon(Symbols.description, size: 22, color: t.danger),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 13,
+                      color: t.text,
+                      weight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    sizeLabel,
+                    style: AppTheme.sans(size: 11, color: t.textMute),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Symbols.download, size: 20, color: t.textMute),
+          ],
+        ),
+      ),
+    );
+    return _bubbleRow(
+      context: context,
+      isMe: isMe,
+      multiSelect: multiSelect,
+      selected: selected,
+      avatarSeed: avatarSeed,
+      child: Column(
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [card, _bubbleTimeRow(context, time, showRead)],
+      ),
+    );
+  }
+}
+
+/// 真实 Matrix 图片事件的缩略图加载器：先下载并解密缩略图，
+/// 失败时回退到占位图标。被 `_SChatImageBubble.thumb` 复用。
+class _MatrixThumb extends StatefulWidget {
+  const _MatrixThumb({required this.event});
+  final Event event;
+  @override
+  State<_MatrixThumb> createState() => _MatrixThumbState();
+}
+
+class _MatrixThumbState extends State<_MatrixThumb> {
+  Uint8List? _bytes;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final file =
+          await widget.event.downloadAndDecryptAttachment(getThumbnail: true);
+      if (mounted) setState(() => _bytes = file.bytes);
+    } on Object catch (e) {
+      debugPrint('thumbnail load failed: $e');
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    if (_bytes != null) {
+      return Image.memory(_bytes!, fit: BoxFit.cover);
+    }
+    return Container(
+      color: t.surfaceHigh,
+      alignment: Alignment.center,
+      child: _failed
+          ? Icon(Symbols.broken_image, color: t.textMute, size: 28)
+          : SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: t.accent),
+            ),
+    );
+  }
+}
+
+/// 图片全屏预览（index.html `img-lightbox` / openImgPreview 复刻）：
+/// 黑底 + 顶部 关闭/转发/下载 + 居中可缩放图片 + 底部说明。
+Future<void> _openImgPreview(
+  BuildContext context, {
+  required ImageProvider provider,
+  required String meta,
+}) {
+  return showGeneralDialog<void>(
+    context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.95),
+    barrierDismissible: true,
+    barrierLabel: 'img-lightbox',
+    transitionDuration: const Duration(milliseconds: 160),
+    pageBuilder: (ctx, a1, a2) {
+      return GestureDetector(
+        onTap: () => Navigator.of(ctx).pop(),
+        child: Column(
+          children: [
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Symbols.close,
+                          color: Colors.white, size: 28),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Symbols.forward,
+                              color: Colors.white, size: 24),
+                          onPressed: () {},
+                        ),
+                        IconButton(
+                          icon: const Icon(Symbols.download,
+                              color: Colors.white, size: 24),
+                          onPressed: () {},
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: GestureDetector(
+                onTap: () {}, // 吞掉点击，避免点图片本身就关闭
+                child: Center(
+                  child: InteractiveViewer(
+                    maxScale: 4,
+                    child: Image(image: provider, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                meta,
+                style: AppTheme.sans(
+                  size: 12,
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+    transitionBuilder: (ctx, a, _, child) =>
+        FadeTransition(opacity: a, child: child),
+  );
+}
+
+/// 文件操作 sheet（index.html `file-action-sheet` / openFileSheet 复刻）：
+/// 底部弹出 文件头 + 打开 / 下载到本地 / 转发给朋友 / 取消。
+Future<void> _openFileSheet(
+  BuildContext context, {
+  required String fileName,
+  required String meta,
+  VoidCallback? onOpen,
+  VoidCallback? onDownload,
+  VoidCallback? onForward,
+}) {
+  final t = context.tk;
+  Widget action(IconData icon, String label, VoidCallback? onTap) {
+    return InkWell(
+      onTap: onTap == null
+          ? null
+          : () {
+              Navigator.of(context).pop();
+              onTap();
+            },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Row(
+          children: [
+            Icon(icon, size: 22, color: t.textMute),
+            const SizedBox(width: 16),
+            Text(label, style: AppTheme.sans(size: 17, color: t.text)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget divider() => Container(
+        height: 1,
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        color: t.border.withValues(alpha: 0.4),
+      );
+
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: t.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (ctx) => SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: t.border.withValues(alpha: 0.4)),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: t.danger.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(Symbols.description, size: 22, color: t.danger),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        fileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(
+                          size: 13,
+                          color: t.text,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        meta,
+                        style: AppTheme.sans(size: 11, color: t.textMute),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          action(Symbols.open_in_new, '打开', onOpen),
+          divider(),
+          action(Symbols.download, '下载到本地', onDownload),
+          divider(),
+          action(Symbols.forward, '转发给朋友', onForward),
+          divider(),
+          InkWell(
+            onTap: () => Navigator.of(ctx).pop(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Text('取消',
+                    style: AppTheme.sans(size: 17, color: t.textMute)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// 头部带小字说明的功能按钮：图标 + 下方小字标签。
+/// 用于 AI Bot 头部的「AS测试 / 新建会话」，让用户一眼看懂按钮用途。
+class _LabeledHeaderAction extends StatelessWidget {
+  const _LabeledHeaderAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 22, color: t.accent),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: AppTheme.sans(size: 9, color: t.textMute),
+            ),
+          ],
+        ),
       ),
     );
   }

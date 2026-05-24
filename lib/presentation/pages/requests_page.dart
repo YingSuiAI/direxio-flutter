@@ -103,24 +103,17 @@ class _SearchBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Container(
-      height: 48,
+      height: 52,
       decoration: BoxDecoration(
-        color: t.surface,
+        color: t.surfaceHover,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: t.border.withValues(alpha: 0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: t.border.withValues(alpha: 0.2)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
           Icon(Symbols.search, size: 20, color: t.textMute),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: controller,
@@ -130,22 +123,17 @@ class _SearchBox extends StatelessWidget {
                 border: InputBorder.none,
                 hintText: '手机号 / 用户名 / Node ID',
                 hintStyle: AppTheme.sans(size: 15, color: t.textMute),
+                contentPadding: EdgeInsets.zero,
               ),
               onSubmitted: (_) => onSearch(),
             ),
           ),
           InkWell(
             onTap: onSearch,
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-              child: Text(
-                '搜索',
-                style: AppTheme.sans(
-                  size: 13,
-                  weight: FontWeight.w500,
-                  color: t.accent,
-                ),
-              ),
+              padding: const EdgeInsets.all(6),
+              child: Icon(Symbols.send, size: 18, color: t.accent),
             ),
           ),
         ],

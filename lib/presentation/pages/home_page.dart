@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -53,31 +53,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     super.dispose();
   }
 
-  static const _tabTitles = ['消息', '通讯录', 'Agent', '探索', '我'];
+  static const _tabTitles = ['Agent', '消息', '通讯录', '我'];
 
   List<Widget> _headerActions(BuildContext context, Client client) {
     switch (_tab) {
       case 0:
-        return [
-          GlassHeaderButton(
-            icon: Symbols.search,
-            onTap: () => context.push('/search'),
-          ),
-          _HomePlusMenuButton(client: client),
-        ];
-      case 1:
-        return [
-          GlassHeaderButton(
-            icon: Symbols.search,
-            onTap: () => context.push('/search'),
-          ),
-          GlassHeaderButton(
-            icon: Symbols.person_add,
-            color: context.tk.accent,
-            onTap: () => context.push('/add-contact'),
-          ),
-        ];
-      case 2:
         return [
           GlassHeaderButton(
             icon: Symbols.settings,
@@ -85,12 +65,20 @@ class _HomePageState extends ConsumerState<HomePage> {
             onTap: () => context.push('/mcp-permission'),
           ),
         ];
-      case 3:
+      case 1:
         return [
           GlassHeaderButton(
             icon: Symbols.search,
-            color: context.tk.accent,
             onTap: () => context.push('/search'),
+          ),
+          _HomePlusMenuButton(client: client),
+        ];
+      case 2:
+        return [
+          GlassHeaderButton(
+            icon: Symbols.person_add,
+            color: context.tk.accent,
+            onTap: () => context.push('/add-contact'),
           ),
         ];
       default:
@@ -113,9 +101,9 @@ class _HomePageState extends ConsumerState<HomePage> {
       body: Column(
         children: [
           GlassHeader.primary(
-            leading: _tab == 0
+            leading: _tab == 1
                 ? GestureDetector(
-                    onTap: () => setState(() => _tab = 4),
+                    onTap: () => setState(() => _tab = 3),
                     child: const PortalAvatar(
                       seed: 'me',
                       size: 32,
@@ -124,7 +112,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   )
                 : null,
             title: _tabTitles[_tab],
-            titleColor: _tab == 0 ? t.accent : t.text,
+            titleColor: _tab == 1 ? t.accent : t.text,
             actions: _headerActions(context, client),
           ),
           Expanded(
@@ -132,10 +120,9 @@ class _HomePageState extends ConsumerState<HomePage> {
               builder: (ctx, c) {
                 final wide = c.maxWidth >= 900;
                 final pane = switch (_tab) {
-                  0 => _ChatList(client: client),
-                  1 => _ContactList(client: client),
-                  2 => _AgentTabBody(),
-                  3 => const _ExploreTab(),
+                  0 => _AgentTabBody(),
+                  1 => _ChatList(client: client),
+                  2 => _ContactList(client: client),
                   _ => _MePage(client: client),
                 };
                 if (!wide) return pane;
@@ -156,6 +143,11 @@ class _HomePageState extends ConsumerState<HomePage> {
         onTap: (i) => setState(() => _tab = i),
         items: const [
           M3NavItem(
+            icon: Symbols.robot_2,
+            activeIcon: Symbols.robot_2,
+            label: 'Agent',
+          ),
+          M3NavItem(
             icon: Symbols.chat_bubble,
             activeIcon: Symbols.chat_bubble,
             label: '消息',
@@ -164,16 +156,6 @@ class _HomePageState extends ConsumerState<HomePage> {
             icon: Symbols.contacts,
             activeIcon: Symbols.contacts,
             label: '通讯录',
-          ),
-          M3NavItem(
-            icon: Symbols.robot_2,
-            activeIcon: Symbols.robot_2,
-            label: 'Agent',
-          ),
-          M3NavItem(
-            icon: Symbols.explore,
-            activeIcon: Symbols.explore,
-            label: '探索',
           ),
           M3NavItem(
             icon: Symbols.person,
@@ -781,13 +763,6 @@ class _ContactList extends ConsumerWidget {
               label: '群聊',
               iconColor: t.accentCool,
               onTap: () => context.push('/groups'),
-            ),
-            _SectionAction(
-              icon: Symbols.person_add,
-              label: '添加联系人',
-              subtitle: '通过域名',
-              iconColor: t.primaryContainer,
-              onTap: () => context.push('/add-contact'),
             ),
           ],
         ),
@@ -1673,398 +1648,6 @@ class _PortalStatusChip extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// 探索 tab —— 复刻 index.html 中 s-explore：
-/// banner + 功能亮点 list + 发现 grid
-class _ExploreTab extends StatelessWidget {
-  const _ExploreTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      children: [
-        _ExploreSearchBar(),
-        const SizedBox(height: 16),
-        _ExploreBanner(),
-        const SizedBox(height: 24),
-        Text(
-          '功能亮点',
-          style: AppTheme.sans(
-            size: 20,
-            weight: FontWeight.w600,
-            color: t.text,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _ExploreFeatureCard(
-          items: [
-            _FeatureItem(
-              icon: Symbols.hub,
-              iconBg: t.accent,
-              iconColor: t.onAccent,
-              title: 'WebRTC P2P 通讯',
-              subtitle: '直连加密传输，零中转',
-              tags: const ['安全', '低延迟'],
-            ),
-            const _FeatureItem(
-              icon: Symbols.videocam,
-              iconBg: Color(0xFFFF9500),
-              iconColor: Colors.white,
-              title: '视频 / 语音通话',
-              subtitle: '端对端加密，高清音视频',
-              tags: ['P2P'],
-            ),
-            const _FeatureItem(
-              icon: Symbols.fingerprint,
-              iconBg: Color(0xFF5856D6),
-              iconColor: Colors.white,
-              title: '多因素认证',
-              subtitle: '生物识别 + 密钥双重保护',
-              tags: ['安全'],
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Expanded(
-              child: Text(
-                '发现',
-                style: AppTheme.sans(
-                  size: 20,
-                  weight: FontWeight.w600,
-                  color: t.text,
-                ),
-              ),
-            ),
-            Text('查看全部', style: AppTheme.sans(size: 15, color: t.accent)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        const _ExploreDiscoverGrid(),
-      ],
-    );
-  }
-}
-
-class _ExploreSearchBar extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final hint = t.textMute.withValues(alpha: 0.6);
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surfaceHover,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          Icon(Symbols.search, size: 18, color: hint),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '搜索功能、文档…',
-              style: AppTheme.sans(size: 15, color: hint),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExploreBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF004DB3), Color(0xFF0058BC), Color(0xFF0070EB)],
-          ),
-        ),
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(9999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('🔐', style: TextStyle(fontSize: 12)),
-                        const SizedBox(width: 6),
-                        Text(
-                          '新功能',
-                          style: AppTheme.sans(
-                            size: 13,
-                            weight: FontWeight.w500,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Agent P2P\n去中心化安全通讯',
-                    style: AppTheme.sans(
-                      size: 20,
-                      weight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '端对端加密 · 零知识架构 · 无服务器',
-                    style: AppTheme.sans(
-                      size: 15,
-                      color: Colors.white.withValues(alpha: 0.75),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              right: 16,
-              top: 16,
-              child: Opacity(
-                opacity: 0.2,
-                child: Icon(
-                  Symbols.security,
-                  size: 72,
-                  color: Colors.white,
-                  fill: 1,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FeatureItem {
-  const _FeatureItem({
-    required this.icon,
-    required this.iconBg,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.tags,
-  });
-  final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final List<String> tags;
-}
-
-class _ExploreFeatureCard extends StatelessWidget {
-  const _ExploreFeatureCard({required this.items});
-  final List<_FeatureItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final children = <Widget>[];
-    for (int i = 0; i < items.length; i++) {
-      children.add(_buildRow(context, items[i]));
-      if (i < items.length - 1) {
-        children.add(
-          Padding(
-            padding: const EdgeInsets.only(left: 64),
-            child: Divider(height: 1, color: t.surfaceHigh),
-          ),
-        );
-      }
-    }
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: t.border.withValues(alpha: 0.3)),
-      ),
-      child: Column(children: children),
-    );
-  }
-
-  Widget _buildRow(BuildContext context, _FeatureItem item) {
-    final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: item.iconBg,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: Icon(item.icon, size: 22, color: item.iconColor, fill: 1),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  item.title,
-                  style: AppTheme.sans(
-                    size: 17,
-                    weight: FontWeight.w600,
-                    color: t.text,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.subtitle,
-                  style: AppTheme.sans(size: 15, color: t.textMute),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Wrap(
-            spacing: 4,
-            children: [
-              for (final tag in item.tags)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD8E2FF),
-                    borderRadius: BorderRadius.circular(9999),
-                  ),
-                  child: Text(
-                    tag,
-                    style: AppTheme.sans(
-                      size: 11,
-                      weight: FontWeight.w500,
-                      color: const Color(0xFF004493),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 4),
-          Icon(
-            Symbols.chevron_right,
-            size: 20,
-            color: t.textMute.withValues(alpha: 0.6),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExploreDiscoverGrid extends StatelessWidget {
-  const _ExploreDiscoverGrid();
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      (
-        Symbols.play_circle,
-        Color(0xFF5856D6),
-        Colors.white,
-        '公开频道',
-        '加入感兴趣的群组',
-      ),
-      (Symbols.smart_toy, Color(0xFF008733), Colors.white, 'AI 助手', '智能对话与分析'),
-      (Symbols.videocam, Color(0xFFFF9500), Colors.white, '视频通话', '一键高清通话'),
-      (
-        Symbols.folder_shared,
-        Color(0xFF5AC8FA),
-        Colors.white,
-        '文件传输',
-        '安全端对端传输',
-      ),
-    ];
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.65,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, i) {
-        final (icon, bg, fg, title, sub) = items[i];
-        final t = context.tk;
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: t.border.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, size: 22, color: fg, fill: 1),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: AppTheme.sans(
-                  size: 17,
-                  weight: FontWeight.w600,
-                  color: t.text,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                sub,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.sans(size: 15, color: t.textMute),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

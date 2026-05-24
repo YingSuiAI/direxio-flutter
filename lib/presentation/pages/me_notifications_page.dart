@@ -16,9 +16,6 @@ class _MeNotificationsPageState extends State<MeNotificationsPage> {
   bool _msgPush = true;
   bool _dnd = false;
 
-  // 与 home_page.dart Me tab 一致的橙色 (#FF9500)，HTML 中通知设置类目用此色。
-  static const _orange = Color(0xFFFF9500);
-
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
@@ -34,7 +31,7 @@ class _MeNotificationsPageState extends State<MeNotificationsPage> {
                 children: [
                   _IconSwitchRow(
                     icon: Symbols.notifications,
-                    color: _orange,
+                    color: t.accent,
                     label: '消息通知',
                     value: _msgPush,
                     onChanged: (v) => setState(() => _msgPush = v),
@@ -42,7 +39,7 @@ class _MeNotificationsPageState extends State<MeNotificationsPage> {
                   _Divider(),
                   _IconSwitchRow(
                     icon: Symbols.do_not_disturb_on,
-                    color: _orange,
+                    color: t.accent,
                     label: '勿扰模式',
                     value: _dnd,
                     onChanged: (v) => setState(() => _dnd = v),
@@ -50,14 +47,14 @@ class _MeNotificationsPageState extends State<MeNotificationsPage> {
                   _Divider(),
                   _IconChevronRow(
                     icon: Symbols.vibration,
-                    color: _orange,
+                    color: t.accent,
                     label: '声音与震动',
                     onTap: () {},
                   ),
                   _Divider(),
                   _IconChevronRow(
                     icon: Symbols.schedule,
-                    color: _orange,
+                    color: t.accent,
                     label: '勿扰时段',
                     trailingText: '22:00–08:00',
                     onTap: () {},

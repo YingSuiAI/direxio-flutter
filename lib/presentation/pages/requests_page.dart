@@ -103,13 +103,12 @@ class _SearchBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Container(
-      height: 52,
       decoration: BoxDecoration(
         color: t.surfaceHover,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: t.border.withValues(alpha: 0.2)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
         children: [
           Icon(Symbols.search, size: 20, color: t.textMute),
@@ -119,11 +118,15 @@ class _SearchBox extends StatelessWidget {
               controller: controller,
               style: AppTheme.sans(size: 15, color: t.text),
               decoration: InputDecoration(
-                isCollapsed: true,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: t.accent, width: 1.5),
+                ),
                 hintText: '手机号 / 用户名 / Node ID',
                 hintStyle: AppTheme.sans(size: 15, color: t.textMute),
-                contentPadding: EdgeInsets.zero,
+                contentPadding: const EdgeInsets.symmetric(vertical: 18),
               ),
               onSubmitted: (_) => onSearch(),
             ),

@@ -256,7 +256,7 @@ class _ChatList extends ConsumerWidget {
     // 未登录时展示 mock 会话用于演示；已登录则始终走真数据，
     // rooms 为空也显示真实空态，不回退 mock。
     if (!isLoggedIn) {
-      final convs = MockData.conversations;
+      final convs = MockData.conversations.where((c) => c.id != 'mock_aibot').toList();
       return ListView.builder(
         padding: const EdgeInsets.only(top: 4, bottom: 96),
         itemCount: convs.length,
@@ -268,10 +268,9 @@ class _ChatList extends ConsumerWidget {
             lastMessage: _previewText(last?.text ?? ''),
             time: last == null ? '' : DateFormat('HH:mm').format(last.time),
             unread: c.unread,
-            isAgent: c.id == 'mock_aibot',
             isGroup: c.isGroup,
             avatarUrl: c.avatarUrl,
-            online: !c.isGroup && c.id != 'mock_aibot',
+            online: !c.isGroup,
             isLast: i == convs.length - 1,
             onTap: () => context.push('/chat/${c.id}'),
           );
@@ -741,7 +740,7 @@ class _ContactList extends ConsumerWidget {
     // 通讯录里只放"个人联系人"。Mock 数据里群组（mxid 以 # / ! 起头）和 AI bot
     // 排除——群组归「群聊」入口管。
     final mockContacts = MockData.conversations
-        .where((c) => c.id != 'mock_aibot' && c.mxid.startsWith('@'))
+        .where((c) => c.mxid.startsWith('@'))
         .toList();
 
     return ListView(
@@ -1204,8 +1203,8 @@ class _MePage extends ConsumerWidget {
             _SectionAction(
               icon: Symbols.notifications,
               label: '通知设置',
-              iconColor: const Color(0xFFFF9500),
-              iconBg: const Color(0xFFFF9500).withValues(alpha: 0.15),
+              iconColor: t.accent,
+              iconBg: t.accent.withValues(alpha: 0.1),
               onTap: () => context.push('/me/notifications'),
             ),
           ],
@@ -1380,13 +1379,6 @@ class _AgentTabBody extends ConsumerWidget {
         const SizedBox(height: 14),
         _ActionSection(
           children: [
-            _SectionAction(
-              icon: Symbols.smart_toy,
-              label: '打开 AI Bot',
-              subtitle: '聊天与工具调用',
-              iconColor: t.accent,
-              onTap: () => context.push('/chat/mock_aibot'),
-            ),
             _SectionAction(
               icon: Symbols.admin_panel_settings,
               label: '权限管理',

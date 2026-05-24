@@ -9,7 +9,7 @@ const _defaultAsGatewayUrl = String.fromEnvironment(
 
 const _defaultAgentToken = String.fromEnvironment(
   'P2P_MATRIX_AGENT_TOKEN',
-  defaultValue: 'mock-agent-token',
+  defaultValue: '',
 );
 
 const _gatewayTimeoutMs = int.fromEnvironment(

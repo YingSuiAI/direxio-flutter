@@ -32,15 +32,11 @@ class AsGatewayClient {
   final Duration retryDelay;
   final http.Client _http;
 
-  Future<Map<String, dynamic>> authProbe() async {
-    final rooms = await listRooms();
-    return {
-      'as_url': asUrl,
-      'auth_mode': 'mock_agent_token',
-      'token_loaded': agentToken.isNotEmpty,
-      'rooms_count': (rooms['rooms'] as List?)?.length ?? 0,
-    };
-  }
+  Future<Map<String, dynamic>> authProbe() async => {
+        'as_url': asUrl,
+        'auth_mode': 'bearer_agent_token',
+        'token_loaded': agentToken.isNotEmpty,
+      };
 
   Future<Map<String, dynamic>> listRooms() => _getJson('/api/rooms');
 

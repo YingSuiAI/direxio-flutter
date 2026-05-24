@@ -6,11 +6,11 @@ import 'package:http/testing.dart';
 import 'package:portal_app/data/as_gateway_client.dart';
 
 void main() {
-  test('listRooms calls AS Gateway with mock bearer token', () async {
+  test('listRooms calls AS Gateway with bearer agent token', () async {
     late http.Request seen;
     final client = AsGatewayClient(
       asUrl: 'http://as.test',
-      agentToken: 'mock-agent-token',
+      agentToken: 'agent-token',
       httpClient: MockClient((request) async {
         seen = request;
         return http.Response(jsonEncode({'rooms': []}), 200);
@@ -21,14 +21,31 @@ void main() {
 
     expect(result, {'rooms': []});
     expect(seen.url.toString(), 'http://as.test/api/rooms');
-    expect(seen.headers['Authorization'], 'Bearer mock-agent-token');
+    expect(seen.headers['Authorization'], 'Bearer agent-token');
+  });
+
+  test('authProbe reports configured AS Gateway profile without network call',
+      () async {
+    final client = AsGatewayClient(
+      asUrl: 'http://as.test',
+      agentToken: 'agent-token',
+      httpClient: MockClient((request) async {
+        fail('authProbe should not call AS Gateway endpoints');
+      }),
+    );
+
+    expect(await client.authProbe(), {
+      'as_url': 'http://as.test',
+      'auth_mode': 'bearer_agent_token',
+      'token_loaded': true,
+    });
   });
 
   test('readRoomMessages encodes room id and query', () async {
     late Uri seenUrl;
     final client = AsGatewayClient(
       asUrl: 'http://as.test/base',
-      agentToken: 'mock-agent-token',
+      agentToken: 'agent-token',
       httpClient: MockClient((request) async {
         seenUrl = request.url;
         return http.Response(jsonEncode({'messages': []}), 200);
@@ -47,19 +64,22 @@ void main() {
     late http.Request seen;
     final client = AsGatewayClient(
       asUrl: 'http://as.test',
-      agentToken: 'mock-agent-token',
+      agentToken: 'agent-token',
       httpClient: MockClient((request) async {
         seen = request;
         return http.Response(jsonEncode({'event_id': r'$event'}), 200);
       }),
     );
 
-    final result = await client.sendMessage('mock_jack', '你好');
+    final result = await client.sendMessage('!room:example.com', '你好');
 
     expect(result, {'event_id': r'$event'});
     expect(seen.method, 'POST');
-    expect(seen.url.toString(), 'http://as.test/api/rooms/mock_jack/send');
-    expect(seen.headers['Authorization'], 'Bearer mock-agent-token');
+    expect(
+      seen.url.toString(),
+      'http://as.test/api/rooms/!room%3Aexample.com/send',
+    );
+    expect(seen.headers['Authorization'], 'Bearer agent-token');
     expect(seen.headers['Idempotency-Key'], startsWith('client-'));
     expect(jsonDecode(seen.body), {'content': '你好'});
   });
@@ -90,7 +110,7 @@ void main() {
     var attempts = 0;
     final client = AsGatewayClient(
       asUrl: 'http://as.test',
-      agentToken: 'mock-agent-token',
+      agentToken: 'agent-token',
       maxRetries: 2,
       retryDelay: Duration.zero,
       httpClient: MockClient((request) async {
@@ -126,7 +146,7 @@ void main() {
   test('turns request timeouts into typed gateway errors', () async {
     final client = AsGatewayClient(
       asUrl: 'http://as.test',
-      agentToken: 'mock-agent-token',
+      agentToken: 'agent-token',
       timeout: const Duration(milliseconds: 5),
       maxRetries: 0,
       httpClient: MockClient((request) async {

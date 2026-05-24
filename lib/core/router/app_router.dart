@@ -28,7 +28,7 @@ part 'app_router.g.dart';
 
 const _mockAuthEnabled = bool.fromEnvironment(
   'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: true,
+  defaultValue: false,
 );
 
 /// 横向滑入转场 —— 对齐设计稿 .screen translateX 动画。

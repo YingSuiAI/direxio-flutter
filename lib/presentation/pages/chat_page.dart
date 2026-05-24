@@ -66,8 +66,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
 
-  /// 未登录且 roomId 命中 mock 数据时走 mock 渲染；
-  /// 已登录则一律走真 Matrix timeline（真房间 id 不会以 mock_ 开头）。
+  /// 未登录且 roomId 命中演示数据时走本地渲染；
+  /// 已登录则一律走真 Matrix timeline。
   bool get _useMock {
     final isLoggedIn =
         ref.read(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
@@ -500,7 +500,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     } on AsGatewayException catch (e) {
       _gatewayFailureCount = math.min(_gatewayFailureCount + 1, 4);
       debugPrint('AS Gateway sync failed: $e');
-      // Non-agent mock conversations can still fall back to bundled demo data.
+      // Non-agent demo conversations can still fall back to bundled data.
     } finally {
       _gatewaySyncing = false;
       if (scheduleNext && mounted) _scheduleGatewaySync();
@@ -632,7 +632,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
           'p2p_auth_status',
           {
             'as_url': gateway.asUrl,
-            'auth_mode': 'mock_agent_token',
+            'auth_mode': 'bearer_agent_token',
           },
           gateway.authProbe);
       final roomsData = await _callAsGatewayWithBubble(
@@ -676,22 +676,22 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
 
       final messages = (messagesData?['messages'] as List? ?? const []);
       _streamAgentReply(
-        '## AS Connector mock 已接通\n\n'
+        '## AS Connector 已接通\n\n'
         '- AS：`${auth['as_url']}`\n'
         '- 鉴权：`${auth['auth_mode']}`，token 已加载：`${auth['token_loaded']}`\n'
         '- 房间：**${rooms.length}** 个\n'
         '- 联系人：**${contacts.length}** 个\n'
         '- 首个房间：${firstRoom?['name'] ?? '无'}\n'
         '- 读取消息：**${messages.length}** 条\n\n'
-        '这次测试走的是 `client -> mock AS Gateway /api/*`，没有经过 Flutter Matrix 登录。'
-        '后端 connector token 定稿后，只需要把 mock token 替换为正式签发的 token。',
+        '这次测试走的是 `client -> p2p-matrix-as Gateway /api/*`。'
+        '如果 Matrix homeserver 未启动，房间、联系人或发送步骤会返回 AS 后端错误。',
       );
     } on AsGatewayException catch (e) {
       _streamAgentReply(
         '## AS Connector 连接失败\n\n'
         '- AS：`${gateway.asUrl}`\n'
         '- 错误：`${e.toString()}`\n\n'
-        '请确认本地 mock AS Gateway 已启动，并且 token 使用 `mock-agent-token`。',
+        '请确认 p2p-matrix-as Gateway 已启动，并且 `P2P_MATRIX_AGENT_TOKEN` 与 AS gateway token 一致。',
       );
     }
   }
@@ -907,7 +907,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
       return '$key: $count';
     }
     if (tool == 'p2p_auth_status') {
-      return 'mock token loaded: ${data['token_loaded']}';
+      return 'agent token loaded: ${data['token_loaded']}';
     }
     return 'ok';
   }
@@ -2182,7 +2182,7 @@ class _AgentFloatingBar extends ConsumerWidget {
           t,
           Symbols.api,
           '测试 AS 连接',
-          'mock token 调用 /api/*',
+          'Bearer token 调用 /api/*',
           onTestAsConnector,
         ),
         _shortcutItem(

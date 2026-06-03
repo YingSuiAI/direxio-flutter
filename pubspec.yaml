@@ -17,7 +17,7 @@ dependencies:
   http: ^1.2.0
 
   # WebRTC（matrix VoIP 必需，不是自动传递依赖，必须显式声明）
-  flutter_webrtc: ^0.9.47
+  flutter_webrtc: ^1.4.1
   webrtc_interface: ^1.5.1
 
   # Local persistence（matrix SDK HiveCollectionsDatabase 需要）

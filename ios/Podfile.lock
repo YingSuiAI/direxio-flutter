@@ -43,9 +43,9 @@ PODS:
   - Flutter (1.0.0)
   - flutter_secure_storage (6.0.0):
     - Flutter
-  - flutter_webrtc (0.9.36):
+  - flutter_webrtc (1.4.0):
     - Flutter
-    - WebRTC-SDK (= 114.5735.08)
+    - WebRTC-SDK (= 144.7559.01)
   - image_picker_ios (0.0.1):
     - Flutter
   - mobile_scanner (7.0.0):
@@ -74,7 +74,7 @@ PODS:
   - video_player_avfoundation (0.0.1):
     - Flutter
     - FlutterMacOS
-  - WebRTC-SDK (114.5735.08)
+  - WebRTC-SDK (144.7559.01)
 
 DEPENDENCIES:
   - audioplayers_darwin (from `.symlinks/plugins/audioplayers_darwin/darwin`)
@@ -148,7 +148,7 @@ SPEC CHECKSUMS:
   file_picker: a0560bc09d61de87f12d246fc47d2119e6ef37be
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
-  flutter_webrtc: f5711277e7c7c49949e62c2b24afc4965cd48028
+  flutter_webrtc: ec91d94b484ad49cf191ef93413f64a40ffd3b4c
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
   mobile_scanner: 9157936403f5a0644ca3779a38ff8404c5434a93
   package_info_plus: af8e2ca6888548050f16fa2f1938db7b5a5df499
@@ -161,7 +161,7 @@ SPEC CHECKSUMS:
   SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
   video_player_avfoundation: 3453f792138786248960ca029747fcd9f318ef52
-  WebRTC-SDK: c24d2a6c9f571f2ed42297cb8ffba9557093142b
+  WebRTC-SDK: ab9b5319e458c2bfebdc92b3600740da35d5630d
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
 

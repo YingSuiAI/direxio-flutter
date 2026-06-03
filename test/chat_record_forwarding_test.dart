@@ -9,6 +9,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/presentation/chat/chat_message_cards.dart';
 import 'package:portal_app/presentation/chat/chat_record_detail_page.dart';
 import 'package:portal_app/presentation/chat/chat_record_forwarding.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
@@ -433,7 +434,7 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 120));
-      await tester.tap(find.byType(Stack).first);
+      await tester.tap(find.byType(ChatMediaBubbleFrame).first);
       await tester.pump(const Duration(milliseconds: 220));
       await tester.pump();
       await tester.tap(find.byIcon(Symbols.close));

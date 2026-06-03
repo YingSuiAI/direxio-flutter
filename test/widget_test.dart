@@ -2764,12 +2764,10 @@ void main() {
       );
       expect(
         find.byWidgetPredicate(
-          (widget) =>
-              widget.runtimeType.toString().startsWith('PopupMenuButton'),
+          (widget) => widget is GlassHeaderButton && widget.icon == Symbols.add,
         ),
         findsOneWidget,
       );
-      expect(find.byIcon(Symbols.add), findsOneWidget);
     }
   });
 
@@ -3124,13 +3122,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('群组不存在'), findsOneWidget);
-    await tester.tap(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is GlassHeaderButton &&
-            widget.icon == Symbols.arrow_back_ios,
-      ),
-    );
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
 
     expect(find.text('HomeRoot'), findsOneWidget);
@@ -3187,11 +3179,11 @@ void main() {
       Symbols.person_check
     ]) {
       final iconWidget = tester.widget<Icon>(find.byIcon(icon));
-      expect(iconWidget.size, 20);
+      expect(iconWidget.size, 24);
       expect(iconWidget.color, PortalTokens.light.textMute);
       expect(
-        _nearestSizedContainerColor(tester, find.byIcon(icon), size: 32),
-        PortalTokens.light.surfaceHover,
+        _nearestSizedContainerColor(tester, find.byIcon(icon), size: 48),
+        PortalTokens.light.surfaceHigh,
       );
     }
   });
@@ -3743,7 +3735,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alice Chen'), findsOneWidget);
-    expect(find.text('alice.portal.local'), findsOneWidget);
+    expect(find.textContaining('alice.portal.local'), findsOneWidget);
   });
 
   testWidgets('follows list renders contact avatars', (tester) async {
@@ -4640,9 +4632,11 @@ void main() {
   testWidgets('group management MVP hides unimplemented controls',
       (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light,
-        home: const GroupManagePage(roomId: '!group:p2p-im.com'),
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupManagePage(roomId: '!group:p2p-im.com'),
+        ),
       ),
     );
     await tester.pump();
@@ -4763,6 +4757,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), '群聊走 AS');
+    await tester.pump();
     await tester.tap(find.byIcon(Symbols.arrow_upward));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 3));
@@ -5274,6 +5269,7 @@ void main() {
     expect(find.text('Alice'), findsWidgets);
 
     await tester.enterText(find.byType(TextField), '引用后的回复');
+    await tester.pump();
     await tester.tap(find.byIcon(Symbols.arrow_upward));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 3));
@@ -7280,13 +7276,7 @@ void main() {
 
     expect(find.text('Agent'), findsOneWidget);
 
-    await tester.tap(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is GlassHeaderButton &&
-            widget.icon == Symbols.arrow_back_ios,
-      ),
-    );
+    await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
 
     expect(find.text('HomeRoot'), findsOneWidget);

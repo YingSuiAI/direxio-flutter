@@ -6,6 +6,7 @@
 .pub/
 build/
 *.g.dart
+!vendor/matrix/lib/matrix_api_lite/generated/model.g.dart
 *.freezed.dart
 flutter_*.log
 

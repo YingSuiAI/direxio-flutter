@@ -6,7 +6,11 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../mock/mock_data.dart';
+import '../groups/group_leave_flow.dart';
+import '../groups/group_member_invite_flow.dart';
 import '../providers/auth_provider.dart';
+import '../utils/avatar_url.dart';
+import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
 
 /// GROUP INFO 屏 —— 1:1 复刻 P2P-APP-UI/index.html 中 #s-group-info（678-808 行）。
@@ -23,6 +27,7 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
   bool _mute = false;
   bool _pinned = false;
   bool _showNicknames = true;
+  bool _leaving = false;
 
   @override
   Widget build(BuildContext context) {
@@ -32,20 +37,28 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     // 找不到真房间时回退 mock（产品设计组等以 mock_ 起头）。
     final mock = room == null ? MockData.byId(widget.roomId) : null;
     if (room == null && mock == null) {
-      return Scaffold(
-        backgroundColor: t.bg,
-        body: const Center(child: Text('群组不存在')),
+      return const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(child: Text('群组不存在')),
       );
     }
 
     final realMembers = room?.getParticipants() ?? const <User>[];
-    final members = _buildMemberStripData(realMembers);
-    final memberCount = realMembers.isEmpty
-        ? members.length
-        : realMembers.length;
+    final existingMemberMxids = realMembers
+        .map((member) => member.id.trim())
+        .where((mxid) => mxid.isNotEmpty)
+        .toSet();
+    final members = _buildMemberStripData(
+      realMembers,
+      client: client,
+      padWithMocks: room == null,
+    );
+    final memberCount =
+        realMembers.isEmpty ? members.length : realMembers.length;
+    final canManageGroup = room == null || _canManageGroup(room);
 
     return Scaffold(
-      backgroundColor: t.bg,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           GlassHeader.detail(
@@ -64,18 +77,28 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _MemberStrip(members: members, onInvite: () {}),
+                  _MemberStrip(
+                    members: members,
+                    onInvite: () => showInviteGroupMembersFlow(
+                      context,
+                      ref,
+                      roomId: widget.roomId,
+                      existingMemberMxids: existingMemberMxids,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   _GroupedCard(
                     children: [
                       _RowChevron(label: '群公告', onTap: () {}),
-                      _Divider(),
-                      _RowChevron(
-                        label: '群管理',
-                        onTap: () => context.push(
-                          '/group-manage/${Uri.encodeComponent(widget.roomId)}',
+                      if (canManageGroup) ...[
+                        _Divider(),
+                        _RowChevron(
+                          label: '群管理',
+                          onTap: () => context.push(
+                            '/group-manage/${Uri.encodeComponent(widget.roomId)}',
+                          ),
                         ),
-                      ),
+                      ],
                       _Divider(),
                       _RowChevron(label: '备注', onTap: () {}),
                     ],
@@ -125,10 +148,7 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                     children: [
                       _RowDanger(
                         label: '退出群聊',
-                        onTap: () async {
-                          if (room != null) await room.leave();
-                          if (mounted) Navigator.of(context).pop();
-                        },
+                        onTap: () => _confirmLeave(context),
                       ),
                     ],
                   ),
@@ -142,7 +162,11 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
   }
 
   /// 设计稿写死 6 个 ABCDEF。如果真实成员可用，就用真实名字配设计稿的色板。
-  List<_Member> _buildMemberStripData(List<User> real) {
+  List<_Member> _buildMemberStripData(
+    List<User> real, {
+    required Client client,
+    required bool padWithMocks,
+  }) {
     final palette = <Color>[
       context.tk.accent, // A —— primary
       const Color(0xFFFF9500), // B
@@ -162,7 +186,8 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     const mockNames = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank'];
 
     final out = <_Member>[];
-    for (var i = 0; i < 6; i++) {
+    final count = padWithMocks ? 6 : real.length;
+    for (var i = 0; i < count; i++) {
       final name = i < real.length
           ? (real[i].displayName ?? real[i].id.replaceFirst('@', ''))
           : mockNames[i];
@@ -170,12 +195,73 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
         _Member(
           initial: name.characters.first.toUpperCase(),
           name: name,
+          avatarUrl: i < real.length
+              ? matrixContentHttpUrl(client, real[i].avatarUrl)
+              : null,
           bg: palette[i],
           fg: onColors[i],
         ),
       );
     }
     return out;
+  }
+
+  bool _canManageGroup(Room room) {
+    final self = room.client.userID;
+    if (self == null || self.isEmpty) return false;
+    return room.getPowerLevelByUserId(self) >= 50;
+  }
+
+  Future<void> _confirmLeave(BuildContext context) async {
+    if (_leaving) return;
+    final t = context.tk;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(
+          '退出群聊',
+          style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+        ),
+        content: Text(
+          '退出后你将不再接收该群聊消息。',
+          style: AppTheme.sans(size: 15, color: t.textMute),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(false),
+            child: Text(
+              '取消',
+              style: AppTheme.sans(size: 15, color: t.textMute),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(true),
+            child: Text(
+              '退出',
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: t.danger,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _leaving = true);
+    try {
+      await leaveGroupThroughAs(ref, widget.roomId);
+      if (!context.mounted) return;
+      context.go('/home');
+    } on Object catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('退出群聊失败: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _leaving = false);
+    }
   }
 }
 
@@ -185,11 +271,13 @@ class _Member {
   const _Member({
     required this.initial,
     required this.name,
+    this.avatarUrl,
     required this.bg,
     required this.fg,
   });
   final String initial;
   final String name;
+  final String? avatarUrl;
   final Color bg;
   final Color fg;
 }
@@ -237,19 +325,10 @@ class _MemberTile extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(color: member.bg, shape: BoxShape.circle),
-          alignment: Alignment.center,
-          child: Text(
-            member.initial,
-            style: AppTheme.sans(
-              size: 17,
-              weight: FontWeight.w600,
-              color: member.fg,
-            ),
-          ),
+        PortalAvatar(
+          seed: member.name.isNotEmpty ? member.name : member.initial,
+          size: 48,
+          imageUrl: member.avatarUrl,
         ),
         const SizedBox(height: 4),
         Text(
@@ -449,7 +528,7 @@ class _RowSwitch extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: Colors.white,
+            activeThumbColor: Colors.white,
             activeTrackColor: t.accent,
             inactiveThumbColor: Colors.white,
             inactiveTrackColor: t.secondaryContainer,

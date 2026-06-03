@@ -6,9 +6,17 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../mock/mock_data.dart';
+import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/group_creation_flow.dart';
+import '../utils/message_preview.dart';
+import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
-import '../widgets/m3/m3_card.dart';
+
+const _mockAuthEnabled = bool.fromEnvironment(
+  'P2P_MATRIX_MOCK_AUTH',
+  defaultValue: false,
+);
 
 /// `s-groups-list` — 群聊列表 (index.html L1566-1643)
 ///
@@ -23,73 +31,50 @@ class GroupsListPage extends ConsumerStatefulWidget {
 class _GroupsListPageState extends ConsumerState<GroupsListPage> {
   String _query = '';
 
-  Future<void> _showCreateGroupDialog(BuildContext context) async {
-    final ctrl = TextEditingController();
-    final client = ref.read(matrixClientProvider);
-    final t = context.tk;
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('创建群聊', style: AppTheme.sans(size: 17, weight: FontWeight.w600, color: t.text)),
-        content: M3InputField(controller: ctrl, icon: Symbols.group, hint: '群聊名称'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
-            child: const Text('创建'),
-          ),
-        ],
-      ),
-    );
-    ctrl.dispose();
-    if (name == null || name.isEmpty || !context.mounted) return;
-    try {
-      final roomId = await client.createGroupChat(groupName: name);
-      if (context.mounted) context.push('/group/${Uri.encodeComponent(roomId)}');
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('创建失败: $e')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     final client = ref.watch(matrixClientProvider);
     final isLoggedIn =
         ref.watch(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
+    final useMockGroups = _mockAuthEnabled || !isLoggedIn;
+    final syncCache = ref.watch(asSyncCacheProvider);
 
     final items = <_GroupItem>[];
-    if (isLoggedIn) {
-      final groups = client.rooms.where((r) => !r.isDirectChat).toList()
-        ..sort((a, b) {
-          final ta = a.lastEvent?.originServerTs.millisecondsSinceEpoch ?? 0;
-          final tb = b.lastEvent?.originServerTs.millisecondsSinceEpoch ?? 0;
+    if (!useMockGroups) {
+      final groups = [...?syncCache.bootstrap?.groups]..sort((a, b) {
+          final ta = a.lastActivityAt?.millisecondsSinceEpoch ?? 0;
+          final tb = b.lastActivityAt?.millisecondsSinceEpoch ?? 0;
           return tb.compareTo(ta);
         });
-      for (final r in groups) {
+      for (final group in groups) {
+        final roomId = group.roomId.trim();
+        if (roomId.isEmpty) continue;
+        final room = client.getRoomById(roomId);
+        final lastEvent = room?.lastEvent;
+        final lastActivityAt =
+            lastEvent?.originServerTs ?? group.lastActivityAt;
         items.add(
           _GroupItem(
-            id: r.id,
-            name: r.getLocalizedDisplayname(),
-            preview: _previewText(r.lastEvent?.body ?? ''),
-            time: r.lastEvent == null
+            id: roomId,
+            name: group.name.trim().isNotEmpty
+                ? group.name.trim()
+                : room?.getLocalizedDisplayname() ?? '群聊',
+            preview: lastEvent == null
+                ? _previewText(group.topic)
+                : roomEventPreviewText(lastEvent, isAgent: false),
+            time: lastActivityAt == null
                 ? ''
-                : _formatTime(
-                    r.lastEvent!.originServerTs.millisecondsSinceEpoch,
-                  ),
-            unread: r.notificationCount,
+                : _formatTime(lastActivityAt.millisecondsSinceEpoch),
+            unread: group.unreadCount > 0
+                ? group.unreadCount
+                : room?.notificationCount ?? 0,
+            isOwner: group.isOwned,
           ),
         );
       }
     } else {
-      // Mock 模式：把 mxid 不以 @ 起头的会话视为群组。
-      final mocks = MockData.conversations
-          .where((c) => !c.mxid.startsWith('@'))
-          .toList();
+      final mocks = MockData.groupConversations;
       for (final c in mocks) {
         final last = c.lastMessage;
         items.add(
@@ -101,6 +86,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
                 ? ''
                 : _formatTime(last.time.millisecondsSinceEpoch),
             unread: c.unread,
+            isOwner: c.isOwnerGroup,
           ),
         );
       }
@@ -109,11 +95,11 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
     final filtered = _query.isEmpty
         ? items
         : items
-              .where((g) => g.name.toLowerCase().contains(_query.toLowerCase()))
-              .toList();
+            .where((g) => g.name.toLowerCase().contains(_query.toLowerCase()))
+            .toList();
 
     return Scaffold(
-      backgroundColor: t.bg,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           GlassHeader.detail(
@@ -122,7 +108,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
               GlassHeaderButton(
                 icon: Symbols.group_add,
                 color: t.accent,
-                onTap: () => _showCreateGroupDialog(context),
+                onTap: () => showCreateGroupFlow(context, ref),
               ),
             ],
           ),
@@ -138,16 +124,9 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
                       style: AppTheme.sans(size: 13, color: t.textMute),
                     ),
                   )
-                : ListView.separated(
+                : ListView.builder(
                     padding: const EdgeInsets.only(bottom: 24),
                     itemCount: filtered.length,
-                    separatorBuilder: (_, __) => Padding(
-                      padding: const EdgeInsets.only(left: 76),
-                      child: Container(
-                        height: 1,
-                        color: t.border.withValues(alpha: 0.2),
-                      ),
-                    ),
                     itemBuilder: (_, i) => _GroupRow(item: filtered[i]),
                   ),
           ),
@@ -201,12 +180,14 @@ class _GroupItem {
     required this.preview,
     required this.time,
     required this.unread,
+    this.isOwner = false,
   });
   final String id;
   final String name;
   final String preview;
   final String time;
   final int unread;
+  final bool isOwner;
 }
 
 class _GroupRow extends StatelessWidget {
@@ -221,81 +202,110 @@ class _GroupRow extends StatelessWidget {
     final time = item.time;
     final unread = item.unread;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          final path = item.id.startsWith('mock_') ? '/chat' : '/group';
-          context.push('$path/${Uri.encodeComponent(item.id)}');
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _GroupAvatar(name: name),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+    return GlassListPanel(
+      onTap: () {
+        final path = item.id.startsWith('mock_') ? '/chat' : '/group';
+        context.push('$path/${Uri.encodeComponent(item.id)}');
+      },
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _GroupAvatar(name: name),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(
-                        size: 17,
-                        weight: FontWeight.w600,
-                        color: t.text,
-                      ),
-                    ),
-                    if (preview.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        preview,
+                    Flexible(
+                      child: Text(
+                        name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(size: 13, color: t.textMute),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (time.isNotEmpty)
-                    Text(
-                      time,
-                      style: AppTheme.sans(size: 11, color: t.textMute),
-                    ),
-                  if (unread > 0) ...[
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 18,
-                      height: 18,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: t.accent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        unread > 99 ? '99+' : '$unread',
                         style: AppTheme.sans(
-                          size: 11,
-                          weight: FontWeight.w700,
-                          color: t.onAccent,
+                          size: 20,
+                          weight: FontWeight.w600,
+                          color: t.text,
                         ),
                       ),
                     ),
+                    if (item.isOwner) ...[
+                      const SizedBox(width: 6),
+                      _OwnerBadge(),
+                    ],
                   ],
+                ),
+                if (preview.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    preview,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(size: 15, color: t.textMute),
+                  ),
                 ],
-              ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (time.isNotEmpty)
+                Text(
+                  time,
+                  style: AppTheme.sans(
+                    size: 13,
+                    color: unread > 0 ? t.accent : t.textMute,
+                  ),
+                ),
+              if (unread > 0) ...[
+                const SizedBox(height: 4),
+                Container(
+                  width: 18,
+                  height: 18,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: t.accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    style: AppTheme.sans(
+                      size: 11,
+                      weight: FontWeight.w700,
+                      color: t.onAccent,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OwnerBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: t.surfaceHover,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '群主',
+        style: AppTheme.sans(
+          size: 10,
+          weight: FontWeight.w600,
+          color: t.textMute,
         ),
       ),
     );
@@ -347,6 +357,9 @@ String _formatTime(int ts) {
   final diffDays = now.difference(dt).inDays;
   if (diffDays == 0) return DateFormat('HH:mm').format(dt);
   if (diffDays == 1) return '昨天';
-  if (diffDays < 7) return DateFormat('EEE', 'zh').format(dt);
+  if (diffDays < 7) {
+    const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    return weekdays[dt.weekday - 1];
+  }
   return DateFormat('MM/dd').format(dt);
 }

@@ -1,12 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../mock/mock_data.dart';
+import '../providers/as_bootstrap_store_provider.dart';
+import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/as_sync_cache_provider.dart';
+import '../utils/avatar_url.dart';
+import '../utils/contact_identity_label.dart';
+import '../utils/direct_contact_status.dart';
+import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 
 class ContactDetailPage extends ConsumerWidget {
@@ -17,25 +25,64 @@ class ContactDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
     final client = ref.read(matrixClientProvider);
-    final room = client.rooms
-        .where((r) => r.directChatMatrixID == userId)
-        .firstOrNull;
+    final syncCache = ref.watch(asSyncCacheProvider);
+    final acceptedContactForUser = syncCache.acceptedContactForUserId(userId);
+    final acceptedRoom = acceptedContactForUser == null
+        ? null
+        : client.getRoomById(acceptedContactForUser.roomId);
+    final room = acceptedRoom ??
+        client.rooms.where((r) {
+          final acceptedContact = syncCache.acceptedContactForRoom(r.id);
+          return r.directChatMatrixID == userId ||
+              productDirectPeerMxid(r) == userId ||
+              acceptedContact?.userId == userId;
+        }).firstOrNull;
+    final agentMxid = portalAgentMxidForClient(client);
+    final acceptedRoomIds = syncCache.acceptedDirectRoomIds;
+    final canUseRealRoom = room != null &&
+        acceptedContactForUser != null &&
+        room.id == acceptedContactForUser.roomId &&
+        acceptedRoomIds.contains(room.id) &&
+        canSendDirectChatMessage(
+          room,
+          agentMxid: agentMxid,
+          acceptedRoomIds: acceptedRoomIds,
+        );
+    final isWaitingForAccept =
+        room != null && isPendingDirectContact(room, agentMxid: agentMxid);
     // 找不到真房间时按 mxid 回退到 mock，否则名字会显示成原始 mxid。
     final mock = room == null ? MockData.byMxid(userId) : null;
-    final displayName = room?.getLocalizedDisplayname() ?? mock?.name ?? userId;
+    final canUseMock = room == null && mock != null;
+    final canOpenChat = canUseRealRoom || canUseMock;
+    final acceptedContact = acceptedContactForUser ??
+        (room == null ? null : syncCache.acceptedContactForRoom(room.id));
     // @username 取 userId 的 localpart（@xxx:domain → xxx）
     final localpart = userId.startsWith('@') && userId.contains(':')
         ? userId.substring(1, userId.indexOf(':'))
         : userId;
     // Node URL：用 mxid 后半段作为节点占位
     final domain = userId.contains(':') ? userId.split(':').last : userId;
+    final displayName = contactDisplayNameFromIdentity(
+      mxid: userId,
+      displayName: acceptedContact?.displayName ??
+          room?.getLocalizedDisplayname() ??
+          mock?.name ??
+          '',
+      domain: acceptedContact?.domain ?? domain,
+      fallback: mock?.name ?? userId,
+    );
     final nodeUrl = 'Node: $domain';
     final initial = displayName.isNotEmpty
         ? displayName.characters.first.toUpperCase()
         : '?';
+    final peerMember = room?.unsafeGetUserFromMemoryOrFallback(userId);
+    final avatarUrl = avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
+        (room == null
+            ? mock?.avatarUrl
+            : matrixContentHttpUrl(client, peerMember?.avatarUrl));
 
     return Scaffold(
-      backgroundColor: t.bg,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           GlassHeader.detail(
@@ -63,32 +110,29 @@ class ContactDetailPage extends ConsumerWidget {
                         initial: initial,
                         username: '@$localpart',
                         nodeUrl: nodeUrl,
-                        avatarUrl: mock?.avatarUrl,
+                        avatarUrl: avatarUrl,
                       ),
                       // 快捷操作 —— 真房间用 room.id，mock 路径用 mock.id。
                       _QuickActions(
-                        onMessage: () {
-                          final id = room?.id ?? mock?.id;
-                          if (id != null) {
-                            context.go('/chat/${Uri.encodeComponent(id)}');
-                          }
-                        },
-                        onCall: () {
-                          final id = room?.id ?? mock?.id;
-                          if (id != null) {
-                            context.push('/call/${Uri.encodeComponent(id)}');
-                          }
-                        },
-                        onVideo: () {
-                          final id = room?.id ?? mock?.id;
-                          if (id != null) {
-                            context.push('/call/${Uri.encodeComponent(id)}');
-                          }
-                        },
+                        onMessage: canOpenChat
+                            ? () {
+                                final id = room?.id ?? mock?.id;
+                                if (id != null) {
+                                  context.go(
+                                    '/chat/${Uri.encodeComponent(id)}',
+                                  );
+                                }
+                              }
+                            : null,
+                        onHome: () => context.push(
+                          '/contact-home/${Uri.encodeComponent(userId)}',
+                        ),
                       ),
+                      if (isWaitingForAccept)
+                        const _RelationshipNotice(message: '等待对方接受后才能聊天'),
                       // 详细信息卡片
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(0, 20, 0, 0),
                         child: _InfoGroup(
                           children: [
                             _InfoRow(label: '备注', value: 'Alice'),
@@ -104,7 +148,7 @@ class ContactDetailPage extends ConsumerWidget {
                       ),
                       // 操作列表卡片
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
                         child: _ActionGroup(
                           children: [
                             _ActionRow(label: '设置备注和标签', onTap: () {}),
@@ -115,8 +159,57 @@ class ContactDetailPage extends ConsumerWidget {
                               danger: true,
                               onTap: room != null
                                   ? () async {
-                                      await room.leave();
-                                      if (context.mounted) context.pop();
+                                      try {
+                                        final contact = await ref
+                                            .read(asClientProvider)
+                                            .deleteContact(room.id);
+                                        ref
+                                            .read(asSyncCacheProvider.notifier)
+                                            .update(
+                                              (state) => state.withContactEntry(
+                                                contact,
+                                              ),
+                                            );
+                                        unawaited(
+                                          ref
+                                              .read(
+                                                asBootstrapRepositoryProvider,
+                                              )
+                                              .refresh()
+                                              .then((bootstrap) {
+                                            ref
+                                                .read(
+                                                  asSyncCacheProvider.notifier,
+                                                )
+                                                .update(
+                                                  (state) => state.copyWith(
+                                                    bootstrap: bootstrap,
+                                                  ),
+                                                );
+                                          }).catchError((Object e) {
+                                            debugPrint(
+                                              'refresh bootstrap after contact delete failed: $e',
+                                            );
+                                          }),
+                                        );
+                                        client.rooms.remove(room);
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text('已删除联系人'),
+                                          ),
+                                        );
+                                        context.go('/home');
+                                      } catch (e) {
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text('删除联系人失败: $e'),
+                                          ),
+                                        );
+                                      }
                                     }
                                   : () {},
                             ),
@@ -257,12 +350,11 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-/// 中间快捷操作横排（3 个圆按钮）
+/// 中间快捷操作横排：发消息 + 主页。
 class _QuickActions extends StatelessWidget {
-  const _QuickActions({this.onMessage, this.onCall, this.onVideo});
+  const _QuickActions({this.onMessage, required this.onHome});
   final VoidCallback? onMessage;
-  final VoidCallback? onCall;
-  final VoidCallback? onVideo;
+  final VoidCallback onHome;
 
   @override
   Widget build(BuildContext context) {
@@ -280,24 +372,16 @@ class _QuickActions extends StatelessWidget {
           _QuickAction(
             icon: Symbols.chat,
             label: '发消息',
-            iconFilled: true,
-            background: t.accent,
-            iconColor: t.onAccent,
+            background: t.surfaceHover,
+            iconColor: t.textMute,
             onTap: onMessage,
           ),
           _QuickAction(
-            icon: Symbols.call,
-            label: '语音',
+            icon: Symbols.home,
+            label: '主页',
             background: t.surfaceHover,
             iconColor: t.textMute,
-            onTap: onCall,
-          ),
-          _QuickAction(
-            icon: Symbols.videocam,
-            label: '视频',
-            background: t.surfaceHover,
-            iconColor: t.textMute,
-            onTap: onVideo,
+            onTap: onHome,
           ),
         ],
       ),
@@ -311,19 +395,18 @@ class _QuickAction extends StatelessWidget {
     required this.label,
     required this.background,
     required this.iconColor,
-    this.iconFilled = false,
     this.onTap,
   });
   final IconData icon;
   final String label;
   final Color background;
   final Color iconColor;
-  final bool iconFilled;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final enabled = onTap != null;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(28),
@@ -334,7 +417,7 @@ class _QuickAction extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: background,
+              color: enabled ? background : t.surfaceHover,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
@@ -347,8 +430,7 @@ class _QuickAction extends StatelessWidget {
             child: Icon(
               icon,
               size: 24,
-              color: iconColor,
-              fill: iconFilled ? 1 : 0,
+              color: enabled ? iconColor : t.textMute.withValues(alpha: 0.45),
             ),
           ),
           const SizedBox(height: 8),
@@ -357,10 +439,36 @@ class _QuickAction extends StatelessWidget {
             style: AppTheme.sans(
               size: 13,
               weight: FontWeight.w500,
-              color: t.textMute,
+              color: enabled ? t.textMute : t.textMute.withValues(alpha: 0.45),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RelationshipNotice extends StatelessWidget {
+  const _RelationshipNotice({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: t.accentCool.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: t.accentCool.withValues(alpha: 0.24)),
+        ),
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: AppTheme.sans(size: 14, color: t.textMute),
+        ),
       ),
     );
   }
@@ -373,37 +481,7 @@ class _InfoGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: t.border.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: List.generate(children.length, (i) {
-          return Column(
-            children: [
-              children[i],
-              if (i != children.length - 1)
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: t.border.withValues(alpha: 0.2),
-                ),
-            ],
-          );
-        }),
-      ),
-    );
+    return Column(children: children);
   }
 }
 
@@ -422,34 +500,26 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 64,
-            child: Text(
-              label,
-              style: AppTheme.sans(size: 15, color: t.textMute),
-            ),
+    return GlassListTile(
+      title: label,
+      trailing: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.48,
+        ),
+        child: Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.right,
+          style: AppTheme.sans(
+            size: valueSmall ? 13 : 15,
+            color: valueMuted ? t.textMute : t.text,
           ),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: valueSmall
-                  ? AppTheme.sans(
-                      size: 15,
-                      color: valueMuted ? t.textMute : t.text,
-                    )
-                  : AppTheme.sans(
-                      size: 17,
-                      color: valueMuted ? t.textMute : t.text,
-                    ),
-            ),
-          ),
-        ],
+        ),
       ),
+      showChevron: false,
+      titleStyle:
+          AppTheme.sans(size: 20, weight: FontWeight.w600, color: t.text),
     );
   }
 }
@@ -461,37 +531,7 @@ class _ActionGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: t.border.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: List.generate(children.length, (i) {
-          return Column(
-            children: [
-              children[i],
-              if (i != children.length - 1)
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: t.border.withValues(alpha: 0.2),
-                ),
-            ],
-          );
-        }),
-      ),
-    );
+    return Column(children: children);
   }
 }
 
@@ -504,27 +544,13 @@ class _ActionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: AppTheme.sans(
-                    size: 17,
-                    color: danger ? t.danger : t.text,
-                  ),
-                ),
-              ),
-              Icon(Symbols.chevron_right, size: 22, color: t.textMute),
-            ],
-          ),
-        ),
+    return GlassListTile(
+      title: label,
+      onTap: onTap,
+      titleStyle: AppTheme.sans(
+        size: 20,
+        weight: FontWeight.w600,
+        color: danger ? t.danger : t.text,
       ),
     );
   }

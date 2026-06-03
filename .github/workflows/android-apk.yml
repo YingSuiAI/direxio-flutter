@@ -43,14 +43,14 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Patch pubspec.yaml (drop record + flutter_webrtc)
+      - name: Patch pubspec.yaml (drop unused record)
         run: |
           set -euo pipefail
-          # 这俩包跟 Flutter 3.27/3.41 embedding 不兼容，在 mock 阶段也没用上。
-          # 删 pubspec.yaml 里的对应行；不动锁文件，pub get 会基于剩余依赖重解锁。
-          before=$(grep -c -E '^\s*(record|flutter_webrtc):' pubspec.yaml || true)
-          sed -i -E '/^\s*record:/d; /^\s*flutter_webrtc:/d' pubspec.yaml
-          after=$(grep -c -E '^\s*(record|flutter_webrtc):' pubspec.yaml || true)
+          # record 当前未被代码调用，且 transitive Linux 包在部分 runner 上会导致构建失败。
+          # flutter_webrtc 已被 Matrix VoIP/视频通话真实使用，不能再从 CI 里删除。
+          before=$(grep -c -E '^\s*record:' pubspec.yaml || true)
+          sed -i -E '/^\s*record:/d' pubspec.yaml
+          after=$(grep -c -E '^\s*record:' pubspec.yaml || true)
           echo "removed=$((before - after))"
           # pubspec.lock 跟不上手术后的 pubspec，删掉让 pub 重新解锁
           rm -f pubspec.lock

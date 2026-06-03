@@ -1,13 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../providers/auth_provider.dart';
+import '../providers/as_bootstrap_store_provider.dart';
+import '../providers/as_client_provider.dart';
+import '../providers/as_sync_cache_provider.dart';
 import '../../data/well_known_service.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
+import '../utils/direct_contact_status.dart';
+import '../utils/contact_identity_label.dart';
+import '../mock/mock_data.dart';
 import '../widgets/portal_avatar.dart';
+
+const _mockAuthEnabled = bool.fromEnvironment(
+  'P2P_MATRIX_MOCK_AUTH',
+  defaultValue: false,
+);
 
 /// 添加朋友 —— 对齐设计稿 s-new-friends 顶部「搜索 + 添加」流程。
 class AddContactPage extends ConsumerStatefulWidget {
@@ -32,11 +44,8 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
   }
 
   Future<void> _resolve() async {
-    final domain = _domainCtrl.text.trim().replaceAll(
-      RegExp(r'^https?://'),
-      '',
-    );
-    if (domain.isEmpty) return;
+    final portalUrl = _normalizePortalUrlInput(_domainCtrl.text);
+    if (portalUrl.isEmpty) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -45,29 +54,41 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
       _resolvedDomain = null;
     });
     try {
+      final isLoggedIn =
+          ref.read(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
+      final mockContact = _mockContactByPortalUrl(portalUrl);
+      if ((_mockAuthEnabled || !isLoggedIn) && mockContact != null) {
+        setState(() {
+          _resolvedDomain = portalUrl;
+          _resolved = {
+            'mxid': mockContact.mxid,
+            'display_name': mockContact.name,
+          };
+        });
+        return;
+      }
+
       // §2.2 域名发现：调 .well-known/portal/owner.json
       final client = ref.read(matrixClientProvider);
       final wk = WellKnownService(httpClient: client.httpClient);
-      final result = await wk.discoverOwner(domain);
+      final result = await wk.discoverOwner(portalUrl);
       switch (result.availability) {
         case PortalAvailability.online:
           setState(() {
-            _resolvedDomain = domain;
+            _resolvedDomain = portalUrl;
             _resolved = {
               'mxid': result.owner!.matrixUserId,
-              'display_name': result.owner!.displayName.isEmpty
-                  ? domain
-                  : result.owner!.displayName,
+              'display_name': contactDisplayNameFromIdentity(
+                mxid: result.owner!.matrixUserId,
+                displayName: result.owner!.displayName,
+                domain: portalUrl,
+              ),
             };
           });
         case PortalAvailability.notDeployed:
-          setState(() => _error = '$domain 未部署 Portal');
+          setState(() => _error = '该域名不是产品用户');
         case PortalAvailability.unreachable:
-          // well-known 没配但域名可能仍是有效 Portal —— 回退到约定 MXID
-          setState(() {
-            _resolvedDomain = domain;
-            _resolved = {'mxid': '@owner:$domain', 'display_name': domain};
-          });
+          setState(() => _error = '该域名不是产品用户');
       }
     } catch (e) {
       setState(() => _error = e.toString());
@@ -85,8 +106,45 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
     });
     try {
       final client = ref.read(matrixClientProvider);
-      await client.startDirectChat(mxid);
-      setState(() => _success = '邀请已发送！等待对方接受。');
+      final agentMxid = portalAgentMxidForClient(client);
+      final acceptedContact =
+          ref.read(asSyncCacheProvider).acceptedContactForUserId(mxid);
+      final existingRoomId = client.getDirectChatFromUserId(mxid);
+      final existingRoom =
+          existingRoomId == null ? null : client.getRoomById(existingRoomId);
+      if (existingRoom != null) {
+        if (acceptedContact != null) {
+          setState(() => _success = '已经是联系人。');
+          return;
+        }
+        if (isPendingDirectContact(existingRoom, agentMxid: agentMxid)) {
+          setState(() => _success = '好友请求已发送，等待对方接受。');
+          return;
+        }
+      }
+      final contact = await ref.read(asClientProvider).createContactRequest(
+            mxid: mxid,
+            displayName: (_resolved?['display_name'] as String?) ?? '',
+            domain: _resolvedDomain ?? '',
+          );
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.withContactEntry(contact),
+          );
+      final status = contact.status.trim();
+      if (status != 'pending_inbound') {
+        await client.oneShotSync();
+      }
+      final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.copyWith(bootstrap: bootstrap),
+          );
+      setState(() {
+        _success = switch (status) {
+          'accepted' => '已恢复旧会话，可以继续聊天。',
+          'pending_inbound' => '对方已向你发送好友请求，请到新朋友页处理。',
+          _ => '邀请已发送！等待对方接受。',
+        };
+      });
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -98,7 +156,7 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      backgroundColor: t.bg,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           GlassHeader.detail(title: '添加朋友'),
@@ -115,7 +173,7 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                       M3InputField(
                         controller: _domainCtrl,
                         icon: Symbols.search,
-                        hint: '手机号 / 用户名 / Node ID',
+                        hint: '输入 Portal URL',
                         keyboardType: TextInputType.url,
                         onSubmitted: (_) => _resolve(),
                         trailing: TextButton(
@@ -151,6 +209,9 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                           portalUrl: _resolvedDomain ?? '',
                           loading: _loading,
                           onAdd: _loading ? null : _sendInvite,
+                          onAvatarTap: () => context.push(
+                            '/contact-home/${Uri.encodeComponent(_resolved!['mxid'] as String)}',
+                          ),
                         )
                       else
                         const _EmptyPlaceholder(),
@@ -175,6 +236,23 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
   }
 }
 
+String _normalizePortalUrlInput(String input) {
+  return input
+      .trim()
+      .replaceAll(RegExp(r'^https?://', caseSensitive: false), '')
+      .replaceAll(RegExp(r'/+$'), '');
+}
+
+MockConversation? _mockContactByPortalUrl(String portalUrl) {
+  for (final contact in MockData.friendContacts) {
+    final home = MockData.contactHomeByMxid(contact.mxid);
+    if (home?.domain == portalUrl || contact.mxid == portalUrl) {
+      return contact;
+    }
+  }
+  return null;
+}
+
 /// 搜索结果卡片：头像 + 名字 + portal URL + 添加按钮
 class _ResultCard extends StatelessWidget {
   const _ResultCard({
@@ -183,6 +261,7 @@ class _ResultCard extends StatelessWidget {
     required this.portalUrl,
     required this.loading,
     required this.onAdd,
+    required this.onAvatarTap,
   });
 
   final String displayName;
@@ -190,6 +269,7 @@ class _ResultCard extends StatelessWidget {
   final String portalUrl;
   final bool loading;
   final VoidCallback? onAdd;
+  final VoidCallback onAvatarTap;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +290,11 @@ class _ResultCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          PortalAvatar(seed: displayName, size: 48),
+          GestureDetector(
+            key: const ValueKey('add_contact_result_avatar'),
+            onTap: onAvatarTap,
+            child: PortalAvatar(seed: mxid, size: 48),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -300,7 +384,7 @@ class _EmptyPlaceholder extends StatelessWidget {
           Icon(Symbols.person_search, size: 56, color: t.textMute),
           const SizedBox(height: 12),
           Text(
-            '输入对方的 Node ID 或域名查找',
+            '输入对方的 Portal URL 查找',
             textAlign: TextAlign.center,
             style: AppTheme.sans(size: 15, color: t.textMute),
           ),

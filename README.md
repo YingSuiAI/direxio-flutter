@@ -127,11 +127,12 @@ flutter run -d windows             # Windows desktop
 
 当前认证模型是两套凭证、职责分离：
 
-1. 用户输入域名和 AS 启动时生成的 `portal_token`。
-2. App 先调 `POST /_as/bootstrap`，如果 AS 已初始化则自动降级到 `POST /_as/auth`。
-3. AS 返回 Matrix `access_token`、`user_id`、`homeserver`。
-4. Matrix SDK 用 `access_token` 走标准 Matrix 消息/房间 API。
-5. `asClientProvider` 请求 `/_as/*` 时统一带：
+1. 首次初始化或重置登录口令时，用户扫描 `https://{domain}/setup` 上的一次性 setup QR。
+2. App 用 QR 中的 `setup_code` 调 `POST /_as/bootstrap`，拿到 Matrix `access_token` 和当前 `portal_token`。
+3. App 立刻调用 `PUT /_as/portal/token`，把长期登录口令旋转成用户输入的新口令。
+4. 日常登录时，App 用长期 `portal_token` 调 `POST /_as/auth` 获取新的 Matrix `access_token`。
+5. Matrix SDK 用 `access_token` 走标准 Matrix 消息/房间 API。
+6. `asClientProvider` 请求 `/_as/*` 时统一带：
 
 ```http
 Authorization: Bearer {portal_token}
@@ -223,7 +224,7 @@ flutter run -d chrome \
 
 1. **checkout** 仓库
 2. **setup Flutter 3.41.9 stable** (`subosito/flutter-action@v2`，自动缓存 SDK)
-3. **patch pubspec.yaml**：删除 `record` 和 `flutter_webrtc` 两行
+3. **patch pubspec.yaml**：删除当前未使用的 `record` 依赖
    - Linux 用 `sed -i -E`
    - Windows 用 PowerShell 正则
    - 同时删 `pubspec.lock` 让 pub 重新解锁
@@ -237,13 +238,11 @@ flutter run -d chrome \
    - Windows：`Compress-Archive` 整个 Release 目录
 8. **upload-artifact**：保留 14 天
 
-### 为什么要 patch record / flutter_webrtc
+### 为什么要 patch record
 
-仓库 pubspec 声明了 `record` 和 `flutter_webrtc`（为未来 VoIP / 语音消息预留）。但：
-- `record_linux 0.7.2` 跟 `record_platform_interface 1.5.0` 接口签名不匹配，Android 编译会挂
-- `flutter_webrtc 0.9.x` 用了 Flutter 3.29+ 已删的 `PluginRegistry.Registrar`，Android 编译会挂
+仓库 pubspec 声明了 `record`，但当前代码没有直接调用录音 API；`record_linux` 与部分 runner 上的 transitive 版本组合可能触发接口签名不匹配。CI 目前只在打包时删除 `record`，让 Android/Windows 包先稳定产出。
 
-代码里没真正调用这俩包，CI 阶段直接删依赖编译，等未来集成真 VoIP 时再升级到能用的版本。
+`flutter_webrtc` 已被 Matrix VoIP、私聊语音和私聊视频通话真实使用，不能再从 CI 中删除。
 
 ---
 

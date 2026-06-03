@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
 import '../mock/mock_data.dart';
+import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/contact_display_name.dart';
+import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 
@@ -28,20 +33,31 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     final client = ref.read(matrixClientProvider);
+    final syncCache = ref.watch(asSyncCacheProvider);
     final room = client.getRoomById(widget.roomId);
     // 真房间走 Matrix；否则回退 mock 数据（id 以 mock_ 开头，例如 mock_jack）。
     final mock = room == null ? MockData.byId(widget.roomId) : null;
-    final peerId = room?.directChatMatrixID ?? mock?.mxid;
-    final name =
-        room?.getLocalizedDisplayname() ??
-        mock?.name ??
-        peerId ??
-        widget.roomId;
+    final acceptedContact =
+        room == null ? null : syncCache.acceptedContactForRoom(widget.roomId);
+    final peerId =
+        acceptedContact?.userId ?? room?.directChatMatrixID ?? mock?.mxid;
+    final name = _chatInfoDisplayName(
+      room: room,
+      acceptedContact: acceptedContact,
+      mockName: mock?.name,
+      peerId: peerId,
+      roomId: widget.roomId,
+    );
+    final peerMember =
+        peerId == null ? null : room?.unsafeGetUserFromMemoryOrFallback(peerId);
+    final avatarUrl = avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
+        (room == null
+            ? mock?.avatarUrl
+            : matrixContentHttpUrl(client, peerMember?.avatarUrl));
 
     return Scaffold(
-      backgroundColor: t.bg,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           GlassHeader.detail(title: '聊天信息'),
@@ -53,13 +69,13 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                 children: [
                   _PeerHeader(
                     name: name,
-                    avatarUrl: mock?.avatarUrl,
+                    avatarUrl: avatarUrl,
                     // 仅真 Matrix 房间允许进 contact-detail（mock 路径下 contact-detail
                     // 拿不到房间数据，跳过去是死页）。
                     onTap: room != null && peerId != null
                         ? () => context.push(
-                            '/contact/${Uri.encodeComponent(peerId)}',
-                          )
+                              '/contact/${Uri.encodeComponent(peerId)}',
+                            )
                         : null,
                   ),
                   const SizedBox(height: 16),
@@ -157,8 +173,24 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
         ],
       ),
     );
-    if (ok == true && mounted) Navigator.of(context).maybePop();
+    if (ok == true && context.mounted) Navigator.of(context).maybePop();
   }
+}
+
+String _chatInfoDisplayName({
+  required Room? room,
+  required AsSyncContact? acceptedContact,
+  required String? mockName,
+  required String? peerId,
+  required String roomId,
+}) {
+  if (room != null && acceptedContact != null) {
+    return directContactDisplayName(acceptedContact, room);
+  }
+  if (room != null && !room.isDirectChat) {
+    return '正在同步联系人信息';
+  }
+  return room?.getLocalizedDisplayname() ?? mockName ?? peerId ?? roomId;
 }
 
 class _PeerHeader extends StatelessWidget {
@@ -293,7 +325,7 @@ class _RowSwitch extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: Colors.white,
+            activeThumbColor: Colors.white,
             activeTrackColor: t.accent,
             inactiveThumbColor: Colors.white,
             inactiveTrackColor: t.secondaryContainer,

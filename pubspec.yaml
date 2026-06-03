@@ -18,6 +18,7 @@ dependencies:
 
   # WebRTC（matrix VoIP 必需，不是自动传递依赖，必须显式声明）
   flutter_webrtc: ^0.9.47
+  webrtc_interface: ^1.5.1
 
   # Local persistence（matrix SDK HiveCollectionsDatabase 需要）
   hive_ce: ^2.6.0
@@ -51,17 +52,20 @@ dependencies:
   shimmer: ^3.0.0
 
   # Media
-  record: ^5.1.2
+  record: ^6.2.1
   audioplayers: ^6.0.0
   video_player: ^2.9.1
 
   # Utils
   path_provider: ^2.1.4
+  sqflite: ^2.4.2
   share_plus: ^10.0.2
   url_launcher: ^6.3.0
   permission_handler: ^11.3.1
   connectivity_plus: ^6.0.5
   package_info_plus: ^8.0.2
+  mobile_scanner: ^7.1.3
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +76,10 @@ dev_dependencies:
   riverpod_generator: ^2.4.3
   freezed: ^2.5.7
   json_serializable: ^6.8.0
+
+dependency_overrides:
+  matrix:
+    path: vendor/matrix
 
 flutter:
   uses-material-design: true

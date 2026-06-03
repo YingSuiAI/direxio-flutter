@@ -54,7 +54,7 @@ class _InitPageState extends ConsumerState<InitPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      backgroundColor: t.surface,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           GlassHeader.detail(title: '创建账号', onBack: () => context.go('/login')),

@@ -1,4 +1,4 @@
-/// Agent 工具调用气泡：可折叠卡片，显示 tool name / args / result summary / latency
+// Agent 工具调用气泡：可折叠卡片，显示 tool name / args / result summary / latency
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -144,7 +144,7 @@ class _ToolCallBubbleState extends State<ToolCallBubble> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
+                              const Icon(
                                 Symbols.warning,
                                 size: 11,
                                 color: Colors.amber,

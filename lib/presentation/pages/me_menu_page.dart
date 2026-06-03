@@ -1,0 +1,1029 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:matrix/matrix.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
+import '../chat/chat_record_detail_page.dart';
+import '../chat/chat_record_forwarding.dart';
+import '../providers/as_client_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/matrix_media_cache_provider.dart';
+import '../utils/chat_file_actions.dart';
+import '../widgets/async_image_preview.dart';
+import '../widgets/glass_list_tile.dart';
+import '../widgets/m3/glass_header.dart';
+
+const double _favoritePreviewSize = 62;
+const _favoriteConversationFilter = 'conversation';
+const _favoriteFileActionsChannel = MethodChannel('p2p_im/file_actions');
+
+final favoriteNativePreviewerProvider = Provider<FavoriteNativePreviewer>(
+  (ref) => FavoriteNativePreviewer(),
+);
+
+class FavoriteNativePreviewer {
+  final Map<String, Future<File>> _files = {};
+
+  Future<void> open(WidgetRef ref, AsFavoriteMessage favorite) async {
+    final file = await _materializedFile(ref, favorite);
+    await _favoriteFileActionsChannel.invokeMethod<void>(
+      'previewFile',
+      {'path': file.path},
+    );
+  }
+
+  Future<File> _materializedFile(
+    WidgetRef ref,
+    AsFavoriteMessage favorite,
+  ) async {
+    final key = '${favorite.url}|${_favoriteOpenFileName(favorite)}';
+    final cached = _files[key];
+    if (cached != null) {
+      final file = await cached;
+      if (await file.exists()) return file;
+      _files.remove(key);
+    }
+
+    final future = _downloadFavoriteMediaBytes(ref, favorite).then(
+      (bytes) => writeChatActionFile(
+        directory: Directory('${Directory.systemTemp.path}/p2p-im-open'),
+        fileName: _favoriteOpenFileName(favorite),
+        bytes: bytes,
+      ),
+    );
+    _files[key] = future;
+    future.then<void>(
+      (_) {},
+      onError: (_, __) {
+        _files.remove(key);
+      },
+    );
+    return future;
+  }
+}
+
+class MeMenuPage extends StatelessWidget {
+  const MeMenuPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '菜单'),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(0, 20, 0, 32),
+              children: [
+                _MeMenuSection(
+                  children: [
+                    _MeMenuRow(
+                      icon: Symbols.bookmarks,
+                      title: '我的收藏',
+                      onTap: () => context.push('/me/favorites'),
+                    ),
+                    const _MeMenuDivider(),
+                    _MeMenuRow(
+                      icon: Symbols.drafts,
+                      title: '草稿箱',
+                      onTap: () => context.push('/me/drafts'),
+                    ),
+                    const _MeMenuDivider(),
+                    _MeMenuRow(
+                      icon: Symbols.history,
+                      title: '浏览记录',
+                      onTap: () => context.push('/me/history'),
+                    ),
+                    const _MeMenuDivider(),
+                    _MeMenuRow(
+                      icon: Symbols.account_balance_wallet,
+                      title: '我的钱包',
+                      onTap: () => context.push('/me/wallet'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _MeMenuSection(
+                  children: [
+                    _MeMenuRow(
+                      icon: Symbols.settings,
+                      title: '通用设置',
+                      onTap: () => context.push('/settings'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MeFavoritesPage extends ConsumerStatefulWidget {
+  const MeFavoritesPage({super.key});
+
+  @override
+  ConsumerState<MeFavoritesPage> createState() => _MeFavoritesPageState();
+}
+
+class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
+  String _messageType = '';
+  final Set<int> _removedFavoriteIds = {};
+  late Future<List<AsFavoriteMessage>> _future = _load();
+
+  Future<List<AsFavoriteMessage>> _load() async {
+    final remoteFilter =
+        _messageType == _favoriteConversationFilter ? '' : _messageType;
+    final favorites = await ref
+        .read(asClientProvider)
+        .getFavorites(messageType: remoteFilter);
+    return _filterFavorites(favorites, _messageType);
+  }
+
+  void _setFilter(String messageType) {
+    if (_messageType == messageType) return;
+    setState(() {
+      _messageType = messageType;
+      _future = _load();
+    });
+  }
+
+  Future<void> _handleFavoriteTap(AsFavoriteMessage favorite) async {
+    if (favorite.messageType == 'image') {
+      await _openFavoriteImage(favorite);
+      return;
+    }
+    if (favorite.messageType == 'video' ||
+        favorite.messageType == 'file' ||
+        favorite.messageType == 'audio') {
+      await _openFavoriteNativePreview(favorite);
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatRecordDetailPage(
+          pageTitle: '消息详情',
+          payload: _favoriteMessagePayload(favorite),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleFavoriteLongPress(AsFavoriteMessage favorite) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: context.tk.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        final t = context.tk;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            child: ListTile(
+              leading: Icon(Symbols.delete, color: t.danger),
+              title: Text(
+                '删除收藏',
+                style: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w600,
+                  color: t.danger,
+                ),
+              ),
+              onTap: () => Navigator.of(context).pop('delete'),
+            ),
+          ),
+        );
+      },
+    );
+    if (action != 'delete') return;
+    try {
+      await ref.read(asClientProvider).deleteFavorite(favorite.id);
+      if (!mounted) return;
+      setState(() {
+        _removedFavoriteIds.add(favorite.id);
+        _future = _load();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已删除收藏')),
+      );
+    } on Object catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('删除收藏失败：$err')),
+      );
+    }
+  }
+
+  Future<void> _openFavoriteImage(AsFavoriteMessage favorite) {
+    return showAsyncImagePreview(
+      context,
+      loadPreviewProvider: favorite.thumbnailUrl.trim().isEmpty
+          ? null
+          : () async => MemoryImage(
+                await _downloadFavoriteMediaBytes(
+                  ref,
+                  favorite,
+                  thumbnail: true,
+                ),
+              ),
+      loadProvider: () async => MemoryImage(
+        await _downloadFavoriteMediaBytes(ref, favorite),
+      ),
+      meta: _favoriteSourceLabel(favorite),
+    );
+  }
+
+  Future<void> _openFavoriteNativePreview(AsFavoriteMessage favorite) async {
+    try {
+      await ref.read(favoriteNativePreviewerProvider).open(ref, favorite);
+    } on Object catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('打开失败：$err')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '我的收藏'),
+          _FavoriteFilters(selected: _messageType, onSelected: _setFilter),
+          Expanded(
+            child: FutureBuilder<List<AsFavoriteMessage>>(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: t.accent,
+                      ),
+                    ),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return _MeEmptyUtilityContent(
+                    icon: Symbols.error,
+                    emptyTitle: '收藏加载失败',
+                    emptySubtitle: '${snapshot.error}',
+                  );
+                }
+                final favorites = (snapshot.data ?? const [])
+                    .where(
+                      (favorite) => !_removedFavoriteIds.contains(favorite.id),
+                    )
+                    .toList(growable: false);
+                if (favorites.isEmpty) {
+                  return const _MeEmptyUtilityContent(
+                    icon: Symbols.bookmarks,
+                    emptyTitle: '暂无收藏',
+                    emptySubtitle: '长按聊天消息收藏后会显示在这里',
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
+                  itemBuilder: (context, index) {
+                    final favorite = favorites[index];
+                    return _FavoriteTile(
+                      favorite: favorite,
+                      onTap: () => unawaited(_handleFavoriteTap(favorite)),
+                      onLongPress: () =>
+                          unawaited(_handleFavoriteLongPress(favorite)),
+                    );
+                  },
+                  itemCount: favorites.length,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MeDraftsPage extends StatelessWidget {
+  const MeDraftsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _MeEmptyUtilityPage(
+      title: '草稿箱',
+      icon: Symbols.drafts,
+      emptyTitle: '暂无草稿',
+      emptySubtitle: '未发布的动态和频道内容会保存在这里',
+    );
+  }
+}
+
+class MeHistoryPage extends StatelessWidget {
+  const MeHistoryPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _MeEmptyUtilityPage(
+      title: '浏览记录',
+      icon: Symbols.history,
+      emptyTitle: '暂无浏览记录',
+      emptySubtitle: '看过的主页、频道和动态会显示在这里',
+    );
+  }
+}
+
+class MeWalletPage extends StatelessWidget {
+  const MeWalletPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _MeEmptyUtilityPage(
+      title: '我的钱包',
+      icon: Symbols.account_balance_wallet,
+      emptyTitle: '钱包未开通',
+      emptySubtitle: '资产、订阅和付费能力会从这里进入',
+    );
+  }
+}
+
+class _MeEmptyUtilityPage extends StatelessWidget {
+  const _MeEmptyUtilityPage({
+    required this.title,
+    required this.icon,
+    required this.emptyTitle,
+    required this.emptySubtitle,
+  });
+
+  final String title;
+  final IconData icon;
+  final String emptyTitle;
+  final String emptySubtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          GlassHeader.detail(title: title),
+          Expanded(
+            child: _MeEmptyUtilityContent(
+              icon: icon,
+              emptyTitle: emptyTitle,
+              emptySubtitle: emptySubtitle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MeEmptyUtilityContent extends StatelessWidget {
+  const _MeEmptyUtilityContent({
+    required this.icon,
+    required this.emptyTitle,
+    required this.emptySubtitle,
+  });
+
+  final IconData icon;
+  final String emptyTitle;
+  final String emptySubtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: t.surfaceHigh,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 32, color: t.textMute),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              emptyTitle,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(
+                size: 18,
+                weight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              emptySubtitle,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(
+                size: 14,
+                color: t.textMute,
+              ).copyWith(height: 1.45),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FavoriteFilters extends StatelessWidget {
+  const _FavoriteFilters({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  static const _filters = <(String value, String label)>[
+    ('', '全部'),
+    (_favoriteConversationFilter, '聊天记录'),
+    ('image', '图片'),
+    ('video', '视频'),
+    ('file', '文件'),
+    ('link', '链接'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: t.bg,
+        border:
+            Border(bottom: BorderSide(color: t.border.withValues(alpha: 0.35))),
+      ),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        scrollDirection: Axis.horizontal,
+        itemBuilder: (context, index) {
+          final item = _filters[index];
+          return _FavoriteFilterChip(
+            label: item.$2,
+            selected: selected == item.$1,
+            onTap: () => onSelected(item.$1),
+          );
+        },
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemCount: _filters.length,
+      ),
+    );
+  }
+}
+
+class _FavoriteFilterChip extends StatelessWidget {
+  const _FavoriteFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Material(
+      color: selected ? t.text : t.surfaceHigh,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          child: Text(
+            label,
+            style: AppTheme.sans(
+              size: 14,
+              weight: FontWeight.w600,
+              color: selected ? t.bg : t.textMute,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FavoriteTile extends StatelessWidget {
+  const _FavoriteTile({
+    required this.favorite,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final AsFavoriteMessage favorite;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return GlassListPanel(
+      key: ValueKey('favorite-card-${favorite.id}'),
+      onTap: onTap,
+      onLongPress: onLongPress,
+      contentPadding: const EdgeInsets.all(14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FavoritePreview(favorite: favorite),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _favoriteListTitle(favorite),
+                  maxLines: favorite.messageType == 'file' ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 16,
+                    weight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _favoriteSourceLabel(favorite),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(size: 12, color: t.textMute),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _favoriteListMeta(favorite),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(size: 12, color: t.textMute),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FavoritePreview extends ConsumerStatefulWidget {
+  const _FavoritePreview({required this.favorite});
+
+  final AsFavoriteMessage favorite;
+
+  @override
+  ConsumerState<_FavoritePreview> createState() => _FavoritePreviewState();
+}
+
+class _FavoritePreviewState extends ConsumerState<_FavoritePreview> {
+  Future<Uint8List>? _previewFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final favorite = widget.favorite;
+    final hasThumbnail = favorite.thumbnailUrl.trim().isNotEmpty;
+    final shouldLoadPreview =
+        (favorite.messageType == 'image' && favorite.url.trim().isNotEmpty) ||
+            (favorite.messageType == 'video' && hasThumbnail);
+    if (shouldLoadPreview) {
+      _previewFuture = _downloadFavoriteMediaBytes(
+        ref,
+        favorite,
+        thumbnail: favorite.messageType == 'video' || hasThumbnail,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final favorite = widget.favorite;
+    final t = context.tk;
+    final isMedia =
+        favorite.messageType == 'image' || favorite.messageType == 'video';
+    if (!isMedia) {
+      return _FavoriteIconBox(
+        key: ValueKey('favorite-preview-${favorite.id}'),
+        type: favorite.messageType,
+        size: _favoritePreviewSize,
+      );
+    }
+
+    final placeholder = Container(
+      color: t.surfaceHigh,
+      alignment: Alignment.center,
+      child: Icon(
+        _favoriteIcon(favorite.messageType),
+        color: t.textMute,
+        size: 28,
+      ),
+    );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        key: ValueKey('favorite-preview-${favorite.id}'),
+        width: _favoritePreviewSize,
+        height: _favoritePreviewSize,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_previewFuture == null)
+              placeholder
+            else
+              FutureBuilder<Uint8List>(
+                future: _previewFuture,
+                builder: (context, snapshot) {
+                  final bytes = snapshot.data;
+                  if (bytes == null || bytes.isEmpty) return placeholder;
+                  return Image.memory(bytes, fit: BoxFit.cover);
+                },
+              ),
+            if (favorite.messageType == 'video')
+              Center(
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.42),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Symbols.play_arrow,
+                    color: Colors.white,
+                    size: 21,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FavoriteIconBox extends StatelessWidget {
+  const _FavoriteIconBox({
+    super.key,
+    required this.type,
+    this.size = _favoritePreviewSize,
+  });
+
+  final String type;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: t.surfaceHigh,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        _favoriteIcon(type),
+        size: size > 48 ? 30 : 22,
+        color: t.textMute,
+      ),
+    );
+  }
+}
+
+IconData _favoriteIcon(String type) {
+  return switch (type) {
+    'image' => Symbols.image,
+    'video' => Symbols.play_circle,
+    'file' => Symbols.description,
+    'chat_record' => Symbols.forum,
+    'audio' => Symbols.graphic_eq,
+    'link' => Symbols.link,
+    _ => Symbols.notes,
+  };
+}
+
+String _favoriteTitle(AsFavoriteMessage favorite) {
+  if (favorite.messageType == 'chat_record') {
+    return _favoriteChatRecordDescription(favorite);
+  }
+  if (favorite.messageType == 'file' ||
+      favorite.messageType == 'image' ||
+      favorite.messageType == 'video' ||
+      favorite.messageType == 'audio') {
+    if (favorite.filename.isNotEmpty) return favorite.filename;
+  }
+  if (favorite.body.isNotEmpty) return favorite.body;
+  if (favorite.url.isNotEmpty) return favorite.url;
+  return '收藏消息';
+}
+
+List<AsFavoriteMessage> _filterFavorites(
+  List<AsFavoriteMessage> favorites,
+  String messageType,
+) {
+  final type = messageType.trim();
+  if (type.isEmpty) return favorites;
+  if (type == _favoriteConversationFilter) {
+    return favorites
+        .where((favorite) =>
+            favorite.messageType == 'text' ||
+            favorite.messageType == chatRecordMessageType)
+        .toList(growable: false);
+  }
+  return favorites
+      .where((favorite) => favorite.messageType == type)
+      .toList(growable: false);
+}
+
+String _favoriteListTitle(AsFavoriteMessage favorite) {
+  return switch (favorite.messageType) {
+    'image' => '图片',
+    'video' => '视频',
+    'audio' => '语音',
+    'chat_record' => '聊天记录',
+    'file' => _favoriteTitle(favorite),
+    'link' => favorite.body.trim().isNotEmpty ? favorite.body.trim() : '链接',
+    _ => _favoriteTitle(favorite),
+  };
+}
+
+String _favoriteListMeta(AsFavoriteMessage favorite) {
+  final parts = <String>[
+    _favoriteDateLabel(favorite),
+    if (favorite.size > 0) _favoriteSize(favorite.size),
+  ];
+  return parts.where((part) => part.trim().isNotEmpty).join(' · ');
+}
+
+String _favoriteSourceLabel(AsFavoriteMessage favorite) {
+  if (favorite.messageType == 'chat_record') {
+    return _favoriteChatRecordDescription(favorite);
+  }
+  final sender = favorite.senderName.trim().isNotEmpty
+      ? favorite.senderName.trim()
+      : favorite.senderId.trim();
+  return switch (favorite.roomType) {
+    'direct' => sender.isEmpty ? '来自私聊' : '来自与 $sender 的私聊',
+    'group' => sender.isEmpty ? '来自群聊' : '来自群聊 · $sender',
+    'channel' => sender.isEmpty ? '来自频道' : '来自频道 · $sender',
+    'agent' => '来自 Agent',
+    _ => sender.isEmpty ? '来自聊天' : '来自聊天 · $sender',
+  };
+}
+
+String _favoriteDateLabel(AsFavoriteMessage favorite) {
+  final value = _favoriteTimestamp(favorite);
+  if (value == null) return '';
+  final local = value.toLocal();
+  final prefix = '${local.year}年${local.month}月${local.day}日';
+  return '$prefix ${_two(local.hour)}:${_two(local.minute)}';
+}
+
+DateTime? _favoriteTimestamp(AsFavoriteMessage favorite) {
+  if (favorite.favoritedAt != null) return favorite.favoritedAt;
+  final ts = favorite.originServerTs;
+  if (ts <= 0) return null;
+  return DateTime.fromMillisecondsSinceEpoch(ts, isUtc: true);
+}
+
+String _two(int value) => value.toString().padLeft(2, '0');
+
+String _favoriteTypeLabel(String type) {
+  return switch (type) {
+    'text' => '文字',
+    'image' => '图片',
+    'video' => '视频',
+    'file' => '文件',
+    'chat_record' => '聊天记录',
+    'audio' => '语音',
+    'link' => '链接',
+    _ => '消息',
+  };
+}
+
+String _favoriteSize(int bytes) {
+  if (bytes <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  var size = bytes.toDouble();
+  var index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index++;
+  }
+  final digits = index == 0 || size >= 10 ? 0 : 1;
+  return '${size.toStringAsFixed(digits)} ${units[index]}';
+}
+
+String _favoriteChatRecordDescription(AsFavoriteMessage favorite) {
+  final body = favorite.body.trim();
+  if (body.isNotEmpty) return body;
+
+  final name = favorite.senderName.trim().isNotEmpty
+      ? favorite.senderName.trim()
+      : favorite.senderId.trim();
+  return switch (favorite.roomType) {
+    'direct' => name.isEmpty ? '私聊聊天记录' : '与 $name 的聊天记录',
+    'group' => name.isEmpty ? '群聊聊天记录' : '群聊「$name」的聊天记录',
+    'channel' => name.isEmpty ? '频道聊天记录' : '频道「$name」的聊天记录',
+    'agent' => '与 Agent 的聊天记录',
+    _ => name.isEmpty ? '聊天记录' : '与 $name 的聊天记录',
+  };
+}
+
+ChatRecordPayload _favoriteMessagePayload(AsFavoriteMessage favorite) {
+  if (favorite.messageType == chatRecordMessageType &&
+      favorite.chatRecord.isNotEmpty) {
+    final payload = chatRecordPayloadFromContent({
+      'msgtype': MessageTypes.Text,
+      'body': favorite.body.trim().isEmpty
+          ? _favoriteChatRecordDescription(favorite)
+          : favorite.body.trim(),
+      chatRecordMatrixMarkerKey: chatRecordMessageType,
+      chatRecordMatrixPayloadKey: favorite.chatRecord,
+    });
+    if (payload != null) return payload;
+  }
+  final title = favorite.messageType == chatRecordMessageType
+      ? _favoriteChatRecordDescription(favorite)
+      : _favoriteSourceLabel(favorite);
+  return ChatRecordPayload(
+    sourceRoomId: favorite.roomId,
+    sourceRoomType:
+        favorite.roomType.trim().isEmpty ? 'direct' : favorite.roomType.trim(),
+    title: title,
+    body: '消息详情\n$title\n共 1 条消息',
+    itemCount: 1,
+    items: [
+      {
+        'sender_id': favorite.senderId.trim(),
+        'sender_name': favorite.senderName.trim(),
+        'is_me': favorite.senderId.trim().isNotEmpty &&
+            favorite.senderId.trim() == favorite.ownerUserId.trim(),
+        'body': _favoriteMessageBody(favorite),
+        'message_type': _favoriteMatrixMessageType(favorite.messageType),
+        'origin_server_ts': favorite.originServerTs,
+        'content': _favoriteMatrixContent(favorite),
+      },
+    ],
+  );
+}
+
+String _favoriteMessageBody(AsFavoriteMessage favorite) {
+  if (favorite.messageType == chatRecordMessageType) {
+    return _favoriteChatRecordDescription(favorite);
+  }
+  if ((favorite.filename).trim().isNotEmpty &&
+      (favorite.messageType == 'image' ||
+          favorite.messageType == 'video' ||
+          favorite.messageType == 'file' ||
+          favorite.messageType == 'audio')) {
+    return favorite.filename.trim();
+  }
+  if (favorite.body.trim().isNotEmpty) return favorite.body.trim();
+  if (favorite.url.trim().isNotEmpty) return favorite.url.trim();
+  return _favoriteTypeLabel(favorite.messageType);
+}
+
+String _favoriteOpenFileName(AsFavoriteMessage favorite) {
+  final filename = favorite.filename.trim();
+  if (filename.isNotEmpty) return filename;
+  final body = favorite.body.trim();
+  if (body.isNotEmpty) return body;
+  return switch (favorite.messageType) {
+    'video' => 'video.mov',
+    'image' => 'image.jpg',
+    'audio' => 'audio',
+    _ => 'file',
+  };
+}
+
+String _favoriteMatrixMessageType(String type) {
+  return switch (type) {
+    'image' => MessageTypes.Image,
+    'video' => MessageTypes.Video,
+    'file' => MessageTypes.File,
+    'audio' => MessageTypes.Audio,
+    _ => MessageTypes.Text,
+  };
+}
+
+Map<String, Object?> _favoriteMatrixContent(AsFavoriteMessage favorite) {
+  final msgType = _favoriteMatrixMessageType(favorite.messageType);
+  final body = _favoriteMessageBody(favorite);
+  if (favorite.messageType == chatRecordMessageType) {
+    return {
+      'msgtype': MessageTypes.Text,
+      'body': body,
+    };
+  }
+  return {
+    'msgtype': msgType,
+    'body': body,
+    if (favorite.filename.trim().isNotEmpty)
+      'filename': favorite.filename.trim(),
+    if (favorite.url.trim().isNotEmpty) 'url': favorite.url.trim(),
+    'info': {
+      if (favorite.mimeType.trim().isNotEmpty)
+        'mimetype': favorite.mimeType.trim(),
+      if (favorite.size > 0) 'size': favorite.size,
+      if (favorite.thumbnailUrl.trim().isNotEmpty)
+        'thumbnail_url': favorite.thumbnailUrl.trim(),
+      if (favorite.thumbnailMimeType.trim().isNotEmpty)
+        'thumbnail_info': {
+          'mimetype': favorite.thumbnailMimeType.trim(),
+          if (favorite.thumbnailSize > 0) 'size': favorite.thumbnailSize,
+        },
+      if (favorite.width > 0) 'w': favorite.width,
+      if (favorite.height > 0) 'h': favorite.height,
+      if (favorite.durationMs > 0) 'duration': favorite.durationMs,
+    },
+  };
+}
+
+Future<Uint8List> _downloadFavoriteMediaBytes(
+  WidgetRef ref,
+  AsFavoriteMessage favorite, {
+  bool thumbnail = false,
+}) async {
+  final raw = (thumbnail ? favorite.thumbnailUrl : favorite.url).trim();
+  final mxc = Uri.tryParse(raw);
+  if (mxc == null || !mxc.isScheme('mxc')) {
+    throw StateError('收藏媒体地址无效');
+  }
+
+  final client = ref.read(matrixClientProvider);
+  return ref.read(matrixMediaBytesCacheProvider).read(client, mxc);
+}
+
+class _MeMenuSection extends StatelessWidget {
+  const _MeMenuSection({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: children);
+  }
+}
+
+class _MeMenuRow extends StatelessWidget {
+  const _MeMenuRow({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassListTile(
+      leading: GlassListIcon(icon: icon),
+      title: title,
+      onTap: onTap,
+    );
+  }
+}
+
+class _MeMenuDivider extends StatelessWidget {
+  const _MeMenuDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
+}

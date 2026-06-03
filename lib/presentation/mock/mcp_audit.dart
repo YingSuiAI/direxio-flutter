@@ -1,4 +1,4 @@
-/// MCP 审计日志（mock 阶段：内存）
+// MCP 审计日志（mock 阶段：内存）
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum McpAuditOutcome { ok, denied, confirmRequired, confirmed, cancelled }
@@ -43,5 +43,5 @@ class McpAuditStore extends StateNotifier<List<McpAuditEntry>> {
 
 final mcpAuditStoreProvider =
     StateNotifierProvider<McpAuditStore, List<McpAuditEntry>>(
-      (ref) => McpAuditStore(),
-    );
+  (ref) => McpAuditStore(),
+);

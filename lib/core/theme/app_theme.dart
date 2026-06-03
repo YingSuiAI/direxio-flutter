@@ -13,12 +13,23 @@ class AppTheme {
     Color? color,
     FontWeight? fontWeight,
     double letterSpacing = 0,
-  }) => GoogleFonts.notoSansSc(
-    fontSize: fontSize,
-    color: color,
-    fontWeight: fontWeight ?? FontWeight.w400,
-    letterSpacing: letterSpacing,
-  );
+  }) {
+    if (!GoogleFonts.config.allowRuntimeFetching) {
+      return TextStyle(
+        fontSize: fontSize,
+        color: color,
+        fontWeight: fontWeight ?? FontWeight.w400,
+        letterSpacing: letterSpacing,
+        fontFamilyFallback: const ['NotoSansSC'],
+      );
+    }
+    return GoogleFonts.notoSansSc(
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight ?? FontWeight.w400,
+      letterSpacing: letterSpacing,
+    );
+  }
 
   static ThemeData _buildTheme(PortalTokens t, Brightness brightness) {
     final scheme = ColorScheme.fromSeed(
@@ -37,13 +48,14 @@ class AppTheme {
 
     return base.copyWith(
       colorScheme: scheme,
-      scaffoldBackgroundColor: t.bg,
+      scaffoldBackgroundColor: Colors.transparent,
       canvasColor: t.bg,
       dividerColor: t.border,
       extensions: [t],
-      textTheme: GoogleFonts.notoSansScTextTheme(
-        base.textTheme,
-      ).apply(bodyColor: t.text, displayColor: t.text),
+      textTheme: (GoogleFonts.config.allowRuntimeFetching
+              ? GoogleFonts.notoSansScTextTheme(base.textTheme)
+              : base.textTheme)
+          .apply(bodyColor: t.text, displayColor: t.text),
       appBarTheme: AppBarTheme(
         backgroundColor: t.bg,
         foregroundColor: t.text,

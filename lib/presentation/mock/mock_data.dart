@@ -33,6 +33,7 @@ class MockMessage {
     this.toolResultSummary,
     this.toolLatencyMs,
     this.toolWarnings,
+    this.chatRecordContent = const {},
   });
   final bool isMe;
   final String text;
@@ -55,6 +56,9 @@ class MockMessage {
   final String? toolResultSummary;
   final int? toolLatencyMs;
   final List<String>? toolWarnings;
+
+  /// 转发的聊天记录消息专用：保存 Matrix 兼容的 chat_record payload。
+  final Map<String, Object?> chatRecordContent;
 }
 
 class MockConversation {
@@ -68,6 +72,7 @@ class MockConversation {
     this.accentColor,
     this.avatarUrl,
     this.members,
+    this.isOwnerGroup = false,
     bool? isGroup,
   }) : isGroup = isGroup ?? members != null;
   final String id;
@@ -79,9 +84,60 @@ class MockConversation {
   final Color? accentColor;
   final String? avatarUrl;
   final List<String>? members;
+  final bool isOwnerGroup;
   final bool isGroup;
 
   MockMessage? get lastMessage => messages.isEmpty ? null : messages.last;
+}
+
+class MockContactHome {
+  const MockContactHome({
+    required this.userId,
+    required this.displayName,
+    required this.domain,
+    required this.bio,
+    required this.avatarUrl,
+    required this.channels,
+    required this.dynamics,
+  });
+
+  final String userId;
+  final String displayName;
+  final String domain;
+  final String bio;
+  final String? avatarUrl;
+  final List<MockContactChannel> channels;
+  final List<MockContactDynamic> dynamics;
+}
+
+class MockContactChannel {
+  const MockContactChannel({
+    required this.name,
+    required this.description,
+    required this.memberCount,
+  });
+
+  final String name;
+  final String description;
+  final int memberCount;
+}
+
+class MockContactDynamic {
+  const MockContactDynamic({
+    required this.month,
+    required this.day,
+    required this.title,
+    required this.subtitle,
+    required this.previewColor,
+    required this.sortKey,
+  });
+
+  final String month;
+  final String day;
+  final String title;
+  final String subtitle;
+  final int previewColor;
+  final int sortKey;
 }
 
 class MockData {
@@ -161,6 +217,34 @@ class MockData {
       ],
     ),
     MockConversation(
+      id: 'mock_core_group',
+      name: 'P2P IM 核心群',
+      mxid: '!core:portal.local',
+      subtitle: 'Li: 今天先把频道和动态体验跑顺',
+      unread: 1,
+      isOwnerGroup: true,
+      members: const [
+        'Li',
+        'Alice Chen',
+        'Bob Smith',
+        'Dave Lee',
+        'Agent',
+      ],
+      messages: [
+        MockMessage(
+          isMe: false,
+          senderName: 'Li',
+          text: '今天先把频道和动态体验跑顺',
+          time: _now.subtract(const Duration(minutes: 40)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '收到，我来整理测试路径',
+          time: _now.subtract(const Duration(minutes: 35)),
+        ),
+      ],
+    ),
+    MockConversation(
       id: 'mock_design_group',
       name: '产品设计组',
       mxid: '!design:portal.local',
@@ -197,6 +281,32 @@ class MockData {
           senderName: 'Carol',
           text: '原型图更新了',
           time: _now.subtract(const Duration(days: 1)),
+        ),
+      ],
+    ),
+    MockConversation(
+      id: 'mock_agent_creator_group',
+      name: 'Agent 创作小组',
+      mxid: '!agent-creator:portal.local',
+      subtitle: 'Mira: 动态详情页可以接入长文生成',
+      unread: 0,
+      members: const [
+        'Mira',
+        'Alice Chen',
+        'Dave Lee',
+        'Agent',
+      ],
+      messages: [
+        MockMessage(
+          isMe: false,
+          senderName: 'Mira',
+          text: '动态详情页可以接入长文生成',
+          time: _now.subtract(const Duration(hours: 2, minutes: 10)),
+        ),
+        MockMessage(
+          isMe: true,
+          text: '先做 mock 体验，再接真实发布流',
+          time: _now.subtract(const Duration(hours: 2)),
         ),
       ],
     ),
@@ -294,6 +404,79 @@ class MockData {
       ],
     ),
   ];
+
+  static List<MockConversation> get friendContacts => conversations
+      .where(
+          (c) => const {'mock_alice', 'mock_bob', 'mock_dave'}.contains(c.id))
+      .toList();
+
+  static List<MockConversation> get groupConversations =>
+      conversations.where((c) => c.isGroup).toList();
+
+  static MockContactHome? contactHomeByMxid(String mxid) {
+    final mock = byMxid(mxid);
+    if (mock == null) return null;
+    final localpart = mxid.startsWith('@') && mxid.contains(':')
+        ? mxid.substring(1, mxid.indexOf(':'))
+        : mock.name.toLowerCase().replaceAll(' ', '.');
+    final rawDomain =
+        mxid.contains(':') ? mxid.split(':').last : 'portal.local';
+    final displayDomain = '$localpart.$rawDomain';
+
+    if (mock.id == 'mock_alice') {
+      return MockContactHome(
+        userId: mxid,
+        displayName: mock.name,
+        domain: displayDomain,
+        bio: '产品设计师，喜欢把复杂流程变简单。',
+        avatarUrl: mock.avatarUrl,
+        channels: const [
+          MockContactChannel(
+            name: '设计观察',
+            description: '产品原型、交互细节和设计记录',
+            memberCount: 246,
+          ),
+        ],
+        dynamics: const [
+          MockContactDynamic(
+            month: '今天',
+            day: '',
+            title: '原型图更新了',
+            subtitle: '把频道详情和联系人主页的几个入口重新梳理了一遍。',
+            previewColor: 0xFFE4ECF7,
+            sortKey: 202605261100,
+          ),
+          MockContactDynamic(
+            month: '五月',
+            day: '12',
+            title: '新的资料页草稿',
+            subtitle: '访客看到的是主页，不应该看到设置和编辑入口。',
+            previewColor: 0xFFF1E5D8,
+            sortKey: 202605121000,
+          ),
+        ],
+      );
+    }
+
+    return MockContactHome(
+      userId: mxid,
+      displayName: mock.name,
+      domain: displayDomain,
+      bio: mock.subtitle,
+      avatarUrl: mock.avatarUrl,
+      channels: const [],
+      dynamics: [
+        MockContactDynamic(
+          month: '今天',
+          day: '',
+          title: mock.subtitle,
+          subtitle: '来自 ${mock.name} 的最近动态预览。',
+          previewColor: 0xFFECEFF3,
+          sortKey: 202605260900,
+        ),
+      ],
+    );
+  }
 
   static MockConversation? byId(String id) {
     for (final c in conversations) {

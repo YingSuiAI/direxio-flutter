@@ -1,9 +1,9 @@
-/// M3 通用组件 —— 对齐 Agent P2P 设计稿
+// M3 通用组件 —— 对齐 Agent P2P 设计稿
 import 'package:flutter/material.dart';
 import '../../../core/theme/design_tokens.dart';
 import '../../../core/theme/app_theme.dart';
 
-/// M3 卡片：surface-container-lowest + 细边 + 12 圆角 + 轻阴影。
+//// M3 卡片：surface-container-lowest + 细边 + 12 圆角 + 轻阴影。
 class M3Card extends StatelessWidget {
   const M3Card({
     super.key,
@@ -53,7 +53,7 @@ class M3Card extends StatelessWidget {
   }
 }
 
-/// 主按钮 —— primary 实心，圆角 12，按压缩放。
+//// 主按钮 —— primary 实心，圆角 12，按压缩放。
 class M3PrimaryButton extends StatelessWidget {
   const M3PrimaryButton({
     super.key,
@@ -103,7 +103,7 @@ class M3PrimaryButton extends StatelessWidget {
   }
 }
 
-/// M3 输入框容器 —— surface 底 + 细边 + 12 圆角，内部放图标 + input。
+//// M3 输入框容器 —— surface 底 + 细边 + 12 圆角，内部放图标 + input。
 class M3InputField extends StatelessWidget {
   const M3InputField({
     super.key,

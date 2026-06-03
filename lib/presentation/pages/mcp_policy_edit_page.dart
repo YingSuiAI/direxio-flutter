@@ -1,5 +1,5 @@
-/// MCP / Agent 权限：编辑页
-/// 按维度分组：总开关 / 工具 / 会话 / 时间 / 内容 / 频次 / 生命周期
+// MCP / Agent 权限：编辑页
+// 按维度分组：总开关 / 工具 / 会话 / 时间 / 内容 / 频次 / 生命周期
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -160,7 +160,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
         ),
 
         const SizedBox(height: 16),
-        _SectionHeader('可用工具'),
+        const _SectionHeader('可用工具'),
         _Group(
           children: McpToolDef.all.map((tool) {
             final allowed = _draft.allowedTools.contains(tool.id);
@@ -189,7 +189,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
         ),
 
         const SizedBox(height: 16),
-        _SectionHeader('聊天记录范围'),
+        const _SectionHeader('聊天记录范围'),
         _Group(
           children: [
             _RadioRow(
@@ -215,7 +215,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
         ),
 
         const SizedBox(height: 16),
-        _SectionHeader('时间范围'),
+        const _SectionHeader('时间范围'),
         _Group(
           children: [
             _ChoiceRow<HistoryWindow>(
@@ -239,7 +239,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
         ),
 
         const SizedBox(height: 16),
-        _SectionHeader('内容脱敏'),
+        const _SectionHeader('内容脱敏'),
         _Group(
           children: [
             _SwitchRow(
@@ -261,7 +261,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
         ),
 
         const SizedBox(height: 16),
-        _SectionHeader('频次限制'),
+        const _SectionHeader('频次限制'),
         _Group(
           children: [
             _ChoiceRow<int>(
@@ -287,7 +287,7 @@ class _McpPolicyEditPageState extends ConsumerState<McpPolicyEditPage> {
         ),
 
         const SizedBox(height: 16),
-        _SectionHeader('生命周期'),
+        const _SectionHeader('生命周期'),
         _Group(
           children: [
             _ChoiceRow<ExpiryOption>(
@@ -435,8 +435,8 @@ class _AuditRow extends StatelessWidget {
     final color = e.outcome == McpAuditOutcome.denied
         ? t.danger
         : e.outcome == McpAuditOutcome.confirmRequired
-        ? Colors.amber
-        : t.accent;
+            ? Colors.amber
+            : t.accent;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -487,7 +487,11 @@ class _AuditRow extends StatelessWidget {
                     (w) => Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Symbols.warning, size: 11, color: Colors.amber),
+                        const Icon(
+                          Symbols.warning,
+                          size: 11,
+                          color: Colors.amber,
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -508,7 +512,7 @@ class _AuditRow extends StatelessWidget {
   }
 }
 
-// ──────────────────────────── 子组件 ────────────────────────────
+/// ──────────────────────────── 子组件 ────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.text);

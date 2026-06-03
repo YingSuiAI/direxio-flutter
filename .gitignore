@@ -7,6 +7,7 @@
 build/
 *.g.dart
 *.freezed.dart
+flutter_*.log
 
 # Android
 **/android/**/gradle-wrapper.jar

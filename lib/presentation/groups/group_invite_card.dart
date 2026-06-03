@@ -1,0 +1,107 @@
+import 'package:flutter/material.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/design_tokens.dart';
+import '../chat/chat_message_cards.dart';
+import 'group_invite_content.dart';
+
+const groupInviteCardMaxWidthFactor = chatMessageCardMaxWidthFactor;
+
+class GroupInviteCard extends StatelessWidget {
+  const GroupInviteCard({
+    super.key,
+    required this.invite,
+    required this.joining,
+    required this.onJoin,
+    this.inviterDisplayName = '',
+  });
+
+  final GroupInviteContent invite;
+  final bool joining;
+  final VoidCallback onJoin;
+  final String inviterDisplayName;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final inviter = inviterDisplayName.trim().isNotEmpty
+        ? inviterDisplayName.trim()
+        : invite.inviterDisplayName.isEmpty
+            ? invite.inviterMxid
+            : invite.inviterDisplayName;
+    final titleColor = t.text;
+    final bodyColor = t.textMute;
+    final buttonColor = t.accent;
+    final buttonTextColor = t.onAccent;
+    return ChatCardBubbleFrame(
+      child: Column(
+        children: [
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '邀请加入群聊',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(
+                          size: 16,
+                          weight: FontWeight.w600,
+                          color: titleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        joining
+                            ? '正在加入“${invite.groupName}”'
+                            : '${inviter.trim().isEmpty ? '对方' : inviter} 邀请你加入“${invite.groupName}”',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(
+                          size: 13,
+                          color: bodyColor,
+                        ).copyWith(height: 1.22),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ChatGroupAvatarTile(seed: invite.groupName, size: 46),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 30,
+            child: Material(
+              color:
+                  joining ? buttonColor.withValues(alpha: 0.48) : buttonColor,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: joining ? null : onJoin,
+                borderRadius: BorderRadius.circular(8),
+                child: Center(
+                  child: Text(
+                    joining ? '加入中…' : '加入群聊',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 13,
+                      weight: FontWeight.w600,
+                      color: buttonTextColor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

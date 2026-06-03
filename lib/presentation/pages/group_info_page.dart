@@ -8,7 +8,9 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../groups/group_leave_flow.dart';
 import '../providers/auth_provider.dart';
+import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
 import '../widgets/portal_avatar.dart';
@@ -26,6 +28,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   bool _mute = false;
   bool _pinned = false;
   bool _showMemberNick = true;
+  bool _leaving = false;
 
   @override
   void initState() {
@@ -46,11 +49,11 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final client = ref.watch(matrixClientProvider);
     final room = client.getRoomById(widget.roomId);
     // 真实成员列表（已加入）；降级到空列表
-    final members = room?.getParticipants()
+    final members = room
+            ?.getParticipants()
             .where((m) => m.membership == Membership.join)
-            .map((m) => m.calcDisplayname())
             .toList() ??
-        const <String>[];
+        const <User>[];
     final memberCount = room?.summary.mJoinedMemberCount ?? members.length;
 
     return Scaffold(
@@ -77,7 +80,12 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       children: [
-                        for (final m in members) _MemberChip(name: m),
+                        for (final m in members)
+                          _MemberChip(
+                            name: m.calcDisplayname(),
+                            avatarUrl:
+                                matrixContentHttpUrl(client, m.avatarUrl),
+                          ),
                         _InviteChip(onTap: () {}),
                       ],
                     ),
@@ -91,7 +99,10 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                     children: [
                       InfoNavRow(label: '群公告', onTap: () {}),
                       const InfoDivider(),
-                      InfoNavRow(label: '群管理', onTap: () => context.push('/group-manage/${Uri.encodeComponent(widget.roomId)}')),
+                      InfoNavRow(
+                          label: '群管理',
+                          onTap: () => context.push(
+                              '/group-manage/${Uri.encodeComponent(widget.roomId)}')),
                       const InfoDivider(),
                       InfoNavRow(label: '备注', onTap: () {}),
                     ],
@@ -161,33 +172,45 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     );
   }
 
-  void _confirmLeave(BuildContext context) {
-    showDialog<void>(
+  Future<void> _confirmLeave(BuildContext context) async {
+    if (_leaving) return;
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('退出群聊'),
         content: const Text('确定要退出该群聊吗？'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('取消'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              if (context.mounted) context.go('/home');
-            },
+            onPressed: () => Navigator.of(ctx).pop(true),
             child: Text('退出', style: TextStyle(color: context.tk.danger)),
           ),
         ],
       ),
     );
+    if (ok != true || !mounted) return;
+    setState(() => _leaving = true);
+    try {
+      await leaveGroupThroughAs(ref, widget.roomId);
+      if (context.mounted) context.go('/home');
+    } on Object catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('退出群聊失败: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _leaving = false);
+    }
   }
 }
 
 class _MemberChip extends StatelessWidget {
-  const _MemberChip({required this.name});
+  const _MemberChip({required this.name, this.avatarUrl});
   final String name;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +221,7 @@ class _MemberChip extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          PortalAvatar(seed: name, size: 48),
+          PortalAvatar(seed: name, size: 48, imageUrl: avatarUrl),
           const SizedBox(height: 4),
           SizedBox(
             width: 52,

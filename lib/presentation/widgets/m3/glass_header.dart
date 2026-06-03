@@ -1,12 +1,12 @@
-/// M3 毛玻璃头部 —— 对齐 Agent P2P 设计稿 .glass
-///
-/// 不是 PreferredSizeWidget / 不当 Scaffold.appBar。
-/// 直接放进 body Column 顶部，内部自取状态栏高度撑高，避免 appBar
-/// 路径下 SafeArea 与 preferredSize 冲突导致的错位。
-///
-/// 两种形态：
-/// - [GlassHeader.primary]：消息列表式（左头像/标题 + 右图标按钮组），内容高 56
-/// - [GlassHeader.detail]：子页式（返回箭头 + 居中标题/副标题 + 右按钮），内容高 60
+// M3 毛玻璃头部 —— 对齐 Agent P2P 设计稿 .glass
+//
+// 不是 PreferredSizeWidget / 不当 Scaffold.appBar。
+// 直接放进 body Column 顶部，内部自取状态栏高度撑高，避免 appBar
+// 路径下 SafeArea 与 preferredSize 冲突导致的错位。
+//
+// 两种形态：
+// - [GlassHeader.primary]：消息列表式（左头像/标题 + 右图标按钮组），内容高 56
+// - [GlassHeader.detail]：子页式（返回箭头 + 居中标题/副标题 + 右按钮），内容高 60
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -70,10 +70,7 @@ class GlassHeader extends StatelessWidget {
           height: contentHeight + topInset,
           padding: EdgeInsets.only(top: topInset),
           decoration: BoxDecoration(
-            color: t.bg.withValues(alpha: 0.85),
-            border: Border(
-              bottom: BorderSide(color: t.border.withValues(alpha: 0.5)),
-            ),
+            color: t.surface.withValues(alpha: 0.58),
           ),
           child: child,
         ),
@@ -107,7 +104,7 @@ class _PrimaryContent extends StatelessWidget {
             style: AppTheme.sans(
               size: 24,
               weight: FontWeight.w600,
-              color: titleColor ?? t.accent,
+              color: titleColor ?? t.text,
             ),
           ),
           const Spacer(),

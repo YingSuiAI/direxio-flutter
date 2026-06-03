@@ -1,5 +1,5 @@
-/// AI Bot / Agent 消息体：渲染 Markdown
-/// 用户自己的消息走纯文本，不进这个组件
+// AI Bot / Agent 消息体：渲染 Markdown
+// 用户自己的消息走纯文本，不进这个组件
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
@@ -137,7 +137,7 @@ class _CodeBlock extends StatelessWidget {
   }
 }
 
-/// M3 风格表格 —— 替代 gpt_markdown 默认的浏览器黑框表格。
+//// M3 风格表格 —— 替代 gpt_markdown 默认的浏览器黑框表格。
 class _M3Table extends StatelessWidget {
   const _M3Table({required this.rows});
   final List<CustomTableRow> rows;
@@ -179,9 +179,8 @@ class _M3Table extends StatelessWidget {
                       style: AppTheme.sans(
                         size: 13,
                         color: t.text,
-                        weight: row.isHeader
-                            ? FontWeight.w600
-                            : FontWeight.w400,
+                        weight:
+                            row.isHeader ? FontWeight.w600 : FontWeight.w400,
                       ),
                     ),
                   ),

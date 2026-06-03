@@ -1,0 +1,69 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
+import 'package:portal_app/presentation/chat/chat_history_backfill_policy.dart';
+
+void main() {
+  test('requests local backfill when call signaling crowds out messages', () {
+    final client = Client('ChatHistoryBackfillPolicyTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final events = [
+      _event(room, r'$invite', EventTypes.CallInvite),
+      _event(room, r'$answer', EventTypes.CallAnswer),
+      _event(room, r'$candidate', EventTypes.CallCandidates),
+      _event(room, r'$hangup', EventTypes.CallHangup),
+      Event(
+        room: room,
+        eventId: r'$text',
+        senderId: '@me:p2p-im.com',
+        type: EventTypes.Message,
+        originServerTs: DateTime.utc(2026, 5, 30, 1, 0, 5),
+        content: {
+          'msgtype': MessageTypes.Text,
+          'body': 'hello',
+        },
+      ),
+    ];
+
+    expect(visibleMessageCountForChatOpenHistory(events), 1);
+    expect(
+      shouldBackfillLocalChatOpenHistory(
+        timelineEvents: events,
+        hasStoredOlderEvents: true,
+      ),
+      isTrue,
+    );
+  });
+
+  test('does not request chat-open server history when local store is empty',
+      () {
+    final client = Client('ChatHistoryNoStoredBackfillTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final events = [
+      _event(room, r'$hangup', EventTypes.CallHangup),
+    ];
+
+    expect(
+      shouldBackfillLocalChatOpenHistory(
+        timelineEvents: events,
+        hasStoredOlderEvents: false,
+      ),
+      isFalse,
+    );
+  });
+}
+
+Event _event(Room room, String eventId, String type) {
+  return Event(
+    room: room,
+    eventId: eventId,
+    senderId: '@me:p2p-im.com',
+    type: type,
+    originServerTs: DateTime.utc(2026, 5, 30, 1),
+    content: {
+      'call_id': 'call-1',
+      'version': 1,
+    },
+  );
+}

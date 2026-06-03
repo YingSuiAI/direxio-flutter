@@ -1,7 +1,7637 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:matrix/matrix.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:portal_app/core/theme/app_theme.dart';
+import 'package:portal_app/core/theme/design_tokens.dart';
+import 'package:portal_app/data/as_bootstrap_store.dart';
+import 'package:portal_app/data/as_gateway_client.dart';
+import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/friend_request_read_store.dart';
+import 'package:portal_app/data/local_outbox_store.dart';
+import 'package:portal_app/presentation/call/voice_call_controller.dart';
+import 'package:portal_app/presentation/pages/add_contact_page.dart';
+import 'package:portal_app/presentation/pages/channel_page.dart';
+import 'package:portal_app/presentation/pages/chat_info_page.dart';
+import 'package:portal_app/presentation/pages/chat_page.dart';
+import 'package:portal_app/presentation/pages/contact_detail_page.dart';
+import 'package:portal_app/presentation/pages/contact_home_page.dart';
+import 'package:portal_app/presentation/pages/dynamic_detail_page.dart';
+import 'package:portal_app/presentation/pages/follows_list_page.dart';
+import 'package:portal_app/presentation/pages/login_page.dart';
+import 'package:portal_app/presentation/mock/mock_data.dart';
+import 'package:portal_app/presentation/pages/home_page.dart';
+import 'package:portal_app/presentation/pages/group_chat_page.dart';
+import 'package:portal_app/presentation/pages/group_detail_page.dart';
+import 'package:portal_app/presentation/pages/group_manage_page.dart';
+import 'package:portal_app/presentation/pages/groups_list_page.dart';
+import 'package:portal_app/presentation/pages/me_account_page.dart';
+import 'package:portal_app/presentation/pages/me_menu_page.dart';
+import 'package:portal_app/presentation/pages/me_notifications_page.dart';
+import 'package:portal_app/presentation/pages/profile_info_page.dart';
+import 'package:portal_app/presentation/pages/requests_page.dart';
+import 'package:portal_app/presentation/pages/search_page.dart';
+import 'package:portal_app/presentation/pages/settings_page.dart';
+import 'package:portal_app/presentation/providers/as_gateway_provider.dart';
+import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.dart';
+import 'package:portal_app/presentation/providers/as_client_provider.dart';
+import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
+import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
+import 'package:portal_app/presentation/providers/auth_provider.dart';
+import 'package:portal_app/presentation/providers/friend_request_read_provider.dart';
+import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
+import 'package:portal_app/presentation/providers/profile_provider.dart';
+import 'package:portal_app/presentation/providers/voice_call_provider.dart';
+import 'package:portal_app/presentation/chat/cached_thumbnail_image.dart';
+import 'package:portal_app/presentation/utils/group_creation_flow.dart';
+import 'package:portal_app/presentation/utils/room_read_state.dart';
+import 'package:portal_app/presentation/widgets/m3/glass_header.dart';
+import 'package:portal_app/presentation/widgets/portal_avatar.dart';
+
+final _transparentPng = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lGt2qQAAAABJRU5ErkJggg==',
+);
+
+class _FakeAuthStateNotifier extends AuthStateNotifier {
+  @override
+  Future<AuthState> build() async => const AuthState(isLoggedIn: false);
+}
+
+class _LoggedInAuthStateNotifier extends AuthStateNotifier {
+  @override
+  Future<AuthState> build() async => const AuthState(
+        isLoggedIn: true,
+        userId: '@owner:p2p-im.com',
+        homeserver: 'https://p2p-im.com',
+      );
+}
+
+class _LoadingAuthStateNotifier extends AuthStateNotifier {
+  @override
+  Future<AuthState> build() => Completer<AuthState>().future;
+}
+
+Color _nearestSizedContainerColor(
+  WidgetTester tester,
+  Finder finder, {
+  required double size,
+}) {
+  Container? container;
+  tester.element(finder).visitAncestorElements((element) {
+    final widget = element.widget;
+    final constraints = widget is Container ? widget.constraints : null;
+    if (constraints?.minWidth == size &&
+        constraints?.maxWidth == size &&
+        constraints?.minHeight == size &&
+        constraints?.maxHeight == size) {
+      container = widget as Container;
+      return false;
+    }
+    return true;
+  });
+  final decoration = container?.decoration;
+  if (decoration is! BoxDecoration || decoration.color == null) {
+    throw StateError('No sized container color found for $finder');
+  }
+  return decoration.color!;
+}
+
+class _EmptyAsClient implements AsClient {
+  String? updatedOwnerDisplayName;
+
+  @override
+  Future<OwnerProfile> getOwnerProfile() async => const OwnerProfile(
+        userId: '@owner:example.com',
+        displayName: '测试用户',
+        domain: 'example.com',
+      );
+
+  @override
+  Future<OwnerProfile> updateOwnerProfile({required String displayName}) async {
+    updatedOwnerDisplayName = displayName.trim();
+    return OwnerProfile(
+      userId: '@owner:p2p-im.com',
+      displayName: updatedOwnerDisplayName!,
+      domain: 'p2p-im.com',
+    );
+  }
+
+  @override
+  Future<AsSyncBootstrap> syncBootstrap() async => AsSyncBootstrap(
+        syncedAt: DateTime.now().toUtc(),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      );
+
+  @override
+  Future<AsSyncUnread> syncUnread({int limitPerRoom = 200}) async =>
+      AsSyncUnread(syncedAt: DateTime.now().toUtc(), rooms: const []);
+
+  @override
+  Future<List<AsSearchResult>> search(
+    String query, {
+    String? roomId,
+    int limit = 20,
+  }) async =>
+      const [];
+
+  @override
+  Future<void> addFollow(String domain) async {}
+
+  @override
+  Future<String> changePortalToken(String newToken) async => newToken;
+
+  @override
+  Future<AsCallSession> createCall({
+    required String roomId,
+    required String mediaType,
+    List<String> invitedUserIds = const [],
+  }) async =>
+      AsCallSession(
+        callId: 'test-call',
+        roomId: roomId,
+        roomType: roomId.contains('group') ? 'group' : 'direct',
+        mediaType: mediaType,
+        createdByMxid: '@owner:example.com',
+        state: asCallStateRinging,
+        createdAt: DateTime.now().toUtc(),
+        invitedUserIds: invitedUserIds,
+      );
+
+  @override
+  Future<AsCallSession> getCall(String callId) async => AsCallSession(
+        callId: callId,
+        roomId: '!room:example.com',
+        roomType: 'direct',
+        mediaType: asCallMediaTypeVoice,
+        createdByMxid: '@owner:example.com',
+        state: asCallStateRinging,
+        createdAt: DateTime.now().toUtc(),
+      );
+
+  @override
+  Future<List<AsCallSession>> getActiveCalls() async => const [];
+
+  @override
+  Future<List<AsCallSession>> listCalls({
+    required String roomId,
+    int limit = 50,
+  }) async =>
+      const [];
+
+  @override
+  Future<AsCallSession> registerIncomingCall({
+    required String callId,
+    required String roomId,
+    required String mediaType,
+    required String createdByMxid,
+    DateTime? createdAt,
+    List<String> invitedUserIds = const [],
+  }) async =>
+      AsCallSession(
+        callId: callId,
+        roomId: roomId,
+        roomType: roomId.contains('group') ? 'group' : 'direct',
+        mediaType: mediaType,
+        createdByMxid: createdByMxid,
+        state: asCallStateRinging,
+        createdAt: createdAt ?? DateTime.now().toUtc(),
+        invitedUserIds: invitedUserIds,
+      );
+
+  @override
+  Future<AsCallSession> updateCallEvent({
+    required String callId,
+    required String event,
+    String reason = '',
+    int durationMs = 0,
+  }) async =>
+      AsCallSession(
+        callId: callId,
+        roomId: '!room:example.com',
+        roomType: 'direct',
+        mediaType: asCallMediaTypeVoice,
+        createdByMxid: '@owner:example.com',
+        state: event,
+        createdAt: DateTime.now().toUtc(),
+        endReason: reason,
+        durationMs: durationMs,
+      );
+
+  @override
+  Future<String> createChannel({
+    required String name,
+    String topic = '',
+  }) async =>
+      '!created:example.com';
+
+  @override
+  Future<AgentConfig> getAgentConfig() async =>
+      const AgentConfig(displayName: '小A', contextWindow: 20);
+
+  @override
+  Future<AgentStatus> getAgentStatus() async => const AgentStatus(
+        connected: false,
+        lastSeen: null,
+        roomsJoined: 0,
+        messagesToday: 0,
+      );
+
+  @override
+  Future<List<FollowEntry>> getFollows() async => const [];
+
+  @override
+  Future<List<AsFavoriteMessage>> getFavorites({
+    String messageType = '',
+    int limit = 100,
+  }) async =>
+      const [];
+
+  @override
+  Future<AsFavoriteMessage> favoriteMessage(
+      AsFavoriteMessageDraft draft) async {
+    return AsFavoriteMessage(
+      id: 1,
+      ownerUserId: '@owner:example.com',
+      roomId: draft.roomId,
+      eventId: draft.eventId,
+      roomType: draft.roomType,
+      messageType: draft.messageType,
+      senderId: draft.senderId,
+      senderName: draft.senderName,
+      body: draft.body,
+      url: draft.url,
+      filename: draft.filename,
+      mimeType: draft.mimeType,
+      size: draft.size,
+      thumbnailUrl: draft.thumbnailUrl,
+      thumbnailMimeType: draft.thumbnailMimeType,
+      thumbnailSize: draft.thumbnailSize,
+      width: draft.width,
+      height: draft.height,
+      durationMs: draft.durationMs,
+      originServerTs: draft.originServerTs,
+      favoritedAt: DateTime.utc(2026, 5, 29),
+    );
+  }
+
+  @override
+  Future<void> deleteFavorite(int id) async {}
+
+  @override
+  Future<PortalStatus> getPortalStatus() async => const PortalStatus(
+        dendrite: 'connected',
+        federation: 'ok',
+        agent: 'connected',
+        uptime: '',
+      );
+
+  @override
+  Future<void> removeFollow(String domain) async {}
+
+  @override
+  Future<ContactEntry> createContactRequest({
+    required String mxid,
+    String displayName = '',
+    String domain = '',
+  }) async =>
+      ContactEntry(
+        peerMxid: mxid,
+        displayName: displayName,
+        domain: domain,
+        roomId: '!contact:example.com',
+        status: 'pending_outbound',
+      );
+
+  @override
+  Future<ContactEntry> acceptContactRequest({
+    required String roomId,
+    required String peerMxid,
+    String displayName = '',
+    String domain = '',
+  }) async =>
+      ContactEntry(
+        peerMxid: peerMxid,
+        displayName: displayName,
+        domain: domain,
+        roomId: roomId,
+        status: 'accepted',
+      );
+
+  @override
+  Future<ContactEntry> rejectContactRequest({
+    required String roomId,
+    required String peerMxid,
+    String displayName = '',
+    String domain = '',
+  }) async =>
+      ContactEntry(
+        peerMxid: peerMxid,
+        displayName: displayName,
+        domain: domain,
+        roomId: roomId,
+        status: 'rejected',
+      );
+
+  @override
+  Future<ContactEntry> deleteContact(String roomId) async => ContactEntry(
+        peerMxid: '@contact:example.com',
+        displayName: '',
+        domain: 'example.com',
+        roomId: roomId,
+        status: 'rejected',
+      );
+
+  @override
+  Future<void> deleteRoomMessage({
+    required String roomId,
+    required String eventId,
+  }) async {}
+
+  @override
+  Future<String> sendRoomMessage(String roomId, String content) async =>
+      'event';
+
+  @override
+  Future<String> sendChatRecordMessage({
+    required String roomId,
+    required String body,
+    required String title,
+    required String sourceRoomId,
+    required String sourceRoomType,
+    required int itemCount,
+    List<Map<String, Object?>> items = const [],
+  }) async =>
+      'chat-record-event';
+
+  @override
+  Future<String> sendRoomMediaMessage({
+    required String roomId,
+    required String msgType,
+    required String body,
+    required String filename,
+    required String mediaUrl,
+    String mimeType = '',
+    int size = 0,
+    String thumbnailUrl = '',
+    String thumbnailMimeType = '',
+    int thumbnailSize = 0,
+    int width = 0,
+    int height = 0,
+    int durationMs = 0,
+  }) async =>
+      'media-event';
+
+  @override
+  Future<AsGroupResult> createGroup({
+    required String name,
+    required List<String> invite,
+  }) async =>
+      AsGroupResult(
+        roomId: '!group:example.com',
+        name: name,
+        memberCount: 1,
+        invitedCount: invite.length,
+        role: 'owner',
+      );
+
+  @override
+  Future<AsGroupResult> inviteGroupMembers({
+    required String roomId,
+    required List<String> invite,
+  }) async =>
+      AsGroupResult(
+        roomId: roomId,
+        name: '群聊',
+        memberCount: 1,
+        invitedCount: invite.length,
+      );
+
+  @override
+  Future<AsGroupResult> updateGroupInvitePolicy({
+    required String roomId,
+    required String invitePolicy,
+  }) async =>
+      AsGroupResult(
+        roomId: roomId,
+        name: '群聊',
+        memberCount: 1,
+        invitePolicy: invitePolicy,
+      );
+
+  @override
+  Future<AsGroupResult> joinGroup({
+    required String roomId,
+    String groupName = '',
+    String inviterMxid = '',
+    String inviteEventId = '',
+    String directRoomId = '',
+  }) async =>
+      AsGroupResult(
+        roomId: roomId,
+        name: groupName,
+        memberCount: 2,
+        role: 'member',
+      );
+
+  @override
+  Future<void> leaveGroup(String roomId) async {}
+
+  @override
+  Future<void> updateReadMarker(
+    String roomId,
+    String eventId,
+    DateTime timestamp,
+  ) async {}
+
+  @override
+  Future<AgentConfig> updateAgentConfig(AgentConfig config) async => config;
+}
+
+class _ReadMarkerFailingAsClient extends _EmptyAsClient {
+  @override
+  Future<void> updateReadMarker(
+    String roomId,
+    String eventId,
+    DateTime timestamp,
+  ) async {
+    throw StateError('keep recovered notice visible for test');
+  }
+}
+
+class _StatefulPendingContactAsClient extends _EmptyAsClient {
+  var _accepted = false;
+
+  @override
+  Future<AsSyncBootstrap> syncBootstrap() async =>
+      _pendingFriendRequestBootstrap(
+        status: _accepted ? 'accepted' : 'pending_inbound',
+      );
+
+  @override
+  Future<ContactEntry> acceptContactRequest({
+    required String roomId,
+    required String peerMxid,
+    String displayName = '',
+    String domain = '',
+  }) async {
+    _accepted = true;
+    return super.acceptContactRequest(
+      roomId: roomId,
+      peerMxid: peerMxid,
+      displayName: displayName,
+      domain: domain,
+    );
+  }
+}
+
+class _PeerDeletedAsClient extends _EmptyAsClient {
+  @override
+  Future<String> sendRoomMessage(String roomId, String content) async {
+    throw AsClientException('peer deleted contact', statusCode: 403);
+  }
+}
+
+class _IdleVoiceCallController implements VoiceCallController {
+  _IdleVoiceCallController({
+    GroupCallUiState initialGroupState = GroupCallUiState.idle,
+  }) : _groupState = initialGroupState;
+
+  final _controller = StreamController<VoiceCallUiState>.broadcast();
+  final _groupController = StreamController<GroupCallUiState>.broadcast();
+  final GroupCallUiState _groupState;
+
+  @override
+  VoiceCallUiState get currentState => VoiceCallUiState.idle;
+
+  @override
+  CallSession? get activeSession => null;
+
+  @override
+  Stream<VoiceCallUiState> get stateStream => _controller.stream;
+
+  @override
+  GroupCallUiState get currentGroupState => _groupState;
+
+  @override
+  GroupCallSession? get activeGroupSession => null;
+
+  @override
+  Stream<GroupCallUiState> get groupStateStream => _groupController.stream;
+
+  @override
+  Future<void> attachClient(Client client) async {}
+
+  @override
+  Future<void> startOutgoing({
+    required String roomId,
+    required String peerUserId,
+    String? peerDisplayName,
+    ProductCallType callType = ProductCallType.voice,
+  }) async {}
+
+  @override
+  Future<void> answer() async {}
+
+  @override
+  Future<void> reject() async {}
+
+  @override
+  Future<void> hangup() async {}
+
+  @override
+  Future<void> setMuted(bool muted) async {}
+
+  @override
+  Future<void> setCameraMuted(bool muted) async {}
+
+  @override
+  Future<void> setSpeakerOn(bool enabled) async {}
+
+  @override
+  Future<void> startOrJoinGroupCall({
+    required String roomId,
+    required String roomName,
+    ProductCallType callType = ProductCallType.voice,
+    List<String> invitedUserIds = const [],
+    bool joinExistingInvite = false,
+    String? existingCallId,
+  }) async {}
+
+  @override
+  Future<void> leaveGroupCall() async {}
+
+  @override
+  Future<void> setGroupMuted(bool muted) async {}
+
+  @override
+  Future<void> setGroupCameraMuted(bool muted) async {}
+
+  @override
+  Future<void> setGroupSpeakerOn(bool enabled) async {}
+
+  @override
+  void dispose() {
+    _controller.close();
+    _groupController.close();
+  }
+}
+
+class _FavoritesAsClient extends _EmptyAsClient {
+  _FavoritesAsClient({this.videoThumbnail = true});
+
+  static const generatedImageName =
+      'image_picker_11111111-AAAA-BBBB-CCCC-generated-photo.jpg';
+  static const generatedVideoName =
+      'image_picker_22545629-08B6-4C45-B8ED-generated-video.mov';
+  final bool videoThumbnail;
+  final deletedFavoriteIds = <int>{};
+
+  @override
+  Future<List<AsFavoriteMessage>> getFavorites({
+    String messageType = '',
+    int limit = 100,
+  }) async {
+    final favorites = [
+      AsFavoriteMessage(
+        id: 1,
+        ownerUserId: '@owner:p2p-im.com',
+        roomId: '!dm:p2p-im.com',
+        eventId: r'$text',
+        roomType: 'direct',
+        messageType: 'text',
+        senderId: '@alice:p2p-liyanan.com',
+        senderName: 'Alice',
+        body: '明天上午继续测试',
+        url: '',
+        filename: '',
+        mimeType: '',
+        size: 0,
+        thumbnailUrl: '',
+        thumbnailMimeType: '',
+        thumbnailSize: 0,
+        width: 0,
+        height: 0,
+        durationMs: 0,
+        originServerTs: 1779685200000,
+        favoritedAt: DateTime.utc(2026, 5, 29, 10),
+      ),
+      AsFavoriteMessage(
+        id: 2,
+        ownerUserId: '@owner:p2p-im.com',
+        roomId: '!group:p2p-im.com',
+        eventId: r'$file',
+        roomType: 'group',
+        messageType: 'file',
+        senderId: '@bob:p2p-im.com',
+        senderName: 'Bob',
+        body: 'report.pdf',
+        url: 'mxc://p2p-im.com/report',
+        filename: 'report.pdf',
+        mimeType: 'application/pdf',
+        size: 4096,
+        thumbnailUrl: '',
+        thumbnailMimeType: '',
+        thumbnailSize: 0,
+        width: 0,
+        height: 0,
+        durationMs: 0,
+        originServerTs: 1779685300000,
+        favoritedAt: DateTime.utc(2026, 5, 29, 11),
+      ),
+      AsFavoriteMessage(
+        id: 3,
+        ownerUserId: '@owner:p2p-im.com',
+        roomId: '!dm:p2p-im.com',
+        eventId: r'$video',
+        roomType: 'direct',
+        messageType: 'video',
+        senderId: '@alice:p2p-liyanan.com',
+        senderName: 'Alice',
+        body: generatedVideoName,
+        url: 'mxc://p2p-im.com/video',
+        filename: generatedVideoName,
+        mimeType: 'video/quicktime',
+        size: 149790,
+        thumbnailUrl: videoThumbnail ? 'mxc://p2p-im.com/thumb' : '',
+        thumbnailMimeType: 'image/jpeg',
+        thumbnailSize: 2048,
+        width: 640,
+        height: 360,
+        durationMs: 2100,
+        originServerTs: 1779685400000,
+        favoritedAt: DateTime.utc(2026, 5, 29, 12),
+      ),
+      AsFavoriteMessage(
+        id: 4,
+        ownerUserId: '@owner:p2p-im.com',
+        roomId: '!dm:p2p-im.com',
+        eventId: r'$image',
+        roomType: 'direct',
+        messageType: 'image',
+        senderId: '@alice:p2p-liyanan.com',
+        senderName: 'Alice',
+        body: generatedImageName,
+        url: 'mxc://p2p-im.com/image',
+        filename: generatedImageName,
+        mimeType: 'image/jpeg',
+        size: 102400,
+        thumbnailUrl: '',
+        thumbnailMimeType: 'image/jpeg',
+        thumbnailSize: 0,
+        width: 1280,
+        height: 720,
+        durationMs: 0,
+        originServerTs: 1779685500000,
+        favoritedAt: DateTime.utc(2026, 5, 29, 13),
+      ),
+      AsFavoriteMessage(
+        id: 5,
+        ownerUserId: '@owner:p2p-im.com',
+        roomId: '!dm:p2p-im.com',
+        eventId: r'$direct-record',
+        roomType: 'direct',
+        messageType: 'chat_record',
+        senderId: '@alice:p2p-liyanan.com',
+        senderName: 'Alice',
+        body: '',
+        url: '',
+        filename: '',
+        mimeType: '',
+        size: 0,
+        thumbnailUrl: '',
+        thumbnailMimeType: '',
+        thumbnailSize: 0,
+        width: 0,
+        height: 0,
+        durationMs: 0,
+        originServerTs: 1779685600000,
+        favoritedAt: DateTime.utc(2026, 5, 29, 14),
+        chatRecord: const {
+          'title': '与 Alice 的聊天记录',
+          'source_room_id': '!dm:p2p-im.com',
+          'source_room_type': 'direct',
+          'item_count': 2,
+          'items': [
+            {
+              'sender_id': '@alice:p2p-liyanan.com',
+              'sender_name': 'Alice',
+              'is_me': false,
+              'body': '第一条',
+              'message_type': 'm.text',
+              'origin_server_ts': 1779685200000,
+              'content': {'msgtype': 'm.text', 'body': '第一条'},
+            },
+            {
+              'sender_id': '@owner:p2p-im.com',
+              'sender_name': 'Yanan',
+              'is_me': true,
+              'body': '第二条',
+              'message_type': 'm.text',
+              'origin_server_ts': 1779685300000,
+              'content': {'msgtype': 'm.text', 'body': '第二条'},
+            },
+          ],
+        },
+      ),
+      AsFavoriteMessage(
+        id: 6,
+        ownerUserId: '@owner:p2p-im.com',
+        roomId: '!group:p2p-im.com',
+        eventId: r'$group-record',
+        roomType: 'group',
+        messageType: 'chat_record',
+        senderId: '@bob:p2p-im.com',
+        senderName: 'Bob',
+        body: '群聊「产品测试群」的聊天记录',
+        url: '',
+        filename: '',
+        mimeType: '',
+        size: 0,
+        thumbnailUrl: '',
+        thumbnailMimeType: '',
+        thumbnailSize: 0,
+        width: 0,
+        height: 0,
+        durationMs: 0,
+        originServerTs: 1779685700000,
+        favoritedAt: DateTime.utc(2026, 5, 29, 15),
+      ),
+    ];
+    final visible = favorites
+        .where((favorite) => !deletedFavoriteIds.contains(favorite.id))
+        .toList(growable: false);
+    if (messageType.trim().isEmpty) return visible;
+    return visible
+        .where((favorite) => favorite.messageType == messageType.trim())
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> deleteFavorite(int id) async {
+    deletedFavoriteIds.add(id);
+  }
+}
+
+class _RecordingFavoriteNativePreviewer extends FavoriteNativePreviewer {
+  final openedFavoriteIds = <int>[];
+
+  @override
+  Future<void> open(WidgetRef ref, AsFavoriteMessage favorite) async {
+    openedFavoriteIds.add(favorite.id);
+  }
+}
+
+class _MemoryFriendRequestReadStore implements FriendRequestReadStore {
+  Set<String> ids = {};
+
+  @override
+  Future<Set<String>> readRoomIds() async => ids;
+
+  @override
+  Future<void> writeRoomIds(Set<String> roomIds) async {
+    ids = {...roomIds};
+  }
+}
+
+AsSyncBootstrap _pendingFriendRequestBootstrap({
+  String status = 'pending_inbound',
+}) {
+  return AsSyncBootstrap(
+    syncedAt: DateTime.utc(2026, 5, 28, 12),
+    user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+    rooms: const [],
+    contacts: [
+      AsSyncContact(
+        userId: '@alice:portal.local',
+        displayName: 'Alice',
+        avatarUrl: '',
+        roomId: '!person-invite:p2p-im.com',
+        domain: 'portal.local',
+        status: status,
+      ),
+    ],
+    groups: const [],
+    channels: const [],
+    pending: const AsSyncPending.empty(),
+  );
+}
+
+class _TrackingAsClient extends _EmptyAsClient {
+  int createContactRequestCalls = 0;
+  String? createdContactMxid;
+  int deleteContactCalls = 0;
+  String? deletedContactRoomId;
+  int deleteRoomMessageCalls = 0;
+  String? deletedRoomMessageRoomId;
+  String? deletedRoomMessageEventId;
+  int sendRoomMessageCalls = 0;
+  String? sentRoomId;
+  String? sentContent;
+  int createGroupCalls = 0;
+  String? createdGroupName;
+  List<String> createdGroupInvites = const [];
+  int inviteGroupMembersCalls = 0;
+  String? invitedGroupRoomId;
+  List<String> invitedGroupMembers = const [];
+  Object? inviteGroupMembersError;
+  int syncBootstrapCalls = 0;
+  AsSyncBootstrap? bootstrapAfterCreate;
+  int leaveGroupCalls = 0;
+  String? leftGroupRoomId;
+  AsSyncBootstrap? bootstrapAfterLeave;
+  int updateGroupInvitePolicyCalls = 0;
+  String? updatedGroupInvitePolicyRoomId;
+  String? updatedGroupInvitePolicy;
+
+  @override
+  Future<ContactEntry> createContactRequest({
+    required String mxid,
+    String displayName = '',
+    String domain = '',
+  }) async {
+    createContactRequestCalls++;
+    createdContactMxid = mxid;
+    return ContactEntry(
+      peerMxid: mxid,
+      displayName: displayName,
+      domain: domain,
+      roomId: '!new-request:example.com',
+      status: 'pending_outbound',
+    );
+  }
+
+  @override
+  Future<ContactEntry> deleteContact(String roomId) async {
+    deleteContactCalls++;
+    deletedContactRoomId = roomId;
+    return ContactEntry(
+      peerMxid: '@alice:portal.local',
+      displayName: 'Alice',
+      domain: 'portal.local',
+      roomId: roomId,
+      status: 'rejected',
+    );
+  }
+
+  @override
+  Future<void> deleteRoomMessage({
+    required String roomId,
+    required String eventId,
+  }) async {
+    deleteRoomMessageCalls++;
+    deletedRoomMessageRoomId = roomId;
+    deletedRoomMessageEventId = eventId;
+  }
+
+  @override
+  Future<String> sendRoomMessage(String roomId, String content) async {
+    sendRoomMessageCalls++;
+    sentRoomId = roomId;
+    sentContent = content;
+    return 'event';
+  }
+
+  @override
+  Future<String> sendChatRecordMessage({
+    required String roomId,
+    required String body,
+    required String title,
+    required String sourceRoomId,
+    required String sourceRoomType,
+    required int itemCount,
+    List<Map<String, Object?>> items = const [],
+  }) async {
+    sendRoomMessageCalls++;
+    sentRoomId = roomId;
+    sentContent = body;
+    return 'chat-record-event';
+  }
+
+  @override
+  Future<AsGroupResult> createGroup({
+    required String name,
+    required List<String> invite,
+  }) async {
+    createGroupCalls++;
+    createdGroupName = name;
+    createdGroupInvites = List.unmodifiable(invite);
+    return AsGroupResult(
+      roomId: '!new-group:p2p-im.com',
+      name: name,
+      memberCount: 1,
+      invitedCount: invite.length,
+      role: 'owner',
+    );
+  }
+
+  @override
+  Future<AsGroupResult> inviteGroupMembers({
+    required String roomId,
+    required List<String> invite,
+  }) async {
+    inviteGroupMembersCalls++;
+    invitedGroupRoomId = roomId;
+    invitedGroupMembers = List.unmodifiable(invite);
+    final error = inviteGroupMembersError;
+    if (error != null) throw error;
+    return AsGroupResult(
+      roomId: roomId,
+      name: '真实群',
+      memberCount: 2,
+      invitedCount: invite.length,
+    );
+  }
+
+  @override
+  Future<void> leaveGroup(String roomId) async {
+    leaveGroupCalls++;
+    leftGroupRoomId = roomId;
+  }
+
+  @override
+  Future<AsGroupResult> updateGroupInvitePolicy({
+    required String roomId,
+    required String invitePolicy,
+  }) async {
+    updateGroupInvitePolicyCalls++;
+    updatedGroupInvitePolicyRoomId = roomId;
+    updatedGroupInvitePolicy = invitePolicy;
+    return AsGroupResult(
+      roomId: roomId,
+      name: '真实群',
+      memberCount: 3,
+      invitePolicy: invitePolicy,
+    );
+  }
+
+  @override
+  Future<AsSyncBootstrap> syncBootstrap() async {
+    syncBootstrapCalls++;
+    return bootstrapAfterCreate ??
+        bootstrapAfterLeave ??
+        await super.syncBootstrap();
+  }
+}
+
+class _MemoryAsBootstrapStore implements AsBootstrapStore {
+  AsSyncBootstrap? value;
+
+  @override
+  Future<void> clear() async {
+    value = null;
+  }
+
+  @override
+  Future<AsSyncBootstrap?> read() async => value;
+
+  @override
+  Future<void> write(AsSyncBootstrap bootstrap) async {
+    value = bootstrap;
+  }
+}
+
+class _MemoryLocalOutboxStore implements LocalOutboxStore {
+  _MemoryLocalOutboxStore([List<LocalOutboxItem>? items]) : items = [...?items];
+
+  final List<LocalOutboxItem> items;
+
+  @override
+  Future<List<LocalOutboxItem>> readAll() async => [...items];
+
+  @override
+  Future<void> upsert(LocalOutboxItem item) async {
+    items.removeWhere((existing) => existing.id == item.id);
+    items.add(item);
+  }
+
+  @override
+  Future<void> remove(String id) async {
+    items.removeWhere((item) => item.id == id);
+  }
+}
+
+class _PendingInboundAddContactAsClient extends _EmptyAsClient {
+  @override
+  Future<ContactEntry> createContactRequest({
+    required String mxid,
+    String displayName = '',
+    String domain = '',
+  }) async {
+    return ContactEntry(
+      peerMxid: mxid,
+      displayName: displayName,
+      domain: domain,
+      roomId: '!incoming:portal.local',
+      status: 'pending_inbound',
+    );
+  }
+}
+
+class _FollowsAsClient extends _EmptyAsClient {
+  @override
+  Future<List<FollowEntry>> getFollows() async => [
+        FollowEntry(
+          domain: 'alice.portal.local',
+          name: 'Alice Chen',
+          followedAt: DateTime.utc(2026, 5, 26, 8),
+        ),
+      ];
+}
+
+class _CompletingBootstrapAsClient extends _EmptyAsClient {
+  _CompletingBootstrapAsClient(this.bootstrapCompleter);
+
+  final Completer<AsSyncBootstrap> bootstrapCompleter;
+
+  @override
+  Future<AsSyncBootstrap> syncBootstrap() => bootstrapCompleter.future;
+}
+
+class _RefreshingBootstrapAsClient extends _EmptyAsClient {
+  int syncBootstrapCalls = 0;
+
+  @override
+  Future<AsSyncBootstrap> syncBootstrap() async {
+    syncBootstrapCalls++;
+    final showAcceptedContact = syncBootstrapCalls >= 2;
+    return AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28, 14, syncBootstrapCalls),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [
+        AsSyncRoomSummary(
+          roomId: '!current:p2p-im.com',
+          name: 'Yanan',
+          avatarUrl: '',
+          unreadCount: 7,
+          lastActivityAt: null,
+        ),
+      ],
+      contacts: [
+        if (showAcceptedContact)
+          const AsSyncContact(
+            userId: '@owner:p2p-liyanan.com',
+            displayName: 'Yanan',
+            avatarUrl: '',
+            roomId: '!accepted:p2p-im.com',
+            domain: 'p2p-liyanan.com',
+            status: 'accepted',
+          ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+  }
+}
+
+class _RecordingAvatarPreloader implements AvatarPreloader {
+  final urls = <String>[];
+
+  @override
+  Future<void> preload(String url) async {
+    urls.add(url);
+  }
+}
+
+Finder _headerTitle(String title) {
+  return find.byWidgetPredicate(
+    (widget) =>
+        widget is Text && widget.data == title && widget.style?.fontSize == 24,
+  );
+}
+
+Room _addTestRoom(
+  Client client, {
+  required String roomId,
+  required Membership roomMembership,
+  String? directPeerMxid,
+  Membership directPeerMembership = Membership.join,
+}) {
+  final room = Room(
+    id: roomId,
+    client: client,
+    membership: roomMembership,
+  );
+  client.rooms.add(room);
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: client.userID ?? '@owner:p2p-im.com',
+      stateKey: client.userID,
+      content: {'membership': roomMembership.name},
+    ),
+  );
+  if (directPeerMxid != null) {
+    final directContent = Map<String, dynamic>.from(
+      client.accountData['m.direct']?.content ?? const <String, dynamic>{},
+    );
+    directContent[directPeerMxid] = <String>[roomId];
+    client.accountData['m.direct'] = BasicEvent(
+      type: 'm.direct',
+      content: directContent,
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: directPeerMxid,
+        stateKey: directPeerMxid,
+        content: {'membership': directPeerMembership.name},
+      ),
+    );
+  }
+  return room;
+}
+
+Room _addUndirectedJoinedRoom(
+  Client client, {
+  required String roomId,
+  required String peerMxid,
+  required String peerName,
+  String peerAvatarUrl = '',
+  Membership peerMembership = Membership.join,
+}) {
+  final room = Room(
+    id: roomId,
+    client: client,
+    membership: Membership.join,
+  );
+  client.rooms.add(room);
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: client.userID ?? '@owner:p2p-im.com',
+      stateKey: client.userID,
+      content: {'membership': Membership.join.name},
+    ),
+  );
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: peerMxid,
+      stateKey: peerMxid,
+      content: {
+        'membership': peerMembership.name,
+        'displayname': peerName,
+        if (peerAvatarUrl.isNotEmpty) 'avatar_url': peerAvatarUrl,
+      },
+    ),
+  );
+  room.lastEvent = Event(
+    room: room,
+    eventId: r'$undirected',
+    senderId: peerMxid,
+    type: EventTypes.Message,
+    originServerTs: DateTime(2026, 5, 26, 23, 41),
+    content: {
+      'msgtype': MessageTypes.Text,
+      'body': 'friend flow accepted message',
+    },
+  );
+  return room;
+}
+
+Room _addNamedGroupRoom(
+  Client client, {
+  required String roomId,
+  required String name,
+  String? creatorMxid,
+  Membership membership = Membership.join,
+  Map<String, String> members = const {},
+}) {
+  final selfMxid = client.userID ?? '@owner:p2p-im.com';
+  final creator = creatorMxid ?? selfMxid;
+  final room = Room(
+    id: roomId,
+    client: client,
+    membership: membership,
+  );
+  client.rooms.add(room);
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: selfMxid,
+      stateKey: selfMxid,
+      content: {'membership': membership.name},
+    ),
+  );
+  for (final entry in members.entries) {
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: entry.key,
+        stateKey: entry.key,
+        content: {
+          'membership': Membership.join.name,
+          'displayname': entry.value,
+        },
+      ),
+    );
+  }
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomName,
+      senderId: selfMxid,
+      stateKey: '',
+      content: {'name': name},
+    ),
+  );
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomCreate,
+      senderId: creator,
+      stateKey: '',
+      content: {'creator': creator},
+    ),
+  );
+  room.lastEvent = Event(
+    room: room,
+    eventId: r'$group',
+    senderId: creator,
+    type: EventTypes.RoomCreate,
+    originServerTs: DateTime(2026, 5, 27, 16, 12),
+    content: const {},
+  );
+  return room;
+}
+
+class _GroupChatHarness {
+  const _GroupChatHarness({
+    required this.client,
+    required this.asClient,
+    required this.bootstrapStore,
+  });
+
+  final Client client;
+  final _TrackingAsClient asClient;
+  final _MemoryAsBootstrapStore bootstrapStore;
+}
+
+Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
+  WidgetTester tester, {
+  String roomId = '!group:p2p-im.com',
+  String roomName = '真实群',
+  String eventId = r'$group-text',
+  String body = '群聊长按消息',
+}) async {
+  final client = Client(
+    'PortalIMGroupActionTest',
+    httpClient: MockClient((request) async {
+      return http.Response(
+        '{"next_batch":"s1","rooms":{}}',
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }),
+  )..setUserId('@owner:p2p-im.com');
+  client.homeserver = Uri.parse('https://p2p-im.com');
+  client.accessToken = 'test-token';
+  _addNamedGroupRoom(
+    client,
+    roomId: roomId,
+    name: roomName,
+    creatorMxid: '@owner:p2p-im.com',
+    members: const {'@alice:p2p-im.com': 'Alice'},
+  );
+  final bootstrap = AsSyncBootstrap(
+    syncedAt: DateTime.utc(2026, 5, 30, 8),
+    user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+    rooms: const [],
+    contacts: const [],
+    groups: [
+      AsSyncRoomSummary(
+        roomId: roomId,
+        name: roomName,
+        avatarUrl: '',
+        unreadCount: 0,
+        lastActivityAt: null,
+      ),
+    ],
+    channels: const [],
+    pending: const AsSyncPending.empty(),
+  );
+  final asClient = _TrackingAsClient()..bootstrapAfterLeave = bootstrap;
+  final bootstrapStore = _MemoryAsBootstrapStore();
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        matrixClientProvider.overrideWithValue(client),
+        asClientProvider.overrideWithValue(asClient),
+        asBootstrapRepositoryProvider.overrideWithValue(
+          AsBootstrapRepository(
+            loadBootstrap: asClient.syncBootstrap,
+            store: bootstrapStore,
+          ),
+        ),
+        asSyncCacheProvider.overrideWith(
+          (ref) => AsSyncCacheState(bootstrap: bootstrap),
+        ),
+        localOutboxStoreProvider.overrideWith(
+          (ref) async => _MemoryLocalOutboxStore(),
+        ),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: GroupChatPage(roomId: roomId),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+
+  await client.handleSync(
+    SyncUpdate(
+      nextBatch: 'after-group-action-message',
+      rooms: RoomsUpdate(
+        join: {
+          roomId: JoinedRoomUpdate(
+            timeline: TimelineUpdate(
+              events: [
+                MatrixEvent(
+                  type: EventTypes.Message,
+                  eventId: eventId,
+                  roomId: roomId,
+                  senderId: '@alice:p2p-im.com',
+                  originServerTs: DateTime.utc(2026, 5, 30, 10),
+                  content: {
+                    'msgtype': MessageTypes.Text,
+                    'body': body,
+                  },
+                ),
+              ],
+            ),
+          ),
+        },
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
+
+  return _GroupChatHarness(
+    client: client,
+    asClient: asClient,
+    bootstrapStore: bootstrapStore,
+  );
+}
+
+Future<void> _pumpDirectChatWithPeerTextEvent(
+  WidgetTester tester, {
+  String roomId = '!direct:p2p-im.com',
+  String peerMxid = '@alice:p2p-liyanan.com',
+  String peerName = 'Alice',
+  String eventId = r'$direct-text',
+  String body = '别人发来的消息',
+}) async {
+  final client = Client(
+    'PortalIMDirectActionTest',
+    httpClient: MockClient((request) async {
+      return http.Response(
+        '{"next_batch":"s1","rooms":{}}',
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }),
+  )..setUserId('@owner:p2p-im.com');
+  client.homeserver = Uri.parse('https://p2p-im.com');
+  client.accessToken = 'test-token';
+  _addUndirectedJoinedRoom(
+    client,
+    roomId: roomId,
+    peerMxid: peerMxid,
+    peerName: peerName,
+  );
+  final bootstrap = AsSyncBootstrap(
+    syncedAt: DateTime.utc(2026, 5, 30, 12),
+    user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+    rooms: const [],
+    contacts: [
+      AsSyncContact(
+        userId: peerMxid,
+        displayName: peerName,
+        avatarUrl: '',
+        roomId: roomId,
+        domain: 'p2p-liyanan.com',
+        status: 'accepted',
+      ),
+    ],
+    groups: const [],
+    channels: const [],
+    pending: const AsSyncPending.empty(),
+  );
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        matrixClientProvider.overrideWithValue(client),
+        asClientProvider.overrideWithValue(_TrackingAsClient()),
+        asSyncCacheProvider.overrideWith(
+          (ref) => AsSyncCacheState(bootstrap: bootstrap),
+        ),
+        localOutboxStoreProvider.overrideWith(
+          (ref) async => _MemoryLocalOutboxStore(),
+        ),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.light,
+        home: ChatPage(roomId: roomId),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+
+  await client.handleSync(
+    SyncUpdate(
+      nextBatch: 'after-direct-action-message',
+      rooms: RoomsUpdate(
+        join: {
+          roomId: JoinedRoomUpdate(
+            timeline: TimelineUpdate(
+              events: [
+                MatrixEvent(
+                  type: EventTypes.Message,
+                  eventId: eventId,
+                  roomId: roomId,
+                  senderId: peerMxid,
+                  originServerTs: DateTime.utc(2026, 5, 30, 12, 10),
+                  content: {
+                    'msgtype': MessageTypes.Text,
+                    'body': body,
+                  },
+                ),
+              ],
+            ),
+          ),
+        },
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 50));
+}
+
+Room _addHeroSummaryRoom(
+  Client client, {
+  required String roomId,
+  required String peerMxid,
+  required String peerName,
+}) {
+  final room = Room(
+    id: roomId,
+    client: client,
+    membership: Membership.join,
+    summary: RoomSummary.fromJson({
+      'm.heroes': [peerMxid],
+      'm.joined_member_count': 2,
+      'm.invited_member_count': 0,
+    }),
+  );
+  client.rooms.add(room);
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: client.userID ?? '@owner:p2p-im.com',
+      stateKey: client.userID,
+      content: {'membership': Membership.join.name},
+    ),
+  );
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: peerMxid,
+      stateKey: peerMxid,
+      content: {
+        'membership': Membership.join.name,
+        'displayname': peerName,
+      },
+    ),
+  );
+  room.lastEvent = Event(
+    room: room,
+    eventId: r'$hero',
+    senderId: peerMxid,
+    type: EventTypes.Message,
+    originServerTs: DateTime(2026, 5, 27, 19, 56),
+    content: {
+      'msgtype': MessageTypes.Text,
+      'body': 'm.room.member',
+    },
+  );
+  return room;
+}
 
 void main() {
+  GoogleFonts.config.allowRuntimeFetching = false;
+
   test('placeholder smoke test', () {
     expect(1 + 1, 2);
+  });
+
+  test('markRoomLocallyRead clears Matrix unread counters immediately', () {
+    final client = Client('PortalIMTest');
+    final room = Room(
+      id: '!agent:example.com',
+      client: client,
+      notificationCount: 3,
+      highlightCount: 1,
+    );
+
+    markRoomLocallyRead(room);
+
+    expect(room.notificationCount, 0);
+    expect(room.highlightCount, 0);
+  });
+
+  test('bootstrap refresh clears local optimistic contacts omitted by AS', () {
+    const state = AsSyncCacheState(
+      localContactStatusesByRoomId: {
+        '!stale:p2p-im.com': 'pending_outbound',
+      },
+    );
+
+    final next = state.copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026, 5, 27, 12),
+        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    expect(next.contactStatusForRoom('!stale:p2p-im.com'), isNull);
+  });
+
+  test('new local contact entry for same peer clears stale accepted room', () {
+    const accepted = ContactEntry(
+      peerMxid: '@owner:p2p-liyanan.com',
+      displayName: 'Yanan',
+      domain: 'p2p-liyanan.com',
+      roomId: '!old:p2p-im.com',
+      status: 'accepted',
+    );
+    const pending = ContactEntry(
+      peerMxid: '@owner:p2p-liyanan.com',
+      displayName: 'Yanan',
+      domain: 'p2p-liyanan.com',
+      roomId: '!new:p2p-im.com',
+      status: 'pending_outbound',
+    );
+
+    final state = const AsSyncCacheState()
+        .withContactEntry(accepted)
+        .withContactEntry(pending);
+
+    expect(state.contactStatusForRoom('!old:p2p-im.com'), isNull);
+    expect(
+      state.contactStatusForRoom('!new:p2p-im.com'),
+      'pending_outbound',
+    );
+    expect(state.acceptedDirectRoomIds, isNot(contains('!old:p2p-im.com')));
+  });
+
+  test(
+      'new local accepted contact shadows stale bootstrap accepted room for same peer',
+      () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [
+        AsSyncRoomSummary(
+          roomId: '!current:p2p-im.com',
+          name: 'Yanan',
+          avatarUrl: '',
+          unreadCount: 7,
+          lastActivityAt: null,
+        ),
+      ],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: '',
+          roomId: '!old:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    const accepted = ContactEntry(
+      peerMxid: '@owner:p2p-liyanan.com',
+      displayName: 'Yanan',
+      domain: 'p2p-liyanan.com',
+      roomId: '!new:p2p-im.com',
+      status: 'accepted',
+    );
+
+    final state =
+        AsSyncCacheState(bootstrap: bootstrap).withContactEntry(accepted);
+
+    expect(state.contactStatusForRoom('!old:p2p-im.com'), isNull);
+    expect(state.contactForRoom('!old:p2p-im.com'), isNull);
+    expect(state.contactStatusForRoom('!new:p2p-im.com'), 'accepted');
+    expect(state.contactForRoom('!new:p2p-im.com')?.displayName, 'Yanan');
+    expect(state.acceptedDirectRoomIds, {'!new:p2p-im.com'});
+  });
+
+  testWidgets('messages home header does not duplicate the me avatar shortcut',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 32 &&
+            widget.imageUrl == MockAvatars.me,
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'messages list does not flash mock conversations while auth loads',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(
+            _LoadingAuthStateNotifier.new,
+          ),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Agent'), findsNothing);
+    expect(find.text('正在同步消息'), findsOneWidget);
+  });
+
+  testWidgets('messages wait for AS metadata before rendering undirected rooms',
+      (tester) async {
+    final client = Client('PortalIMUndirectedRoomMetadataTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addUndirectedJoinedRoom(
+      client,
+      roomId: '!owner:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: {'kind': 'direct'},
+      ),
+    );
+    final bootstrapCompleter = Completer<AsSyncBootstrap>();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(
+            _CompletingBootstrapAsClient(bootstrapCompleter),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('Group with'), findsNothing);
+    expect(find.text('正在同步联系人信息'), findsOneWidget);
+
+    bootstrapCompleter.complete(
+      AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026, 5, 26, 10),
+        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+        rooms: const [],
+        contacts: const [
+          AsSyncContact(
+            userId: '@owner:p2p-liyanan.com',
+            displayName: 'owner',
+            avatarUrl: '',
+            roomId: '!owner:p2p-im.com',
+            domain: 'p2p-liyanan.com',
+            status: 'accepted',
+          ),
+        ],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('messages conversation avatar prefers AS contact cache',
+      (tester) async {
+    final client = Client('PortalIMConversationAsAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!owner:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan',
+      peerAvatarUrl: 'https://matrix.example.com/yanan.png',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 3, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: 'https://as-cache.example.com/yanan.png',
+          roomId: '!owner:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 44 &&
+            widget.imageUrl == 'https://as-cache.example.com/yanan.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('messages conversation avatar falls back to Matrix peer avatar',
+      (tester) async {
+    final client = Client('PortalIMConversationMatrixAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!owner:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan',
+      peerAvatarUrl: 'https://matrix.example.com/yanan.png',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 3, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: '',
+          roomId: '!owner:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 44 &&
+            widget.imageUrl == 'https://matrix.example.com/yanan.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('messages hide pending outbound contact rooms from AS metadata',
+      (tester) async {
+    final client = Client('PortalIMPendingOutboundHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!pending:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+      peerMembership: Membership.invite,
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('Group with'), findsNothing);
+    expect(find.text('friend flow accepted message'), findsNothing);
+    expect(find.text('还没有会话'), findsOneWidget);
+  });
+
+  testWidgets('messages keep pending contact hidden until AS accepts it',
+      (tester) async {
+    final client = Client('PortalIMPendingJoinedHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!pending:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+      peerMembership: Membership.join,
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('owner'), findsNothing);
+    expect(find.text('friend flow accepted message'), findsNothing);
+    expect(find.textContaining('Group with'), findsNothing);
+    expect(find.text('还没有会话'), findsOneWidget);
+  });
+
+  testWidgets('messages refresh AS metadata after Matrix sync events',
+      (tester) async {
+    final client = Client('PortalIMMatrixSyncRefreshesAsMetadataTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!accepted:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+      peerMembership: Membership.join,
+    );
+    final asClient = _RefreshingBootstrapAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 1);
+    expect(find.text('Yanan'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 9));
+    await client.handleSync(SyncUpdate(nextBatch: 'after-accept'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 2);
+    expect(find.text('Yanan'), findsWidgets);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('messages render AS accepted contact before Matrix room hydrates',
+      (tester) async {
+    final client = Client('PortalIMAsAcceptedContactOnlyHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28, 11),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [
+        AsSyncRoomSummary(
+          roomId: '!current:p2p-im.com',
+          name: 'Yanan',
+          avatarUrl: '',
+          unreadCount: 7,
+          lastActivityAt: null,
+        ),
+      ],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: '',
+          roomId: '!current:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Yanan'), findsWidgets);
+    expect(find.text('7'), findsOneWidget);
+    expect(find.text('还没有会话'), findsNothing);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('messages render AS joined group before Matrix room hydrates',
+      (tester) async {
+    final client = Client('PortalIMAsJoinedGroupOnlyHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 11),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '产品测试群',
+          avatarUrl: '',
+          unreadCount: 3,
+          lastActivityAt: null,
+          topic: '群聊已创建，等待同步',
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('产品测试群'), findsOneWidget);
+    expect(find.text('群聊已创建，等待同步'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(find.text('还没有会话'), findsNothing);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets(
+      'contacts hide pending metadata until AS marks the contact accepted',
+      (tester) async {
+    final client = Client('PortalIMPendingContactListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addUndirectedJoinedRoom(
+      client,
+      roomId: '!pending:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+      peerMembership: Membership.join,
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: {'kind': 'direct'},
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(find.text('Alice'), findsNothing);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('messages hide unknown raw Matrix rooms after AS bootstrap',
+      (tester) async {
+    final client = Client('PortalIMUnknownRawRoomHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!raw:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('Group with'), findsNothing);
+    expect(find.text('friend flow accepted message'), findsNothing);
+    expect(find.text('还没有会话'), findsOneWidget);
+  });
+
+  testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',
+      (tester) async {
+    final client = Client('PortalIMDuplicateDirectRoomHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final canonicalRoom = _addUndirectedJoinedRoom(
+      client,
+      roomId: '!canonical:p2p-liyanan.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan',
+    );
+    canonicalRoom.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: {'kind': 'direct'},
+      ),
+    );
+    final duplicateRoom = _addUndirectedJoinedRoom(
+      client,
+      roomId: '!duplicate:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'default owner',
+    );
+    duplicateRoom.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: {'kind': 'direct'},
+      ),
+    );
+    duplicateRoom.lastEvent = Event(
+      room: duplicateRoom,
+      eventId: r'$duplicate',
+      senderId: '@owner:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime(2026, 5, 27, 23, 41),
+      content: {
+        'msgtype': MessageTypes.Notice,
+        'body': 'duplicate accepted notice',
+      },
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: '',
+          roomId: '!canonical:p2p-liyanan.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Yanan'), findsWidgets);
+    expect(find.text('duplicate accepted notice'), findsNothing);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets(
+      'messages prefer new local accepted room over stale bootstrap room',
+      (tester) async {
+    final client = Client('PortalIMLocalAcceptedShadowsBootstrapHomeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final oldRoom = _addUndirectedJoinedRoom(
+      client,
+      roomId: '!old:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan',
+    );
+    oldRoom.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: {'kind': 'direct'},
+      ),
+    );
+    oldRoom.lastEvent = Event(
+      room: oldRoom,
+      eventId: r'$old-history',
+      senderId: '@owner:p2p-liyanan.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime(2026, 5, 28, 10),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': 'old private history',
+      },
+    );
+    final newRoom = _addUndirectedJoinedRoom(
+      client,
+      roomId: '!new:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan',
+    );
+    newRoom.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: {'kind': 'direct'},
+      ),
+    );
+    newRoom.lastEvent = Event(
+      room: newRoom,
+      eventId: r'$new-room',
+      senderId: '@owner:p2p-liyanan.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime(2026, 5, 28, 11),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': 'fresh accepted room',
+      },
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: '',
+          roomId: '!old:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final syncState = AsSyncCacheState(bootstrap: bootstrap).withContactEntry(
+      const ContactEntry(
+        peerMxid: '@owner:p2p-liyanan.com',
+        displayName: 'Yanan',
+        domain: 'p2p-liyanan.com',
+        roomId: '!new:p2p-im.com',
+        status: 'accepted',
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith((ref) => syncState),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Yanan'), findsWidgets);
+    expect(find.text('fresh accepted room'), findsOneWidget);
+    expect(find.text('old private history'), findsNothing);
+  });
+
+  testWidgets('contacts hide duplicate Matrix direct rooms not accepted by AS',
+      (tester) async {
+    final client = Client('PortalIMDuplicateDirectContactListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final canonicalRoom = _addUndirectedJoinedRoom(
+      client,
+      roomId: '!canonical:p2p-liyanan.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan',
+    );
+    canonicalRoom.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: {'kind': 'direct'},
+      ),
+    );
+    final duplicateRoom = _addUndirectedJoinedRoom(
+      client,
+      roomId: '!duplicate:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'default owner',
+    );
+    duplicateRoom.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: {'kind': 'direct'},
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: '',
+          roomId: '!canonical:p2p-liyanan.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(find.text('联系人 (1)'), findsOneWidget);
+    expect(find.text('Yanan'), findsOneWidget);
+    expect(find.text('default owner'), findsNothing);
+  });
+
+  testWidgets(
+      'messages and contacts hide rejected direct rooms with joined peer',
+      (tester) async {
+    final client = Client('PortalIMRejectedDirectRoomListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final rejectedRoom = _addUndirectedJoinedRoom(
+      client,
+      roomId: '!rejected:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan',
+    );
+    rejectedRoom.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: {'kind': 'direct'},
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: '',
+          roomId: '!rejected:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'rejected',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Yanan'), findsNothing);
+    expect(find.text('friend flow accepted message'), findsNothing);
+    expect(find.text('还没有会话'), findsOneWidget);
+
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(find.text('联系人 (0)'), findsOneWidget);
+    expect(find.text('Yanan'), findsNothing);
+  });
+
+  testWidgets('chat info uses AS contact metadata for undirected direct rooms',
+      (tester) async {
+    final client = Client('PortalIMChatInfoDirectMetadataTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!owner:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 26, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!owner:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatInfoPage(roomId: '!owner:p2p-im.com'),
+        ),
+      ),
+    );
+
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('home starts app warmup on launch', (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    final client = Client('PortalIMTest');
+    var warmupCalls = 0;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {
+            warmupCalls++;
+          }),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(warmupCalls, mockAuthEnabled ? 0 : 1);
+  });
+
+  test('app warmup preloads current user and recent room avatars', () async {
+    final client = Client('PortalIMTest')
+      ..homeserver = Uri.parse('https://hs.example.com');
+    final room = Room(
+      id: '!room:example.com',
+      client: client,
+      membership: Membership.join,
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomAvatar,
+        senderId: '@owner:example.com',
+        stateKey: '',
+        content: {'url': 'https://cdn.example.com/room.png'},
+      ),
+    );
+    client.rooms.add(room);
+
+    final preloader = _RecordingAvatarPreloader();
+    final service = AppWarmupService(
+      client: client,
+      avatarPreloader: preloader,
+      loadCurrentUserProfile: () async => Profile(
+        userId: '@owner:example.com',
+        displayName: 'Owner',
+        avatarUrl: Uri.parse('https://cdn.example.com/me.png'),
+      ),
+    );
+
+    await service.warmup();
+
+    expect(preloader.urls, [
+      'https://cdn.example.com/me.png',
+      'https://cdn.example.com/room.png',
+    ]);
+  });
+
+  testWidgets('primary glass header defaults to neutral title color',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: GlassHeader.primary(title: '标题'),
+        ),
+      ),
+    );
+
+    expect(
+      tester.widget<Text>(_headerTitle('标题')).style?.color,
+      PortalTokens.light.text,
+    );
+  });
+
+  testWidgets('main content page titles use the same neutral color',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    for (final title in ['消息', '联系人']) {
+      if (title != '消息') {
+        await tester.tap(find.text(title).last);
+        await tester.pump();
+      }
+      expect(
+        tester.widget<Text>(_headerTitle(title)).style?.color,
+        PortalTokens.light.text,
+      );
+    }
+  });
+
+  testWidgets('messages contacts and explore share header actions',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    for (final title in ['消息', '联系人', '探索']) {
+      if (title != '消息') {
+        await tester.tap(find.text(title).last);
+        await tester.pump();
+      }
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is GlassHeaderButton && widget.icon == Symbols.search,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget.runtimeType.toString().startsWith('PopupMenuButton'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byIcon(Symbols.add), findsOneWidget);
+    }
+  });
+
+  testWidgets('third home tab is explore with xhs style top actions',
+      (tester) async {
+    final client = Client('PortalIMExploreTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('探索'), findsOneWidget);
+    expect(find.text('频道'), findsNothing);
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+
+    expect(find.text('关注'), findsOneWidget);
+    expect(find.text('频道'), findsOneWidget);
+    expect(find.byIcon(Symbols.search), findsOneWidget);
+    expect(find.byIcon(Symbols.add), findsOneWidget);
+  });
+
+  testWidgets('explore page switches between follow and channel subpages',
+      (tester) async {
+    final client = Client('PortalIMExploreSwitchTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+
+    expect(find.text('全部'), findsNothing);
+    expect(find.text('Alice'), findsWidgets);
+    expect(find.text('P2P IM 官方'), findsNothing);
+
+    await tester.tap(find.text('Agent'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Agent 精选'), findsNothing);
+    expect(find.textContaining('私聊关系测试总结'), findsOneWidget);
+
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('我的频道'), findsOneWidget);
+    expect(find.text('P2P IM 官方'), findsOneWidget);
+
+    await tester.drag(find.byType(PageView), const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('私聊关系测试总结'), findsOneWidget);
+
+    await tester.drag(find.byType(PageView), const Offset(500, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice'), findsWidgets);
+  });
+
+  testWidgets('agent explore subpage presents html history cards',
+      (tester) async {
+    final client = Client('PortalIMAgentExploreTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+    await tester.tap(find.text('Agent'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Agent 精选'), findsNothing);
+    expect(find.text('Agent 按你的要求总结、筛选并生成的 HTML 历史'), findsNothing);
+    expect(find.textContaining('私聊关系测试总结'), findsOneWidget);
+    expect(
+        find.byKey(
+            const ValueKey('agent_html_thumbnail_direct-contact-boundary')),
+        findsOneWidget);
+    expect(find.text('来自 3 个关注用户 · 2 个频道 · 5 个链接'), findsOneWidget);
+    expect(find.text('今日重点'), findsOneWidget);
+    expect(find.text('私聊测试'), findsOneWidget);
+    expect(find.textContaining('/agent/html/'), findsWidgets);
+
+    final firstTop = tester.getTopLeft(find.textContaining('私聊关系测试总结')).dy;
+    final secondTop = tester.getTopLeft(find.textContaining('频道页体验复盘')).dy;
+    expect(firstTop, lessThan(secondTop));
+  });
+
+  testWidgets('follow explore subpage filters by followed avatar',
+      (tester) async {
+    final client = Client('PortalIMFollowFilterTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+
+    expect(find.text('全部'), findsNothing);
+    expect(find.text('Alice'), findsWidgets);
+    expect(find.text('我的频道'), findsNothing);
+
+    final aliceLeft =
+        tester.getTopLeft(find.byKey(const ValueKey('follow_filter_alice'))).dx;
+    final daveLeft =
+        tester.getTopLeft(find.byKey(const ValueKey('follow_filter_dave'))).dx;
+    final yananLeft =
+        tester.getTopLeft(find.byKey(const ValueKey('follow_filter_yanan'))).dx;
+    expect(aliceLeft, lessThan(daveLeft));
+    expect(daveLeft, lessThan(yananLeft));
+
+    await tester.tap(find.byKey(const ValueKey('follow_filter_alice')));
+    await tester.pump();
+
+    expect(find.textContaining('图片消息'), findsOneWidget);
+    expect(find.textContaining('私聊关系'), findsNothing);
+  });
+
+  testWidgets('follow avatar strip overflows horizontally to reveal more users',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final client = Client('PortalIMFollowOverflowTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+
+    final sam = find.byKey(const ValueKey('follow_filter_sam'));
+    expect(sam, findsNothing);
+
+    await tester.drag(
+      find.byKey(const ValueKey('follow_avatar_strip')),
+      const Offset(-420, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(sam, findsOneWidget);
+  });
+
+  testWidgets('home plus menu has the unified action order', (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Symbols.add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('文件传输'), findsNothing);
+    for (final label in ['添加好友', '发起群聊', '创建频道', '扫一扫']) {
+      expect(find.text(label), findsOneWidget);
+    }
+
+    final positions = [
+      for (final label in ['添加好友', '发起群聊', '创建频道', '扫一扫'])
+        tester.getTopLeft(find.text(label)).dy,
+    ];
+    expect(positions, orderedEquals([...positions]..sort()));
+  });
+
+  testWidgets('home plus group creation uses accepted contacts and opens group',
+      (tester) async {
+    final asClient = _TrackingAsClient();
+    final client = Client('PortalIMHomeGroupCreateTest')
+      ..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@pending:p2p-liyanan.com',
+          displayName: 'Pending User',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) => GroupChatPage(
+            roomId: state.pathParameters['roomId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          groupCreationSyncAfterCreateProvider.overrideWithValue(false),
+          voiceCallControllerProvider.overrideWithValue(
+            _IdleVoiceCallController(),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Symbols.add));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('发起群聊'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('选择成员'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsWidgets);
+    expect(find.text('Pending User'), findsNothing);
+
+    await tester.enterText(find.byType(TextField).last, '首页群');
+    await tester.tap(find.text('Alice Chen').last);
+    await tester.pump();
+    await tester.tap(find.text('创建'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pumpAndSettle();
+
+    expect(asClient.createdGroupName, '首页群');
+    expect(asClient.createdGroupInvites, ['@alice:p2p-liyanan.com']);
+    expect(find.text('群组不存在'), findsNothing);
+    expect(find.text('首页群'), findsOneWidget);
+  });
+
+  testWidgets('missing group page keeps a usable back button', (tester) async {
+    final client = Client('PortalIMMissingGroupBackTest')
+      ..setUserId('@owner:p2p-im.com');
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('HomeRoot')),
+        ),
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) => GroupChatPage(
+            roomId: state.pathParameters['roomId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    router.push('/group/${Uri.encodeComponent('!missing:p2p-im.com')}');
+    await tester.pumpAndSettle();
+
+    expect(find.text('群组不存在'), findsOneWidget);
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is GlassHeaderButton &&
+            widget.icon == Symbols.arrow_back_ios,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('HomeRoot'), findsOneWidget);
+  });
+
+  testWidgets('mock contacts show exactly three friends', (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(find.text('联系人 (3)'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('Bob Smith'), findsOneWidget);
+    expect(find.text('Dave Lee'), findsOneWidget);
+    expect(find.text('Eve Wang'), findsNothing);
+    expect(find.text('Jack'), findsNothing);
+  });
+
+  testWidgets('contact action shortcuts use neutral setting icon style',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    for (final icon in [
+      Symbols.person_add,
+      Symbols.group,
+      Symbols.person_check
+    ]) {
+      final iconWidget = tester.widget<Icon>(find.byIcon(icon));
+      expect(iconWidget.size, 20);
+      expect(iconWidget.color, PortalTokens.light.textMute);
+      expect(
+        _nearestSizedContainerColor(tester, find.byIcon(icon), size: 32),
+        PortalTokens.light.surfaceHover,
+      );
+    }
+  });
+
+  testWidgets('contact page has no inline search box', (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(find.text('搜索'), findsNothing);
+  });
+
+  testWidgets('new friend badge counts AS pending inbound contacts',
+      (tester) async {
+    final client = Client('PortalIMInviteBadgeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final readStore = _MemoryFriendRequestReadStore();
+    _addTestRoom(
+      client,
+      roomId: '!group-invite:p2p-im.com',
+      roomMembership: Membership.invite,
+    );
+    _addTestRoom(
+      client,
+      roomId: '!agent-invite:p2p-im.com',
+      roomMembership: Membership.invite,
+      directPeerMxid: '@agent:p2p-im.com',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_StatefulPendingContactAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(
+              bootstrap: _pendingFriendRequestBootstrap(),
+            ),
+          ),
+          friendRequestReadStoreProvider.overrideWith((ref) async => readStore),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(find.text('新朋友'), findsOneWidget);
+    final contactSectionBadge =
+        find.byKey(const ValueKey('section_action_badge_新朋友'));
+    expect(contactSectionBadge, findsOneWidget);
+    expect(
+      find.descendant(of: contactSectionBadge, matching: find.text('1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: contactSectionBadge, matching: find.text('2')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: contactSectionBadge, matching: find.text('3')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('viewing new friends clears unread badges but keeps request',
+      (tester) async {
+    final client = Client('PortalIMFriendRequestReadBadgeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final readStore = _MemoryFriendRequestReadStore();
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(path: '/requests', builder: (_, __) => const RequestsPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_StatefulPendingContactAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(
+              bootstrap: _pendingFriendRequestBootstrap(),
+            ),
+          ),
+          friendRequestReadStoreProvider.overrideWith((ref) async => readStore),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('bottom_nav_badge_联系人')), findsOneWidget);
+
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(
+        find.byKey(const ValueKey('section_action_badge_新朋友')), findsOneWidget);
+
+    await tester.tap(find.text('新朋友'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('待接受'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+
+    router.go('/home');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('bottom_nav_badge_联系人')), findsNothing);
+    expect(
+        find.byKey(const ValueKey('section_action_badge_新朋友')), findsNothing);
+
+    router.go('/requests');
+    await tester.pumpAndSettle();
+
+    expect(find.text('待接受'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+  });
+
+  testWidgets('new friends page only lists incoming direct contact invites',
+      (tester) async {
+    final client = Client('PortalIMRequestsFilterTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!person-invite:p2p-im.com',
+      roomMembership: Membership.invite,
+      directPeerMxid: '@alice:portal.local',
+    );
+    _addTestRoom(
+      client,
+      roomId: '!group-invite:p2p-im.com',
+      roomMembership: Membership.invite,
+    );
+    _addTestRoom(
+      client,
+      roomId: '!agent-invite:p2p-im.com',
+      roomMembership: Membership.invite,
+      directPeerMxid: '@agent:p2p-im.com',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('暂无好友请求'), findsNothing);
+    expect(find.text('接受'), findsOneWidget);
+  });
+
+  testWidgets('new friends page uses AS metadata for outgoing pending contacts',
+      (tester) async {
+    final client = Client('PortalIMOutgoingPendingMetadataTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('等待对方接受'), findsWidgets);
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('new friends page shows rejected outbound contacts separately',
+      (tester) async {
+    final client = Client('PortalIMOutgoingRejectedBootstrapTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28, 18),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!rejected:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'rejected_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('已拒绝'), findsOneWidget);
+    expect(find.text('对方已拒绝'), findsOneWidget);
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.text('等待接受'), findsNothing);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('new friends keeps outgoing requests visible after peer rejects',
+      (tester) async {
+    final client = Client('PortalIMOutgoingRejectedMetadataTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!pending:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+      peerMembership: Membership.leave,
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28, 16),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.text('已拒绝'), findsOneWidget);
+    expect(find.text('对方已拒绝'), findsOneWidget);
+    expect(find.text('等待接受'), findsNothing);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('new friends hides stale outgoing invite omitted by AS bootstrap',
+      (tester) async {
+    final client = Client('PortalIMStaleOutgoingInviteTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!old-request:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@alice:example.com',
+      directPeerMembership: Membership.invite,
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('等待对方接受'), findsNothing);
+    expect(find.text('暂无好友请求'), findsOneWidget);
+  });
+
+  testWidgets('new friends re-add ignores stale Matrix invite absent from AS',
+      (tester) async {
+    final client = Client('PortalIMReaddAfterRejectedTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!old-request:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@alice:example.com',
+      directPeerMembership: Membership.invite,
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), '@alice:example.com');
+    await tester.tap(find.byIcon(Symbols.send));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+
+    expect(asClient.createContactRequestCalls, 1);
+    expect(asClient.createdContactMxid, '@alice:example.com');
+    expect(find.textContaining('发送好友请求'), findsOneWidget);
+  });
+
+  testWidgets('new friends rejects domains without portal owner discovery',
+      (tester) async {
+    final client = Client(
+      'PortalIMRequestsUnknownDomainTest',
+      httpClient: MockClient((request) async {
+        expect(request.url.toString(),
+            'https://unknown.portal.local/.well-known/portal/owner.json');
+        return http.Response('internal error', 500);
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'unknown.portal.local');
+    await tester.pump();
+    await tester
+        .tap(find.byKey(const ValueKey('new_friends_search_send_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('该域名不是产品用户'), findsOneWidget);
+    expect(asClient.createContactRequestCalls, 0);
+
+    await client.dispose(closeDatabase: false);
+  });
+
+  testWidgets('new friends page exposes accept and reject actions',
+      (tester) async {
+    final client = Client('PortalIMRequestsActionsTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!person-invite:p2p-im.com',
+      roomMembership: Membership.invite,
+      directPeerMxid: '@alice:portal.local',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('接受'), findsOneWidget);
+    expect(find.text('拒绝'), findsOneWidget);
+  });
+
+  testWidgets('accepting friend request updates local accepted room cache',
+      (tester) async {
+    final client = Client('PortalIMRequestsAcceptCacheTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_StatefulPendingContactAsClient()),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('接受'));
+    await tester.pump();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(RequestsPage)),
+    );
+    expect(
+      container.read(asSyncCacheProvider).acceptedDirectRoomIds,
+      contains('!person-invite:p2p-im.com'),
+    );
+    await tester.pump(const Duration(seconds: 3));
+    await client.abortSync();
+  });
+
+  testWidgets('contact follow shortcut opens follows list', (tester) async {
+    final client = Client('PortalIMTest');
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(path: '/follows', builder: (_, __) => const FollowsListPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(_FollowsAsClient()),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(find.text('关注'), findsOneWidget);
+    await tester.tap(find.text('关注'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('alice.portal.local'), findsOneWidget);
+  });
+
+  testWidgets('follows list renders contact avatars', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child:
+            MaterialApp(theme: AppTheme.light, home: const FollowsListPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.seed == '@alice:portal.local' &&
+            widget.imageUrl == MockAvatars.alice,
+      ),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Symbols.person_check), findsNothing);
+  });
+
+  testWidgets('tapping a followed user opens visitor home', (tester) async {
+    final router = GoRouter(
+      initialLocation: '/follows',
+      routes: [
+        GoRoute(path: '/follows', builder: (_, __) => const FollowsListPage()),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Alice Chen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('主页'), findsOneWidget);
+    expect(find.text('alice.portal.local'), findsOneWidget);
+    expect(find.text('她的动态'), findsOneWidget);
+  });
+
+  testWidgets('add contact searches portal url and opens visitor home',
+      (tester) async {
+    final client = Client(
+      'PortalIMAddContactTest',
+      httpClient: MockClient((request) async {
+        expect(request.url.toString(),
+            'https://alice.portal.local/.well-known/portal/owner.json');
+        return http.Response(
+          '{"matrix_user_id":"@alice:portal.local","display_name":"Alice Chen"}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final router = GoRouter(
+      initialLocation: '/add-contact',
+      routes: [
+        GoRoute(
+            path: '/add-contact', builder: (_, __) => const AddContactPage()),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('输入 Portal URL'), findsOneWidget);
+
+    await tester.enterText(
+        find.byType(TextField), 'https://alice.portal.local/');
+    await tester.tap(find.text('搜索'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('alice.portal.local'), findsOneWidget);
+    expect(find.text('添加'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('主页'), findsOneWidget);
+    expect(find.text('她的动态'), findsOneWidget);
+    expect(find.text('设计观察'), findsOneWidget);
+  });
+
+  testWidgets('add contact rejects domains without portal owner discovery',
+      (tester) async {
+    final asClient = _TrackingAsClient();
+    final client = Client(
+      'PortalIMAddContactUnknownDomainTest',
+      httpClient: MockClient((request) async {
+        expect(request.url.toString(),
+            'https://unknown.portal.local/.well-known/portal/owner.json');
+        return http.Response('internal error', 500);
+      }),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const AddContactPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'unknown.portal.local');
+    await tester.tap(find.text('搜索'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('该域名不是产品用户'), findsOneWidget);
+    expect(find.text('@owner:unknown.portal.local'), findsNothing);
+    expect(find.text('添加'), findsNothing);
+    expect(asClient.createContactRequestCalls, 0);
+
+    await client.dispose(closeDatabase: false);
+  });
+
+  testWidgets('add contact shows inbound request handling prompt',
+      (tester) async {
+    final client = Client(
+      'PortalIMAddContactInboundRequestTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"matrix_user_id":"@alice:portal.local","display_name":"Alice Chen"}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final router = GoRouter(
+      initialLocation: '/add-contact',
+      routes: [
+        GoRoute(
+            path: '/add-contact', builder: (_, __) => const AddContactPage()),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider
+              .overrideWithValue(_PendingInboundAddContactAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'alice.portal.local');
+    await tester.tap(find.text('搜索'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('添加'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('对方已向你发送好友请求，请到新朋友页处理。'), findsOneWidget);
+    expect(find.text('邀请已发送！等待对方接受。'), findsNothing);
+
+    await client.dispose(closeDatabase: false);
+  });
+
+  testWidgets('mock groups show three groups with one owner badge',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('P2P IM 核心群'), findsOneWidget);
+    expect(find.text('产品设计组'), findsOneWidget);
+    expect(find.text('Agent 创作小组'), findsOneWidget);
+    expect(find.text('群主'), findsOneWidget);
+  });
+
+  testWidgets('groups list excludes AS accepted undirected direct contacts',
+      (tester) async {
+    final client = Client('PortalIMGroupsExcludeDirectMetadataTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!owner:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!owner:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('owner'), findsNothing);
+    expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('groups list only shows AS joined groups', (tester) async {
+    final client = Client('PortalIMGroupsExcludeStaleDirectRoomsTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addHeroSummaryRoom(
+      client,
+      roomId: '!deleted-contact:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Owner',
+    );
+    _addHeroSummaryRoom(
+      client,
+      roomId: '!raw-one-to-one:p2p-im.com',
+      peerMxid: '@vivid:p2p-liyanan.com',
+      peerName: 'Vivid Dusk',
+    );
+    _addHeroSummaryRoom(
+      client,
+      roomId: '!agent-room:p2p-im.com',
+      peerMxid: '@agent:p2p-im.com',
+      peerName: 'agent',
+    );
+    _addNamedGroupRoom(client, roomId: '!group:p2p-im.com', name: '群');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Owner',
+          avatarUrl: '',
+          roomId: '!deleted-contact:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'rejected',
+        ),
+      ],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!as-group:p2p-im.com',
+          name: 'AS 产品群',
+          avatarUrl: '',
+          unreadCount: 2,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('AS 产品群'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('群'), findsNothing);
+    expect(find.textContaining('Group with'), findsNothing);
+    expect(find.text('agent'), findsNothing);
+    expect(find.text('Owner'), findsNothing);
+    expect(find.text('Vivid Dusk'), findsNothing);
+  });
+
+  testWidgets('groups list labels image previews instead of filenames',
+      (tester) async {
+    const imageName =
+        'image_picker_11111111-AAAA-BBBB-CCCC-generated-photo.jpg';
+    final client = Client('PortalIMGroupListImagePreviewTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    room.lastEvent = Event(
+      room: room,
+      eventId: r'$group-image-preview',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 5, 30, 10),
+      content: const {
+        'msgtype': MessageTypes.Image,
+        'body': imageName,
+        'url': 'mxc://p2p-im.com/image',
+      },
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('真实群'), findsOneWidget);
+    expect(find.text('收到图片'), findsOneWidget);
+    expect(find.text(imageName), findsNothing);
+  });
+
+  testWidgets('group creation invites only selected accepted contacts',
+      (tester) async {
+    final client = Client(
+      'PortalIMGroupCreateInviteTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    final asClient = _TrackingAsClient();
+
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@bob:p2p-liyanan.com',
+          displayName: 'Bob Lin',
+          avatarUrl: '',
+          roomId: '!bob:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@pending:p2p-liyanan.com',
+          displayName: 'Pending User',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/groups',
+      routes: [
+        GoRoute(
+          path: '/groups',
+          builder: (_, __) => const GroupsListPage(),
+        ),
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) => Scaffold(
+            body: Text(state.pathParameters['roomId']!),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          groupCreationSyncAfterCreateProvider.overrideWithValue(false),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Symbols.group_add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('选择成员'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('Bob Lin'), findsOneWidget);
+    expect(find.text('Pending User'), findsNothing);
+
+    await tester.enterText(find.byType(TextField).last, '测试群');
+    await tester.tap(find.text('Alice Chen'));
+    await tester.tap(find.text('Bob Lin'));
+    await tester.pump();
+    await tester.tap(find.text('创建'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.createdGroupName, '测试群');
+    expect(
+      asClient.createdGroupInvites,
+      ['@alice:p2p-liyanan.com', '@bob:p2p-liyanan.com'],
+    );
+    expect(asClient.syncBootstrapCalls, 1);
+    expect(client.getRoomById('!new-group:p2p-im.com'), isNotNull);
+  });
+
+  testWidgets('messages hide Matrix group invite room before AS join',
+      (tester) async {
+    final client = Client('PortalIMGroupInviteRoomHiddenHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!invited-group:p2p-im.com',
+      name: '未加入群',
+      membership: Membership.invite,
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('未加入群'), findsNothing);
+    expect(find.text('还没有会话'), findsOneWidget);
+  });
+
+  testWidgets(
+      'group detail shows real members and hides management for members',
+      (tester) async {
+    final client = Client('PortalIMGroupDetailMemberTest')
+      ..setUserId('@member:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupDetailPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('聊天信息(2)'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Carol'), findsNothing);
+    expect(find.text('群管理'), findsNothing);
+  });
+
+  testWidgets('group detail keeps management visible for group owner',
+      (tester) async {
+    final client = Client('PortalIMGroupDetailOwnerTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupDetailPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('聊天信息(2)'), findsOneWidget);
+    expect(find.text('群管理'), findsOneWidget);
+  });
+
+  testWidgets('group detail leaves through AS and refreshes bootstrap',
+      (tester) async {
+    final client = Client('PortalIMGroupDetailLeaveAsTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final initialBootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final refreshedBootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8, 1),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient()
+      ..bootstrapAfterLeave = refreshedBootstrap;
+    final bootstrapStore = _MemoryAsBootstrapStore();
+    final router = GoRouter(
+      initialLocation:
+          '/group-detail/${Uri.encodeComponent('!group:p2p-im.com')}',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('HomeRoot')),
+        ),
+        GoRoute(
+          path: '/group-detail/:roomId',
+          builder: (_, state) => GroupDetailPage(
+            roomId: state.pathParameters['roomId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          asBootstrapRepositoryProvider.overrideWithValue(
+            AsBootstrapRepository(
+              loadBootstrap: asClient.syncBootstrap,
+              store: bootstrapStore,
+            ),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: initialBootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('退出群聊'));
+    await tester.tap(find.text('退出群聊'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('退出').last);
+    await tester.pumpAndSettle();
+
+    expect(asClient.leaveGroupCalls, 1);
+    expect(asClient.leftGroupRoomId, '!group:p2p-im.com');
+    expect(find.text('HomeRoot'), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MaterialApp).first),
+    );
+    expect(container.read(asSyncCacheProvider).bootstrap?.groups, isEmpty);
+    expect(bootstrapStore.value?.groups, isEmpty);
+  });
+
+  testWidgets('group detail invites accepted non-members through AS',
+      (tester) async {
+    final client = Client('PortalIMGroupDetailInviteAsTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-liyanan.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 9),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@carol:p2p-carol.com',
+          displayName: 'Carol',
+          avatarUrl: '',
+          roomId: '!carol:p2p-im.com',
+          domain: 'p2p-carol.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@pending:p2p-pending.com',
+          displayName: 'Pending',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-pending.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupDetailPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('邀请'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('添加群成员'), findsOneWidget);
+    expect(find.text('Carol'), findsOneWidget);
+    expect(find.text('Pending'), findsNothing);
+
+    await tester.tap(find.text('Carol'));
+    await tester.pump();
+    await tester.tap(find.text('发送邀请'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.inviteGroupMembersCalls, 1);
+    expect(asClient.invitedGroupRoomId, '!group:p2p-im.com');
+    expect(asClient.invitedGroupMembers, ['@carol:p2p-carol.com']);
+    expect(find.text('已发送 1 个群邀请'), findsOneWidget);
+  });
+
+  testWidgets('group detail shows owner-admin invite permission failure',
+      (tester) async {
+    final client = Client('PortalIMGroupInvitePermissionFailureTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-liyanan.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 14),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@carol:p2p-carol.com',
+          displayName: 'Carol',
+          avatarUrl: '',
+          roomId: '!dm-carol:p2p-im.com',
+          domain: 'p2p-carol.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          invitePolicy: groupInvitePolicyOwnerAdmin,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient()
+      ..inviteGroupMembersError = AsClientException(
+        'group invite requires owner or admin',
+        statusCode: 403,
+      );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupDetailPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('邀请'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Carol'));
+    await tester.pump();
+    await tester.tap(find.text('发送邀请'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.inviteGroupMembersCalls, 1);
+    expect(find.text('该群只有群主/管理员可添加成员'), findsOneWidget);
+    expect(find.textContaining('发送群邀请失败'), findsNothing);
+  });
+
+  testWidgets('group management MVP hides unimplemented controls',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: const GroupManagePage(roomId: '!group:p2p-im.com'),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('群管理'), findsOneWidget);
+    expect(find.text('退出群聊'), findsOneWidget);
+    expect(find.text('二维码进群'), findsNothing);
+    expect(find.text('群主管理权转让'), findsNothing);
+  });
+
+  testWidgets('group management updates invite policy through AS',
+      (tester) async {
+    final asClient = _TrackingAsClient();
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 13),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          isOwned: true,
+          invitePolicy: 'all_members',
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupManagePage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('添加成员权限'), findsOneWidget);
+    expect(find.text('所有成员可添加'), findsOneWidget);
+    expect(find.text('群主/管理员可添加'), findsOneWidget);
+
+    await tester.tap(find.text('群主/管理员可添加'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.updateGroupInvitePolicyCalls, 1);
+    expect(asClient.updatedGroupInvitePolicyRoomId, '!group:p2p-im.com');
+    expect(asClient.updatedGroupInvitePolicy, 'owner_admin');
+    expect(find.text('已更新添加成员权限'), findsOneWidget);
+  });
+
+  testWidgets('group chat text send uses AS room send endpoint',
+      (tester) async {
+    final client = Client(
+      'PortalIMGroupTextSendAsTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '群聊走 AS');
+    await tester.tap(find.byIcon(Symbols.arrow_upward));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(asClient.sendRoomMessageCalls, 1);
+    expect(asClient.sentRoomId, '!group:p2p-im.com');
+    expect(asClient.sentContent, '群聊走 AS');
+  });
+
+  testWidgets('group chat header opens active group call from title capsule',
+      (tester) async {
+    const roomId = '!group:p2p-im.com';
+    final client = Client(
+      'PortalIMGroupActiveCallHeaderTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final voiceCallController = _IdleVoiceCallController(
+      initialGroupState: const GroupCallUiState(
+        status: GroupCallStatus.connected,
+        callType: ProductCallType.voice,
+        roomId: roomId,
+        roomName: '真实群',
+        callId: 'as-group-call-1',
+      ),
+    );
+    final router = GoRouter(
+      initialLocation: '/group/${Uri.encodeComponent(roomId)}',
+      routes: [
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) =>
+              GroupChatPage(roomId: state.pathParameters['roomId']!),
+        ),
+        GoRoute(
+          path: '/group-call/:roomId',
+          builder: (_, state) => Text(
+            '${state.pathParameters['roomId']} '
+            '${state.uri.queryParameters['call_id']} '
+            '${state.uri.queryParameters['incoming']}',
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          voiceCallControllerProvider.overrideWithValue(voiceCallController),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('正在群通话'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat_header_title_capsule')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('$roomId as-group-call-1 null'), findsOneWidget);
+  });
+
+  testWidgets('group chat renders group local media outbox items',
+      (tester) async {
+    final client = Client(
+      'PortalIMGroupMediaOutboxTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final outboxStore = _MemoryLocalOutboxStore([
+      LocalOutboxItem(
+        id: 'group-file-1',
+        conversationId: '!group:p2p-im.com',
+        conversationType: LocalOutboxConversationType.group,
+        messageKind: LocalOutboxMessageKind.file,
+        text: '',
+        filename: 'report.pdf',
+        mimeType: 'application/pdf',
+        bytes: _transparentPng,
+        createdAt: DateTime.utc(2026, 5, 30, 9),
+        status: LocalOutboxItemStatus.failed,
+        runtimeId: 'old-runtime',
+        batchId: 'batch-1',
+        batchIndex: 0,
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith((ref) async => outboxStore),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('report.pdf'), findsOneWidget);
+    expect(find.byIcon(Symbols.refresh), findsOneWidget);
+  });
+
+  testWidgets('group chat renders received image as media instead of filename',
+      (tester) async {
+    const roomId = '!group:p2p-im.com';
+    const imageName =
+        'image_picker_11111111-AAAA-BBBB-CCCC-generated-photo.jpg';
+    final client = Client(
+      'PortalIMGroupReceivedImageTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-image',
+        rooms: RoomsUpdate(
+          join: {
+            roomId: JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: r'$group-image',
+                    roomId: roomId,
+                    senderId: '@alice:p2p-im.com',
+                    originServerTs: DateTime.utc(2026, 5, 30, 10),
+                    content: const {
+                      'msgtype': MessageTypes.Image,
+                      'body': imageName,
+                      'url': 'mxc://p2p-im.com/image',
+                      'info': {
+                        'mimetype': 'image/jpeg',
+                        'size': 1024,
+                        'w': 120,
+                        'h': 80,
+                      },
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text(imageName), findsNothing);
+    expect(find.byType(CachedThumbnailImage), findsOneWidget);
+  });
+
+  testWidgets('group chat renders received file as file card', (tester) async {
+    const roomId = '!group:p2p-im.com';
+    const fileName = 'quarterly-plan.pdf';
+    final client = Client(
+      'PortalIMGroupReceivedFileTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-file',
+        rooms: RoomsUpdate(
+          join: {
+            roomId: JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: r'$group-file',
+                    roomId: roomId,
+                    senderId: '@alice:p2p-im.com',
+                    originServerTs: DateTime.utc(2026, 5, 30, 10),
+                    content: const {
+                      'msgtype': MessageTypes.File,
+                      'body': fileName,
+                      'url': 'mxc://p2p-im.com/file',
+                      'info': {
+                        'mimetype': 'application/pdf',
+                        'size': 2048,
+                      },
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text(fileName), findsOneWidget);
+    expect(find.text('PDF · 2.0 KB'), findsOneWidget);
+    expect(find.byIcon(Symbols.download), findsOneWidget);
+  });
+
+  testWidgets('group chat renders received video as media card',
+      (tester) async {
+    const roomId = '!group:p2p-im.com';
+    const videoName = 'camera-roll-clip.mov';
+    final client = Client(
+      'PortalIMGroupReceivedVideoTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-video',
+        rooms: RoomsUpdate(
+          join: {
+            roomId: JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: r'$group-video',
+                    roomId: roomId,
+                    senderId: '@alice:p2p-im.com',
+                    originServerTs: DateTime.utc(2026, 5, 30, 10),
+                    content: const {
+                      'msgtype': MessageTypes.Video,
+                      'body': videoName,
+                      'url': 'mxc://p2p-im.com/video',
+                      'info': {
+                        'mimetype': 'video/quicktime',
+                        'size': 4096,
+                        'thumbnail_url': 'mxc://p2p-im.com/thumb',
+                      },
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text(videoName), findsNothing);
+    expect(find.byType(CachedThumbnailImage), findsOneWidget);
+    expect(find.byIcon(Symbols.play_arrow), findsOneWidget);
+  });
+
+  testWidgets('group chat long press exposes direct chat actions',
+      (tester) async {
+    await _pumpGroupChatWithTextEvent(tester);
+
+    await tester.longPress(find.text('群聊长按消息'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('复制'), findsOneWidget);
+    expect(find.text('转发'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
+    expect(find.text('删除'), findsOneWidget);
+    expect(find.text('多选'), findsOneWidget);
+    expect(find.text('引用'), findsOneWidget);
+  });
+
+  testWidgets('group chat quote shows reply bar and clears after send',
+      (tester) async {
+    final harness = await _pumpGroupChatWithTextEvent(tester);
+
+    await tester.longPress(find.text('群聊长按消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('引用'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Symbols.reply), findsOneWidget);
+    expect(find.text('Alice'), findsWidgets);
+
+    await tester.enterText(find.byType(TextField), '引用后的回复');
+    await tester.tap(find.byIcon(Symbols.arrow_upward));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(harness.asClient.sentRoomId, '!group:p2p-im.com');
+    expect(harness.asClient.sentContent, '引用后的回复');
+    expect(find.byIcon(Symbols.reply), findsNothing);
+  });
+
+  testWidgets('group chat single forward opens target sheet', (tester) async {
+    await _pumpGroupChatWithTextEvent(tester);
+
+    await tester.longPress(find.text('群聊长按消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('转发'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('转发聊天记录'), findsOneWidget);
+    expect(find.text('真实群'), findsWidgets);
+  });
+
+  testWidgets('group chat multi-select bar exposes delete', (tester) async {
+    await _pumpGroupChatWithTextEvent(tester);
+
+    await tester.longPress(find.text('群聊长按消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('多选'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('已选 1 条'), findsOneWidget);
+    expect(find.byTooltip('转发'), findsOneWidget);
+    expect(find.byTooltip('删除'), findsOneWidget);
+  });
+
+  testWidgets('group chat delete hides message through AS', (tester) async {
+    final harness = await _pumpGroupChatWithTextEvent(tester);
+
+    await tester.longPress(find.text('群聊长按消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(harness.asClient.deleteRoomMessageCalls, 1);
+    expect(harness.asClient.deletedRoomMessageRoomId, '!group:p2p-im.com');
+    expect(harness.asClient.deletedRoomMessageEventId, r'$group-text');
+    expect(find.text('群聊长按消息'), findsNothing);
+  });
+
+  testWidgets('mock auth build ignores cached login for contacts',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (!mockAuthEnabled) return;
+
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('联系人').last);
+    await tester.pump();
+
+    expect(find.text('联系人 (3)'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsOneWidget);
+  });
+
+  testWidgets('mock auth build shows mock conversations despite cached login',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (!mockAuthEnabled) return;
+
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Dave Lee'), findsOneWidget);
+    expect(find.text('Agent'), findsOneWidget);
+  });
+
+  testWidgets('mock auth build opens mock chat despite cached login',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (!mockAuthEnabled) return;
+
+    final router = GoRouter(
+      initialLocation: '/chat/mock_dave',
+      routes: [
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) =>
+              ChatPage(roomId: state.pathParameters['roomId']!),
+        ),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Dave Lee'), findsOneWidget);
+
+    await tester
+        .tap(find.byKey(const ValueKey('chat_peer_avatar_mock_dave_1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('dave.portal.local'), findsOneWidget);
+    expect(find.text('她的频道'), findsOneWidget);
+  });
+
+  testWidgets('mock auth chat does not poll AS gateway', (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (!mockAuthEnabled) return;
+
+    var gatewayCalls = 0;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asGatewayClientProvider.overrideWithValue(
+            AsGatewayClient(
+              asUrl: 'http://as-gateway.test',
+              agentToken: 'test',
+              httpClient: MockClient((_) async {
+                gatewayCalls += 1;
+                return http.Response('{"messages":[]}', 200);
+              }),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: 'mock_dave'),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(gatewayCalls, 0);
+    expect(find.text('Dave Lee'), findsOneWidget);
+  });
+
+  testWidgets('mock direct chat multi-select checkbox toggles selection',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (!mockAuthEnabled) return;
+
+    final router = GoRouter(
+      initialLocation: '/chat/mock_jack',
+      routes: [
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) =>
+              ChatPage(roomId: state.pathParameters['roomId']!),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.longPress(find.text('改到几点？'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('多选'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('已选 1 条'), findsOneWidget);
+
+    final visibleUncheckedMessage = find.text('另外周末有空吗？想约你打球');
+    final messageCenter = tester.getCenter(visibleUncheckedMessage);
+    await tester.tapAt(Offset(36, messageCenter.dy));
+    await tester.pump();
+
+    expect(find.text('已选 2 条'), findsOneWidget);
+
+    await tester.tapAt(
+      Offset(
+        tester.view.physicalSize.width / tester.view.devicePixelRatio - 24,
+        messageCenter.dy,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('已选 1 条'), findsOneWidget);
+  });
+
+  testWidgets('mock forwarded chat record opens detail with source messages',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (!mockAuthEnabled) return;
+
+    final router = GoRouter(
+      initialLocation: '/chat/mock_jack',
+      routes: [
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) =>
+              ChatPage(roomId: state.pathParameters['roomId']!),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.longPress(find.text('改到几点？'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('多选'));
+    await tester.pumpAndSettle();
+
+    final secondMessage = find.text('另外周末有空吗？想约你打球');
+    final secondMessageCenter = tester.getCenter(secondMessage);
+    await tester.tapAt(Offset(36, secondMessageCenter.dy));
+    await tester.pump();
+    await tester.tap(find.byTooltip('转发'));
+    await tester.pumpAndSettle();
+
+    final recordBubble = find.text('聊天记录\n与 Jack 的聊天记录\n共 2 条消息');
+    expect(recordBubble, findsOneWidget);
+
+    await tester.tap(recordBubble);
+    await tester.pumpAndSettle();
+
+    expect(find.text('与 Jack 的聊天记录'), findsOneWidget);
+    expect(find.text('共 2 条消息'), findsOneWidget);
+    expect(find.text('改到几点？'), findsOneWidget);
+    expect(find.text('另外周末有空吗？想约你打球'), findsOneWidget);
+  });
+
+  testWidgets('mock auth build ignores cached login for groups',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (!mockAuthEnabled) return;
+
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('P2P IM 核心群'), findsOneWidget);
+    expect(find.text('群主'), findsOneWidget);
+  });
+
+  testWidgets('mock auth build shows mock channels despite cached login',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (!mockAuthEnabled) return;
+
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('正在同步频道'), findsNothing);
+    expect(find.text('P2P IM 官方'), findsOneWidget);
+    expect(find.text('Agent 工作流'), findsOneWidget);
+  });
+
+  testWidgets('channel tab presents personal channel inbox categories',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('搜索频道、群体、话题'), findsNothing);
+    expect(find.textContaining('推荐频道'), findsNothing);
+    expect(find.text('关注'), findsOneWidget);
+    for (final label in ['全部', '我的频道', 'AI', '产品', '创作', '部署']) {
+      expect(find.text(label), findsOneWidget);
+    }
+
+    expect(find.text('P2P IM 官方'), findsOneWidget);
+    expect(find.text('Agent 工作流'), findsOneWidget);
+    expect(find.textContaining('后端部署清单已更新'), findsOneWidget);
+
+    final firstTop = tester.getTopLeft(find.text('P2P IM 官方')).dy;
+    final secondTop = tester.getTopLeft(find.text('Agent 工作流')).dy;
+    expect(firstTop, lessThan(secondTop));
+  });
+
+  testWidgets('channel tab filters owned channels separately', (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('我的频道'));
+    await tester.pump();
+
+    expect(find.text('P2P IM 官方'), findsOneWidget);
+    expect(find.text('AI 创作实验室'), findsOneWidget);
+    expect(find.text('Agent 工作流'), findsNothing);
+  });
+
+  testWidgets('channel categories overflow horizontally and reveal more tags',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('活动'), findsNothing);
+    await tester.dragUntilVisible(
+      find.text('活动'),
+      find.byKey(const ValueKey('channel_category_strip')),
+      const Offset(-180, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('活动'), findsOneWidget);
+    expect(find.text('节点'), findsOneWidget);
+  });
+
+  testWidgets('channel list opens the selected channel detail page',
+      (tester) async {
+    final client = Client('PortalIMTest');
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => ChannelPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('P2P IM 官方').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('p2p-im.com · 我的频道'), findsOneWidget);
+    expect(find.text('发布帖子'), findsOneWidget);
+    expect(find.text('频道帖子'), findsOneWidget);
+    expect(find.textContaining('后端部署清单已更新'), findsOneWidget);
+  });
+
+  testWidgets('empty real channel inbox exposes explicit design sample',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (mockAuthEnabled) return;
+
+    final client = Client('PortalIMTest');
+    final emptyBootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-05-26T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => ChannelPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: emptyBootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('探索'));
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('还没有频道'), findsOneWidget);
+    expect(find.text('AI'), findsOneWidget);
+    expect(find.text('产品'), findsOneWidget);
+    expect(find.text('样例频道'), findsOneWidget);
+    expect(find.text('P2P IM 官方'), findsOneWidget);
+
+    await tester.tap(find.text('P2P IM 官方').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('设计样例'), findsOneWidget);
+    expect(find.text('频道帖子'), findsOneWidget);
+  });
+
+  testWidgets('joined channel detail uses read-only joined status bar',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPage(channelId: 'agent-workflows'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('agent-workflows.p2p-im.com · 已关注'), findsOneWidget);
+    expect(find.text('已关注'), findsAtLeastNWidgets(1));
+    expect(find.text('频道帖子'), findsOneWidget);
+    expect(find.text('2.1k'), findsOneWidget);
+    expect(find.text('👍 36'), findsOneWidget);
+    expect(find.text('评论 12'), findsOneWidget);
+    expect(find.text('发布帖子'), findsNothing);
+
+    await tester.tap(find.text('评论 12'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('评论线程'), findsOneWidget);
+    expect(find.textContaining('有人分享了群聊总结模板'), findsWidgets);
+  });
+
+  testWidgets('global search includes contacts groups and channels',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const SearchPage()),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'Alice');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(find.text('Alice Chen'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '产品');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(find.text('产品设计组'), findsOneWidget);
+    expect(find.text('P2P IM 官方'), findsOneWidget);
+  });
+
+  testWidgets('global search opens channel detail results', (tester) async {
+    final client = Client('PortalIMTest');
+    final router = GoRouter(
+      initialLocation: '/search',
+      routes: [
+        GoRoute(path: '/search', builder: (_, __) => const SearchPage()),
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => ChannelPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'P2P IM 官方');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    await tester.tap(find.text('P2P IM 官方').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('p2p-im.com · 我的频道'), findsOneWidget);
+    expect(find.text('频道详情功能待接入'), findsNothing);
+  });
+
+  testWidgets('global search indexes real bootstrap channels', (tester) async {
+    final client = Client('PortalIMTest');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 26, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          roomId: '!real-channel:p2p-im.com',
+          name: '真实产品频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.utc(2026, 5, 26, 9),
+          topic: '真实频道索引内容',
+          isOwned: true,
+          tags: const ['真实标签'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const SearchPage()),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '真实标签');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(find.text('真实产品频道'), findsOneWidget);
+    expect(find.textContaining('真实频道索引内容'), findsOneWidget);
+  });
+
+  testWidgets('contact detail replaces call actions with home action',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactDetailPage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('发消息'), findsOneWidget);
+    expect(find.text('主页'), findsOneWidget);
+    expect(find.text('语音'), findsNothing);
+    expect(find.text('视频'), findsNothing);
+    for (final icon in [Symbols.chat, Symbols.home]) {
+      expect(tester.widget<Icon>(find.byIcon(icon)).color,
+          PortalTokens.light.textMute);
+      expect(
+        _nearestSizedContainerColor(tester, find.byIcon(icon), size: 56),
+        PortalTokens.light.surfaceHover,
+      );
+    }
+  });
+
+  testWidgets('contact detail opens visitor home page', (tester) async {
+    final router = GoRouter(
+      initialLocation: '/contact/@alice:portal.local',
+      routes: [
+        GoRoute(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactDetailPage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('主页'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('alice.portal.local'), findsOneWidget);
+    expect(find.text('她的频道'), findsOneWidget);
+    expect(find.text('设计观察'), findsOneWidget);
+    expect(find.text('她的动态'), findsOneWidget);
+    expect(find.text('原型图更新了'), findsOneWidget);
+    expect(find.byKey(const ValueKey('contact_home_follow_button')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('contact_home_add_friend_button')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('contact_home_settings_button')),
+        findsNothing);
+    expect(
+        find.byKey(const ValueKey('contact_home_edit_button')), findsNothing);
+  });
+
+  testWidgets(
+      'contact detail deletes contact through AS and returns to messages',
+      (tester) async {
+    final client = Client('PortalIMContactDetailDeleteTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@alice:portal.local',
+    );
+    final asClient = _TrackingAsClient();
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 22),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:portal.local',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'portal.local',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/contact/${Uri.encodeComponent('@alice:portal.local')}',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('messages-home')),
+        ),
+        GoRoute(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactDetailPage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('删除联系人'));
+    await tester.pump();
+    await tester.tap(find.text('删除联系人'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.deleteContactCalls, 1);
+    expect(asClient.deletedContactRoomId, '!alice:p2p-im.com');
+    expect(client.getRoomById('!alice:p2p-im.com'), isNull);
+    expect(find.text('messages-home'), findsOneWidget);
+  });
+
+  testWidgets(
+      'contact visitor home delete returns to messages instead of stale chat',
+      (tester) async {
+    final client = Client('PortalIMContactHomeDeleteNavigationTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@alice:portal.local',
+    );
+    final asClient = _TrackingAsClient();
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:portal.local',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'alice.portal.local',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/chat/${Uri.encodeComponent('!alice:p2p-im.com')}',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('messages-home')),
+        ),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, __) => const Scaffold(body: Text('会话不存在')),
+        ),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    router.push('/contact-home/${Uri.encodeComponent('@alice:portal.local')}');
+    await tester.pumpAndSettle();
+
+    final friendButton =
+        find.byKey(const ValueKey('contact_home_add_friend_button'));
+    expect(find.descendant(of: friendButton, matching: find.text('删除好友')),
+        findsOneWidget);
+
+    await tester.tap(friendButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '删除'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.deleteContactCalls, 1);
+    expect(asClient.deletedContactRoomId, '!alice:p2p-im.com');
+    expect(client.getRoomById('!alice:p2p-im.com'), isNull);
+    expect(find.text('messages-home'), findsOneWidget);
+    expect(find.text('会话不存在'), findsNothing);
+  });
+
+  testWidgets('mock direct chat hides peer avatar in message rows',
+      (tester) async {
+    final router = GoRouter(
+      initialLocation: '/chat/mock_dave',
+      routes: [
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) =>
+              ChatPage(roomId: state.pathParameters['roomId']!),
+        ),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('chat_peer_avatar_mock_dave_1')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('mock direct chat header avatar opens visitor home page',
+      (tester) async {
+    final router = GoRouter(
+      initialLocation: '/chat/mock_dave',
+      routes: [
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) =>
+              ChatPage(roomId: state.pathParameters['roomId']!),
+        ),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester
+        .tap(find.byKey(const ValueKey('chat_header_peer_avatar_mock_dave')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dave Lee'), findsOneWidget);
+    expect(find.text('dave.portal.local'), findsOneWidget);
+    expect(find.text('她的频道'), findsOneWidget);
+  });
+
+  testWidgets('contact visitor home follow button toggles locally',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactHomePage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final followButton =
+        find.byKey(const ValueKey('contact_home_follow_button'));
+    final addButton =
+        find.byKey(const ValueKey('contact_home_add_friend_button'));
+    expect(followButton, findsOneWidget);
+    expect(addButton, findsOneWidget);
+    expect(find.descendant(of: followButton, matching: find.text('关注')),
+        findsOneWidget);
+    expect(find.descendant(of: addButton, matching: find.text('加好友')),
+        findsOneWidget);
+    expect(tester.getTopLeft(addButton).dy,
+        greaterThan(tester.getTopLeft(followButton).dy));
+
+    await tester.tap(followButton);
+    await tester.pump();
+
+    expect(find.descendant(of: followButton, matching: find.text('取关')),
+        findsOneWidget);
+  });
+
+  testWidgets('contact visitor home add friend button marks requested locally',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactHomePage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final addButton =
+        find.byKey(const ValueKey('contact_home_add_friend_button'));
+    expect(find.descendant(of: addButton, matching: find.text('加好友')),
+        findsOneWidget);
+
+    await tester.tap(addButton);
+    await tester.pump();
+
+    expect(find.descendant(of: addButton, matching: find.text('已申请')),
+        findsOneWidget);
+    expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
+  });
+
+  testWidgets('global search includes locally cached Matrix messages',
+      (tester) async {
+    final client = Client('PortalIMTestCachedSearch')
+      ..setUserId('@owner:example.com');
+    final room = Room(
+      id: '!cached:example.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@alice:example.com',
+        stateKey: '@alice:example.com',
+        content: {
+          'membership': Membership.join.name,
+          'displayname': 'Alice Chen',
+        },
+      ),
+    );
+    room.lastEvent = Event(
+      room: room,
+      eventId: r'$cached-message',
+      senderId: '@alice:example.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime(2026, 5, 25, 10),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '这是一条 cached-history-needle 历史消息',
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const SearchPage()),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'cached-history-needle');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('这是一条 cached-history-needle 历史消息'), findsOneWidget);
+  });
+
+  testWidgets('me page presents personal space instead of settings list',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+
+    await tester.tap(find.text('我'));
+    await tester.pump();
+
+    expect(find.text('个性签名'), findsNothing);
+    expect(find.text('用自己的节点，连接重要的人和内容。'), findsOneWidget);
+    expect(find.text('我的频道'), findsOneWidget);
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
+    await tester.pumpAndSettle();
+    expect(find.text('动态'), findsOneWidget);
+    expect(find.text('作品墙'), findsNothing);
+    expect(find.text('账号与安全'), findsNothing);
+    expect(find.text('通知设置'), findsNothing);
+    expect(find.text('通用'), findsNothing);
+    expect(find.text('退出登录'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is GlassHeaderButton && widget.icon == Symbols.menu,
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('me page renders dynamics as a moments-style timeline',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+
+    await tester.tap(find.text('我'));
+    await tester.pump();
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('me_dynamics_timeline')), findsOneWidget);
+    expect(find.text('今天'), findsOneWidget);
+    expect(find.text('五月'), findsAtLeastNWidgets(1));
+    expect(find.text('06'), findsOneWidget);
+
+    final todayTop = tester.getTopLeft(find.text('今天')).dy;
+    final maySixTop = tester.getTopLeft(find.text('06')).dy;
+    expect(todayTop, lessThan(maySixTop));
+
+    final timeLeft = tester.getTopLeft(find.text('今天')).dx;
+    final contentLeft = tester.getTopLeft(find.text('第三方平台一键安装')).dx;
+    expect(contentLeft - timeLeft, greaterThan(100));
+  });
+
+  testWidgets('me dynamic timeline opens a detail page', (tester) async {
+    final client = Client('PortalIMTest');
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/me/dynamic/:dynamicId',
+          builder: (_, state) => DynamicDetailPage(
+            dynamicId: state.pathParameters['dynamicId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('我'));
+    await tester.pump();
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第三方平台一键安装'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('动态详情'), findsOneWidget);
+    expect(find.textContaining('云端服务能用吗'), findsOneWidget);
+    expect(find.text('评论'), findsOneWidget);
+    expect(find.text('转发'), findsOneWidget);
+    expect(find.text('更多'), findsOneWidget);
+  });
+
+  testWidgets('me page uses profile row without duplicate page title',
+      (tester) async {
+    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+
+    await tester.tap(find.text('我'));
+    await tester.pump();
+
+    expect(_headerTitle('我'), findsNothing);
+    expect(
+      tester
+          .widget<Expanded>(find.byKey(const ValueKey('me_avatar_column')))
+          .flex,
+      1,
+    );
+    expect(
+      tester
+          .widget<Expanded>(find.byKey(const ValueKey('me_profile_column')))
+          .flex,
+      2,
+    );
+    expect(find.text('@me'), findsNothing);
+    expect(find.textContaining('Node:'), findsNothing);
+    expect(find.text('p2p-im.com'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('p2p-im.com')).style?.color,
+      Colors.white,
+    );
+    expect(
+      tester.widget<Text>(find.text('owner')).style?.fontSize,
+      24,
+    );
+    expect(
+      tester.widget<Text>(find.text('p2p-im.com')).style?.fontSize,
+      16,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('me_signature_line')))
+          .style
+          ?.fontSize,
+      16,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('me_signature_line')))
+          .style
+          ?.color,
+      Colors.white,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('me_signature_line')))
+          .maxLines,
+      1,
+    );
+    final nameLeft = tester.getTopLeft(find.text('owner')).dx;
+    final domainLeft = tester.getTopLeft(find.text('p2p-im.com')).dx;
+    final signatureLeft =
+        tester.getTopLeft(find.byKey(const ValueKey('me_signature_line'))).dx;
+    expect((nameLeft - domainLeft).abs(), lessThanOrEqualTo(1));
+    expect((domainLeft - signatureLeft).abs(), lessThanOrEqualTo(1));
+    expect(find.byIcon(Symbols.map), findsNothing);
+    expect(find.byIcon(Symbols.qr_code_2), findsOneWidget);
+    expect(
+      tester
+          .widget<Container>(find.byKey(const ValueKey('me_domain_pill')))
+          .decoration,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('me_domain_qr_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('我的域名二维码'), findsOneWidget);
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text('@owner:p2p-im.com'), findsOneWidget);
+  });
+
+  testWidgets('me menu opens private tools and unified settings page',
+      (tester) async {
+    final client = Client('PortalIMTest');
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(path: '/me/menu', builder: (_, __) => const MeMenuPage()),
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('我'));
+    await tester.pump();
+    await tester.tap(find.byIcon(Symbols.menu));
+    await tester.pumpAndSettle();
+
+    expect(find.text('菜单'), findsOneWidget);
+    expect(find.text('我的收藏'), findsOneWidget);
+    expect(find.text('草稿箱'), findsOneWidget);
+    expect(find.text('浏览记录'), findsOneWidget);
+    expect(find.text('我的钱包'), findsOneWidget);
+    expect(find.text('通用设置'), findsOneWidget);
+
+    await tester.tap(find.text('通用设置'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('设置'), findsOneWidget);
+    expect(find.text('账号与安全'), findsOneWidget);
+    expect(find.text('通知设置'), findsOneWidget);
+    expect(find.text('通用'), findsAtLeastNWidgets(1));
+    expect(find.text('退出登录'), findsOneWidget);
+  });
+
+  testWidgets('me favorites page renders AS favorite messages', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_FavoritesAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('我的收藏'), findsOneWidget);
+    expect(find.text('明天上午继续测试'), findsOneWidget);
+    expect(find.text('report.pdf'), findsOneWidget);
+    expect(find.text(_FavoritesAsClient.generatedVideoName), findsNothing);
+    expect(find.text(_FavoritesAsClient.generatedImageName), findsNothing);
+    expect(find.text('视频'), findsAtLeastNWidgets(1));
+    expect(find.text('图片'), findsAtLeastNWidgets(1));
+    expect(find.text('聊天记录'), findsAtLeastNWidgets(1));
+    expect(find.text('与 Alice 的聊天记录'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('群聊「产品测试群」的聊天记录'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('群聊「产品测试群」的聊天记录'), findsOneWidget);
+    expect(find.textContaining('来自与 Alice 的私聊'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('2026年5月29日'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('146 KB'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('私聊'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('群聊'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('me favorites treats text as chat record category',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_FavoritesAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('文字'), findsNothing);
+
+    await tester.tap(find.text('聊天记录').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('明天上午继续测试'), findsOneWidget);
+    expect(find.text('与 Alice 的聊天记录'), findsOneWidget);
+    expect(find.text('report.pdf'), findsNothing);
+  });
+
+  testWidgets('me favorites cards keep only the video preview play badge',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_FavoritesAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Symbols.chevron_right), findsNothing);
+    expect(find.byIcon(Symbols.play_arrow), findsOneWidget);
+  });
+
+  testWidgets('me favorites preview boxes use one consistent size',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_FavoritesAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    for (final id in [1, 2, 3, 4, 5, 6]) {
+      await tester.scrollUntilVisible(
+        find.byKey(ValueKey('favorite-preview-$id')),
+        120,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(
+        tester.getSize(find.byKey(ValueKey('favorite-preview-$id'))),
+        const Size.square(62),
+      );
+    }
+  });
+
+  testWidgets('me favorites image preview falls back to original media',
+      (tester) async {
+    final requested = <Uri>[];
+    final client = Client(
+      'PortalIMFavoritePreviewTest',
+      httpClient: MockClient((request) async {
+        requested.add(request.url);
+        return http.Response.bytes(
+          _transparentPng,
+          200,
+          headers: {'content-type': 'image/png'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider
+              .overrideWithValue(_FavoritesAsClient(videoThumbnail: false)),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      requested.any(
+        (uri) => uri.path.contains('/download/p2p-im.com/image'),
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('me favorites image card opens image preview', (tester) async {
+    final client = Client(
+      'PortalIMFavoriteImageOpenTest',
+      httpClient: MockClient((request) async {
+        return http.Response.bytes(
+          _transparentPng,
+          200,
+          headers: {'content-type': 'image/png'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider
+              .overrideWithValue(_FavoritesAsClient(videoThumbnail: false)),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('favorite-card-4')));
+    await tester.pump(const Duration(milliseconds: 220));
+    await tester.pump();
+
+    expect(find.byIcon(Symbols.close), findsOneWidget);
+  });
+
+  testWidgets('me favorites video and file cards open native preview',
+      (tester) async {
+    final previewer = _RecordingFavoriteNativePreviewer();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider
+              .overrideWithValue(_FavoritesAsClient(videoThumbnail: false)),
+          favoriteNativePreviewerProvider.overrideWithValue(previewer),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('favorite-card-3')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('favorite-card-2')));
+    await tester.pump();
+
+    expect(previewer.openedFavoriteIds, [3, 2]);
+  });
+
+  testWidgets('me favorites card can be deleted from long press menu',
+      (tester) async {
+    final asClient = _FavoritesAsClient();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.text('report.pdf'), findsOneWidget);
+
+    await tester.longPress(find.byKey(const ValueKey('favorite-card-2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除收藏'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.deletedFavoriteIds, contains(2));
+    await tester.pump();
+    expect(find.text('report.pdf'), findsNothing);
+  });
+
+  testWidgets('me favorites page opens text favorite as message detail',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_FavoritesAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('favorite-card-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('消息详情'), findsOneWidget);
+    expect(find.text('收藏详情'), findsNothing);
+    expect(find.text('复制内容'), findsNothing);
+    expect(find.text('明天上午继续测试'), findsWidgets);
+    expect(find.text('来自与 Alice 的私聊'), findsOneWidget);
+  });
+
+  testWidgets('me favorites media cards bypass message detail', (tester) async {
+    final previewer = _RecordingFavoriteNativePreviewer();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider
+              .overrideWithValue(_FavoritesAsClient(videoThumbnail: false)),
+          favoriteNativePreviewerProvider.overrideWithValue(previewer),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('favorite-card-3')));
+    await tester.pumpAndSettle();
+
+    expect(previewer.openedFavoriteIds, [3]);
+    expect(find.text('消息详情'), findsNothing);
+    expect(find.text('收藏详情'), findsNothing);
+    expect(find.textContaining('打开失败'), findsNothing);
+  });
+
+  testWidgets('me favorites chat record cards open as message detail',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_FavoritesAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('favorite-card-5')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -80));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('favorite-card-5')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('消息详情'), findsOneWidget);
+    expect(find.text('收藏详情'), findsNothing);
+    expect(find.text('与 Alice 的聊天记录'), findsWidgets);
+    expect(find.text('第一条'), findsOneWidget);
+    expect(find.text('第二条'), findsOneWidget);
+  });
+
+  testWidgets('me menu button stays below the status safe area',
+      (tester) async {
+    final client = Client('PortalIMTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MediaQuery(
+            data: MediaQueryData(
+              padding: EdgeInsets.only(top: 44),
+            ),
+            child: HomePage(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('我'));
+    await tester.pump();
+
+    final topLeft = tester.getTopLeft(find.byKey(
+      const ValueKey('me_menu_button'),
+    ));
+    expect(topLeft.dy, greaterThanOrEqualTo(52));
+  });
+
+  testWidgets('me profile header opens editable profile info page',
+      (tester) async {
+    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/me/profile',
+          builder: (_, __) => const ProfileInfoPage(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('我'));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('me_cover_header')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('me_profile_entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('个人信息'), findsNothing);
+    expect(find.byKey(const ValueKey('me_feather_edit_mark')), findsOneWidget);
+    expect(find.byIcon(Symbols.stylus_fountain_pen), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('me_profile_edit_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('个人信息'), findsOneWidget);
+    expect(find.text('更换背景'), findsOneWidget);
+    expect(find.text('更换头像'), findsOneWidget);
+    expect(find.text('用户名'), findsOneWidget);
+    expect(find.text('简介'), findsOneWidget);
+    expect(find.text('性别'), findsOneWidget);
+    expect(find.text('生日'), findsOneWidget);
+    expect(find.text('所在地'), findsOneWidget);
+  });
+
+  testWidgets('editing profile name updates me page header', (tester) async {
+    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    final asClient = _EmptyAsClient();
+    final router = GoRouter(
+      initialLocation: '/me/profile',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/me/profile',
+          builder: (_, __) => const ProfileInfoPage(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('用户名'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '破局');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.updatedOwnerDisplayName, '破局');
+    expect(find.text('破局'), findsAtLeastNWidgets(1));
+
+    router.go('/home');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('我'));
+    await tester.pump();
+
+    expect(find.text('破局'), findsOneWidget);
+  });
+
+  testWidgets('unified settings avoids duplicate section labels',
+      (tester) async {
+    final router = GoRouter(
+      initialLocation: '/settings',
+      routes: [
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('账号与安全'), findsOneWidget);
+    expect(find.text('账号安全'), findsNothing);
+    expect(find.text('修改密码'), findsOneWidget);
+    expect(find.text('隐私设置'), findsOneWidget);
+    expect(find.text('通用'), findsOneWidget);
+    expect(find.text('偏好设置'), findsOneWidget);
+  });
+
+  testWidgets('unified settings section icons are neutral', (tester) async {
+    final router = GoRouter(
+      initialLocation: '/settings',
+      routes: [
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    for (final icon in [
+      Symbols.key,
+      Symbols.notifications,
+      Symbols.tune,
+    ]) {
+      expect(tester.widget<Icon>(find.byIcon(icon)).color,
+          PortalTokens.light.textMute);
+    }
+  });
+
+  testWidgets('account security page setting icons are neutral',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.light, home: const MeAccountPage()),
+    );
+    await tester.pump();
+
+    for (final icon in [
+      Symbols.shield_person,
+      Symbols.key,
+      Symbols.fingerprint,
+      Symbols.lock,
+      Symbols.devices,
+    ]) {
+      expect(tester.widget<Icon>(find.byIcon(icon)).color,
+          PortalTokens.light.textMute);
+    }
+    for (final icon
+        in tester.widgetList<Icon>(find.byIcon(Symbols.chevron_right))) {
+      expect(icon.color, PortalTokens.light.textMute);
+    }
+  });
+
+  testWidgets('notification settings page setting icons are neutral',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.light, home: const MeNotificationsPage()),
+    );
+    await tester.pump();
+
+    for (final icon in [
+      Symbols.notifications,
+      Symbols.do_not_disturb_on,
+      Symbols.vibration,
+      Symbols.schedule,
+    ]) {
+      expect(tester.widget<Icon>(find.byIcon(icon)).color,
+          PortalTokens.light.textMute);
+    }
+    for (final icon
+        in tester.widgetList<Icon>(find.byIcon(Symbols.chevron_right))) {
+      expect(icon.color, PortalTokens.light.textMute);
+    }
+  });
+
+  testWidgets('agent chat back falls home when chat is the root route',
+      (tester) async {
+    final client = Client('PortalIMTest');
+    final router = GoRouter(
+      initialLocation: '/chat/mock_aibot',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('HomeRoot')),
+        ),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) =>
+              ChatPage(roomId: state.pathParameters['roomId']!),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asGatewayClientProvider.overrideWithValue(
+            AsGatewayClient(
+              asUrl: 'http://as-gateway.test',
+              agentToken: 'test',
+              httpClient: MockClient(
+                (_) async => http.Response('{"messages":[]}', 200),
+              ),
+            ),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Agent'), findsOneWidget);
+
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is GlassHeaderButton &&
+            widget.icon == Symbols.arrow_back_ios,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('HomeRoot'), findsOneWidget);
+  });
+
+  testWidgets('agent chat header uses AS connection status', (tester) async {
+    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!agent:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@agent:p2p-im.com',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!agent:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Agent'), findsOneWidget);
+    expect(find.text('离线'), findsOneWidget);
+    expect(find.text('在线'), findsNothing);
+  });
+
+  testWidgets('private chat can forward a peer message from long press',
+      (tester) async {
+    await _pumpDirectChatWithPeerTextEvent(tester);
+
+    await tester.longPress(find.text('别人发来的消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('转发'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('转发聊天记录'), findsOneWidget);
+    expect(find.text('Alice'), findsWidgets);
+  });
+
+  testWidgets('chat renders accepted-friend notice as system hint',
+      (tester) async {
+    final client = Client('PortalIMSystemNoticeChatTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!accepted:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 16),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!accepted:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final unread = AsSyncUnread(
+      syncedAt: DateTime.utc(2026, 5, 27, 16, 10),
+      rooms: [
+        AsUnreadRoom(
+          roomId: '!accepted:p2p-im.com',
+          messages: [
+            AsUnreadMessage(
+              eventId: r'$accepted-notice',
+              senderId: '@owner:p2p-liyanan.com',
+              senderName: 'owner',
+              content: '你们已成为好友，现在可以开始聊天了',
+              messageType: MessageTypes.Notice,
+              timestamp: DateTime.utc(2026, 5, 27, 16, 10),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_ReadMarkerFailingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap, unread: unread),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!accepted:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('chat_system_notice')), findsOneWidget);
+    expect(find.text('你们已成为好友，现在可以开始聊天了'), findsOneWidget);
+  });
+
+  testWidgets('private chat shows friendly failure when peer deleted contact',
+      (tester) async {
+    final client = Client('PortalIMPeerDeletedSendTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@alice:p2p-liyanan.com',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_PeerDeletedAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!alice:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump();
+    await tester.tap(find.byIcon(Symbols.arrow_upward));
+    await tester.pump();
+
+    expect(find.text('对方已删除联系人关系，消息未送达'), findsOneWidget);
+    expect(find.text('hello'), findsOneWidget);
+  });
+
+  testWidgets('private chat blocks duplicate direct rooms omitted by AS',
+      (tester) async {
+    final client = Client('PortalIMDuplicateDirectSendTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!duplicate:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@alice:p2p-liyanan.com',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!duplicate:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('等待对方接受后才能发送消息'), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_upward), findsNothing);
+    expect(asClient.sendRoomMessageCalls, 0);
+  });
+
+  testWidgets('private chat blocks unclassified one-to-one rooms omitted by AS',
+      (tester) async {
+    final client = Client('PortalIMUnclassifiedOneToOneSendTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!old:p2p-im.com',
+      peerMxid: '@alice:p2p-liyanan.com',
+      peerName: 'Alice',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!old:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('等待对方接受后才能发送消息'), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_upward), findsNothing);
+    expect(asClient.sendRoomMessageCalls, 0);
+  });
+
+  testWidgets('private chat blocks rejected direct rooms with joined peer',
+      (tester) async {
+    final client = Client('PortalIMRejectedDirectSendTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!rejected:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@alice:p2p-liyanan.com',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!rejected:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'rejected',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!rejected:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('等待对方接受后才能发送消息'), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_upward), findsNothing);
+    expect(asClient.sendRoomMessageCalls, 0);
+  });
+
+  testWidgets('login page exposes QR setup entry', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('扫码添加服务器'), findsOneWidget);
+  });
+
+  testWidgets('login page does not default to a real node', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('https://p2p-im.com'), findsNothing);
+    expect(find.text('https://你的域名'), findsOneWidget);
   });
 }

@@ -1,4 +1,4 @@
-/// MCP / Agent 权限：入口列表页
+// MCP / Agent 权限：入口列表页
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

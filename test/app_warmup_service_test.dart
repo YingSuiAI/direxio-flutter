@@ -1,0 +1,527 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
+import 'package:portal_app/data/as_call_session_store.dart';
+import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/recovered_unread_store.dart';
+import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
+
+class _NoopAvatarPreloader implements AvatarPreloader {
+  @override
+  Future<void> preload(String url) async {}
+}
+
+class _RecordingAvatarPreloader implements AvatarPreloader {
+  final urls = <String>[];
+
+  @override
+  Future<void> preload(String url) async {
+    urls.add(url);
+  }
+}
+
+class _RecordingMediaThumbnailPreloader implements MediaThumbnailPreloader {
+  final eventIds = <String>[];
+
+  @override
+  Future<void> preload(Iterable<String> ids) async {
+    eventIds.addAll(ids);
+  }
+}
+
+void main() {
+  test(
+      'warmup starts unread and bootstrap in parallel, then applies unread first',
+      () async {
+    final events = <String>[];
+    final unreadCompleter = Completer<AsSyncUnread>();
+    final bootstrapCompleter = Completer<AsSyncBootstrap>();
+    final service = AppWarmupService(
+      client: Client('PortalIMWarmupTest'),
+      avatarPreloader: _NoopAvatarPreloader(),
+      loadCurrentUserProfile: () async => null,
+      loadUnread: ({int limitPerRoom = 200}) {
+        events.add('unread-start:$limitPerRoom');
+        return unreadCompleter.future;
+      },
+      loadBootstrap: () {
+        events.add('bootstrap-start');
+        return bootstrapCompleter.future;
+      },
+      onUnreadRecovered: (_) => events.add('unread-apply'),
+      onBootstrapLoaded: (_) => events.add('bootstrap-apply'),
+    );
+
+    final warmup = service.warmup();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, ['unread-start:200', 'bootstrap-start']);
+
+    unreadCompleter.complete(AsSyncUnread(
+      syncedAt: DateTime.parse('2026-05-25T10:00:00Z'),
+      rooms: const [
+        AsUnreadRoom(
+          roomId: '!room:example.com',
+          messages: [
+            AsUnreadMessage(
+              eventId: r'$unread',
+              senderId: '@alice:example.com',
+              senderName: 'Alice',
+              content: 'offline unread',
+              messageType: 'text',
+              timestamp: null,
+            ),
+          ],
+        ),
+      ],
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, [
+      'unread-start:200',
+      'bootstrap-start',
+      'unread-apply',
+    ]);
+
+    bootstrapCompleter.complete(AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-05-25T10:00:01Z'),
+      user: const AsSyncUser(userId: '@owner:example.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    ));
+
+    await warmup;
+
+    expect(events, [
+      'unread-start:200',
+      'bootstrap-start',
+      'unread-apply',
+      'bootstrap-apply',
+    ]);
+  });
+
+  test('warmup preloads AS contact avatars from bootstrap metadata', () async {
+    final avatarPreloader = _RecordingAvatarPreloader();
+    final client = Client('PortalIMWarmupContactAvatarTest')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final service = AppWarmupService(
+      client: client,
+      avatarPreloader: avatarPreloader,
+      loadCurrentUserProfile: () async => null,
+      loadBootstrap: () async => AsSyncBootstrap(
+        syncedAt: DateTime.parse('2026-06-02T10:00:00Z'),
+        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+        rooms: const [],
+        contacts: const [
+          AsSyncContact(
+            userId: '@lee:p2p-liyanan.com',
+            displayName: 'Lee',
+            avatarUrl: 'mxc://p2p-liyanan.com/lee-avatar',
+            roomId: '!lee:p2p-liyanan.com',
+            domain: 'p2p-liyanan.com',
+            status: 'accepted',
+          ),
+          AsSyncContact(
+            userId: '@test:p2p-im-test.com',
+            displayName: 'Test Node',
+            avatarUrl: 'https://cdn.example.com/test.png',
+            roomId: '!test:p2p-im-test.com',
+            domain: 'p2p-im-test.com',
+            status: 'accepted',
+          ),
+        ],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    await service.warmup();
+
+    expect(
+      avatarPreloader.urls,
+      contains(contains('/download/p2p-liyanan.com/lee-avatar')),
+    );
+    expect(avatarPreloader.urls, contains('https://cdn.example.com/test.png'));
+  });
+
+  test('warmup applies persisted unread before network recovery', () async {
+    final events = <String>[];
+    final cachedCompleter = Completer<AsSyncUnread?>();
+    final networkCompleter = Completer<AsSyncUnread>();
+    final store = _FakeRecoveredUnreadStore(
+      readUnread: () {
+        events.add('cache-read');
+        return cachedCompleter.future;
+      },
+      mergeUnread: (unread) async {
+        events.add('cache-merge:${unread.rooms.first.messages.first.eventId}');
+        return unread;
+      },
+    );
+    final service = AppWarmupService(
+      client: Client('PortalIMWarmupCacheTest'),
+      avatarPreloader: _NoopAvatarPreloader(),
+      loadCurrentUserProfile: () async => null,
+      recoveredUnreadStore: store,
+      loadUnread: ({int limitPerRoom = 200}) {
+        events.add('network-start');
+        return networkCompleter.future;
+      },
+      onUnreadRecovered: (unread) {
+        events.add('apply:${unread.rooms.first.messages.first.eventId}');
+      },
+    );
+
+    final warmup = service.warmup();
+    await Future<void>.delayed(Duration.zero);
+    expect(events, ['cache-read', 'network-start']);
+
+    cachedCompleter.complete(_unread(r'$cached'));
+    await Future<void>.delayed(Duration.zero);
+    expect(events, ['cache-read', 'network-start', r'apply:$cached']);
+
+    networkCompleter.complete(_unread(r'$network'));
+    await warmup;
+
+    expect(events, [
+      'cache-read',
+      'network-start',
+      r'apply:$cached',
+      r'cache-merge:$network',
+      r'apply:$network',
+    ]);
+  });
+
+  test('warmup applies cached bootstrap before slow network bootstrap',
+      () async {
+    final events = <String>[];
+    final bootstrapCompleter = Completer<AsSyncBootstrap>();
+    final service = AppWarmupService(
+      client: Client('PortalIMWarmupBootstrapCacheTest'),
+      avatarPreloader: _NoopAvatarPreloader(),
+      loadCurrentUserProfile: () async => null,
+      loadCachedBootstrap: () async {
+        events.add('bootstrap-cache-read');
+        return _bootstrap('!cached:p2p-im.com');
+      },
+      loadBootstrap: () {
+        events.add('bootstrap-network-start');
+        return bootstrapCompleter.future;
+      },
+      onBootstrapLoaded: (bootstrap) {
+        events.add('bootstrap-apply:${bootstrap.contacts.single.roomId}');
+      },
+    );
+
+    final warmup = service.warmup();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, [
+      'bootstrap-cache-read',
+      'bootstrap-network-start',
+      'bootstrap-apply:!cached:p2p-im.com',
+    ]);
+
+    bootstrapCompleter.complete(_bootstrap('!fresh:p2p-im.com'));
+    await warmup;
+
+    expect(events, [
+      'bootstrap-cache-read',
+      'bootstrap-network-start',
+      'bootstrap-apply:!cached:p2p-im.com',
+      'bootstrap-apply:!fresh:p2p-im.com',
+    ]);
+  });
+
+  test('warmup preloads local thumbnails for unread and recent image rooms',
+      () async {
+    final client = Client('PortalIMWarmupMediaTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!room:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    room.lastEvent = Event(
+      room: room,
+      eventId: r'$last-image',
+      senderId: '@peer:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 5, 28, 10),
+      content: {
+        'msgtype': MessageTypes.Image,
+        'body': 'cached.jpg',
+      },
+    );
+    client.rooms.add(room);
+
+    final thumbnails = _RecordingMediaThumbnailPreloader();
+    final service = AppWarmupService(
+      client: client,
+      avatarPreloader: _NoopAvatarPreloader(),
+      mediaThumbnailPreloader: thumbnails,
+      loadCurrentUserProfile: () async => null,
+      loadUnread: ({int limitPerRoom = 200}) async => AsSyncUnread(
+        syncedAt: DateTime.parse('2026-05-25T10:00:00Z'),
+        rooms: const [
+          AsUnreadRoom(
+            roomId: '!room:p2p-im.com',
+            messages: [
+              AsUnreadMessage(
+                eventId: r'$unread-image',
+                senderId: '@peer:p2p-im.com',
+                senderName: 'Peer',
+                content: 'offline image',
+                messageType: MessageTypes.Image,
+                timestamp: null,
+              ),
+              AsUnreadMessage(
+                eventId: r'$unread-text',
+                senderId: '@peer:p2p-im.com',
+                senderName: 'Peer',
+                content: 'offline text',
+                messageType: MessageTypes.Text,
+                timestamp: null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    await service.warmup();
+
+    expect(thumbnails.eventIds, [r'$unread-image', r'$last-image']);
+  });
+
+  test('warmup preloads missing or non-terminal AS call sessions', () async {
+    final client = Client('PortalIMWarmupCallTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!room:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    final store = _MemoryAsCallSessionStore()
+      ..calls['as-ended'] = _callSession(
+        callId: 'as-ended',
+        state: asCallStateEnded,
+      )
+      ..calls['as-connected'] = _callSession(
+        callId: 'as-connected',
+        state: asCallStateConnected,
+      );
+    final loadedCallIds = <String>[];
+    final events = [
+      ..._callEvents(
+        room,
+        matrixCallId: 'call-ended',
+        asCallId: 'as-ended',
+        offsetSeconds: 0,
+      ),
+      ..._callEvents(
+        room,
+        matrixCallId: 'call-connected',
+        asCallId: 'as-connected',
+        offsetSeconds: 60,
+      ),
+      ..._callEvents(
+        room,
+        matrixCallId: 'call-missing',
+        asCallId: 'as-missing',
+        offsetSeconds: 120,
+      ),
+    ];
+    final service = AppWarmupService(
+      client: client,
+      avatarPreloader: _NoopAvatarPreloader(),
+      loadCurrentUserProfile: () async => null,
+      callSessionStore: store,
+      loadCallSession: (callId) async {
+        loadedCallIds.add(callId);
+        return _callSession(callId: callId, state: asCallStateEnded);
+      },
+      loadRecentRoomEvents: (_, __) async => events,
+    );
+
+    await service.warmup();
+
+    expect(loadedCallIds, ['as-connected', 'as-missing']);
+    expect(store.calls['as-ended']?.state, asCallStateEnded);
+    expect(store.calls['as-connected']?.state, asCallStateEnded);
+    expect(store.calls['as-missing']?.state, asCallStateEnded);
+  });
+}
+
+AsSyncUnread _unread(String eventId) {
+  return AsSyncUnread(
+    syncedAt: DateTime.parse('2026-05-25T10:00:00Z'),
+    rooms: [
+      AsUnreadRoom(
+        roomId: '!room:example.com',
+        messages: [
+          AsUnreadMessage(
+            eventId: eventId,
+            senderId: '@alice:example.com',
+            senderName: 'Alice',
+            content: 'offline unread',
+            messageType: 'text',
+            timestamp: null,
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _FakeRecoveredUnreadStore implements RecoveredUnreadStore {
+  _FakeRecoveredUnreadStore({
+    required this.readUnread,
+    required this.mergeUnread,
+  });
+
+  final Future<AsSyncUnread?> Function() readUnread;
+  final Future<AsSyncUnread> Function(AsSyncUnread unread) mergeUnread;
+
+  @override
+  Future<AsSyncUnread?> read() => readUnread();
+
+  @override
+  Future<AsSyncUnread> merge(AsSyncUnread unread) => mergeUnread(unread);
+
+  @override
+  Future<void> removeEvents(Iterable<String> eventIds) async {}
+
+  @override
+  Future<void> removeRoom(String roomId) async {}
+}
+
+class _MemoryAsCallSessionStore implements AsCallSessionStore {
+  final calls = <String, AsCallSession>{};
+
+  @override
+  Future<List<AsCallSession>> readAll() async {
+    return calls.values.toList(growable: false);
+  }
+
+  @override
+  Future<AsCallSession?> read(String callId) async {
+    return calls[callId.trim()];
+  }
+
+  @override
+  Future<List<AsCallSession>> readRoomStable(String roomId) async {
+    final trimmed = roomId.trim();
+    return calls.values
+        .where((session) => session.roomId.trim() == trimmed)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> upsert(AsCallSession session) async {
+    calls[session.callId.trim()] = session;
+  }
+
+  @override
+  Future<void> upsertAll(Iterable<AsCallSession> sessions) async {
+    for (final session in sessions) {
+      calls[session.callId.trim()] = session;
+    }
+  }
+}
+
+AsSyncBootstrap _bootstrap(String roomId) {
+  return AsSyncBootstrap(
+    syncedAt: DateTime.parse('2026-05-28T08:00:00Z'),
+    user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+    rooms: const [],
+    contacts: [
+      AsSyncContact(
+        userId: '@peer:p2p-liyanan.com',
+        displayName: 'Peer',
+        avatarUrl: '',
+        roomId: roomId,
+        domain: 'p2p-liyanan.com',
+        status: 'accepted',
+      ),
+    ],
+    groups: const [],
+    channels: const [],
+    pending: const AsSyncPending.empty(),
+  );
+}
+
+List<Event> _callEvents(
+  Room room, {
+  required String matrixCallId,
+  required String asCallId,
+  required int offsetSeconds,
+}) {
+  final base = DateTime.utc(2026, 5, 31, 12).add(
+    Duration(seconds: offsetSeconds),
+  );
+  return [
+    Event(
+      room: room,
+      eventId: '\$intent-$matrixCallId',
+      senderId: '@owner:p2p-im.com',
+      type: 'p2p.call.intent.v1',
+      originServerTs: base,
+      content: {
+        'call_id': asCallId,
+        'call_type': 'voice',
+        'target_user_id': '@peer:p2p-liyanan.com',
+      },
+    ),
+    Event(
+      room: room,
+      eventId: '\$invite-$matrixCallId',
+      senderId: '@owner:p2p-im.com',
+      type: EventTypes.CallInvite,
+      originServerTs: base.add(const Duration(seconds: 1)),
+      content: {
+        'call_id': matrixCallId,
+        'version': 1,
+      },
+    ),
+    Event(
+      room: room,
+      eventId: '\$hangup-$matrixCallId',
+      senderId: '@owner:p2p-im.com',
+      type: EventTypes.CallHangup,
+      originServerTs: base.add(const Duration(seconds: 10)),
+      content: {
+        'call_id': matrixCallId,
+        'version': 1,
+        'reason': 'user_hangup',
+      },
+    ),
+  ];
+}
+
+AsCallSession _callSession({
+  required String callId,
+  required String state,
+}) {
+  return AsCallSession(
+    callId: callId,
+    roomId: '!room:p2p-im.com',
+    roomType: 'direct',
+    mediaType: asCallMediaTypeVoice,
+    createdByMxid: '@owner:p2p-im.com',
+    state: state,
+    createdAt: DateTime.utc(2026, 5, 31, 12),
+    answeredAt: state == asCallStateEnded || state == asCallStateConnected
+        ? DateTime.utc(2026, 5, 31, 12, 0, 2)
+        : null,
+    endedAt:
+        state == asCallStateEnded ? DateTime.utc(2026, 5, 31, 12, 0, 10) : null,
+    durationMs: state == asCallStateEnded ? 8000 : 0,
+  );
+}

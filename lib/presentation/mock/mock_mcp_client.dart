@@ -1,4 +1,4 @@
-/// Mock MCP Client：模拟真实 MCP server 行为，被权限闸门拦截
+// Mock MCP Client：模拟真实 MCP server 行为，被权限闸门拦截
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'mcp_policy.dart';
 import 'mcp_audit.dart';
@@ -273,10 +273,12 @@ class MockMcpClient {
     final q = (args['query'] as String).toLowerCase();
     final results = <Map<String, dynamic>>[];
     for (final conv in MockData.conversations) {
-      if (p.roomScope == RoomScope.whitelist && !p.roomIds.contains(conv.id))
+      if (p.roomScope == RoomScope.whitelist && !p.roomIds.contains(conv.id)) {
         continue;
-      if (p.roomScope == RoomScope.blacklist && p.roomIds.contains(conv.id))
+      }
+      if (p.roomScope == RoomScope.blacklist && p.roomIds.contains(conv.id)) {
         continue;
+      }
       for (final m in conv.messages) {
         if (m.text.toLowerCase().contains(q)) {
           results.add({

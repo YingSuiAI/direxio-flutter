@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'presentation/widgets/app_glass_background.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +29,9 @@ class PortalApp extends ConsumerWidget {
       themeMode: ThemeMode.light,
       debugShowCheckedModeBanner: false,
       routerConfig: router,
+      builder: (context, child) {
+        return AppGlassBackground(child: child ?? const SizedBox.shrink());
+      },
     );
   }
 }

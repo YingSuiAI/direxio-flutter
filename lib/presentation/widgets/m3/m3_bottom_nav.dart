@@ -1,7 +1,7 @@
-/// M3 底部导航 —— 对齐 Agent P2P 设计稿 #main-nav / .nav-pill
-///
-/// 特征：64 高、glass 背景、滑动 pill 指示器（secondary-container 色），
-/// 图标 active 时填充（FILL 1），文字 label-sm。
+// M3 底部导航 —— 对齐 Agent P2P 设计稿 #main-nav / .nav-pill
+//
+// 特征：紧凑 iOS tab 高度、glass 背景、滑动 pill 指示器（secondary-container 色），
+// 图标 active 时填充（FILL 1），文字 label-sm。
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../core/theme/design_tokens.dart';
@@ -12,10 +12,12 @@ class M3NavItem {
     required this.icon,
     required this.activeIcon,
     required this.label,
+    this.badge,
   });
   final IconData icon;
   final IconData activeIcon;
   final String label;
+  final String? badge;
 }
 
 class M3BottomNav extends StatelessWidget {
@@ -30,8 +32,8 @@ class M3BottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  static const _height = 64.0;
-  static const _pillHeight = 40.0;
+  static const _height = 52.0;
+  static const _pillHeight = 36.0;
 
   @override
   Widget build(BuildContext context) {
@@ -41,10 +43,7 @@ class M3BottomNav extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            color: t.bg.withValues(alpha: 0.85),
-            border: Border(
-              top: BorderSide(color: t.border.withValues(alpha: 0.5)),
-            ),
+            color: t.surface.withValues(alpha: 0.58),
           ),
           child: SafeArea(
             top: false,
@@ -59,8 +58,7 @@ class M3BottomNav extends StatelessWidget {
                       AnimatedPositioned(
                         duration: const Duration(milliseconds: 320),
                         curve: Curves.easeInOutCubic,
-                        left:
-                            tabWidth * currentIndex +
+                        left: tabWidth * currentIndex +
                             (tabWidth - _pillWidth(tabWidth)) / 2,
                         top: (_height - _pillHeight) / 2,
                         child: Container(
@@ -83,13 +81,28 @@ class M3BottomNav extends StatelessWidget {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(
-                                    active ? item.activeIcon : item.icon,
-                                    size: 24,
-                                    color: active ? t.accent : t.textMute,
-                                    fill: active ? 1 : 0,
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      Icon(
+                                        active ? item.activeIcon : item.icon,
+                                        size: 23,
+                                        color: active ? t.accent : t.textMute,
+                                        fill: active ? 1 : 0,
+                                      ),
+                                      if (item.badge != null)
+                                        Positioned(
+                                          key: ValueKey(
+                                            'bottom_nav_badge_${item.label}',
+                                          ),
+                                          right: -8,
+                                          top: -6,
+                                          child: _NavBadge(
+                                            label: item.badge!,
+                                          ),
+                                        ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 2),
                                   Text(
                                     item.label,
                                     style: AppTheme.sans(
@@ -118,4 +131,32 @@ class M3BottomNav extends StatelessWidget {
   }
 
   double _pillWidth(double tabWidth) => (tabWidth - 24).clamp(48.0, 96.0);
+}
+
+class _NavBadge extends StatelessWidget {
+  const _NavBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: t.danger,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: AppTheme.sans(
+          size: 9,
+          weight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
 }

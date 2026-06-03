@@ -17,9 +17,7 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _domainCtrl = TextEditingController(
-    text: 'https://liyananp2p.com',
-  );
+  final _domainCtrl = TextEditingController();
   final _portalTokenCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
@@ -73,7 +71,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      backgroundColor: t.surface,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -125,7 +123,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   M3InputField(
                     controller: _domainCtrl,
                     icon: Symbols.link,
-                    hint: 'Portal 地址',
+                    hint: 'https://你的域名',
                     keyboardType: TextInputType.url,
                   ),
                   const SizedBox(height: 12),
@@ -158,7 +156,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
 
                   const SizedBox(height: 24),
-                  // 「或」分割线
                   Row(
                     children: [
                       Expanded(
@@ -177,6 +174,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ],
                   ),
                   const SizedBox(height: 24),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push('/setup/scan'),
+                    icon: const Icon(Symbols.qr_code_scanner, size: 20),
+                    label: Text(
+                      '扫码添加服务器',
+                      style: AppTheme.sans(size: 15, weight: FontWeight.w600),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      foregroundColor: t.accent,
+                      side: BorderSide(color: t.border.withValues(alpha: 0.5)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   TextButton(
                     onPressed: () => context.go('/init'),
                     child: Text(

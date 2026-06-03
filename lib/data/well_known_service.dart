@@ -1,11 +1,11 @@
-/// 域名发现服务 —— 对应 INTERFACE_SPEC.md §2
-///
-/// App 启动时只知道域名（如 liyananp2p.com），需要自动发现 Matrix 服务入口。
-/// 本服务封装三个 .well-known 端点的解析。
+// 域名发现服务 —— 对应 INTERFACE_SPEC.md §2
+//
+// App 启动时只知道域名（如 liyananp2p.com），需要自动发现 Matrix 服务入口。
+// 本服务封装三个 .well-known 端点的解析。
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-/// `/.well-known/portal/owner.json` 的解析结果
+//// `/.well-known/portal/owner.json` 的解析结果
 class PortalOwner {
   const PortalOwner({required this.matrixUserId, required this.displayName});
 
@@ -16,12 +16,12 @@ class PortalOwner {
   final String displayName;
 
   factory PortalOwner.fromJson(Map<String, dynamic> json) => PortalOwner(
-    matrixUserId: json['matrix_user_id'] as String,
-    displayName: (json['display_name'] as String?) ?? '',
-  );
+        matrixUserId: json['matrix_user_id'] as String,
+        displayName: (json['display_name'] as String?) ?? '',
+      );
 }
 
-/// Portal 部署状态
+//// Portal 部署状态
 enum PortalAvailability {
   /// owner.json 返回 200 —— Portal 已部署且在线
   online,
@@ -55,10 +55,10 @@ class WellKnownResult {
   bool get isOnline => availability == PortalAvailability.online;
 }
 
-/// 域名发现。可注入自定义 [http.Client]（默认复用调用方传入的，便于测试 / 复用 matrix SDK 的 client）。
+//// 域名发现。可注入自定义 [http.Client]（默认复用调用方传入的，便于测试 / 复用 matrix SDK 的 client）。
 class WellKnownService {
   WellKnownService({http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+      : _http = httpClient ?? http.Client();
 
   final http.Client _http;
 

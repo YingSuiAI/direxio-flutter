@@ -1,9 +1,8 @@
-/// MCP / Agent 权限策略模型 —— mock 阶段：纯内存，StateNotifier 持有
-/// 真实版会换成 freezed + Biscuit token + 本地加密存储
-import 'package:flutter/material.dart';
+// MCP / Agent 权限策略模型 —— mock 阶段：纯内存，StateNotifier 持有
+// 真实版会换成 freezed + Biscuit token + 本地加密存储
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// 一个 MCP 工具的定义（给 UI 渲染勾选项用）
+//// 一个 MCP 工具的定义（给 UI 渲染勾选项用）
 class McpToolDef {
   const McpToolDef({
     required this.id,
@@ -67,7 +66,7 @@ class TimeRange {
       '${startHour.toString().padLeft(2, '0')}:00 — ${endHour.toString().padLeft(2, '0')}:00';
 }
 
-/// 历史窗口选项
+//// 历史窗口选项
 enum HistoryWindow {
   h24('最近 24 小时', Duration(hours: 24)),
   d7('最近 7 天', Duration(days: 7)),
@@ -110,20 +109,19 @@ class McpPolicy {
     this.perCallMessageLimit = 50,
     this.expiryOption = ExpiryOption.h4,
     DateTime? grantedAt,
-  }) : allowedTools =
-           allowedTools ??
-           {
-             'list_conversations',
-             'search_messages',
-             'get_recent_messages',
-             'summarize_room',
-             'send_message',
-             'who_is',
-           },
-       confirmTools = confirmTools ?? {'send_message'},
-       roomIds = roomIds ?? {},
-       redactKeywords = redactKeywords ?? {'密码', '身份证', '验证码'},
-       grantedAt = grantedAt ?? DateTime.now();
+  })  : allowedTools = allowedTools ??
+            {
+              'list_conversations',
+              'search_messages',
+              'get_recent_messages',
+              'summarize_room',
+              'send_message',
+              'who_is',
+            },
+        confirmTools = confirmTools ?? {'send_message'},
+        roomIds = roomIds ?? {},
+        redactKeywords = redactKeywords ?? {'密码', '身份证', '验证码'},
+        grantedAt = grantedAt ?? DateTime.now();
 
   final String agentId;
   final String displayName;
@@ -181,16 +179,16 @@ class McpPolicy {
   }
 }
 
-/// 全局 mock 策略表（agentId -> policy）
+//// 全局 mock 策略表（agentId -> policy）
 class McpPolicyStore extends StateNotifier<Map<String, McpPolicy>> {
   McpPolicyStore()
-    : super({
-        'local-aibot': McpPolicy(
-          agentId: 'local-aibot',
-          displayName: 'AI Bot',
-          mxid: '@aibot:portal.ai',
-        ),
-      });
+      : super({
+          'local-aibot': McpPolicy(
+            agentId: 'local-aibot',
+            displayName: 'AI Bot',
+            mxid: '@aibot:portal.ai',
+          ),
+        });
 
   void update(String agentId, McpPolicy newPolicy) {
     state = {...state, agentId: newPolicy};
@@ -199,5 +197,5 @@ class McpPolicyStore extends StateNotifier<Map<String, McpPolicy>> {
 
 final mcpPolicyStoreProvider =
     StateNotifierProvider<McpPolicyStore, Map<String, McpPolicy>>(
-      (ref) => McpPolicyStore(),
-    );
+  (ref) => McpPolicyStore(),
+);

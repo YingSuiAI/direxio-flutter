@@ -36,17 +36,18 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Patch pubspec.yaml (drop record + flutter_webrtc)
+      - name: Patch pubspec.yaml (drop unused record)
         shell: pwsh
         run: |
-          # 这俩包跟 Flutter 3.41 embedding 不兼容，在 mock 阶段也没用上。
+          # record 当前未被代码调用，且 transitive Linux 包在部分 runner 上会导致构建失败。
+          # flutter_webrtc 已被 Matrix VoIP/视频通话真实使用，不能再从 CI 里删除。
           $pubspec = Get-Content pubspec.yaml -Raw
-          $patched = $pubspec -replace '(?m)^\s*record:.*$\r?\n?', '' -replace '(?m)^\s*flutter_webrtc:.*$\r?\n?', ''
+          $patched = $pubspec -replace '(?m)^\s*record:.*$\r?\n?', ''
           Set-Content -Path pubspec.yaml -Value $patched -NoNewline
           # pubspec.lock 跟不上手术后的 pubspec，删掉让 pub 重新解锁
           if (Test-Path pubspec.lock) { Remove-Item pubspec.lock }
           Write-Host "Patched pubspec.yaml:"
-          Select-String -Path pubspec.yaml -Pattern "record|flutter_webrtc" -SimpleMatch -Quiet
+          Select-String -Path pubspec.yaml -Pattern "record" -SimpleMatch -Quiet
 
       - name: Flutter pub get
         run: flutter pub get

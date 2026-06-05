@@ -99,6 +99,12 @@ class AsCallStateReporter {
   final AsCallSessionStore? _store;
   final _connectedCallIds = <String>{};
   final _terminalCallIds = <String>{};
+  final _locallyTerminalCallIds = <String>{};
+
+  Set<String> get terminalCallIds => Set.unmodifiable(_terminalCallIds);
+
+  Set<String> get locallyTerminalCallIds =>
+      Set.unmodifiable(_locallyTerminalCallIds);
 
   Future<AsCallSession> createCall({
     required String roomId,
@@ -118,6 +124,29 @@ class AsCallStateReporter {
     final calls = await _asClient.getActiveCalls();
     unawaited(_storeCalls(calls));
     return calls;
+  }
+
+  Future<List<AsCallSession>> clearLocallyInactiveConnectedCalls(
+    Iterable<AsCallSession> calls,
+  ) async {
+    final remaining = <AsCallSession>[];
+    for (final call in calls) {
+      if (call.state != asCallStateConnected ||
+          _locallyTerminalCallIds.contains(call.callId)) {
+        remaining.add(call);
+        continue;
+      }
+      try {
+        await reportEnded(
+          call,
+          reason: 'stale_local_inactive',
+          connectedAt: call.answeredAt,
+        );
+      } catch (error) {
+        debugPrint('finish stale AS connected call failed: $error');
+      }
+    }
+    return remaining;
   }
 
   Future<AsCallSession> registerIncomingCall({
@@ -205,6 +234,7 @@ class AsCallStateReporter {
     DateTime? endedAt,
   }) async {
     if (call == null || _terminalCallIds.contains(call.callId)) return;
+    _locallyTerminalCallIds.add(call.callId);
     final completedAt = endedAt ?? DateTime.now().toUtc();
     final updated = await _asClient.updateCallEvent(
       callId: call.callId,
@@ -514,6 +544,7 @@ class AsActiveCallGateDecision {
 AsActiveCallGateDecision asActiveCallGateDecision({
   required bool localStateActive,
   required List<AsCallSession>? activeCalls,
+  Set<String> locallyTerminalCallIds = const {},
   required bool activeLookupFailed,
 }) {
   if (activeLookupFailed) {
@@ -530,7 +561,10 @@ AsActiveCallGateDecision asActiveCallGateDecision({
     );
   }
 
-  if (activeCalls != null && activeCalls.isNotEmpty) {
+  final actionableActiveCalls = activeCalls
+      ?.where((call) => !locallyTerminalCallIds.contains(call.callId.trim()))
+      .toList(growable: false);
+  if (actionableActiveCalls != null && actionableActiveCalls.isNotEmpty) {
     return const AsActiveCallGateDecision(
       canStart: false,
       resetLocalActive: false,
@@ -2875,9 +2909,16 @@ class MatrixVoiceCallController implements VoiceCallController {
       );
     }
     try {
+      var activeCalls = await reporter.activeCalls();
+      if (!localStateActive) {
+        activeCalls = await reporter.clearLocallyInactiveConnectedCalls(
+          activeCalls,
+        );
+      }
       return asActiveCallGateDecision(
         localStateActive: localStateActive,
-        activeCalls: await reporter.activeCalls(),
+        activeCalls: activeCalls,
+        locallyTerminalCallIds: reporter.locallyTerminalCallIds,
         activeLookupFailed: false,
       );
     } catch (error) {

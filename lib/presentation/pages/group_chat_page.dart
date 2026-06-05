@@ -43,6 +43,7 @@ import '../utils/avatar_url.dart';
 import 'group_call_member_select_page.dart';
 import '../utils/read_marker_sync.dart';
 import '../utils/recovered_unread_events.dart';
+import '../utils/room_read_state.dart';
 import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
@@ -582,6 +583,17 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final room = _room;
     final timeline = _timeline;
     if (room == null || timeline == null) return;
+    final markerEvent = latestSyncedMessageEvent(timeline);
+    final recoveredMarker =
+        markerEvent == null ? _latestRecoveredUnreadMessage() : null;
+    final readAt = markerEvent?.originServerTs ??
+        recoveredMarker?.timestamp ??
+        DateTime.now().toUtc();
+    final changed = markRoomLocallyRead(room);
+    ref.read(asSyncCacheProvider.notifier).update(
+          (state) => state.withRoomUnreadCleared(room.id, readAt: readAt),
+        );
+    if (changed && mounted) setState(() {});
     if (_readMarkerInFlight) {
       _readMarkerQueued = true;
       return;
@@ -589,18 +601,30 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
     _readMarkerInFlight = true;
     try {
-      final markerEvent = latestSyncedMessageEvent(timeline);
       await timeline.setReadMarker(eventId: markerEvent?.eventId);
       if (markerEvent != null) {
         unawaited(_syncAsReadMarker(room, markerEvent).then((synced) {
-          if (synced) unawaited(_clearRecoveredUnreadForRoom());
+          if (!synced) return;
+          ref.read(asSyncCacheProvider.notifier).update(
+                (state) => state.withRoomUnreadCleared(
+                  room.id,
+                  readAt: markerEvent.originServerTs,
+                ),
+              );
+          unawaited(_clearRecoveredUnreadForRoom());
         }));
       } else {
-        final recoveredMarker = _latestRecoveredUnreadMessage();
         if (recoveredMarker != null) {
           unawaited(
             _syncAsReadMarkerForRecovered(room, recoveredMarker).then((synced) {
-              if (synced) unawaited(_clearRecoveredUnreadForRoom());
+              if (!synced) return;
+              ref.read(asSyncCacheProvider.notifier).update(
+                    (state) => state.withRoomUnreadCleared(
+                      room.id,
+                      readAt: recoveredMarker.timestamp,
+                    ),
+                  );
+              unawaited(_clearRecoveredUnreadForRoom());
             }),
           );
         }

@@ -773,16 +773,36 @@ GroupCallUiState groupCallStateWithResolvedProfiles(
         client: client,
       ),
   ];
-  final participants = [
-    for (final participant in state.participants)
-      _groupCallParticipantWithResolvedProfile(
-        participant,
-        syncCache: syncCache,
-        currentUserProfile: currentUserProfile,
-        localDisplayNameOverride: localDisplayNameOverride,
-        client: client,
+  final participants = <GroupCallParticipantInfo>[];
+  final seenParticipantIds = <String>{};
+  void addParticipant(GroupCallParticipantInfo participant) {
+    final resolved = _groupCallParticipantWithResolvedProfile(
+      participant,
+      syncCache: syncCache,
+      currentUserProfile: currentUserProfile,
+      localDisplayNameOverride: localDisplayNameOverride,
+      client: client,
+    );
+    if (seenParticipantIds.add(resolved.userId)) {
+      participants.add(resolved);
+    }
+  }
+
+  for (final participant in state.participants) {
+    addParticipant(participant);
+  }
+  for (final userId in state.joinedUserIds) {
+    final normalized = userId.trim();
+    if (normalized.isEmpty || seenParticipantIds.contains(normalized)) {
+      continue;
+    }
+    addParticipant(
+      GroupCallParticipantInfo(
+        userId: normalized,
+        displayName: _fallbackGroupCallParticipantName(normalized),
       ),
-  ];
+    );
+  }
   return GroupCallUiState(
     status: state.status,
     callType: state.callType,
@@ -861,6 +881,15 @@ String _firstNonEmpty(Iterable<String?> values) {
   return '';
 }
 
+String _fallbackGroupCallParticipantName(String userId) {
+  final normalized = userId.trim();
+  if (normalized.isEmpty) return '';
+  final localpart = normalized.startsWith('@')
+      ? normalized.substring(1).split(':').first
+      : normalized.split(':').first;
+  return localpart.isEmpty ? normalized : localpart;
+}
+
 String? _profileAvatarUrl(Profile? profile, Client? client) {
   if (profile == null) return null;
   if (client != null) return profileAvatarHttpUrl(profile, client);
@@ -891,6 +920,7 @@ class _GroupCallParticipants extends StatelessWidget {
     }
     final hasExpectedParticipants = state.invitedParticipants.isNotEmpty;
     final joinedUserIds = {
+      ...state.joinedUserIds,
       ...state.mediaUserIds,
       if (!hasExpectedParticipants)
         for (final participant in state.participants) participant.userId,
@@ -940,6 +970,16 @@ class _GroupCallParticipants extends StatelessWidget {
     }
     for (final participant in state.participants) {
       if (seen.add(participant.userId)) participants.add(participant);
+    }
+    for (final userId in state.joinedUserIds) {
+      final normalized = userId.trim();
+      if (normalized.isEmpty || !seen.add(normalized)) continue;
+      participants.add(
+        GroupCallParticipantInfo(
+          userId: normalized,
+          displayName: _fallbackGroupCallParticipantName(normalized),
+        ),
+      );
     }
     return participants;
   }

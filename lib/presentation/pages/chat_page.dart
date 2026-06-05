@@ -361,10 +361,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _markCurrentTimelineRead() async {
     final room = _room;
     if (room == null) return;
+    final timeline = _timeline;
+    final markerEvent =
+        timeline == null ? null : latestSyncedMessageEvent(timeline);
+    final recoveredMarker =
+        markerEvent == null ? _latestRecoveredUnreadMessage() : null;
+    final readAt = markerEvent?.originServerTs ??
+        recoveredMarker?.timestamp ??
+        DateTime.now().toUtc();
     final changed = markRoomLocallyRead(room);
+    ref.read(asSyncCacheProvider.notifier).update(
+          (state) => state.withRoomUnreadCleared(room.id, readAt: readAt),
+        );
     if (changed && mounted) setState(() {});
 
-    final timeline = _timeline;
     if (timeline == null) return;
     if (_readMarkerInFlight) {
       _readMarkerQueued = true;
@@ -373,18 +383,30 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     _readMarkerInFlight = true;
     try {
-      final markerEvent = latestSyncedMessageEvent(timeline);
       await timeline.setReadMarker(eventId: markerEvent?.eventId);
       if (markerEvent != null) {
         unawaited(_syncAsReadMarker(room, markerEvent).then((synced) {
-          if (synced) unawaited(_clearRecoveredUnreadForRoom());
+          if (!synced) return;
+          ref.read(asSyncCacheProvider.notifier).update(
+                (state) => state.withRoomUnreadCleared(
+                  room.id,
+                  readAt: markerEvent.originServerTs,
+                ),
+              );
+          unawaited(_clearRecoveredUnreadForRoom());
         }));
       } else {
-        final recoveredMarker = _latestRecoveredUnreadMessage();
         if (recoveredMarker != null) {
           unawaited(
             _syncAsReadMarkerForRecovered(room, recoveredMarker).then((synced) {
-              if (synced) unawaited(_clearRecoveredUnreadForRoom());
+              if (!synced) return;
+              ref.read(asSyncCacheProvider.notifier).update(
+                    (state) => state.withRoomUnreadCleared(
+                      room.id,
+                      readAt: recoveredMarker.timestamp,
+                    ),
+                  );
+              unawaited(_clearRecoveredUnreadForRoom());
             }),
           );
         }
@@ -1332,15 +1354,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 ? '等待对方接受'
                 : isAgent
                     ? (agentConnected ? '在线' : '离线')
-                    : mxid.isNotEmpty
-                        ? '在线'
-                        : '端对端加密',
+                    : '端对端加密',
             onBack: () => unawaited(_popChatOrHome(context)),
             leadingAvatar: _ChatHeaderAvatar(
               key: ValueKey('chat_header_peer_avatar_${widget.roomId}'),
               seed: name,
               imageUrl: isAgent ? null : peerAvatarUrl,
-              online: !isAgent || agentConnected,
+              online: isAgent && agentConnected,
             ),
             onAvatarTap: headerAvatarTap,
             actions: [
@@ -2702,7 +2722,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
         child: ChatLayeredLayout(
           header: ChatCapsuleHeader(
             title: _isAiBot ? 'Agent' : c.name,
-            subtitle: _isAiBot ? '端对端加密' : (c.isGroup ? '6 名成员' : '在线'),
+            subtitle: _isAiBot ? '端对端加密' : (c.isGroup ? '6 名成员' : '端对端加密'),
             onBack: () => unawaited(_popChatOrHome(context)),
             leadingAvatar: _isAiBot
                 ? _AgentBadge(color: t.accent)
@@ -2726,7 +2746,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                         key: ValueKey('chat_header_peer_avatar_${c.id}'),
                         seed: c.name,
                         imageUrl: c.avatarUrl,
-                        online: true,
                       ),
             onAvatarTap: c.isGroup || _isAiBot ? null : _mockHeaderAvatarTap(),
             actions: [

@@ -1555,6 +1555,95 @@ void main() {
     expect(room.highlightCount, 0);
   });
 
+  test('marking a room read clears cached AS unread counts', () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 4, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: 'Group',
+          avatarUrl: '',
+          unreadCount: 1,
+          lastActivityAt: DateTime.utc(2026, 6, 4, 12),
+        ),
+      ],
+      contacts: const [],
+      groups: [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: 'Group',
+          avatarUrl: '',
+          unreadCount: 1,
+          lastActivityAt: DateTime.utc(2026, 6, 4, 12),
+        ),
+        AsSyncRoomSummary(
+          roomId: '!other:p2p-im.com',
+          name: 'Other',
+          avatarUrl: '',
+          unreadCount: 2,
+          lastActivityAt: DateTime.utc(2026, 6, 4, 11),
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final next = AsSyncCacheState(bootstrap: bootstrap)
+        .withRoomUnreadCleared('!group:p2p-im.com');
+
+    expect(next.bootstrap!.rooms.single.unreadCount, 0);
+    expect(next.bootstrap!.groups.first.unreadCount, 0);
+    expect(next.bootstrap!.groups.last.unreadCount, 2);
+  });
+
+  test('stale bootstrap refresh cannot restore locally read room unread', () {
+    const roomId = '!group:p2p-im.com';
+    final readAt = DateTime.utc(2026, 6, 4, 12);
+    final staleBootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 4, 12, 0, 1),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: 'Group',
+          avatarUrl: '',
+          unreadCount: 1,
+          lastActivityAt: readAt,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final newerBootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 4, 12, 1),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: 'Group',
+          avatarUrl: '',
+          unreadCount: 1,
+          lastActivityAt: readAt.add(const Duration(seconds: 1)),
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final locallyRead =
+        const AsSyncCacheState().withRoomUnreadCleared(roomId, readAt: readAt);
+    final staleRefresh = locallyRead.copyWith(bootstrap: staleBootstrap);
+    final newerRefresh = locallyRead.copyWith(bootstrap: newerBootstrap);
+
+    expect(staleRefresh.bootstrap!.groups.single.unreadCount, 0);
+    expect(newerRefresh.bootstrap!.groups.single.unreadCount, 1);
+  });
+
   test('bootstrap refresh clears local optimistic contacts omitted by AS', () {
     const state = AsSyncCacheState(
       localContactStatusesByRoomId: {
@@ -1825,6 +1914,58 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('messages contact conversation does not show online dot',
+      (tester) async {
+    final client = Client('PortalIMConversationNoContactOnlineDotTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!owner:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan',
+      peerAvatarUrl: 'https://matrix.example.com/yanan.png',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 3, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: 'https://as-cache.example.com/yanan.png',
+          roomId: '!owner:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yanan'), findsOneWidget);
+    expect(find.byType(OnlineDot), findsNothing);
   });
 
   testWidgets('messages conversation avatar falls back to Matrix peer avatar',
@@ -2734,7 +2875,7 @@ void main() {
     }
   });
 
-  testWidgets('messages contacts and explore share header actions',
+  testWidgets('messages contacts and channel share header actions',
       (tester) async {
     final client = Client('PortalIMTest');
 
@@ -2750,7 +2891,7 @@ void main() {
     );
     await tester.pump();
 
-    for (final title in ['消息', '联系人', '探索']) {
+    for (final title in ['消息', '联系人', '频道']) {
       if (title != '消息') {
         await tester.tap(find.text(title).last);
         await tester.pump();
@@ -2771,9 +2912,9 @@ void main() {
     }
   });
 
-  testWidgets('third home tab is explore with xhs style top actions',
+  testWidgets('third home tab is channel without explore subpages',
       (tester) async {
-    final client = Client('PortalIMExploreTest');
+    final client = Client('PortalIMChannelTabTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -2787,176 +2928,19 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('探索'), findsOneWidget);
-    expect(find.text('频道'), findsNothing);
-
-    await tester.tap(find.text('探索'));
-    await tester.pump();
-
-    expect(find.text('关注'), findsOneWidget);
+    expect(find.text('探索'), findsNothing);
     expect(find.text('频道'), findsOneWidget);
-    expect(find.byIcon(Symbols.search), findsOneWidget);
-    expect(find.byIcon(Symbols.add), findsOneWidget);
-  });
-
-  testWidgets('explore page switches between follow and channel subpages',
-      (tester) async {
-    final client = Client('PortalIMExploreSwitchTest');
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-        ],
-        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('探索'));
-    await tester.pump();
-
-    expect(find.text('全部'), findsNothing);
-    expect(find.text('Alice'), findsWidgets);
-    expect(find.text('P2P IM 官方'), findsNothing);
-
-    await tester.tap(find.text('Agent'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Agent 精选'), findsNothing);
-    expect(find.textContaining('私聊关系测试总结'), findsOneWidget);
 
     await tester.tap(find.text('频道'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
+    expect(find.text('关注'), findsNothing);
+    expect(find.text('Agent'), findsNothing);
+    expect(find.byType(PageView), findsNothing);
     expect(find.text('我的频道'), findsOneWidget);
     expect(find.text('P2P IM 官方'), findsOneWidget);
-
-    await tester.drag(find.byType(PageView), const Offset(500, 0));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('私聊关系测试总结'), findsOneWidget);
-
-    await tester.drag(find.byType(PageView), const Offset(500, 0));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Alice'), findsWidgets);
-  });
-
-  testWidgets('agent explore subpage presents html history cards',
-      (tester) async {
-    final client = Client('PortalIMAgentExploreTest');
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-        ],
-        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('探索'));
-    await tester.pump();
-    await tester.tap(find.text('Agent'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Agent 精选'), findsNothing);
-    expect(find.text('Agent 按你的要求总结、筛选并生成的 HTML 历史'), findsNothing);
-    expect(find.textContaining('私聊关系测试总结'), findsOneWidget);
-    expect(
-        find.byKey(
-            const ValueKey('agent_html_thumbnail_direct-contact-boundary')),
-        findsOneWidget);
-    expect(find.text('来自 3 个关注用户 · 2 个频道 · 5 个链接'), findsOneWidget);
-    expect(find.text('今日重点'), findsOneWidget);
-    expect(find.text('私聊测试'), findsOneWidget);
-    expect(find.textContaining('/agent/html/'), findsWidgets);
-
-    final firstTop = tester.getTopLeft(find.textContaining('私聊关系测试总结')).dy;
-    final secondTop = tester.getTopLeft(find.textContaining('频道页体验复盘')).dy;
-    expect(firstTop, lessThan(secondTop));
-  });
-
-  testWidgets('follow explore subpage filters by followed avatar',
-      (tester) async {
-    final client = Client('PortalIMFollowFilterTest');
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-        ],
-        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('探索'));
-    await tester.pump();
-
-    expect(find.text('全部'), findsNothing);
-    expect(find.text('Alice'), findsWidgets);
-    expect(find.text('我的频道'), findsNothing);
-
-    final aliceLeft =
-        tester.getTopLeft(find.byKey(const ValueKey('follow_filter_alice'))).dx;
-    final daveLeft =
-        tester.getTopLeft(find.byKey(const ValueKey('follow_filter_dave'))).dx;
-    final yananLeft =
-        tester.getTopLeft(find.byKey(const ValueKey('follow_filter_yanan'))).dx;
-    expect(aliceLeft, lessThan(daveLeft));
-    expect(daveLeft, lessThan(yananLeft));
-
-    await tester.tap(find.byKey(const ValueKey('follow_filter_alice')));
-    await tester.pump();
-
-    expect(find.textContaining('图片消息'), findsOneWidget);
-    expect(find.textContaining('私聊关系'), findsNothing);
-  });
-
-  testWidgets('follow avatar strip overflows horizontally to reveal more users',
-      (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-    final client = Client('PortalIMFollowOverflowTest');
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-        ],
-        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('探索'));
-    await tester.pump();
-
-    final sam = find.byKey(const ValueKey('follow_filter_sam'));
-    expect(sam, findsNothing);
-
-    await tester.drag(
-      find.byKey(const ValueKey('follow_avatar_strip')),
-      const Offset(-420, 0),
-    );
-    await tester.pumpAndSettle();
-
-    expect(sam, findsOneWidget);
+    expect(find.byIcon(Symbols.search), findsOneWidget);
+    expect(find.byIcon(Symbols.add), findsOneWidget);
   });
 
   testWidgets('home plus menu has the unified action order', (tester) async {
@@ -5624,9 +5608,6 @@ void main() {
       ),
     );
     await tester.pump();
-
-    await tester.tap(find.text('探索'));
-    await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
 
@@ -5650,15 +5631,12 @@ void main() {
       ),
     );
     await tester.pump();
-
-    await tester.tap(find.text('探索'));
-    await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
 
     expect(find.text('搜索频道、群体、话题'), findsNothing);
     expect(find.textContaining('推荐频道'), findsNothing);
-    expect(find.text('关注'), findsOneWidget);
+    expect(find.text('关注'), findsNothing);
     for (final label in ['全部', '我的频道', 'AI', '产品', '创作', '部署']) {
       expect(find.text(label), findsOneWidget);
     }
@@ -5685,9 +5663,6 @@ void main() {
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
     );
-    await tester.pump();
-
-    await tester.tap(find.text('探索'));
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
@@ -5719,9 +5694,6 @@ void main() {
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
     );
-    await tester.pump();
-
-    await tester.tap(find.text('探索'));
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
@@ -5767,9 +5739,6 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
-
-    await tester.tap(find.text('探索'));
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
@@ -5830,9 +5799,6 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
-
-    await tester.tap(find.text('探索'));
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
@@ -7389,7 +7355,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.byKey(const ValueKey('chat_system_notice')), findsOneWidget);
     expect(find.text('你们已成为好友，现在可以开始聊天了'), findsOneWidget);

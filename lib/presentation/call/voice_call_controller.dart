@@ -376,6 +376,7 @@ const peerNoResponseMessage = '对方暂无响应，已结束拨打';
 const connectedCallUnstableMessage = '网络不稳定';
 const connectedCallInterruptedMessage = '通话中断';
 const groupCallMediaRecoveryDelay = Duration(seconds: 12);
+const connectedGroupCallMediaRecoveryDelay = Duration(seconds: 3);
 
 enum ConnectedCallNetworkState {
   stable,
@@ -901,11 +902,20 @@ GroupCallStatus groupCallStatusWithObservedMedia({
   required Iterable<String> remoteMediaUserIds,
   bool wasConnected = false,
 }) {
+  if (transportStatus == GroupCallStatus.ended && wasConnected) {
+    return GroupCallStatus.connected;
+  }
+  if (transportStatus == GroupCallStatus.idle &&
+      wasConnected &&
+      localUserJoined) {
+    return GroupCallStatus.connected;
+  }
   final baseStatus = groupCallStatusWithProductJoin(
     transportStatus: transportStatus,
     localUserJoined: localUserJoined,
   );
   if (baseStatus != GroupCallStatus.connected) return baseStatus;
+  if (wasConnected) return GroupCallStatus.connected;
   final remoteMedia = _normalizedIds(remoteMediaUserIds);
   if (localUserJoined &&
       localMediaReady &&
@@ -1011,15 +1021,14 @@ int groupCallAutoLeaveParticipantCount(GroupCallUiState state) {
 bool shouldReportGroupCallEndedAfterLocalLeave({
   required int participantCountBeforeLeave,
 }) {
-  return participantCountBeforeLeave > 0;
+  return participantCountBeforeLeave <= 1;
 }
 
 bool shouldReportGroupCallEndedFromMatrixEnd({
   required bool localProductJoined,
   required int participantCountBeforeEnd,
 }) {
-  if (localProductJoined) return false;
-  return participantCountBeforeEnd <= 2;
+  return false;
 }
 
 bool shouldShortCircuitGroupCallStart({
@@ -1049,13 +1058,16 @@ bool shouldRecoverStalledGroupCallTransport({
   required bool recoveryAlreadyAttempted,
 }) {
   if (recoveryAlreadyAttempted) return false;
-  if (status != GroupCallStatus.joining) return false;
-  if (!localMediaReady) return false;
+  final canRecoverConnected = status == GroupCallStatus.connected;
+  final canRecoverJoining =
+      status == GroupCallStatus.joining && localMediaReady;
+  if (!canRecoverConnected && !canRecoverJoining) return false;
   if (_normalizedIds(remoteMediaUserIds).isNotEmpty) return false;
   final local = localUserId?.trim();
   if (local == null || local.isEmpty) return false;
   final joined = _normalizedIds(joinedUserIds)..sort();
   if (joined.length < 2 || !joined.contains(local)) return false;
+  if (canRecoverConnected) return true;
   return joined.first == local;
 }
 
@@ -1578,6 +1590,10 @@ class MatrixVoiceCallController implements VoiceCallController {
         initiator: initiator,
         invitedUserIds: effectiveInvitees,
         invitedParticipants: invitedParticipants,
+        participants:
+            joinExistingInvite ? previousGroupState.participants : const [],
+        joinedUserIds:
+            joinExistingInvite ? previousGroupState.joinedUserIds : const [],
         isIncoming: joinExistingInvite && previousGroupState.isIncoming,
       ),
     );
@@ -3446,7 +3462,10 @@ class MatrixVoiceCallController implements VoiceCallController {
       return;
     }
     if (_groupMediaRecoveryTimer != null) return;
-    _groupMediaRecoveryTimer = Timer(groupCallMediaRecoveryDelay, () {
+    final delay = state.status == GroupCallStatus.connected
+        ? connectedGroupCallMediaRecoveryDelay
+        : groupCallMediaRecoveryDelay;
+    _groupMediaRecoveryTimer = Timer(delay, () {
       _groupMediaRecoveryTimer = null;
       unawaited(_recoverStalledGroupMedia(groupCall));
     });

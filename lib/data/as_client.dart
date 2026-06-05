@@ -513,6 +513,20 @@ class AsSyncRoomSummary {
     );
   }
 
+  AsSyncRoomSummary withUnreadCount(int count) {
+    return AsSyncRoomSummary(
+      roomId: roomId,
+      name: name,
+      avatarUrl: avatarUrl,
+      unreadCount: count < 0 ? 0 : count,
+      lastActivityAt: lastActivityAt,
+      topic: topic,
+      isOwned: isOwned,
+      tags: tags,
+      invitePolicy: invitePolicy,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'room_id': roomId,

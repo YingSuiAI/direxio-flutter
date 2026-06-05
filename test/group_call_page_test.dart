@@ -494,7 +494,7 @@ void main() {
     expect(lee.opacity, 1);
   });
 
-  testWidgets('product joined users stay pending until media connects',
+  testWidgets('product joined users are shown joined while media catches up',
       (tester) async {
     final controller = _FakeGroupCallController(
       initialGroupState: const GroupCallUiState(
@@ -534,8 +534,56 @@ void main() {
     final lee = tester.widget<Opacity>(
       find.byKey(const ValueKey('group-call-participant-@lee:p2p-liyanan.com')),
     );
-    expect(lee.opacity, lessThan(1));
-    expect(find.text('准备加入'), findsWidgets);
+    expect(lee.opacity, 1);
+  });
+
+  testWidgets('product joined users outside invite roster are displayed',
+      (tester) async {
+    final controller = _FakeGroupCallController(
+      initialGroupState: const GroupCallUiState(
+        status: GroupCallStatus.connected,
+        callType: ProductCallType.voice,
+        roomId: '!group:p2p-im.com',
+        roomName: '测试群',
+        joinedUserIds: [
+          '@owner:p2p-im.com',
+          '@lee:p2p-liyanan.com',
+          '@test:p2p-im-test.com',
+        ],
+        mediaUserIds: [
+          '@owner:p2p-im.com',
+          '@lee:p2p-liyanan.com',
+        ],
+        initiator: GroupCallParticipantInfo(
+          userId: '@owner:p2p-im.com',
+          displayName: 'Yanan',
+          isLocal: true,
+        ),
+        invitedParticipants: [
+          GroupCallParticipantInfo(
+            userId: '@owner:p2p-im.com',
+            displayName: 'Yanan',
+            isLocal: true,
+          ),
+          GroupCallParticipantInfo(
+            userId: '@lee:p2p-liyanan.com',
+            displayName: 'Lee',
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(_wrap(controller, isVideo: false));
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('group-call-participant-@test:p2p-im-test.com')),
+      findsOneWidget,
+    );
+    final testNode = tester.widget<Opacity>(
+      find.byKey(const ValueKey('group-call-participant-@test:p2p-im-test.com')),
+    );
+    expect(testNode.opacity, 1);
   });
 
   testWidgets('matrix participants do not mark invited users as joined',

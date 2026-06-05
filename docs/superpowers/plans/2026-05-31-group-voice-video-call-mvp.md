@@ -962,3 +962,13 @@ Member-churn timer fix, 2026-06-05:
   - `flutter test test/group_call_controller_test.dart test/group_call_page_test.dart test/group_call_history_merge_test.dart`
   - `flutter analyze lib test`
   - `flutter test`
+
+Late-join media recovery fix, 2026-06-05:
+
+- Bug: in a three-person group call, the third invited member could tap `加入` and keep showing `准备加入` with no timer. The timer only started after another member left and the Matrix/WebRTC media graph churned again.
+- Root cause: the client correctly refused to treat product-level `joinedUserIds` as media-connected state, but the stalled-media recovery rule was too narrow. For a `joining` state with local media ready and no remote media feeds, only the sorted first joined user could recover. A later invited member that had accepted the call could therefore be stuck without triggering its own recovery.
+- Rule: initial caller-side joining recovery remains single-owner to avoid every device rebuilding the same media graph at call start. A locally accepted incoming/invited member is allowed one local media recovery attempt when its own local media is ready but no remote feed arrives.
+- Regression: `late invited group member can recover missing remote media`.
+- Verification:
+  - `flutter test test/group_call_controller_test.dart --plain-name 'late invited group member can recover missing remote media'`
+  - `flutter test test/group_call_controller_test.dart`

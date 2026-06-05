@@ -1094,6 +1094,7 @@ bool shouldRecoverStalledGroupCallTransport({
   required bool localMediaReady,
   required Iterable<String> remoteMediaUserIds,
   required bool recoveryAlreadyAttempted,
+  bool allowLocalJoiningRecovery = false,
 }) {
   if (recoveryAlreadyAttempted) return false;
   final canRecoverConnected = status == GroupCallStatus.connected;
@@ -1106,6 +1107,7 @@ bool shouldRecoverStalledGroupCallTransport({
   final joined = _normalizedIds(joinedUserIds)..sort();
   if (joined.length < 2 || !joined.contains(local)) return false;
   if (canRecoverConnected) return true;
+  if (allowLocalJoiningRecovery) return true;
   return joined.first == local;
 }
 
@@ -3500,6 +3502,7 @@ class MatrixVoiceCallController implements VoiceCallController {
           .where((userId) => userId.trim() != groupCall.room.client.userID)
           .toList(growable: false),
       recoveryAlreadyAttempted: _groupMediaRecoveryAttempted,
+      allowLocalJoiningRecovery: state.isIncoming,
     );
     if (!shouldRecover) {
       _groupMediaRecoveryTimer?.cancel();
@@ -3532,6 +3535,7 @@ class MatrixVoiceCallController implements VoiceCallController {
           .where((userId) => userId.trim() != groupCall.room.client.userID)
           .toList(growable: false),
       recoveryAlreadyAttempted: _groupMediaRecoveryAttempted,
+      allowLocalJoiningRecovery: snapshot.isIncoming,
     )) {
       return;
     }

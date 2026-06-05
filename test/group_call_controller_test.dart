@@ -300,6 +300,25 @@ void main() {
     );
   });
 
+  test('late invited group member can recover missing remote media', () {
+    expect(
+      shouldRecoverStalledGroupCallTransport(
+        status: GroupCallStatus.joining,
+        localUserId: '@owner:p2p-liyanan.com',
+        joinedUserIds: const [
+          '@owner:p2p-im-test.com',
+          '@owner:p2p-im.com',
+          '@owner:p2p-liyanan.com',
+        ],
+        localMediaReady: true,
+        remoteMediaUserIds: const [],
+        recoveryAlreadyAttempted: false,
+        allowLocalJoiningRecovery: true,
+      ),
+      isTrue,
+    );
+  });
+
   test('group call media recovery does not run after media or prior retry', () {
     expect(
       shouldRecoverStalledGroupCallTransport(

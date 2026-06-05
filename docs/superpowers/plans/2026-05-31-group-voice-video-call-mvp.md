@@ -950,3 +950,15 @@ Last-member auto-leave fix, 2026-06-02:
 - Root cause: Matrix group-call `participants` can remain stale after remote members leave. The old auto-leave count used stale Matrix participants, so it still thought there were multiple members.
 - Rule: last-member auto-leave should prefer real media-connected users and AS/product joined users; Matrix participants are only a fallback when neither product nor media state is available.
 - Regression: `group call auto leave ignores stale Matrix participants after leaves`.
+
+Member-churn timer fix, 2026-06-05:
+
+- Bug: in a three-person group call, when the second joined member left, the caller and the remaining third member stayed in the call but their elapsed timer restarted together.
+- Root cause: after a remote member leaves, Matrix/WebRTC can briefly report the group call as `joining` while the remaining media graph settles. The old timer helper cleared `connectedAt` on that transient `connected -> joining` transition, then set a fresh timestamp when the remaining two peers returned to `connected`.
+- Rule: once a local client has joined a group call and has a `connectedAt`, temporary active-state churn such as `connected -> joining -> connected` must preserve the original timestamp. Only true idle/ended/failed state clears the timer.
+- Regression: `group call timer survives temporary joining during member churn`.
+- Verification:
+  - `flutter test test/group_call_controller_test.dart --plain-name 'group call timer survives temporary joining during member churn'`
+  - `flutter test test/group_call_controller_test.dart test/group_call_page_test.dart test/group_call_history_merge_test.dart`
+  - `flutter analyze lib test`
+  - `flutter test`

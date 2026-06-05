@@ -185,6 +185,44 @@ void main() {
     );
   });
 
+  test('group call timer survives temporary joining during member churn', () {
+    final connectedAt = DateTime.utc(2026, 5, 31, 1);
+    final later = connectedAt.add(const Duration(seconds: 42));
+    final recovered = connectedAt.add(const Duration(seconds: 45));
+
+    expect(
+      nextGroupCallConnectedAt(
+        previousStatus: GroupCallStatus.connected,
+        previousConnectedAt: connectedAt,
+        nextStatus: GroupCallStatus.joining,
+        now: later,
+        isIncoming: false,
+        localUserId: '@owner:p2p-im.com',
+        joinedUserIds: const [
+          '@owner:p2p-im.com',
+          '@lee:p2p-liyanan.com',
+        ],
+      ),
+      connectedAt,
+    );
+
+    expect(
+      nextGroupCallConnectedAt(
+        previousStatus: GroupCallStatus.joining,
+        previousConnectedAt: connectedAt,
+        nextStatus: GroupCallStatus.connected,
+        now: recovered,
+        isIncoming: false,
+        localUserId: '@owner:p2p-im.com',
+        joinedUserIds: const [
+          '@owner:p2p-im.com',
+          '@lee:p2p-liyanan.com',
+        ],
+      ),
+      connectedAt,
+    );
+  });
+
   test('incoming group call timer starts after local join', () {
     final now = DateTime.utc(2026, 5, 31, 1);
 

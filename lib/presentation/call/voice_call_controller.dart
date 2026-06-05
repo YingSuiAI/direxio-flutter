@@ -1006,9 +1006,13 @@ DateTime? nextGroupCallConnectedAt({
   String? localUserId,
   Iterable<String> joinedUserIds = const [],
 }) {
+  if (nextStatus == GroupCallStatus.joining && previousConnectedAt != null) {
+    return previousConnectedAt;
+  }
   if (nextStatus != GroupCallStatus.connected) return null;
-  if (previousStatus == GroupCallStatus.connected &&
-      previousConnectedAt != null) {
+  if (previousConnectedAt != null &&
+      (previousStatus == GroupCallStatus.connected ||
+          previousStatus == GroupCallStatus.joining)) {
     return previousConnectedAt;
   }
   final local = localUserId?.trim();

@@ -254,11 +254,18 @@ class _HomePageState extends ConsumerState<HomePage>
     switch (_tab) {
       case 0:
       case 1:
-      case 2:
         return [
           GlassHeaderButton(
             icon: Symbols.search,
             onTap: () => context.push('/search'),
+          ),
+          const _HomePlusMenuButton(),
+        ];
+      case 2:
+        return [
+          GlassHeaderButton(
+            icon: Symbols.search,
+            onTap: () => context.push('/channels/search'),
           ),
           const _HomePlusMenuButton(),
         ];
@@ -587,9 +594,17 @@ class _ChatList extends ConsumerWidget {
     }
 
     final visibleConversations = <_VisibleConversation>[];
+    final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+    var fallbackAgentShown = false;
     for (final room in rooms) {
       if (room.membership != Membership.join) continue;
       if (_isAgentRoom(room, agentMxid)) {
+        if (canonicalAgentRoomId.isNotEmpty) {
+          if (room.id != canonicalAgentRoomId) continue;
+        } else {
+          if (fallbackAgentShown) continue;
+          fallbackAgentShown = true;
+        }
         visibleConversations.add(_VisibleConversation.agent(room));
       }
     }
@@ -1637,11 +1652,24 @@ class _ChannelEmptyArea extends StatelessWidget {
       children: [
         SizedBox(
           height: sampleChannels.isNotEmpty ? 120 : 260,
-          child: _Empty(
-            icon: Symbols.campaign,
-            title: '还没有频道',
-            subtitle:
-                selectedCategory == '我的频道' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _Empty(
+                icon: Symbols.campaign,
+                title: '还没有频道',
+                subtitle:
+                    selectedCategory == '我的频道' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
+              ),
+              if (sampleChannels.isEmpty && selectedCategory != '我的频道') ...[
+                const SizedBox(height: 10),
+                FilledButton.tonalIcon(
+                  onPressed: () => context.push('/channels/search'),
+                  icon: const Icon(Symbols.search),
+                  label: const Text('搜索频道'),
+                ),
+              ],
+            ],
           ),
         ),
         if (sampleChannels.isNotEmpty) ...[
@@ -1827,6 +1855,7 @@ List<ChannelInboxItem> _mockChannelItems() {
       .map(
         (channel) => ChannelInboxItem(
           id: channel.id,
+          roomId: channel.id,
           name: channel.name,
           domain: channel.domain,
           avatarUrl: '',

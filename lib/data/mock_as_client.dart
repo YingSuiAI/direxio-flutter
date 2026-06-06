@@ -23,8 +23,14 @@ class MockAsClient implements AsClient {
   ];
   final List<AsFavoriteMessage> _favorites = [];
   final Map<String, AsCallSession> _calls = {};
+  final Map<String, AsChannel> _channels = {};
+  final Map<String, List<AsChannelPost>> _channelPosts = {};
+  final Map<String, List<AsChannelComment>> _channelComments = {};
   int _nextFavoriteId = 1;
   int _nextCallId = 1;
+  int _nextChannelId = 1;
+  int _nextChannelPostId = 1;
+  int _nextChannelCommentId = 1;
 
   @override
   Future<OwnerProfile> getOwnerProfile() async {
@@ -467,12 +473,214 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<String> createChannel({
+  Future<AsChannel> createChannel({
     required String name,
     String topic = '',
+    String description = '',
+    String avatarUrl = '',
+    String visibility = asChannelVisibilityPublic,
+    String joinPolicy = asChannelJoinPolicyOpen,
+    bool commentsEnabled = true,
+    List<String> tags = const [],
   }) async {
     await Future.delayed(_latency);
-    return 'mock_channel_${DateTime.now().microsecondsSinceEpoch}';
+    final id = 'mock_channel_${_nextChannelId++}';
+    final channel = AsChannel(
+      channelId: id,
+      roomId: '!$id:mock.local',
+      name: name.trim().isEmpty ? '未命名频道' : name.trim(),
+      homeDomain: 'mock.local',
+      description:
+          description.trim().isEmpty ? topic.trim() : description.trim(),
+      avatarUrl: avatarUrl.trim(),
+      visibility: visibility,
+      joinPolicy: joinPolicy,
+      commentsEnabled: commentsEnabled,
+      role: asChannelRoleOwner,
+      memberStatus: asChannelMemberStatusJoined,
+      memberCount: 1,
+      tags: tags,
+      latestActivityAt: DateTime.now().toUtc(),
+    );
+    _channels[id] = channel;
+    _channelPosts[id] = [];
+    return channel;
+  }
+
+  @override
+  Future<List<AsChannel>> searchPublicChannels(
+    String query, {
+    Uri? baseUri,
+    int limit = 20,
+  }) async {
+    await Future.delayed(_latency);
+    final q = query.trim().toLowerCase();
+    return _channels.values
+        .where((channel) => channel.visibility == asChannelVisibilityPublic)
+        .where((channel) {
+          if (q.isEmpty) return true;
+          return channel.name.toLowerCase().contains(q) ||
+              channel.description.toLowerCase().contains(q) ||
+              channel.tags.any((tag) => tag.toLowerCase().contains(q));
+        })
+        .take(limit)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri}) async {
+    await Future.delayed(_latency);
+    return _channels[channelId] ??
+        AsChannel(
+          channelId: channelId,
+          roomId: '!$channelId:mock.local',
+          name: '公开频道',
+          homeDomain: 'mock.local',
+          visibility: asChannelVisibilityPublic,
+          joinPolicy: asChannelJoinPolicyOpen,
+          commentsEnabled: true,
+          memberStatus: '',
+        );
+  }
+
+  @override
+  Future<AsChannel> updateChannel(AsChannel draft) async {
+    await Future.delayed(_latency);
+    _channels[draft.channelId] = draft;
+    return draft;
+  }
+
+  @override
+  Future<AsChannel> joinChannel(
+    String channelId, {
+    String shareToken = '',
+  }) async {
+    await Future.delayed(_latency);
+    final existing = _channels[channelId] ??
+        AsChannel(
+          channelId: channelId,
+          roomId: '!$channelId:mock.local',
+          name: '公开频道',
+          homeDomain: 'mock.local',
+          visibility: asChannelVisibilityPublic,
+          joinPolicy: asChannelJoinPolicyOpen,
+          commentsEnabled: true,
+        );
+    final joined = AsChannel(
+      channelId: existing.channelId,
+      roomId: existing.roomId,
+      name: existing.name,
+      homeDomain: existing.homeDomain,
+      description: existing.description,
+      avatarUrl: existing.avatarUrl,
+      visibility: existing.visibility,
+      joinPolicy: existing.joinPolicy,
+      commentsEnabled: existing.commentsEnabled,
+      role: asChannelRoleMember,
+      memberStatus: existing.joinPolicy == asChannelJoinPolicyApproval
+          ? asChannelMemberStatusPending
+          : asChannelMemberStatusJoined,
+      memberCount: existing.memberCount,
+      pendingJoinCount: existing.pendingJoinCount,
+      tags: existing.tags,
+      latestActivityAt: existing.latestActivityAt,
+    );
+    _channels[channelId] = joined;
+    _channelPosts.putIfAbsent(channelId, () => []);
+    return joined;
+  }
+
+  @override
+  Future<List<AsChannelPost>> getChannelPosts(
+    String channelId, {
+    int limit = 50,
+    int beforeTs = 0,
+  }) async {
+    await Future.delayed(_latency);
+    final posts =
+        List<AsChannelPost>.from(_channelPosts[channelId] ?? const []);
+    final filtered = beforeTs > 0
+        ? posts.where((post) => post.originServerTs < beforeTs)
+        : posts;
+    return filtered.take(limit).toList(growable: false);
+  }
+
+  @override
+  Future<AsChannelPost> createChannelPost(
+    String channelId, {
+    required String messageType,
+    required String body,
+    Map<String, Object?> media = const {},
+  }) async {
+    await Future.delayed(_latency);
+    final channel = await getPublicChannel(channelId);
+    final postId = 'mock_post_${_nextChannelPostId++}';
+    final post = AsChannelPost(
+      postId: postId,
+      channelId: channel.channelId,
+      roomId: channel.roomId,
+      eventId: '\$$postId',
+      authorId: _ownerProfile.userId,
+      authorName: _ownerProfile.displayName,
+      messageType: messageType,
+      body: body,
+      media: media,
+      originServerTs: DateTime.now().millisecondsSinceEpoch,
+      commentCount: 0,
+    );
+    _channelPosts.putIfAbsent(channelId, () => []).insert(0, post);
+    return post;
+  }
+
+  @override
+  Future<List<AsChannelComment>> getChannelComments(
+    String channelId,
+    String postId, {
+    int limit = 50,
+    int beforeTs = 0,
+  }) async {
+    await Future.delayed(_latency);
+    final comments =
+        List<AsChannelComment>.from(_channelComments[postId] ?? const []);
+    final filtered = beforeTs > 0
+        ? comments.where((comment) => comment.originServerTs < beforeTs)
+        : comments;
+    return filtered.take(limit).toList(growable: false);
+  }
+
+  @override
+  Future<AsChannelComment> createChannelComment(
+    String channelId,
+    String postId, {
+    required String messageType,
+    required String body,
+    Map<String, Object?> media = const {},
+  }) async {
+    await Future.delayed(_latency);
+    final commentId = 'mock_comment_${_nextChannelCommentId++}';
+    final comment = AsChannelComment(
+      commentId: commentId,
+      postId: postId,
+      channelId: channelId,
+      eventId: '\$$commentId',
+      authorId: _ownerProfile.userId,
+      authorName: _ownerProfile.displayName,
+      messageType: messageType,
+      body: body,
+      media: media,
+      originServerTs: DateTime.now().millisecondsSinceEpoch,
+    );
+    _channelComments.putIfAbsent(postId, () => []).add(comment);
+    return comment;
+  }
+
+  @override
+  Future<void> updateChannelReadMarker(
+    String channelId, {
+    required String eventId,
+    required int originServerTs,
+  }) async {
+    await Future.delayed(_latency);
   }
 
   @override

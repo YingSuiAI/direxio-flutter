@@ -30,6 +30,7 @@ import '../../presentation/pages/group_call_page.dart';
 import '../../presentation/pages/group_call_member_select_page.dart';
 import '../../presentation/pages/settings_page.dart';
 import '../../presentation/pages/search_page.dart';
+import '../../presentation/pages/channel_search_page.dart';
 import '../../presentation/pages/channel_page.dart';
 import '../../presentation/pages/dynamic_detail_page.dart';
 import '../../presentation/pages/mcp_permission_page.dart';
@@ -167,7 +168,8 @@ String initialAppLocation({
       injectedRoute.startsWith('/') &&
       callAutotestRestoreNextRoute(
             callAutotestEnabled: true,
-            uri: Uri(path: '/restore', queryParameters: {'next': injectedRoute}),
+            uri:
+                Uri(path: '/restore', queryParameters: {'next': injectedRoute}),
           ) !=
           null) {
     return '/restore?next=${Uri.encodeComponent(injectedRoute)}';
@@ -438,6 +440,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/search',
         pageBuilder: (_, __) => _slidePage(const SearchPage()),
+      ),
+      GoRoute(
+        path: '/channels/search',
+        pageBuilder: (_, __) => _slidePage(const ChannelSearchPage()),
       ),
       GoRoute(
         path: '/channel/:channelId',

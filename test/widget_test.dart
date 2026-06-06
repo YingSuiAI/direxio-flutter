@@ -232,11 +232,128 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
-  Future<String> createChannel({
+  Future<AsChannel> createChannel({
     required String name,
     String topic = '',
+    String description = '',
+    String avatarUrl = '',
+    String visibility = asChannelVisibilityPublic,
+    String joinPolicy = asChannelJoinPolicyOpen,
+    bool commentsEnabled = true,
+    List<String> tags = const [],
   }) async =>
-      '!created:example.com';
+      AsChannel(
+        channelId: 'ch_created',
+        roomId: '!created:example.com',
+        name: name,
+        homeDomain: 'example.com',
+        description: description.trim().isEmpty ? topic : description,
+        avatarUrl: avatarUrl,
+        visibility: visibility,
+        joinPolicy: joinPolicy,
+        commentsEnabled: commentsEnabled,
+        role: asChannelRoleOwner,
+        memberStatus: asChannelMemberStatusJoined,
+        memberCount: 1,
+        tags: tags,
+      );
+
+  @override
+  Future<List<AsChannel>> searchPublicChannels(
+    String query, {
+    Uri? baseUri,
+    int limit = 20,
+  }) async =>
+      const [];
+
+  @override
+  Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri}) async =>
+      AsChannel(
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        name: '频道',
+        homeDomain: 'example.com',
+      );
+
+  @override
+  Future<AsChannel> updateChannel(AsChannel draft) async => draft;
+
+  @override
+  Future<AsChannel> joinChannel(
+    String channelId, {
+    String shareToken = '',
+  }) async =>
+      AsChannel(
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        name: '频道',
+        homeDomain: 'example.com',
+        role: asChannelRoleMember,
+        memberStatus: asChannelMemberStatusJoined,
+      );
+
+  @override
+  Future<List<AsChannelPost>> getChannelPosts(
+    String channelId, {
+    int limit = 50,
+    int beforeTs = 0,
+  }) async =>
+      const [];
+
+  @override
+  Future<AsChannelPost> createChannelPost(
+    String channelId, {
+    required String messageType,
+    required String body,
+    Map<String, Object?> media = const {},
+  }) async =>
+      AsChannelPost(
+        postId: 'post',
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        eventId: r'$post',
+        authorId: '@owner:example.com',
+        messageType: messageType,
+        body: body,
+        media: media,
+        originServerTs: 1,
+      );
+
+  @override
+  Future<List<AsChannelComment>> getChannelComments(
+    String channelId,
+    String postId, {
+    int limit = 50,
+    int beforeTs = 0,
+  }) async =>
+      const [];
+
+  @override
+  Future<AsChannelComment> createChannelComment(
+    String channelId,
+    String postId, {
+    required String messageType,
+    required String body,
+    Map<String, Object?> media = const {},
+  }) async =>
+      AsChannelComment(
+        commentId: 'comment',
+        postId: postId,
+        channelId: channelId,
+        eventId: r'$comment',
+        authorId: '@owner:example.com',
+        messageType: messageType,
+        body: body,
+        media: media,
+        originServerTs: 1,
+      );
+
+  @override
+  Future<void> updateChannelReadMarker(
+    String channelId, {
+    required String eventId,
+    required int originServerTs,
+  }) async {}
 
   @override
   Future<AgentConfig> getAgentConfig() async =>
@@ -2385,6 +2502,77 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
     expect(find.text('friend flow accepted message'), findsNothing);
     expect(find.text('还没有会话'), findsOneWidget);
+  });
+
+  testWidgets('messages show only canonical AS agent room', (tester) async {
+    final client = Client('PortalIMCanonicalAgentHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final canonicalRoom = _addHeroSummaryRoom(
+      client,
+      roomId: '!agent-canonical:p2p-im.com',
+      peerMxid: '@agent:p2p-im.com',
+      peerName: 'Agent',
+    );
+    canonicalRoom.lastEvent = Event(
+      room: canonicalRoom,
+      eventId: r'$canonical-agent',
+      senderId: '@agent:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime(2026, 5, 27, 20, 1),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': 'canonical agent message',
+      },
+    );
+    final legacyRoom = _addHeroSummaryRoom(
+      client,
+      roomId: '!agent-legacy:p2p-im.com',
+      peerMxid: '@agent:p2p-im.com',
+      peerName: 'Agent',
+    );
+    legacyRoom.lastEvent = Event(
+      room: legacyRoom,
+      eventId: r'$legacy-agent',
+      senderId: '@agent:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime(2026, 5, 27, 20, 2),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': 'legacy agent message',
+      },
+    );
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': DateTime.utc(2026, 5, 27, 10).toIso8601String(),
+      'agent_room_id': '!agent-canonical:p2p-im.com',
+      'user': {'user_id': '@owner:p2p-im.com'},
+      'rooms': [],
+      'contacts': [],
+      'groups': [],
+      'channels': [],
+      'pending': {},
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Agent'), findsOneWidget);
+    expect(find.text('canonical agent message'), findsOneWidget);
+    expect(find.text('legacy agent message'), findsNothing);
   });
 
   testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',

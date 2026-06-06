@@ -6,6 +6,14 @@ import 'package:http/testing.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/http_as_client.dart';
 
+http.Response _jsonResponse(Map<String, dynamic> body, int statusCode) {
+  return http.Response.bytes(
+    utf8.encode(jsonEncode(body)),
+    statusCode,
+    headers: {'content-type': 'application/json; charset=utf-8'},
+  );
+}
+
 void main() {
   test('maps loopback homeserver to local AS admin port', () {
     final base = HttpAsClient.defaultAdminBaseUri(
@@ -1065,21 +1073,211 @@ void main() {
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'name': '产品公告',
-          'topic': '只发布重要产品更新',
+          'description': '只发布重要产品更新',
+          'visibility': 'public',
+          'join_policy': 'open',
+          'comments_enabled': true,
+          'tags': ['产品', '公告'],
         });
-        return http.Response(
-          jsonEncode({'room_id': '!channel:example.com'}),
+        return _jsonResponse(
+          {
+            'channel_id': 'ch1',
+            'room_id': '!channel:example.com',
+            'home_domain': 'example.com',
+            'name': '产品公告',
+            'description': '只发布重要产品更新',
+            'visibility': 'public',
+            'join_policy': 'open',
+            'comments_enabled': true,
+            'role': 'owner',
+            'member_status': 'joined',
+            'tags': ['产品', '公告'],
+          },
           200,
         );
       }),
     );
 
-    final roomId = await client.createChannel(
+    final channel = await client.createChannel(
       name: '产品公告',
-      topic: '只发布重要产品更新',
+      description: '只发布重要产品更新',
+      tags: const ['产品', '公告'],
     );
 
-    expect(roomId, '!channel:example.com');
+    expect(channel.channelId, 'ch1');
+    expect(channel.roomId, '!channel:example.com');
+    expect(channel.role, 'owner');
+  });
+
+  test('searchPublicChannels calls public discovery endpoint without auth',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/_as/public/channels/search');
+        expect(request.url.queryParameters['q'], '产品');
+        expect(request.url.queryParameters['limit'], '20');
+        expect(request.headers['Authorization'], isNull);
+        return _jsonResponse(
+          {
+            'results': [
+              {
+                'channel_id': 'ch1',
+                'room_id': '!channel:example.com',
+                'home_domain': 'example.com',
+                'name': '产品公告',
+                'visibility': 'public',
+                'join_policy': 'open',
+                'comments_enabled': true,
+                'tags': ['产品'],
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final results = await client.searchPublicChannels('产品');
+
+    expect(results.single.channelId, 'ch1');
+    expect(results.single.joinPolicy, 'open');
+  });
+
+  test('joinChannel returns pending for approval channel', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch1/join');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        return _jsonResponse(
+          {
+            'status': 'pending',
+            'channel': {
+              'channel_id': 'ch1',
+              'room_id': '!channel:example.com',
+              'home_domain': 'example.com',
+              'name': '审核频道',
+              'visibility': 'public',
+              'join_policy': 'approval',
+              'comments_enabled': true,
+              'member_status': 'pending',
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.joinChannel('ch1');
+
+    expect(channel.memberStatus, 'pending');
+    expect(channel.joinPolicy, 'approval');
+  });
+
+  test('createChannelPost posts text and media metadata', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch1/posts');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['message_type'], 'image');
+        expect(body['body'], '图片说明');
+        expect(
+            jsonDecode(body['media_json'] as String), {'mxc': 'mxc://image'});
+        return _jsonResponse(
+          {
+            'post_id': 'post1',
+            'channel_id': 'ch1',
+            'room_id': '!channel:example.com',
+            'event_id': r'$post1',
+            'author_mxid': '@owner:example.com',
+            'body': '图片说明',
+            'message_type': 'image',
+            'media_json': '{"mxc":"mxc://image"}',
+            'origin_server_ts': 1780730000000,
+            'comment_count': 0,
+          },
+          200,
+        );
+      }),
+    );
+
+    final post = await client.createChannelPost(
+      'ch1',
+      messageType: 'image',
+      body: '图片说明',
+      media: const {'mxc': 'mxc://image'},
+    );
+
+    expect(post.postId, 'post1');
+    expect(post.media['mxc'], 'mxc://image');
+  });
+
+  test('createChannelComment posts to target post id', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch1/posts/post1/comments');
+        expect(jsonDecode(request.body), {
+          'message_type': 'text',
+          'body': '收到',
+        });
+        return _jsonResponse(
+          {
+            'comment_id': 'comment1',
+            'post_id': 'post1',
+            'channel_id': 'ch1',
+            'event_id': r'$comment1',
+            'author_mxid': '@owner:example.com',
+            'body': '收到',
+            'message_type': 'text',
+            'origin_server_ts': 1780730000000,
+          },
+          200,
+        );
+      }),
+    );
+
+    final comment = await client.createChannelComment(
+      'ch1',
+      'post1',
+      messageType: 'text',
+      body: '收到',
+    );
+
+    expect(comment.commentId, 'comment1');
+    expect(comment.postId, 'post1');
+  });
+
+  test('updateChannelReadMarker uses channel read marker API', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'PUT');
+        expect(request.url.path, '/_as/channels/ch1/read-marker');
+        expect(jsonDecode(request.body), {
+          'event_id': r'$post1',
+          'origin_server_ts': 1780730000000,
+        });
+        return http.Response(jsonEncode({'status': 'ok'}), 200);
+      }),
+    );
+
+    await client.updateChannelReadMarker(
+      'ch1',
+      eventId: r'$post1',
+      originServerTs: 1780730000000,
+    );
   });
 
   test('updateReadMarker sends room and event id to sync API', () async {

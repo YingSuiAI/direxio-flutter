@@ -1578,20 +1578,12 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
             fallbackDomain: _clientServerName(client),
           )
         : _mockChannelItems();
-    final useSampleChannels = useRealChannels && channels.isEmpty;
-    final sampleChannels = _mockChannelItems();
-    final categorySource = useSampleChannels ? sampleChannels : channels;
-    final categories = ChannelInboxData.categories(categorySource);
+    final categories = ChannelInboxData.categories(channels);
     final selectedCategory = categories.contains(_category) ? _category : '全部';
     final visibleChannels = ChannelInboxData.filtered(
       channels,
       selectedCategory,
     );
-    final visibleSampleChannels = useSampleChannels
-        ? ChannelInboxData.filtered(sampleChannels, selectedCategory)
-            .take(2)
-            .toList()
-        : const <ChannelInboxItem>[];
 
     if (!_mockAuthEnabled && isLoggedIn && bootstrap == null) {
       return const _Empty(
@@ -1626,10 +1618,7 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
         ),
         const SizedBox(height: 10),
         if (visibleChannels.isEmpty)
-          _ChannelEmptyArea(
-            selectedCategory: selectedCategory,
-            sampleChannels: visibleSampleChannels,
-          )
+          _ChannelEmptyArea(selectedCategory: selectedCategory)
         else
           _ChannelInboxList(channels: visibleChannels),
       ],
@@ -1638,20 +1627,16 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
 }
 
 class _ChannelEmptyArea extends StatelessWidget {
-  const _ChannelEmptyArea({
-    required this.selectedCategory,
-    required this.sampleChannels,
-  });
+  const _ChannelEmptyArea({required this.selectedCategory});
 
   final String selectedCategory;
-  final List<ChannelInboxItem> sampleChannels;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         SizedBox(
-          height: sampleChannels.isNotEmpty ? 120 : 260,
+          height: 260,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -1661,7 +1646,7 @@ class _ChannelEmptyArea extends StatelessWidget {
                 subtitle:
                     selectedCategory == '我的频道' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
               ),
-              if (sampleChannels.isEmpty && selectedCategory != '我的频道') ...[
+              if (selectedCategory != '我的频道') ...[
                 const SizedBox(height: 10),
                 FilledButton.tonalIcon(
                   onPressed: () => context.push('/channels/search'),
@@ -1672,36 +1657,7 @@ class _ChannelEmptyArea extends StatelessWidget {
             ],
           ),
         ),
-        if (sampleChannels.isNotEmpty) ...[
-          const _ChannelSectionLabel(text: '样例频道'),
-          _ChannelInboxList(channels: sampleChannels),
-        ],
       ],
-    );
-  }
-}
-
-class _ChannelSectionLabel extends StatelessWidget {
-  const _ChannelSectionLabel({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          text,
-          style: AppTheme.sans(
-            size: 13,
-            weight: FontWeight.w600,
-            color: t.textMute,
-          ),
-        ),
-      ),
     );
   }
 }

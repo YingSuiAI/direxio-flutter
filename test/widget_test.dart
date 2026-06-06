@@ -5939,7 +5939,7 @@ void main() {
     expect(find.textContaining('后端部署清单已更新'), findsOneWidget);
   });
 
-  testWidgets('empty real channel inbox exposes explicit design sample',
+  testWidgets('empty real channel inbox does not show mock sample channels',
       (tester) async {
     const mockAuthEnabled = bool.fromEnvironment(
       'P2P_MATRIX_MOCK_AUTH',
@@ -5992,16 +5992,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('还没有频道'), findsOneWidget);
-    expect(find.text('AI'), findsOneWidget);
-    expect(find.text('产品'), findsOneWidget);
-    expect(find.text('样例频道'), findsOneWidget);
-    expect(find.text('P2P IM 官方'), findsOneWidget);
-
-    await tester.tap(find.text('P2P IM 官方').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('设计样例'), findsOneWidget);
-    expect(find.text('频道帖子'), findsOneWidget);
+    expect(find.text('搜索频道'), findsOneWidget);
+    expect(find.text('AI'), findsNothing);
+    expect(find.text('产品'), findsNothing);
+    expect(find.text('样例频道'), findsNothing);
+    expect(find.text('P2P IM 官方'), findsNothing);
   });
 
   testWidgets('joined channel detail uses read-only joined status bar',

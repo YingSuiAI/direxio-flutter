@@ -25,6 +25,7 @@ const asChannelJoinPolicyApproval = 'approval';
 const asChannelJoinPolicyInvite = 'invite';
 const asChannelMemberStatusJoined = 'joined';
 const asChannelMemberStatusPending = 'pending';
+const asChannelMemberStatusRejected = 'rejected';
 const asChannelRoleOwner = 'owner';
 const asChannelRoleAdmin = 'admin';
 const asChannelRoleMember = 'member';
@@ -700,6 +701,48 @@ class AsChannel {
   }
 }
 
+class AsChannelShareDraft {
+  const AsChannelShareDraft({
+    required this.channelId,
+    required this.roomId,
+    required this.homeDomain,
+    required this.name,
+    this.description = '',
+    this.avatarUrl = '',
+    this.visibility = asChannelVisibilityPublic,
+    this.joinPolicy = asChannelJoinPolicyOpen,
+    this.commentsEnabled = true,
+    this.tags = const [],
+  });
+
+  final String channelId;
+  final String roomId;
+  final String homeDomain;
+  final String name;
+  final String description;
+  final String avatarUrl;
+  final String visibility;
+  final String joinPolicy;
+  final bool commentsEnabled;
+  final List<String> tags;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'channel_id': channelId.trim(),
+      'room_id': roomId.trim(),
+      if (homeDomain.trim().isNotEmpty) 'home_domain': homeDomain.trim(),
+      'name': name.trim(),
+      if (description.trim().isNotEmpty) 'description': description.trim(),
+      if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
+      'visibility': _normalizeChannelVisibility(visibility),
+      'join_policy': _normalizeChannelJoinPolicy(joinPolicy),
+      'comments_enabled': commentsEnabled,
+      'tags':
+          tags.map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toList(),
+    };
+  }
+}
+
 class AsChannelPost {
   const AsChannelPost({
     required this.postId,
@@ -713,6 +756,8 @@ class AsChannelPost {
     this.authorName = '',
     this.media = const {},
     this.commentCount = 0,
+    this.reactionCount = 0,
+    this.reactedByMe = false,
   });
 
   final String postId;
@@ -726,6 +771,8 @@ class AsChannelPost {
   final Map<String, Object?> media;
   final int originServerTs;
   final int commentCount;
+  final int reactionCount;
+  final bool reactedByMe;
 
   factory AsChannelPost.fromJson(Map<String, dynamic> json) {
     return AsChannelPost(
@@ -740,6 +787,82 @@ class AsChannelPost {
       media: _objectMapOrJson(json['media_json'] ?? json['media']),
       originServerTs: _parseInt(json['origin_server_ts']),
       commentCount: _parseInt(json['comment_count']),
+      reactionCount: _parseInt(json['reaction_count']),
+      reactedByMe: json['reacted_by_me'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'post_id': postId,
+        'channel_id': channelId,
+        'room_id': roomId,
+        'event_id': eventId,
+        'author_mxid': authorId,
+        'author_name': authorName,
+        'message_type': messageType,
+        'body': body,
+        'media': media,
+        'origin_server_ts': originServerTs,
+        'comment_count': commentCount,
+        'reaction_count': reactionCount,
+        'reacted_by_me': reactedByMe,
+      };
+}
+
+class AsChannelReaction {
+  const AsChannelReaction({
+    required this.postId,
+    required this.channelId,
+    required this.reaction,
+    required this.active,
+    required this.reactionCount,
+  });
+
+  final String postId;
+  final String channelId;
+  final String reaction;
+  final bool active;
+  final int reactionCount;
+
+  factory AsChannelReaction.fromJson(Map<String, dynamic> json) {
+    return AsChannelReaction(
+      postId: json['post_id'] as String? ?? '',
+      channelId: json['channel_id'] as String? ?? '',
+      reaction: json['reaction'] as String? ?? 'like',
+      active: json['active'] as bool? ?? false,
+      reactionCount: _parseInt(json['reaction_count']),
+    );
+  }
+}
+
+class AsChannelMember {
+  const AsChannelMember({
+    required this.channelId,
+    required this.userMxid,
+    required this.role,
+    required this.status,
+    this.domain = '',
+    this.displayName = '',
+    this.joinedAtMs = 0,
+  });
+
+  final String channelId;
+  final String userMxid;
+  final String domain;
+  final String displayName;
+  final String role;
+  final String status;
+  final int joinedAtMs;
+
+  factory AsChannelMember.fromJson(Map<String, dynamic> json) {
+    return AsChannelMember(
+      channelId: json['channel_id'] as String? ?? '',
+      userMxid: json['user_mxid'] as String? ?? '',
+      domain: json['domain'] as String? ?? '',
+      displayName: json['display_name'] as String? ?? '',
+      role: json['role'] as String? ?? asChannelRoleMember,
+      status: json['status'] as String? ?? '',
+      joinedAtMs: _parseInt(json['joined_at_ms']),
     );
   }
 }
@@ -755,6 +878,7 @@ class AsChannelComment {
     required this.body,
     required this.originServerTs,
     this.authorName = '',
+    this.authorDomain = '',
     this.media = const {},
   });
 
@@ -764,6 +888,7 @@ class AsChannelComment {
   final String eventId;
   final String authorId;
   final String authorName;
+  final String authorDomain;
   final String messageType;
   final String body;
   final Map<String, Object?> media;
@@ -777,10 +902,70 @@ class AsChannelComment {
       eventId: json['event_id'] as String? ?? '',
       authorId: json['author_mxid'] as String? ?? '',
       authorName: json['author_name'] as String? ?? '',
+      authorDomain: json['author_domain'] as String? ?? '',
       messageType: json['message_type'] as String? ?? 'text',
       body: json['body'] as String? ?? '',
       media: _objectMapOrJson(json['media_json'] ?? json['media']),
       originServerTs: _parseInt(json['origin_server_ts']),
+    );
+  }
+}
+
+class AsChannelCommentHistory {
+  const AsChannelCommentHistory({
+    required this.comment,
+    required this.channel,
+    required this.post,
+  });
+
+  final AsChannelComment comment;
+  final AsChannel channel;
+  final AsChannelPost post;
+
+  factory AsChannelCommentHistory.fromJson(Map<String, dynamic> json) {
+    return AsChannelCommentHistory(
+      comment: AsChannelComment.fromJson(
+        (json['comment'] as Map?)?.cast<String, dynamic>() ?? const {},
+      ),
+      channel: AsChannel.fromJson(
+        (json['channel'] as Map?)?.cast<String, dynamic>() ?? const {},
+      ),
+      post: AsChannelPost.fromJson(
+        (json['post'] as Map?)?.cast<String, dynamic>() ?? const {},
+      ),
+    );
+  }
+}
+
+class AsChannelReactionHistory {
+  const AsChannelReactionHistory({
+    required this.postId,
+    required this.channelId,
+    required this.reaction,
+    required this.originServerTs,
+    required this.channel,
+    required this.post,
+  });
+
+  final String postId;
+  final String channelId;
+  final String reaction;
+  final int originServerTs;
+  final AsChannel channel;
+  final AsChannelPost post;
+
+  factory AsChannelReactionHistory.fromJson(Map<String, dynamic> json) {
+    return AsChannelReactionHistory(
+      postId: json['post_id'] as String? ?? '',
+      channelId: json['channel_id'] as String? ?? '',
+      reaction: json['reaction'] as String? ?? 'like',
+      originServerTs: _parseInt(json['origin_server_ts']),
+      channel: AsChannel.fromJson(
+        (json['channel'] as Map?)?.cast<String, dynamic>() ?? const {},
+      ),
+      post: AsChannelPost.fromJson(
+        (json['post'] as Map?)?.cast<String, dynamic>() ?? const {},
+      ),
     );
   }
 }
@@ -1199,6 +1384,13 @@ abstract class AsClient {
     List<Map<String, Object?>> items = const [],
   });
 
+  /// POST /_as/rooms/{roomId}/send with message_type=channel_share
+  Future<String> sendChannelShareMessage({
+    required String roomId,
+    required String body,
+    required AsChannelShareDraft channel,
+  });
+
   /// POST /_as/rooms/{roomId}/send-media
   Future<String> sendRoomMediaMessage({
     required String roomId,
@@ -1288,7 +1480,23 @@ abstract class AsClient {
   Future<AsChannel> updateChannel(AsChannel draft);
 
   /// POST /_as/channels/{channelId}/join
-  Future<AsChannel> joinChannel(String channelId, {String shareToken = ''});
+  Future<AsChannel> joinChannel(
+    String channelId, {
+    String shareToken = '',
+    AsChannel? discoveredChannel,
+  });
+
+  /// GET /_as/channels/{channelId}/members
+  Future<List<AsChannelMember>> getChannelMembers(
+    String channelId, {
+    String status = '',
+  });
+
+  /// POST /_as/channels/{channelId}/join-requests/{userMxid}/approve
+  Future<AsChannel> approveChannelJoin(String channelId, String userMxid);
+
+  /// POST /_as/channels/{channelId}/join-requests/{userMxid}/reject
+  Future<AsChannel> rejectChannelJoin(String channelId, String userMxid);
 
   /// GET /_as/channels/{channelId}/posts
   Future<List<AsChannelPost>> getChannelPosts(
@@ -1320,6 +1528,23 @@ abstract class AsClient {
     required String messageType,
     required String body,
     Map<String, Object?> media = const {},
+  });
+
+  /// GET /_as/channels/me/comments
+  Future<List<AsChannelCommentHistory>> getMyChannelComments({
+    int limit = 50,
+  });
+
+  /// GET /_as/channels/me/reactions
+  Future<List<AsChannelReactionHistory>> getMyChannelReactions({
+    int limit = 50,
+  });
+
+  /// POST /_as/channels/{channelId}/posts/{postId}/reactions
+  Future<AsChannelReaction> toggleChannelPostReaction(
+    String channelId,
+    String postId, {
+    String reaction = 'like',
   });
 
   /// PUT /_as/channels/{channelId}/read-marker

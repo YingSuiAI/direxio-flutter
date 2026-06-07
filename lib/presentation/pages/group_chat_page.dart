@@ -22,6 +22,7 @@ import '../providers/local_outbox_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/recovered_unread_store_provider.dart';
 import '../providers/voice_call_provider.dart';
+import '../channel/channel_share.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_attachment_panel.dart';
@@ -1378,6 +1379,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     chatRecordPayloadFromContent(
                                   Map<String, Object?>.from(e.content),
                                 );
+                                final channelSharePayload =
+                                    channelSharePayloadFromContent(
+                                  Map<String, Object?>.from(e.content),
+                                );
                                 final isMe = e.senderId == myId;
                                 final senderAvatarUrl = _avatarUrlForMxid(
                                   room,
@@ -1577,11 +1582,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     multiSelect: _multiSelect,
                                     onTap: _multiSelect
                                         ? toggle
-                                        : chatRecordPayload == null
-                                            ? null
-                                            : () => _openChatRecordDetail(
-                                                  chatRecordPayload,
-                                                ),
+                                        : channelSharePayload != null
+                                            ? () => context.push(
+                                                  '/channel/${Uri.encodeComponent(channelSharePayload.channelId)}',
+                                                )
+                                            : chatRecordPayload == null
+                                                ? null
+                                                : () => _openChatRecordDetail(
+                                                      chatRecordPayload,
+                                                    ),
                                     onLongPressAt: (position) =>
                                         _onLongPressEvent(
                                       e,
@@ -2151,51 +2160,60 @@ class _GroupMessageBubble extends StatelessWidget {
     final chatRecordPayload = chatRecordPayloadFromContent(
       Map<String, Object?>.from(event.content),
     );
+    final channelSharePayload = channelSharePayloadFromContent(
+      Map<String, Object?>.from(event.content),
+    );
     final bubbleColor = selected
         ? t.accent.withValues(alpha: 0.18)
         : isMe
             ? t.accent
             : t.surface;
 
-    final bubble = chatRecordPayload == null
-        ? GestureDetector(
-            onTap: onTap,
-            onLongPressStart: (details) =>
-                onLongPressAt(details.globalPosition),
-            child: ChatBubbleFrame(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: bubbleColor,
-                  borderRadius: chatMessageBubbleRadius,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Text(
-                  body,
-                  style: AppTheme.sans(
-                    size: 17,
-                    color: selected
-                        ? t.text
-                        : isMe
-                            ? t.onAccent
-                            : t.text,
-                  ),
-                ),
-              ),
-            ),
-          )
-        : ChatRecordPreviewCard(
-            payload: chatRecordPayload,
+    final bubble = channelSharePayload != null
+        ? ChannelSharePreviewCard(
+            payload: channelSharePayload,
             onTap: onTap,
             onLongPressAt: onLongPressAt,
-          );
+          )
+        : chatRecordPayload == null
+            ? GestureDetector(
+                onTap: onTap,
+                onLongPressStart: (details) =>
+                    onLongPressAt(details.globalPosition),
+                child: ChatBubbleFrame(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: chatMessageBubbleRadius,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    child: Text(
+                      body,
+                      style: AppTheme.sans(
+                        size: 17,
+                        color: selected
+                            ? t.text
+                            : isMe
+                                ? t.onAccent
+                                : t.text,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : ChatRecordPreviewCard(
+                payload: chatRecordPayload,
+                onTap: onTap,
+                onLongPressAt: onLongPressAt,
+              );
 
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),

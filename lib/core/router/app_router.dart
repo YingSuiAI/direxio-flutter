@@ -352,6 +352,14 @@ GoRouter appRouter(Ref ref) {
         pageBuilder: (_, __) => _slidePage(const MeFavoritesPage()),
       ),
       GoRoute(
+        path: '/me/likes',
+        pageBuilder: (_, __) => _slidePage(const MeLikesPage()),
+      ),
+      GoRoute(
+        path: '/me/comments',
+        pageBuilder: (_, __) => _slidePage(const MeCommentsPage()),
+      ),
+      GoRoute(
         path: '/me/drafts',
         pageBuilder: (_, __) => _slidePage(const MeDraftsPage()),
       ),

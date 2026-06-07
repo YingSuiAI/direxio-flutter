@@ -991,6 +991,48 @@ void main() {
     expect(eventId, r'$record');
   });
 
+  test('sendChannelShareMessage posts channel metadata through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/rooms/!room%3Ap2p-im.com/send');
+        expect(jsonDecode(request.body), {
+          'content': '频道分享\n产品公告',
+          'message_type': 'channel_share',
+          'channel_share': {
+            'channel_id': 'ch_product',
+            'room_id': '!channel:p2p-im.com',
+            'home_domain': 'p2p-im.com',
+            'name': '产品公告',
+            'description': '只发布重要产品更新',
+            'visibility': 'public',
+            'join_policy': 'open',
+            'comments_enabled': true,
+            'tags': ['产品'],
+          },
+        });
+        return http.Response(jsonEncode({'event_id': r'$share'}), 200);
+      }),
+    );
+
+    final eventId = await client.sendChannelShareMessage(
+      roomId: '!room:p2p-im.com',
+      body: '频道分享\n产品公告',
+      channel: const AsChannelShareDraft(
+        channelId: 'ch_product',
+        roomId: '!channel:p2p-im.com',
+        homeDomain: 'p2p-im.com',
+        name: '产品公告',
+        description: '只发布重要产品更新',
+        tags: ['产品'],
+      ),
+    );
+
+    expect(eventId, r'$share');
+  });
+
   test('deleteContact removes a contact through AS product route', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),
@@ -1179,6 +1221,137 @@ void main() {
     expect(channel.joinPolicy, 'approval');
   });
 
+  test('joinChannel sends discovered remote channel metadata', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch_remote/join');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'room_id': '!remote:p2p-im.com',
+          'home_domain': 'p2p-im.com',
+          'name': '远端公开频道',
+          'description': '跨节点发现',
+          'visibility': 'public',
+          'join_policy': 'open',
+          'comments_enabled': true,
+          'tags': ['产品'],
+        });
+        return _jsonResponse(
+          {
+            'status': 'joined',
+            'channel': {
+              'channel_id': 'ch_remote',
+              'room_id': '!remote:p2p-im.com',
+              'home_domain': 'p2p-im.com',
+              'name': '远端公开频道',
+              'description': '跨节点发现',
+              'visibility': 'public',
+              'join_policy': 'open',
+              'comments_enabled': true,
+              'member_status': 'joined',
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.joinChannel(
+      'ch_remote',
+      discoveredChannel: const AsChannel(
+        channelId: 'ch_remote',
+        roomId: '!remote:p2p-im.com',
+        homeDomain: 'p2p-im.com',
+        name: '远端公开频道',
+        description: '跨节点发现',
+        visibility: asChannelVisibilityPublic,
+        joinPolicy: asChannelJoinPolicyOpen,
+        commentsEnabled: true,
+        tags: ['产品'],
+      ),
+    );
+
+    expect(channel.memberStatus, 'joined');
+  });
+
+  test('getChannelMembers reads pending approval requests', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/_as/channels/ch1/members');
+        expect(request.url.queryParameters['status'], 'pending');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        return _jsonResponse(
+          {
+            'members': [
+              {
+                'channel_id': 'ch1',
+                'user_mxid': '@alice:p2p-liyanan.com',
+                'domain': 'p2p-liyanan.com',
+                'display_name': 'Alice',
+                'role': 'member',
+                'status': 'pending',
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final members = await client.getChannelMembers(
+      'ch1',
+      status: asChannelMemberStatusPending,
+    );
+
+    expect(members.single.userMxid, '@alice:p2p-liyanan.com');
+    expect(members.single.displayName, 'Alice');
+    expect(members.single.status, asChannelMemberStatusPending);
+  });
+
+  test('approveChannelJoin posts approval action to AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/_as/channels/ch1/join-requests/%40alice%3Ap2p-liyanan.com/approve',
+        );
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        return _jsonResponse(
+          {
+            'status': 'joined',
+            'channel': {
+              'channel_id': 'ch1',
+              'room_id': '!channel:example.com',
+              'name': '审核频道',
+              'visibility': 'public',
+              'join_policy': 'approval',
+              'comments_enabled': true,
+              'pending_join_count': 0,
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.approveChannelJoin(
+      'ch1',
+      '@alice:p2p-liyanan.com',
+    );
+
+    expect(channel.channelId, 'ch1');
+    expect(channel.pendingJoinCount, 0);
+  });
+
   test('createChannelPost posts text and media metadata', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
@@ -1256,6 +1429,145 @@ void main() {
 
     expect(comment.commentId, 'comment1');
     expect(comment.postId, 'post1');
+  });
+
+  test('toggleChannelPostReaction posts current reaction state', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch1/posts/post1/reactions');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {'reaction': 'like'});
+        return _jsonResponse(
+          {
+            'post_id': 'post1',
+            'channel_id': 'ch1',
+            'reaction': 'like',
+            'active': true,
+            'reaction_count': 3,
+          },
+          200,
+        );
+      }),
+    );
+
+    final reaction = await client.toggleChannelPostReaction(
+      'ch1',
+      'post1',
+      reaction: 'like',
+    );
+
+    expect(reaction.active, isTrue);
+    expect(reaction.reactionCount, 3);
+  });
+
+  test('getMyChannelReactions parses channel reaction history', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/_as/channels/me/reactions');
+        expect(request.url.queryParameters['limit'], '25');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        return _jsonResponse(
+          {
+            'reactions': [
+              {
+                'post_id': 'post1',
+                'channel_id': 'ch1',
+                'reaction': 'like',
+                'origin_server_ts': 1780730300000,
+                'channel': {
+                  'channel_id': 'ch1',
+                  'room_id': '!channel:example.com',
+                  'name': '产品公告',
+                },
+                'post': {
+                  'post_id': 'post1',
+                  'channel_id': 'ch1',
+                  'room_id': '!channel:example.com',
+                  'event_id': r'$post1',
+                  'author_mxid': '@owner:example.com',
+                  'author_name': 'Yanan',
+                  'message_type': 'text',
+                  'body': '频道帖子',
+                  'origin_server_ts': 1780730000000,
+                },
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final reactions = await client.getMyChannelReactions(limit: 25);
+
+    expect(reactions, hasLength(1));
+    expect(reactions.single.channel.name, '产品公告');
+    expect(reactions.single.post.authorName, 'Yanan');
+    expect(reactions.single.post.body, '频道帖子');
+  });
+
+  test('getMyChannelComments parses channel comment history', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/_as/channels/me/comments');
+        expect(request.url.queryParameters['limit'], '15');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        return _jsonResponse(
+          {
+            'comments': [
+              {
+                'comment': {
+                  'comment_id': 'comment1',
+                  'post_id': 'post1',
+                  'channel_id': 'ch1',
+                  'event_id': r'$comment1',
+                  'author_mxid': '@owner:example.com',
+                  'author_name': 'Yanan',
+                  'author_domain': 'example.com',
+                  'message_type': 'text',
+                  'body': '评论内容',
+                  'origin_server_ts': 1780730400000,
+                },
+                'channel': {
+                  'channel_id': 'ch1',
+                  'room_id': '!channel:example.com',
+                  'name': '产品公告',
+                },
+                'post': {
+                  'post_id': 'post1',
+                  'channel_id': 'ch1',
+                  'room_id': '!channel:example.com',
+                  'event_id': r'$post1',
+                  'author_mxid': '@owner:example.com',
+                  'author_name': 'Yanan',
+                  'message_type': 'text',
+                  'body': '频道帖子',
+                  'origin_server_ts': 1780730000000,
+                },
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final comments = await client.getMyChannelComments(limit: 15);
+
+    expect(comments, hasLength(1));
+    expect(comments.single.comment.authorName, 'Yanan');
+    expect(comments.single.comment.authorDomain, 'example.com');
+    expect(comments.single.channel.name, '产品公告');
+    expect(comments.single.post.body, '频道帖子');
   });
 
   test('updateChannelReadMarker uses channel read marker API', () async {

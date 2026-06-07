@@ -35,6 +35,7 @@ void main() {
     await tester.pump();
 
     expect(asClient.joinedChannelId, 'ch_product');
+    expect(asClient.joinedDiscoveredRoomId, '!ch_product:p2p-im.com');
     expect(find.text('待审核'), findsOneWidget);
   });
 
@@ -63,6 +64,7 @@ class _ChannelSearchAsClient extends MockAsClient {
   String? lastQuery;
   Uri? lastBaseUri;
   String? joinedChannelId;
+  String? joinedDiscoveredRoomId;
 
   @override
   Future<List<AsChannel>> searchPublicChannels(
@@ -90,8 +92,10 @@ class _ChannelSearchAsClient extends MockAsClient {
   Future<AsChannel> joinChannel(
     String channelId, {
     String shareToken = '',
+    AsChannel? discoveredChannel,
   }) async {
     joinedChannelId = channelId;
+    joinedDiscoveredRoomId = discoveredChannel?.roomId;
     return const AsChannel(
       channelId: 'ch_product',
       roomId: '!ch_product:p2p-im.com',

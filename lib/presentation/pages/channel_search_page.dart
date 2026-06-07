@@ -85,7 +85,10 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
     final id = channel.channelId.trim();
     if (id.isEmpty) return;
     try {
-      final joined = await ref.read(asClientProvider).joinChannel(id);
+      final joined = await ref.read(asClientProvider).joinChannel(
+            id,
+            discoveredChannel: channel,
+          );
       setState(() {
         _results = [
           for (final item in _results)

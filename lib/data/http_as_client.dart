@@ -378,6 +378,25 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<String> sendChannelShareMessage({
+    required String roomId,
+    required String body,
+    required AsChannelShareDraft channel,
+  }) async {
+    final response = await _requestJson(
+      'POST',
+      'rooms/${Uri.encodeComponent(roomId)}/send',
+      body: {
+        'content': body.trim(),
+        'message_type': 'channel_share',
+        'channel_share': channel.toJson(),
+      },
+      allowedStatusCodes: const {200},
+    );
+    return response['event_id'] as String? ?? '';
+  }
+
+  @override
   Future<String> sendRoomMediaMessage({
     required String roomId,
     required String msgType,
@@ -630,12 +649,85 @@ class HttpAsClient implements AsClient {
   Future<AsChannel> joinChannel(
     String channelId, {
     String shareToken = '',
+    AsChannel? discoveredChannel,
   }) async {
+    final requestBody = <String, Object?>{
+      if (shareToken.trim().isNotEmpty) 'share_token': shareToken.trim(),
+      ..._discoveredChannelJoinBody(discoveredChannel),
+    };
     final body = await _requestJson(
       'POST',
       'channels/${Uri.encodeComponent(channelId)}/join',
-      body:
-          shareToken.trim().isEmpty ? null : {'share_token': shareToken.trim()},
+      body: requestBody.isEmpty ? null : requestBody,
+      allowedStatusCodes: const {200},
+    );
+    return AsChannel.fromJson(
+      (body['channel'] as Map?)?.cast<String, dynamic>() ?? body,
+    );
+  }
+
+  static Map<String, Object?> _discoveredChannelJoinBody(
+    AsChannel? channel,
+  ) {
+    if (channel == null) return const {};
+    return {
+      if (channel.roomId.trim().isNotEmpty) 'room_id': channel.roomId.trim(),
+      if (channel.homeDomain.trim().isNotEmpty)
+        'home_domain': channel.homeDomain.trim(),
+      if (channel.name.trim().isNotEmpty) 'name': channel.name.trim(),
+      if (channel.description.trim().isNotEmpty)
+        'description': channel.description.trim(),
+      if (channel.avatarUrl.trim().isNotEmpty)
+        'avatar_url': channel.avatarUrl.trim(),
+      'visibility': channel.visibility,
+      'join_policy': channel.joinPolicy,
+      'comments_enabled': channel.commentsEnabled,
+      'tags': channel.tags,
+    };
+  }
+
+  @override
+  Future<List<AsChannelMember>> getChannelMembers(
+    String channelId, {
+    String status = '',
+  }) async {
+    final body = await _getJson(
+      'channels/${Uri.encodeComponent(channelId)}/members',
+      queryParameters: {
+        if (status.trim().isNotEmpty) 'status': status.trim(),
+      },
+    );
+    final raw = body['members'] as List? ?? const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => AsChannelMember.fromJson(item.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<AsChannel> approveChannelJoin(
+    String channelId,
+    String userMxid,
+  ) {
+    return _resolveChannelJoinRequest(channelId, userMxid, 'approve');
+  }
+
+  @override
+  Future<AsChannel> rejectChannelJoin(
+    String channelId,
+    String userMxid,
+  ) {
+    return _resolveChannelJoinRequest(channelId, userMxid, 'reject');
+  }
+
+  Future<AsChannel> _resolveChannelJoinRequest(
+    String channelId,
+    String userMxid,
+    String action,
+  ) async {
+    final body = await _requestJson(
+      'POST',
+      'channels/${Uri.encodeComponent(channelId)}/join-requests/${Uri.encodeComponent(userMxid)}/$action',
       allowedStatusCodes: const {200},
     );
     return AsChannel.fromJson(
@@ -725,6 +817,57 @@ class HttpAsClient implements AsClient {
       allowedStatusCodes: const {200},
     );
     return AsChannelComment.fromJson(response);
+  }
+
+  @override
+  Future<List<AsChannelCommentHistory>> getMyChannelComments({
+    int limit = 50,
+  }) async {
+    final response = await _getJson(
+      'channels/me/comments',
+      queryParameters: {'limit': limit.toString()},
+    );
+    final raw = response['comments'] as List? ?? const [];
+    return raw
+        .whereType<Map>()
+        .map(
+          (item) =>
+              AsChannelCommentHistory.fromJson(item.cast<String, dynamic>()),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<AsChannelReactionHistory>> getMyChannelReactions({
+    int limit = 50,
+  }) async {
+    final response = await _getJson(
+      'channels/me/reactions',
+      queryParameters: {'limit': limit.toString()},
+    );
+    final raw = response['reactions'] as List? ?? const [];
+    return raw
+        .whereType<Map>()
+        .map(
+          (item) =>
+              AsChannelReactionHistory.fromJson(item.cast<String, dynamic>()),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<AsChannelReaction> toggleChannelPostReaction(
+    String channelId,
+    String postId, {
+    String reaction = 'like',
+  }) async {
+    final response = await _requestJson(
+      'POST',
+      'channels/${Uri.encodeComponent(channelId)}/posts/${Uri.encodeComponent(postId)}/reactions',
+      body: {'reaction': reaction.trim().isEmpty ? 'like' : reaction.trim()},
+      allowedStatusCodes: const {200},
+    );
+    return AsChannelReaction.fromJson(response);
   }
 
   @override

@@ -1749,32 +1749,41 @@ class _ChannelInboxTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 7),
                 if (channel.unreadCount > 0)
-                  Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: t.accent,
-                      borderRadius: BorderRadius.circular(9999),
-                    ),
-                    child: Text(
-                      '${channel.unreadCount}',
-                      style: AppTheme.sans(
-                        size: 11,
-                        weight: FontWeight.w700,
-                        color: t.onAccent,
-                      ),
-                    ),
-                  )
+                  _ChannelUnreadNumber(channel: channel)
                 else
                   const SizedBox(height: 18),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ChannelUnreadNumber extends StatelessWidget {
+  const _ChannelUnreadNumber({required this.channel});
+
+  final ChannelInboxItem channel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SizedBox(
+      height: 18,
+      child: Text(
+        _formatBadgeCount(channel.unreadCount),
+        key: ValueKey('channel_unread_count_${channel.id}'),
+        textAlign: TextAlign.right,
+        textHeightBehavior: const TextHeightBehavior(
+          applyHeightToFirstAscent: false,
+          applyHeightToLastDescent: false,
+        ),
+        style: AppTheme.sans(
+          size: 12,
+          weight: FontWeight.w600,
+          color: t.textMute.withValues(alpha: 0.74),
+        ).copyWith(height: 1),
       ),
     );
   }

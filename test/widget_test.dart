@@ -149,6 +149,18 @@ class _EmptyAsClient implements AsClient {
       const [];
 
   @override
+  Future<List<AsChannelCommentHistory>> getMyChannelComments({
+    int limit = 50,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<AsChannelReactionHistory>> getMyChannelReactions({
+    int limit = 50,
+  }) async =>
+      const [];
+
+  @override
   Future<void> addFollow(String domain) async {}
 
   @override
@@ -282,6 +294,7 @@ class _EmptyAsClient implements AsClient {
   Future<AsChannel> joinChannel(
     String channelId, {
     String shareToken = '',
+    AsChannel? discoveredChannel,
   }) async =>
       AsChannel(
         channelId: channelId,
@@ -289,6 +302,37 @@ class _EmptyAsClient implements AsClient {
         name: '频道',
         homeDomain: 'example.com',
         role: asChannelRoleMember,
+        memberStatus: asChannelMemberStatusJoined,
+      );
+
+  @override
+  Future<List<AsChannelMember>> getChannelMembers(
+    String channelId, {
+    String status = '',
+  }) async =>
+      const [];
+
+  @override
+  Future<AsChannel> approveChannelJoin(
+          String channelId, String userMxid) async =>
+      AsChannel(
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        name: '频道',
+        homeDomain: 'example.com',
+        role: asChannelRoleOwner,
+        memberStatus: asChannelMemberStatusJoined,
+      );
+
+  @override
+  Future<AsChannel> rejectChannelJoin(
+          String channelId, String userMxid) async =>
+      AsChannel(
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        name: '频道',
+        homeDomain: 'example.com',
+        role: asChannelRoleOwner,
         memberStatus: asChannelMemberStatusJoined,
       );
 
@@ -346,6 +390,20 @@ class _EmptyAsClient implements AsClient {
         body: body,
         media: media,
         originServerTs: 1,
+      );
+
+  @override
+  Future<AsChannelReaction> toggleChannelPostReaction(
+    String channelId,
+    String postId, {
+    String reaction = 'like',
+  }) async =>
+      AsChannelReaction(
+        postId: postId,
+        channelId: channelId,
+        reaction: reaction,
+        active: true,
+        reactionCount: 1,
       );
 
   @override
@@ -493,6 +551,14 @@ class _EmptyAsClient implements AsClient {
     List<Map<String, Object?>> items = const [],
   }) async =>
       'chat-record-event';
+
+  @override
+  Future<String> sendChannelShareMessage({
+    required String roomId,
+    required String body,
+    required AsChannelShareDraft channel,
+  }) async =>
+      'channel-share-event';
 
   @override
   Future<String> sendRoomMediaMessage({
@@ -912,6 +978,71 @@ class _RecordingFavoriteNativePreviewer extends FavoriteNativePreviewer {
   }
 }
 
+class _ChannelActivityAsClient extends _EmptyAsClient {
+  static const _channel = AsChannel(
+    channelId: 'ch_product',
+    roomId: '!ch_product:p2p-im.com',
+    homeDomain: 'p2p-im.com',
+    name: '产品公告',
+    description: '只发布重要产品更新',
+    memberStatus: asChannelMemberStatusJoined,
+  );
+
+  static const _post = AsChannelPost(
+    postId: 'post1',
+    channelId: 'ch_product',
+    roomId: '!ch_product:p2p-im.com',
+    eventId: r'$post1',
+    authorId: '@owner:p2p-im.com',
+    authorName: 'Yanan',
+    messageType: 'text',
+    body: '频道发帖已打通',
+    originServerTs: 1780731600000,
+    reactionCount: 1,
+    reactedByMe: true,
+  );
+
+  @override
+  Future<List<AsChannelReactionHistory>> getMyChannelReactions({
+    int limit = 50,
+  }) async {
+    return const [
+      AsChannelReactionHistory(
+        postId: 'post1',
+        channelId: 'ch_product',
+        reaction: 'like',
+        originServerTs: 1780731700000,
+        channel: _channel,
+        post: _post,
+      ),
+    ];
+  }
+
+  @override
+  Future<List<AsChannelCommentHistory>> getMyChannelComments({
+    int limit = 50,
+  }) async {
+    return const [
+      AsChannelCommentHistory(
+        comment: AsChannelComment(
+          commentId: 'comment1',
+          postId: 'post1',
+          channelId: 'ch_product',
+          eventId: r'$comment1',
+          authorId: '@owner:p2p-im.com',
+          authorName: 'Yanan',
+          authorDomain: 'p2p-im.com',
+          messageType: 'text',
+          body: '这条评论来自真实用户名',
+          originServerTs: 1780731800000,
+        ),
+        channel: _channel,
+        post: _post,
+      ),
+    ];
+  }
+}
+
 class _MemoryFriendRequestReadStore implements FriendRequestReadStore {
   Set<String> ids = {};
 
@@ -1036,6 +1167,18 @@ class _TrackingAsClient extends _EmptyAsClient {
     sentRoomId = roomId;
     sentContent = body;
     return 'chat-record-event';
+  }
+
+  @override
+  Future<String> sendChannelShareMessage({
+    required String roomId,
+    required String body,
+    required AsChannelShareDraft channel,
+  }) async {
+    sendRoomMessageCalls++;
+    sentRoomId = roomId;
+    sentContent = body;
+    return 'channel-share-event';
   }
 
   @override
@@ -5838,6 +5981,65 @@ void main() {
     expect(firstTop, lessThan(secondTop));
   });
 
+  testWidgets('channel unread count only appears on channel preview row',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (mockAuthEnabled) return;
+
+    final client = Client('PortalIMTest');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-07T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_updates',
+          roomId: '!updates:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品更新',
+          avatarUrl: '',
+          unreadCount: 12,
+          lastActivityAt: DateTime.parse('2026-06-07T10:20:00Z'),
+          topic: '今天发布了新版本',
+          isOwned: false,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('bottom_nav_badge_频道')), findsNothing);
+
+    final unreadFinder =
+        find.byKey(const ValueKey('channel_unread_count_ch_updates'));
+    expect(unreadFinder, findsOneWidget);
+    final unreadText = tester.widget<Text>(unreadFinder);
+    expect(unreadText.data, '12');
+  });
+
   testWidgets('channel tab filters owned channels separately', (tester) async {
     final client = Client('PortalIMTest');
 
@@ -6801,6 +7003,8 @@ void main() {
 
     expect(find.text('菜单'), findsOneWidget);
     expect(find.text('我的收藏'), findsOneWidget);
+    expect(find.text('我的点赞'), findsOneWidget);
+    expect(find.text('我的评论'), findsOneWidget);
     expect(find.text('草稿箱'), findsOneWidget);
     expect(find.text('浏览记录'), findsOneWidget);
     expect(find.text('我的钱包'), findsOneWidget);
@@ -6851,6 +7055,50 @@ void main() {
     expect(find.textContaining('146 KB'), findsAtLeastNWidgets(1));
     expect(find.textContaining('私聊'), findsAtLeastNWidgets(1));
     expect(find.textContaining('群聊'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('me likes page renders AS channel reaction history',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_ChannelActivityAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeLikesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('我的点赞'), findsOneWidget);
+    expect(find.text('产品公告'), findsOneWidget);
+    expect(find.text('频道发帖已打通'), findsOneWidget);
+    expect(find.textContaining('2026年6月6日'), findsOneWidget);
+  });
+
+  testWidgets('me comments page renders AS channel comment history',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_ChannelActivityAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeCommentsPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('我的评论'), findsOneWidget);
+    expect(find.textContaining('产品公告'), findsOneWidget);
+    expect(find.text('这条评论来自真实用户名'), findsOneWidget);
+    expect(find.textContaining('评论了'), findsOneWidget);
   });
 
   testWidgets('me favorites treats text as chat record category',

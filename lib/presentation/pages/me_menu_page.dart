@@ -93,6 +93,18 @@ class MeMenuPage extends StatelessWidget {
                     ),
                     const _MeMenuDivider(),
                     _MeMenuRow(
+                      icon: Symbols.thumb_up,
+                      title: '我的点赞',
+                      onTap: () => context.push('/me/likes'),
+                    ),
+                    const _MeMenuDivider(),
+                    _MeMenuRow(
+                      icon: Symbols.comment,
+                      title: '我的评论',
+                      onTap: () => context.push('/me/comments'),
+                    ),
+                    const _MeMenuDivider(),
+                    _MeMenuRow(
                       icon: Symbols.drafts,
                       title: '草稿箱',
                       onTap: () => context.push('/me/drafts'),
@@ -320,6 +332,211 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class MeLikesPage extends ConsumerStatefulWidget {
+  const MeLikesPage({super.key});
+
+  @override
+  ConsumerState<MeLikesPage> createState() => _MeLikesPageState();
+}
+
+class _MeLikesPageState extends ConsumerState<MeLikesPage> {
+  late final Future<List<AsChannelReactionHistory>> _future = _load();
+
+  Future<List<AsChannelReactionHistory>> _load() {
+    return ref.read(asClientProvider).getMyChannelReactions();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '我的点赞'),
+          Expanded(
+            child: FutureBuilder<List<AsChannelReactionHistory>>(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: t.accent,
+                      ),
+                    ),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return _MeEmptyUtilityContent(
+                    icon: Symbols.error,
+                    emptyTitle: '点赞加载失败',
+                    emptySubtitle: '${snapshot.error}',
+                  );
+                }
+                final reactions = snapshot.data ?? const [];
+                if (reactions.isEmpty) {
+                  return const _MeEmptyUtilityContent(
+                    icon: Symbols.thumb_up,
+                    emptyTitle: '暂无点赞',
+                    emptySubtitle: '你点过赞的频道帖子会显示在这里',
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
+                  itemCount: reactions.length,
+                  itemBuilder: (context, index) {
+                    final item = reactions[index];
+                    return _ChannelActivityTile(
+                      key: ValueKey(
+                        'my-like-${item.channelId}-${item.postId}',
+                      ),
+                      icon: Symbols.thumb_up,
+                      channel: item.channel,
+                      title: _channelActivityPostPreview(item.post),
+                      subtitle: _channelActivityChannelLabel(item.channel),
+                      meta: _channelActivityDateLabel(item.originServerTs),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MeCommentsPage extends ConsumerStatefulWidget {
+  const MeCommentsPage({super.key});
+
+  @override
+  ConsumerState<MeCommentsPage> createState() => _MeCommentsPageState();
+}
+
+class _MeCommentsPageState extends ConsumerState<MeCommentsPage> {
+  late final Future<List<AsChannelCommentHistory>> _future = _load();
+
+  Future<List<AsChannelCommentHistory>> _load() {
+    return ref.read(asClientProvider).getMyChannelComments();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '我的评论'),
+          Expanded(
+            child: FutureBuilder<List<AsChannelCommentHistory>>(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: t.accent,
+                      ),
+                    ),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return _MeEmptyUtilityContent(
+                    icon: Symbols.error,
+                    emptyTitle: '评论加载失败',
+                    emptySubtitle: '${snapshot.error}',
+                  );
+                }
+                final comments = snapshot.data ?? const [];
+                if (comments.isEmpty) {
+                  return const _MeEmptyUtilityContent(
+                    icon: Symbols.comment,
+                    emptyTitle: '暂无评论',
+                    emptySubtitle: '你在频道帖子下发表过的评论会显示在这里',
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
+                  itemCount: comments.length,
+                  itemBuilder: (context, index) {
+                    final item = comments[index];
+                    return _ChannelActivityTile(
+                      key: ValueKey(
+                        'my-comment-${item.comment.commentId}',
+                      ),
+                      icon: Symbols.comment,
+                      channel: item.channel,
+                      title: item.comment.body.trim().isEmpty
+                          ? '评论'
+                          : item.comment.body.trim(),
+                      subtitle: '${_channelActivityChannelLabel(item.channel)}'
+                          ' · 评论了 ${_channelActivityPostPreview(item.post)}',
+                      meta: _channelActivityDateLabel(
+                        item.comment.originServerTs,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelActivityTile extends StatelessWidget {
+  const _ChannelActivityTile({
+    super.key,
+    required this.icon,
+    required this.channel,
+    required this.title,
+    required this.subtitle,
+    required this.meta,
+  });
+
+  final IconData icon;
+  final AsChannel channel;
+  final String title;
+  final String subtitle;
+  final String meta;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final channelName =
+        channel.name.trim().isEmpty ? '频道' : channel.name.trim();
+    return GlassListTile(
+      leading:
+          GlassListIcon(icon: icon, fill: icon == Symbols.thumb_up ? 1 : 0),
+      title: title.trim().isEmpty ? channelName : title.trim(),
+      subtitle: subtitle.trim().isEmpty ? channelName : subtitle.trim(),
+      trailingText: meta,
+      onTap: channel.channelId.trim().isEmpty
+          ? null
+          : () => context.push(
+                '/channel/${Uri.encodeComponent(channel.channelId.trim())}',
+              ),
+      titleStyle: AppTheme.sans(
+        size: 17,
+        weight: FontWeight.w600,
+        color: t.text,
+      ),
+      subtitleStyle: AppTheme.sans(size: 13, color: t.textMute),
     );
   }
 }
@@ -816,6 +1033,36 @@ DateTime? _favoriteTimestamp(AsFavoriteMessage favorite) {
   final ts = favorite.originServerTs;
   if (ts <= 0) return null;
   return DateTime.fromMillisecondsSinceEpoch(ts, isUtc: true);
+}
+
+String _channelActivityPostPreview(AsChannelPost post) {
+  final body = post.body.trim();
+  if (body.isNotEmpty) return body;
+  return switch (post.messageType.trim()) {
+    'image' || 'm.image' => '图片',
+    'video' || 'm.video' => '视频',
+    'file' || 'm.file' => '文件',
+    'audio' || 'm.audio' => '语音',
+    _ => '频道帖子',
+  };
+}
+
+String _channelActivityChannelLabel(AsChannel channel) {
+  final name = channel.name.trim();
+  if (name.isNotEmpty) return name;
+  final domain = channel.homeDomain.trim();
+  if (domain.isNotEmpty) return domain;
+  return '频道';
+}
+
+String _channelActivityDateLabel(int originServerTs) {
+  if (originServerTs <= 0) return '';
+  final local = DateTime.fromMillisecondsSinceEpoch(
+    originServerTs,
+    isUtc: true,
+  ).toLocal();
+  return '${local.year}年${local.month}月${local.day}日 '
+      '${_two(local.hour)}:${_two(local.minute)}';
 }
 
 String _two(int value) => value.toString().padLeft(2, '0');

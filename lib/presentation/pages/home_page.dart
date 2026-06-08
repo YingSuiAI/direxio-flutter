@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,7 +41,6 @@ import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/app_glass_background.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
-import '../widgets/m3/m3_bottom_nav.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 
@@ -47,10 +48,21 @@ const _mockAuthEnabled = bool.fromEnvironment(
   'P2P_MATRIX_MOCK_AUTH',
   defaultValue: false,
 );
-const _conversationTileGap = glassListTileGap;
-const _conversationTileHorizontalMargin = glassListTileHorizontalMargin;
-const _conversationTileVerticalPadding = 6.8;
-const _conversationTileAvatarSize = 44.0;
+const _homeBg = Color(0xFFFAFAFA);
+const _homeText = Color(0xFF262628);
+const _homeMuted = Color(0xFFA3A3A4);
+const _homeBorder = Color(0xFFE6E6E6);
+const _conversationTileAvatarSize = 42.0;
+const _iconMenuAddFriend = 'assets/icons/menu_add_friend.svg';
+const _iconMenuCreateGroup = 'assets/icons/menu_create_group.svg';
+const _iconMenuCreateChannel = 'assets/icons/menu_create_channel.svg';
+const _iconMenuAddCircle = 'assets/icons/menu_add_circle.svg';
+const _iconMenuScan = 'assets/icons/menu_scan.svg';
+const _iconTabChats = 'assets/icons/tab_chats.svg';
+const _iconTabContacts = 'assets/icons/tab_contacts.svg';
+const _iconTabChannel = 'assets/icons/tab_channel.svg';
+const _iconTabMe = 'assets/icons/tab_me.svg';
+const _iconBottomSearchTg = 'assets/icons/bottom_search_tg.svg';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -251,7 +263,7 @@ class _HomePageState extends ConsumerState<HomePage>
     }
   }
 
-  static const _tabTitles = ['消息', '联系人', '探索', '我'];
+  static const _tabTitles = ['Chats', '通讯录', '频道', '我的'];
 
   List<Widget> _headerActions(BuildContext context, Client client) {
     switch (_tab) {
@@ -294,10 +306,23 @@ class _HomePageState extends ConsumerState<HomePage>
       _attachVoiceCallController(client);
     }
 
+    final unreadTotal = _homeUnreadTotal(client, syncCache);
+
     return Scaffold(
+      backgroundColor: _homeBg,
       body: Column(
         children: [
-          if (_tab != 2 && _tab != 3)
+          if (_tab == 0)
+            _ChatsTopBar(
+              unreadCount: unreadTotal,
+              onPlusTap: () => _handleHomePlusTap(context, ref),
+            )
+          else if (_tab == 1)
+            _HomeTitleTopBar(
+              title: _tabTitles[_tab],
+              onPlusTap: () => _handleHomePlusTap(context, ref),
+            )
+          else if (_tab != 2 && _tab != 3)
             GlassHeader.primary(
               title: _tabTitles[_tab],
               actions: _headerActions(context, client),
@@ -326,32 +351,130 @@ class _HomePageState extends ConsumerState<HomePage>
           ),
         ],
       ),
-      bottomNavigationBar: M3BottomNav(
+      bottomNavigationBar: _HomeBottomBar(
         currentIndex: _tab,
         onTap: (i) => setState(() => _tab = i),
+        onSearchTap: () => context.push('/search'),
         items: [
-          const M3NavItem(
-            icon: Symbols.chat_bubble,
-            activeIcon: Symbols.chat_bubble,
-            label: '消息',
+          const _HomeNavItem(
+            iconAsset: _iconTabChats,
+            label: 'Chats',
           ),
-          M3NavItem(
-            icon: Symbols.contacts,
-            activeIcon: Symbols.contacts,
-            label: '联系人',
+          _HomeNavItem(
+            iconAsset: _iconTabContacts,
+            label: '通讯录',
             badge: friendRequestUnreadCount > 0
                 ? _formatBadgeCount(friendRequestUnreadCount)
                 : null,
           ),
-          const M3NavItem(
-            icon: Symbols.campaign,
-            activeIcon: Symbols.campaign,
-            label: '探索',
+          const _HomeNavItem(
+            iconAsset: _iconTabChannel,
+            label: '频道',
           ),
-          const M3NavItem(
-            icon: Symbols.person,
-            activeIcon: Symbols.person,
+          const _HomeNavItem(
+            iconAsset: _iconTabMe,
             label: '我',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeTitleTopBar extends StatelessWidget {
+  const _HomeTitleTopBar({
+    required this.title,
+    required this.onPlusTap,
+  });
+
+  final String title;
+  final VoidCallback onPlusTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.of(context).padding.top;
+    return Container(
+      height: topInset + 56,
+      padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 4),
+      color: _homeBg,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 20,
+                weight: FontWeight.w600,
+                color: _homeText,
+              ),
+            ),
+          ),
+          _GlassCircleButton(
+            icon: Symbols.add,
+            size: 40,
+            iconSize: 25,
+            onTap: onPlusTap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+int _homeUnreadTotal(Client client, AsSyncCacheState syncCache) {
+  var total = 0;
+  for (final room in client.rooms) {
+    if (room.membership == Membership.join) {
+      total += conversationUnreadCount(
+        matrixUnreadCount: room.notificationCount,
+      );
+    }
+  }
+  for (final room
+      in syncCache.bootstrap?.rooms ?? const <AsSyncRoomSummary>[]) {
+    total += room.unreadCount;
+  }
+  return total;
+}
+
+class _ChatsTopBar extends StatelessWidget {
+  const _ChatsTopBar({
+    required this.unreadCount,
+    required this.onPlusTap,
+  });
+
+  final int unreadCount;
+  final VoidCallback onPlusTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.of(context).padding.top;
+    final label = unreadCount > 0 ? 'Chats($unreadCount)' : 'Chats';
+    return Container(
+      height: topInset + 56,
+      padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 4),
+      color: _homeBg,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 20,
+                weight: FontWeight.w600,
+                color: _homeText,
+              ),
+            ),
+          ),
+          _GlassCircleButton(
+            icon: Symbols.add,
+            size: 40,
+            iconSize: 25,
+            onTap: onPlusTap,
           ),
         ],
       ),
@@ -388,23 +511,25 @@ class _HomePlusMenuButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return GlassHeaderButton(
       icon: Symbols.add,
-      onTap: () async {
-        final action = await _showHomePlusMenu(context);
-        if (action == null || !context.mounted) return;
-        switch (action) {
-          case _PlusAction.contact:
-            context.push('/add-contact');
-          case _PlusAction.group:
-            showCreateGroupFlow(context, ref);
-          case _PlusAction.channel:
-            _showCreateChannelDialog(context, ref);
-          case _PlusAction.scan:
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('扫一扫功能待接入')));
-        }
-      },
+      onTap: () => _handleHomePlusTap(context, ref),
     );
+  }
+}
+
+Future<void> _handleHomePlusTap(BuildContext context, WidgetRef ref) async {
+  final action = await _showHomePlusMenu(context);
+  if (action == null || !context.mounted) return;
+  switch (action) {
+    case _PlusAction.contact:
+      context.push('/add-contact');
+    case _PlusAction.group:
+      showCreateGroupFlow(context, ref);
+    case _PlusAction.channel:
+      _showCreateChannelDialog(context, ref);
+    case _PlusAction.scan:
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('扫一扫功能待接入')));
   }
 }
 
@@ -420,9 +545,10 @@ Future<_PlusAction?> _showHomePlusMenu(BuildContext context) {
       return Stack(
         children: [
           Positioned(
-            top: padding.top + 58,
-            right: 12,
-            width: 196,
+            top: padding.top + 53,
+            right: 15,
+            width: 126,
+            height: 165,
             child: const _HomePlusMenuPanel(),
           ),
         ],
@@ -453,32 +579,55 @@ class _HomePlusMenuPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Material(
-      color: Colors.transparent,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _PlusMenuTile(
-            icon: Symbols.person_add,
-            label: '添加好友',
-            value: _PlusAction.contact,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F7F7).withValues(alpha: 0.80),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFF7F7F7)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 36,
+                offset: const Offset(0, 7),
+              ),
+            ],
           ),
-          _PlusMenuTile(
-            icon: Symbols.group_add,
-            label: '发起群聊',
-            value: _PlusAction.group,
+          child: const Material(
+            color: Colors.transparent,
+            child: Padding(
+              padding: EdgeInsets.only(top: 15),
+              child: Column(
+                children: [
+                  _PlusMenuTile(
+                    iconAsset: _iconMenuAddFriend,
+                    label: '添加好友',
+                    value: _PlusAction.contact,
+                  ),
+                  _PlusMenuTile(
+                    iconAsset: _iconMenuCreateGroup,
+                    label: '创建群聊',
+                    value: _PlusAction.group,
+                  ),
+                  _PlusMenuTile(
+                    iconAsset: _iconMenuCreateChannel,
+                    overlayAsset: _iconMenuAddCircle,
+                    label: '创建频道',
+                    value: _PlusAction.channel,
+                  ),
+                  _PlusMenuTile(
+                    iconAsset: _iconMenuScan,
+                    label: '扫一扫',
+                    value: _PlusAction.scan,
+                  ),
+                ],
+              ),
+            ),
           ),
-          _PlusMenuTile(
-            icon: Symbols.campaign,
-            label: '创建频道',
-            value: _PlusAction.channel,
-          ),
-          _PlusMenuTile(
-            icon: Symbols.qr_code_scanner,
-            label: '扫一扫',
-            value: _PlusAction.scan,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -486,38 +635,352 @@ class _HomePlusMenuPanel extends StatelessWidget {
 
 class _PlusMenuTile extends StatelessWidget {
   const _PlusMenuTile({
-    required this.icon,
+    required this.iconAsset,
     required this.label,
     required this.value,
+    this.overlayAsset,
   });
 
-  final IconData icon;
+  final String iconAsset;
   final String label;
   final _PlusAction value;
+  final String? overlayAsset;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return GlassListPanel(
-      margin: const EdgeInsets.only(bottom: glassListTileGap),
-      contentPadding: const EdgeInsets.fromLTRB(12, 8, 14, 8),
+    return InkWell(
       onTap: () => Navigator.of(context).pop(value),
-      child: Row(
+      child: SizedBox(
+        height: 32,
+        child: Row(
+          children: [
+            const SizedBox(width: 20),
+            _DesignSvgIcon(
+              assetName: iconAsset,
+              size: 20,
+              color: _homeText,
+              overlayAssetName: overlayAsset,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: _homeText,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeNavItem {
+  const _HomeNavItem({
+    required this.iconAsset,
+    required this.label,
+    this.badge,
+  });
+
+  final String iconAsset;
+  final String label;
+  final String? badge;
+}
+
+class _HomeBottomBar extends StatelessWidget {
+  const _HomeBottomBar({
+    required this.items,
+    required this.currentIndex,
+    required this.onTap,
+    required this.onSearchTap,
+  });
+
+  final List<_HomeNavItem> items;
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final VoidCallback onSearchTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    return SizedBox(
+      height: 80 + bottomInset,
+      child: Stack(
         children: [
-          GlassListIcon(icon: icon, size: 40, iconSize: 21, fill: 1),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 17,
-                weight: FontWeight.w600,
-                color: t.text,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      _homeBg.withValues(alpha: 0.0),
+                      _homeBg.withValues(alpha: 0.92),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
+          Positioned(
+            left: 11,
+            bottom: bottomInset + 5,
+            width: 291,
+            height: 56,
+            child: _LiquidTabPill(
+              items: items,
+              currentIndex: currentIndex,
+              onTap: onTap,
+            ),
+          ),
+          Positioned(
+            right: 16,
+            bottom: bottomInset + 4,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onSearchTap,
+              child: SvgPicture.asset(
+                _iconBottomSearchTg,
+                width: 56,
+                height: 56,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiquidTabPill extends StatelessWidget {
+  const _LiquidTabPill({
+    required this.items,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  final List<_HomeNavItem> items;
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppGlassPanel(
+      borderRadius: BorderRadius.circular(276),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Row(
+          children: List.generate(items.length, (index) {
+            final item = items[index];
+            final active = index == currentIndex;
+            return SizedBox(
+              width: index == 0 ? 70 : 71,
+              height: 49,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => onTap(index),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    if (active)
+                      Positioned.fill(
+                        right: index == 0 ? 0 : 4,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.76),
+                            borderRadius: BorderRadius.circular(999),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 12,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            _DesignSvgIcon(
+                              assetName: item.iconAsset,
+                              size: 24,
+                              color: active
+                                  ? const Color(0xFF077AB3)
+                                  : const Color(0xFF111111),
+                            ),
+                            if (item.badge != null)
+                              Positioned(
+                                top: -5,
+                                right: -9,
+                                child: _ConversationUnreadBadge(
+                                  count: int.tryParse(item.badge!) ?? 1,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(
+                            size: 10,
+                            weight: FontWeight.w600,
+                            color: const Color(0xFF111111),
+                          ).copyWith(height: 1.2),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesignSvgIcon extends StatelessWidget {
+  const _DesignSvgIcon({
+    required this.assetName,
+    required this.size,
+    this.color,
+    this.overlayAssetName,
+  });
+
+  final String assetName;
+  final double size;
+  final Color? color;
+  final String? overlayAssetName;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = SvgPicture.asset(
+      assetName,
+      width: size,
+      height: size,
+      colorFilter:
+          color == null ? null : ColorFilter.mode(color!, BlendMode.srcIn),
+    );
+    if (overlayAssetName == null) return icon;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(child: icon),
+          Positioned(
+            top: -1,
+            right: -1,
+            child: SvgPicture.asset(
+              overlayAssetName!,
+              width: size * 0.5,
+              height: size * 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GlassCircleButton extends StatelessWidget {
+  const _GlassCircleButton({
+    required this.icon,
+    required this.onTap,
+    required this.size,
+    required this.iconSize,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final double size;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: AppGlassPanel(
+          borderRadius: BorderRadius.circular(size / 2),
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Icon(icon, size: iconSize, color: _homeText),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupAvatarGrid extends StatelessWidget {
+  const _GroupAvatarGrid({required this.seed, this.imageUrl});
+
+  final String seed;
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl != null && imageUrl!.trim().isNotEmpty) {
+      return PortalAvatar(
+        seed: seed,
+        size: _conversationTileAvatarSize,
+        imageUrl: imageUrl,
+        shape: AvatarShape.squircle,
+      );
+    }
+    final colors = [
+      const Color(0xFFE6F0FF),
+      const Color(0xFFDFF7E7),
+      const Color(0xFFFFE4E0),
+      const Color(0xFFFFF0C7),
+    ];
+    return Container(
+      width: _conversationTileAvatarSize,
+      height: _conversationTileAvatarSize,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFC),
+        borderRadius: BorderRadius.circular(4.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF17688B).withValues(alpha: 0.12),
+            blurRadius: 1.4,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(1.4),
+      child: Wrap(
+        spacing: 1.4,
+        runSpacing: 1.4,
+        children: [
+          for (var i = 0; i < 4; i++)
+            Container(
+              width: 18.9,
+              height: 18.9,
+              decoration: BoxDecoration(
+                color: colors[(seed.hashCode + i).abs() % colors.length],
+                borderRadius: BorderRadius.circular(2.8),
+              ),
+            ),
         ],
       ),
     );
@@ -915,8 +1378,8 @@ void _homeToast(BuildContext context, String message) {
   );
 }
 
-/// 会话列表行 —— 对齐设计稿 s-messages chat-list item。
-/// 列表式（贴边、底分隔线、整行 ripple），头像 48 圆形。
+/// 会话列表行 —— 对齐 Figma node 53:505。
+/// 头像 42×42、圆角 8、头像与内容间距 8，右侧时间/未读固定宽度。
 class _ConvRow extends StatelessWidget {
   const _ConvRow({
     required this.name,
@@ -941,158 +1404,158 @@ class _ConvRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     Offset rcPos = Offset.zero;
-    final borderRadius = BorderRadius.circular(28);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        _conversationTileHorizontalMargin,
-        0,
-        _conversationTileHorizontalMargin,
-        _conversationTileGap,
-      ),
-      child: GestureDetector(
-        onSecondaryTapDown: (d) => rcPos = d.globalPosition,
-        onSecondaryTap: () => _showChatCtxMenu(context, rcPos, name),
-        onLongPressStart: (d) {
-          rcPos = d.globalPosition;
-          _showChatCtxMenu(context, rcPos, name);
-        },
-        child: AppGlassPanel(
-          borderRadius: borderRadius,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: borderRadius,
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  14,
-                  _conversationTileVerticalPadding,
-                  14,
-                  _conversationTileVerticalPadding,
+    return GestureDetector(
+      onSecondaryTapDown: (d) => rcPos = d.globalPosition,
+      onSecondaryTap: () => _showChatCtxMenu(context, rcPos, name),
+      onLongPressStart: (d) {
+        rcPos = d.globalPosition;
+        _showChatCtxMenu(context, rcPos, name);
+      },
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: _conversationTileAvatarSize,
+                  height: _conversationTileAvatarSize,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      if (isAgent)
+                        Container(
+                          width: _conversationTileAvatarSize,
+                          height: _conversationTileAvatarSize,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F3FF),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(
+                            Symbols.robot_2,
+                            size: 22,
+                            color: Color(0xFF0066A8),
+                            fill: 1,
+                          ),
+                        )
+                      else if (isGroup)
+                        _GroupAvatarGrid(seed: name, imageUrl: avatarUrl)
+                      else
+                        PortalAvatar(
+                          seed: name,
+                          size: _conversationTileAvatarSize,
+                          imageUrl: avatarUrl,
+                          shape: AvatarShape.squircle,
+                        ),
+                      if (online)
+                        Positioned(
+                          top: -2,
+                          right: -2,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF18B7CF),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: _homeBg, width: 1.5),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    // 头像 + 在线点
-                    SizedBox(
-                      width: _conversationTileAvatarSize,
-                      height: _conversationTileAvatarSize,
-                      child: Stack(
-                        children: [
-                          if (isAgent)
-                            Container(
-                              width: _conversationTileAvatarSize,
-                              height: _conversationTileAvatarSize,
-                              decoration: BoxDecoration(
-                                color: t.primaryContainer,
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: Icon(
-                                Symbols.robot_2,
-                                size: 22,
-                                color: t.onPrimaryContainer,
-                                fill: 1,
-                              ),
-                            )
-                          else
-                            PortalAvatar(
-                              seed: name,
-                              size: _conversationTileAvatarSize,
-                              imageUrl: avatarUrl,
-                            ),
-                          if (online)
-                            const Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: OnlineDot(),
-                            ),
-                        ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    height: 64,
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: _homeBorder, width: 0.5),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTheme.sans(
-                                      size: 20,
-                                      weight: FontWeight.w600,
-                                      color: t.text,
-                                    ),
-                                  ),
-                                ),
-                                if (isAgent)
-                                  Container(
-                                    margin: const EdgeInsets.only(left: 6),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: t.primaryContainer,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      'AI',
-                                      style: AppTheme.sans(
-                                        size: 11,
-                                        weight: FontWeight.w700,
-                                        color: t.onPrimaryContainer,
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTheme.sans(
+                                          size: 14,
+                                          weight: FontWeight.w600,
+                                          color: _homeText,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    lastMessage,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTheme.sans(
-                                      size: 15,
-                                      color: t.textMute,
-                                    ),
+                                    if (isAgent) ...[
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                        Symbols.smart_toy,
+                                        size: 14,
+                                        color: _homeMuted,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  lastMessage,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTheme.sans(
+                                    size: 12,
+                                    color: _homeMuted,
                                   ),
                                 ),
-                                if (unread > 0) ...[
-                                  const SizedBox(width: 8),
-                                  _ConversationUnreadBadge(count: unread),
-                                ] else if (time.isNotEmpty) ...[
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    time,
-                                    style: AppTheme.sans(
-                                      size: 13,
-                                      color: t.textMute,
-                                    ),
-                                  ),
-                                ],
                               ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 36,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              if (time.isNotEmpty)
+                                Text(
+                                  time,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.right,
+                                  style: AppTheme.sans(
+                                    size: 12,
+                                    weight: FontWeight.w500,
+                                    color: _homeMuted,
+                                  ),
+                                ),
+                              const SizedBox(height: 4),
+                              if (unread > 0)
+                                _ConversationUnreadBadge(count: unread)
+                              else
+                                const SizedBox(height: 20),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -1331,7 +1794,6 @@ class _ContactList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = context.tk;
     final isLoggedIn =
         ref.watch(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
     final useMockContacts = _mockAuthEnabled || !isLoggedIn;
@@ -1345,40 +1807,41 @@ class _ContactList extends ConsumerWidget {
     // 排除——群组归「群聊」入口管。
     final mockContacts = MockData.friendContacts;
 
+    final contactCount =
+        useMockContacts ? mockContacts.length : acceptedContacts.length;
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(0, 10, 0, 96),
+      padding: const EdgeInsets.fromLTRB(0, 4, 0, 96),
       children: [
         _ActionSection(
           children: [
             _SectionAction(
-              icon: Symbols.person_add,
+              iconAsset: _iconMenuAddFriend,
               label: '新朋友',
               badge:
                   pendingInvites > 0 ? _formatBadgeCount(pendingInvites) : null,
               onTap: () => context.push('/requests'),
             ),
             _SectionAction(
-              icon: Symbols.group,
+              iconAsset: _iconMenuCreateGroup,
               label: '群聊',
               onTap: () => context.push('/groups'),
             ),
             _SectionAction(
-              icon: Symbols.person_check,
+              iconAsset: _iconTabContacts,
               label: '关注',
               onTap: () => context.push('/follows'),
             ),
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
         Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: glassListTileHorizontalMargin,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            '联系人 (${useMockContacts ? mockContacts.length : acceptedContacts.length})',
-            style: AppTheme.mono(
-              size: 11,
-              color: t.textMute,
+            '联系人 ($contactCount)',
+            style: AppTheme.sans(
+              size: 12,
+              color: _homeMuted,
               weight: FontWeight.w600,
             ),
           ),
@@ -1475,61 +1938,156 @@ class _ActionSection extends StatelessWidget {
         subtitle: '添加联系人后会显示在这里',
       );
     }
-    return Column(
-      children: [
-        for (final child in children) child,
-      ],
-    );
+    return Column(children: children);
   }
 }
 
 class _SectionAction extends StatelessWidget {
   const _SectionAction({
-    required this.icon,
+    required this.iconAsset,
     required this.label,
     required this.onTap,
     this.badge,
   });
 
-  final IconData icon;
+  final String iconAsset;
   final String label;
   final VoidCallback onTap;
   final String? badge;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return GlassListTile(
+    return _ContactFlatRow(
       onTap: onTap,
-      leading: GlassListIcon(icon: icon),
+      leading: Container(
+        width: _conversationTileAvatarSize,
+        height: _conversationTileAvatarSize,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8F3FF),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        alignment: Alignment.center,
+        child: _DesignSvgIcon(
+          assetName: iconAsset,
+          size: 22,
+          color: const Color(0xFF0066A8),
+        ),
+      ),
       title: label,
-      trailing: badge == null
-          ? null
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  key: ValueKey('section_action_badge_$label'),
-                  width: 20,
-                  height: 20,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: t.danger,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    badge!,
-                    style: AppTheme.sans(
-                      size: 10,
-                      weight: FontWeight.w700,
-                      color: Colors.white,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (badge != null) ...[
+            Container(
+              key: ValueKey('section_action_badge_$label'),
+              height: 20,
+              constraints: const BoxConstraints(minWidth: 20),
+              padding: EdgeInsets.symmetric(
+                horizontal: badge!.length > 2 ? 5 : 0,
+              ),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF5656),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                badge!,
+                textAlign: TextAlign.center,
+                style: AppTheme.sans(
+                  size: badge!.length > 2 ? 9 : 11,
+                  weight: FontWeight.w700,
+                  color: Colors.white,
+                ).copyWith(height: 1),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          const Icon(Symbols.chevron_right, size: 22, color: _homeMuted),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContactFlatRow extends StatelessWidget {
+  const _ContactFlatRow({
+    required this.leading,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.trailing,
+  });
+
+  final Widget leading;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              leading,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  height: subtitle == null ? 56 : 64,
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: _homeBorder, width: 0.5),
                     ),
                   ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.sans(
+                                size: 14,
+                                weight: FontWeight.w600,
+                                color: _homeText,
+                              ),
+                            ),
+                            if (subtitle != null) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                subtitle!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 12,
+                                  color: _homeMuted,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (trailing != null) ...[
+                        const SizedBox(width: 8),
+                        trailing!,
+                      ],
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Icon(Symbols.chevron_right, size: 22, color: t.textMute),
-              ],
-            ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1551,19 +2109,33 @@ class _ContactEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassListTile(
+    return _ContactFlatRow(
       onTap: onTap,
       leading: SizedBox(
-        width: 48,
-        height: 48,
+        width: _conversationTileAvatarSize,
+        height: _conversationTileAvatarSize,
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            PortalAvatar(seed: name, size: 48, imageUrl: avatarUrl),
+            PortalAvatar(
+              seed: name,
+              size: _conversationTileAvatarSize,
+              imageUrl: avatarUrl,
+              shape: AvatarShape.squircle,
+            ),
             if (online)
-              const Positioned(
-                right: 0,
-                bottom: 0,
-                child: OnlineDot(),
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF18B7CF),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _homeBg, width: 1.5),
+                  ),
+                ),
               ),
           ],
         ),

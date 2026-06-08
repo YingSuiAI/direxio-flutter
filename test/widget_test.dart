@@ -149,6 +149,18 @@ class _EmptyAsClient implements AsClient {
       const [];
 
   @override
+  Future<List<AsChannelCommentHistory>> getMyChannelComments({
+    int limit = 50,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<AsChannelReactionHistory>> getMyChannelReactions({
+    int limit = 50,
+  }) async =>
+      const [];
+
+  @override
   Future<void> addFollow(String domain) async {}
 
   @override
@@ -232,11 +244,174 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
-  Future<String> createChannel({
+  Future<AsChannel> createChannel({
     required String name,
     String topic = '',
+    String description = '',
+    String avatarUrl = '',
+    String visibility = asChannelVisibilityPublic,
+    String joinPolicy = asChannelJoinPolicyOpen,
+    bool commentsEnabled = true,
+    List<String> tags = const [],
   }) async =>
-      '!created:example.com';
+      AsChannel(
+        channelId: 'ch_created',
+        roomId: '!created:example.com',
+        name: name,
+        homeDomain: 'example.com',
+        description: description.trim().isEmpty ? topic : description,
+        avatarUrl: avatarUrl,
+        visibility: visibility,
+        joinPolicy: joinPolicy,
+        commentsEnabled: commentsEnabled,
+        role: asChannelRoleOwner,
+        memberStatus: asChannelMemberStatusJoined,
+        memberCount: 1,
+        tags: tags,
+      );
+
+  @override
+  Future<List<AsChannel>> searchPublicChannels(
+    String query, {
+    Uri? baseUri,
+    int limit = 20,
+  }) async =>
+      const [];
+
+  @override
+  Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri}) async =>
+      AsChannel(
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        name: '频道',
+        homeDomain: 'example.com',
+      );
+
+  @override
+  Future<AsChannel> updateChannel(AsChannel draft) async => draft;
+
+  @override
+  Future<AsChannel> joinChannel(
+    String channelId, {
+    String shareToken = '',
+    AsChannel? discoveredChannel,
+  }) async =>
+      AsChannel(
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        name: '频道',
+        homeDomain: 'example.com',
+        role: asChannelRoleMember,
+        memberStatus: asChannelMemberStatusJoined,
+      );
+
+  @override
+  Future<List<AsChannelMember>> getChannelMembers(
+    String channelId, {
+    String status = '',
+  }) async =>
+      const [];
+
+  @override
+  Future<AsChannel> approveChannelJoin(
+          String channelId, String userMxid) async =>
+      AsChannel(
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        name: '频道',
+        homeDomain: 'example.com',
+        role: asChannelRoleOwner,
+        memberStatus: asChannelMemberStatusJoined,
+      );
+
+  @override
+  Future<AsChannel> rejectChannelJoin(
+          String channelId, String userMxid) async =>
+      AsChannel(
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        name: '频道',
+        homeDomain: 'example.com',
+        role: asChannelRoleOwner,
+        memberStatus: asChannelMemberStatusJoined,
+      );
+
+  @override
+  Future<List<AsChannelPost>> getChannelPosts(
+    String channelId, {
+    int limit = 50,
+    int beforeTs = 0,
+  }) async =>
+      const [];
+
+  @override
+  Future<AsChannelPost> createChannelPost(
+    String channelId, {
+    required String messageType,
+    required String body,
+    Map<String, Object?> media = const {},
+  }) async =>
+      AsChannelPost(
+        postId: 'post',
+        channelId: channelId,
+        roomId: '!$channelId:example.com',
+        eventId: r'$post',
+        authorId: '@owner:example.com',
+        messageType: messageType,
+        body: body,
+        media: media,
+        originServerTs: 1,
+      );
+
+  @override
+  Future<List<AsChannelComment>> getChannelComments(
+    String channelId,
+    String postId, {
+    int limit = 50,
+    int beforeTs = 0,
+  }) async =>
+      const [];
+
+  @override
+  Future<AsChannelComment> createChannelComment(
+    String channelId,
+    String postId, {
+    required String messageType,
+    required String body,
+    Map<String, Object?> media = const {},
+  }) async =>
+      AsChannelComment(
+        commentId: 'comment',
+        postId: postId,
+        channelId: channelId,
+        eventId: r'$comment',
+        authorId: '@owner:example.com',
+        messageType: messageType,
+        body: body,
+        media: media,
+        originServerTs: 1,
+      );
+
+  @override
+  Future<AsChannelReaction> toggleChannelPostReaction(
+    String channelId,
+    String postId, {
+    String reaction = 'like',
+  }) async =>
+      AsChannelReaction(
+        postId: postId,
+        channelId: channelId,
+        reaction: reaction,
+        active: true,
+        reactionCount: 1,
+      );
+
+  @override
+  Future<void> updateChannelReadMarker(
+    String channelId, {
+    required String eventId,
+    required int originServerTs,
+  }) async {}
 
   @override
   Future<AgentConfig> getAgentConfig() async =>
@@ -376,6 +551,14 @@ class _EmptyAsClient implements AsClient {
     List<Map<String, Object?>> items = const [],
   }) async =>
       'chat-record-event';
+
+  @override
+  Future<String> sendChannelShareMessage({
+    required String roomId,
+    required String body,
+    required AsChannelShareDraft channel,
+  }) async =>
+      'channel-share-event';
 
   @override
   Future<String> sendRoomMediaMessage({
@@ -795,6 +978,71 @@ class _RecordingFavoriteNativePreviewer extends FavoriteNativePreviewer {
   }
 }
 
+class _ChannelActivityAsClient extends _EmptyAsClient {
+  static const _channel = AsChannel(
+    channelId: 'ch_product',
+    roomId: '!ch_product:p2p-im.com',
+    homeDomain: 'p2p-im.com',
+    name: '产品公告',
+    description: '只发布重要产品更新',
+    memberStatus: asChannelMemberStatusJoined,
+  );
+
+  static const _post = AsChannelPost(
+    postId: 'post1',
+    channelId: 'ch_product',
+    roomId: '!ch_product:p2p-im.com',
+    eventId: r'$post1',
+    authorId: '@owner:p2p-im.com',
+    authorName: 'Yanan',
+    messageType: 'text',
+    body: '频道发帖已打通',
+    originServerTs: 1780731600000,
+    reactionCount: 1,
+    reactedByMe: true,
+  );
+
+  @override
+  Future<List<AsChannelReactionHistory>> getMyChannelReactions({
+    int limit = 50,
+  }) async {
+    return const [
+      AsChannelReactionHistory(
+        postId: 'post1',
+        channelId: 'ch_product',
+        reaction: 'like',
+        originServerTs: 1780731700000,
+        channel: _channel,
+        post: _post,
+      ),
+    ];
+  }
+
+  @override
+  Future<List<AsChannelCommentHistory>> getMyChannelComments({
+    int limit = 50,
+  }) async {
+    return const [
+      AsChannelCommentHistory(
+        comment: AsChannelComment(
+          commentId: 'comment1',
+          postId: 'post1',
+          channelId: 'ch_product',
+          eventId: r'$comment1',
+          authorId: '@owner:p2p-im.com',
+          authorName: 'Yanan',
+          authorDomain: 'p2p-im.com',
+          messageType: 'text',
+          body: '这条评论来自真实用户名',
+          originServerTs: 1780731800000,
+        ),
+        channel: _channel,
+        post: _post,
+      ),
+    ];
+  }
+}
+
 class _MemoryFriendRequestReadStore implements FriendRequestReadStore {
   Set<String> ids = {};
 
@@ -919,6 +1167,18 @@ class _TrackingAsClient extends _EmptyAsClient {
     sentRoomId = roomId;
     sentContent = body;
     return 'chat-record-event';
+  }
+
+  @override
+  Future<String> sendChannelShareMessage({
+    required String roomId,
+    required String body,
+    required AsChannelShareDraft channel,
+  }) async {
+    sendRoomMessageCalls++;
+    sentRoomId = roomId;
+    sentContent = body;
+    return 'channel-share-event';
   }
 
   @override
@@ -2385,6 +2645,77 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
     expect(find.text('friend flow accepted message'), findsNothing);
     expect(find.text('还没有会话'), findsOneWidget);
+  });
+
+  testWidgets('messages show only canonical AS agent room', (tester) async {
+    final client = Client('PortalIMCanonicalAgentHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final canonicalRoom = _addHeroSummaryRoom(
+      client,
+      roomId: '!agent-canonical:p2p-im.com',
+      peerMxid: '@agent:p2p-im.com',
+      peerName: 'Agent',
+    );
+    canonicalRoom.lastEvent = Event(
+      room: canonicalRoom,
+      eventId: r'$canonical-agent',
+      senderId: '@agent:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime(2026, 5, 27, 20, 1),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': 'canonical agent message',
+      },
+    );
+    final legacyRoom = _addHeroSummaryRoom(
+      client,
+      roomId: '!agent-legacy:p2p-im.com',
+      peerMxid: '@agent:p2p-im.com',
+      peerName: 'Agent',
+    );
+    legacyRoom.lastEvent = Event(
+      room: legacyRoom,
+      eventId: r'$legacy-agent',
+      senderId: '@agent:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime(2026, 5, 27, 20, 2),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': 'legacy agent message',
+      },
+    );
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': DateTime.utc(2026, 5, 27, 10).toIso8601String(),
+      'agent_room_id': '!agent-canonical:p2p-im.com',
+      'user': {'user_id': '@owner:p2p-im.com'},
+      'rooms': [],
+      'contacts': [],
+      'groups': [],
+      'channels': [],
+      'pending': {},
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Agent'), findsOneWidget);
+    expect(find.text('canonical agent message'), findsOneWidget);
+    expect(find.text('legacy agent message'), findsNothing);
   });
 
   testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',
@@ -5650,6 +5981,65 @@ void main() {
     expect(firstTop, lessThan(secondTop));
   });
 
+  testWidgets('channel unread count only appears on channel preview row',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (mockAuthEnabled) return;
+
+    final client = Client('PortalIMTest');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-07T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_updates',
+          roomId: '!updates:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品更新',
+          avatarUrl: '',
+          unreadCount: 12,
+          lastActivityAt: DateTime.parse('2026-06-07T10:20:00Z'),
+          topic: '今天发布了新版本',
+          isOwned: false,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('bottom_nav_badge_频道')), findsNothing);
+
+    final unreadFinder =
+        find.byKey(const ValueKey('channel_unread_count_ch_updates'));
+    expect(unreadFinder, findsOneWidget);
+    final unreadText = tester.widget<Text>(unreadFinder);
+    expect(unreadText.data, '12');
+  });
+
   testWidgets('channel tab filters owned channels separately', (tester) async {
     final client = Client('PortalIMTest');
 
@@ -5751,7 +6141,7 @@ void main() {
     expect(find.textContaining('后端部署清单已更新'), findsOneWidget);
   });
 
-  testWidgets('empty real channel inbox exposes explicit design sample',
+  testWidgets('empty real channel inbox does not show mock sample channels',
       (tester) async {
     const mockAuthEnabled = bool.fromEnvironment(
       'P2P_MATRIX_MOCK_AUTH',
@@ -5804,16 +6194,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('还没有频道'), findsOneWidget);
-    expect(find.text('AI'), findsOneWidget);
-    expect(find.text('产品'), findsOneWidget);
-    expect(find.text('样例频道'), findsOneWidget);
-    expect(find.text('P2P IM 官方'), findsOneWidget);
-
-    await tester.tap(find.text('P2P IM 官方').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('设计样例'), findsOneWidget);
-    expect(find.text('频道帖子'), findsOneWidget);
+    expect(find.text('搜索频道'), findsOneWidget);
+    expect(find.text('AI'), findsNothing);
+    expect(find.text('产品'), findsNothing);
+    expect(find.text('样例频道'), findsNothing);
+    expect(find.text('P2P IM 官方'), findsNothing);
   });
 
   testWidgets('joined channel detail uses read-only joined status bar',
@@ -6618,6 +7003,8 @@ void main() {
 
     expect(find.text('菜单'), findsOneWidget);
     expect(find.text('我的收藏'), findsOneWidget);
+    expect(find.text('我的点赞'), findsOneWidget);
+    expect(find.text('我的评论'), findsOneWidget);
     expect(find.text('草稿箱'), findsOneWidget);
     expect(find.text('浏览记录'), findsOneWidget);
     expect(find.text('我的钱包'), findsOneWidget);
@@ -6668,6 +7055,50 @@ void main() {
     expect(find.textContaining('146 KB'), findsAtLeastNWidgets(1));
     expect(find.textContaining('私聊'), findsAtLeastNWidgets(1));
     expect(find.textContaining('群聊'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('me likes page renders AS channel reaction history',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_ChannelActivityAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeLikesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('我的点赞'), findsOneWidget);
+    expect(find.text('产品公告'), findsOneWidget);
+    expect(find.text('频道发帖已打通'), findsOneWidget);
+    expect(find.textContaining('2026年6月6日'), findsOneWidget);
+  });
+
+  testWidgets('me comments page renders AS channel comment history',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_ChannelActivityAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeCommentsPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('我的评论'), findsOneWidget);
+    expect(find.textContaining('产品公告'), findsOneWidget);
+    expect(find.text('这条评论来自真实用户名'), findsOneWidget);
+    expect(find.textContaining('评论了'), findsOneWidget);
   });
 
   testWidgets('me favorites treats text as chat record category',

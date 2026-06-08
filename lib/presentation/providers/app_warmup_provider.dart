@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../data/as_call_session_store.dart';
 import '../../data/as_client.dart';
+import '../../data/channel_post_store.dart';
 import '../../data/media_thumbnail_cache.dart';
 import '../../data/recovered_unread_store.dart';
 import 'as_client_provider.dart';
@@ -17,6 +18,7 @@ import '../chat/call_timeline_events.dart';
 import '../utils/avatar_url.dart';
 import '../utils/message_history_policy.dart';
 import 'auth_provider.dart';
+import 'channel_provider.dart';
 import 'media_thumbnail_cache_provider.dart';
 import 'profile_provider.dart';
 import 'recovered_unread_store_provider.dart';
@@ -25,6 +27,10 @@ typedef AsBootstrapLoader = Future<AsSyncBootstrap> Function();
 typedef CachedAsBootstrapLoader = Future<AsSyncBootstrap?> Function();
 typedef AsUnreadLoader = Future<AsSyncUnread> Function({int limitPerRoom});
 typedef AsCallSessionLoader = Future<AsCallSession> Function(String callId);
+typedef AsChannelPostsLoader = Future<List<AsChannelPost>> Function(
+  String channelId, {
+  int limit,
+});
 typedef RecentRoomEventsLoader = Future<List<Event>> Function(
   Room room,
   int limit,
@@ -119,6 +125,11 @@ final appWarmupServiceProvider = Provider<AppWarmupService>((ref) {
       () => ref.read(asCallSessionStoreProvider.future),
     ),
     loadCallSession: asClient.getCall,
+    channelPostStore: DeferredChannelPostStore(
+      () => ref.read(channelPostStoreProvider.future),
+    ),
+    loadChannelPosts: (channelId, {int limit = 50}) =>
+        asClient.getChannelPosts(channelId, limit: limit),
     recoveredUnreadStore: DeferredRecoveredUnreadStore(
       () => ref.read(recoveredUnreadStoreProvider.future),
     ),
@@ -156,12 +167,16 @@ class AppWarmupService {
     this.recoveredUnreadStore,
     this.callSessionStore,
     this.loadCallSession,
+    this.channelPostStore,
+    this.loadChannelPosts,
     this.loadRecentRoomEvents,
     this.onBootstrapLoaded,
     this.onUnreadRecovered,
     this.maxRoomAvatars = 20,
     this.maxMediaThumbnails = 40,
     this.maxCallSessions = 20,
+    this.maxPrewarmChannels = 20,
+    this.channelPostsPerChannel = 50,
     this.callContextEventsPerRoom = 80,
     this.preloadConcurrency = 3,
     this.profileTimeout = const Duration(seconds: 6),
@@ -179,12 +194,16 @@ class AppWarmupService {
   final RecoveredUnreadStore? recoveredUnreadStore;
   final AsCallSessionStore? callSessionStore;
   final AsCallSessionLoader? loadCallSession;
+  final ChannelPostStore? channelPostStore;
+  final AsChannelPostsLoader? loadChannelPosts;
   final RecentRoomEventsLoader? loadRecentRoomEvents;
   final void Function(AsSyncBootstrap bootstrap)? onBootstrapLoaded;
   final void Function(AsSyncUnread unread)? onUnreadRecovered;
   final int maxRoomAvatars;
   final int maxMediaThumbnails;
   final int maxCallSessions;
+  final int maxPrewarmChannels;
+  final int channelPostsPerChannel;
   final int callContextEventsPerRoom;
   final int preloadConcurrency;
   final Duration profileTimeout;
@@ -226,6 +245,7 @@ class AppWarmupService {
         unread: unread,
       )),
       _prewarmCallSessions(),
+      _prewarmChannelPosts(bootstrap),
     ]);
   }
 
@@ -364,6 +384,45 @@ class AppWarmupService {
         debugPrint('AS call session prewarm failed: $e');
       }
     }
+  }
+
+  Future<void> _prewarmChannelPosts(AsSyncBootstrap? bootstrap) async {
+    final store = channelPostStore;
+    final loader = loadChannelPosts;
+    if (store == null || loader == null || bootstrap == null) return;
+    final channels = bootstrap.channels
+        .where((channel) =>
+            channel.channelId.trim().isNotEmpty &&
+            (channel.memberStatus.trim().isEmpty ||
+                channel.memberStatus == asChannelMemberStatusJoined))
+        .toList(growable: false)
+      ..sort((a, b) => _channelSortTime(b).compareTo(_channelSortTime(a)));
+    final queue = Queue<AsSyncRoomSummary>.from(
+      channels.take(maxPrewarmChannels),
+    );
+    if (queue.isEmpty) return;
+    final workerCount =
+        queue.length < preloadConcurrency ? queue.length : preloadConcurrency;
+    await Future.wait(
+      List.generate(workerCount, (_) async {
+        while (queue.isNotEmpty) {
+          final channel = queue.removeFirst();
+          try {
+            final posts = await loader(
+              channel.channelId,
+              limit: channelPostsPerChannel,
+            ).timeout(syncTimeout);
+            await store.upsertChannel(channel.channelId, posts);
+          } catch (e) {
+            debugPrint('channel posts prewarm failed: $e');
+          }
+        }
+      }),
+    );
+  }
+
+  int _channelSortTime(AsSyncRoomSummary channel) {
+    return channel.lastActivityAt?.millisecondsSinceEpoch ?? 0;
   }
 
   Future<List<String>> _recentAsCallIds() async {

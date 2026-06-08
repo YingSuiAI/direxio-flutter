@@ -254,11 +254,18 @@ class _HomePageState extends ConsumerState<HomePage>
     switch (_tab) {
       case 0:
       case 1:
-      case 2:
         return [
           GlassHeaderButton(
             icon: Symbols.search,
             onTap: () => context.push('/search'),
+          ),
+          const _HomePlusMenuButton(),
+        ];
+      case 2:
+        return [
+          GlassHeaderButton(
+            icon: Symbols.search,
+            onTap: () => context.push('/channels/search'),
           ),
           const _HomePlusMenuButton(),
         ];
@@ -587,9 +594,17 @@ class _ChatList extends ConsumerWidget {
     }
 
     final visibleConversations = <_VisibleConversation>[];
+    final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+    var fallbackAgentShown = false;
     for (final room in rooms) {
       if (room.membership != Membership.join) continue;
       if (_isAgentRoom(room, agentMxid)) {
+        if (canonicalAgentRoomId.isNotEmpty) {
+          if (room.id != canonicalAgentRoomId) continue;
+        } else {
+          if (fallbackAgentShown) continue;
+          fallbackAgentShown = true;
+        }
         visibleConversations.add(_VisibleConversation.agent(room));
       }
     }
@@ -1563,20 +1578,12 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
             fallbackDomain: _clientServerName(client),
           )
         : _mockChannelItems();
-    final useSampleChannels = useRealChannels && channels.isEmpty;
-    final sampleChannels = _mockChannelItems();
-    final categorySource = useSampleChannels ? sampleChannels : channels;
-    final categories = ChannelInboxData.categories(categorySource);
+    final categories = ChannelInboxData.categories(channels);
     final selectedCategory = categories.contains(_category) ? _category : '全部';
     final visibleChannels = ChannelInboxData.filtered(
       channels,
       selectedCategory,
     );
-    final visibleSampleChannels = useSampleChannels
-        ? ChannelInboxData.filtered(sampleChannels, selectedCategory)
-            .take(2)
-            .toList()
-        : const <ChannelInboxItem>[];
 
     if (!_mockAuthEnabled && isLoggedIn && bootstrap == null) {
       return const _Empty(
@@ -1611,10 +1618,7 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
         ),
         const SizedBox(height: 10),
         if (visibleChannels.isEmpty)
-          _ChannelEmptyArea(
-            selectedCategory: selectedCategory,
-            sampleChannels: visibleSampleChannels,
-          )
+          _ChannelEmptyArea(selectedCategory: selectedCategory)
         else
           _ChannelInboxList(channels: visibleChannels),
       ],
@@ -1623,57 +1627,37 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
 }
 
 class _ChannelEmptyArea extends StatelessWidget {
-  const _ChannelEmptyArea({
-    required this.selectedCategory,
-    required this.sampleChannels,
-  });
+  const _ChannelEmptyArea({required this.selectedCategory});
 
   final String selectedCategory;
-  final List<ChannelInboxItem> sampleChannels;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         SizedBox(
-          height: sampleChannels.isNotEmpty ? 120 : 260,
-          child: _Empty(
-            icon: Symbols.campaign,
-            title: '还没有频道',
-            subtitle:
-                selectedCategory == '我的频道' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
+          height: 260,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _Empty(
+                icon: Symbols.campaign,
+                title: '还没有频道',
+                subtitle:
+                    selectedCategory == '我的频道' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
+              ),
+              if (selectedCategory != '我的频道') ...[
+                const SizedBox(height: 10),
+                FilledButton.tonalIcon(
+                  onPressed: () => context.push('/channels/search'),
+                  icon: const Icon(Symbols.search),
+                  label: const Text('搜索频道'),
+                ),
+              ],
+            ],
           ),
         ),
-        if (sampleChannels.isNotEmpty) ...[
-          const _ChannelSectionLabel(text: '样例频道'),
-          _ChannelInboxList(channels: sampleChannels),
-        ],
       ],
-    );
-  }
-}
-
-class _ChannelSectionLabel extends StatelessWidget {
-  const _ChannelSectionLabel({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          text,
-          style: AppTheme.sans(
-            size: 13,
-            weight: FontWeight.w600,
-            color: t.textMute,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1765,32 +1749,41 @@ class _ChannelInboxTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 7),
                 if (channel.unreadCount > 0)
-                  Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: t.accent,
-                      borderRadius: BorderRadius.circular(9999),
-                    ),
-                    child: Text(
-                      '${channel.unreadCount}',
-                      style: AppTheme.sans(
-                        size: 11,
-                        weight: FontWeight.w700,
-                        color: t.onAccent,
-                      ),
-                    ),
-                  )
+                  _ChannelUnreadNumber(channel: channel)
                 else
                   const SizedBox(height: 18),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ChannelUnreadNumber extends StatelessWidget {
+  const _ChannelUnreadNumber({required this.channel});
+
+  final ChannelInboxItem channel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SizedBox(
+      height: 18,
+      child: Text(
+        _formatBadgeCount(channel.unreadCount),
+        key: ValueKey('channel_unread_count_${channel.id}'),
+        textAlign: TextAlign.right,
+        textHeightBehavior: const TextHeightBehavior(
+          applyHeightToFirstAscent: false,
+          applyHeightToLastDescent: false,
+        ),
+        style: AppTheme.sans(
+          size: 12,
+          weight: FontWeight.w600,
+          color: t.textMute.withValues(alpha: 0.74),
+        ).copyWith(height: 1),
       ),
     );
   }
@@ -1827,6 +1820,7 @@ List<ChannelInboxItem> _mockChannelItems() {
       .map(
         (channel) => ChannelInboxItem(
           id: channel.id,
+          roomId: channel.id,
           name: channel.name,
           domain: channel.domain,
           avatarUrl: '',

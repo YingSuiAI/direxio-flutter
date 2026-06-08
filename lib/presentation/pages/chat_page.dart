@@ -20,6 +20,7 @@ import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/recovered_unread_store_provider.dart';
+import '../channel/channel_share.dart';
 import '../groups/group_invite_card.dart';
 import '../groups/group_invite_content.dart';
 import '../groups/group_invite_join_flow.dart';
@@ -1641,6 +1642,34 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   return _SChatSystemNotice(text: e.body);
                                 }
 
+                                final channelSharePayload =
+                                    channelSharePayloadFromContent(
+                                  Map<String, Object?>.from(e.content),
+                                );
+                                if (channelSharePayload != null) {
+                                  return enter(
+                                    _SChannelShareBubble(
+                                      isMe: isMe,
+                                      payload: channelSharePayload,
+                                      time: time,
+                                      showRead: isMe,
+                                      avatarSeed: senderName,
+                                      onAvatarTap: avatarTap,
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => context.push(
+                                                '/channel/${Uri.encodeComponent(channelSharePayload.channelId)}',
+                                              ),
+                                      onLongPressAt: (pos) =>
+                                          _onLongPressEvent(context, e, pos),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                  );
+                                }
+
                                 final chatRecordPayload =
                                     chatRecordPayloadFromContent(
                                   Map<String, Object?>.from(e.content),
@@ -3228,6 +3257,57 @@ class _SChatRecordBubble extends StatelessWidget {
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           ChatRecordPreviewCard(
+            payload: payload,
+            onTap: onTap,
+            onLongPressAt: onLongPressAt,
+          ),
+          _bubbleTimeRow(context, time, showRead),
+        ],
+      ),
+    );
+  }
+}
+
+class _SChannelShareBubble extends StatelessWidget {
+  const _SChannelShareBubble({
+    required this.isMe,
+    required this.payload,
+    required this.time,
+    required this.showRead,
+    required this.avatarSeed,
+    this.onAvatarTap,
+    this.selected = false,
+    this.multiSelect = false,
+    this.onTap,
+    this.onLongPressAt,
+  });
+
+  final bool isMe;
+  final ChannelSharePayload payload;
+  final String time;
+  final bool showRead;
+  final String avatarSeed;
+  final VoidCallback? onAvatarTap;
+  final bool selected;
+  final bool multiSelect;
+  final VoidCallback? onTap;
+  final void Function(Offset globalPos)? onLongPressAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return _bubbleRow(
+      context: context,
+      isMe: isMe,
+      multiSelect: multiSelect,
+      selected: selected,
+      avatarSeed: avatarSeed,
+      onAvatarTap: onAvatarTap,
+      onSelectTap: onTap,
+      child: Column(
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          ChannelSharePreviewCard(
             payload: payload,
             onTap: onTap,
             onLongPressAt: onLongPressAt,

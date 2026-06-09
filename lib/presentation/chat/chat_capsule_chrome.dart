@@ -2,10 +2,20 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+
+const _assetChatBack = 'assets/icons/toklink_back.svg';
+const _assetChatKeyboard =
+    'assets/resources/chat_composer_keyboard__chat_composer_keyboard.svg';
+const _assetChatEmoji =
+    'assets/resources/chat_composer_emoji__chat_composer_emoji.svg';
+const _assetChatPlus =
+    'assets/resources/chat_composer_plus__chat_composer_plus.svg';
+const _assetChatMore = 'assets/icons/toklink_more_vertical.svg';
 
 class ChatCapsuleAction {
   const ChatCapsuleAction({
@@ -47,8 +57,8 @@ class ChatInitialEntranceRegistry {
   bool contains(Object key) => !_closed && _keys.contains(key);
 }
 
-const double _chatHeaderChromeClearance = 86;
-const double _chatBottomChromeClearance = 72;
+const double _chatHeaderChromeClearance = 92;
+const double _chatBottomChromeClearance = 88;
 const double _chatReplyBarClearance = 54;
 const double _chatSelectionBarClearance = 64;
 const double _chatBottomPanelClearance = 268;
@@ -300,10 +310,8 @@ Widget chatMessageEntrance({
   );
 }
 
-const double _chatHeaderCapsuleHeight = 48;
-const double _chatHeaderSideCapsuleWidth = 100;
-const double _chatHeaderTitleSize = 18;
-const double _chatHeaderSubtitleSize = 11.7;
+const double _chatHeaderButtonSize = 40;
+const double _chatHeaderTitleSize = 16;
 
 class ChatCapsuleHeader extends StatelessWidget {
   const ChatCapsuleHeader({
@@ -328,131 +336,63 @@ class ChatCapsuleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final titleText = _HeaderTextLine(
-      text: title,
-      baseSize: _chatHeaderTitleSize,
-      minScale: 0.82,
-      weight: FontWeight.w700,
-      color: t.text,
-    );
+    final detailAction = actions.isEmpty ? null : actions.last;
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
         child: SizedBox(
-          height: 58,
-          child: Row(
+          height: 48,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              ChatDirectionalEntrance(
-                direction: ChatEntranceDirection.top,
-                child: SizedBox(
-                  key: const ValueKey('chat_header_left_capsule'),
-                  width: _chatHeaderSideCapsuleWidth,
-                  height: _chatHeaderCapsuleHeight,
-                  child: _CapsuleSurface(
-                    height: _chatHeaderCapsuleHeight,
-                    minHeight: _chatHeaderCapsuleHeight,
-                    padding: EdgeInsets.zero,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          tooltip: '返回',
-                          icon: const Icon(
-                            Symbols.arrow_back_ios_new,
-                            size: 23,
-                          ),
-                          color: t.text,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints.tightFor(
-                            width: 44,
-                            height: _chatHeaderCapsuleHeight,
-                          ),
-                          onPressed: onBack,
-                        ),
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: onAvatarTap,
-                          child: leadingAvatar,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
+              Align(
+                alignment: Alignment.centerLeft,
                 child: ChatDirectionalEntrance(
                   direction: ChatEntranceDirection.top,
-                  delay: const Duration(milliseconds: 35),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onTitleTap,
-                    child: SizedBox(
-                      key: const ValueKey('chat_header_title_capsule'),
-                      height: _chatHeaderCapsuleHeight,
-                      child: _CapsuleSurface(
-                        height: _chatHeaderCapsuleHeight,
-                        minHeight: _chatHeaderCapsuleHeight,
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: Center(
-                            child: subtitle == null || subtitle!.trim().isEmpty
-                                ? titleText
-                                : Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      titleText,
-                                      const SizedBox(height: 1),
-                                      _HeaderTextLine(
-                                        text: subtitle!,
-                                        baseSize: _chatHeaderSubtitleSize,
-                                        minScale: 0.82,
-                                        color: t.textMute,
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        ),
-                      ),
+                  child: _FigmaGlassCircleButton(
+                    tooltip: '返回',
+                    onTap: onBack,
+                    child: _chatAsset(
+                      _assetChatBack,
+                      size: 20,
+                      color: const Color(0xFF222325),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
               ChatDirectionalEntrance(
                 direction: ChatEntranceDirection.top,
-                delay: const Duration(milliseconds: 70),
-                child: SizedBox(
-                  key: const ValueKey('chat_header_actions_capsule'),
-                  width: _chatHeaderSideCapsuleWidth,
-                  height: _chatHeaderCapsuleHeight,
-                  child: _CapsuleSurface(
-                    height: _chatHeaderCapsuleHeight,
-                    minHeight: _chatHeaderCapsuleHeight,
-                    padding: EdgeInsets.zero,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: actions
-                          .take(2)
-                          .map(
-                            (action) => IconButton(
-                              tooltip: action.tooltip,
-                              icon: Icon(action.icon, size: 23),
-                              color: action.color ?? t.accent,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints.tightFor(
-                                width: 36,
-                                height: _chatHeaderCapsuleHeight,
-                              ),
-                              onPressed: action.onTap,
-                            ),
-                          )
-                          .toList(growable: false),
+                delay: const Duration(milliseconds: 35),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTitleTap,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width - 128,
+                    ),
+                    child: _HeaderTextLine(
+                      text: title,
+                      baseSize: _chatHeaderTitleSize,
+                      minScale: 0.82,
+                      weight: FontWeight.w600,
+                      color: t.text,
+                    ),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ChatDirectionalEntrance(
+                  direction: ChatEntranceDirection.top,
+                  delay: const Duration(milliseconds: 70),
+                  child: _FigmaGlassCircleButton(
+                    tooltip: detailAction?.tooltip ?? '详情',
+                    onTap: detailAction?.onTap,
+                    child: _chatAsset(
+                      _assetChatMore,
+                      size: 17,
+                      color: const Color(0xFF222325),
                     ),
                   ),
                 ),
@@ -546,7 +486,7 @@ class ChatCapsuleInputBar extends StatefulWidget {
 }
 
 class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
-  bool _voiceMode = false;
+  bool _voiceMode = true;
 
   @override
   Widget build(BuildContext context) {
@@ -554,7 +494,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -606,33 +546,34 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                 ),
               ),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 ChatDirectionalEntrance(
                   direction: ChatEntranceDirection.bottom,
                   child: SizedBox(
-                    key: const ValueKey('chat_input_plus_circle'),
-                    width: 46,
-                    height: 46,
-                    child: _CircleCapsuleButton(
-                      icon: Symbols.add,
-                      tooltip: '更多',
-                      active: widget.plusActive,
+                    key: const ValueKey('chat_input_keyboard_circle'),
+                    width: 40,
+                    height: 40,
+                    child: _AssetCircleCapsuleButton(
+                      assetName: _voiceMode ? _assetChatKeyboard : null,
+                      icon: _voiceMode ? null : Symbols.mic,
+                      tooltip: _voiceMode ? '键盘' : '语音',
                       enabled: widget.enabled,
-                      onTap: widget.onPlus,
+                      onTap: () => setState(() => _voiceMode = !_voiceMode),
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: ChatDirectionalEntrance(
                     direction: ChatEntranceDirection.bottom,
                     delay: const Duration(milliseconds: 35),
                     child: ConstrainedBox(
                       key: const ValueKey('chat_input_text_capsule'),
-                      constraints: const BoxConstraints(minHeight: 46),
+                      constraints: const BoxConstraints(minHeight: 40),
                       child: _CapsuleSurface(
-                        minHeight: 46,
+                        minHeight: 40,
+                        height: _voiceMode ? 40 : null,
                         padding: EdgeInsets.zero,
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 140),
@@ -644,14 +585,14 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                   onLongPressEnd: (_) {},
                                   child: Center(
                                     child: Text(
-                                      '按住发语音',
+                                      '按住 说话',
                                       style: AppTheme.sans(
-                                        size: 17,
+                                        size: 15,
                                         color: widget.enabled
                                             ? t.text
                                             : t.textMute
                                                 .withValues(alpha: 0.45),
-                                        weight: FontWeight.w500,
+                                        weight: FontWeight.w600,
                                       ),
                                     ),
                                   ),
@@ -669,7 +610,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                         maxLines: 5,
                                         minLines: 1,
                                         style: AppTheme.sans(
-                                          size: 17,
+                                          size: 15,
                                           color: t.text,
                                         ),
                                         decoration: InputDecoration(
@@ -693,17 +634,6 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                         ),
                                       ),
                                     ),
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 5),
-                                      child: _CircleCapsuleButton(
-                                        icon: Symbols.mood,
-                                        tooltip: '表情',
-                                        active: widget.emojiActive,
-                                        enabled: widget.enabled,
-                                        compact: true,
-                                        onTap: widget.onEmoji,
-                                      ),
-                                    ),
                                   ],
                                 ),
                         ),
@@ -711,35 +641,43 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
+                ChatDirectionalEntrance(
+                  direction: ChatEntranceDirection.bottom,
+                  delay: const Duration(milliseconds: 70),
+                  child: SizedBox(
+                    key: const ValueKey('chat_input_emoji_circle'),
+                    width: 40,
+                    height: 40,
+                    child: _AssetCircleCapsuleButton(
+                      assetName: _assetChatEmoji,
+                      tooltip: '表情',
+                      active: widget.emojiActive,
+                      enabled: widget.enabled,
+                      onTap: widget.onEmoji,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 ValueListenableBuilder<TextEditingValue>(
                   valueListenable: widget.ctrl,
                   builder: (_, value, __) {
                     final hasText = value.text.trim().isNotEmpty;
-                    final icon = hasText
-                        ? Symbols.arrow_upward
-                        : _voiceMode
-                            ? Symbols.keyboard
-                            : Symbols.mic;
                     return ChatDirectionalEntrance(
                       direction: ChatEntranceDirection.bottom,
-                      delay: const Duration(milliseconds: 70),
+                      delay: const Duration(milliseconds: 90),
                       child: SizedBox(
-                        key: const ValueKey('chat_input_mic_circle'),
-                        width: 46,
-                        height: 46,
-                        child: _CircleCapsuleButton(
-                          icon: icon,
-                          tooltip: hasText
-                              ? '发送'
-                              : _voiceMode
-                                  ? '切换键盘'
-                                  : '语音',
+                        key: const ValueKey('chat_input_plus_circle'),
+                        width: 40,
+                        height: 40,
+                        child: _AssetCircleCapsuleButton(
+                          assetName: hasText ? null : _assetChatPlus,
+                          icon: hasText ? Symbols.arrow_upward : null,
+                          tooltip: hasText ? '发送' : '更多',
+                          active: widget.plusActive,
                           accent: hasText,
                           enabled: widget.enabled,
-                          onTap: hasText
-                              ? widget.onSend
-                              : () => setState(() => _voiceMode = !_voiceMode),
+                          onTap: hasText ? widget.onSend : widget.onPlus,
                         ),
                       ),
                     );
@@ -831,42 +769,38 @@ class ChatEmojiPanel extends StatelessWidget {
   }
 }
 
-class _CircleCapsuleButton extends StatelessWidget {
-  const _CircleCapsuleButton({
-    required this.icon,
+class _AssetCircleCapsuleButton extends StatelessWidget {
+  const _AssetCircleCapsuleButton({
     required this.tooltip,
     required this.onTap,
+    this.assetName,
+    this.icon,
     this.active = false,
     this.accent = false,
     this.enabled = true,
-    this.compact = false,
   });
 
-  final IconData icon;
+  final String? assetName;
+  final IconData? icon;
   final String tooltip;
   final VoidCallback? onTap;
   final bool active;
   final bool accent;
   final bool enabled;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final size = compact ? 36.0 : 46.0;
-    final iconSize = compact ? 22.0 : 25.0;
     final color = accent
-        ? t.accent
+        ? const Color(0xFF34C759)
         : active
-            ? t.primaryContainer.withValues(alpha: 0.24)
-            : t.surface.withValues(alpha: 0.70);
+            ? t.surface.withValues(alpha: 0.86)
+            : Colors.white.withValues(alpha: 0.80);
     final iconColor = !enabled
         ? t.textMute.withValues(alpha: 0.42)
         : accent
             ? t.onAccent
-            : active
-                ? t.accent
-                : t.text;
+            : t.text;
     return Tooltip(
       message: tooltip,
       child: _BlurSurface(
@@ -879,9 +813,49 @@ class _CircleCapsuleButton extends StatelessWidget {
             customBorder: const CircleBorder(),
             onTap: enabled ? onTap : null,
             child: SizedBox(
-              width: size,
-              height: size,
-              child: Icon(icon, size: iconSize, color: iconColor),
+              width: 40,
+              height: 40,
+              child: Center(
+                child: assetName == null
+                    ? Icon(icon, size: 24, color: iconColor)
+                    : _chatAsset(assetName!, size: 24, color: iconColor),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FigmaGlassCircleButton extends StatelessWidget {
+  const _FigmaGlassCircleButton({
+    required this.tooltip,
+    required this.child,
+    this.onTap,
+  });
+
+  final String tooltip;
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: _BlurSurface(
+        borderRadius: BorderRadius.circular(9999),
+        color: Colors.white.withValues(alpha: 0.65),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: _chatHeaderButtonSize,
+              height: _chatHeaderButtonSize,
+              child: Center(child: child),
             ),
           ),
         ),
@@ -907,16 +881,15 @@ class _CapsuleSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     final content = ConstrainedBox(
       constraints: BoxConstraints(minHeight: minHeight),
       child: Padding(padding: padding, child: child),
     );
     return _BlurSurface(
       borderRadius: BorderRadius.circular(9999),
-      color: t.surface.withValues(alpha: 0.70),
+      color: Colors.white.withValues(alpha: 0.82),
       child: Material(
-        color: t.surface.withValues(alpha: 0),
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(9999),
         child: InkWell(
           borderRadius: BorderRadius.circular(9999),
@@ -943,7 +916,6 @@ class _BlurSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     final radius = borderRadius ?? BorderRadius.circular(9999);
     return ClipRRect(
       borderRadius: radius,
@@ -953,12 +925,11 @@ class _BlurSurface extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             borderRadius: radius,
-            border: Border.all(color: t.border.withValues(alpha: 0.16)),
             boxShadow: [
               BoxShadow(
-                color: t.text.withValues(alpha: 0.04),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
               ),
             ],
           ),
@@ -967,4 +938,29 @@ class _BlurSurface extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _chatAsset(String assetName, {required double size, Color? color}) {
+  if (assetName.toLowerCase().endsWith('.svg')) {
+    return SvgPicture.asset(
+      assetName,
+      width: size,
+      height: size,
+      colorFilter:
+          color == null ? null : ColorFilter.mode(color, BlendMode.srcIn),
+    );
+  }
+
+  final image = Image.asset(
+    assetName,
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.high,
+  );
+  if (color == null) return image;
+  return ColorFiltered(
+    colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+    child: image,
+  );
 }

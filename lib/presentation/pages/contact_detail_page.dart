@@ -1,31 +1,48 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+
 import '../../core/theme/app_theme.dart';
-import '../../core/theme/design_tokens.dart';
 import '../mock/mock_data.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
-import '../providers/auth_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
-import '../widgets/glass_list_tile.dart';
-import '../widgets/m3/glass_header.dart';
+import '../widgets/portal_avatar.dart';
 
-class ContactDetailPage extends ConsumerWidget {
+const _contactInfoBg = Color(0xFFEFEFF3);
+const _contactInfoText = Color(0xFF262628);
+const _contactInfoMuted = Color(0xFF666666);
+const _contactInfoBlue = Color(0xFF3097CB);
+const _contactInfoDanger = Color(0xFFFE4D4D);
+const _backIconAsset = 'assets/icons/toklink_back.svg';
+
+class ContactDetailPage extends ConsumerStatefulWidget {
   const ContactDetailPage({super.key, required this.userId});
+
   final String userId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = context.tk;
+  ConsumerState<ContactDetailPage> createState() => _ContactDetailPageState();
+}
+
+class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
+  bool _muted = true;
+  bool _blocked = false;
+
+  @override
+  Widget build(BuildContext context) {
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
+    final userId = widget.userId;
     final acceptedContactForUser = syncCache.acceptedContactForUserId(userId);
     final acceptedRoom = acceptedContactForUser == null
         ? null
@@ -48,19 +65,12 @@ class ContactDetailPage extends ConsumerWidget {
           agentMxid: agentMxid,
           acceptedRoomIds: acceptedRoomIds,
         );
-    final isWaitingForAccept =
-        room != null && isPendingDirectContact(room, agentMxid: agentMxid);
-    // 找不到真房间时按 mxid 回退到 mock，否则名字会显示成原始 mxid。
     final mock = room == null ? MockData.byMxid(userId) : null;
     final canUseMock = room == null && mock != null;
     final canOpenChat = canUseRealRoom || canUseMock;
     final acceptedContact = acceptedContactForUser ??
         (room == null ? null : syncCache.acceptedContactForRoom(room.id));
-    // @username 取 userId 的 localpart（@xxx:domain → xxx）
-    final localpart = userId.startsWith('@') && userId.contains(':')
-        ? userId.substring(1, userId.indexOf(':'))
-        : userId;
-    // Node URL：用 mxid 后半段作为节点占位
+    final localpart = _localpartFromMxid(userId);
     final domain = userId.contains(':') ? userId.split(':').last : userId;
     final displayName = contactDisplayNameFromIdentity(
       mxid: userId,
@@ -71,375 +81,543 @@ class ContactDetailPage extends ConsumerWidget {
       domain: acceptedContact?.domain ?? domain,
       fallback: mock?.name ?? userId,
     );
-    final nodeUrl = 'Node: $domain';
-    final initial = displayName.isNotEmpty
-        ? displayName.characters.first.toUpperCase()
-        : '?';
+    final uid = _uidFromUserId(userId, localpart);
     final peerMember = room?.unsafeGetUserFromMemoryOrFallback(userId);
     final avatarUrl = avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
         (room == null
             ? mock?.avatarUrl
             : matrixContentHttpUrl(client, peerMember?.avatarUrl));
+    final roomId = room?.id ?? mock?.id;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          GlassHeader.detail(
-            title: '个人信息',
-            actions: [
-              GlassHeaderButton(
-                icon: Symbols.more_horiz,
-                color: t.textMute,
-                onTap: () {},
-              ),
-            ],
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 32),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 672),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 头像 + 基本信息
-                      _ProfileHeader(
-                        name: displayName,
-                        initial: initial,
-                        username: '@$localpart',
-                        nodeUrl: nodeUrl,
-                        avatarUrl: avatarUrl,
+      backgroundColor: _contactInfoBg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _ContactBackButton(
+                        onTap: () => context.pop(),
                       ),
-                      // 快捷操作 —— 真房间用 room.id，mock 路径用 mock.id。
-                      _QuickActions(
-                        onMessage: canOpenChat
-                            ? () {
-                                final id = room?.id ?? mock?.id;
-                                if (id != null) {
-                                  context.go(
-                                    '/chat/${Uri.encodeComponent(id)}',
-                                  );
-                                }
-                              }
-                            : null,
-                        onHome: () => context.push(
-                          '/contact-home/${Uri.encodeComponent(userId)}',
-                        ),
-                      ),
-                      if (isWaitingForAccept)
-                        const _RelationshipNotice(message: '等待对方接受后才能聊天'),
-                      // 详细信息卡片
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(0, 20, 0, 0),
-                        child: _InfoGroup(
-                          children: [
-                            _InfoRow(label: '备注', value: 'Alice'),
-                            _InfoRow(label: '地区', value: '上海'),
-                            _InfoRow(
-                              label: '个签',
-                              value: '设计让世界更美好 ✨',
-                              valueMuted: true,
-                              valueSmall: true,
-                            ),
-                          ],
-                        ),
-                      ),
-                      // 操作列表卡片
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
-                        child: _ActionGroup(
-                          children: [
-                            _ActionRow(label: '设置备注和标签', onTap: () {}),
-                            _ActionRow(label: '朋友权限', onTap: () {}),
-                            _ActionRow(label: '加入黑名单', onTap: () {}),
-                            _ActionRow(
-                              label: '删除联系人',
-                              danger: true,
-                              onTap: room != null
-                                  ? () async {
-                                      try {
-                                        final contact = await ref
-                                            .read(asClientProvider)
-                                            .deleteContact(room.id);
-                                        ref
-                                            .read(asSyncCacheProvider.notifier)
-                                            .update(
-                                              (state) => state.withContactEntry(
-                                                contact,
-                                              ),
-                                            );
-                                        unawaited(
-                                          ref
-                                              .read(
-                                                asBootstrapRepositoryProvider,
-                                              )
-                                              .refresh()
-                                              .then((bootstrap) {
-                                            ref
-                                                .read(
-                                                  asSyncCacheProvider.notifier,
-                                                )
-                                                .update(
-                                                  (state) => state.copyWith(
-                                                    bootstrap: bootstrap,
-                                                  ),
-                                                );
-                                          }).catchError((Object e) {
-                                            debugPrint(
-                                              'refresh bootstrap after contact delete failed: $e',
-                                            );
-                                          }),
-                                        );
-                                        client.rooms.remove(room);
-                                        if (!context.mounted) return;
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text('已删除联系人'),
-                                          ),
-                                        );
-                                        context.go('/home');
-                                      } catch (e) {
-                                        if (!context.mounted) return;
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text('删除联系人失败: $e'),
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  : () {},
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 24),
+                    _UserHeader(
+                      name: displayName,
+                      badge: _roleBadge(acceptedContact?.domain),
+                      uid: uid,
+                      avatarUrl: avatarUrl,
+                      seed: userId,
+                    ),
+                    const SizedBox(height: 24),
+                    _QuickActionGrid(
+                      onMessage: canOpenChat && roomId != null
+                          ? () => context.go(
+                                '/chat/${Uri.encodeComponent(roomId)}',
+                              )
+                          : null,
+                      onVoice: room != null
+                          ? () => context.push(
+                                _callRoute(
+                                  'call',
+                                  room.id,
+                                  userId,
+                                  displayName,
+                                ),
+                              )
+                          : null,
+                      onVideo: room != null
+                          ? () => context.push(
+                                _callRoute(
+                                  'video-call',
+                                  room.id,
+                                  userId,
+                                  displayName,
+                                ),
+                              )
+                          : null,
+                      onSearch: () => _toast(context, '搜索聊天功能待接入'),
+                    ),
+                    const SizedBox(height: 26),
+                    _ContactSettingRow(
+                      label: '设置备注',
+                      value: '备注名称',
+                      onTap: () => _toast(context, '设置备注功能待接入'),
+                    ),
+                    const SizedBox(height: 16),
+                    _ContactSettingRow(
+                      label: '推荐给朋友',
+                      onTap: () => _toast(context, '推荐给朋友功能待接入'),
+                    ),
+                    const SizedBox(height: 16),
+                    _ContactSwitchRow(
+                      label: '消息免打扰',
+                      value: _muted,
+                      onChanged: (value) => setState(() => _muted = value),
+                    ),
+                    const SizedBox(height: 16),
+                    _ContactSwitchRow(
+                      label: '屏蔽用户',
+                      value: _blocked,
+                      onChanged: (value) => setState(() => _blocked = value),
+                      activeColor: const Color(0xFFC9C9CC),
+                    ),
+                    const SizedBox(height: 16),
+                    _ContactSettingRow(
+                      label: '举报用户',
+                      onTap: () => _showReportDialog(context),
+                    ),
+                  ],
                 ),
+              ),
+            ),
+            _DeleteFriendButton(
+              onTap: room == null
+                  ? () => _toast(context, '删除好友失败: 缺少联系人房间信息')
+                  : () => _confirmDeleteContact(context, room.id),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteContact(
+      BuildContext context, String roomId) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          '删除好友',
+          style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+        ),
+        content: Text(
+          '删除后将不再显示该联系人，会话关系也会同步更新。',
+          style: AppTheme.sans(size: 15, color: _contactInfoMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              '删除',
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: _contactInfoDanger,
               ),
             ),
           ),
         ],
       ),
     );
+    if (ok != true || !context.mounted) return;
+    await _deleteContact(context, roomId);
+  }
+
+  Future<void> _showReportDialog(BuildContext context) async {
+    final submitted = await showDialog<bool>(
+      context: context,
+      barrierColor: const Color(0xB3222325),
+      builder: (_) => const _ReportReasonDialog(),
+    );
+    if (submitted == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('举报已提交')),
+      );
+    }
+  }
+
+  Future<void> _deleteContact(BuildContext context, String roomId) async {
+    final client = ref.read(matrixClientProvider);
+    try {
+      final contact = await ref.read(asClientProvider).deleteContact(roomId);
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.withContactEntry(contact),
+          );
+      unawaited(
+        ref.read(asBootstrapRepositoryProvider).refresh().then((bootstrap) {
+          ref.read(asSyncCacheProvider.notifier).update(
+                (state) => state.copyWith(bootstrap: bootstrap),
+              );
+        }).catchError((Object e) {
+          debugPrint('refresh bootstrap after contact delete failed: $e');
+        }),
+      );
+      final room = client.getRoomById(roomId);
+      if (room != null) client.rooms.remove(room);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已删除好友')),
+      );
+      context.go('/home');
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('删除好友失败: $e')),
+      );
+    }
   }
 }
 
-/// 顶部：方形 72×72 头像 + 名字 + 在线点 + @username + Node URL
-class _ProfileHeader extends StatelessWidget {
-  const _ProfileHeader({
+class _ContactBackButton extends StatelessWidget {
+  const _ContactBackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 36,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Material(
+            color: Colors.white.withValues(alpha: 0.65),
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Center(
+                  child: SvgPicture.asset(
+                    _backIconAsset,
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(
+                      Color(0xFF222325),
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UserHeader extends StatelessWidget {
+  const _UserHeader({
     required this.name,
-    required this.initial,
-    required this.username,
-    required this.nodeUrl,
+    required this.badge,
+    required this.uid,
+    required this.seed,
     this.avatarUrl,
   });
+
   final String name;
-  final String initial;
-  final String username;
-  final String nodeUrl;
+  final String badge;
+  final String uid;
+  final String seed;
   final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: t.border.withValues(alpha: 0.2)),
+    return Row(
+      children: [
+        PortalAvatar(
+          seed: seed,
+          size: 60,
+          imageUrl: avatarUrl,
+          shape: AvatarShape.squircle,
         ),
-      ),
-      child: Row(
-        children: [
-          // 方形 72×72 头像 —— 有图就用图，没图退回首字母色块
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: t.accent,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            alignment: Alignment.center,
-            child: avatarUrl != null
-                ? Image.network(
-                    avatarUrl!,
-                    fit: BoxFit.cover,
-                    width: 72,
-                    height: 72,
-                    errorBuilder: (_, __, ___) => Text(
-                      initial,
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
-                        size: 30,
+                        size: 16,
                         weight: FontWeight.w600,
-                        color: t.onAccent,
-                      ),
-                    ),
-                  )
-                : Text(
-                    initial,
-                    style: AppTheme.sans(
-                      size: 30,
-                      weight: FontWeight.w600,
-                      color: t.onAccent,
+                        color: _contactInfoText,
+                      ).copyWith(letterSpacing: -0.4),
                     ),
                   ),
+                  const SizedBox(width: 4),
+                  _RoleBadge(text: badge),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'UID $uid',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(size: 14, color: _contactInfoMuted),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(
-                          size: 20,
-                          weight: FontWeight.w600,
-                          color: t.text,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: t.tertiaryFixed,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  username,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 15, color: t.textMute),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  nodeUrl,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 15, color: t.textMute),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+class _RoleBadge extends StatelessWidget {
+  const _RoleBadge({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        border: Border.all(color: _contactInfoBlue),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: AppTheme.sans(size: 10, color: _contactInfoBlue).copyWith(
+          letterSpacing: -0.4,
+          height: 1.1,
+        ),
       ),
     );
   }
 }
 
-/// 中间快捷操作横排：发消息 + 主页。
-class _QuickActions extends StatelessWidget {
-  const _QuickActions({this.onMessage, required this.onHome});
+class _QuickActionGrid extends StatelessWidget {
+  const _QuickActionGrid({
+    required this.onMessage,
+    required this.onVoice,
+    required this.onVideo,
+    required this.onSearch,
+  });
+
   final VoidCallback? onMessage;
-  final VoidCallback onHome;
+  final VoidCallback? onVoice;
+  final VoidCallback? onVideo;
+  final VoidCallback onSearch;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: t.border.withValues(alpha: 0.2)),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _QuickAction(
-            icon: Symbols.chat,
+    return Row(
+      children: [
+        Expanded(
+          child: _ContactQuickAction(
+            icon: Symbols.chat_bubble,
             label: '发消息',
-            background: t.surfaceHover,
-            iconColor: t.textMute,
             onTap: onMessage,
           ),
-          _QuickAction(
-            icon: Symbols.home,
-            label: '主页',
-            background: t.surfaceHover,
-            iconColor: t.textMute,
-            onTap: onHome,
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _ContactQuickAction(
+            icon: Symbols.call,
+            label: '音频通话',
+            onTap: onVoice,
           ),
-        ],
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _ContactQuickAction(
+            icon: Symbols.videocam,
+            label: '视频通话',
+            onTap: onVideo,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _ContactQuickAction(
+            icon: Symbols.search,
+            label: '搜索聊天',
+            onTap: onSearch,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ContactQuickAction extends StatelessWidget {
+  const _ContactQuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final color =
+        enabled ? _contactInfoBlue : _contactInfoBlue.withValues(alpha: 0.35);
+    return Material(
+      color: Colors.white.withValues(alpha: 0.92),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          height: 60,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 28, color: color, fill: 1),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(
+                  size: 12,
+                  weight: FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.icon,
+class _ContactSettingRow extends StatelessWidget {
+  const _ContactSettingRow({
     required this.label,
-    required this.background,
-    required this.iconColor,
-    this.onTap,
+    this.value,
+    required this.onTap,
   });
-  final IconData icon;
+
   final String label;
-  final Color background;
-  final Color iconColor;
-  final VoidCallback? onTap;
+  final String? value;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    final enabled = onTap != null;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: enabled ? background : t.surfaceHover,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 14,
+                      weight: FontWeight.w500,
+                      color: _contactInfoText,
+                    ).copyWith(letterSpacing: -0.4),
+                  ),
+                ),
+                if (value != null) ...[
+                  Flexible(
+                    child: Text(
+                      value!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: AppTheme.sans(
+                        size: 12,
+                        color: _contactInfoMuted,
+                      ).copyWith(letterSpacing: -0.4),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                ],
+                const Icon(
+                  Symbols.chevron_right,
+                  size: 24,
+                  color: Color(0xFF8E8E93),
                 ),
               ],
             ),
-            child: Icon(
-              icon,
-              size: 24,
-              color: enabled ? iconColor : t.textMute.withValues(alpha: 0.45),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ContactSwitchRow extends StatelessWidget {
+  const _ContactSwitchRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.activeColor = _contactInfoBlue,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final Color activeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.only(left: 12, right: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 14,
+                weight: FontWeight.w500,
+                color: _contactInfoText,
+              ).copyWith(letterSpacing: -0.4),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: AppTheme.sans(
-              size: 13,
-              weight: FontWeight.w500,
-              color: enabled ? t.textMute : t.textMute.withValues(alpha: 0.45),
+          Transform.scale(
+            scale: 0.82,
+            child: Switch.adaptive(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: Colors.white,
+              activeTrackColor: activeColor,
+              inactiveThumbColor: Colors.white,
+              inactiveTrackColor: const Color(0xFFC9C9CC),
+              trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
             ),
           ),
         ],
@@ -448,110 +626,350 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
-class _RelationshipNotice extends StatelessWidget {
-  const _RelationshipNotice({required this.message});
-  final String message;
+class _DeleteFriendButton extends StatelessWidget {
+  const _DeleteFriendButton({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: t.accentCool.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: t.accentCool.withValues(alpha: 0.24)),
-        ),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: AppTheme.sans(size: 14, color: t.textMute),
-        ),
-      ),
-    );
-  }
-}
-
-/// 详细信息卡片组：surface 底 + 圆角 + 细边 + 内部分隔线
-class _InfoGroup extends StatelessWidget {
-  const _InfoGroup({required this.children});
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(children: children);
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.valueMuted = false,
-    this.valueSmall = false,
-  });
-  final String label;
-  final String value;
-  final bool valueMuted;
-  final bool valueSmall;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return GlassListTile(
-      title: label,
-      trailing: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.48,
-        ),
-        child: Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.right,
-          style: AppTheme.sans(
-            size: valueSmall ? 13 : 15,
-            color: valueMuted ? t.textMute : t.text,
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _contactInfoDanger),
+              ),
+              child: Text(
+                '删除好友',
+                style: AppTheme.sans(
+                  size: 14,
+                  weight: FontWeight.w500,
+                  color: _contactInfoDanger,
+                ).copyWith(letterSpacing: -0.4),
+              ),
+            ),
           ),
         ),
       ),
-      showChevron: false,
-      titleStyle:
-          AppTheme.sans(size: 20, weight: FontWeight.w600, color: t.text),
     );
   }
 }
 
-/// 操作列表卡片
-class _ActionGroup extends StatelessWidget {
-  const _ActionGroup({required this.children});
-  final List<Widget> children;
+class _ReportReasonDialog extends StatefulWidget {
+  const _ReportReasonDialog();
 
   @override
-  Widget build(BuildContext context) {
-    return Column(children: children);
-  }
+  State<_ReportReasonDialog> createState() => _ReportReasonDialogState();
 }
 
-class _ActionRow extends StatelessWidget {
-  const _ActionRow({required this.label, this.danger = false, this.onTap});
-  final String label;
-  final bool danger;
-  final VoidCallback? onTap;
+class _ReportReasonDialogState extends State<_ReportReasonDialog> {
+  static const _reasons = [
+    '骚扰/辱骂',
+    '垃圾信息/广告',
+    '色情/不当内容',
+    '暴力内容',
+    '欺诈',
+    '其他',
+  ];
+
+  String _selected = '其他';
+  final TextEditingController _otherController = TextEditingController();
+
+  @override
+  void dispose() {
+    _otherController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return GlassListTile(
-      title: label,
-      onTap: onTap,
-      titleStyle: AppTheme.sans(
-        size: 20,
-        weight: FontWeight.w600,
-        color: danger ? t.danger : t.text,
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 343),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+        decoration: BoxDecoration(
+          color: _contactInfoBg,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '请选择举报原因',
+                    style: AppTheme.sans(
+                      size: 16,
+                      weight: FontWeight.w500,
+                      color: _contactInfoText,
+                    ).copyWith(letterSpacing: -0.4),
+                  ),
+                ),
+                InkWell(
+                  onTap: () => Navigator.of(context).pop(false),
+                  customBorder: const CircleBorder(),
+                  child: const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: Icon(
+                      Symbols.close,
+                      size: 18,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            for (final reason in _reasons) ...[
+              if (reason == '其他')
+                _OtherReasonTile(
+                  selected: _selected == reason,
+                  controller: _otherController,
+                  onTap: () => setState(() => _selected = reason),
+                )
+              else
+                _ReportReasonTile(
+                  label: reason,
+                  selected: _selected == reason,
+                  onTap: () => setState(() => _selected = reason),
+                ),
+              if (reason != _reasons.last) const SizedBox(height: 12),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 44,
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _contactInfoBlue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  '提交',
+                  style: AppTheme.sans(
+                    size: 14,
+                    weight: FontWeight.w500,
+                    color: Colors.white,
+                  ).copyWith(letterSpacing: -0.4),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _ReportReasonTile extends StatelessWidget {
+  const _ReportReasonTile({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 14,
+                      weight: FontWeight.w500,
+                      color: _contactInfoText,
+                    ).copyWith(letterSpacing: -0.4),
+                  ),
+                ),
+                _ReportRadio(selected: selected),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OtherReasonTile extends StatelessWidget {
+  const _OtherReasonTile({
+    required this.selected,
+    required this.controller,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final TextEditingController controller;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '其他',
+                      style: AppTheme.sans(
+                        size: 14,
+                        weight: FontWeight.w500,
+                        color: _contactInfoText,
+                      ).copyWith(letterSpacing: -0.4),
+                    ),
+                  ),
+                  _ReportRadio(selected: selected),
+                ],
+              ),
+              if (selected) ...[
+                const SizedBox(height: 8),
+                Container(
+                  height: 74,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9F9F9),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: TextField(
+                    controller: controller,
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    style: AppTheme.sans(
+                      size: 12,
+                      color: _contactInfoText,
+                    ).copyWith(letterSpacing: -0.4),
+                    decoration: InputDecoration(
+                      hintText: '请填写举报原因',
+                      hintStyle: AppTheme.sans(
+                        size: 12,
+                        color: const Color(0xFF999999),
+                      ).copyWith(letterSpacing: -0.4),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportRadio extends StatelessWidget {
+  const _ReportRadio({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: selected ? _contactInfoBlue : Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? _contactInfoBlue : const Color(0xFFE0E0E0),
+          width: selected ? 0 : 1,
+        ),
+      ),
+      child: selected
+          ? Center(
+              child: Container(
+                width: 5,
+                height: 5,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+String _localpartFromMxid(String userId) {
+  if (userId.startsWith('@') && userId.contains(':')) {
+    return userId.substring(1, userId.indexOf(':'));
+  }
+  return userId;
+}
+
+String _uidFromUserId(String userId, String localpart) {
+  final digits =
+      RegExp(r'\d+').allMatches(userId).map((match) => match.group(0)!).join();
+  if (digits.length >= 6) return digits;
+  final hash = userId.codeUnits.fold<int>(0, (value, unit) => value + unit);
+  return '${localpart.hashCode.abs()}$hash'
+      .replaceAll('-', '')
+      .padRight(10, '0')
+      .substring(0, 10);
+}
+
+String _roleBadge(String? domain) {
+  final value = domain?.trim() ?? '';
+  if (value.contains('agent') || value.contains('support')) return '客服经理';
+  return '客服经理';
+}
+
+String _callRoute(String path, String roomId, String peerUserId, String name) {
+  final room = Uri.encodeComponent(roomId);
+  final peer = Uri.encodeQueryComponent(peerUserId);
+  final displayName = Uri.encodeQueryComponent(name);
+  return '/$path/$room?peer=$peer&name=$displayName';
+}
+
+void _toast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message)),
+  );
 }

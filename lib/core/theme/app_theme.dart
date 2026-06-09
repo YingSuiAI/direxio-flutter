@@ -112,6 +112,17 @@ class AppTheme {
           textStyle: _font(fontSize: 15),
         ),
       ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: t.accent,
+        unselectedLabelColor: t.textMute,
+        indicatorColor: t.accent,
+        labelStyle: _font(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0,
+        ),
+        unselectedLabelStyle: _font(fontSize: 14, letterSpacing: 0),
+      ),
       cardTheme: CardThemeData(
         color: t.surface,
         elevation: 0,

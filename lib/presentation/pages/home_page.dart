@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -60,6 +59,23 @@ const _iconTabContacts = 'assets/icons/tab_contacts.svg';
 const _iconTabChannel = 'assets/icons/tab_channel.svg';
 const _iconTabMe = 'assets/icons/tab_me.svg';
 const _iconBottomSearchTg = 'assets/icons/bottom_search_tg.svg';
+const _assetMeTabNormal =
+    'assets/resources/tab_profile_normal__Profile Square 2.png';
+const _assetMeTabSelected =
+    'assets/resources/tab_profile_selected__Profile Square 2.png';
+const _assetMeSettings =
+    'assets/resources/icon_account_setting__icon_account_setting.png';
+const _assetMeQr = 'assets/resources/qr_code__qr_code.png';
+const _assetMeChannels = 'assets/icons/me_channel.svg';
+const _assetMeFavorites =
+    'assets/resources/ic_profile_favorites__ic_profile_favorites.png';
+const _assetMeComments =
+    'assets/resources/ic_profile_verification__ic_profile_verification.png';
+const _assetMeHistory =
+    'assets/resources/ic_profile_clear_chat__ic_profile_clear_chat.png';
+const _meIconBlue = Color(0xFF3097CB);
+const _bottomSearchTapSize = 56.0;
+const _bottomSearchIconSize = 48.0;
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -377,7 +393,9 @@ class _HomePageState extends ConsumerState<HomePage>
           ),
           const _HomeNavItem(
             iconAsset: _iconTabMe,
-            label: '我',
+            activeIconAsset: _assetMeTabSelected,
+            inactiveIconAsset: _assetMeTabNormal,
+            label: '我的',
           ),
         ],
       ),
@@ -418,7 +436,7 @@ class _HomeTitleTopBar extends StatelessWidget {
           _GlassCircleButton(
             icon: Symbols.add,
             size: 40,
-            iconSize: 25,
+            iconSize: 24,
             onTap: onPlusTap,
           ),
         ],
@@ -659,7 +677,7 @@ class _PlusMenuTile extends StatelessWidget {
         child: Row(
           children: [
             const SizedBox(width: 20),
-            _DesignSvgIcon(
+            _DesignAssetIcon(
               assetName: iconAsset,
               size: 20,
               color: _homeText,
@@ -690,11 +708,15 @@ class _HomeNavItem {
     required this.iconAsset,
     required this.label,
     this.badge,
+    this.activeIconAsset,
+    this.inactiveIconAsset,
   });
 
   final String iconAsset;
   final String label;
   final String? badge;
+  final String? activeIconAsset;
+  final String? inactiveIconAsset;
 }
 
 class _HomeBottomBar extends StatelessWidget {
@@ -750,10 +772,16 @@ class _HomeBottomBar extends StatelessWidget {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: onSearchTap,
-              child: SvgPicture.asset(
-                _iconBottomSearchTg,
-                width: 56,
-                height: 56,
+              child: SizedBox(
+                width: _bottomSearchTapSize,
+                height: _bottomSearchTapSize,
+                child: Center(
+                  child: SvgPicture.asset(
+                    _iconBottomSearchTg,
+                    width: _bottomSearchIconSize,
+                    height: _bottomSearchIconSize,
+                  ),
+                ),
               ),
             ),
           ),
@@ -776,6 +804,7 @@ class _LiquidTabPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return AppGlassPanel(
       borderRadius: BorderRadius.circular(276),
       child: Padding(
@@ -816,12 +845,17 @@ class _LiquidTabPill extends StatelessWidget {
                         Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            _DesignSvgIcon(
-                              assetName: item.iconAsset,
+                            _DesignAssetIcon(
+                              assetName: active
+                                  ? item.activeIconAsset ?? item.iconAsset
+                                  : item.inactiveIconAsset ?? item.iconAsset,
                               size: 24,
-                              color: active
-                                  ? const Color(0xFF077AB3)
-                                  : const Color(0xFF111111),
+                              color: item.activeIconAsset == null &&
+                                      item.inactiveIconAsset == null
+                                  ? active
+                                      ? t.accent
+                                      : _homeText
+                                  : null,
                             ),
                             if (item.badge != null)
                               Positioned(
@@ -841,7 +875,7 @@ class _LiquidTabPill extends StatelessWidget {
                           style: AppTheme.sans(
                             size: 10,
                             weight: FontWeight.w600,
-                            color: const Color(0xFF111111),
+                            color: active ? t.accent : _homeText,
                           ).copyWith(height: 1.2),
                         ),
                       ],
@@ -857,8 +891,8 @@ class _LiquidTabPill extends StatelessWidget {
   }
 }
 
-class _DesignSvgIcon extends StatelessWidget {
-  const _DesignSvgIcon({
+class _DesignAssetIcon extends StatelessWidget {
+  const _DesignAssetIcon({
     required this.assetName,
     required this.size,
     this.color,
@@ -872,13 +906,7 @@ class _DesignSvgIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = SvgPicture.asset(
-      assetName,
-      width: size,
-      height: size,
-      colorFilter:
-          color == null ? null : ColorFilter.mode(color!, BlendMode.srcIn),
-    );
+    final icon = _assetIcon(assetName, size: size, color: color);
     if (overlayAssetName == null) return icon;
     return SizedBox(
       width: size,
@@ -890,16 +918,40 @@ class _DesignSvgIcon extends StatelessWidget {
           Positioned(
             top: -1,
             right: -1,
-            child: SvgPicture.asset(
+            child: _assetIcon(
               overlayAssetName!,
-              width: size * 0.5,
-              height: size * 0.5,
+              size: size * 0.5,
             ),
           ),
         ],
       ),
     );
   }
+}
+
+Widget _assetIcon(String assetName, {required double size, Color? color}) {
+  if (assetName.toLowerCase().endsWith('.svg')) {
+    return SvgPicture.asset(
+      assetName,
+      width: size,
+      height: size,
+      colorFilter:
+          color == null ? null : ColorFilter.mode(color, BlendMode.srcIn),
+    );
+  }
+
+  final image = Image.asset(
+    assetName,
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.high,
+  );
+  if (color == null) return image;
+  return ColorFiltered(
+    colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+    child: image,
+  );
 }
 
 class _GlassCircleButton extends StatelessWidget {
@@ -1559,16 +1611,14 @@ class _ConversationUnreadBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     final label = _formatBadgeCount(count);
     return Container(
+      width: 20,
       height: 20,
-      constraints: const BoxConstraints(minWidth: 20),
-      padding: EdgeInsets.symmetric(horizontal: label.length > 2 ? 5 : 0),
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: t.accent,
-        borderRadius: BorderRadius.circular(999),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFF5656),
+        shape: BoxShape.circle,
       ),
       child: Text(
         label,
@@ -1578,9 +1628,9 @@ class _ConversationUnreadBadge extends StatelessWidget {
           applyHeightToLastDescent: false,
         ),
         style: AppTheme.sans(
-          size: label.length > 2 ? 9 : 11,
+          size: label.length > 2 ? 8 : 11,
           weight: FontWeight.w700,
-          color: t.onAccent,
+          color: Colors.white,
         ).copyWith(height: 1),
       ),
     );
@@ -1953,7 +2003,7 @@ class _SectionAction extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         alignment: Alignment.center,
-        child: _DesignSvgIcon(
+        child: _DesignAssetIcon(
           assetName: iconAsset,
           size: 22,
           color: const Color(0xFF0066A8),
@@ -2492,6 +2542,7 @@ class _MePageState extends ConsumerState<_MePage> {
     if (_avatarBusy) return;
 
     try {
+      setState(() => _avatarBusy = true);
       final xFile = await ImagePicker().pickImage(
         source: ImageSource.gallery,
         imageQuality: 92,
@@ -2569,301 +2620,297 @@ class _MePageState extends ConsumerState<_MePage> {
             : localpart;
     final domain = _domainFromMxid(displayId);
     final avatarUrl = profileAvatarHttpUrl(profile, client) ?? MockAvatars.me;
-    final personalSpace = ref.watch(personalSpaceProvider).valueOrNull;
-    final signature = personalProfile.bio.trim().isNotEmpty
-        ? personalProfile.bio.trim()
-        : personalSpace?.signature.trim().isNotEmpty == true
-            ? personalSpace!.signature.trim()
-            : '还没有设置个性签名';
-    final channels = personalSpace?.channels ?? const <MyChannel>[];
-    final works = personalSpace?.works ?? const <WorkItem>[];
+    final uid = localpart.isEmpty ? displayId : localpart;
 
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 96),
-      children: [
-        _MeCoverProfileHeader(
-          displayId: displayId,
-          displayName: displayName,
-          domain: domain,
-          signature: signature,
-          avatarUrl: avatarUrl,
-          coverImageBytes: personalProfile.coverImageBytes,
-          avatarBusy: _avatarBusy,
-          onAvatarTap: _avatarBusy ? null : _pickAvatar,
-          onProfileTap: () => context.push('/me/profile'),
+    return ColoredBox(
+      color: _homeBg,
+      child: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
+          children: [
+            _MeTopBar(
+              onSettingsTap: () => context.push('/settings'),
+            ),
+            const SizedBox(height: 12),
+            _MeProfileTile(
+              displayId: displayId,
+              displayName: displayName,
+              uid: uid,
+              avatarUrl: avatarUrl,
+              avatarBusy: _avatarBusy,
+              onAvatarTap: _avatarBusy ? null : _pickAvatar,
+              onProfileTap: () => context.push('/me/profile'),
+              onQrTap: () => _showDomainQrDialog(context, domain, displayId),
+            ),
+            const SizedBox(height: 34),
+            _MeActionRow(
+              assetName: _assetMeChannels,
+              label: '我的频道',
+              onTap: () => context.push('/channels/manage'),
+            ),
+            const SizedBox(height: 16),
+            _MeActionRow(
+              assetName: _assetMeFavorites,
+              label: '赞/收藏',
+              onTap: () => context.push('/me/favorites'),
+            ),
+            const SizedBox(height: 16),
+            _MeActionRow(
+              assetName: _assetMeComments,
+              label: '评论',
+              onTap: () => context.push('/me/comments'),
+            ),
+            const SizedBox(height: 16),
+            _MeActionRow(
+              assetName: _assetMeHistory,
+              label: '浏览记录',
+              onTap: () => context.push('/me/history'),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: glassListTileHorizontalMargin,
-          ),
-          child: _PersonalSpaceSection(
-            title: '我的频道',
-            actionIcon: Symbols.add,
-            onAction: () => _homeToast(context, '创建频道功能待接入'),
-            child: channels.isEmpty
-                ? const _SpaceEmptyState(
-                    icon: Symbols.campaign,
-                    title: '还没有开通频道',
-                    subtitle: '创建频道后会显示在这里',
-                  )
-                : Column(
-                    children: [
-                      for (var i = 0; i < channels.length; i++) ...[
-                        _MyChannelTile(channel: channels[i]),
-                        if (i != channels.length - 1)
-                          const SizedBox(height: 10),
-                      ],
-                    ],
-                  ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: glassListTileHorizontalMargin,
-          ),
-          child: _PersonalSpaceSection(
-            title: '动态',
-            actionIcon: Symbols.add,
-            onAction: () => _homeToast(context, '动态发布功能待接入'),
-            child: works.isEmpty
-                ? const _SpaceEmptyState(
-                    icon: Symbols.dynamic_feed,
-                    title: '还没有动态',
-                    subtitle: '发布内容后会显示在这里',
-                  )
-                : _DynamicsTimeline(items: works),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
 
-class _MeCoverProfileHeader extends StatelessWidget {
-  const _MeCoverProfileHeader({
+class _MeTopBar extends StatelessWidget {
+  const _MeTopBar({required this.onSettingsTap});
+
+  final VoidCallback onSettingsTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '我的',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 20,
+                weight: FontWeight.w600,
+                color: const Color(0xFF333333),
+              ),
+            ),
+          ),
+          _MeGlassIconButton(
+            assetName: _assetMeSettings,
+            onTap: onSettingsTap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MeProfileTile extends StatelessWidget {
+  const _MeProfileTile({
     required this.displayId,
     required this.displayName,
-    required this.domain,
-    required this.signature,
+    required this.uid,
     required this.avatarUrl,
-    required this.coverImageBytes,
     required this.avatarBusy,
     required this.onAvatarTap,
     required this.onProfileTap,
+    required this.onQrTap,
   });
 
   final String displayId;
   final String displayName;
-  final String domain;
-  final String signature;
+  final String uid;
   final String avatarUrl;
-  final Uint8List? coverImageBytes;
   final bool avatarBusy;
   final VoidCallback? onAvatarTap;
   final VoidCallback onProfileTap;
+  final VoidCallback onQrTap;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    final coverBytes = coverImageBytes;
-    return Container(
-      key: const ValueKey('me_cover_header'),
-      height: 210,
-      clipBehavior: Clip.antiAlias,
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
+    return SizedBox(
+      height: 60,
+      child: Row(
         children: [
-          if (coverBytes != null)
-            Image.memory(coverBytes, fit: BoxFit.cover)
-          else
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF6D8EA6),
-                    Color(0xFFD6B06F),
-                    Color(0xFF3A342F),
-                  ],
+          GestureDetector(
+            onTap: onAvatarTap,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                PortalAvatar(
+                  seed: displayId,
+                  size: 60,
+                  imageUrl: avatarUrl,
+                  shape: AvatarShape.squircle,
                 ),
-              ),
-            ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.06),
-                  Colors.black.withValues(alpha: 0.34),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            right: 12,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: SizedBox(
-                  key: const ValueKey('me_menu_button'),
-                  child: GlassHeaderButton(
-                    icon: Symbols.menu,
-                    color: Colors.white,
-                    onTap: () => context.push('/me/menu'),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 22,
-            child: Container(
-              key: const ValueKey('me_profile_entry'),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    key: const ValueKey('me_avatar_column'),
-                    flex: 1,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: GestureDetector(
-                        onTap: onAvatarTap,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              width: 104,
-                              height: 104,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: Colors.white, width: 2.5),
-                              ),
-                              child: ClipOval(
-                                child: PortalAvatar(
-                                  seed: displayId,
-                                  size: 104,
-                                  imageUrl: avatarUrl,
-                                ),
-                              ),
+                if (avatarBusy)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(13.5),
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.24),
+                      child: const SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
                             ),
-                            if (avatarBusy)
-                              Positioned.fill(
-                                child: ClipOval(
-                                  child: ColoredBox(
-                                    color: Colors.black.withValues(alpha: 0.24),
-                                    child: const Center(
-                                      child: SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            Positioned(
-                              right: 0,
-                              bottom: 0,
-                              child: Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: t.surfaceHigh,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: t.bg, width: 2),
-                                ),
-                                child: Icon(
-                                  Symbols.photo_camera,
-                                  size: 16,
-                                  color: t.textMute,
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    key: const ValueKey('me_profile_column'),
-                    flex: 2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                displayName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(
-                                  size: 24,
-                                  weight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              key: const ValueKey('me_profile_edit_button'),
-                              behavior: HitTestBehavior.opaque,
-                              onTap: onProfileTap,
-                              child: const SizedBox(
-                                width: 32,
-                                height: 26,
-                                child: Padding(
-                                  padding: EdgeInsets.only(top: 4),
-                                  child: Center(
-                                    child: SizedBox(
-                                      width: 21.5,
-                                      height: 17.5,
-                                      child: _FeatherEditMark(
-                                        key: ValueKey('me_feather_edit_mark'),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        _DomainPill(domain: domain, userId: displayId),
-                        const SizedBox(height: 2),
-                        Text(
-                          signature,
-                          key: const ValueKey('me_signature_line'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTheme.sans(size: 16, color: Colors.white),
-                        ),
-                      ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: InkWell(
+              onTap: onProfileTap,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 16,
+                        weight: FontWeight.w600,
+                        color: const Color(0xFF333333),
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      'UID $uid',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 14,
+                        color: const Color(0xFF666666),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+          const SizedBox(width: 12),
+          IconButton(
+            tooltip: '我的二维码',
+            onPressed: onQrTap,
+            icon: _assetIcon(_assetMeQr, size: 24, color: _meIconBlue),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _MeActionRow extends StatelessWidget {
+  const _MeActionRow({
+    required this.assetName,
+    required this.label,
+    required this.onTap,
+  });
+
+  final String assetName;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                _assetIcon(assetName, size: 24, color: _meIconBlue),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 16,
+                      weight: FontWeight.w500,
+                      color: const Color(0xFF262628),
+                    ).copyWith(height: 22 / 16),
+                  ),
+                ),
+                const Icon(
+                  Symbols.chevron_right,
+                  size: 24,
+                  color: Colors.black,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MeGlassIconButton extends StatelessWidget {
+  const _MeGlassIconButton({
+    required this.assetName,
+    required this.onTap,
+  });
+
+  final String assetName;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 36,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Material(
+            color: Colors.white.withValues(alpha: 0.65),
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Center(
+                  child: _assetIcon(assetName, size: 24, color: _meIconBlue),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -2873,37 +2920,6 @@ String _domainFromMxid(String mxid) {
   final colon = mxid.indexOf(':');
   if (colon == -1 || colon == mxid.length - 1) return '未连接域名';
   return mxid.substring(colon + 1);
-}
-
-class _DomainPill extends StatelessWidget {
-  const _DomainPill({required this.domain, required this.userId});
-  final String domain;
-  final String userId;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      key: const ValueKey('me_domain_pill'),
-      padding: EdgeInsets.zero,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(domain, style: AppTheme.sans(size: 16, color: Colors.white)),
-          const SizedBox(width: 6),
-          GestureDetector(
-            key: const ValueKey('me_domain_qr_button'),
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _showDomainQrDialog(context, domain, userId),
-            child: const SizedBox(
-              width: 22,
-              height: 22,
-              child: Icon(Symbols.qr_code_2, size: 17, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 void _showDomainQrDialog(BuildContext context, String domain, String userId) {
@@ -2971,339 +2987,6 @@ void _showDomainQrDialog(BuildContext context, String domain, String userId) {
       ),
     ),
   );
-}
-
-class _FeatherEditMark extends StatelessWidget {
-  const _FeatherEditMark({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(painter: _FeatherEditPainter());
-  }
-}
-
-class _FeatherEditPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final sx = size.width / 32;
-    final sy = size.height / 26;
-    canvas.scale(sx, sy);
-
-    final stroke = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.25
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final strong = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.9
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final spine = Path()
-      ..moveTo(5, 22)
-      ..cubicTo(10, 14, 17, 8, 28, 3);
-    canvas.drawPath(spine, strong);
-
-    final featherTop = Path()
-      ..moveTo(9, 16)
-      ..cubicTo(12, 8, 20, 3, 30, 1)
-      ..cubicTo(29, 5, 27, 9, 22, 12)
-      ..cubicTo(18, 14, 14, 15, 9, 16);
-    canvas.drawPath(featherTop, stroke);
-
-    final featherBottom = Path()
-      ..moveTo(10, 17)
-      ..cubicTo(15, 16, 20, 16, 25, 13)
-      ..cubicTo(22, 17, 17, 20, 8, 20);
-    canvas.drawPath(featherBottom, stroke);
-
-    for (final rib in <Path>[
-      Path()
-        ..moveTo(15, 11)
-        ..quadraticBezierTo(17, 8, 21, 6),
-      Path()
-        ..moveTo(19, 9)
-        ..quadraticBezierTo(22, 7, 25, 4),
-      Path()
-        ..moveTo(14, 15)
-        ..quadraticBezierTo(18, 14, 22, 12),
-    ]) {
-      canvas.drawPath(rib, stroke);
-    }
-
-    final flourish = Path()
-      ..moveTo(2, 23)
-      ..cubicTo(7, 25, 16, 21, 25, 23)
-      ..cubicTo(28, 24, 30, 24, 31, 23);
-    canvas.drawPath(flourish, stroke);
-
-    canvas.drawLine(const Offset(5, 22), const Offset(2, 25), strong);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _PersonalSpaceSection extends StatelessWidget {
-  const _PersonalSpaceSection({
-    required this.title,
-    required this.child,
-    this.actionIcon,
-    this.onAction,
-  });
-
-  final String title;
-  final Widget child;
-  final IconData? actionIcon;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 2, right: 2, bottom: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: AppTheme.sans(
-                    size: 16,
-                    weight: FontWeight.w600,
-                    color: t.text,
-                  ),
-                ),
-              ),
-              if (actionIcon != null && onAction != null)
-                InkWell(
-                  onTap: onAction,
-                  borderRadius: BorderRadius.circular(9999),
-                  child: SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: Icon(actionIcon, size: 18, color: t.textMute),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        child,
-      ],
-    );
-  }
-}
-
-class _MyChannelTile extends StatelessWidget {
-  const _MyChannelTile({required this.channel});
-  final MyChannel channel;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassListTile(
-      margin: const EdgeInsets.only(bottom: glassListTileGap),
-      leading: const GlassListIcon(icon: Symbols.campaign),
-      title: channel.name,
-      subtitle:
-          '${channel.description} · ${channel.domain} · ${channel.memberCount} 人',
-    );
-  }
-}
-
-class _DynamicsTimeline extends StatelessWidget {
-  const _DynamicsTimeline({required this.items});
-
-  final List<WorkItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final sorted = [...items]..sort((a, b) => b.sortKey.compareTo(a.sortKey));
-    return Column(
-      key: const ValueKey('me_dynamics_timeline'),
-      children: [
-        for (var i = 0; i < sorted.length; i++) ...[
-          _DynamicTimelineItem(item: sorted[i]),
-        ],
-      ],
-    );
-  }
-}
-
-class _DynamicTimelineItem extends StatelessWidget {
-  const _DynamicTimelineItem({required this.item});
-
-  final WorkItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassListPanel(
-      onTap: () => context.push('/me/dynamic/${Uri.encodeComponent(item.id)}'),
-      margin: const EdgeInsets.only(bottom: glassListTileGap),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 84,
-            child: _DynamicDate(month: item.month, day: item.day),
-          ),
-          const SizedBox(width: 18),
-          Expanded(child: _DynamicPreview(item: item)),
-        ],
-      ),
-    );
-  }
-}
-
-class _DynamicDate extends StatelessWidget {
-  const _DynamicDate({required this.month, required this.day});
-
-  final String month;
-  final String day;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    if (day.isEmpty) {
-      return Text(
-        month,
-        key: const ValueKey('me_dynamic_today_label'),
-        style: AppTheme.sans(
-          size: 24,
-          weight: FontWeight.w700,
-          color: t.text,
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(month, style: AppTheme.sans(size: 13, color: t.text)),
-        Text(
-          day,
-          style: AppTheme.sans(
-            size: 28,
-            weight: FontWeight.w700,
-            color: t.text,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DynamicPreview extends StatelessWidget {
-  const _DynamicPreview({required this.item});
-
-  final WorkItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          item.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: AppTheme.sans(
-            size: 18,
-            weight: FontWeight.w500,
-            color: t.text,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _DynamicMediaPreview(item: item),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                item.subtitle,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.sans(size: 13, color: t.textMute).copyWith(
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _DynamicMediaPreview extends StatelessWidget {
-  const _DynamicMediaPreview({required this.item});
-
-  final WorkItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      width: 78,
-      height: 78,
-      decoration: BoxDecoration(
-        color: Color(item.previewColor),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Symbols.image, size: 22, color: t.textMute),
-          const SizedBox(height: 5),
-          Text(
-            item.kind,
-            style: AppTheme.sans(size: 10, color: t.textMute),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SpaceEmptyState extends StatelessWidget {
-  const _SpaceEmptyState({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Column(
-        children: [
-          Icon(icon, size: 28, color: t.textMute),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: AppTheme.sans(
-              size: 14,
-              weight: FontWeight.w600,
-              color: t.text,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(subtitle, style: AppTheme.sans(size: 12, color: t.textMute)),
-        ],
-      ),
-    );
-  }
 }
 
 class _Empty extends StatelessWidget {

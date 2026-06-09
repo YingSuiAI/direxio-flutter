@@ -49,7 +49,7 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     border: Color(0xFFC1C6D7),
     text: Color(0xFF1A1C1F),
     textMute: Color(0xFF414755),
-    accent: Color(0xFF0058BC),
+    accent: Color(0xFF3097CB),
     accentCool: Color(0xFF006B27),
     danger: Color(0xFFBA1A1A),
     onAccent: Color(0xFFFFFFFF),

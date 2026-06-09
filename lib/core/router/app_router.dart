@@ -32,6 +32,7 @@ import '../../presentation/pages/settings_page.dart';
 import '../../presentation/pages/search_page.dart';
 import '../../presentation/pages/channel_search_page.dart';
 import '../../presentation/pages/channel_page.dart';
+import '../../presentation/pages/channel_management_page.dart';
 import '../../presentation/pages/dynamic_detail_page.dart';
 import '../../presentation/pages/mcp_permission_page.dart';
 import '../../presentation/pages/mcp_policy_edit_page.dart';
@@ -452,6 +453,27 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/channels/search',
         pageBuilder: (_, __) => _slidePage(const ChannelSearchPage()),
+      ),
+      GoRoute(
+        path: '/channels/manage',
+        pageBuilder: (_, state) => _slidePage(
+          ChannelManagementPage(
+            initialSection: ChannelManagementSection.fromName(
+              state.uri.queryParameters['tab'],
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/channels/manage/:channelId',
+        pageBuilder: (_, state) => _slidePage(
+          ChannelManagementPage(
+            channelId: state.pathParameters['channelId'],
+            initialSection: ChannelManagementSection.fromName(
+              state.uri.queryParameters['tab'],
+            ),
+          ),
+        ),
       ),
       GoRoute(
         path: '/channel/:channelId',

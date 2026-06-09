@@ -10,7 +10,7 @@ const chatMessageCardWidth = 273.0;
 const chatMessageCardHeight = 130.0;
 const chatMessageCardTotalWidth = chatMessageCardWidth;
 const chatMessageCardMaxWidthFactor = 0.77;
-const chatMessageBubbleRadius = BorderRadius.all(Radius.circular(16));
+const chatMessageBubbleRadius = BorderRadius.all(Radius.circular(24));
 
 class ChatBubbleFrame extends StatelessWidget {
   const ChatBubbleFrame({

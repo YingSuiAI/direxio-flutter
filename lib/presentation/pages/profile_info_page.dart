@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -296,7 +297,6 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
               child: Row(
                 children: [
                   _RoundIconButton(
-                    icon: Symbols.arrow_back_ios_new,
                     onTap: () => context.pop(),
                   ),
                   const SizedBox(width: 12),
@@ -581,9 +581,8 @@ class _CoverButton extends StatelessWidget {
 }
 
 class _RoundIconButton extends StatelessWidget {
-  const _RoundIconButton({required this.icon, required this.onTap});
+  const _RoundIconButton({required this.onTap});
 
-  final IconData icon;
   final VoidCallback onTap;
 
   @override
@@ -591,13 +590,30 @@ class _RoundIconButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 44,
-        height: 44,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.34),
+          color: Colors.white.withValues(alpha: 0.65),
           shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 18,
+              offset: const Offset(0, 7),
+            ),
+          ],
         ),
-        child: Icon(icon, size: 22, color: Colors.white),
+        child: Center(
+          child: SvgPicture.asset(
+            'assets/icons/toklink_back.svg',
+            width: 20,
+            height: 20,
+            colorFilter: const ColorFilter.mode(
+              Color(0xFF222325),
+              BlendMode.srcIn,
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -1,15 +1,14 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../providers/auth_provider.dart';
-import '../widgets/glass_list_tile.dart';
-import '../widgets/m3/glass_header.dart';
 
-/// Unified settings page for account, notifications, general options, and logout.
+/// Settings page matching the TokLink settings design.
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
@@ -18,9 +17,9 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  bool _biometric = true;
-  bool _msgPush = true;
-  bool _dnd = false;
+  bool _dnd = true;
+  bool _messageSound = true;
+  bool _messageVibration = true;
 
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
@@ -47,126 +46,193 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final topInset = MediaQuery.of(context).padding.top;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final t = context.tk;
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          GlassHeader.detail(title: '设置'),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(0, 20, 0, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _SettingsSection(
-                    title: '账号与安全',
-                    children: [
-                      _SettingsRow(
-                        icon: Symbols.key,
-                        label: '修改密码',
-                        onTap: () => context.push('/me/account/password'),
-                      ),
-                      _SettingsDivider(),
-                      _SettingsSwitchRow(
-                        icon: Symbols.fingerprint,
-                        label: '生物识别解锁',
-                        value: _biometric,
-                        onChanged: (v) => setState(() => _biometric = v),
-                      ),
-                      _SettingsDivider(),
-                      _SettingsRow(
-                        icon: Symbols.lock,
-                        label: '隐私设置',
-                        onTap: () {},
-                      ),
-                      _SettingsDivider(),
-                      _SettingsRow(
-                        icon: Symbols.devices,
-                        label: '已登录设备',
-                        trailingText: '2 台',
-                        onTap: () {},
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _SettingsSection(
-                    title: '通知设置',
-                    children: [
-                      _SettingsSwitchRow(
-                        icon: Symbols.notifications,
-                        label: '消息通知',
-                        value: _msgPush,
-                        onChanged: (v) => setState(() => _msgPush = v),
-                      ),
-                      _SettingsDivider(),
-                      _SettingsSwitchRow(
-                        icon: Symbols.do_not_disturb_on,
-                        label: '勿扰模式',
-                        value: _dnd,
-                        onChanged: (v) => setState(() => _dnd = v),
-                      ),
-                      _SettingsDivider(),
-                      _SettingsRow(
-                        icon: Symbols.vibration,
-                        label: '声音与震动',
-                        onTap: () {},
-                      ),
-                      _SettingsDivider(),
-                      _SettingsRow(
-                        icon: Symbols.schedule,
-                        label: '勿扰时段',
-                        trailingText: '22:00-08:00',
-                        onTap: () {},
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _SettingsSection(
-                    title: '通用',
-                    children: [
-                      _SettingsRow(
-                        icon: Symbols.tune,
-                        label: '偏好设置',
-                        trailingText: '默认',
-                        onTap: () {},
-                      ),
-                      _SettingsDivider(),
-                      _SettingsRow(
-                        icon: Symbols.folder_data,
-                        label: '存储空间',
-                        trailingText: '128 MB',
-                        onTap: () {},
-                      ),
-                      _SettingsDivider(),
-                      _SettingsRow(
-                        icon: Symbols.translate,
-                        label: '语言',
-                        trailingText: '简体中文',
-                        onTap: () {},
-                      ),
-                      _SettingsDivider(),
-                      _SettingsRow(
-                        icon: Symbols.dark_mode,
-                        label: '外观',
-                        trailingText: '跟随系统',
-                        onTap: () {},
-                      ),
-                      _SettingsDivider(),
-                      _SettingsRow(
-                        icon: Symbols.info,
-                        label: '关于 P2P IM',
-                        trailingText: 'v1.0.0',
-                        onTap: () {},
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _LogoutButton(onTap: _logout),
-                ],
+      backgroundColor: t.surfaceHover,
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            _SettingsHeader(topInset: topInset),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(23, 18, 23, 20 + bottomInset),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SettingsSection(
+                      title: '通用设置',
+                      rows: [
+                        _SettingsRow(
+                          icon: Symbols.language,
+                          label: '语言',
+                          trailingText: '跟随系统',
+                          onTap: () {},
+                        ),
+                        _SettingsRow(
+                          icon: Symbols.contrast,
+                          label: '主题',
+                          trailingText: '跟随系统',
+                          onTap: () {},
+                        ),
+                        _SettingsRow(
+                          icon: Symbols.bookmarks,
+                          label: '收藏',
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    _SettingsSection(
+                      title: '隐私与安全',
+                      rows: [
+                        _SettingsRow(
+                          icon: Symbols.person_remove,
+                          label: '通讯录黑名单',
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    _SettingsSection(
+                      title: '消息与通知',
+                      rows: [
+                        _SettingsSwitchRow(
+                          icon: Symbols.do_not_disturb_on,
+                          label: '勿扰模式',
+                          value: _dnd,
+                          onChanged: (v) => setState(() => _dnd = v),
+                        ),
+                        _SettingsSwitchRow(
+                          icon: Symbols.notifications,
+                          label: '新消息提示音',
+                          value: _messageSound,
+                          onChanged: (v) => setState(() => _messageSound = v),
+                        ),
+                        _SettingsSwitchRow(
+                          icon: Symbols.vibration,
+                          label: '新消息震动',
+                          value: _messageVibration,
+                          onChanged: (v) =>
+                              setState(() => _messageVibration = v),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    _SettingsSection(
+                      title: '其他',
+                      rows: [
+                        _SettingsRow(
+                          icon: Symbols.info,
+                          label: '关于TokLink',
+                          onTap: () {},
+                        ),
+                        _SettingsRow(
+                          icon: Symbols.delete,
+                          label: '清空聊天记录',
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 47),
+                    _LogoutButton(onTap: _logout),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsHeader extends StatelessWidget {
+  const _SettingsHeader({required this.topInset});
+
+  final double topInset;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SizedBox(
+      height: topInset + 62,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 0),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _SettingsGlassButton(
+                icon: Symbols.arrow_back_ios_new,
+                onTap: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+            Text(
+              '设置',
+              style: AppTheme.sans(
+                size: 16,
+                weight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: _SettingsGlassButton(
+                icon: Symbols.more_vert,
+                onTap: () {},
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsGlassButton extends StatelessWidget {
+  const _SettingsGlassButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: t.text.withValues(alpha: 0.12),
+            blurRadius: 36,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Material(
+            color: t.surface.withValues(alpha: 0.65),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Icon(icon, size: 24, color: t.text),
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -175,11 +241,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 class _SettingsSection extends StatelessWidget {
   const _SettingsSection({
     required this.title,
-    required this.children,
+    required this.rows,
   });
 
   final String title;
-  final List<Widget> children;
+  final List<Widget> rows;
 
   @override
   Widget build(BuildContext context) {
@@ -187,27 +253,21 @@ class _SettingsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 8),
-          child: Text(
-            title,
-            style: AppTheme.sans(
-              size: 13,
-              weight: FontWeight.w600,
-              color: t.textMute,
-            ),
+        Text(
+          title,
+          style: AppTheme.sans(
+            size: 16,
+            weight: FontWeight.w500,
+            color: t.text,
           ),
         ),
-        Column(children: children),
+        const SizedBox(height: 12),
+        ...rows.expand((row) sync* {
+          yield row;
+          if (row != rows.last) yield const SizedBox(height: 12);
+        }),
       ],
     );
-  }
-}
-
-class _SettingsDivider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox.shrink();
   }
 }
 
@@ -226,6 +286,7 @@ class _SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return _SettingsRowShell(
       icon: icon,
       label: label,
@@ -236,11 +297,11 @@ class _SettingsRow extends StatelessWidget {
           if (trailingText != null) ...[
             Text(
               trailingText!,
-              style: AppTheme.sans(size: 15, color: context.tk.textMute),
+              style: AppTheme.sans(size: 12, color: t.textMute),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
           ],
-          Icon(Symbols.chevron_right, size: 22, color: context.tk.textMute),
+          Icon(Symbols.chevron_right, size: 24, color: t.text),
         ],
       ),
     );
@@ -266,11 +327,7 @@ class _SettingsSwitchRow extends StatelessWidget {
       icon: icon,
       label: label,
       onTap: () => onChanged(!value),
-      trailing: Switch(
-        value: value,
-        activeThumbColor: context.tk.accent,
-        onChanged: onChanged,
-      ),
+      trailing: _SettingsSwitch(value: value, onChanged: onChanged),
     );
   }
 }
@@ -290,12 +347,86 @@ class _SettingsRowShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassListTile(
-      leading: GlassListIcon(icon: icon),
-      title: label,
-      trailing: trailing,
-      showChevron: false,
-      onTap: onTap,
+    final t = context.tk;
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: SizedBox(
+          height: 44,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Icon(icon, size: 24, color: t.text),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 14,
+                      weight: FontWeight.w500,
+                      color: t.text,
+                    ),
+                  ),
+                ),
+                trailing,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsSwitch extends StatelessWidget {
+  const _SettingsSwitch({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: SizedBox(
+        width: 64,
+        height: 28,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: value ? t.accentCool : t.surfaceHigh,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Align(
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 35,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: value ? t.accentCool : t.border,
+                    width: 2,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -308,28 +439,25 @@ class _LogoutButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: t.border.withValues(alpha: 0.3)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Center(
-              child: Text(
-                '退出登录',
-                style: AppTheme.sans(
-                  size: 17,
-                  weight: FontWeight.w500,
-                  color: t.danger,
-                ),
-              ),
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: t.danger),
+          ),
+          child: Text(
+            '退出登录',
+            style: AppTheme.sans(
+              size: 14,
+              weight: FontWeight.w500,
+              color: t.danger,
             ),
           ),
         ),

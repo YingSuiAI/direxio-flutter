@@ -150,7 +150,7 @@ class MockData {
       mxid: '@openclaw:local',
       subtitle: '本机 OpenClaw 已接入',
       unread: 0,
-      accentColor: Color(0xFF0058BC),
+      accentColor: Color(0xFF3097CB),
       messages: [],
     ),
     MockConversation(

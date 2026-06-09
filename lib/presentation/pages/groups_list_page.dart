@@ -319,7 +319,7 @@ class _GroupAvatar extends StatelessWidget {
 
   // 与 group_detail_page 头像 strip 一致的色板。
   static const _palette = <Color>[
-    Color(0xFF0058BC),
+    Color(0xFF3097CB),
     Color(0xFFFF9500),
     Color(0xFFA8DAB5),
     Color(0xFF5856D6),

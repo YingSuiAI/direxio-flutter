@@ -7014,9 +7014,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('设置'), findsOneWidget);
-    expect(find.text('账号与安全'), findsOneWidget);
-    expect(find.text('通知设置'), findsOneWidget);
-    expect(find.text('通用'), findsAtLeastNWidgets(1));
+    expect(find.text('通用设置'), findsOneWidget);
+    expect(find.text('隐私与安全'), findsOneWidget);
+    expect(find.text('消息与通知'), findsOneWidget);
+    expect(find.text('其他'), findsOneWidget);
     expect(find.text('退出登录'), findsOneWidget);
   });
 
@@ -7522,7 +7523,7 @@ void main() {
     expect(find.text('破局'), findsOneWidget);
   });
 
-  testWidgets('unified settings avoids duplicate section labels',
+  testWidgets('settings page matches TokLink settings sections',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/settings',
@@ -7545,15 +7546,23 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('账号与安全'), findsOneWidget);
-    expect(find.text('账号安全'), findsNothing);
-    expect(find.text('修改密码'), findsOneWidget);
-    expect(find.text('隐私设置'), findsOneWidget);
-    expect(find.text('通用'), findsOneWidget);
-    expect(find.text('偏好设置'), findsOneWidget);
+    expect(find.text('通用设置'), findsOneWidget);
+    expect(find.text('语言'), findsOneWidget);
+    expect(find.text('主题'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
+    expect(find.text('隐私与安全'), findsOneWidget);
+    expect(find.text('通讯录黑名单'), findsOneWidget);
+    expect(find.text('消息与通知'), findsOneWidget);
+    expect(find.text('勿扰模式'), findsOneWidget);
+    expect(find.text('新消息提示音'), findsOneWidget);
+    expect(find.text('新消息震动'), findsOneWidget);
+    expect(find.text('其他'), findsOneWidget);
+    expect(find.text('关于TokLink'), findsOneWidget);
+    expect(find.text('清空聊天记录'), findsOneWidget);
+    expect(find.text('退出登录'), findsOneWidget);
   });
 
-  testWidgets('unified settings section icons are neutral', (tester) async {
+  testWidgets('settings page row icons use primary text color', (tester) async {
     final router = GoRouter(
       initialLocation: '/settings',
       routes: [
@@ -7576,12 +7585,18 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final icon in [
-      Symbols.key,
+      Symbols.language,
+      Symbols.contrast,
+      Symbols.bookmarks,
+      Symbols.person_remove,
+      Symbols.do_not_disturb_on,
       Symbols.notifications,
-      Symbols.tune,
+      Symbols.vibration,
+      Symbols.info,
+      Symbols.delete,
     ]) {
       expect(tester.widget<Icon>(find.byIcon(icon)).color,
-          PortalTokens.light.textMute);
+          PortalTokens.light.text);
     }
   });
 

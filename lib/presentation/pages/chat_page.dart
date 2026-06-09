@@ -65,6 +65,10 @@ const _mockAuthEnabled = bool.fromEnvironment(
   'P2P_MATRIX_MOCK_AUTH',
   defaultValue: false,
 );
+const _chatPeerBubble = Color(0xFFEEEEEF);
+const _chatOwnBubble = Color(0xFF34C759);
+const _chatText = Color(0xFF262628);
+const _chatTime = Color(0xFFA3A3A4);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAT PAGE — index.html `s-chat` 1:1 复刻
@@ -3068,11 +3072,16 @@ class _ChatHeaderAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 36,
-      height: 36,
+      width: 40,
+      height: 40,
       child: Stack(
         children: [
-          PortalAvatar(seed: seed, size: 36, imageUrl: imageUrl),
+          PortalAvatar(
+            seed: seed,
+            size: 40,
+            imageUrl: imageUrl,
+            shape: AvatarShape.squircle,
+          ),
           if (online)
             const Positioned(
               bottom: 0,
@@ -3119,8 +3128,8 @@ class _SChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final bubbleColor = isMe ? t.accent : t.surfaceHigh;
-    final textColor = isMe ? t.onAccent : t.text;
+    final bubbleColor = isMe ? _chatOwnBubble : _chatPeerBubble;
+    final textColor = isMe ? Colors.white : _chatText;
     Offset pos = Offset.zero;
     final bubble = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -3134,18 +3143,18 @@ class _SChatBubble extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: bubbleColor,
-            borderRadius: chatMessageBubbleRadius,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 4,
-                offset: const Offset(0, 1),
-              ),
-            ],
+            borderRadius: _figmaBubbleRadius(isMe),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.fromLTRB(12, isMe ? 7 : 8, 12, isMe ? 7 : 8),
           child: markdownChild ??
-              Text(text, style: AppTheme.sans(size: 17, color: textColor)),
+              Text(
+                text,
+                style: AppTheme.sans(
+                  size: 15,
+                  weight: FontWeight.w500,
+                  color: textColor,
+                ).copyWith(height: 23 / 15),
+              ),
         ),
       ),
     );
@@ -3156,9 +3165,9 @@ class _SChatBubble extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(time, style: AppTheme.sans(size: 11, color: t.textMute)),
+                Text(time, style: AppTheme.sans(size: 12, color: _chatTime)),
                 const SizedBox(width: 4),
-                Icon(Symbols.done_all, size: 14, color: t.accent),
+                const Icon(Symbols.done_all, size: 14, color: _chatTime),
               ],
             ),
           )
@@ -3166,7 +3175,7 @@ class _SChatBubble extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
             child: Text(
               time,
-              style: AppTheme.sans(size: 11, color: t.textMute),
+              style: AppTheme.sans(size: 12, color: _chatTime),
             ),
           );
 
@@ -3178,9 +3187,9 @@ class _SChatBubble extends StatelessWidget {
 
     final row = Container(
       color: selected ? t.accent.withValues(alpha: 0.10) : Colors.transparent,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment:
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
@@ -3193,14 +3202,26 @@ class _SChatBubble extends StatelessWidget {
               ),
             ),
           ],
+          if (!isMe) ...[
+            _MessageAvatar(
+              seed: avatarSeed,
+              avatarKey: avatarKey,
+              onAvatarTap: onAvatarTap,
+            ),
+            const SizedBox(width: 8),
+          ],
           Flexible(
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.78,
+                maxWidth: MediaQuery.of(context).size.width * 0.64,
               ),
               child: column,
             ),
           ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            _MessageAvatar(seed: avatarSeed),
+          ],
         ],
       ),
     );
@@ -3375,6 +3396,50 @@ class _SChatCallRecordBubble extends StatelessWidget {
   }
 }
 
+class _MessageAvatar extends StatelessWidget {
+  const _MessageAvatar({
+    required this.seed,
+    this.avatarKey,
+    this.onAvatarTap,
+  });
+
+  final String? seed;
+  final Key? avatarKey;
+  final VoidCallback? onAvatarTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = PortalAvatar(
+      key: avatarKey,
+      seed: (seed == null || seed!.trim().isEmpty) ? 'peer' : seed!,
+      size: 40,
+      shape: AvatarShape.squircle,
+    );
+    if (onAvatarTap == null) return avatar;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onAvatarTap,
+      child: avatar,
+    );
+  }
+}
+
+BorderRadius _figmaBubbleRadius(bool isMe) {
+  return isMe
+      ? const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(2),
+        )
+      : const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+          bottomLeft: Radius.circular(2),
+          bottomRight: Radius.circular(24),
+        );
+}
+
 class _SChatSystemNotice extends StatelessWidget {
   const _SChatSystemNotice({required this.text});
 
@@ -3424,9 +3489,9 @@ Widget _bubbleRow({
   final t = context.tk;
   final row = Container(
     color: selected ? t.accent.withValues(alpha: 0.10) : Colors.transparent,
-    padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
     child: Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
       children: [
         if (multiSelect)
@@ -3437,14 +3502,26 @@ Widget _bubbleRow({
               onTap: onSelectTap,
             ),
           ),
+        if (!isMe) ...[
+          _MessageAvatar(
+            seed: avatarSeed,
+            avatarKey: avatarKey,
+            onAvatarTap: onAvatarTap,
+          ),
+          const SizedBox(width: 8),
+        ],
         Flexible(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.78,
+              maxWidth: MediaQuery.of(context).size.width * 0.64,
             ),
             child: child,
           ),
         ),
+        if (isMe) ...[
+          const SizedBox(width: 8),
+          _MessageAvatar(seed: avatarSeed),
+        ],
       ],
     ),
   );
@@ -3459,23 +3536,22 @@ Widget _bubbleRow({
 
 /// 气泡时间戳行：自己发的（showRead）多一个 `done_all` 已读标记。
 Widget _bubbleTimeRow(BuildContext context, String time, bool showRead) {
-  final t = context.tk;
   if (showRead) {
     return Padding(
       padding: const EdgeInsets.only(top: 4, right: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(time, style: AppTheme.sans(size: 11, color: t.textMute)),
+          Text(time, style: AppTheme.sans(size: 12, color: _chatTime)),
           const SizedBox(width: 4),
-          Icon(Symbols.done_all, size: 14, color: t.accent),
+          const Icon(Symbols.done_all, size: 14, color: _chatTime),
         ],
       ),
     );
   }
   return Padding(
     padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-    child: Text(time, style: AppTheme.sans(size: 11, color: t.textMute)),
+    child: Text(time, style: AppTheme.sans(size: 12, color: _chatTime)),
   );
 }
 
@@ -3611,7 +3687,7 @@ class _SChatFileBubble extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 260),
           decoration: BoxDecoration(
             color: t.surface,
-            borderRadius: chatMessageBubbleRadius,
+            borderRadius: _figmaBubbleRadius(isMe),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),

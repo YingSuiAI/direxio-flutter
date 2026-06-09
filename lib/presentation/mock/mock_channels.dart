@@ -107,7 +107,7 @@ class MockChannels {
         ),
       ],
       icon: Symbols.campaign,
-      color: Color(0xFF0058BC),
+      color: Color(0xFF3097CB),
     ),
     MockChannel(
       id: 'agent-workflows',

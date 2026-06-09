@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 
@@ -860,9 +861,17 @@ void _showRealChannelMenu(
                   if (item == '分享频道') {
                     _shareRealChannel(context, ref, channel);
                   } else if (item == '管理频道') {
-                    _showManageChannelSheet(context, channel);
+                    context.push(
+                      '/channels/manage/${Uri.encodeComponent(channel.id)}',
+                    );
                   } else if (item == '成员管理') {
-                    _showChannelMembersSheet(context, ref, channel);
+                    context.push(
+                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=members',
+                    );
+                  } else if (item == '频道资料') {
+                    context.push(
+                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=profile',
+                    );
                   }
                 });
               },
@@ -909,6 +918,7 @@ Future<void> _shareRealChannel(
   }
 }
 
+// ignore: unused_element
 void _showChannelMembersSheet(
   BuildContext context,
   WidgetRef ref,
@@ -922,6 +932,7 @@ void _showChannelMembersSheet(
   );
 }
 
+// ignore: unused_element
 void _showManageChannelSheet(
   BuildContext context,
   ChannelInboxItem channel,
@@ -1856,7 +1867,25 @@ void _showChannelMenu(BuildContext context, MockChannel channel) {
           for (final item in items)
             ListTile(
               title: Text(item),
-              onTap: () => Navigator.of(ctx).pop(),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!context.mounted) return;
+                  if (item == '频道资料') {
+                    context.push(
+                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=profile',
+                    );
+                  } else if (item == '成员管理') {
+                    context.push(
+                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=members',
+                    );
+                  } else if (item == '标签管理') {
+                    context.push(
+                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=moderation',
+                    );
+                  }
+                });
+              },
             ),
         ],
       ),

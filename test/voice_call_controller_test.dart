@@ -264,6 +264,49 @@ void main() {
     expect(decision.error, '已有通话正在进行');
   });
 
+  test('AS active call gate ignores calls already ended locally', () {
+    final stale = AsCallSession(
+      callId: 'as-call-ended-locally',
+      roomId: '!room:p2p-im.com',
+      roomType: 'direct',
+      mediaType: asCallMediaTypeVoice,
+      createdByMxid: '@owner:p2p-im.com',
+      state: asCallStateConnected,
+      createdAt: DateTime.utc(2026, 5, 31, 12, 0, 0),
+    );
+    final active = AsCallSession(
+      callId: 'as-call-still-active',
+      roomId: stale.roomId,
+      roomType: stale.roomType,
+      mediaType: stale.mediaType,
+      createdByMxid: stale.createdByMxid,
+      state: asCallStateConnected,
+      createdAt: stale.createdAt,
+    );
+
+    final mixedDecision = asActiveCallGateDecision(
+      localStateActive: true,
+      activeCalls: [stale, active],
+      locallyTerminalCallIds: const {'as-call-ended-locally'},
+      activeLookupFailed: false,
+    );
+
+    expect(mixedDecision.canStart, isFalse);
+    expect(mixedDecision.resetLocalActive, isFalse);
+    expect(mixedDecision.error, '已有通话正在进行');
+
+    final staleOnlyDecision = asActiveCallGateDecision(
+      localStateActive: true,
+      activeCalls: [stale],
+      locallyTerminalCallIds: const {'as-call-ended-locally'},
+      activeLookupFailed: false,
+    );
+
+    expect(staleOnlyDecision.canStart, isTrue);
+    expect(staleOnlyDecision.resetLocalActive, isTrue);
+    expect(staleOnlyDecision.error, isNull);
+  });
+
   test('AS active call gate keeps local block when AS lookup fails', () {
     final decision = asActiveCallGateDecision(
       localStateActive: true,
@@ -468,6 +511,59 @@ void main() {
         'duration_ms': 0,
       },
     ]);
+  });
+
+  test('AS call reporter keeps local terminal state when AS update fails',
+      () async {
+    final asClient = _RecordingAsClient()..failNextEvent = true;
+    final reporter = AsCallStateReporter(asClient);
+
+    final call = await reporter.createCall(
+      roomId: '!direct:p2p-im.com',
+      callType: ProductCallType.voice,
+    );
+
+    await expectLater(
+      reporter.reportEnded(
+        call,
+        reason: 'user_hangup',
+        connectedAt: DateTime.utc(2026, 5, 31, 9, 0, 0),
+        endedAt: DateTime.utc(2026, 5, 31, 9, 0, 3),
+      ),
+      throwsStateError,
+    );
+
+    expect(reporter.locallyTerminalCallIds, contains(call.callId));
+    expect(reporter.terminalCallIds, isNot(contains(call.callId)));
+  });
+
+  test('AS call reporter clears stale connected calls when local state is idle',
+      () async {
+    final asClient = _RecordingAsClient();
+    final reporter = AsCallStateReporter(asClient);
+
+    final call = await reporter.createCall(
+      roomId: '!direct:p2p-im.com',
+      callType: ProductCallType.voice,
+    );
+    final connectedAt = DateTime.utc(2026, 5, 31, 9, 0, 0);
+    final connected = call.copyWith(
+      state: asCallStateConnected,
+      answeredAt: connectedAt,
+    );
+
+    final remaining = await reporter.clearLocallyInactiveConnectedCalls([
+      connected,
+    ]);
+
+    expect(remaining, isEmpty);
+    expect(asClient.events, hasLength(1));
+    expect(asClient.events.single['call_id'], call.callId);
+    expect(asClient.events.single['event'], 'ended');
+    expect(asClient.events.single['reason'], 'stale_local_inactive');
+    expect(asClient.events.single['duration_ms'], greaterThanOrEqualTo(0));
+    expect(reporter.locallyTerminalCallIds, contains(call.callId));
+    expect(reporter.terminalCallIds, contains(call.callId));
   });
 
   test('connected call network state distinguishes unstable and interrupted',
@@ -892,6 +988,7 @@ class _RecordingAsClient extends MockAsClient {
   final events = <Map<String, Object?>>[];
   final _calls = <String, AsCallSession>{};
   int _nextCall = 1;
+  bool failNextEvent = false;
 
   @override
   Future<AsCallSession> createCall({
@@ -923,6 +1020,10 @@ class _RecordingAsClient extends MockAsClient {
     String reason = '',
     int durationMs = 0,
   }) async {
+    if (failNextEvent) {
+      failNextEvent = false;
+      throw StateError('simulated AS call update failure');
+    }
     events.add({
       'call_id': callId,
       'event': event,

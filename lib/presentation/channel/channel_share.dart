@@ -1,0 +1,315 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
+import '../chat/chat_message_cards.dart';
+import '../chat/chat_record_forwarding.dart';
+import '../providers/as_client_provider.dart';
+import '../providers/as_sync_cache_provider.dart';
+import '../providers/auth_provider.dart';
+
+const channelShareMessageType = 'channel_share';
+const channelShareMatrixPayloadKey = 'p2p.channel_share';
+
+class ChannelSharePayload {
+  const ChannelSharePayload({
+    required this.channelId,
+    required this.roomId,
+    required this.homeDomain,
+    required this.name,
+    this.description = '',
+    this.avatarUrl = '',
+    this.visibility = asChannelVisibilityPublic,
+    this.joinPolicy = asChannelJoinPolicyOpen,
+    this.commentsEnabled = true,
+    this.tags = const [],
+  });
+
+  final String channelId;
+  final String roomId;
+  final String homeDomain;
+  final String name;
+  final String description;
+  final String avatarUrl;
+  final String visibility;
+  final String joinPolicy;
+  final bool commentsEnabled;
+  final List<String> tags;
+
+  String get displayName => name.trim().isEmpty ? '未命名频道' : name.trim();
+
+  String get body => '频道分享\n$displayName';
+
+  AsChannelShareDraft get asDraft => AsChannelShareDraft(
+        channelId: channelId,
+        roomId: roomId,
+        homeDomain: homeDomain,
+        name: displayName,
+        description: description,
+        avatarUrl: avatarUrl,
+        visibility: visibility,
+        joinPolicy: joinPolicy,
+        commentsEnabled: commentsEnabled,
+        tags: tags,
+      );
+}
+
+ChannelSharePayload channelSharePayloadFromChannel({
+  required String channelId,
+  required String roomId,
+  required String homeDomain,
+  required String name,
+  String description = '',
+  String avatarUrl = '',
+  String visibility = asChannelVisibilityPublic,
+  String joinPolicy = asChannelJoinPolicyOpen,
+  bool commentsEnabled = true,
+  List<String> tags = const [],
+}) {
+  return ChannelSharePayload(
+    channelId: channelId,
+    roomId: roomId,
+    homeDomain: homeDomain,
+    name: name,
+    description: description,
+    avatarUrl: avatarUrl,
+    visibility: visibility,
+    joinPolicy: joinPolicy,
+    commentsEnabled: commentsEnabled,
+    tags: tags,
+  );
+}
+
+ChannelSharePayload? channelSharePayloadFromContent(
+  Map<String, Object?> content,
+) {
+  if (content[chatRecordMatrixMarkerKey] != channelShareMessageType) {
+    return null;
+  }
+  final raw = _objectMap(content[channelShareMatrixPayloadKey]);
+  final channelId = _stringValue(raw['channel_id']).trim();
+  final roomId = _stringValue(raw['room_id']).trim();
+  final name = _stringValue(raw['name']).trim();
+  if (channelId.isEmpty || roomId.isEmpty || name.isEmpty) return null;
+  return ChannelSharePayload(
+    channelId: channelId,
+    roomId: roomId,
+    homeDomain: _stringValue(raw['home_domain']).trim(),
+    name: name,
+    description: _stringValue(raw['description']).trim(),
+    avatarUrl: _stringValue(raw['avatar_url']).trim(),
+    visibility: _stringValue(raw['visibility']).trim().isEmpty
+        ? asChannelVisibilityPublic
+        : _stringValue(raw['visibility']).trim(),
+    joinPolicy: _stringValue(raw['join_policy']).trim().isEmpty
+        ? asChannelJoinPolicyOpen
+        : _stringValue(raw['join_policy']).trim(),
+    commentsEnabled: raw['comments_enabled'] is bool
+        ? raw['comments_enabled'] as bool
+        : true,
+    tags: _stringList(raw['tags']),
+  );
+}
+
+Future<bool> showAndShareChannel(
+  BuildContext context,
+  WidgetRef ref, {
+  required ChannelSharePayload payload,
+  required String currentRoomId,
+  required String currentRoomName,
+}) async {
+  final targets = chatRecordForwardTargets(
+    ref.read(asSyncCacheProvider),
+    currentRoomId: currentRoomId,
+    currentRoomName: currentRoomName,
+    currentRoomType: 'channel',
+  )
+      .where(
+          (target) => target.roomType == 'direct' || target.roomType == 'group')
+      .toList(growable: false);
+  if (targets.isEmpty) {
+    throw StateError('暂无可分享的私聊或群聊');
+  }
+  final target = await showModalBottomSheet<ChatRecordForwardTarget>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => _ChannelShareTargetSheet(targets: targets),
+  );
+  if (target == null) return false;
+  await ref.read(asClientProvider).sendChannelShareMessage(
+        roomId: target.roomId,
+        body: payload.body,
+        channel: payload.asDraft,
+      );
+  await ref.read(matrixClientProvider).oneShotSync();
+  return true;
+}
+
+class ChannelSharePreviewCard extends StatelessWidget {
+  const ChannelSharePreviewCard({
+    super.key,
+    required this.payload,
+    this.onTap,
+    this.onLongPressAt,
+  });
+
+  final ChannelSharePayload payload;
+  final VoidCallback? onTap;
+  final ValueChanged<Offset>? onLongPressAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final subtitle = payload.description.trim().isEmpty
+        ? payload.homeDomain.trim()
+        : payload.description.trim();
+    return ChatCardBubbleFrame(
+      onTap: onTap,
+      onLongPressAt: onLongPressAt,
+      child: Row(
+        children: [
+          _ChannelShareAvatar(payload: payload),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  payload.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 16,
+                    weight: FontWeight.w700,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  subtitle.isEmpty ? '公开频道' : subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(size: 12, color: t.textMute)
+                      .copyWith(height: 1.18),
+                ),
+                const Spacer(),
+                Container(height: 1, color: t.border.withValues(alpha: 0.45)),
+                const SizedBox(height: 5),
+                Text(
+                  '频道',
+                  style: AppTheme.sans(size: 11, color: t.textMute),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelShareAvatar extends StatelessWidget {
+  const _ChannelShareAvatar({required this.payload});
+
+  final ChannelSharePayload payload;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final initial = payload.displayName.isEmpty ? '#' : payload.displayName[0];
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: t.secondaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Center(
+        child: payload.avatarUrl.trim().isEmpty
+            ? Text(
+                initial,
+                style: AppTheme.sans(
+                  size: 19,
+                  weight: FontWeight.w800,
+                  color: t.text,
+                ),
+              )
+            : Icon(Symbols.campaign, color: t.text, size: 24),
+      ),
+    );
+  }
+}
+
+class _ChannelShareTargetSheet extends StatelessWidget {
+  const _ChannelShareTargetSheet({required this.targets});
+
+  final List<ChatRecordForwardTarget> targets;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SafeArea(
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+        itemCount: targets.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                '分享频道到',
+                style: AppTheme.sans(
+                  size: 17,
+                  weight: FontWeight.w700,
+                  color: t.text,
+                ),
+              ),
+            );
+          }
+          final target = targets[index - 1];
+          return ListTile(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(color: t.border.withValues(alpha: 0.16)),
+            ),
+            tileColor: t.surface,
+            leading: Icon(
+              target.roomType == 'group' ? Symbols.group : Symbols.person,
+              color: t.text,
+            ),
+            title: Text(
+              target.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            onTap: () => Navigator.of(context).pop(target),
+          );
+        },
+      ),
+    );
+  }
+}
+
+String _stringValue(Object? value) => value is String ? value : '';
+
+Map<String, Object?> _objectMap(Object? value) {
+  if (value is! Map) return const {};
+  return {
+    for (final entry in value.entries) entry.key.toString(): entry.value,
+  };
+}
+
+List<String> _stringList(Object? value) {
+  if (value is! List) return const [];
+  return [
+    for (final item in value)
+      if (item is String && item.trim().isNotEmpty) item.trim(),
+  ];
+}

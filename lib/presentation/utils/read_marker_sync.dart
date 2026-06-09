@@ -3,12 +3,16 @@ import 'package:matrix/matrix.dart';
 import '../../data/as_client.dart';
 
 Event? latestSyncedMessageEvent(Timeline timeline) {
+  Event? latest;
   for (final event in timeline.events) {
     if (event.status.isSynced && event.type == EventTypes.Message) {
-      return event;
+      if (latest == null ||
+          event.originServerTs.isAfter(latest.originServerTs)) {
+        latest = event;
+      }
     }
   }
-  return null;
+  return latest;
 }
 
 Event? latestCallHangupEventForCall({

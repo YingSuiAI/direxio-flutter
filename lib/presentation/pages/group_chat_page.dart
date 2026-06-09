@@ -22,6 +22,7 @@ import '../providers/local_outbox_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/recovered_unread_store_provider.dart';
 import '../providers/voice_call_provider.dart';
+import '../channel/channel_share.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_attachment_panel.dart';
@@ -43,6 +44,7 @@ import '../utils/avatar_url.dart';
 import 'group_call_member_select_page.dart';
 import '../utils/read_marker_sync.dart';
 import '../utils/recovered_unread_events.dart';
+import '../utils/room_read_state.dart';
 import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
@@ -582,6 +584,17 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final room = _room;
     final timeline = _timeline;
     if (room == null || timeline == null) return;
+    final markerEvent = latestSyncedMessageEvent(timeline);
+    final recoveredMarker =
+        markerEvent == null ? _latestRecoveredUnreadMessage() : null;
+    final readAt = markerEvent?.originServerTs ??
+        recoveredMarker?.timestamp ??
+        DateTime.now().toUtc();
+    final changed = markRoomLocallyRead(room);
+    ref.read(asSyncCacheProvider.notifier).update(
+          (state) => state.withRoomUnreadCleared(room.id, readAt: readAt),
+        );
+    if (changed && mounted) setState(() {});
     if (_readMarkerInFlight) {
       _readMarkerQueued = true;
       return;
@@ -589,18 +602,30 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
     _readMarkerInFlight = true;
     try {
-      final markerEvent = latestSyncedMessageEvent(timeline);
       await timeline.setReadMarker(eventId: markerEvent?.eventId);
       if (markerEvent != null) {
         unawaited(_syncAsReadMarker(room, markerEvent).then((synced) {
-          if (synced) unawaited(_clearRecoveredUnreadForRoom());
+          if (!synced) return;
+          ref.read(asSyncCacheProvider.notifier).update(
+                (state) => state.withRoomUnreadCleared(
+                  room.id,
+                  readAt: markerEvent.originServerTs,
+                ),
+              );
+          unawaited(_clearRecoveredUnreadForRoom());
         }));
       } else {
-        final recoveredMarker = _latestRecoveredUnreadMessage();
         if (recoveredMarker != null) {
           unawaited(
             _syncAsReadMarkerForRecovered(room, recoveredMarker).then((synced) {
-              if (synced) unawaited(_clearRecoveredUnreadForRoom());
+              if (!synced) return;
+              ref.read(asSyncCacheProvider.notifier).update(
+                    (state) => state.withRoomUnreadCleared(
+                      room.id,
+                      readAt: recoveredMarker.timestamp,
+                    ),
+                  );
+              unawaited(_clearRecoveredUnreadForRoom());
             }),
           );
         }
@@ -1354,6 +1379,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     chatRecordPayloadFromContent(
                                   Map<String, Object?>.from(e.content),
                                 );
+                                final channelSharePayload =
+                                    channelSharePayloadFromContent(
+                                  Map<String, Object?>.from(e.content),
+                                );
                                 final isMe = e.senderId == myId;
                                 final senderAvatarUrl = _avatarUrlForMxid(
                                   room,
@@ -1553,11 +1582,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     multiSelect: _multiSelect,
                                     onTap: _multiSelect
                                         ? toggle
-                                        : chatRecordPayload == null
-                                            ? null
-                                            : () => _openChatRecordDetail(
-                                                  chatRecordPayload,
-                                                ),
+                                        : channelSharePayload != null
+                                            ? () => context.push(
+                                                  '/channel/${Uri.encodeComponent(channelSharePayload.channelId)}',
+                                                )
+                                            : chatRecordPayload == null
+                                                ? null
+                                                : () => _openChatRecordDetail(
+                                                      chatRecordPayload,
+                                                    ),
                                     onLongPressAt: (position) =>
                                         _onLongPressEvent(
                                       e,
@@ -2127,51 +2160,60 @@ class _GroupMessageBubble extends StatelessWidget {
     final chatRecordPayload = chatRecordPayloadFromContent(
       Map<String, Object?>.from(event.content),
     );
+    final channelSharePayload = channelSharePayloadFromContent(
+      Map<String, Object?>.from(event.content),
+    );
     final bubbleColor = selected
         ? t.accent.withValues(alpha: 0.18)
         : isMe
             ? t.accent
             : t.surface;
 
-    final bubble = chatRecordPayload == null
-        ? GestureDetector(
-            onTap: onTap,
-            onLongPressStart: (details) =>
-                onLongPressAt(details.globalPosition),
-            child: ChatBubbleFrame(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: bubbleColor,
-                  borderRadius: chatMessageBubbleRadius,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Text(
-                  body,
-                  style: AppTheme.sans(
-                    size: 17,
-                    color: selected
-                        ? t.text
-                        : isMe
-                            ? t.onAccent
-                            : t.text,
-                  ),
-                ),
-              ),
-            ),
-          )
-        : ChatRecordPreviewCard(
-            payload: chatRecordPayload,
+    final bubble = channelSharePayload != null
+        ? ChannelSharePreviewCard(
+            payload: channelSharePayload,
             onTap: onTap,
             onLongPressAt: onLongPressAt,
-          );
+          )
+        : chatRecordPayload == null
+            ? GestureDetector(
+                onTap: onTap,
+                onLongPressStart: (details) =>
+                    onLongPressAt(details.globalPosition),
+                child: ChatBubbleFrame(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: chatMessageBubbleRadius,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    child: Text(
+                      body,
+                      style: AppTheme.sans(
+                        size: 17,
+                        color: selected
+                            ? t.text
+                            : isMe
+                                ? t.onAccent
+                                : t.text,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : ChatRecordPreviewCard(
+                payload: chatRecordPayload,
+                onTap: onTap,
+                onLongPressAt: onLongPressAt,
+              );
 
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),

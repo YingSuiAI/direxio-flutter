@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_call_session_store.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/channel_post_store.dart';
 import 'package:portal_app/data/recovered_unread_store.dart';
 import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
 
@@ -357,6 +358,61 @@ void main() {
     expect(store.calls['as-connected']?.state, asCallStateEnded);
     expect(store.calls['as-missing']?.state, asCallStateEnded);
   });
+
+  test('warmup preloads recent channel posts into local cache', () async {
+    final store = _MemoryChannelPostStore();
+    final loadedChannelIds = <String>[];
+    final service = AppWarmupService(
+      client: Client('PortalIMWarmupChannelTest'),
+      avatarPreloader: _NoopAvatarPreloader(),
+      loadCurrentUserProfile: () async => null,
+      loadBootstrap: () async => AsSyncBootstrap(
+        syncedAt: DateTime.parse('2026-06-07T10:00:00Z'),
+        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: [
+          AsSyncRoomSummary(
+            channelId: 'ch_new',
+            roomId: '!new:p2p-im.com',
+            name: '新频道',
+            avatarUrl: '',
+            unreadCount: 0,
+            lastActivityAt: DateTime.parse('2026-06-07T10:00:00Z'),
+            memberStatus: asChannelMemberStatusJoined,
+          ),
+          AsSyncRoomSummary(
+            channelId: 'ch_old',
+            roomId: '!old:p2p-im.com',
+            name: '旧频道',
+            avatarUrl: '',
+            unreadCount: 0,
+            lastActivityAt: DateTime.parse('2026-06-06T10:00:00Z'),
+            memberStatus: asChannelMemberStatusJoined,
+          ),
+        ],
+        pending: const AsSyncPending.empty(),
+      ),
+      channelPostStore: store,
+      loadChannelPosts: (channelId, {int limit = 50}) async {
+        loadedChannelIds.add('$channelId:$limit');
+        return [_channelPost(postId: 'post_$channelId', channelId: channelId)];
+      },
+    );
+
+    await service.warmup();
+
+    expect(loadedChannelIds, ['ch_new:50', 'ch_old:50']);
+    expect(
+      (await store.readChannel('ch_new')).map((post) => post.postId),
+      ['post_ch_new'],
+    );
+    expect(
+      (await store.readChannel('ch_old')).map((post) => post.postId),
+      ['post_ch_old'],
+    );
+  });
 }
 
 AsSyncUnread _unread(String eventId) {
@@ -434,6 +490,52 @@ class _MemoryAsCallSessionStore implements AsCallSessionStore {
       calls[session.callId.trim()] = session;
     }
   }
+}
+
+class _MemoryChannelPostStore implements ChannelPostStore {
+  final posts = <String, AsChannelPost>{};
+
+  @override
+  Future<List<AsChannelPost>> readChannel(String channelId) async {
+    final trimmed = channelId.trim();
+    return posts.values
+        .where((post) => post.channelId.trim() == trimmed)
+        .toList(growable: false)
+      ..sort((a, b) => b.originServerTs.compareTo(a.originServerTs));
+  }
+
+  @override
+  Future<void> upsertChannel(
+    String channelId,
+    Iterable<AsChannelPost> nextPosts,
+  ) async {
+    for (final post in nextPosts) {
+      await upsertPost(post);
+    }
+  }
+
+  @override
+  Future<void> upsertPost(AsChannelPost post) async {
+    posts['${post.channelId}:${post.postId}'] = post;
+  }
+}
+
+AsChannelPost _channelPost({
+  required String postId,
+  required String channelId,
+}) {
+  return AsChannelPost(
+    postId: postId,
+    channelId: channelId,
+    roomId: '!channel:p2p-im.com',
+    eventId: '\$$postId',
+    authorId: '@owner:p2p-im.com',
+    authorName: 'Yanan',
+    messageType: 'text',
+    body: '频道预热内容',
+    originServerTs:
+        DateTime.parse('2026-06-07T10:00:00Z').millisecondsSinceEpoch,
+  );
 }
 
 AsSyncBootstrap _bootstrap(String roomId) {

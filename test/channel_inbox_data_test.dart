@@ -12,7 +12,9 @@ void main() {
       groups: const [],
       channels: [
         AsSyncRoomSummary(
+          channelId: 'ch_older',
           roomId: '!older:p2p-im.com',
+          homeDomain: 'p2p-im.com',
           name: '去中心化部署互助',
           avatarUrl: '',
           unreadCount: 0,
@@ -22,7 +24,9 @@ void main() {
           tags: const ['部署', '安全'],
         ),
         AsSyncRoomSummary(
+          channelId: 'ch_newer',
           roomId: '!newer:p2p-im.com',
+          homeDomain: 'p2p-im.com',
           name: '产品公告',
           avatarUrl: '',
           unreadCount: 2,
@@ -40,8 +44,8 @@ void main() {
       fallbackDomain: 'p2p-im.com',
     );
 
-    expect(items.map((item) => item.id),
-        ['!newer:p2p-im.com', '!older:p2p-im.com']);
+    expect(items.map((item) => item.id), ['ch_newer', 'ch_older']);
+    expect(items.first.roomId, '!newer:p2p-im.com');
     expect(items.first.name, '产品公告');
     expect(items.first.domain, 'p2p-im.com');
     expect(items.first.latestPreview, '只发布重要产品更新');
@@ -53,7 +57,8 @@ void main() {
   test('builds categories and filters owned or tagged channels', () {
     final items = [
       ChannelInboxItem(
-        id: '!owned:p2p-im.com',
+        id: 'ch_owned',
+        roomId: '!owned:p2p-im.com',
         name: '产品公告',
         domain: 'p2p-im.com',
         avatarUrl: '',
@@ -64,7 +69,8 @@ void main() {
         tags: const ['产品', '公告'],
       ),
       ChannelInboxItem(
-        id: '!joined:p2p-im.com',
+        id: 'ch_joined',
+        roomId: '!joined:p2p-im.com',
         name: '部署互助',
         domain: 'p2p-im.com',
         avatarUrl: '',
@@ -80,11 +86,11 @@ void main() {
         ChannelInboxData.categories(items), ['全部', '我的频道', '产品', '公告', '部署']);
     expect(
       ChannelInboxData.filtered(items, '我的频道').map((item) => item.id),
-      ['!owned:p2p-im.com'],
+      ['ch_owned'],
     );
     expect(
       ChannelInboxData.filtered(items, '部署').map((item) => item.id),
-      ['!joined:p2p-im.com'],
+      ['ch_joined'],
     );
   });
 }

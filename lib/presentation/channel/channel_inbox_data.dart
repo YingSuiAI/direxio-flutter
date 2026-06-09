@@ -3,6 +3,7 @@ import '../../data/as_client.dart';
 class ChannelInboxItem {
   const ChannelInboxItem({
     required this.id,
+    required this.roomId,
     required this.name,
     required this.domain,
     required this.avatarUrl,
@@ -11,9 +12,22 @@ class ChannelInboxItem {
     required this.unreadCount,
     required this.isOwned,
     required this.tags,
+    this.description = '',
+    this.visibility = asChannelVisibilityPublic,
+    this.joinPolicy = asChannelJoinPolicyOpen,
+    this.commentsEnabled = true,
+    this.role = asChannelRoleMember,
+    this.memberStatus = asChannelMemberStatusJoined,
+    this.memberCount = 0,
+    this.pendingJoinCount = 0,
   });
 
+  /// Product-level channel id owned by AS. Use this for channel routes and AS
+  /// channel APIs. It may fall back to [roomId] for legacy bootstrap data.
   final String id;
+
+  /// Matrix room id used only for Matrix transport actions such as forwarding.
+  final String roomId;
   final String name;
   final String domain;
   final String avatarUrl;
@@ -22,6 +36,14 @@ class ChannelInboxItem {
   final int unreadCount;
   final bool isOwned;
   final List<String> tags;
+  final String description;
+  final String visibility;
+  final String joinPolicy;
+  final bool commentsEnabled;
+  final String role;
+  final String memberStatus;
+  final int memberCount;
+  final int pendingJoinCount;
 }
 
 class ChannelInboxData {
@@ -34,20 +56,39 @@ class ChannelInboxData {
     final items = bootstrap.channels
         .where((channel) => channel.roomId.trim().isNotEmpty)
         .map(
-          (channel) => ChannelInboxItem(
-            id: channel.roomId,
-            name: channel.name.trim().isEmpty ? '未命名频道' : channel.name.trim(),
-            domain: _domainFromRoomId(channel.roomId) ?? fallbackDomain,
-            avatarUrl: channel.avatarUrl,
-            latestPreview:
-                channel.topic.trim().isEmpty ? '暂无频道动态' : channel.topic.trim(),
-            latestAt: channel.lastActivityAt,
-            unreadCount: channel.unreadCount,
-            isOwned: channel.isOwned,
-            tags: channel.tags,
-          ),
-        )
-        .toList();
+      (channel) {
+        final roomId = channel.roomId.trim();
+        final channelId = channel.channelId.trim();
+        final description = channel.description.trim();
+        final topic = channel.topic.trim();
+        return ChannelInboxItem(
+          id: channelId.isEmpty ? roomId : channelId,
+          roomId: roomId,
+          name: channel.name.trim().isEmpty ? '未命名频道' : channel.name.trim(),
+          domain: channel.homeDomain.trim().isEmpty
+              ? _domainFromRoomId(roomId) ?? fallbackDomain
+              : channel.homeDomain.trim(),
+          avatarUrl: channel.avatarUrl,
+          latestPreview: description.isNotEmpty
+              ? description
+              : topic.isEmpty
+                  ? '暂无频道动态'
+                  : topic,
+          latestAt: channel.lastActivityAt,
+          unreadCount: channel.unreadCount,
+          isOwned: channel.isOwned,
+          tags: channel.tags,
+          description: description,
+          visibility: channel.visibility,
+          joinPolicy: channel.joinPolicy,
+          commentsEnabled: channel.commentsEnabled,
+          role: channel.role,
+          memberStatus: channel.memberStatus,
+          memberCount: channel.memberCount,
+          pendingJoinCount: channel.pendingJoinCount,
+        );
+      },
+    ).toList();
     return _sortByLatest(items);
   }
 

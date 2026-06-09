@@ -10,7 +10,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../channel/channel_inbox_data.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
@@ -21,9 +20,7 @@ import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../mock/mock_data.dart';
-import '../mock/mock_agent_curations.dart';
 import '../mock/mock_channels.dart';
-import '../mock/mock_follow_feed.dart';
 import '../../data/as_client.dart';
 import '../../data/local_outbox_store.dart';
 import '../../core/theme/design_tokens.dart';
@@ -269,11 +266,18 @@ class _HomePageState extends ConsumerState<HomePage>
     switch (_tab) {
       case 0:
       case 1:
-      case 2:
         return [
           GlassHeaderButton(
             icon: Symbols.search,
             onTap: () => context.push('/search'),
+          ),
+          const _HomePlusMenuButton(),
+        ];
+      case 2:
+        return [
+          GlassHeaderButton(
+            icon: Symbols.search,
+            onTap: () => context.push('/channels/search'),
           ),
           const _HomePlusMenuButton(),
         ];
@@ -334,7 +338,7 @@ class _HomePageState extends ConsumerState<HomePage>
                 final pane = switch (_tab) {
                   0 => _ChatList(client: client),
                   1 => _ContactList(client: client),
-                  2 => const _ExplorePage(),
+                  2 => const _ChannelExplorePage(),
                   _ => _MePage(client: client),
                 };
                 if (!wide) return pane;
@@ -1036,7 +1040,6 @@ class _ChatList extends ConsumerWidget {
             isAgent: isAgent,
             isGroup: c.isGroup,
             avatarUrl: c.avatarUrl,
-            online: !c.isGroup && !isAgent,
             onTap: () => context.push('/chat/${c.id}'),
           );
         },
@@ -1054,9 +1057,17 @@ class _ChatList extends ConsumerWidget {
     }
 
     final visibleConversations = <_VisibleConversation>[];
+    final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+    var fallbackAgentShown = false;
     for (final room in rooms) {
       if (room.membership != Membership.join) continue;
       if (_isAgentRoom(room, agentMxid)) {
+        if (canonicalAgentRoomId.isNotEmpty) {
+          if (room.id != canonicalAgentRoomId) continue;
+        } else {
+          if (fallbackAgentShown) continue;
+          fallbackAgentShown = true;
+        }
         visibleConversations.add(_VisibleConversation.agent(room));
       }
     }
@@ -1138,7 +1149,6 @@ class _ChatList extends ConsumerWidget {
           isAgent: conversation.isAgent,
           isGroup: conversation.isGroup,
           avatarUrl: _conversationAvatarUrl(client, conversation, room),
-          online: conversation.isContact,
           onTap: () => conversation.isGroup
               ? context
                   .push('/group/${Uri.encodeComponent(conversation.roomId)}')
@@ -1390,7 +1400,6 @@ class _ConvRow extends StatelessWidget {
     this.isAgent = false,
     this.isGroup = false,
     this.avatarUrl,
-    this.online = false,
   });
   final String name;
   final String lastMessage;
@@ -1400,11 +1409,37 @@ class _ConvRow extends StatelessWidget {
   final bool isAgent;
   final bool isGroup;
   final String? avatarUrl;
-  final bool online;
 
   @override
   Widget build(BuildContext context) {
     Offset rcPos = Offset.zero;
+    final avatar = SizedBox(
+      width: _conversationTileAvatarSize,
+      height: _conversationTileAvatarSize,
+      child: isAgent
+          ? Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F3FF),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Symbols.robot_2,
+                size: 22,
+                color: Color(0xFF0066A8),
+                fill: 1,
+              ),
+            )
+          : isGroup
+              ? _GroupAvatarGrid(seed: name, imageUrl: avatarUrl)
+              : PortalAvatar(
+                  seed: name,
+                  size: _conversationTileAvatarSize,
+                  imageUrl: avatarUrl,
+                  shape: AvatarShape.squircle,
+                ),
+    );
+
     return GestureDetector(
       onSecondaryTapDown: (d) => rcPos = d.globalPosition,
       onSecondaryTap: () => _showChatCtxMenu(context, rcPos, name),
@@ -1420,54 +1455,7 @@ class _ConvRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                SizedBox(
-                  width: _conversationTileAvatarSize,
-                  height: _conversationTileAvatarSize,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      if (isAgent)
-                        Container(
-                          width: _conversationTileAvatarSize,
-                          height: _conversationTileAvatarSize,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8F3FF),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Icon(
-                            Symbols.robot_2,
-                            size: 22,
-                            color: Color(0xFF0066A8),
-                            fill: 1,
-                          ),
-                        )
-                      else if (isGroup)
-                        _GroupAvatarGrid(seed: name, imageUrl: avatarUrl)
-                      else
-                        PortalAvatar(
-                          seed: name,
-                          size: _conversationTileAvatarSize,
-                          imageUrl: avatarUrl,
-                          shape: AvatarShape.squircle,
-                        ),
-                      if (online)
-                        Positioned(
-                          top: -2,
-                          right: -2,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF18B7CF),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: _homeBg, width: 1.5),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+                avatar,
                 const SizedBox(width: 8),
                 Expanded(
                   child: Container(
@@ -1858,7 +1846,6 @@ class _ContactList extends ConsumerWidget {
                   domain: contact.domain,
                 ),
                 subtitle: peerMxid,
-                online: true,
                 avatarUrl: avatarHttpUrl(client, contact.avatarUrl),
                 onTap: () {
                   if (peerMxid.isNotEmpty) {
@@ -1877,7 +1864,6 @@ class _ContactList extends ConsumerWidget {
                   (c) => _ContactEntryTile(
                     name: c.name,
                     subtitle: c.mxid,
-                    online: true,
                     avatarUrl: c.avatarUrl,
                     onTap: () =>
                         context.push('/contact/${Uri.encodeComponent(c.mxid)}'),
@@ -2097,14 +2083,12 @@ class _ContactEntryTile extends StatelessWidget {
     required this.name,
     required this.onTap,
     this.subtitle,
-    this.online = false,
     this.avatarUrl,
   });
 
   final String name;
   final String? subtitle;
   final VoidCallback onTap;
-  final bool online;
   final String? avatarUrl;
 
   @override
@@ -2114,848 +2098,16 @@ class _ContactEntryTile extends StatelessWidget {
       leading: SizedBox(
         width: _conversationTileAvatarSize,
         height: _conversationTileAvatarSize,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            PortalAvatar(
-              seed: name,
-              size: _conversationTileAvatarSize,
-              imageUrl: avatarUrl,
-              shape: AvatarShape.squircle,
-            ),
-            if (online)
-              Positioned(
-                top: -2,
-                right: -2,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF18B7CF),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _homeBg, width: 1.5),
-                  ),
-                ),
-              ),
-          ],
+        child: PortalAvatar(
+          seed: name,
+          size: _conversationTileAvatarSize,
+          imageUrl: avatarUrl,
+          shape: AvatarShape.squircle,
         ),
       ),
       title: name,
       subtitle: subtitle,
     );
-  }
-}
-
-class _ExplorePage extends ConsumerStatefulWidget {
-  const _ExplorePage();
-
-  @override
-  ConsumerState<_ExplorePage> createState() => _ExplorePageState();
-}
-
-class _ExplorePageState extends ConsumerState<_ExplorePage> {
-  late final PageController _controller;
-  int _page = 0;
-  String? _followAuthorId;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = PageController();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _setPage(int page) {
-    if (_page != page) {
-      setState(() => _page = page);
-    }
-    _controller.animateToPage(
-      page,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _ExploreTopBar(
-          selectedIndex: _page,
-          onTabSelected: _setPage,
-        ),
-        Expanded(
-          child: PageView(
-            controller: _controller,
-            onPageChanged: (page) => setState(() => _page = page),
-            children: [
-              _FollowExplorePage(
-                selectedAuthorId:
-                    _followAuthorId ?? MockFollowFeed.defaultAuthorId,
-                onAuthorSelected: (authorId) {
-                  setState(() => _followAuthorId = authorId);
-                },
-              ),
-              const _AgentExplorePage(),
-              const _ChannelExplorePage(),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ExploreTopBar extends StatelessWidget {
-  const _ExploreTopBar({
-    required this.selectedIndex,
-    required this.onTabSelected,
-  });
-
-  final int selectedIndex;
-  final ValueChanged<int> onTabSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Material(
-      color: t.bg.withValues(alpha: 0.92),
-      child: SafeArea(
-        bottom: false,
-        child: Container(
-          height: 56,
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: t.border.withValues(alpha: 0.28)),
-            ),
-          ),
-          child: Row(
-            children: [
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 48,
-                child: Center(
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: t.border.withValues(alpha: 0.55),
-                      ),
-                    ),
-                    child: const _HomePlusMenuButton(),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _ExploreTabButton(
-                      label: '关注',
-                      selected: selectedIndex == 0,
-                      onTap: () => onTabSelected(0),
-                    ),
-                    const SizedBox(width: 24),
-                    _ExploreTabButton(
-                      label: 'Agent',
-                      selected: selectedIndex == 1,
-                      onTap: () => onTabSelected(1),
-                    ),
-                    const SizedBox(width: 24),
-                    _ExploreTabButton(
-                      label: '频道',
-                      selected: selectedIndex == 2,
-                      onTap: () => onTabSelected(2),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                width: 48,
-                child: Center(
-                  child: GlassHeaderButton(
-                    icon: Symbols.search,
-                    onTap: () => context.push('/search'),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ExploreTabButton extends StatelessWidget {
-  const _ExploreTabButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        height: 46,
-        width: 58,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Text(
-              label,
-              style: AppTheme.sans(
-                size: 20,
-                weight: FontWeight.w600,
-                color: selected ? t.text : t.textMute,
-              ),
-            ),
-            Positioned(
-              bottom: 4,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: selected ? 28 : 0,
-                height: 3,
-                decoration: BoxDecoration(
-                  color: t.accent,
-                  borderRadius: BorderRadius.circular(9999),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FollowExplorePage extends StatelessWidget {
-  const _FollowExplorePage({
-    required this.selectedAuthorId,
-    required this.onAuthorSelected,
-  });
-
-  final String selectedAuthorId;
-  final ValueChanged<String> onAuthorSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = MockFollowFeed.filtered(selectedAuthorId);
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, 96),
-      children: [
-        _FollowAvatarStrip(
-          selectedAuthorId: selectedAuthorId,
-          onAuthorSelected: onAuthorSelected,
-        ),
-        const SizedBox(height: 8),
-        _FollowFeedGrid(items: items),
-      ],
-    );
-  }
-}
-
-class _FollowAvatarStrip extends StatelessWidget {
-  const _FollowAvatarStrip({
-    required this.selectedAuthorId,
-    required this.onAuthorSelected,
-  });
-
-  final String selectedAuthorId;
-  final ValueChanged<String> onAuthorSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final authors = MockFollowFeed.authors;
-    final t = context.tk;
-    return Container(
-      height: 82,
-      color: t.surface,
-      child: ListView.separated(
-        key: const ValueKey('follow_avatar_strip'),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        scrollDirection: Axis.horizontal,
-        itemBuilder: (context, i) {
-          final author = authors[i];
-          final selected = author.id == selectedAuthorId;
-          return _FollowAvatarFilter(
-            author: author,
-            selected: selected,
-            onTap: () => onAuthorSelected(author.id),
-          );
-        },
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemCount: authors.length,
-      ),
-    );
-  }
-}
-
-class _FollowAvatarFilter extends StatelessWidget {
-  const _FollowAvatarFilter({
-    required this.author,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final MockFollowFeedAuthor author;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return InkWell(
-      key: ValueKey('follow_filter_${author.id}'),
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(9999),
-      child: SizedBox(
-        width: 52,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: 42,
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: selected
-                    ? t.accent.withValues(alpha: 0.14)
-                    : t.surfaceHover,
-                border: Border.all(
-                  color: selected ? t.accent : t.border.withValues(alpha: 0.35),
-                  width: selected ? 2 : 1,
-                ),
-              ),
-              child: Text(
-                author.initial,
-                style: AppTheme.sans(
-                  size: 15,
-                  weight: FontWeight.w700,
-                  color: selected ? t.accent : t.textMute,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              author.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 11,
-                weight: selected ? FontWeight.w600 : FontWeight.w400,
-                color: selected ? t.text : t.textMute,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FollowFeedGrid extends StatelessWidget {
-  const _FollowFeedGrid({required this.items});
-
-  final List<MockFollowFeedItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const SizedBox(
-        height: 260,
-        child: _Empty(
-          icon: Symbols.dynamic_feed,
-          title: '还没有动态',
-          subtitle: '关注的人发布内容后会显示在这里',
-        ),
-      );
-    }
-    final columns = _splitFollowFeed(items);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: _FollowFeedColumn(items: columns.first)),
-          const SizedBox(width: 8),
-          Expanded(child: _FollowFeedColumn(items: columns.last)),
-        ],
-      ),
-    );
-  }
-}
-
-List<List<MockFollowFeedItem>> _splitFollowFeed(
-    List<MockFollowFeedItem> items) {
-  final left = <MockFollowFeedItem>[];
-  final right = <MockFollowFeedItem>[];
-  for (var i = 0; i < items.length; i++) {
-    (i.isEven ? left : right).add(items[i]);
-  }
-  return [left, right];
-}
-
-class _FollowFeedColumn extends StatelessWidget {
-  const _FollowFeedColumn({required this.items});
-
-  final List<MockFollowFeedItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final item in items) ...[
-          _FollowFeedCard(item: item),
-          const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
-}
-
-class _FollowFeedCard extends StatelessWidget {
-  const _FollowFeedCard({required this.item});
-
-  final MockFollowFeedItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Material(
-      color: t.surface,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: () => _homeToast(context, '动态详情待接入'),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: t.border.withValues(alpha: 0.18)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _FollowFeedCover(item: item),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(9, 8, 9, 6),
-                child: Text(
-                  item.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(
-                    size: 14,
-                    weight: FontWeight.w600,
-                    color: t.text,
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(9, 0, 9, 9),
-                child: Row(
-                  children: [
-                    _FollowMiniAvatar(item: item),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        item.authorName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(size: 12, color: t.textMute),
-                      ),
-                    ),
-                    Icon(
-                      Symbols.favorite,
-                      size: 15,
-                      color: t.textMute,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      '${item.likes}',
-                      style: AppTheme.sans(size: 12, color: t.textMute),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FollowFeedCover extends StatelessWidget {
-  const _FollowFeedCover({required this.item});
-
-  final MockFollowFeedItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final colors = switch (item.coverTone) {
-      0 => [t.primaryContainer.withValues(alpha: 0.82), t.surfaceHigh],
-      1 => [t.accent.withValues(alpha: 0.18), t.surfaceHover],
-      2 => [t.text.withValues(alpha: 0.82), t.accent.withValues(alpha: 0.34)],
-      3 => [t.accentCool.withValues(alpha: 0.20), t.surfaceHigh],
-      _ => [t.secondaryContainer, t.accent.withValues(alpha: 0.22)],
-    };
-    final icon = switch (item.coverTone) {
-      0 => Symbols.route,
-      1 => Symbols.image,
-      2 => Symbols.shield_lock,
-      3 => Symbols.campaign,
-      _ => Symbols.play_circle,
-    };
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-      child: Container(
-        height: item.coverHeight,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: colors,
-          ),
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          icon,
-          size: 38,
-          color: t.surface.withValues(alpha: 0.92),
-          fill: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _FollowMiniAvatar extends StatelessWidget {
-  const _FollowMiniAvatar({required this.item});
-
-  final MockFollowFeedItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      width: 20,
-      height: 20,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: t.surfaceHover,
-        shape: BoxShape.circle,
-      ),
-      child: Text(
-        item.authorInitial,
-        style: AppTheme.sans(
-          size: 10,
-          weight: FontWeight.w700,
-          color: t.textMute,
-        ),
-      ),
-    );
-  }
-}
-
-class _AgentExplorePage extends StatelessWidget {
-  const _AgentExplorePage();
-
-  @override
-  Widget build(BuildContext context) {
-    final items = MockAgentCurations.sorted;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
-      children: [
-        for (final item in items) ...[
-          _AgentCurationCard(item: item),
-          const SizedBox(height: 10),
-        ],
-      ],
-    );
-  }
-}
-
-class _AgentCurationCard extends StatelessWidget {
-  const _AgentCurationCard({required this.item});
-
-  final MockAgentCuration item;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Material(
-      color: t.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: () => _openAgentHtml(context, item.htmlUrl),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: t.border.withValues(alpha: 0.20)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AgentHtmlThumbnail(item: item),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTheme.sans(
-                              size: 16,
-                              weight: FontWeight.w600,
-                              color: t.text,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          item.timeLabel,
-                          style: AppTheme.sans(size: 12, color: t.textMute),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      item.summary,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(size: 13, color: t.textMute),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      item.sourceScope,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(
-                        size: 12,
-                        weight: FontWeight.w500,
-                        color: t.text,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        for (final tag in item.tags)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: t.surfaceHover,
-                              borderRadius: BorderRadius.circular(9999),
-                            ),
-                            child: Text(
-                              tag,
-                              style: AppTheme.sans(
-                                size: 11,
-                                weight: FontWeight.w500,
-                                color: t.textMute,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(
-                          Symbols.description,
-                          size: 15,
-                          color: t.accent,
-                          fill: 1,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            Uri.parse(item.htmlUrl).path,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTheme.sans(size: 12, color: t.accent),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.sourceLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(size: 11, color: t.textMute),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AgentHtmlThumbnail extends StatelessWidget {
-  const _AgentHtmlThumbnail({required this.item});
-
-  final MockAgentCuration item;
-
-  @override
-  Widget build(BuildContext context) {
-    final thumbnailUrl = item.thumbnailUrl.trim();
-    return ClipRRect(
-      key: ValueKey('agent_html_thumbnail_${item.id}'),
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        width: 88,
-        height: 112,
-        child: thumbnailUrl.isEmpty
-            ? _AgentHtmlThumbnailFallback(tone: item.accentTone)
-            : Image.network(
-                thumbnailUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) {
-                  return _AgentHtmlThumbnailFallback(tone: item.accentTone);
-                },
-              ),
-      ),
-    );
-  }
-}
-
-class _AgentHtmlThumbnailFallback extends StatelessWidget {
-  const _AgentHtmlThumbnailFallback({required this.tone});
-
-  final int tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final accentColor = switch (tone) {
-      0 => t.accent,
-      1 => t.accentCool,
-      2 => t.primaryContainer,
-      _ => t.textMute,
-    };
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: t.surfaceHover,
-        border: Border.all(color: t.border.withValues(alpha: 0.22)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 38,
-              height: 8,
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.82),
-                borderRadius: BorderRadius.circular(9999),
-              ),
-            ),
-            const SizedBox(height: 9),
-            _AgentThumbnailLine(width: 58, color: t.textMute),
-            const SizedBox(height: 5),
-            _AgentThumbnailLine(width: 70, color: t.border),
-            const SizedBox(height: 5),
-            _AgentThumbnailLine(width: 46, color: t.border),
-            const SizedBox(height: 10),
-            Expanded(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: t.surface,
-                  borderRadius: BorderRadius.circular(7),
-                  border: Border.all(color: t.border.withValues(alpha: 0.18)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: accentColor.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                      ),
-                      const Spacer(),
-                      _AgentThumbnailLine(width: 52, color: t.border),
-                      const SizedBox(height: 4),
-                      _AgentThumbnailLine(width: 34, color: t.border),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AgentThumbnailLine extends StatelessWidget {
-  const _AgentThumbnailLine({required this.width, required this.color});
-
-  final double width;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: 4,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(9999),
-      ),
-    );
-  }
-}
-
-Future<void> _openAgentHtml(BuildContext context, String url) async {
-  final messenger = ScaffoldMessenger.of(context);
-  final ok = await launchUrl(
-    Uri.parse(url),
-    mode: LaunchMode.inAppBrowserView,
-  );
-  if (!ok) {
-    messenger.showSnackBar(const SnackBar(content: Text('无法打开 HTML 链接')));
   }
 }
 
@@ -2984,20 +2136,12 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
             fallbackDomain: _clientServerName(client),
           )
         : _mockChannelItems();
-    final useSampleChannels = useRealChannels && channels.isEmpty;
-    final sampleChannels = _mockChannelItems();
-    final categorySource = useSampleChannels ? sampleChannels : channels;
-    final categories = ChannelInboxData.categories(categorySource);
+    final categories = ChannelInboxData.categories(channels);
     final selectedCategory = categories.contains(_category) ? _category : '全部';
     final visibleChannels = ChannelInboxData.filtered(
       channels,
       selectedCategory,
     );
-    final visibleSampleChannels = useSampleChannels
-        ? ChannelInboxData.filtered(sampleChannels, selectedCategory)
-            .take(2)
-            .toList()
-        : const <ChannelInboxItem>[];
 
     if (!_mockAuthEnabled && isLoggedIn && bootstrap == null) {
       return const _Empty(
@@ -3032,10 +2176,7 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
         ),
         const SizedBox(height: 10),
         if (visibleChannels.isEmpty)
-          _ChannelEmptyArea(
-            selectedCategory: selectedCategory,
-            sampleChannels: visibleSampleChannels,
-          )
+          _ChannelEmptyArea(selectedCategory: selectedCategory)
         else
           _ChannelInboxList(channels: visibleChannels),
       ],
@@ -3044,57 +2185,37 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
 }
 
 class _ChannelEmptyArea extends StatelessWidget {
-  const _ChannelEmptyArea({
-    required this.selectedCategory,
-    required this.sampleChannels,
-  });
+  const _ChannelEmptyArea({required this.selectedCategory});
 
   final String selectedCategory;
-  final List<ChannelInboxItem> sampleChannels;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         SizedBox(
-          height: sampleChannels.isNotEmpty ? 120 : 260,
-          child: _Empty(
-            icon: Symbols.campaign,
-            title: '还没有频道',
-            subtitle:
-                selectedCategory == '我的频道' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
+          height: 260,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _Empty(
+                icon: Symbols.campaign,
+                title: '还没有频道',
+                subtitle:
+                    selectedCategory == '我的频道' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
+              ),
+              if (selectedCategory != '我的频道') ...[
+                const SizedBox(height: 10),
+                FilledButton.tonalIcon(
+                  onPressed: () => context.push('/channels/search'),
+                  icon: const Icon(Symbols.search),
+                  label: const Text('搜索频道'),
+                ),
+              ],
+            ],
           ),
         ),
-        if (sampleChannels.isNotEmpty) ...[
-          const _ChannelSectionLabel(text: '样例频道'),
-          _ChannelInboxList(channels: sampleChannels),
-        ],
       ],
-    );
-  }
-}
-
-class _ChannelSectionLabel extends StatelessWidget {
-  const _ChannelSectionLabel({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          text,
-          style: AppTheme.sans(
-            size: 13,
-            weight: FontWeight.w600,
-            color: t.textMute,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -3186,32 +2307,41 @@ class _ChannelInboxTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 7),
                 if (channel.unreadCount > 0)
-                  Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: t.accent,
-                      borderRadius: BorderRadius.circular(9999),
-                    ),
-                    child: Text(
-                      '${channel.unreadCount}',
-                      style: AppTheme.sans(
-                        size: 11,
-                        weight: FontWeight.w700,
-                        color: t.onAccent,
-                      ),
-                    ),
-                  )
+                  _ChannelUnreadNumber(channel: channel)
                 else
                   const SizedBox(height: 18),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ChannelUnreadNumber extends StatelessWidget {
+  const _ChannelUnreadNumber({required this.channel});
+
+  final ChannelInboxItem channel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SizedBox(
+      height: 18,
+      child: Text(
+        _formatBadgeCount(channel.unreadCount),
+        key: ValueKey('channel_unread_count_${channel.id}'),
+        textAlign: TextAlign.right,
+        textHeightBehavior: const TextHeightBehavior(
+          applyHeightToFirstAscent: false,
+          applyHeightToLastDescent: false,
+        ),
+        style: AppTheme.sans(
+          size: 12,
+          weight: FontWeight.w600,
+          color: t.textMute.withValues(alpha: 0.74),
+        ).copyWith(height: 1),
       ),
     );
   }
@@ -3248,6 +2378,7 @@ List<ChannelInboxItem> _mockChannelItems() {
       .map(
         (channel) => ChannelInboxItem(
           id: channel.id,
+          roomId: channel.id,
           name: channel.name,
           domain: channel.domain,
           avatarUrl: '',

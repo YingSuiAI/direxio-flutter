@@ -99,6 +99,12 @@ class AsCallStateReporter {
   final AsCallSessionStore? _store;
   final _connectedCallIds = <String>{};
   final _terminalCallIds = <String>{};
+  final _locallyTerminalCallIds = <String>{};
+
+  Set<String> get terminalCallIds => Set.unmodifiable(_terminalCallIds);
+
+  Set<String> get locallyTerminalCallIds =>
+      Set.unmodifiable(_locallyTerminalCallIds);
 
   Future<AsCallSession> createCall({
     required String roomId,
@@ -118,6 +124,29 @@ class AsCallStateReporter {
     final calls = await _asClient.getActiveCalls();
     unawaited(_storeCalls(calls));
     return calls;
+  }
+
+  Future<List<AsCallSession>> clearLocallyInactiveConnectedCalls(
+    Iterable<AsCallSession> calls,
+  ) async {
+    final remaining = <AsCallSession>[];
+    for (final call in calls) {
+      if (call.state != asCallStateConnected ||
+          _locallyTerminalCallIds.contains(call.callId)) {
+        remaining.add(call);
+        continue;
+      }
+      try {
+        await reportEnded(
+          call,
+          reason: 'stale_local_inactive',
+          connectedAt: call.answeredAt,
+        );
+      } catch (error) {
+        debugPrint('finish stale AS connected call failed: $error');
+      }
+    }
+    return remaining;
   }
 
   Future<AsCallSession> registerIncomingCall({
@@ -205,6 +234,7 @@ class AsCallStateReporter {
     DateTime? endedAt,
   }) async {
     if (call == null || _terminalCallIds.contains(call.callId)) return;
+    _locallyTerminalCallIds.add(call.callId);
     final completedAt = endedAt ?? DateTime.now().toUtc();
     final updated = await _asClient.updateCallEvent(
       callId: call.callId,
@@ -376,6 +406,7 @@ const peerNoResponseMessage = '对方暂无响应，已结束拨打';
 const connectedCallUnstableMessage = '网络不稳定';
 const connectedCallInterruptedMessage = '通话中断';
 const groupCallMediaRecoveryDelay = Duration(seconds: 12);
+const connectedGroupCallMediaRecoveryDelay = Duration(seconds: 3);
 
 enum ConnectedCallNetworkState {
   stable,
@@ -513,6 +544,7 @@ class AsActiveCallGateDecision {
 AsActiveCallGateDecision asActiveCallGateDecision({
   required bool localStateActive,
   required List<AsCallSession>? activeCalls,
+  Set<String> locallyTerminalCallIds = const {},
   required bool activeLookupFailed,
 }) {
   if (activeLookupFailed) {
@@ -529,7 +561,10 @@ AsActiveCallGateDecision asActiveCallGateDecision({
     );
   }
 
-  if (activeCalls != null && activeCalls.isNotEmpty) {
+  final actionableActiveCalls = activeCalls
+      ?.where((call) => !locallyTerminalCallIds.contains(call.callId.trim()))
+      .toList(growable: false);
+  if (actionableActiveCalls != null && actionableActiveCalls.isNotEmpty) {
     return const AsActiveCallGateDecision(
       canStart: false,
       resetLocalActive: false,
@@ -901,11 +936,20 @@ GroupCallStatus groupCallStatusWithObservedMedia({
   required Iterable<String> remoteMediaUserIds,
   bool wasConnected = false,
 }) {
+  if (transportStatus == GroupCallStatus.ended && wasConnected) {
+    return GroupCallStatus.connected;
+  }
+  if (transportStatus == GroupCallStatus.idle &&
+      wasConnected &&
+      localUserJoined) {
+    return GroupCallStatus.connected;
+  }
   final baseStatus = groupCallStatusWithProductJoin(
     transportStatus: transportStatus,
     localUserJoined: localUserJoined,
   );
   if (baseStatus != GroupCallStatus.connected) return baseStatus;
+  if (wasConnected) return GroupCallStatus.connected;
   final remoteMedia = _normalizedIds(remoteMediaUserIds);
   if (localUserJoined &&
       localMediaReady &&
@@ -962,9 +1006,13 @@ DateTime? nextGroupCallConnectedAt({
   String? localUserId,
   Iterable<String> joinedUserIds = const [],
 }) {
+  if (nextStatus == GroupCallStatus.joining && previousConnectedAt != null) {
+    return previousConnectedAt;
+  }
   if (nextStatus != GroupCallStatus.connected) return null;
-  if (previousStatus == GroupCallStatus.connected &&
-      previousConnectedAt != null) {
+  if (previousConnectedAt != null &&
+      (previousStatus == GroupCallStatus.connected ||
+          previousStatus == GroupCallStatus.joining)) {
     return previousConnectedAt;
   }
   final local = localUserId?.trim();
@@ -1011,15 +1059,14 @@ int groupCallAutoLeaveParticipantCount(GroupCallUiState state) {
 bool shouldReportGroupCallEndedAfterLocalLeave({
   required int participantCountBeforeLeave,
 }) {
-  return participantCountBeforeLeave > 0;
+  return participantCountBeforeLeave <= 1;
 }
 
 bool shouldReportGroupCallEndedFromMatrixEnd({
   required bool localProductJoined,
   required int participantCountBeforeEnd,
 }) {
-  if (localProductJoined) return false;
-  return participantCountBeforeEnd <= 2;
+  return false;
 }
 
 bool shouldShortCircuitGroupCallStart({
@@ -1047,15 +1094,20 @@ bool shouldRecoverStalledGroupCallTransport({
   required bool localMediaReady,
   required Iterable<String> remoteMediaUserIds,
   required bool recoveryAlreadyAttempted,
+  bool allowLocalJoiningRecovery = false,
 }) {
   if (recoveryAlreadyAttempted) return false;
-  if (status != GroupCallStatus.joining) return false;
-  if (!localMediaReady) return false;
+  final canRecoverConnected = status == GroupCallStatus.connected;
+  final canRecoverJoining =
+      status == GroupCallStatus.joining && localMediaReady;
+  if (!canRecoverConnected && !canRecoverJoining) return false;
   if (_normalizedIds(remoteMediaUserIds).isNotEmpty) return false;
   final local = localUserId?.trim();
   if (local == null || local.isEmpty) return false;
   final joined = _normalizedIds(joinedUserIds)..sort();
   if (joined.length < 2 || !joined.contains(local)) return false;
+  if (canRecoverConnected) return true;
+  if (allowLocalJoiningRecovery) return true;
   return joined.first == local;
 }
 
@@ -1578,6 +1630,10 @@ class MatrixVoiceCallController implements VoiceCallController {
         initiator: initiator,
         invitedUserIds: effectiveInvitees,
         invitedParticipants: invitedParticipants,
+        participants:
+            joinExistingInvite ? previousGroupState.participants : const [],
+        joinedUserIds:
+            joinExistingInvite ? previousGroupState.joinedUserIds : const [],
         isIncoming: joinExistingInvite && previousGroupState.isIncoming,
       ),
     );
@@ -2859,9 +2915,16 @@ class MatrixVoiceCallController implements VoiceCallController {
       );
     }
     try {
+      var activeCalls = await reporter.activeCalls();
+      if (!localStateActive) {
+        activeCalls = await reporter.clearLocallyInactiveConnectedCalls(
+          activeCalls,
+        );
+      }
       return asActiveCallGateDecision(
         localStateActive: localStateActive,
-        activeCalls: await reporter.activeCalls(),
+        activeCalls: activeCalls,
+        locallyTerminalCallIds: reporter.locallyTerminalCallIds,
         activeLookupFailed: false,
       );
     } catch (error) {
@@ -3439,6 +3502,7 @@ class MatrixVoiceCallController implements VoiceCallController {
           .where((userId) => userId.trim() != groupCall.room.client.userID)
           .toList(growable: false),
       recoveryAlreadyAttempted: _groupMediaRecoveryAttempted,
+      allowLocalJoiningRecovery: state.isIncoming,
     );
     if (!shouldRecover) {
       _groupMediaRecoveryTimer?.cancel();
@@ -3446,7 +3510,10 @@ class MatrixVoiceCallController implements VoiceCallController {
       return;
     }
     if (_groupMediaRecoveryTimer != null) return;
-    _groupMediaRecoveryTimer = Timer(groupCallMediaRecoveryDelay, () {
+    final delay = state.status == GroupCallStatus.connected
+        ? connectedGroupCallMediaRecoveryDelay
+        : groupCallMediaRecoveryDelay;
+    _groupMediaRecoveryTimer = Timer(delay, () {
       _groupMediaRecoveryTimer = null;
       unawaited(_recoverStalledGroupMedia(groupCall));
     });
@@ -3468,6 +3535,7 @@ class MatrixVoiceCallController implements VoiceCallController {
           .where((userId) => userId.trim() != groupCall.room.client.userID)
           .toList(growable: false),
       recoveryAlreadyAttempted: _groupMediaRecoveryAttempted,
+      allowLocalJoiningRecovery: snapshot.isIncoming,
     )) {
       return;
     }

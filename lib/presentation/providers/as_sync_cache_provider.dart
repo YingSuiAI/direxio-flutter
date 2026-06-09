@@ -11,6 +11,7 @@ class AsSyncCacheState {
     this.localContactStatusesByRoomId = const {},
     this.localContactEntriesByRoomId = const {},
     this.localDeletedEventIdsByRoomId = const {},
+    this.localReadMarkersByRoomId = const {},
   });
 
   final AsSyncBootstrap? bootstrap;
@@ -18,6 +19,7 @@ class AsSyncCacheState {
   final Map<String, String> localContactStatusesByRoomId;
   final Map<String, ContactEntry> localContactEntriesByRoomId;
   final Map<String, Set<String>> localDeletedEventIdsByRoomId;
+  final Map<String, DateTime> localReadMarkersByRoomId;
 
   Set<String> get _localContactPeerIds {
     return localContactEntriesByRoomId.values
@@ -189,8 +191,13 @@ class AsSyncCacheState {
     Map<String, String>? localContactStatusesByRoomId,
     Map<String, ContactEntry>? localContactEntriesByRoomId,
     Map<String, Set<String>>? localDeletedEventIdsByRoomId,
+    Map<String, DateTime>? localReadMarkersByRoomId,
   }) {
-    final nextBootstrap = bootstrap ?? this.bootstrap;
+    final nextReadMarkers =
+        localReadMarkersByRoomId ?? this.localReadMarkersByRoomId;
+    final nextBootstrap = bootstrap == null
+        ? this.bootstrap
+        : _bootstrapApplyingLocalReadMarkers(bootstrap, nextReadMarkers);
     var nextLocalStatuses =
         localContactStatusesByRoomId ?? this.localContactStatusesByRoomId;
     var nextLocalEntries =
@@ -243,6 +250,7 @@ class AsSyncCacheState {
       localDeletedEventIdsByRoomId: _freezeDeletedMap(
         localDeletedEventIdsByRoomId ?? this.localDeletedEventIdsByRoomId,
       ),
+      localReadMarkersByRoomId: Map.unmodifiable(nextReadMarkers),
     );
   }
 
@@ -321,6 +329,42 @@ class AsSyncCacheState {
     return copyWith(unread: removeRecoveredUnreadRoom(current, roomId));
   }
 
+  AsSyncCacheState withRoomUnreadCleared(String roomId, {DateTime? readAt}) {
+    final trimmed = roomId.trim();
+    final current = bootstrap;
+    if (trimmed.isEmpty) return this;
+
+    final nextReadMarkers = Map<String, DateTime>.from(
+      localReadMarkersByRoomId,
+    );
+    if (readAt != null) {
+      nextReadMarkers[trimmed] = readAt.toUtc();
+    }
+    if (current == null) {
+      return copyWith(localReadMarkersByRoomId: nextReadMarkers);
+    }
+
+    List<AsSyncRoomSummary> clear(List<AsSyncRoomSummary> rooms) {
+      return rooms
+          .map((room) =>
+              room.roomId.trim() == trimmed ? room.withUnreadCount(0) : room)
+          .toList(growable: false);
+    }
+
+    return copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: current.syncedAt,
+        user: current.user,
+        rooms: clear(current.rooms),
+        contacts: current.contacts,
+        groups: clear(current.groups),
+        channels: clear(current.channels),
+        pending: current.pending,
+      ),
+      localReadMarkersByRoomId: nextReadMarkers,
+    );
+  }
+
   AsSyncCacheState withoutGroup(String roomId) {
     final trimmed = roomId.trim();
     final current = bootstrap;
@@ -367,6 +411,35 @@ class AsSyncCacheState {
 final asSyncCacheProvider = StateProvider<AsSyncCacheState>((ref) {
   return const AsSyncCacheState();
 });
+
+AsSyncBootstrap _bootstrapApplyingLocalReadMarkers(
+  AsSyncBootstrap bootstrap,
+  Map<String, DateTime> readMarkers,
+) {
+  if (readMarkers.isEmpty) return bootstrap;
+
+  List<AsSyncRoomSummary> apply(List<AsSyncRoomSummary> rooms) {
+    return rooms.map((room) {
+      final readAt = readMarkers[room.roomId.trim()];
+      if (readAt == null || room.unreadCount <= 0) return room;
+      final lastActivityAt = room.lastActivityAt?.toUtc();
+      if (lastActivityAt != null && lastActivityAt.isAfter(readAt.toUtc())) {
+        return room;
+      }
+      return room.withUnreadCount(0);
+    }).toList(growable: false);
+  }
+
+  return AsSyncBootstrap(
+    syncedAt: bootstrap.syncedAt,
+    user: bootstrap.user,
+    rooms: apply(bootstrap.rooms),
+    contacts: bootstrap.contacts,
+    groups: apply(bootstrap.groups),
+    channels: apply(bootstrap.channels),
+    pending: bootstrap.pending,
+  );
+}
 
 Map<String, Set<String>> _freezeDeletedMap(Map<String, Set<String>> source) {
   return Map.unmodifiable(

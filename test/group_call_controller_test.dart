@@ -185,6 +185,44 @@ void main() {
     );
   });
 
+  test('group call timer survives temporary joining during member churn', () {
+    final connectedAt = DateTime.utc(2026, 5, 31, 1);
+    final later = connectedAt.add(const Duration(seconds: 42));
+    final recovered = connectedAt.add(const Duration(seconds: 45));
+
+    expect(
+      nextGroupCallConnectedAt(
+        previousStatus: GroupCallStatus.connected,
+        previousConnectedAt: connectedAt,
+        nextStatus: GroupCallStatus.joining,
+        now: later,
+        isIncoming: false,
+        localUserId: '@owner:p2p-im.com',
+        joinedUserIds: const [
+          '@owner:p2p-im.com',
+          '@lee:p2p-liyanan.com',
+        ],
+      ),
+      connectedAt,
+    );
+
+    expect(
+      nextGroupCallConnectedAt(
+        previousStatus: GroupCallStatus.joining,
+        previousConnectedAt: connectedAt,
+        nextStatus: GroupCallStatus.connected,
+        now: recovered,
+        isIncoming: false,
+        localUserId: '@owner:p2p-im.com',
+        joinedUserIds: const [
+          '@owner:p2p-im.com',
+          '@lee:p2p-liyanan.com',
+        ],
+      ),
+      connectedAt,
+    );
+  });
+
   test('incoming group call timer starts after local join', () {
     final now = DateTime.utc(2026, 5, 31, 1);
 
@@ -262,6 +300,25 @@ void main() {
     );
   });
 
+  test('late invited group member can recover missing remote media', () {
+    expect(
+      shouldRecoverStalledGroupCallTransport(
+        status: GroupCallStatus.joining,
+        localUserId: '@owner:p2p-liyanan.com',
+        joinedUserIds: const [
+          '@owner:p2p-im-test.com',
+          '@owner:p2p-im.com',
+          '@owner:p2p-liyanan.com',
+        ],
+        localMediaReady: true,
+        remoteMediaUserIds: const [],
+        recoveryAlreadyAttempted: false,
+        allowLocalJoiningRecovery: true,
+      ),
+      isTrue,
+    );
+  });
+
   test('group call media recovery does not run after media or prior retry', () {
     expect(
       shouldRecoverStalledGroupCallTransport(
@@ -318,6 +375,108 @@ void main() {
         localUserJoined: true,
         localMediaReady: true,
         remoteMediaUserIds: const ['@lee:p2p-liyanan.com'],
+      ),
+      GroupCallStatus.connected,
+    );
+  });
+
+  test('connected group call stays connected while media recovers', () {
+    expect(
+      groupCallStatusWithObservedMedia(
+        transportStatus: GroupCallStatus.connected,
+        localUserJoined: true,
+        localMediaReady: false,
+        remoteMediaUserIds: const [],
+        wasConnected: true,
+      ),
+      GroupCallStatus.connected,
+    );
+  });
+
+  test('connected product group call ignores stale Matrix ended state', () {
+    expect(
+      groupCallStatusWithObservedMedia(
+        transportStatus: GroupCallStatus.ended,
+        localUserJoined: false,
+        localMediaReady: false,
+        remoteMediaUserIds: const [],
+        wasConnected: true,
+      ),
+      GroupCallStatus.connected,
+    );
+  });
+
+  test('connected group call recovers after remote media is stranded', () {
+    expect(
+      shouldRecoverStalledGroupCallTransport(
+        status: GroupCallStatus.connected,
+        localUserId: '@owner:p2p-im-test.com',
+        joinedUserIds: const [
+          '@owner:p2p-im-test.com',
+          '@owner:p2p-im.com',
+        ],
+        localMediaReady: false,
+        remoteMediaUserIds: const [],
+        recoveryAlreadyAttempted: false,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldRecoverStalledGroupCallTransport(
+        status: GroupCallStatus.connected,
+        localUserId: '@owner:p2p-im.com',
+        joinedUserIds: const [
+          '@owner:p2p-im-test.com',
+          '@owner:p2p-im.com',
+        ],
+        localMediaReady: false,
+        remoteMediaUserIds: const [],
+        recoveryAlreadyAttempted: false,
+      ),
+      isTrue,
+    );
+  });
+
+  test('initial joining media recovery remains single owner only', () {
+    expect(
+      shouldRecoverStalledGroupCallTransport(
+        status: GroupCallStatus.joining,
+        localUserId: '@owner:p2p-im-test.com',
+        joinedUserIds: const [
+          '@owner:p2p-im-test.com',
+          '@owner:p2p-im.com',
+        ],
+        localMediaReady: true,
+        remoteMediaUserIds: const [],
+        recoveryAlreadyAttempted: false,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldRecoverStalledGroupCallTransport(
+        status: GroupCallStatus.joining,
+        localUserId: '@owner:p2p-im.com',
+        joinedUserIds: const [
+          '@owner:p2p-im-test.com',
+          '@owner:p2p-im.com',
+        ],
+        localMediaReady: true,
+        remoteMediaUserIds: const [],
+        recoveryAlreadyAttempted: false,
+      ),
+      isFalse,
+    );
+  });
+
+  test('connected group call stays connected after local media uninitializes',
+      () {
+    expect(
+      groupCallStatusWithObservedMedia(
+        transportStatus: GroupCallStatus.idle,
+        localUserJoined: true,
+        localMediaReady: false,
+        remoteMediaUserIds: const [],
+        wasConnected: true,
       ),
       GroupCallStatus.connected,
     );
@@ -544,15 +703,14 @@ void main() {
     );
   });
 
-  test('group call local leave reports local AS ended for any joined member',
-      () {
+  test('group call local leave only finishes call when no peers remain', () {
     expect(
       shouldReportGroupCallEndedAfterLocalLeave(participantCountBeforeLeave: 3),
-      isTrue,
+      isFalse,
     );
     expect(
       shouldReportGroupCallEndedAfterLocalLeave(participantCountBeforeLeave: 2),
-      isTrue,
+      isFalse,
     );
     expect(
       shouldReportGroupCallEndedAfterLocalLeave(participantCountBeforeLeave: 1),
@@ -577,7 +735,14 @@ void main() {
         localProductJoined: false,
         participantCountBeforeEnd: 2,
       ),
-      isTrue,
+      isFalse,
+    );
+    expect(
+      shouldReportGroupCallEndedFromMatrixEnd(
+        localProductJoined: false,
+        participantCountBeforeEnd: 1,
+      ),
+      isFalse,
     );
   });
 

@@ -164,3 +164,17 @@
   - `flutter test test/voice_call_controller_test.dart test/call_timeline_events_test.dart test/call_page_layout_test.dart test/group_call_controller_test.dart test/group_call_page_test.dart test/http_as_client_test.dart` passed.
   - `flutter analyze lib/presentation/call/voice_call_controller.dart lib/presentation/pages/home_page.dart lib/presentation/chat/call_timeline_events.dart lib/presentation/pages/chat_page.dart test/voice_call_controller_test.dart test/call_timeline_events_test.dart` passed.
   - `flutter build ios --simulator --debug` passed; new build installed and launched on `iPhone 17 Pro`, `iPhone 17 Pro Max`, and `P2P IM Clean Test`.
+
+## 2026-06-05 Stale Active Call Gate Follow-up
+
+- Root cause: AS `/_as/calls/active` can still return a `connected` call if a terminal `ended/missed/failed` report failed, raced, or arrived late. The client previously trusted any AS active call and blocked a new outgoing call with `已有通话正在进行`, even when the local call page had already been closed.
+- Product rule: if the local client has no active call state, stale AS `connected` sessions must be reconciled before blocking the next outgoing call. A true active `ringing` session or another non-terminal active session still blocks.
+- Implementation:
+  - `AsCallStateReporter` now records a local terminal call id before attempting the AS terminal update, so a failed terminal report cannot keep blocking the same client forever.
+  - The outgoing AS active-call gate filters call ids known locally as terminal.
+  - If the local client is idle but AS returns `connected` calls, the reporter marks those calls `ended` with reason `stale_local_inactive` before the gate makes the final decision.
+- Verification:
+  - `flutter test test/voice_call_controller_test.dart` passed.
+  - `flutter analyze lib test` passed.
+  - `flutter test` passed.
+  - `flutter build ios --simulator --debug` passed; new build installed and launched on `iPhone 17 Pro`, `iPhone 17 Pro Max`, and `P2P IM Clean Test`.

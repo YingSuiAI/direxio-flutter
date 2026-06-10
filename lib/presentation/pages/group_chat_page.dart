@@ -1279,7 +1279,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     tooltip: '详情',
                     color: t.accent,
                     onTap: () => context.push(
-                      '/group-detail/${Uri.encodeComponent(widget.roomId)}',
+                      '/group-info/${Uri.encodeComponent(widget.roomId)}',
                     ),
                   ),
                 ],

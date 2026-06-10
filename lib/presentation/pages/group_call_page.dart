@@ -240,7 +240,7 @@ class _GroupCallHeader extends StatelessWidget {
     return Row(
       children: [
         _RoundCallButton(
-          icon: Symbols.arrow_back_ios_new,
+          icon: Symbols.arrow_back,
           label: '返回',
           onTap: onClose,
         ),

@@ -267,8 +267,8 @@ class _ChannelManageTopBar extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: _CircleButton(
-                icon: Symbols.arrow_back_ios_new,
-                iconSize: 20,
+                icon: Symbols.arrow_back,
+                iconSize: 24,
                 onTap: onBack,
               ),
             ),

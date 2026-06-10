@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'l10n/app_localizations.dart';
+import 'presentation/providers/app_locale_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
 
 void main() async {
@@ -22,11 +25,21 @@ class PortalApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    final localeMode = ref.watch(appLocaleProvider);
     return MaterialApp.router(
-      title: 'Portal IM',
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.light,
+      locale: localeMode.locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localeListResolutionCallback: _resolveLocale,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ],
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       builder: (context, child) {
@@ -34,4 +47,18 @@ class PortalApp extends ConsumerWidget {
       },
     );
   }
+}
+
+Locale _resolveLocale(
+  List<Locale>? preferredLocales,
+  Iterable<Locale> supportedLocales,
+) {
+  for (final preferred in preferredLocales ?? const <Locale>[]) {
+    for (final supported in supportedLocales) {
+      if (preferred.languageCode == supported.languageCode) {
+        return supported;
+      }
+    }
+  }
+  return const Locale('en');
 }

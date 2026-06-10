@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../channel/channel_inbox_data.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
@@ -850,12 +849,7 @@ class _LiquidTabPill extends StatelessWidget {
                                   ? item.activeIconAsset ?? item.iconAsset
                                   : item.inactiveIconAsset ?? item.iconAsset,
                               size: 24,
-                              color: item.activeIconAsset == null &&
-                                      item.inactiveIconAsset == null
-                                  ? active
-                                      ? t.accent
-                                      : _homeText
-                                  : null,
+                              color: active ? t.accent : _homeText,
                             ),
                             if (item.badge != null)
                               Positioned(
@@ -2618,7 +2612,6 @@ class _MePageState extends ConsumerState<_MePage> {
         : profileName?.isNotEmpty == true
             ? profileName!
             : localpart;
-    final domain = _domainFromMxid(displayId);
     final avatarUrl = profileAvatarHttpUrl(profile, client) ?? MockAvatars.me;
     final uid = localpart.isEmpty ? displayId : localpart;
 
@@ -2641,7 +2634,7 @@ class _MePageState extends ConsumerState<_MePage> {
               avatarBusy: _avatarBusy,
               onAvatarTap: _avatarBusy ? null : _pickAvatar,
               onProfileTap: () => context.push('/me/profile'),
-              onQrTap: () => _showDomainQrDialog(context, domain, displayId),
+              onQrTap: () => context.push('/me/qr'),
             ),
             const SizedBox(height: 34),
             _MeActionRow(
@@ -2772,6 +2765,7 @@ class _MeProfileTile extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: InkWell(
+              key: const ValueKey('me_profile_entry'),
               onTap: onProfileTap,
               borderRadius: BorderRadius.circular(8),
               child: Padding(
@@ -2807,6 +2801,7 @@ class _MeProfileTile extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           IconButton(
+            key: const ValueKey('me_domain_qr_button'),
             tooltip: '我的二维码',
             onPressed: onQrTap,
             icon: _assetIcon(_assetMeQr, size: 24, color: _meIconBlue),
@@ -2914,79 +2909,6 @@ class _MeGlassIconButton extends StatelessWidget {
       ),
     );
   }
-}
-
-String _domainFromMxid(String mxid) {
-  final colon = mxid.indexOf(':');
-  if (colon == -1 || colon == mxid.length - 1) return '未连接域名';
-  return mxid.substring(colon + 1);
-}
-
-void _showDomainQrDialog(BuildContext context, String domain, String userId) {
-  final t = context.tk;
-  final payload = Uri(
-    scheme: 'p2pim',
-    host: 'add-contact',
-    queryParameters: {'mxid': userId, 'domain': domain},
-  ).toString();
-
-  showDialog<void>(
-    context: context,
-    builder: (ctx) => Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 32),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '我的域名二维码',
-              style: AppTheme.sans(
-                size: 18,
-                weight: FontWeight.w700,
-                color: t.text,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '对方扫一扫即可添加好友',
-              style: AppTheme.sans(size: 13, color: t.textMute),
-            ),
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: QrImageView(
-                data: payload,
-                version: QrVersions.auto,
-                size: 188,
-                backgroundColor: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              userId,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.mono(size: 12, color: t.textMute),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('完成'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }
 
 class _Empty extends StatelessWidget {

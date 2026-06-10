@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,14 +11,13 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../mock/mock_data.dart';
-import '../providers/auth_provider.dart';
 import '../providers/app_warmup_provider.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/personal_space_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/avatar_adjust_sheet.dart';
-import '../widgets/glass_list_tile.dart';
 import '../widgets/portal_avatar.dart';
 
 class ProfileInfoPage extends ConsumerStatefulWidget {
@@ -31,34 +29,7 @@ class ProfileInfoPage extends ConsumerStatefulWidget {
 
 class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
   bool _avatarBusy = false;
-  bool _coverBusy = false;
   bool _profileBusy = false;
-
-  Future<void> _pickCover() async {
-    if (_coverBusy) return;
-    setState(() => _coverBusy = true);
-    try {
-      final file = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 88,
-        maxWidth: 2400,
-        maxHeight: 1600,
-        requestFullMetadata: false,
-      );
-      if (file == null) return;
-      final bytes = await file.readAsBytes();
-      ref.read(personalProfileProvider.notifier).state =
-          ref.read(personalProfileProvider).copyWith(coverImageBytes: bytes);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('背景更新失败: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _coverBusy = false);
-    }
-  }
 
   Future<void> _pickAvatar() async {
     if (_avatarBusy) return;
@@ -114,7 +85,6 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          maxLines: title == '简介' ? 3 : 1,
           decoration: InputDecoration(hintText: '请输入$title'),
         ),
         actions: [
@@ -200,418 +170,311 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         : profileName?.isNotEmpty == true
             ? profileName!
             : localpart;
-    final domain = _domainFromMxid(userId);
     final avatarUrl = profileAvatarHttpUrl(profile, client) ?? MockAvatars.me;
+    final topInset = MediaQuery.of(context).padding.top;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              _ProfileCover(
-                coverImageBytes: data.coverImageBytes,
-                coverBusy: _coverBusy,
-                avatarBusy: _avatarBusy,
-                avatarUrl: avatarUrl,
-                displayId: userId,
-                displayName: displayName,
-                onCoverTap: _pickCover,
-                onAvatarTap: _pickAvatar,
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: t.bg,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(22)),
-                ),
-                padding: const EdgeInsets.fromLTRB(0, 18, 0, 32),
+      backgroundColor: t.surfaceHover,
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            _ProfileHeader(topInset: topInset),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(16, 25, 16, 28 + bottomInset),
                 child: Column(
                   children: [
-                    const _ProfileCompletion(text: '资料完成度 100%'),
-                    const SizedBox(height: 18),
-                    _ProfileInfoRow(
-                      label: '用户名',
+                    _AvatarEditor(
+                      avatarBusy: _avatarBusy,
+                      avatarUrl: avatarUrl,
+                      seed: userId,
+                      onTap: _pickAvatar,
+                    ),
+                    const SizedBox(height: 22),
+                    _ProfileInfoCard(
+                      label: '名字',
                       value: displayName,
+                      busy: _profileBusy,
                       onTap: () => _editField(
-                        title: '用户名',
+                        title: '名字',
                         initialValue: displayName,
                         onSave: (value) =>
                             _updateDisplayName(data, userId, value),
                       ),
                     ),
-                    _ProfileInfoRow(
-                      label: '简介',
-                      value: data.bio,
-                      onTap: () => _editField(
-                        title: '简介',
-                        initialValue: data.bio,
-                        onSave: (value) =>
-                            _updateProfile(data.copyWith(bio: value)),
-                      ),
-                    ),
-                    _ProfileInfoRow(
+                    const SizedBox(height: 16),
+                    _ProfileInfoCard(
                       label: '性别',
                       value: data.gender,
                       onTap: () => _editField(
                         title: '性别',
-                        initialValue: data.gender,
-                        onSave: (value) =>
-                            _updateProfile(data.copyWith(gender: value)),
+                        initialValue: _emptyIfUnset(data.gender),
+                        onSave: (value) => _updateProfile(
+                          data.copyWith(gender: value.isEmpty ? '未设置' : value),
+                        ),
                       ),
                     ),
-                    _ProfileInfoRow(
+                    const SizedBox(height: 16),
+                    _ProfileInfoCard(
                       label: '生日',
                       value: data.birthday,
                       onTap: () => _editField(
                         title: '生日',
-                        initialValue: data.birthday,
-                        onSave: (value) =>
-                            _updateProfile(data.copyWith(birthday: value)),
+                        initialValue: _emptyIfUnset(data.birthday),
+                        onSave: (value) => _updateProfile(
+                          data.copyWith(
+                            birthday: value.isEmpty ? '未设置' : value,
+                          ),
+                        ),
                       ),
                     ),
-                    _ProfileInfoRow(
-                      label: '所在地',
-                      value: data.location,
+                    const SizedBox(height: 16),
+                    _ProfileInfoCard(
+                      label: '手机号码',
+                      value: data.phone,
                       onTap: () => _editField(
-                        title: '所在地',
-                        initialValue: data.location,
+                        title: '手机号码',
+                        initialValue: data.phone,
                         onSave: (value) =>
-                            _updateProfile(data.copyWith(location: value)),
+                            _updateProfile(data.copyWith(phone: value)),
                       ),
                     ),
-                    _ProfileInfoRow(
-                      label: '域名',
-                      value: domain,
-                      onTap: null,
+                    const SizedBox(height: 16),
+                    _ProfileInfoCard(
+                      label: '邮箱',
+                      value: data.email,
+                      onTap: () => _editField(
+                        title: '邮箱',
+                        initialValue: data.email,
+                        onSave: (value) =>
+                            _updateProfile(data.copyWith(email: value)),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: Row(
-                children: [
-                  _RoundIconButton(
-                    onTap: () => context.pop(),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      '个人信息',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(
-                        size: 18,
-                        weight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  _CoverButton(onTap: _pickCover, busy: _coverBusy),
-                ],
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ProfileCover extends StatelessWidget {
-  const _ProfileCover({
-    required this.coverImageBytes,
-    required this.coverBusy,
-    required this.avatarBusy,
-    required this.avatarUrl,
-    required this.displayId,
-    required this.displayName,
-    required this.onCoverTap,
-    required this.onAvatarTap,
-  });
+String _emptyIfUnset(String value) =>
+    value == '未设置' || value == '不展示' ? '' : value;
 
-  final Uint8List? coverImageBytes;
-  final bool coverBusy;
-  final bool avatarBusy;
-  final String avatarUrl;
-  final String displayId;
-  final String displayName;
-  final VoidCallback onCoverTap;
-  final VoidCallback onAvatarTap;
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({required this.topInset});
+
+  final double topInset;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     return SizedBox(
-      height: 392,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            height: 330,
-            child: GestureDetector(
-              onTap: onCoverTap,
-              child: coverImageBytes == null
-                  ? const _DefaultCover()
-                  : Image.memory(coverImageBytes!, fit: BoxFit.cover),
+      height: topInset + 62,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 0),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _GlassBackButton(onTap: () => context.pop()),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            height: 330,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.08),
-                    Colors.black.withValues(alpha: 0.38),
-                  ],
-                ),
+            Text(
+              '我的信息',
+              style: AppTheme.sans(
+                size: 16,
+                weight: FontWeight.w600,
+                color: t.text,
               ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Column(
-              children: [
-                GestureDetector(
-                  onTap: onAvatarTap,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 132,
-                        height: 132,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                        ),
-                        child: ClipOval(
-                          child: PortalAvatar(
-                            seed: displayId,
-                            size: 132,
-                            imageUrl: avatarUrl,
-                          ),
-                        ),
-                      ),
-                      ClipOval(
-                        child: ColoredBox(
-                          color: Colors.black.withValues(alpha: 0.24),
-                          child: SizedBox(
-                            width: 132,
-                            height: 132,
-                            child: Center(
-                              child: avatarBusy
-                                  ? const CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2.5,
-                                    )
-                                  : Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Symbols.photo_camera,
-                                          size: 34,
-                                          color: Colors.white,
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          '更换头像',
-                                          style: AppTheme.sans(
-                                            size: 16,
-                                            weight: FontWeight.w600,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  displayName,
-                  style: AppTheme.sans(
-                    size: 20,
-                    weight: FontWeight.w700,
-                    color: t.text,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (coverBusy)
-            const Positioned.fill(
-              child: Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ProfileCompletion extends StatelessWidget {
-  const _ProfileCompletion({required this.text});
-  final String text;
+class _GlassBackButton extends StatelessWidget {
+  const _GlassBackButton({required this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Text(
-        text,
-        style: AppTheme.sans(size: 14, color: context.tk.textMute),
-      ),
-    );
-  }
-}
-
-class _ProfileInfoRow extends StatelessWidget {
-  const _ProfileInfoRow({
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final displayValue = value.isEmpty ? '未设置' : value;
-    return GlassListTile(
-      onTap: onTap,
-      title: label,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.46,
-            ),
-            child: Text(
-              displayValue,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-              style: AppTheme.sans(size: 13, color: t.textMute),
-            ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: t.text.withValues(alpha: 0.12),
+            blurRadius: 36,
+            offset: const Offset(0, 7),
           ),
-          if (onTap != null) ...[
-            const SizedBox(width: 8),
-            Icon(Symbols.chevron_right, size: 22, color: t.textMute),
-          ],
         ],
       ),
-      showChevron: false,
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Material(
+            color: t.surface.withValues(alpha: 0.65),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Icon(Symbols.arrow_back, size: 24, color: t.text),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _CoverButton extends StatelessWidget {
-  const _CoverButton({required this.onTap, required this.busy});
+class _AvatarEditor extends StatelessWidget {
+  const _AvatarEditor({
+    required this.avatarBusy,
+    required this.avatarUrl,
+    required this.seed,
+    required this.onTap,
+  });
 
+  final bool avatarBusy;
+  final String avatarUrl;
+  final String seed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return GestureDetector(
+      onTap: avatarBusy ? null : onTap,
+      child: SizedBox(
+        width: 98,
+        height: 98,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              PortalAvatar(
+                seed: seed,
+                size: 98,
+                imageUrl: avatarUrl,
+                shape: AvatarShape.squircle,
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 20,
+                child: ColoredBox(
+                  color: t.text.withValues(alpha: 0.78),
+                  child: Center(
+                    child: avatarBusy
+                        ? SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              color: t.surface,
+                              strokeWidth: 1.8,
+                            ),
+                          )
+                        : Text(
+                            '修改',
+                            style: AppTheme.sans(size: 10, color: t.surface),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileInfoCard extends StatelessWidget {
+  const _ProfileInfoCard({
+    required this.label,
+    required this.value,
+    required this.onTap,
+    this.busy = false,
+  });
+
+  final String label;
+  final String value;
   final VoidCallback onTap;
   final bool busy;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: busy ? null : onTap,
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.36),
-          borderRadius: BorderRadius.circular(9999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            busy
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
+    final t = context.tk;
+    final displayValue = value.trim().isEmpty ? '未设置' : value.trim();
+    final muted = displayValue == '未设置';
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: busy ? null : onTap,
+        child: Container(
+          width: double.infinity,
+          height: 78,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 14,
+                        weight: FontWeight.w500,
+                        color: t.textMute,
+                      ),
                     ),
-                  )
-                : const Icon(
-                    Symbols.add_a_photo,
-                    size: 22,
-                    color: Colors.white,
-                  ),
-            const SizedBox(width: 8),
-            Text(
-              '更换背景',
-              style: AppTheme.sans(
-                size: 16,
-                weight: FontWeight.w600,
-                color: Colors.white,
+                    Text(
+                      displayValue,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 16,
+                        weight: FontWeight.w600,
+                        color: muted ? t.textMute : t.text,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RoundIconButton extends StatelessWidget {
-  const _RoundIconButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.65),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 18,
-              offset: const Offset(0, 7),
-            ),
-          ],
-        ),
-        child: Center(
-          child: SvgPicture.asset(
-            'assets/icons/toklink_back.svg',
-            width: 20,
-            height: 20,
-            colorFilter: const ColorFilter.mode(
-              Color(0xFF222325),
-              BlendMode.srcIn,
-            ),
+              const SizedBox(width: 12),
+              busy
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: t.accent,
+                      ),
+                    )
+                  : Icon(Symbols.chevron_right, size: 24, color: t.text),
+            ],
           ),
         ),
       ),
@@ -619,36 +482,12 @@ class _RoundIconButton extends StatelessWidget {
   }
 }
 
-class _DefaultCover extends StatelessWidget {
-  const _DefaultCover();
-
-  @override
-  Widget build(BuildContext context) {
-    return const DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF6D8EA6),
-            Color(0xFFD6B06F),
-            Color(0xFF3A342F),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-String _domainFromMxid(String mxid) {
-  final colon = mxid.indexOf(':');
-  if (colon == -1 || colon == mxid.length - 1) return '未连接域名';
-  return mxid.substring(colon + 1);
-}
-
 String _localpartFromMxid(String mxid) {
-  if (!mxid.startsWith('@')) return mxid;
-  final colon = mxid.indexOf(':');
-  if (colon == -1) return mxid.substring(1);
-  return mxid.substring(1, colon);
+  final trimmed = mxid.trim();
+  if (trimmed.startsWith('@')) {
+    final end = trimmed.indexOf(':');
+    if (end > 1) return trimmed.substring(1, end);
+    return trimmed.substring(1);
+  }
+  return trimmed;
 }

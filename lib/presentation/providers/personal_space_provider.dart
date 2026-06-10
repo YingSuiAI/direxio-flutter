@@ -120,6 +120,8 @@ class PersonalProfileData {
     this.gender = '未设置',
     this.birthday = '不展示',
     this.location = '未设置',
+    this.phone = '',
+    this.email = '',
     this.coverImageBytes,
   });
 
@@ -128,6 +130,8 @@ class PersonalProfileData {
   final String gender;
   final String birthday;
   final String location;
+  final String phone;
+  final String email;
   final Uint8List? coverImageBytes;
 
   PersonalProfileData copyWith({
@@ -136,6 +140,8 @@ class PersonalProfileData {
     String? gender,
     String? birthday,
     String? location,
+    String? phone,
+    String? email,
     Uint8List? coverImageBytes,
     bool clearCoverImage = false,
   }) {
@@ -145,6 +151,8 @@ class PersonalProfileData {
       gender: gender ?? this.gender,
       birthday: birthday ?? this.birthday,
       location: location ?? this.location,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
       coverImageBytes:
           clearCoverImage ? null : coverImageBytes ?? this.coverImageBytes,
     );

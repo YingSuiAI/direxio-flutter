@@ -24,7 +24,9 @@ import '../../presentation/pages/follows_list_page.dart';
 import '../../presentation/pages/me_account_page.dart';
 import '../../presentation/pages/me_notifications_page.dart';
 import '../../presentation/pages/me_menu_page.dart';
+import '../../presentation/pages/me_qr_page.dart';
 import '../../presentation/pages/profile_info_page.dart';
+import '../../presentation/pages/blacklist_page.dart';
 import '../../presentation/pages/call_page.dart';
 import '../../presentation/pages/group_call_page.dart';
 import '../../presentation/pages/group_call_member_select_page.dart';
@@ -445,6 +447,14 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/settings',
         pageBuilder: (_, __) => _slidePage(const SettingsPage()),
+      ),
+      GoRoute(
+        path: '/settings/blacklist',
+        pageBuilder: (_, __) => _slidePage(const BlacklistPage()),
+      ),
+      GoRoute(
+        path: '/me/qr',
+        pageBuilder: (_, __) => _slidePage(const MeQrPage()),
       ),
       GoRoute(
         path: '/search',

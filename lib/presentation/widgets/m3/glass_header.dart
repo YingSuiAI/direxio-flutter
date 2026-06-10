@@ -139,7 +139,7 @@ class _DetailContent extends StatelessWidget {
       child: Row(
         children: [
           GlassHeaderButton(
-            icon: Symbols.arrow_back_ios,
+            icon: Symbols.arrow_back,
             color: t.accent,
             onTap: onBack ?? () => Navigator.of(context).maybePop(),
           ),

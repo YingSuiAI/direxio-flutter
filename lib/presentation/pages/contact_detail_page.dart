@@ -3,11 +3,11 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/design_tokens.dart';
 import '../mock/mock_data.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
@@ -17,13 +17,6 @@ import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../widgets/portal_avatar.dart';
-
-const _contactInfoBg = Color(0xFFEFEFF3);
-const _contactInfoText = Color(0xFF262628);
-const _contactInfoMuted = Color(0xFF666666);
-const _contactInfoBlue = Color(0xFF3097CB);
-const _contactInfoDanger = Color(0xFFFE4D4D);
-const _backIconAsset = 'assets/icons/toklink_back.svg';
 
 class ContactDetailPage extends ConsumerStatefulWidget {
   const ContactDetailPage({super.key, required this.userId});
@@ -40,6 +33,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
     final userId = widget.userId;
@@ -90,7 +84,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final roomId = room?.id ?? mock?.id;
 
     return Scaffold(
-      backgroundColor: _contactInfoBg,
+      backgroundColor: t.surfaceHover,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -166,7 +160,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                       label: '屏蔽用户',
                       value: _blocked,
                       onChanged: (value) => setState(() => _blocked = value),
-                      activeColor: const Color(0xFFC9C9CC),
+                      activeColor: t.surfaceHigh,
                     ),
                     const SizedBox(height: 16),
                     _ContactSettingRow(
@@ -199,7 +193,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         ),
         content: Text(
           '删除后将不再显示该联系人，会话关系也会同步更新。',
-          style: AppTheme.sans(size: 15, color: _contactInfoMuted),
+          style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
           TextButton(
@@ -213,7 +207,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
-                color: _contactInfoDanger,
+                color: context.tk.danger,
               ),
             ),
           ),
@@ -227,7 +221,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
   Future<void> _showReportDialog(BuildContext context) async {
     final submitted = await showDialog<bool>(
       context: context,
-      barrierColor: const Color(0xB3222325),
+      barrierColor: context.tk.text.withValues(alpha: 0.7),
       builder: (_) => const _ReportReasonDialog(),
     );
     if (submitted == true && context.mounted) {
@@ -276,12 +270,13 @@ class _ContactBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: t.text.withValues(alpha: 0.12),
             blurRadius: 36,
             offset: const Offset(0, 7),
           ),
@@ -291,7 +286,7 @@ class _ContactBackButton extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Material(
-            color: Colors.white.withValues(alpha: 0.65),
+            color: t.surface.withValues(alpha: 0.65),
             shape: const CircleBorder(),
             child: InkWell(
               onTap: onTap,
@@ -299,16 +294,10 @@ class _ContactBackButton extends StatelessWidget {
               child: SizedBox(
                 width: 40,
                 height: 40,
-                child: Center(
-                  child: SvgPicture.asset(
-                    _backIconAsset,
-                    width: 20,
-                    height: 20,
-                    colorFilter: const ColorFilter.mode(
-                      Color(0xFF222325),
-                      BlendMode.srcIn,
-                    ),
-                  ),
+                child: Icon(
+                  Symbols.arrow_back,
+                  size: 24,
+                  color: t.text,
                 ),
               ),
             ),
@@ -336,6 +325,7 @@ class _UserHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Row(
       children: [
         PortalAvatar(
@@ -359,7 +349,7 @@ class _UserHeader extends StatelessWidget {
                       style: AppTheme.sans(
                         size: 16,
                         weight: FontWeight.w600,
-                        color: _contactInfoText,
+                        color: t.text,
                       ).copyWith(letterSpacing: -0.4),
                     ),
                   ),
@@ -372,7 +362,7 @@ class _UserHeader extends StatelessWidget {
                 'UID $uid',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTheme.sans(size: 14, color: _contactInfoMuted),
+                style: AppTheme.sans(size: 14, color: t.textMute),
               ),
             ],
           ),
@@ -389,15 +379,16 @@ class _RoleBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: _contactInfoBlue),
+        border: Border.all(color: t.accent),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         text,
-        style: AppTheme.sans(size: 10, color: _contactInfoBlue).copyWith(
+        style: AppTheme.sans(size: 10, color: t.accent).copyWith(
           letterSpacing: -0.4,
           height: 1.1,
         ),
@@ -473,10 +464,10 @@ class _ContactQuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
-    final color =
-        enabled ? _contactInfoBlue : _contactInfoBlue.withValues(alpha: 0.35);
+    final t = context.tk;
+    final color = enabled ? t.accent : t.accent.withValues(alpha: 0.35);
     return Material(
-      color: Colors.white.withValues(alpha: 0.92),
+      color: t.surface.withValues(alpha: 0.92),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -519,8 +510,9 @@ class _ContactSettingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: Colors.white,
+      color: t.surface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -539,7 +531,7 @@ class _ContactSettingRow extends StatelessWidget {
                     style: AppTheme.sans(
                       size: 14,
                       weight: FontWeight.w500,
-                      color: _contactInfoText,
+                      color: t.text,
                     ).copyWith(letterSpacing: -0.4),
                   ),
                 ),
@@ -552,16 +544,16 @@ class _ContactSettingRow extends StatelessWidget {
                       textAlign: TextAlign.right,
                       style: AppTheme.sans(
                         size: 12,
-                        color: _contactInfoMuted,
+                        color: t.textMute,
                       ).copyWith(letterSpacing: -0.4),
                     ),
                   ),
                   const SizedBox(width: 2),
                 ],
-                const Icon(
+                Icon(
                   Symbols.chevron_right,
                   size: 24,
-                  color: Color(0xFF8E8E93),
+                  color: t.textMute.withValues(alpha: 0.65),
                 ),
               ],
             ),
@@ -577,21 +569,22 @@ class _ContactSwitchRow extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onChanged,
-    this.activeColor = _contactInfoBlue,
+    this.activeColor,
   });
 
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
-  final Color activeColor;
+  final Color? activeColor;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Container(
       height: 44,
       padding: const EdgeInsets.only(left: 12, right: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -604,7 +597,7 @@ class _ContactSwitchRow extends StatelessWidget {
               style: AppTheme.sans(
                 size: 14,
                 weight: FontWeight.w500,
-                color: _contactInfoText,
+                color: t.text,
               ).copyWith(letterSpacing: -0.4),
             ),
           ),
@@ -613,11 +606,13 @@ class _ContactSwitchRow extends StatelessWidget {
             child: Switch.adaptive(
               value: value,
               onChanged: onChanged,
-              activeThumbColor: Colors.white,
-              activeTrackColor: activeColor,
-              inactiveThumbColor: Colors.white,
-              inactiveTrackColor: const Color(0xFFC9C9CC),
-              trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+              activeThumbColor: t.surface,
+              activeTrackColor: activeColor ?? t.accent,
+              inactiveThumbColor: t.surface,
+              inactiveTrackColor: t.surfaceHigh,
+              trackOutlineColor: WidgetStateProperty.all(
+                t.surface.withValues(alpha: 0),
+              ),
             ),
           ),
         ],
@@ -633,12 +628,13 @@ class _DeleteFriendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
         child: Material(
-          color: Colors.transparent,
+          color: t.surface.withValues(alpha: 0),
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             onTap: onTap,
@@ -648,14 +644,14 @@ class _DeleteFriendButton extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _contactInfoDanger),
+                border: Border.all(color: t.danger),
               ),
               child: Text(
                 '删除好友',
                 style: AppTheme.sans(
                   size: 14,
                   weight: FontWeight.w500,
-                  color: _contactInfoDanger,
+                  color: t.danger,
                 ).copyWith(letterSpacing: -0.4),
               ),
             ),
@@ -694,16 +690,17 @@ class _ReportReasonDialogState extends State<_ReportReasonDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-      backgroundColor: Colors.transparent,
+      backgroundColor: t.surface.withValues(alpha: 0),
       elevation: 0,
       child: Container(
         width: double.infinity,
         constraints: const BoxConstraints(maxWidth: 343),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
         decoration: BoxDecoration(
-          color: _contactInfoBg,
+          color: t.surfaceHover,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -718,20 +715,20 @@ class _ReportReasonDialogState extends State<_ReportReasonDialog> {
                     style: AppTheme.sans(
                       size: 16,
                       weight: FontWeight.w500,
-                      color: _contactInfoText,
+                      color: t.text,
                     ).copyWith(letterSpacing: -0.4),
                   ),
                 ),
                 InkWell(
                   onTap: () => Navigator.of(context).pop(false),
                   customBorder: const CircleBorder(),
-                  child: const SizedBox(
+                  child: SizedBox(
                     width: 28,
                     height: 28,
                     child: Icon(
                       Symbols.close,
                       size: 18,
-                      color: Color(0xFF666666),
+                      color: t.textMute,
                     ),
                   ),
                 ),
@@ -759,7 +756,7 @@ class _ReportReasonDialogState extends State<_ReportReasonDialog> {
               child: FilledButton(
                 onPressed: () => Navigator.of(context).pop(true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: _contactInfoBlue,
+                  backgroundColor: t.accent,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -769,7 +766,7 @@ class _ReportReasonDialogState extends State<_ReportReasonDialog> {
                   style: AppTheme.sans(
                     size: 14,
                     weight: FontWeight.w500,
-                    color: Colors.white,
+                    color: t.onAccent,
                   ).copyWith(letterSpacing: -0.4),
                 ),
               ),
@@ -794,8 +791,9 @@ class _ReportReasonTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: Colors.white,
+      color: t.surface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -814,7 +812,7 @@ class _ReportReasonTile extends StatelessWidget {
                     style: AppTheme.sans(
                       size: 14,
                       weight: FontWeight.w500,
-                      color: _contactInfoText,
+                      color: t.text,
                     ).copyWith(letterSpacing: -0.4),
                   ),
                 ),
@@ -841,8 +839,9 @@ class _OtherReasonTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: Colors.white,
+      color: t.surface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -859,7 +858,7 @@ class _OtherReasonTile extends StatelessWidget {
                       style: AppTheme.sans(
                         size: 14,
                         weight: FontWeight.w500,
-                        color: _contactInfoText,
+                        color: t.text,
                       ).copyWith(letterSpacing: -0.4),
                     ),
                   ),
@@ -871,7 +870,7 @@ class _OtherReasonTile extends StatelessWidget {
                 Container(
                   height: 74,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF9F9F9),
+                    color: t.bg,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: TextField(
@@ -881,13 +880,13 @@ class _OtherReasonTile extends StatelessWidget {
                     textAlignVertical: TextAlignVertical.top,
                     style: AppTheme.sans(
                       size: 12,
-                      color: _contactInfoText,
+                      color: t.text,
                     ).copyWith(letterSpacing: -0.4),
                     decoration: InputDecoration(
                       hintText: '请填写举报原因',
                       hintStyle: AppTheme.sans(
                         size: 12,
-                        color: const Color(0xFF999999),
+                        color: t.textMute.withValues(alpha: 0.68),
                       ).copyWith(letterSpacing: -0.4),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
@@ -910,14 +909,15 @@ class _ReportRadio extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Container(
       width: 16,
       height: 16,
       decoration: BoxDecoration(
-        color: selected ? _contactInfoBlue : Colors.white,
+        color: selected ? t.accent : t.surface,
         shape: BoxShape.circle,
         border: Border.all(
-          color: selected ? _contactInfoBlue : const Color(0xFFE0E0E0),
+          color: selected ? t.accent : t.border.withValues(alpha: 0.55),
           width: selected ? 0 : 1,
         ),
       ),
@@ -926,8 +926,8 @@ class _ReportRadio extends StatelessWidget {
               child: Container(
                 width: 5,
                 height: 5,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(
+                  color: t.onAccent,
                   shape: BoxShape.circle,
                 ),
               ),

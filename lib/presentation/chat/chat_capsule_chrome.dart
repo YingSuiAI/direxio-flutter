@@ -8,7 +8,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 
-const _assetChatBack = 'assets/icons/toklink_back.svg';
 const _assetChatKeyboard =
     'assets/resources/chat_composer_keyboard__chat_composer_keyboard.svg';
 const _assetChatEmoji =
@@ -353,10 +352,10 @@ class ChatCapsuleHeader extends StatelessWidget {
                   child: _FigmaGlassCircleButton(
                     tooltip: '返回',
                     onTap: onBack,
-                    child: _chatAsset(
-                      _assetChatBack,
-                      size: 20,
-                      color: const Color(0xFF222325),
+                    child: const Icon(
+                      Symbols.arrow_back,
+                      size: 24,
+                      color: Color(0xFF222325),
                     ),
                   ),
                 ),

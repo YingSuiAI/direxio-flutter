@@ -2,10 +2,13 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
+import '../providers/app_locale_provider.dart';
 import '../providers/auth_provider.dart';
 
 /// Settings page matching the TokLink settings design.
@@ -44,11 +47,61 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Future<void> _showLanguagePicker() async {
+    final selected = ref.read(appLocaleProvider);
+    final picked = await showModalBottomSheet<AppLocaleMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        final l10n = Localizations.of<AppLocalizations>(
+          ctx,
+          AppLocalizations,
+        );
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _languageDialogTitle(l10n),
+                    style: AppTheme.sans(
+                      size: 20,
+                      weight: FontWeight.w600,
+                      color: ctx.tk.text,
+                    ),
+                  ),
+                ),
+              ),
+              for (final mode in AppLocaleMode.values)
+                ListTile(
+                  title: Text(_languageLabel(l10n, mode)),
+                  trailing: mode == selected
+                      ? Icon(Symbols.check, color: ctx.tk.accent)
+                      : null,
+                  onTap: () => Navigator.of(ctx).pop(mode),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked == null || picked == selected) return;
+    await ref.read(appLocaleProvider.notifier).setMode(picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final localeMode = ref.watch(appLocaleProvider);
     return Scaffold(
       backgroundColor: t.surfaceHover,
       body: SafeArea(
@@ -68,8 +121,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         _SettingsRow(
                           icon: Symbols.language,
                           label: '语言',
-                          trailingText: '跟随系统',
-                          onTap: () {},
+                          trailingText: _languageLabel(l10n, localeMode),
+                          onTap: _showLanguagePicker,
                         ),
                         _SettingsRow(
                           icon: Symbols.contrast,
@@ -91,7 +144,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         _SettingsRow(
                           icon: Symbols.person_remove,
                           label: '通讯录黑名单',
-                          onTap: () {},
+                          onTap: () => context.push('/settings/blacklist'),
                         ),
                       ],
                     ),
@@ -126,7 +179,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       rows: [
                         _SettingsRow(
                           icon: Symbols.info,
-                          label: '关于TokLink',
+                          label: '关于我们',
                           onTap: () {},
                         ),
                         _SettingsRow(
@@ -149,6 +202,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 }
 
+String _languageDialogTitle(AppLocalizations? l10n) {
+  return l10n?.languageDialogTitle ?? '语言';
+}
+
+String _languageLabel(AppLocalizations? l10n, AppLocaleMode mode) {
+  return switch (mode) {
+    AppLocaleMode.system => l10n?.languageSystem ?? '跟随系统',
+    AppLocaleMode.zh => l10n?.languageChinese ?? '简体中文',
+    AppLocaleMode.en => l10n?.languageEnglish ?? 'English',
+    AppLocaleMode.ja => l10n?.languageJapanese ?? '日本語',
+  };
+}
+
 class _SettingsHeader extends StatelessWidget {
   const _SettingsHeader({required this.topInset});
 
@@ -167,7 +233,7 @@ class _SettingsHeader extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: _SettingsGlassButton(
-                icon: Symbols.arrow_back_ios_new,
+                icon: Symbols.arrow_back,
                 onTap: () => Navigator.of(context).maybePop(),
               ),
             ),

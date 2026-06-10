@@ -57,6 +57,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final memberCount = room?.summary.mJoinedMemberCount ?? members.length;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           GlassHeader.detail(

@@ -37,6 +37,7 @@ import 'package:portal_app/presentation/pages/groups_list_page.dart';
 import 'package:portal_app/presentation/pages/me_account_page.dart';
 import 'package:portal_app/presentation/pages/me_menu_page.dart';
 import 'package:portal_app/presentation/pages/me_notifications_page.dart';
+import 'package:portal_app/presentation/pages/me_qr_page.dart';
 import 'package:portal_app/presentation/pages/profile_info_page.dart';
 import 'package:portal_app/presentation/pages/requests_page.dart';
 import 'package:portal_app/presentation/pages/search_page.dart';
@@ -4154,16 +4155,16 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('输入 Portal URL'), findsOneWidget);
+    expect(find.text('添加好友'), findsOneWidget);
+    expect(find.text('搜索'), findsOneWidget);
 
     await tester.enterText(
         find.byType(TextField), 'https://alice.portal.local/');
-    await tester.tap(find.text('搜索'));
+    await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
-    expect(find.text('Alice Chen'), findsOneWidget);
-    expect(find.text('alice.portal.local'), findsOneWidget);
-    expect(find.text('添加'), findsOneWidget);
+    expect(find.text('Alice Chen', findRichText: true), findsOneWidget);
+    expect(find.text('添加'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
     await tester.pumpAndSettle();
@@ -4205,7 +4206,7 @@ void main() {
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), 'unknown.portal.local');
-    await tester.tap(find.text('搜索'));
+    await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
     expect(find.text('该域名不是产品用户'), findsOneWidget);
@@ -4216,8 +4217,7 @@ void main() {
     await client.dispose(closeDatabase: false);
   });
 
-  testWidgets('add contact shows inbound request handling prompt',
-      (tester) async {
+  testWidgets('add contact search result opens visitor home', (tester) async {
     final client = Client(
       'PortalIMAddContactInboundRequestTest',
       httpClient: MockClient((request) async {
@@ -4263,13 +4263,13 @@ void main() {
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), 'alice.portal.local');
-    await tester.tap(find.text('搜索'));
+    await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('添加'));
+    await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
     await tester.pumpAndSettle();
 
-    expect(find.text('对方已向你发送好友请求，请到新朋友页处理。'), findsOneWidget);
-    expect(find.text('邀请已发送！等待对方接受。'), findsNothing);
+    expect(find.text('主页'), findsOneWidget);
+    expect(find.text('她的动态'), findsOneWidget);
 
     await client.dispose(closeDatabase: false);
   });
@@ -6340,8 +6340,7 @@ void main() {
     expect(find.textContaining('真实频道索引内容'), findsOneWidget);
   });
 
-  testWidgets('contact detail replaces call actions with home action',
-      (tester) async {
+  testWidgets('contact detail shows user info actions', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -6353,65 +6352,16 @@ void main() {
     await tester.pump();
 
     expect(find.text('发消息'), findsOneWidget);
-    expect(find.text('主页'), findsOneWidget);
-    expect(find.text('语音'), findsNothing);
-    expect(find.text('视频'), findsNothing);
-    for (final icon in [Symbols.chat, Symbols.home]) {
-      expect(tester.widget<Icon>(find.byIcon(icon)).color,
-          PortalTokens.light.textMute);
-      expect(
-        _nearestSizedContainerColor(tester, find.byIcon(icon), size: 56),
-        PortalTokens.light.surfaceHover,
-      );
-    }
-  });
-
-  testWidgets('contact detail opens visitor home page', (tester) async {
-    final router = GoRouter(
-      initialLocation: '/contact/@alice:portal.local',
-      routes: [
-        GoRoute(
-          path: '/contact/:userId',
-          builder: (_, state) => ContactDetailPage(
-            userId: state.pathParameters['userId']!,
-          ),
-        ),
-        GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
-            userId: state.pathParameters['userId']!,
-          ),
-        ),
-      ],
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: router,
-        ),
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('主页'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Alice Chen'), findsOneWidget);
-    expect(find.text('alice.portal.local'), findsOneWidget);
-    expect(find.text('她的频道'), findsOneWidget);
-    expect(find.text('设计观察'), findsOneWidget);
-    expect(find.text('她的动态'), findsOneWidget);
-    expect(find.text('原型图更新了'), findsOneWidget);
-    expect(find.byKey(const ValueKey('contact_home_follow_button')),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('contact_home_add_friend_button')),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('contact_home_settings_button')),
-        findsNothing);
-    expect(
-        find.byKey(const ValueKey('contact_home_edit_button')), findsNothing);
+    expect(find.text('音频通话'), findsOneWidget);
+    expect(find.text('视频通话'), findsOneWidget);
+    expect(find.text('搜索聊天'), findsOneWidget);
+    expect(find.text('主页'), findsNothing);
+    expect(find.text('设置备注'), findsOneWidget);
+    expect(find.text('推荐给朋友'), findsOneWidget);
+    expect(find.text('消息免打扰'), findsOneWidget);
+    expect(find.text('屏蔽用户'), findsOneWidget);
+    expect(find.text('举报用户'), findsOneWidget);
+    expect(find.text('删除好友'), findsOneWidget);
   });
 
   testWidgets(
@@ -6479,9 +6429,11 @@ void main() {
     );
     await tester.pump();
 
-    await tester.ensureVisible(find.text('删除联系人'));
+    await tester.ensureVisible(find.text('删除好友'));
     await tester.pump();
-    await tester.tap(find.text('删除联系人'));
+    await tester.tap(find.text('删除好友'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '删除'));
     await tester.pumpAndSettle();
 
     expect(asClient.deleteContactCalls, 1);
@@ -6782,7 +6734,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('我'));
+    await tester.tap(find.text('我的'));
     await tester.pump();
 
     expect(find.text('个性签名'), findsNothing);
@@ -6819,7 +6771,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('我'));
+    await tester.tap(find.text('我的'));
     await tester.pump();
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
     await tester.pumpAndSettle();
@@ -6867,7 +6819,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('我'));
+    await tester.tap(find.text('我的'));
     await tester.pump();
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
     await tester.pumpAndSettle();
@@ -6884,6 +6836,13 @@ void main() {
   testWidgets('me page uses profile row without duplicate page title',
       (tester) async {
     final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(path: '/me/qr', builder: (_, __) => const MeQrPage()),
+      ],
+    );
 
     await tester.pumpWidget(
       ProviderScope(
@@ -6892,82 +6851,30 @@ void main() {
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
         ],
-        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
       ),
     );
 
-    await tester.tap(find.text('我'));
+    await tester.tap(find.text('我的'));
     await tester.pump();
 
-    expect(_headerTitle('我'), findsNothing);
-    expect(
-      tester
-          .widget<Expanded>(find.byKey(const ValueKey('me_avatar_column')))
-          .flex,
-      1,
-    );
-    expect(
-      tester
-          .widget<Expanded>(find.byKey(const ValueKey('me_profile_column')))
-          .flex,
-      2,
-    );
+    expect(_headerTitle('我的'), findsNothing);
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.text('UID owner'), findsOneWidget);
+    expect(find.text('我的频道'), findsOneWidget);
     expect(find.text('@me'), findsNothing);
     expect(find.textContaining('Node:'), findsNothing);
-    expect(find.text('p2p-im.com'), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.text('p2p-im.com')).style?.color,
-      Colors.white,
-    );
-    expect(
-      tester.widget<Text>(find.text('owner')).style?.fontSize,
-      24,
-    );
-    expect(
-      tester.widget<Text>(find.text('p2p-im.com')).style?.fontSize,
-      16,
-    );
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('me_signature_line')))
-          .style
-          ?.fontSize,
-      16,
-    );
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('me_signature_line')))
-          .style
-          ?.color,
-      Colors.white,
-    );
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('me_signature_line')))
-          .maxLines,
-      1,
-    );
-    final nameLeft = tester.getTopLeft(find.text('owner')).dx;
-    final domainLeft = tester.getTopLeft(find.text('p2p-im.com')).dx;
-    final signatureLeft =
-        tester.getTopLeft(find.byKey(const ValueKey('me_signature_line'))).dx;
-    expect((nameLeft - domainLeft).abs(), lessThanOrEqualTo(1));
-    expect((domainLeft - signatureLeft).abs(), lessThanOrEqualTo(1));
-    expect(find.byIcon(Symbols.map), findsNothing);
-    expect(find.byIcon(Symbols.qr_code_2), findsOneWidget);
-    expect(
-      tester
-          .widget<Container>(find.byKey(const ValueKey('me_domain_pill')))
-          .decoration,
-      isNull,
-    );
 
     await tester.tap(find.byKey(const ValueKey('me_domain_qr_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('我的域名二维码'), findsOneWidget);
+    expect(find.text('我的二维码'), findsOneWidget);
     expect(find.byType(QrImageView), findsOneWidget);
-    expect(find.text('@owner:p2p-im.com'), findsOneWidget);
+    expect(find.text('UID owner'), findsOneWidget);
+    expect(find.text('保存到相册'), findsOneWidget);
   });
 
   testWidgets('me menu opens private tools and unified settings page',
@@ -6996,7 +6903,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('我'));
+    await tester.tap(find.text('我的'));
     await tester.pump();
     await tester.tap(find.byIcon(Symbols.menu));
     await tester.pumpAndSettle();
@@ -7415,7 +7322,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('我'));
+    await tester.tap(find.text('我的'));
     await tester.pump();
 
     final topLeft = tester.getTopLeft(find.byKey(
@@ -7452,29 +7359,19 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('我'));
+    await tester.tap(find.text('我的'));
     await tester.pump();
-
-    expect(find.byKey(const ValueKey('me_cover_header')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('me_profile_entry')));
     await tester.pumpAndSettle();
 
-    expect(find.text('个人信息'), findsNothing);
-    expect(find.byKey(const ValueKey('me_feather_edit_mark')), findsOneWidget);
-    expect(find.byIcon(Symbols.stylus_fountain_pen), findsNothing);
-
-    await tester.tap(find.byKey(const ValueKey('me_profile_edit_button')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('个人信息'), findsOneWidget);
-    expect(find.text('更换背景'), findsOneWidget);
-    expect(find.text('更换头像'), findsOneWidget);
-    expect(find.text('用户名'), findsOneWidget);
-    expect(find.text('简介'), findsOneWidget);
+    expect(find.text('我的信息'), findsOneWidget);
+    expect(find.text('修改'), findsOneWidget);
+    expect(find.text('名字'), findsOneWidget);
     expect(find.text('性别'), findsOneWidget);
     expect(find.text('生日'), findsOneWidget);
-    expect(find.text('所在地'), findsOneWidget);
+    expect(find.text('手机号码'), findsOneWidget);
+    expect(find.text('邮箱'), findsOneWidget);
   });
 
   testWidgets('editing profile name updates me page header', (tester) async {
@@ -7506,7 +7403,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('用户名'));
+    await tester.tap(find.text('名字'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '破局');
     await tester.tap(find.text('保存'));
@@ -7517,7 +7414,7 @@ void main() {
 
     router.go('/home');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('我'));
+    await tester.tap(find.text('我的'));
     await tester.pump();
 
     expect(find.text('破局'), findsOneWidget);
@@ -7557,7 +7454,7 @@ void main() {
     expect(find.text('新消息提示音'), findsOneWidget);
     expect(find.text('新消息震动'), findsOneWidget);
     expect(find.text('其他'), findsOneWidget);
-    expect(find.text('关于TokLink'), findsOneWidget);
+    expect(find.text('关于我们'), findsOneWidget);
     expect(find.text('清空聊天记录'), findsOneWidget);
     expect(find.text('退出登录'), findsOneWidget);
   });

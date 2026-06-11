@@ -25,19 +25,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _messageVibration = true;
 
   Future<void> _logout() async {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('退出登录'),
-        content: const Text('确定要退出登录吗？'),
+        title: Text(l10n?.settingsLogoutConfirmTitle ?? '退出登录'),
+        content: Text(l10n?.settingsLogoutConfirmMessage ?? '确定要退出登录吗？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n?.commonCancel ?? '取消'),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('退出', style: TextStyle(color: context.tk.danger)),
+            child: Text(
+              l10n?.settingsLogout ?? '退出登录',
+              style: TextStyle(color: context.tk.danger),
+            ),
           ),
         ],
       ),
@@ -48,7 +55,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _showLanguagePicker() async {
-    final selected = ref.read(appLocaleProvider);
+    final selected = ref.read(appLocaleProvider).mode;
     final picked = await showModalBottomSheet<AppLocaleMode>(
       context: context,
       showDragHandle: true,
@@ -75,7 +82,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                 ),
               ),
-              for (final mode in AppLocaleMode.values)
+              for (final mode in _supportedLanguageModes)
                 ListTile(
                   title: Text(_languageLabel(l10n, mode)),
                   trailing: mode == selected
@@ -101,7 +108,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       context,
       AppLocalizations,
     );
-    final localeMode = ref.watch(appLocaleProvider);
+    final localeMode = ref.watch(appLocaleProvider).mode;
     return Scaffold(
       backgroundColor: t.surfaceHover,
       body: SafeArea(
@@ -116,57 +123,57 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _SettingsSection(
-                      title: '通用设置',
+                      title: l10n?.settingsGeneral ?? '通用设置',
                       rows: [
                         _SettingsRow(
                           icon: Symbols.language,
-                          label: '语言',
+                          label: l10n?.settingsLanguage ?? '语言',
                           trailingText: _languageLabel(l10n, localeMode),
                           onTap: _showLanguagePicker,
                         ),
                         _SettingsRow(
                           icon: Symbols.contrast,
-                          label: '主题',
-                          trailingText: '跟随系统',
+                          label: l10n?.settingsTheme ?? '主题',
+                          trailingText: l10n?.settingsFollowSystem ?? '跟随系统',
                           onTap: () {},
                         ),
                         _SettingsRow(
                           icon: Symbols.bookmarks,
-                          label: '收藏',
+                          label: l10n?.settingsFavorites ?? '收藏',
                           onTap: () {},
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
                     _SettingsSection(
-                      title: '隐私与安全',
+                      title: l10n?.settingsPrivacySecurity ?? '隐私与安全',
                       rows: [
                         _SettingsRow(
                           icon: Symbols.person_remove,
-                          label: '通讯录黑名单',
+                          label: l10n?.settingsBlacklist ?? '通讯录黑名单',
                           onTap: () => context.push('/settings/blacklist'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
                     _SettingsSection(
-                      title: '消息与通知',
+                      title: l10n?.settingsMessagesNotifications ?? '消息与通知',
                       rows: [
                         _SettingsSwitchRow(
                           icon: Symbols.do_not_disturb_on,
-                          label: '勿扰模式',
+                          label: l10n?.settingsDoNotDisturb ?? '勿扰模式',
                           value: _dnd,
                           onChanged: (v) => setState(() => _dnd = v),
                         ),
                         _SettingsSwitchRow(
                           icon: Symbols.notifications,
-                          label: '新消息提示音',
+                          label: l10n?.settingsMessageSound ?? '新消息提示音',
                           value: _messageSound,
                           onChanged: (v) => setState(() => _messageSound = v),
                         ),
                         _SettingsSwitchRow(
                           icon: Symbols.vibration,
-                          label: '新消息震动',
+                          label: l10n?.settingsMessageVibration ?? '新消息震动',
                           value: _messageVibration,
                           onChanged: (v) =>
                               setState(() => _messageVibration = v),
@@ -175,22 +182,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ),
                     const SizedBox(height: 24),
                     _SettingsSection(
-                      title: '其他',
+                      title: l10n?.settingsOther ?? '其他',
                       rows: [
                         _SettingsRow(
                           icon: Symbols.info,
-                          label: '关于我们',
+                          label: l10n?.settingsAboutUs ?? '关于我们',
                           onTap: () {},
                         ),
                         _SettingsRow(
                           icon: Symbols.delete,
-                          label: '清空聊天记录',
+                          label: l10n?.settingsClearChats ?? '清空聊天记录',
                           onTap: () {},
                         ),
                       ],
                     ),
                     const SizedBox(height: 47),
-                    _LogoutButton(onTap: _logout),
+                    _LogoutButton(
+                      label: l10n?.settingsLogout ?? '退出登录',
+                      onTap: _logout,
+                    ),
                   ],
                 ),
               ),
@@ -205,6 +215,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 String _languageDialogTitle(AppLocalizations? l10n) {
   return l10n?.languageDialogTitle ?? '语言';
 }
+
+const _supportedLanguageModes = [
+  AppLocaleMode.system,
+  AppLocaleMode.zh,
+  AppLocaleMode.en,
+  AppLocaleMode.ja,
+];
 
 String _languageLabel(AppLocalizations? l10n, AppLocaleMode mode) {
   return switch (mode) {
@@ -223,6 +240,10 @@ class _SettingsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return SizedBox(
       height: topInset + 62,
       child: Padding(
@@ -238,7 +259,7 @@ class _SettingsHeader extends StatelessWidget {
               ),
             ),
             Text(
-              '设置',
+              l10n?.settingsTitle ?? '设置',
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w600,
@@ -498,8 +519,9 @@ class _SettingsSwitch extends StatelessWidget {
 }
 
 class _LogoutButton extends StatelessWidget {
-  const _LogoutButton({required this.onTap});
+  const _LogoutButton({required this.label, required this.onTap});
 
+  final String label;
   final VoidCallback onTap;
 
   @override
@@ -519,7 +541,7 @@ class _LogoutButton extends StatelessWidget {
             border: Border.all(color: t.danger),
           ),
           child: Text(
-            '退出登录',
+            label,
             style: AppTheme.sans(
               size: 14,
               weight: FontWeight.w500,

@@ -16,7 +16,9 @@ import '../../presentation/pages/group_chat_page.dart';
 import '../../presentation/pages/contact_detail_page.dart';
 import '../../presentation/pages/contact_home_page.dart';
 import '../../presentation/pages/add_contact_page.dart';
+import '../../presentation/pages/add_contact_detail_page.dart';
 import '../../presentation/pages/requests_page.dart';
+import '../../presentation/pages/qr_scanner_page.dart';
 import '../../presentation/pages/group_detail_page.dart';
 import '../../presentation/pages/group_manage_page.dart';
 import '../../presentation/pages/groups_list_page.dart';
@@ -311,8 +313,21 @@ GoRouter appRouter(Ref ref) {
         pageBuilder: (_, __) => _slidePage(const AddContactPage()),
       ),
       GoRoute(
+        path: '/add-contact/detail/:userId',
+        pageBuilder: (_, state) => _slidePage(
+          AddContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+          ),
+        ),
+      ),
+      GoRoute(
         path: '/requests',
         pageBuilder: (_, __) => _slidePage(const RequestsPage()),
+      ),
+      GoRoute(
+        path: '/scan',
+        pageBuilder: (_, __) => _slidePage(const QrScannerPage()),
       ),
       GoRoute(
         path: '/group-detail/:roomId',

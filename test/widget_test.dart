@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -19,6 +20,7 @@ import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
+import 'package:portal_app/presentation/pages/add_contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_page.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
 import 'package:portal_app/presentation/pages/chat_info_page.dart';
@@ -3275,6 +3277,39 @@ void main() {
     expect(find.byIcon(Symbols.add), findsOneWidget);
   });
 
+  testWidgets('channel tab keeps title visible in top header', (tester) async {
+    final client = Client('PortalIMChannelHeaderTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+
+    expect(_headerTitle('频道'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is GlassHeaderButton && widget.icon == Symbols.search,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is GlassHeaderButton && widget.icon == Symbols.add,
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('home plus menu has the unified action order', (tester) async {
     final client = Client('PortalIMTest');
 
@@ -3294,12 +3329,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('文件传输'), findsNothing);
-    for (final label in ['添加好友', '发起群聊', '创建频道', '扫一扫']) {
+    for (final label in ['添加好友', '创建群聊', '创建频道', '扫一扫']) {
       expect(find.text(label), findsOneWidget);
     }
 
     final positions = [
-      for (final label in ['添加好友', '发起群聊', '创建频道', '扫一扫'])
+      for (final label in ['添加好友', '创建群聊', '创建频道', '扫一扫'])
         tester.getTopLeft(find.text(label)).dy,
     ];
     expect(positions, orderedEquals([...positions]..sort()));
@@ -4084,9 +4119,10 @@ void main() {
       routes: [
         GoRoute(path: '/follows', builder: (_, __) => const FollowsListPage()),
         GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
+          path: '/add-contact/detail/:userId',
+          builder: (_, state) => AddContactDetailPage(
             userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
           ),
         ),
       ],
@@ -4113,7 +4149,7 @@ void main() {
     expect(find.text('她的动态'), findsOneWidget);
   });
 
-  testWidgets('add contact searches portal url and opens visitor home',
+  testWidgets('add contact searches portal url and opens detail',
       (tester) async {
     final client = Client(
       'PortalIMAddContactTest',
@@ -4133,9 +4169,10 @@ void main() {
         GoRoute(
             path: '/add-contact', builder: (_, __) => const AddContactPage()),
         GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
+          path: '/add-contact/detail/:userId',
+          builder: (_, state) => AddContactDetailPage(
             userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
           ),
         ),
       ],
@@ -4169,9 +4206,13 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
     await tester.pumpAndSettle();
 
-    expect(find.text('主页'), findsOneWidget);
-    expect(find.text('她的动态'), findsOneWidget);
-    expect(find.text('设计观察'), findsOneWidget);
+    expect(find.text('申请好友'), findsOneWidget);
+    expect(find.text('发消息'), findsOneWidget);
+    expect(find.text('音频通话'), findsOneWidget);
+    expect(find.text('视频通话'), findsOneWidget);
+    expect(find.text('消息免打扰'), findsOneWidget);
+    expect(find.text('屏蔽用户'), findsOneWidget);
+    expect(find.text('举报用户'), findsOneWidget);
   });
 
   testWidgets('add contact rejects domains without portal owner discovery',
@@ -4217,7 +4258,7 @@ void main() {
     await client.dispose(closeDatabase: false);
   });
 
-  testWidgets('add contact search result opens visitor home', (tester) async {
+  testWidgets('add contact search detail can request friend', (tester) async {
     final client = Client(
       'PortalIMAddContactInboundRequestTest',
       httpClient: MockClient((request) async {
@@ -4234,9 +4275,10 @@ void main() {
         GoRoute(
             path: '/add-contact', builder: (_, __) => const AddContactPage()),
         GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
+          path: '/add-contact/detail/:userId',
+          builder: (_, state) => AddContactDetailPage(
             userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
           ),
         ),
       ],
@@ -4267,9 +4309,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('申请好友'));
+    await tester.pumpAndSettle();
 
-    expect(find.text('主页'), findsOneWidget);
-    expect(find.text('她的动态'), findsOneWidget);
+    expect(find.text('已申请'), findsOneWidget);
+    expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
 
     await client.dispose(closeDatabase: false);
   });
@@ -6835,6 +6879,27 @@ void main() {
 
   testWidgets('me page uses profile row without duplicate page title',
       (tester) async {
+    var clipboardText = '';
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardText = (call.arguments as Map)['text'] as String? ?? '';
+            return null;
+          case 'Clipboard.getData':
+            return {'text': clipboardText};
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
     final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
     final router = GoRouter(
       initialLocation: '/home',
@@ -6863,10 +6928,16 @@ void main() {
 
     expect(_headerTitle('我的'), findsNothing);
     expect(find.text('owner'), findsOneWidget);
-    expect(find.text('UID owner'), findsOneWidget);
+    expect(find.text('UID https://p2p-im.com'), findsOneWidget);
     expect(find.text('我的频道'), findsOneWidget);
     expect(find.text('@me'), findsNothing);
     expect(find.textContaining('Node:'), findsNothing);
+
+    await tester.tap(find.text('UID https://p2p-im.com'));
+    await tester.pumpAndSettle();
+    expect(find.text('已复制 UID'), findsOneWidget);
+    final copied = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copied?.text, 'https://p2p-im.com');
 
     await tester.tap(find.byKey(const ValueKey('me_domain_qr_button')));
     await tester.pumpAndSettle();

@@ -128,7 +128,10 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                             ),
                           ],
                           onTap: (_) => context.push(
-                            '/contact-home/${Uri.encodeComponent(_resolved!['mxid'] as String)}',
+                            _addContactDetailRoute(
+                              _resolved!['mxid'] as String,
+                              _resolved!['display_name'] as String,
+                            ),
                           ),
                         )
                       else if (_query.trim().isNotEmpty)
@@ -136,7 +139,10 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                           query: _query,
                           results: _demoSearchResults(_query),
                           onTap: (result) => context.push(
-                            '/contact-home/${Uri.encodeComponent(result.mxid)}',
+                            _addContactDetailRoute(
+                              result.mxid,
+                              result.displayName,
+                            ),
                           ),
                         )
                       else
@@ -159,6 +165,11 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
       ),
     );
   }
+}
+
+String _addContactDetailRoute(String userId, String displayName) {
+  return '/add-contact/detail/${Uri.encodeComponent(userId)}'
+      '?name=${Uri.encodeQueryComponent(displayName)}';
 }
 
 class _AddContactHeader extends StatelessWidget {

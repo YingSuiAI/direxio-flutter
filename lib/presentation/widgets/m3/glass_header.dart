@@ -99,15 +99,18 @@ class _PrimaryContent extends StatelessWidget {
       child: Row(
         children: [
           if (leading != null) ...[leading!, const SizedBox(width: 12)],
-          Text(
-            title,
-            style: AppTheme.sans(
-              size: 24,
-              weight: FontWeight.w600,
-              color: titleColor ?? t.text,
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 24,
+                weight: FontWeight.w600,
+                color: titleColor ?? t.text,
+              ),
             ),
           ),
-          const Spacer(),
           ...actions,
         ],
       ),
@@ -171,9 +174,13 @@ class _DetailContent extends StatelessWidget {
                         Icon(subtitleIcon, size: 11, color: t.accentCool),
                         const SizedBox(width: 3),
                       ],
-                      Text(
-                        subtitle!,
-                        style: AppTheme.sans(size: 11, color: t.textMute),
+                      Flexible(
+                        child: Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(size: 11, color: t.textMute),
+                        ),
                       ),
                     ],
                   ),

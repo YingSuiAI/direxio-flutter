@@ -25,13 +25,13 @@ class PortalApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
-    final localeMode = ref.watch(appLocaleProvider);
+    final localeState = ref.watch(appLocaleProvider);
     return MaterialApp.router(
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.light,
-      locale: localeMode.locale,
+      locale: localeState.locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localeListResolutionCallback: _resolveLocale,
       localizationsDelegates: const [

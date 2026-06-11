@@ -135,6 +135,144 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'语言'**
   String get languageDialogTitle;
+
+  /// No description provided for @tabChats.
+  ///
+  /// In zh, this message translates to:
+  /// **'Chats'**
+  String get tabChats;
+
+  /// No description provided for @tabContacts.
+  ///
+  /// In zh, this message translates to:
+  /// **'通讯录'**
+  String get tabContacts;
+
+  /// No description provided for @tabChannels.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道'**
+  String get tabChannels;
+
+  /// No description provided for @tabMe.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的'**
+  String get tabMe;
+
+  /// No description provided for @settingsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置'**
+  String get settingsTitle;
+
+  /// No description provided for @settingsGeneral.
+  ///
+  /// In zh, this message translates to:
+  /// **'通用设置'**
+  String get settingsGeneral;
+
+  /// No description provided for @settingsLanguage.
+  ///
+  /// In zh, this message translates to:
+  /// **'语言'**
+  String get settingsLanguage;
+
+  /// No description provided for @settingsTheme.
+  ///
+  /// In zh, this message translates to:
+  /// **'主题'**
+  String get settingsTheme;
+
+  /// No description provided for @settingsFollowSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随系统'**
+  String get settingsFollowSystem;
+
+  /// No description provided for @settingsFavorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get settingsFavorites;
+
+  /// No description provided for @settingsPrivacySecurity.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐私与安全'**
+  String get settingsPrivacySecurity;
+
+  /// No description provided for @settingsBlacklist.
+  ///
+  /// In zh, this message translates to:
+  /// **'通讯录黑名单'**
+  String get settingsBlacklist;
+
+  /// No description provided for @settingsMessagesNotifications.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息与通知'**
+  String get settingsMessagesNotifications;
+
+  /// No description provided for @settingsDoNotDisturb.
+  ///
+  /// In zh, this message translates to:
+  /// **'勿扰模式'**
+  String get settingsDoNotDisturb;
+
+  /// No description provided for @settingsMessageSound.
+  ///
+  /// In zh, this message translates to:
+  /// **'新消息提示音'**
+  String get settingsMessageSound;
+
+  /// No description provided for @settingsMessageVibration.
+  ///
+  /// In zh, this message translates to:
+  /// **'新消息震动'**
+  String get settingsMessageVibration;
+
+  /// No description provided for @settingsOther.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get settingsOther;
+
+  /// No description provided for @settingsAboutUs.
+  ///
+  /// In zh, this message translates to:
+  /// **'关于我们'**
+  String get settingsAboutUs;
+
+  /// No description provided for @settingsClearChats.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空聊天记录'**
+  String get settingsClearChats;
+
+  /// No description provided for @settingsLogout.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出登录'**
+  String get settingsLogout;
+
+  /// No description provided for @settingsLogoutConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出登录'**
+  String get settingsLogoutConfirmTitle;
+
+  /// No description provided for @settingsLogoutConfirmMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要退出登录吗？'**
+  String get settingsLogoutConfirmMessage;
+
+  /// No description provided for @commonCancel.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消'**
+  String get commonCancel;
 }
 
 class _AppLocalizationsDelegate

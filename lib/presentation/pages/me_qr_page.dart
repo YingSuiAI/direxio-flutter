@@ -39,7 +39,11 @@ class MeQrPage extends ConsumerWidget {
     final payload = Uri(
       scheme: 'p2pim',
       host: 'add-contact',
-      queryParameters: {'mxid': userId, 'domain': domain},
+      queryParameters: {
+        'mxid': userId,
+        'domain': domain,
+        'name': displayName,
+      },
     ).toString();
     final uid = localpart.isEmpty ? userId : localpart;
     final topInset = MediaQuery.of(context).padding.top;

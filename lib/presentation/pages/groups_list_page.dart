@@ -10,7 +10,6 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
-import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 
 const _mockAuthEnabled = bool.fromEnvironment(
@@ -202,89 +201,118 @@ class _GroupRow extends StatelessWidget {
     final time = item.time;
     final unread = item.unread;
 
-    return GlassListPanel(
-      onTap: () {
-        final path = item.id.startsWith('mock_') ? '/chat' : '/group';
-        context.push('$path/${Uri.encodeComponent(item.id)}');
-      },
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          _GroupAvatar(name: name),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(
-                          size: 20,
-                          weight: FontWeight.w600,
-                          color: t.text,
-                        ),
+    return Material(
+      color: t.surface.withValues(alpha: 0),
+      child: InkWell(
+        onTap: () {
+          final path = item.id.startsWith('mock_') ? '/chat' : '/group';
+          context.push('$path/${Uri.encodeComponent(item.id)}');
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              _GroupAvatar(name: name),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  height: preview.isEmpty ? 56 : 64,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: t.border.withValues(alpha: 0.45),
+                        width: 0.5,
                       ),
                     ),
-                    if (item.isOwner) ...[
-                      const SizedBox(width: 6),
-                      _OwnerBadge(),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTheme.sans(
+                                      size: 14,
+                                      weight: FontWeight.w600,
+                                      color: t.text,
+                                    ),
+                                  ),
+                                ),
+                                if (item.isOwner) ...[
+                                  const SizedBox(width: 6),
+                                  _OwnerBadge(),
+                                ],
+                              ],
+                            ),
+                            if (preview.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                preview,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 12,
+                                  color: t.textMute,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (time.isNotEmpty)
+                            Text(
+                              time,
+                              style: AppTheme.sans(
+                                size: 12,
+                                color: unread > 0 ? t.accent : t.textMute,
+                              ),
+                            ),
+                          if (unread > 0) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              height: 20,
+                              constraints: const BoxConstraints(minWidth: 20),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: unread > 99 ? 5 : 0,
+                              ),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: t.accent,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                unread > 99 ? '99+' : '$unread',
+                                textAlign: TextAlign.center,
+                                style: AppTheme.sans(
+                                  size: unread > 99 ? 9 : 11,
+                                  weight: FontWeight.w700,
+                                  color: t.onAccent,
+                                ).copyWith(height: 1),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
-                  ],
-                ),
-                if (preview.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    preview,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(size: 15, color: t.textMute),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (time.isNotEmpty)
-                Text(
-                  time,
-                  style: AppTheme.sans(
-                    size: 13,
-                    color: unread > 0 ? t.accent : t.textMute,
                   ),
                 ),
-              if (unread > 0) ...[
-                const SizedBox(height: 4),
-                Container(
-                  width: 18,
-                  height: 18,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: t.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    unread > 99 ? '99+' : '$unread',
-                    style: AppTheme.sans(
-                      size: 11,
-                      weight: FontWeight.w700,
-                      color: t.onAccent,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

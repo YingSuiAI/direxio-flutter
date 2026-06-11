@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,7 @@ import '../mock/mock_data.dart';
 import '../mock/mock_channels.dart';
 import '../../data/as_client.dart';
 import '../../data/local_outbox_store.dart';
+import '../../l10n/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../providers/app_warmup_provider.dart';
@@ -275,8 +277,6 @@ class _HomePageState extends ConsumerState<HomePage>
     }
   }
 
-  static const _tabTitles = ['Chats', '通讯录', '频道', '我的'];
-
   List<Widget> _headerActions(BuildContext context, Client client) {
     switch (_tab) {
       case 0:
@@ -320,6 +320,10 @@ class _HomePageState extends ConsumerState<HomePage>
       syncCache: syncCache,
     ));
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     if (authState.valueOrNull?.isLoggedIn ?? false) {
       _scheduleAsBootstrapRefreshIfNeeded();
       _attachVoiceCallController(client);
@@ -333,17 +337,18 @@ class _HomePageState extends ConsumerState<HomePage>
         children: [
           if (_tab == 0)
             _ChatsTopBar(
+              title: _homeTabTitle(l10n, 0),
               unreadCount: unreadTotal,
               onPlusTap: () => _handleHomePlusTap(context, ref),
             )
           else if (_tab == 1)
             _HomeTitleTopBar(
-              title: _tabTitles[_tab],
+              title: _homeTabTitle(l10n, _tab),
               onPlusTap: () => _handleHomePlusTap(context, ref),
             )
-          else if (_tab != 2 && _tab != 3)
+          else if (_tab == 2)
             GlassHeader.primary(
-              title: _tabTitles[_tab],
+              title: _homeTabTitle(l10n, _tab),
               actions: _headerActions(context, client),
             ),
           Expanded(
@@ -362,7 +367,10 @@ class _HomePageState extends ConsumerState<HomePage>
                     SizedBox(width: 340, child: pane),
                     VerticalDivider(width: 1, color: t.border),
                     Expanded(
-                        child: _DetailPlaceholder(tabTitle: _tabTitles[_tab])),
+                      child: _DetailPlaceholder(
+                        tabTitle: _homeTabTitle(l10n, _tab),
+                      ),
+                    ),
                   ],
                 );
               },
@@ -377,24 +385,25 @@ class _HomePageState extends ConsumerState<HomePage>
         items: [
           const _HomeNavItem(
             iconAsset: _iconTabChats,
-            label: 'Chats',
+            labelIndex: 0,
+            iconSize: 21,
           ),
           _HomeNavItem(
             iconAsset: _iconTabContacts,
-            label: '通讯录',
+            labelIndex: 1,
             badge: friendRequestUnreadCount > 0
                 ? _formatBadgeCount(friendRequestUnreadCount)
                 : null,
           ),
           const _HomeNavItem(
             iconAsset: _iconTabChannel,
-            label: '频道',
+            labelIndex: 2,
           ),
           const _HomeNavItem(
             iconAsset: _iconTabMe,
             activeIconAsset: _assetMeTabSelected,
             inactiveIconAsset: _assetMeTabNormal,
-            label: '我的',
+            labelIndex: 3,
           ),
         ],
       ),
@@ -444,6 +453,16 @@ class _HomeTitleTopBar extends StatelessWidget {
   }
 }
 
+String _homeTabTitle(AppLocalizations? l10n, int index) {
+  return switch (index) {
+    0 => l10n?.tabChats ?? 'Chats',
+    1 => l10n?.tabContacts ?? '通讯录',
+    2 => l10n?.tabChannels ?? '频道',
+    3 => l10n?.tabMe ?? '我的',
+    _ => '',
+  };
+}
+
 int _homeUnreadTotal(Client client, AsSyncCacheState syncCache) {
   var total = 0;
   for (final room in client.rooms) {
@@ -462,17 +481,19 @@ int _homeUnreadTotal(Client client, AsSyncCacheState syncCache) {
 
 class _ChatsTopBar extends StatelessWidget {
   const _ChatsTopBar({
+    required this.title,
     required this.unreadCount,
     required this.onPlusTap,
   });
 
+  final String title;
   final int unreadCount;
   final VoidCallback onPlusTap;
 
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
-    final label = unreadCount > 0 ? 'Chats($unreadCount)' : 'Chats';
+    final label = unreadCount > 0 ? '$title($unreadCount)' : title;
     return Container(
       height: topInset + 56,
       padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 4),
@@ -548,9 +569,7 @@ Future<void> _handleHomePlusTap(BuildContext context, WidgetRef ref) async {
     case _PlusAction.channel:
       _showCreateChannelDialog(context, ref);
     case _PlusAction.scan:
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('扫一扫功能待接入')));
+      context.push('/scan');
   }
 }
 
@@ -705,17 +724,19 @@ class _PlusMenuTile extends StatelessWidget {
 class _HomeNavItem {
   const _HomeNavItem({
     required this.iconAsset,
-    required this.label,
+    required this.labelIndex,
     this.badge,
     this.activeIconAsset,
     this.inactiveIconAsset,
+    this.iconSize = 24,
   });
 
   final String iconAsset;
-  final String label;
+  final int labelIndex;
   final String? badge;
   final String? activeIconAsset;
   final String? inactiveIconAsset;
+  final double iconSize;
 }
 
 class _HomeBottomBar extends StatelessWidget {
@@ -804,6 +825,10 @@ class _LiquidTabPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return AppGlassPanel(
       borderRadius: BorderRadius.circular(276),
       child: Padding(
@@ -812,6 +837,7 @@ class _LiquidTabPill extends StatelessWidget {
           children: List.generate(items.length, (index) {
             final item = items[index];
             final active = index == currentIndex;
+            final label = _homeTabTitle(l10n, item.labelIndex);
             return SizedBox(
               width: index == 0 ? 70 : 71,
               height: 49,
@@ -848,7 +874,7 @@ class _LiquidTabPill extends StatelessWidget {
                               assetName: active
                                   ? item.activeIconAsset ?? item.iconAsset
                                   : item.inactiveIconAsset ?? item.iconAsset,
-                              size: 24,
+                              size: item.iconSize,
                               color: active ? t.accent : _homeText,
                             ),
                             if (item.badge != null)
@@ -863,7 +889,7 @@ class _LiquidTabPill extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          item.label,
+                          label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTheme.sans(
@@ -929,6 +955,7 @@ Widget _assetIcon(String assetName, {required double size, Color? color}) {
       assetName,
       width: size,
       height: size,
+      fit: BoxFit.contain,
       colorFilter:
           color == null ? null : ColorFilter.mode(color, BlendMode.srcIn),
     );
@@ -2613,7 +2640,7 @@ class _MePageState extends ConsumerState<_MePage> {
             ? profileName!
             : localpart;
     final avatarUrl = profileAvatarHttpUrl(profile, client) ?? MockAvatars.me;
-    final uid = localpart.isEmpty ? displayId : localpart;
+    final uidUrl = _meUidUrl(client, displayId);
 
     return ColoredBox(
       color: _homeBg,
@@ -2629,11 +2656,12 @@ class _MePageState extends ConsumerState<_MePage> {
             _MeProfileTile(
               displayId: displayId,
               displayName: displayName,
-              uid: uid,
+              uid: uidUrl,
               avatarUrl: avatarUrl,
               avatarBusy: _avatarBusy,
               onAvatarTap: _avatarBusy ? null : _pickAvatar,
               onProfileTap: () => context.push('/me/profile'),
+              onUidTap: () => _copyUidUrl(context, uidUrl),
               onQrTap: () => context.push('/me/qr'),
             ),
             const SizedBox(height: 34),
@@ -2665,6 +2693,21 @@ class _MePageState extends ConsumerState<_MePage> {
       ),
     );
   }
+}
+
+String _meUidUrl(Client client, String displayId) {
+  final domain = serverNameFromMxid(displayId) ?? _clientServerName(client);
+  final normalized = domain.trim().replaceFirst(RegExp(r'^https?://'), '');
+  if (normalized.isEmpty) return displayId;
+  return 'https://$normalized';
+}
+
+Future<void> _copyUidUrl(BuildContext context, String uidUrl) async {
+  await Clipboard.setData(ClipboardData(text: uidUrl));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('已复制 UID')),
+  );
 }
 
 class _MeTopBar extends StatelessWidget {
@@ -2709,6 +2752,7 @@ class _MeProfileTile extends StatelessWidget {
     required this.avatarBusy,
     required this.onAvatarTap,
     required this.onProfileTap,
+    required this.onUidTap,
     required this.onQrTap,
   });
 
@@ -2719,6 +2763,7 @@ class _MeProfileTile extends StatelessWidget {
   final bool avatarBusy;
   final VoidCallback? onAvatarTap;
   final VoidCallback onProfileTap;
+  final VoidCallback onUidTap;
   final VoidCallback onQrTap;
 
   @override
@@ -2764,17 +2809,17 @@ class _MeProfileTile extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: InkWell(
-              key: const ValueKey('me_profile_entry'),
-              onTap: onProfileTap,
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  InkWell(
+                    key: const ValueKey('me_profile_entry'),
+                    onTap: onProfileTap,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Text(
                       displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2784,18 +2829,28 @@ class _MeProfileTile extends StatelessWidget {
                         color: const Color(0xFF333333),
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'UID $uid',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(
-                        size: 14,
-                        color: const Color(0xFF666666),
+                  ),
+                  const SizedBox(height: 3),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onUidTap,
+                    child: SizedBox(
+                      height: 20,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'UID $uid',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(
+                            size: 14,
+                            color: const Color(0xFF666666),
+                          ),
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),

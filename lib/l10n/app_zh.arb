@@ -18,6 +18,8 @@
   "settingsLanguage": "语言",
   "settingsTheme": "主题",
   "settingsFollowSystem": "跟随系统",
+  "settingsThemeLight": "浅色",
+  "settingsThemeDark": "深色",
   "settingsFavorites": "收藏",
   "settingsPrivacySecurity": "隐私与安全",
   "settingsBlacklist": "通讯录黑名单",
@@ -40,6 +42,9 @@
   "addContactMessageAfterAdding": "添加好友后即可发消息",
   "addContactVoiceAfterAdding": "添加好友后即可音频通话",
   "addContactVideoAfterAdding": "添加好友后即可视频通话",
+  "addContactVerificationTitle": "好友验证",
+  "addContactVerificationMessageTitle": "发送好友申请",
+  "addContactVerificationSend": "发送申请",
   "addContactRequestSent": "好友请求已发送，等待对方接受。",
   "addContactRequestFailed": "发送好友请求失败: {error}",
   "@addContactRequestFailed": {
@@ -58,6 +63,20 @@
   "contactReportTodo": "举报功能待接入",
   "contactFriendRequested": "已申请",
   "contactApplyFriend": "申请好友",
+  "contactsSearchHint": "ID/昵称/邮箱",
+  "contactsNewFriends": "新朋友",
+  "contactsNewGroup": "新的群聊",
+  "contactsMyGroups": "我的群组",
+  "contactsGroups": "群聊",
+  "contactsFollows": "关注",
+  "contactsCount": "联系人 ({count})",
+  "@contactsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "qrInvalidFormat": "无效的二维码格式",
   "qrInvalidUser": "无效的用户二维码",
   "qrInvalidGroup": "无效的群二维码",

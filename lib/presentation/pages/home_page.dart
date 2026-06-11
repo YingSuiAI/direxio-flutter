@@ -78,6 +78,31 @@ const _meIconBlue = Color(0xFF3097CB);
 const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
 
+bool _homeDark(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark;
+}
+
+Color _homeBgColor(BuildContext context) {
+  return _homeDark(context) ? context.tk.bg : _homeBg;
+}
+
+Color _homeTextColor(BuildContext context) {
+  return _homeDark(context) ? context.tk.text : _homeText;
+}
+
+Color _homeMutedColor(BuildContext context) {
+  return _homeDark(context) ? context.tk.textMute : _homeMuted;
+}
+
+Color _homeBorderColor(BuildContext context) {
+  return _homeDark(context) ? context.tk.border : _homeBorder;
+}
+
+Color _homeTabColor(BuildContext context, {required bool active}) {
+  if (_homeDark(context)) return context.tk.accent;
+  return active ? context.tk.accent : _homeText;
+}
+
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -332,7 +357,7 @@ class _HomePageState extends ConsumerState<HomePage>
     final unreadTotal = _homeUnreadTotal(client, syncCache);
 
     return Scaffold(
-      backgroundColor: _homeBg,
+      backgroundColor: _homeBgColor(context),
       body: Column(
         children: [
           if (_tab == 0)
@@ -423,10 +448,11 @@ class _HomeTitleTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
+    final textColor = _homeTextColor(context);
     return Container(
       height: topInset + 56,
       padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 4),
-      color: _homeBg,
+      color: _homeBgColor(context),
       child: Row(
         children: [
           Expanded(
@@ -437,7 +463,7 @@ class _HomeTitleTopBar extends StatelessWidget {
               style: AppTheme.sans(
                 size: 20,
                 weight: FontWeight.w600,
-                color: _homeText,
+                color: textColor,
               ),
             ),
           ),
@@ -494,10 +520,11 @@ class _ChatsTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
     final label = unreadCount > 0 ? '$title($unreadCount)' : title;
+    final textColor = _homeTextColor(context);
     return Container(
       height: topInset + 56,
       padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 4),
-      color: _homeBg,
+      color: _homeBgColor(context),
       child: Row(
         children: [
           Expanded(
@@ -508,7 +535,7 @@ class _ChatsTopBar extends StatelessWidget {
               style: AppTheme.sans(
                 size: 20,
                 weight: FontWeight.w600,
-                color: _homeText,
+                color: textColor,
               ),
             ),
           ),
@@ -688,6 +715,7 @@ class _PlusMenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = _homeTextColor(context);
     return InkWell(
       onTap: () => Navigator.of(context).pop(value),
       child: SizedBox(
@@ -698,7 +726,7 @@ class _PlusMenuTile extends StatelessWidget {
             _DesignAssetIcon(
               assetName: iconAsset,
               size: 20,
-              color: _homeText,
+              color: textColor,
               overlayAssetName: overlayAsset,
             ),
             const SizedBox(width: 8),
@@ -710,7 +738,7 @@ class _PlusMenuTile extends StatelessWidget {
                 style: AppTheme.sans(
                   size: 14,
                   weight: FontWeight.w600,
-                  color: _homeText,
+                  color: textColor,
                 ),
               ),
             ),
@@ -755,6 +783,7 @@ class _HomeBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final bg = _homeBgColor(context);
     return SizedBox(
       height: 80 + bottomInset,
       child: Stack(
@@ -767,8 +796,8 @@ class _HomeBottomBar extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      _homeBg.withValues(alpha: 0.0),
-                      _homeBg.withValues(alpha: 0.92),
+                      bg.withValues(alpha: 0.0),
+                      bg.withValues(alpha: _homeDark(context) ? 0.98 : 0.92),
                     ],
                   ),
                 ),
@@ -800,6 +829,9 @@ class _HomeBottomBar extends StatelessWidget {
                     _iconBottomSearchTg,
                     width: _bottomSearchIconSize,
                     height: _bottomSearchIconSize,
+                    colorFilter: _homeDark(context)
+                        ? ColorFilter.mode(context.tk.accent, BlendMode.srcIn)
+                        : null,
                   ),
                 ),
               ),
@@ -852,7 +884,9 @@ class _LiquidTabPill extends StatelessWidget {
                         right: index == 0 ? 0 : 4,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.76),
+                            color: _homeDark(context)
+                                ? t.accent.withValues(alpha: 0.13)
+                                : Colors.white.withValues(alpha: 0.76),
                             borderRadius: BorderRadius.circular(999),
                             boxShadow: [
                               BoxShadow(
@@ -875,10 +909,11 @@ class _LiquidTabPill extends StatelessWidget {
                                   ? item.activeIconAsset ?? item.iconAsset
                                   : item.inactiveIconAsset ?? item.iconAsset,
                               size: item.iconSize,
-                              color: active ? t.accent : _homeText,
+                              color: _homeTabColor(context, active: active),
                             ),
                             if (item.badge != null)
                               Positioned(
+                                key: ValueKey('bottom_nav_badge_$label'),
                                 top: -5,
                                 right: -9,
                                 child: _ConversationUnreadBadge(
@@ -895,7 +930,7 @@ class _LiquidTabPill extends StatelessWidget {
                           style: AppTheme.sans(
                             size: 10,
                             weight: FontWeight.w600,
-                            color: active ? t.accent : _homeText,
+                            color: _homeTabColor(context, active: active),
                           ).copyWith(height: 1.2),
                         ),
                       ],
@@ -990,6 +1025,7 @@ class _GlassCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = _homeTextColor(context);
     return Material(
       color: Colors.transparent,
       shape: const CircleBorder(),
@@ -1001,7 +1037,7 @@ class _GlassCircleButton extends StatelessWidget {
           child: SizedBox(
             width: size,
             height: size,
-            child: Icon(icon, size: iconSize, color: _homeText),
+            child: Icon(icon, size: iconSize, color: textColor),
           ),
         ),
       ),
@@ -1486,6 +1522,9 @@ class _ConvRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Offset rcPos = Offset.zero;
+    final textColor = _homeTextColor(context);
+    final mutedColor = _homeMutedColor(context);
+    final borderColor = _homeBorderColor(context);
     final avatar = SizedBox(
       width: _conversationTileAvatarSize,
       height: _conversationTileAvatarSize,
@@ -1533,9 +1572,9 @@ class _ConvRow extends StatelessWidget {
                 Expanded(
                   child: Container(
                     height: 64,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       border: Border(
-                        bottom: BorderSide(color: _homeBorder, width: 0.5),
+                        bottom: BorderSide(color: borderColor, width: 0.5),
                       ),
                     ),
                     child: Row(
@@ -1557,16 +1596,16 @@ class _ConvRow extends StatelessWidget {
                                         style: AppTheme.sans(
                                           size: 14,
                                           weight: FontWeight.w600,
-                                          color: _homeText,
+                                          color: textColor,
                                         ),
                                       ),
                                     ),
                                     if (isAgent) ...[
                                       const SizedBox(width: 4),
-                                      const Icon(
+                                      Icon(
                                         Symbols.smart_toy,
                                         size: 14,
-                                        color: _homeMuted,
+                                        color: mutedColor,
                                       ),
                                     ],
                                   ],
@@ -1578,7 +1617,7 @@ class _ConvRow extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                   style: AppTheme.sans(
                                     size: 12,
-                                    color: _homeMuted,
+                                    color: mutedColor,
                                   ),
                                 ),
                               ],
@@ -1601,7 +1640,7 @@ class _ConvRow extends StatelessWidget {
                                   style: AppTheme.sans(
                                     size: 12,
                                     weight: FontWeight.w500,
-                                    color: _homeMuted,
+                                    color: mutedColor,
                                   ),
                                 ),
                               const SizedBox(height: 4),
@@ -1866,85 +1905,151 @@ class _ContactList extends ConsumerWidget {
     // 排除——群组归「群聊」入口管。
     final mockContacts = MockData.friendContacts;
 
-    final contactCount =
-        useMockContacts ? mockContacts.length : acceptedContacts.length;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final contacts = useMockContacts
+        ? mockContacts
+            .map(
+              (contact) => _ContactListEntry(
+                name: contact.name,
+                mxid: contact.mxid,
+                avatarUrl: contact.avatarUrl,
+              ),
+            )
+            .toList()
+        : acceptedContacts.map((contact) {
+            final peerMxid = contact.userId.trim();
+            return _ContactListEntry(
+              name: contactDisplayNameFromIdentity(
+                mxid: peerMxid,
+                displayName: contact.displayName,
+                domain: contact.domain,
+              ),
+              mxid: peerMxid,
+              avatarUrl: avatarHttpUrl(client, contact.avatarUrl),
+            );
+          }).toList();
+    final groupedContacts = _groupContactsByInitial(contacts);
+    final sectionKeys = groupedContacts.keys.toList()
+      ..sort((a, b) {
+        if (a == '#') return 1;
+        if (b == '#') return -1;
+        return a.compareTo(b);
+      });
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(0, 4, 0, 96),
+    return Stack(
       children: [
-        _ActionSection(
+        ListView(
+          padding: const EdgeInsets.fromLTRB(0, 4, 0, 96),
           children: [
-            _SectionAction(
-              iconAsset: _iconMenuAddFriend,
-              label: '新朋友',
-              badge:
-                  pendingInvites > 0 ? _formatBadgeCount(pendingInvites) : null,
-              onTap: () => context.push('/requests'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: HomeSearchBox(
+                hint: l10n?.contactsSearchHint ?? 'ID/昵称/邮箱',
+                onTap: () => context.push('/search'),
+              ),
             ),
-            _SectionAction(
-              iconAsset: _iconMenuCreateGroup,
-              label: '群聊',
-              onTap: () => context.push('/groups'),
+            const SizedBox(height: 8),
+            _ActionSection(
+              emptyFallback: const SizedBox.shrink(),
+              children: [
+                _SectionAction(
+                  iconAsset: _iconMenuAddFriend,
+                  label: l10n?.contactsNewFriends ?? '新朋友',
+                  badgeKeyLabel: '新朋友',
+                  badge: pendingInvites > 0
+                      ? _formatBadgeCount(pendingInvites)
+                      : null,
+                  onTap: () => context.push('/requests'),
+                ),
+                _SectionAction(
+                  iconAsset: _iconMenuCreateGroup,
+                  label: l10n?.contactsNewGroup ?? '新的群聊',
+                  onTap: () => showCreateGroupFlow(context, ref),
+                ),
+                _SectionAction(
+                  iconAsset: _iconTabContacts,
+                  label: l10n?.contactsMyGroups ?? '我的群组',
+                  onTap: () => context.push('/groups'),
+                ),
+              ],
             ),
-            _SectionAction(
-              iconAsset: _iconTabContacts,
-              label: '关注',
-              onTap: () => context.push('/follows'),
-            ),
+            const SizedBox(height: 12),
+            if (contacts.isEmpty)
+              const _Empty(
+                icon: Symbols.person,
+                title: '还没有联系人',
+                subtitle: '添加联系人后会显示在这里',
+              )
+            else
+              for (final sectionKey in sectionKeys) ...[
+                _ContactSectionHeader(label: sectionKey),
+                _ActionSection(
+                  emptyFallback: const SizedBox.shrink(),
+                  children: groupedContacts[sectionKey]!
+                      .map(
+                        (contact) => _ContactEntryTile(
+                          name: contact.name,
+                          avatarUrl: contact.avatarUrl,
+                          onTap: () {
+                            if (contact.mxid.isNotEmpty) {
+                              context.push(
+                                '/contact/${Uri.encodeComponent(contact.mxid)}',
+                              );
+                            }
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
           ],
         ),
-        const SizedBox(height: 14),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            '联系人 ($contactCount)',
-            style: AppTheme.sans(
-              size: 12,
-              color: _homeMuted,
-              weight: FontWeight.w600,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (!useMockContacts)
-          _ActionSection(
-            children: acceptedContacts.map((contact) {
-              final peerMxid = contact.userId.trim();
-              return _ContactEntryTile(
-                name: contactDisplayNameFromIdentity(
-                  mxid: peerMxid,
-                  displayName: contact.displayName,
-                  domain: contact.domain,
-                ),
-                subtitle: peerMxid,
-                avatarUrl: avatarHttpUrl(client, contact.avatarUrl),
-                onTap: () {
-                  if (peerMxid.isNotEmpty) {
-                    context.push(
-                      '/contact/${Uri.encodeComponent(peerMxid)}',
-                    );
-                  }
-                },
-              );
-            }).toList(),
-          )
-        else
-          _ActionSection(
-            children: mockContacts
-                .map(
-                  (c) => _ContactEntryTile(
-                    name: c.name,
-                    subtitle: c.mxid,
-                    avatarUrl: c.avatarUrl,
-                    onTap: () =>
-                        context.push('/contact/${Uri.encodeComponent(c.mxid)}'),
-                  ),
-                )
-                .toList(),
+        if (contacts.isNotEmpty)
+          Positioned(
+            top: 210,
+            right: 8,
+            bottom: 110,
+            child: _AlphabetIndex(activeLetters: sectionKeys.toSet()),
           ),
       ],
     );
   }
+}
+
+class _ContactListEntry {
+  const _ContactListEntry({
+    required this.name,
+    required this.mxid,
+    this.avatarUrl,
+  });
+
+  final String name;
+  final String mxid;
+  final String? avatarUrl;
+}
+
+Map<String, List<_ContactListEntry>> _groupContactsByInitial(
+  List<_ContactListEntry> contacts,
+) {
+  final grouped = <String, List<_ContactListEntry>>{};
+  final sorted = [...contacts]
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  for (final contact in sorted) {
+    final key = _contactInitial(contact.name);
+    grouped.putIfAbsent(key, () => []).add(contact);
+  }
+  return grouped;
+}
+
+String _contactInitial(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '#';
+  final first = trimmed.characters.first.toUpperCase();
+  final code = first.codeUnitAt(0);
+  return code >= 65 && code <= 90 ? first : '#';
 }
 
 class HomeSearchBox extends StatelessWidget {
@@ -1983,19 +2088,118 @@ class HomeSearchBox extends StatelessWidget {
 }
 
 class _ActionSection extends StatelessWidget {
-  const _ActionSection({required this.children});
+  const _ActionSection({
+    required this.children,
+    this.emptyFallback = const _Empty(
+      icon: Symbols.person,
+      title: '还没有联系人',
+      subtitle: '添加联系人后会显示在这里',
+    ),
+  });
+
   final List<Widget> children;
+  final Widget emptyFallback;
 
   @override
   Widget build(BuildContext context) {
     if (children.isEmpty) {
-      return const _Empty(
-        icon: Symbols.person,
-        title: '还没有联系人',
-        subtitle: '添加联系人后会显示在这里',
-      );
+      return emptyFallback;
     }
     return Column(children: children);
+  }
+}
+
+class _ContactSectionHeader extends StatelessWidget {
+  const _ContactSectionHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 28,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            label,
+            style: AppTheme.sans(
+              size: 16,
+              weight: FontWeight.w600,
+              color: _homeTextColor(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AlphabetIndex extends StatelessWidget {
+  const _AlphabetIndex({required this.activeLetters});
+
+  static const _letters = [
+    '#',
+    'A',
+    'B',
+    'C',
+    'D',
+    'E',
+    'F',
+    'G',
+    'H',
+    'I',
+    'J',
+    'K',
+    'L',
+    'M',
+    'N',
+    'O',
+    'P',
+    'Q',
+    'R',
+    'S',
+    'T',
+    'U',
+    'V',
+    'W',
+    'X',
+    'Y',
+    'Z',
+  ];
+
+  final Set<String> activeLetters;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = _homeMutedColor(context);
+    final active = _homeTextColor(context);
+    return IgnorePointer(
+      child: SizedBox(
+        width: 12,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _letters
+                .map(
+                  (letter) => Text(
+                    letter,
+                    style: AppTheme.sans(
+                      size: 10,
+                      weight: activeLetters.contains(letter)
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                      color: activeLetters.contains(letter) ? active : muted,
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -2004,30 +2208,33 @@ class _SectionAction extends StatelessWidget {
     required this.iconAsset,
     required this.label,
     required this.onTap,
+    this.badgeKeyLabel,
     this.badge,
   });
 
   final String iconAsset;
   final String label;
   final VoidCallback onTap;
+  final String? badgeKeyLabel;
   final String? badge;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return _ContactFlatRow(
       onTap: onTap,
       leading: Container(
-        width: _conversationTileAvatarSize,
-        height: _conversationTileAvatarSize,
+        width: 28,
+        height: 28,
         decoration: BoxDecoration(
-          color: const Color(0xFFE8F3FF),
-          borderRadius: BorderRadius.circular(8),
+          color: t.primaryContainer,
+          borderRadius: BorderRadius.circular(5),
         ),
         alignment: Alignment.center,
         child: _DesignAssetIcon(
           assetName: iconAsset,
-          size: 22,
-          color: const Color(0xFF0066A8),
+          size: 18,
+          color: t.onPrimaryContainer,
         ),
       ),
       title: label,
@@ -2036,7 +2243,7 @@ class _SectionAction extends StatelessWidget {
         children: [
           if (badge != null) ...[
             Container(
-              key: ValueKey('section_action_badge_$label'),
+              key: ValueKey('section_action_badge_${badgeKeyLabel ?? label}'),
               height: 20,
               constraints: const BoxConstraints(minWidth: 20),
               padding: EdgeInsets.symmetric(
@@ -2057,9 +2264,7 @@ class _SectionAction extends StatelessWidget {
                 ).copyWith(height: 1),
               ),
             ),
-            const SizedBox(width: 8),
           ],
-          const Icon(Symbols.chevron_right, size: 22, color: _homeMuted),
         ],
       ),
     );
@@ -2071,18 +2276,18 @@ class _ContactFlatRow extends StatelessWidget {
     required this.leading,
     required this.title,
     required this.onTap,
-    this.subtitle,
     this.trailing,
   });
 
   final Widget leading;
   final String title;
-  final String? subtitle;
   final Widget? trailing;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final textColor = _homeTextColor(context);
+    final borderColor = _homeBorderColor(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -2095,10 +2300,10 @@ class _ContactFlatRow extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Container(
-                  height: subtitle == null ? 56 : 64,
-                  decoration: const BoxDecoration(
+                  height: 52,
+                  decoration: BoxDecoration(
                     border: Border(
-                      bottom: BorderSide(color: _homeBorder, width: 0.5),
+                      bottom: BorderSide(color: borderColor, width: 0.5),
                     ),
                   ),
                   child: Row(
@@ -2114,22 +2319,10 @@ class _ContactFlatRow extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: AppTheme.sans(
                                 size: 14,
-                                weight: FontWeight.w600,
-                                color: _homeText,
+                                weight: FontWeight.w500,
+                                color: textColor,
                               ),
                             ),
-                            if (subtitle != null) ...[
-                              const SizedBox(height: 3),
-                              Text(
-                                subtitle!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(
-                                  size: 12,
-                                  color: _homeMuted,
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
@@ -2153,12 +2346,10 @@ class _ContactEntryTile extends StatelessWidget {
   const _ContactEntryTile({
     required this.name,
     required this.onTap,
-    this.subtitle,
     this.avatarUrl,
   });
 
   final String name;
-  final String? subtitle;
   final VoidCallback onTap;
   final String? avatarUrl;
 
@@ -2167,17 +2358,16 @@ class _ContactEntryTile extends StatelessWidget {
     return _ContactFlatRow(
       onTap: onTap,
       leading: SizedBox(
-        width: _conversationTileAvatarSize,
-        height: _conversationTileAvatarSize,
+        width: 28,
+        height: 28,
         child: PortalAvatar(
           seed: name,
-          size: _conversationTileAvatarSize,
+          size: 28,
           imageUrl: avatarUrl,
           shape: AvatarShape.squircle,
         ),
       ),
       title: name,
-      subtitle: subtitle,
     );
   }
 }
@@ -2643,7 +2833,7 @@ class _MePageState extends ConsumerState<_MePage> {
     final uidUrl = _meUidUrl(client, displayId);
 
     return ColoredBox(
-      color: _homeBg,
+      color: _homeBgColor(context),
       child: SafeArea(
         bottom: false,
         child: ListView(

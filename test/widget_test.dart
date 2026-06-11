@@ -22,6 +22,7 @@ import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
 import 'package:portal_app/presentation/pages/add_contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_page.dart';
+import 'package:portal_app/presentation/pages/add_contact_verification_page.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
 import 'package:portal_app/presentation/pages/chat_info_page.dart';
 import 'package:portal_app/presentation/pages/chat_page.dart';
@@ -81,31 +82,6 @@ class _LoggedInAuthStateNotifier extends AuthStateNotifier {
 class _LoadingAuthStateNotifier extends AuthStateNotifier {
   @override
   Future<AuthState> build() => Completer<AuthState>().future;
-}
-
-Color _nearestSizedContainerColor(
-  WidgetTester tester,
-  Finder finder, {
-  required double size,
-}) {
-  Container? container;
-  tester.element(finder).visitAncestorElements((element) {
-    final widget = element.widget;
-    final constraints = widget is Container ? widget.constraints : null;
-    if (constraints?.minWidth == size &&
-        constraints?.maxWidth == size &&
-        constraints?.minHeight == size &&
-        constraints?.maxHeight == size) {
-      container = widget as Container;
-      return false;
-    }
-    return true;
-  });
-  final decoration = container?.decoration;
-  if (decoration is! BoxDecoration || decoration.color == null) {
-    throw StateError('No sized container color found for $finder');
-  }
-  return decoration.color!;
 }
 
 class _EmptyAsClient implements AsClient {
@@ -2600,7 +2576,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
     expect(find.text('Alice'), findsNothing);
@@ -2978,10 +2954,11 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
-    expect(find.text('联系人 (1)'), findsOneWidget);
+    expect(find.text('ID/昵称/邮箱'), findsOneWidget);
+    expect(find.text('A'), findsWidgets);
     expect(find.text('Yanan'), findsOneWidget);
     expect(find.text('default owner'), findsNothing);
   });
@@ -3046,10 +3023,11 @@ void main() {
     expect(find.text('friend flow accepted message'), findsNothing);
     expect(find.text('还没有会话'), findsOneWidget);
 
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
-    expect(find.text('联系人 (0)'), findsOneWidget);
+    expect(find.text('ID/昵称/邮箱'), findsOneWidget);
+    expect(find.text('还没有联系人'), findsOneWidget);
     expect(find.text('Yanan'), findsNothing);
   });
 
@@ -3494,10 +3472,13 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
-    expect(find.text('联系人 (3)'), findsOneWidget);
+    expect(find.text('ID/昵称/邮箱'), findsOneWidget);
+    expect(find.text('A'), findsWidgets);
+    expect(find.text('B'), findsWidgets);
+    expect(find.text('D'), findsWidgets);
     expect(find.text('Alice Chen'), findsOneWidget);
     expect(find.text('Bob Smith'), findsOneWidget);
     expect(find.text('Dave Lee'), findsOneWidget);
@@ -3505,8 +3486,7 @@ void main() {
     expect(find.text('Jack'), findsNothing);
   });
 
-  testWidgets('contact action shortcuts use neutral setting icon style',
-      (tester) async {
+  testWidgets('contact action shortcuts match contact design', (tester) async {
     final client = Client('PortalIMTest');
 
     await tester.pumpWidget(
@@ -3521,25 +3501,16 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
-    for (final icon in [
-      Symbols.person_add,
-      Symbols.group,
-      Symbols.person_check
-    ]) {
-      final iconWidget = tester.widget<Icon>(find.byIcon(icon));
-      expect(iconWidget.size, 24);
-      expect(iconWidget.color, PortalTokens.light.textMute);
-      expect(
-        _nearestSizedContainerColor(tester, find.byIcon(icon), size: 48),
-        PortalTokens.light.surfaceHigh,
-      );
-    }
+    expect(find.text('新朋友'), findsOneWidget);
+    expect(find.text('新的群聊'), findsOneWidget);
+    expect(find.text('我的群组'), findsOneWidget);
+    expect(find.text('关注'), findsNothing);
   });
 
-  testWidgets('contact page has no inline search box', (tester) async {
+  testWidgets('contact page has inline search box', (tester) async {
     final client = Client('PortalIMTest');
 
     await tester.pumpWidget(
@@ -3554,10 +3525,10 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
-    expect(find.text('搜索'), findsNothing);
+    expect(find.text('ID/昵称/邮箱'), findsOneWidget);
   });
 
   testWidgets('new friend badge counts AS pending inbound contacts',
@@ -3600,7 +3571,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
     expect(find.text('新朋友'), findsOneWidget);
@@ -3662,7 +3633,7 @@ void main() {
 
     expect(find.byKey(const ValueKey('bottom_nav_badge_联系人')), findsOneWidget);
 
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
     expect(
@@ -3676,7 +3647,7 @@ void main() {
 
     router.go('/home');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
     expect(find.byKey(const ValueKey('bottom_nav_badge_联系人')), findsNothing);
@@ -3725,7 +3696,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('暂无好友请求'), findsNothing);
-    expect(find.text('接受'), findsOneWidget);
+    expect(find.text('查看'), findsOneWidget);
   });
 
   testWidgets('new friends page uses AS metadata for outgoing pending contacts',
@@ -4014,6 +3985,10 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.text('查看'), findsOneWidget);
+    await tester.tap(find.text('查看'));
+    await tester.pumpAndSettle();
+
     expect(find.text('接受'), findsOneWidget);
     expect(find.text('拒绝'), findsOneWidget);
   });
@@ -4037,6 +4012,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    await tester.tap(find.text('查看'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('接受'));
     await tester.pump();
 
@@ -4051,13 +4028,12 @@ void main() {
     await client.abortSync();
   });
 
-  testWidgets('contact follow shortcut opens follows list', (tester) async {
+  testWidgets('contact page does not show follows shortcut', (tester) async {
     final client = Client('PortalIMTest');
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
         GoRoute(path: '/home', builder: (_, __) => const HomePage()),
-        GoRoute(path: '/follows', builder: (_, __) => const FollowsListPage()),
       ],
     );
 
@@ -4078,15 +4054,12 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
-    expect(find.text('关注'), findsOneWidget);
-    await tester.tap(find.text('关注'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Alice Chen'), findsOneWidget);
-    expect(find.textContaining('alice.portal.local'), findsOneWidget);
+    expect(find.text('关注'), findsNothing);
+    expect(find.text('新的群聊'), findsOneWidget);
+    expect(find.text('我的群组'), findsOneWidget);
   });
 
   testWidgets('follows list renders contact avatars', (tester) async {
@@ -4121,6 +4094,13 @@ void main() {
         GoRoute(
           path: '/add-contact/detail/:userId',
           builder: (_, state) => AddContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+          ),
+        ),
+        GoRoute(
+          path: '/add-contact/verify/:userId',
+          builder: (_, state) => AddContactVerificationPage(
             userId: state.pathParameters['userId']!,
             displayName: state.uri.queryParameters['name'],
           ),
@@ -4171,6 +4151,13 @@ void main() {
         GoRoute(
           path: '/add-contact/detail/:userId',
           builder: (_, state) => AddContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+          ),
+        ),
+        GoRoute(
+          path: '/add-contact/verify/:userId',
+          builder: (_, state) => AddContactVerificationPage(
             userId: state.pathParameters['userId']!,
             displayName: state.uri.queryParameters['name'],
           ),
@@ -4258,6 +4245,49 @@ void main() {
     await client.dispose(closeDatabase: false);
   });
 
+  testWidgets('add contact verification page sends friend request',
+      (tester) async {
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const AddContactVerificationPage(
+            userId: '@alice:portal.local',
+            displayName: 'Alice Chen',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('好友验证'), findsOneWidget);
+    expect(find.text('发送好友申请'), findsOneWidget);
+    expect(find.text('0/200'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '我是 Niki');
+    await tester.pump();
+    expect(find.text('7/200'), findsOneWidget);
+
+    await tester.tap(find.text('发送申请'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.createContactRequestCalls, 1);
+    expect(asClient.createdContactMxid, '@alice:portal.local');
+    expect(find.text('已申请'), findsOneWidget);
+    expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
+  });
+
   testWidgets('add contact search detail can request friend', (tester) async {
     final client = Client(
       'PortalIMAddContactInboundRequestTest',
@@ -4277,6 +4307,13 @@ void main() {
         GoRoute(
           path: '/add-contact/detail/:userId',
           builder: (_, state) => AddContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+          ),
+        ),
+        GoRoute(
+          path: '/add-contact/verify/:userId',
+          builder: (_, state) => AddContactVerificationPage(
             userId: state.pathParameters['userId']!,
             displayName: state.uri.queryParameters['name'],
           ),
@@ -4310,6 +4347,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('申请好友'));
+    await tester.pumpAndSettle();
+    expect(find.text('好友验证'), findsOneWidget);
+    expect(find.text('发送好友申请'), findsOneWidget);
+    await tester.tap(find.text('发送申请'));
     await tester.pumpAndSettle();
 
     expect(find.text('已申请'), findsOneWidget);
@@ -5658,7 +5699,7 @@ void main() {
     await tester.tap(find.text('多选'));
     await tester.pumpAndSettle();
 
-    expect(find.text('已选 1 条'), findsOneWidget);
+    expect(find.text('已选择 1条消息'), findsOneWidget);
     expect(find.byTooltip('转发'), findsOneWidget);
     expect(find.byTooltip('删除'), findsOneWidget);
   });
@@ -5700,10 +5741,10 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('联系人').last);
+    await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
-    expect(find.text('联系人 (3)'), findsOneWidget);
+    expect(find.text('ID/昵称/邮箱'), findsOneWidget);
     expect(find.text('Alice Chen'), findsOneWidget);
   });
 
@@ -5858,14 +5899,14 @@ void main() {
     await tester.tap(find.text('多选'));
     await tester.pumpAndSettle();
 
-    expect(find.text('已选 1 条'), findsOneWidget);
+    expect(find.text('已选择 1条消息'), findsOneWidget);
 
     final visibleUncheckedMessage = find.text('另外周末有空吗？想约你打球');
     final messageCenter = tester.getCenter(visibleUncheckedMessage);
     await tester.tapAt(Offset(36, messageCenter.dy));
     await tester.pump();
 
-    expect(find.text('已选 2 条'), findsOneWidget);
+    expect(find.text('已选择 2条消息'), findsOneWidget);
 
     await tester.tapAt(
       Offset(
@@ -5875,7 +5916,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('已选 1 条'), findsOneWidget);
+    expect(find.text('已选择 1条消息'), findsOneWidget);
   });
 
   testWidgets('mock forwarded chat record opens detail with source messages',

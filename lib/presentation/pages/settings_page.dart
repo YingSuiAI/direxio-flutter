@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/app_locale_provider.dart';
+import '../providers/app_theme_provider.dart';
 import '../providers/auth_provider.dart';
 
 /// Settings page matching the TokLink settings design.
@@ -99,6 +100,51 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await ref.read(appLocaleProvider.notifier).setMode(picked);
   }
 
+  Future<void> _showThemePicker() async {
+    final selected = ref.read(appThemeProvider);
+    final picked = await showModalBottomSheet<AppThemeMode>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        final l10n = Localizations.of<AppLocalizations>(
+          ctx,
+          AppLocalizations,
+        );
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    l10n?.settingsTheme ?? '主题',
+                    style: AppTheme.sans(
+                      size: 20,
+                      weight: FontWeight.w600,
+                      color: ctx.tk.text,
+                    ),
+                  ),
+                ),
+              ),
+              for (final mode in AppThemeMode.values)
+                ListTile(
+                  title: Text(_themeLabel(l10n, mode)),
+                  trailing: mode == selected
+                      ? Icon(Symbols.check, color: ctx.tk.accent)
+                      : null,
+                  onTap: () => Navigator.of(ctx).pop(mode),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked == null || picked == selected) return;
+    await ref.read(appThemeProvider.notifier).setMode(picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
@@ -109,6 +155,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       AppLocalizations,
     );
     final localeMode = ref.watch(appLocaleProvider).mode;
+    final themeMode = ref.watch(appThemeProvider);
     return Scaffold(
       backgroundColor: t.surfaceHover,
       body: SafeArea(
@@ -134,8 +181,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         _SettingsRow(
                           icon: Symbols.contrast,
                           label: l10n?.settingsTheme ?? '主题',
-                          trailingText: l10n?.settingsFollowSystem ?? '跟随系统',
-                          onTap: () {},
+                          trailingText: _themeLabel(l10n, themeMode),
+                          onTap: _showThemePicker,
                         ),
                         _SettingsRow(
                           icon: Symbols.bookmarks,
@@ -229,6 +276,14 @@ String _languageLabel(AppLocalizations? l10n, AppLocaleMode mode) {
     AppLocaleMode.zh => l10n?.languageChinese ?? '简体中文',
     AppLocaleMode.en => l10n?.languageEnglish ?? 'English',
     AppLocaleMode.ja => l10n?.languageJapanese ?? '日本語',
+  };
+}
+
+String _themeLabel(AppLocalizations? l10n, AppThemeMode mode) {
+  return switch (mode) {
+    AppThemeMode.system => l10n?.settingsFollowSystem ?? '跟随系统',
+    AppThemeMode.light => l10n?.settingsThemeLight ?? '浅色',
+    AppThemeMode.dark => l10n?.settingsThemeDark ?? '深色',
   };
 }
 

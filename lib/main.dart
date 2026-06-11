@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,8 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'l10n/app_localizations.dart';
 import 'presentation/providers/app_locale_provider.dart';
+import 'presentation/providers/app_theme_provider.dart';
+import 'presentation/providers/p2p_api_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
 
 void main() async {
@@ -16,7 +20,19 @@ void main() async {
   if (kIsWeb) {
     await BrowserContextMenu.disableContextMenu();
   }
-  runApp(const ProviderScope(child: PortalApp()));
+  final container = ProviderContainer();
+  unawaited(
+    container
+        .read(biAnalyticsServiceProvider)
+        .reportInstallAndLaunch()
+        .catchError((Object _) {}),
+  );
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const PortalApp(),
+    ),
+  );
 }
 
 class PortalApp extends ConsumerWidget {
@@ -26,11 +42,12 @@ class PortalApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     final localeState = ref.watch(appLocaleProvider);
+    final themeMode = ref.watch(appThemeProvider);
     return MaterialApp.router(
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.light,
+      themeMode: themeMode.materialThemeMode,
       locale: localeState.locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localeListResolutionCallback: _resolveLocale,

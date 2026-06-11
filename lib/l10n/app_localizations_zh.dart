@@ -54,6 +54,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsFollowSystem => '跟随系统';
 
   @override
+  String get settingsThemeLight => '浅色';
+
+  @override
+  String get settingsThemeDark => '深色';
+
+  @override
   String get settingsFavorites => '收藏';
 
   @override
@@ -120,6 +126,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addContactVideoAfterAdding => '添加好友后即可视频通话';
 
   @override
+  String get addContactVerificationTitle => '好友验证';
+
+  @override
+  String get addContactVerificationMessageTitle => '发送好友申请';
+
+  @override
+  String get addContactVerificationSend => '发送申请';
+
+  @override
   String get addContactRequestSent => '好友请求已发送，等待对方接受。';
 
   @override
@@ -153,6 +168,29 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get contactApplyFriend => '申请好友';
+
+  @override
+  String get contactsSearchHint => 'ID/昵称/邮箱';
+
+  @override
+  String get contactsNewFriends => '新朋友';
+
+  @override
+  String get contactsNewGroup => '新的群聊';
+
+  @override
+  String get contactsMyGroups => '我的群组';
+
+  @override
+  String get contactsGroups => '群聊';
+
+  @override
+  String get contactsFollows => '关注';
+
+  @override
+  String contactsCount(int count) {
+    return '联系人 ($count)';
+  }
 
   @override
   String get qrInvalidFormat => '无效的二维码格式';

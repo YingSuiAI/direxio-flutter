@@ -21,21 +21,28 @@ class AppGlassBackground extends StatelessWidget {
     }
 
     final t = context.tk;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return _AppGlassBackgroundScope(
       child: ClipRect(
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(
-              assetName,
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.high,
+            ColoredBox(color: t.bg),
+            Opacity(
+              opacity: dark ? 0.16 : 1,
+              child: Image.asset(
+                assetName,
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+              ),
             ),
             BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: t.surface.withValues(alpha: 0.42),
+                  color: dark
+                      ? t.bg.withValues(alpha: 0.82)
+                      : t.surface.withValues(alpha: 0.42),
                 ),
               ),
             ),
@@ -75,13 +82,14 @@ class AppGlassPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: borderRadius,
         boxShadow: [
           BoxShadow(
-            color: t.text.withValues(alpha: 0.08),
-            blurRadius: 18,
+            color: Colors.black.withValues(alpha: dark ? 0.24 : 0.08),
+            blurRadius: dark ? 40 : 18,
             offset: const Offset(0, 8),
           ),
         ],
@@ -93,10 +101,14 @@ class AppGlassPanel extends StatelessWidget {
           child: Container(
             padding: padding,
             decoration: BoxDecoration(
-              color: t.surface.withValues(alpha: 0.52),
+              color: dark
+                  ? Colors.black.withValues(alpha: 0.42)
+                  : t.surface.withValues(alpha: 0.52),
               borderRadius: borderRadius,
               border: Border.all(
-                color: t.surface.withValues(alpha: 0.72),
+                color: dark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : t.surface.withValues(alpha: 0.72),
               ),
             ),
             child: child,

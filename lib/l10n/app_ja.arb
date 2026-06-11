@@ -15,6 +15,8 @@
   "settingsLanguage": "言語",
   "settingsTheme": "テーマ",
   "settingsFollowSystem": "システムに従う",
+  "settingsThemeLight": "ライト",
+  "settingsThemeDark": "ダーク",
   "settingsFavorites": "お気に入り",
   "settingsPrivacySecurity": "プライバシーとセキュリティ",
   "settingsBlacklist": "連絡先ブラックリスト",
@@ -37,6 +39,9 @@
   "addContactMessageAfterAdding": "友だち追加後にメッセージを送信できます",
   "addContactVoiceAfterAdding": "友だち追加後に音声通話できます",
   "addContactVideoAfterAdding": "友だち追加後にビデオ通話できます",
+  "addContactVerificationTitle": "友だち確認",
+  "addContactVerificationMessageTitle": "友だち申請を送信",
+  "addContactVerificationSend": "申請を送信",
   "addContactRequestSent": "友だち申請を送信しました。承認を待っています。",
   "addContactRequestFailed": "友だち申請の送信に失敗しました: {error}",
   "@addContactRequestFailed": {
@@ -55,6 +60,20 @@
   "contactReportTodo": "報告機能はまだ接続されていません",
   "contactFriendRequested": "申請済み",
   "contactApplyFriend": "友だち申請",
+  "contactsSearchHint": "ID / ニックネーム / メール",
+  "contactsNewFriends": "新しい友だち",
+  "contactsNewGroup": "新しいグループチャット",
+  "contactsMyGroups": "自分のグループ",
+  "contactsGroups": "グループチャット",
+  "contactsFollows": "フォロー",
+  "contactsCount": "連絡先 ({count})",
+  "@contactsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "qrInvalidFormat": "無効なQRコード形式です",
   "qrInvalidUser": "無効なユーザーQRコードです",
   "qrInvalidGroup": "無効なグループQRコードです",

@@ -660,6 +660,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  Future<void> _favoriteSelectedEvents(List<Event> events) async {
+    final selectedEvents = events
+        .where((event) => _selected.contains(event.eventId))
+        .toList(growable: false);
+    if (selectedEvents.isEmpty) return;
+    for (final event in selectedEvents) {
+      await _favoriteEvent(event);
+    }
+    if (!mounted) return;
+    setState(() {
+      _multiSelect = false;
+      _selected.clear();
+    });
+  }
+
   Future<void> _forwardSelectedEvents(
     List<Event> events, {
     required String sourceName,
@@ -1353,42 +1368,51 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return Scaffold(
       body: ChatGlassBackground(
         child: ChatLayeredLayout(
-          header: ChatCapsuleHeader(
-            title: name,
-            subtitle: isWaitingForAccept
-                ? '等待对方接受'
-                : isAgent
-                    ? (agentConnected ? '在线' : '离线')
-                    : '端对端加密',
-            onBack: () => unawaited(_popChatOrHome(context)),
-            leadingAvatar: _ChatHeaderAvatar(
-              key: ValueKey('chat_header_peer_avatar_${widget.roomId}'),
-              seed: name,
-              imageUrl: isAgent ? null : peerAvatarUrl,
-              online: isAgent && agentConnected,
-            ),
-            onAvatarTap: headerAvatarTap,
-            actions: [
-              ChatCapsuleAction(
-                icon: Symbols.call,
-                tooltip: '语音通话',
-                color: t.accent,
-                onTap: canSendMessages
-                    ? () => context.push(
-                          _privateVoiceCallRoute(widget.roomId, mxid, name),
-                        )
-                    : () => _showPendingContactToast(context),
-              ),
-              ChatCapsuleAction(
-                icon: Symbols.more_vert,
-                tooltip: '详情',
-                color: t.accent,
-                onTap: () => context.push(
-                  '/chat-info/${Uri.encodeComponent(widget.roomId)}',
+          header: _multiSelect
+              ? ChatSelectionHeader(
+                  count: _selected.length,
+                  onCancel: () => setState(() {
+                    _multiSelect = false;
+                    _selected.clear();
+                  }),
+                )
+              : ChatCapsuleHeader(
+                  title: name,
+                  subtitle: isWaitingForAccept
+                      ? '等待对方接受'
+                      : isAgent
+                          ? (agentConnected ? '在线' : '离线')
+                          : '端对端加密',
+                  onBack: () => unawaited(_popChatOrHome(context)),
+                  leadingAvatar: _ChatHeaderAvatar(
+                    key: ValueKey('chat_header_peer_avatar_${widget.roomId}'),
+                    seed: name,
+                    imageUrl: isAgent ? null : peerAvatarUrl,
+                    online: isAgent && agentConnected,
+                  ),
+                  onAvatarTap: headerAvatarTap,
+                  actions: [
+                    ChatCapsuleAction(
+                      icon: Symbols.call,
+                      tooltip: '语音通话',
+                      color: t.accent,
+                      onTap: canSendMessages
+                          ? () => context.push(
+                                _privateVoiceCallRoute(
+                                    widget.roomId, mxid, name),
+                              )
+                          : () => _showPendingContactToast(context),
+                    ),
+                    ChatCapsuleAction(
+                      icon: Symbols.more_vert,
+                      tooltip: '详情',
+                      color: t.accent,
+                      onTap: () => context.push(
+                        '/chat-info/${Uri.encodeComponent(widget.roomId)}',
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
           messageLayer: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: _closePanels,
@@ -1874,10 +1898,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               if (_multiSelect)
                 ChatRecordSelectionBar(
                   count: _selected.length,
+                  compact: true,
                   onExit: () => setState(() {
                     _multiSelect = false;
                     _selected.clear();
                   }),
+                  onFavorite: () => unawaited(_favoriteSelectedEvents(events)),
                   onForward: () => unawaited(
                     _forwardSelectedEvents(
                       events,
@@ -2587,6 +2613,20 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     };
   }
 
+  void _favoriteSelectedMockMessages() {
+    if (_selected.isEmpty) return;
+    setState(() {
+      _multiSelect = false;
+      _selected.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('已收藏'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
   Future<void> _forwardSelectedMockMessages() async {
     final selectedMessages = _selected
         .where((index) => index >= 0 && index < _messages.length)
@@ -2753,56 +2793,69 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     return Scaffold(
       body: ChatGlassBackground(
         child: ChatLayeredLayout(
-          header: ChatCapsuleHeader(
-            title: _isAiBot ? 'Agent' : c.name,
-            subtitle: _isAiBot ? '端对端加密' : (c.isGroup ? '6 名成员' : '端对端加密'),
-            onBack: () => unawaited(_popChatOrHome(context)),
-            leadingAvatar: _isAiBot
-                ? _AgentBadge(color: t.accent)
-                : c.isGroup
-                    ? Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: t.surfaceHigh,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Symbols.groups,
-                          size: 20,
-                          color: t.textMute,
-                          fill: 1,
-                        ),
-                      )
-                    : _ChatHeaderAvatar(
-                        key: ValueKey('chat_header_peer_avatar_${c.id}'),
-                        seed: c.name,
-                        imageUrl: c.avatarUrl,
-                      ),
-            onAvatarTap: c.isGroup || _isAiBot ? null : _mockHeaderAvatarTap(),
-            actions: [
-              ChatCapsuleAction(
-                icon: Symbols.call,
-                tooltip: '语音通话',
-                color: t.accent,
-                onTap: () {},
-              ),
-              ChatCapsuleAction(
-                icon: Symbols.more_vert,
-                tooltip: '详情',
-                color: t.accent,
-                onTap: _isAiBot
-                    ? () => _showAgentMenu(
-                          context,
-                          Offset(MediaQuery.of(context).size.width - 64, 88),
-                        )
-                    : () => context.push(
-                          '${c.isGroup ? '/group-detail' : '/chat-info'}/${Uri.encodeComponent(c.id)}',
-                        ),
-              ),
-            ],
-          ),
+          header: _multiSelect
+              ? ChatSelectionHeader(
+                  count: _selected.length,
+                  onCancel: () => setState(() {
+                    _multiSelect = false;
+                    _selected.clear();
+                  }),
+                )
+              : ChatCapsuleHeader(
+                  title: _isAiBot ? 'Agent' : c.name,
+                  subtitle:
+                      _isAiBot ? '端对端加密' : (c.isGroup ? '6 名成员' : '端对端加密'),
+                  onBack: () => unawaited(_popChatOrHome(context)),
+                  leadingAvatar: _isAiBot
+                      ? _AgentBadge(color: t.accent)
+                      : c.isGroup
+                          ? Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: t.surfaceHigh,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: Icon(
+                                Symbols.groups,
+                                size: 20,
+                                color: t.textMute,
+                                fill: 1,
+                              ),
+                            )
+                          : _ChatHeaderAvatar(
+                              key: ValueKey('chat_header_peer_avatar_${c.id}'),
+                              seed: c.name,
+                              imageUrl: c.avatarUrl,
+                            ),
+                  onAvatarTap:
+                      c.isGroup || _isAiBot ? null : _mockHeaderAvatarTap(),
+                  actions: [
+                    ChatCapsuleAction(
+                      icon: Symbols.call,
+                      tooltip: '语音通话',
+                      color: t.accent,
+                      onTap: () {},
+                    ),
+                    ChatCapsuleAction(
+                      icon: Symbols.more_vert,
+                      tooltip: '详情',
+                      color: t.accent,
+                      onTap: _isAiBot
+                          ? () => _showAgentMenu(
+                                context,
+                                Offset(
+                                  MediaQuery.of(context).size.width - 64,
+                                  88,
+                                ),
+                              )
+                          : () => context.push(
+                                '${c.isGroup ? '/group-detail' : '/chat-info'}/${Uri.encodeComponent(c.id)}',
+                              ),
+                    ),
+                  ],
+                ),
           messageLayer: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: _closePanels,
@@ -2994,10 +3047,12 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
               if (_multiSelect)
                 ChatRecordSelectionBar(
                   count: _selected.length,
+                  compact: true,
                   onExit: () => setState(() {
                     _multiSelect = false;
                     _selected.clear();
                   }),
+                  onFavorite: _favoriteSelectedMockMessages,
                   onForward: () => unawaited(_forwardSelectedMockMessages()),
                   onDelete: () {
                     setState(() {
@@ -3780,10 +3835,21 @@ class _MessageSelectCheckmark extends StatelessWidget {
         child: SizedBox.square(
           dimension: 40,
           child: Center(
-            child: Icon(
-              selected ? Symbols.check_circle : Symbols.radio_button_unchecked,
-              size: 22,
-              color: selected ? t.accent : t.textMute,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? t.accent : Colors.transparent,
+                border: selected
+                    ? null
+                    : Border.all(
+                        color: t.textMute.withValues(alpha: 0.36),
+                      ),
+              ),
+              child: selected
+                  ? Icon(Symbols.check, size: 12, color: t.onAccent)
+                  : null,
             ),
           ),
         ),

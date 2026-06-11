@@ -9,6 +9,8 @@ import '../../data/http_as_client.dart';
 import '../../data/matrix_privacy_sync.dart';
 import '../../data/matrix_token_refreshing_http_client.dart';
 import '../../data/well_known_service.dart';
+import '../../data/bi_analytics_service.dart';
+import 'p2p_api_provider.dart';
 
 part 'auth_provider.g.dart';
 
@@ -289,6 +291,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (publishState) {
       state = AsyncData(result.toAuthState());
     }
+    reportBiInBackground(
+      () => ref.read(biAnalyticsServiceProvider).reportLogin(
+            homeserver: checkedHomeserver.toString(),
+            userId: client.userID ?? session.userId,
+          ),
+    );
     return result;
   }
 

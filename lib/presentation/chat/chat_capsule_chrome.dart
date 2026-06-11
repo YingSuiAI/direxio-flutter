@@ -404,6 +404,64 @@ class ChatCapsuleHeader extends StatelessWidget {
   }
 }
 
+class ChatSelectionHeader extends StatelessWidget {
+  const ChatSelectionHeader({
+    super.key,
+    required this.count,
+    required this.onCancel,
+  });
+
+  final int count;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: SizedBox(
+          height: 48,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: onCancel,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        '取消',
+                        style: AppTheme.sans(
+                          size: 16,
+                          weight: FontWeight.w600,
+                          color: t.text,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Text(
+                '已选择 $count条消息',
+                style: AppTheme.sans(size: 12, color: t.textMute),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HeaderTextLine extends StatelessWidget {
   const _HeaderTextLine({
     required this.text,

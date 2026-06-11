@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/providers/app_locale_provider.dart';
+import 'package:portal_app/presentation/providers/app_theme_provider.dart';
 
 void main() {
   test('maps mobile language indices to supported locale modes', () {
@@ -33,6 +34,17 @@ void main() {
       AppLocaleMode.resolveSystemLocale(const Locale('fr', 'FR')),
       const Locale('en'),
     );
+  });
+
+  test('maps stored theme values to supported theme modes', () {
+    expect(AppThemeMode.fromStorageValue(null), AppThemeMode.system);
+    expect(AppThemeMode.fromStorageValue('system'), AppThemeMode.system);
+    expect(AppThemeMode.fromStorageValue('light'), AppThemeMode.light);
+    expect(AppThemeMode.fromStorageValue('dark'), AppThemeMode.dark);
+    expect(AppThemeMode.fromStorageValue('unknown'), AppThemeMode.system);
+    expect(AppThemeMode.light.materialThemeMode, ThemeMode.light);
+    expect(AppThemeMode.dark.materialThemeMode, ThemeMode.dark);
+    expect(AppThemeMode.system.materialThemeMode, ThemeMode.system);
   });
 
   testWidgets('updates MaterialApp locale when language mode changes',

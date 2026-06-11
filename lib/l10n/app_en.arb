@@ -15,6 +15,8 @@
   "settingsLanguage": "Language",
   "settingsTheme": "Theme",
   "settingsFollowSystem": "Follow system",
+  "settingsThemeLight": "Light",
+  "settingsThemeDark": "Dark",
   "settingsFavorites": "Favorites",
   "settingsPrivacySecurity": "Privacy & Security",
   "settingsBlacklist": "Blocked Contacts",
@@ -37,6 +39,9 @@
   "addContactMessageAfterAdding": "Add this friend before sending messages",
   "addContactVoiceAfterAdding": "Add this friend before starting an audio call",
   "addContactVideoAfterAdding": "Add this friend before starting a video call",
+  "addContactVerificationTitle": "Friend Verification",
+  "addContactVerificationMessageTitle": "Send friend request",
+  "addContactVerificationSend": "Send Request",
   "addContactRequestSent": "Friend request sent. Waiting for acceptance.",
   "addContactRequestFailed": "Failed to send friend request: {error}",
   "@addContactRequestFailed": {
@@ -55,6 +60,20 @@
   "contactReportTodo": "Report feature is not connected yet",
   "contactFriendRequested": "Requested",
   "contactApplyFriend": "Add Friend",
+  "contactsSearchHint": "ID / Nickname / Email",
+  "contactsNewFriends": "New Friends",
+  "contactsNewGroup": "New Group Chat",
+  "contactsMyGroups": "My Groups",
+  "contactsGroups": "Groups",
+  "contactsFollows": "Following",
+  "contactsCount": "Contacts ({count})",
+  "@contactsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "qrInvalidFormat": "Invalid QR code format",
   "qrInvalidUser": "Invalid user QR code",
   "qrInvalidGroup": "Invalid group QR code",

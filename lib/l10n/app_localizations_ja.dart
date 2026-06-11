@@ -54,6 +54,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsFollowSystem => 'システムに従う';
 
   @override
+  String get settingsThemeLight => 'ライト';
+
+  @override
+  String get settingsThemeDark => 'ダーク';
+
+  @override
   String get settingsFavorites => 'お気に入り';
 
   @override
@@ -120,6 +126,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get addContactVideoAfterAdding => '友だち追加後にビデオ通話できます';
 
   @override
+  String get addContactVerificationTitle => '友だち確認';
+
+  @override
+  String get addContactVerificationMessageTitle => '友だち申請を送信';
+
+  @override
+  String get addContactVerificationSend => '申請を送信';
+
+  @override
   String get addContactRequestSent => '友だち申請を送信しました。承認を待っています。';
 
   @override
@@ -153,6 +168,29 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get contactApplyFriend => '友だち申請';
+
+  @override
+  String get contactsSearchHint => 'ID / ニックネーム / メール';
+
+  @override
+  String get contactsNewFriends => '新しい友だち';
+
+  @override
+  String get contactsNewGroup => '新しいグループチャット';
+
+  @override
+  String get contactsMyGroups => '自分のグループ';
+
+  @override
+  String get contactsGroups => 'グループチャット';
+
+  @override
+  String get contactsFollows => 'フォロー';
+
+  @override
+  String contactsCount(int count) {
+    return '連絡先 ($count)';
+  }
 
   @override
   String get qrInvalidFormat => '無効なQRコード形式です';

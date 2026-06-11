@@ -1026,6 +1026,21 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     }
   }
 
+  Future<void> _favoriteSelectedEvents(List<Event> events) async {
+    final selectedEvents = events
+        .where((event) => _selected.contains(event.eventId))
+        .toList(growable: false);
+    if (selectedEvents.isEmpty) return;
+    for (final event in selectedEvents) {
+      await _favoriteEvent(event);
+    }
+    if (!mounted) return;
+    setState(() {
+      _multiSelect = false;
+      _selected.clear();
+    });
+  }
+
   Future<AsFavoriteMessageDraft> _favoriteDraftForEvent(Event event) async {
     final ownerUserId = ref.read(matrixClientProvider).userID ?? '';
     final baseDraft = favoriteDraftFromMatrixMessage(
@@ -1135,11 +1150,14 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         body: ChatGlassBackground(
           child: Column(
             children: [
-              ChatCapsuleHeader(
-                title: '群组不存在',
-                onBack: () => unawaited(_popGroupChatOrHome(context)),
-                leadingAvatar: const _GroupAvatar(seed: '#'),
-                actions: const [],
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: ChatCapsuleHeader(
+                  title: '群组不存在',
+                  onBack: () => unawaited(_popGroupChatOrHome(context)),
+                  leadingAvatar: const _GroupAvatar(seed: '#'),
+                  actions: const [],
+                ),
               ),
               Expanded(
                 child: Center(
@@ -1232,60 +1250,72 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     return Scaffold(
       body: ChatGlassBackground(
         child: ChatLayeredLayout(
-          header: StreamBuilder<GroupCallUiState>(
-            stream: voiceCallController.groupStateStream,
-            initialData: voiceCallController.currentGroupState,
-            builder: (context, snapshot) {
-              final activeGroupCall = _activeGroupCallForHeader(
-                controllerState: snapshot.data ?? GroupCallUiState.idle,
-                timelineEntry: activeTimelineGroupCall,
-                roomId: widget.roomId,
-              );
-              return ChatCapsuleHeader(
-                title: name,
-                subtitle:
-                    activeGroupCall == null ? '$memberCount 名成员' : '正在群通话',
-                onTitleTap: activeGroupCall == null
-                    ? null
-                    : () => context.push(
-                          groupCallJoinRoute(
-                            roomId: widget.roomId,
-                            roomName: name,
-                            callType: activeGroupCall.callType,
-                            callId: activeGroupCall.callId,
-                            incoming: activeGroupCall.requiresJoin,
-                          ),
+          header: _multiSelect
+              ? ChatSelectionHeader(
+                  count: _selected.length,
+                  onCancel: () => setState(() {
+                    _multiSelect = false;
+                    _selected.clear();
+                  }),
+                )
+              : StreamBuilder<GroupCallUiState>(
+                  stream: voiceCallController.groupStateStream,
+                  initialData: voiceCallController.currentGroupState,
+                  builder: (context, snapshot) {
+                    final activeGroupCall = _activeGroupCallForHeader(
+                      controllerState: snapshot.data ?? GroupCallUiState.idle,
+                      timelineEntry: activeTimelineGroupCall,
+                      roomId: widget.roomId,
+                    );
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: ChatCapsuleHeader(
+                        title: name,
+                        subtitle: activeGroupCall == null
+                            ? '$memberCount 名成员'
+                            : '正在群通话',
+                        onTitleTap: activeGroupCall == null
+                            ? null
+                            : () => context.push(
+                                  groupCallJoinRoute(
+                                    roomId: widget.roomId,
+                                    roomName: name,
+                                    callType: activeGroupCall.callType,
+                                    callId: activeGroupCall.callId,
+                                    incoming: activeGroupCall.requiresJoin,
+                                  ),
+                                ),
+                        onBack: () => unawaited(_popGroupChatOrHome(context)),
+                        leadingAvatar: _GroupAvatar(
+                          seed: name,
+                          imageUrl: roomAvatarHttpUrl(room),
                         ),
-                onBack: () => unawaited(_popGroupChatOrHome(context)),
-                leadingAvatar: _GroupAvatar(
-                  seed: name,
-                  imageUrl: roomAvatarHttpUrl(room),
-                ),
-                actions: [
-                  ChatCapsuleAction(
-                    icon: Symbols.call,
-                    tooltip: '语音通话',
-                    color: t.accent,
-                    onTap: () => context.push(
-                      groupCallInviteRoute(
-                        roomId: widget.roomId,
-                        roomName: name,
-                        callType: ProductCallType.voice,
+                        actions: [
+                          ChatCapsuleAction(
+                            icon: Symbols.call,
+                            tooltip: '语音通话',
+                            color: t.accent,
+                            onTap: () => context.push(
+                              groupCallInviteRoute(
+                                roomId: widget.roomId,
+                                roomName: name,
+                                callType: ProductCallType.voice,
+                              ),
+                            ),
+                          ),
+                          ChatCapsuleAction(
+                            icon: Symbols.more_vert,
+                            tooltip: '详情',
+                            color: t.accent,
+                            onTap: () => context.push(
+                              '/group-info/${Uri.encodeComponent(widget.roomId)}',
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  ChatCapsuleAction(
-                    icon: Symbols.more_vert,
-                    tooltip: '详情',
-                    color: t.accent,
-                    onTap: () => context.push(
-                      '/group-info/${Uri.encodeComponent(widget.roomId)}',
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+                    );
+                  },
+                ),
           messageLayer: GestureDetector(
             behavior: HitTestBehavior.translucent,
             onTap: _closePanels,
@@ -1620,10 +1650,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
               if (_multiSelect)
                 ChatRecordSelectionBar(
                   count: _selected.length,
+                  compact: true,
                   onExit: () => setState(() {
                     _multiSelect = false;
                     _selected.clear();
                   }),
+                  onFavorite: () => unawaited(_favoriteSelectedEvents(events)),
                   onForward: () =>
                       unawaited(_forwardSelectedEvents(events, name)),
                   onDelete: () async {
@@ -1789,24 +1821,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (multiSelect) ...[
-            Semantics(
-              button: true,
-              label: selected ? '取消选择消息' : '选择消息',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onTap,
-                child: SizedBox.square(
-                  dimension: 40,
-                  child: Center(
-                    child: Icon(
-                      selected ? Symbols.check_circle : Symbols.circle,
-                      size: 22,
-                      color: selected ? t.accent : t.textMute,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            _GroupMessageSelectCheckmark(selected: selected, onTap: onTap),
             const SizedBox(width: 8),
           ],
           if (!isMe) ...[
@@ -1963,24 +1978,7 @@ class _GroupFileMessageBubble extends StatelessWidget {
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (multiSelect) ...[
-            Semantics(
-              button: true,
-              label: selected ? '取消选择消息' : '选择消息',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onTap,
-                child: SizedBox.square(
-                  dimension: 40,
-                  child: Center(
-                    child: Icon(
-                      selected ? Symbols.check_circle : Symbols.circle,
-                      size: 22,
-                      color: selected ? t.accent : t.textMute,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            _GroupMessageSelectCheckmark(selected: selected, onTap: onTap),
             const SizedBox(width: 8),
           ],
           if (!isMe) ...[
@@ -2134,6 +2132,50 @@ class _GroupFileCardSurface extends StatelessWidget {
 
 /// 群消息气泡：他人 = 头像 + 姓名 + surface 气泡 + 左上小圆角;
 /// 我方 = 右对齐 accent 气泡 + 右上小圆角，无头像无姓名。
+class _GroupMessageSelectCheckmark extends StatelessWidget {
+  const _GroupMessageSelectCheckmark({
+    required this.selected,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Semantics(
+      button: true,
+      label: selected ? '取消选择消息' : '选择消息',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox.square(
+          dimension: 40,
+          child: Center(
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? t.accent : Colors.transparent,
+                border: selected
+                    ? null
+                    : Border.all(
+                        color: t.textMute.withValues(alpha: 0.36),
+                      ),
+              ),
+              child: selected
+                  ? Icon(Symbols.check, size: 12, color: t.onAccent)
+                  : null,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GroupMessageBubble extends StatelessWidget {
   const _GroupMessageBubble({
     required this.event,
@@ -2223,24 +2265,7 @@ class _GroupMessageBubble extends StatelessWidget {
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (multiSelect) ...[
-            Semantics(
-              button: true,
-              label: selected ? '取消选择消息' : '选择消息',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onTap,
-                child: SizedBox.square(
-                  dimension: 40,
-                  child: Center(
-                    child: Icon(
-                      selected ? Symbols.check_circle : Symbols.circle,
-                      size: 22,
-                      color: selected ? t.accent : t.textMute,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            _GroupMessageSelectCheckmark(selected: selected, onTap: onTap),
             const SizedBox(width: 8),
           ],
           if (!isMe) ...[
@@ -2336,24 +2361,7 @@ class _GroupCallRecordMessageBubble extends StatelessWidget {
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (multiSelect) ...[
-            Semantics(
-              button: true,
-              label: selected ? '取消选择消息' : '选择消息',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onTap,
-                child: SizedBox.square(
-                  dimension: 40,
-                  child: Center(
-                    child: Icon(
-                      selected ? Symbols.check_circle : Symbols.circle,
-                      size: 22,
-                      color: selected ? t.accent : t.textMute,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            _GroupMessageSelectCheckmark(selected: selected, onTap: onTap),
             const SizedBox(width: 8),
           ],
           if (!isMe) ...[

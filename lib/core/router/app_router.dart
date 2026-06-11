@@ -17,6 +17,7 @@ import '../../presentation/pages/contact_detail_page.dart';
 import '../../presentation/pages/contact_home_page.dart';
 import '../../presentation/pages/add_contact_page.dart';
 import '../../presentation/pages/add_contact_detail_page.dart';
+import '../../presentation/pages/add_contact_verification_page.dart';
 import '../../presentation/pages/requests_page.dart';
 import '../../presentation/pages/qr_scanner_page.dart';
 import '../../presentation/pages/group_detail_page.dart';
@@ -316,6 +317,15 @@ GoRouter appRouter(Ref ref) {
         path: '/add-contact/detail/:userId',
         pageBuilder: (_, state) => _slidePage(
           AddContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/add-contact/verify/:userId',
+        pageBuilder: (_, state) => _slidePage(
+          AddContactVerificationPage(
             userId: state.pathParameters['userId']!,
             displayName: state.uri.queryParameters['name'],
           ),

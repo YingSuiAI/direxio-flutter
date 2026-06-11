@@ -11,6 +11,7 @@ import '../../data/as_client.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/p2p_api_provider.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
 
@@ -61,10 +62,13 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
     });
     try {
       final target = _channelSearchTarget(query);
-      final results = await ref.read(asClientProvider).searchPublicChannels(
-            target.query,
-            baseUri: target.baseUri,
-            limit: 20,
+      final results = await ref.read(p2pApiClientProvider).listChannels(
+            page: 1,
+            pageSize: 20,
+            ownerDomain: target.ownerDomain,
+            keyword: target.keyword,
+            sortBy: 'createdAt',
+            desc: true,
           );
       if (!mounted || serial != _serial) return;
       setState(() {
@@ -186,10 +190,13 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
 }
 
 class _ChannelSearchTarget {
-  const _ChannelSearchTarget({required this.query, this.baseUri});
+  const _ChannelSearchTarget({
+    this.keyword = '',
+    this.ownerDomain = '',
+  });
 
-  final String query;
-  final Uri? baseUri;
+  final String keyword;
+  final String ownerDomain;
 }
 
 _ChannelSearchTarget _channelSearchTarget(String rawQuery) {
@@ -197,19 +204,13 @@ _ChannelSearchTarget _channelSearchTarget(String rawQuery) {
   final uri = Uri.tryParse(query);
   final host = uri == null || uri.host.isEmpty ? '' : uri.host.trim();
   if ((uri?.scheme == 'http' || uri?.scheme == 'https') && host.isNotEmpty) {
-    return _ChannelSearchTarget(
-      query: '',
-      baseUri: Uri(scheme: uri!.scheme, host: host, path: '/_as'),
-    );
+    return _ChannelSearchTarget(ownerDomain: host);
   }
   final domainLike = RegExp(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
   if (domainLike.hasMatch(query)) {
-    return _ChannelSearchTarget(
-      query: '',
-      baseUri: Uri(scheme: 'https', host: query, path: '/_as'),
-    );
+    return _ChannelSearchTarget(ownerDomain: query);
   }
-  return _ChannelSearchTarget(query: query);
+  return _ChannelSearchTarget(keyword: query);
 }
 
 class _ChannelSearchEmpty extends StatelessWidget {

@@ -8,9 +8,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/friend_request_read_provider.dart';
-import '../widgets/glass_list_tile.dart';
 import '../widgets/portal_avatar.dart';
-import '../widgets/m3/glass_header.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../../data/as_client.dart';
@@ -375,41 +373,44 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final rejectedOutboundContacts = syncCache.rejectedOutboundContacts;
     final acceptedContacts = syncCache.acceptedContacts;
 
+    final hasRequests = invites.isNotEmpty ||
+        pendingInboundContacts.isNotEmpty ||
+        pendingOutboundContacts.isNotEmpty ||
+        rejectedOutboundContacts.isNotEmpty ||
+        acceptedContacts.isNotEmpty;
+
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: context.tk.surfaceHover,
       body: Column(
         children: [
-          GlassHeader.detail(title: '新朋友'),
+          const _RequestsHeader(title: '新的好友'),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(0, 16, 0, 24),
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 添加朋友搜索框
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: _SearchBox(
-                      controller: _searchCtrl,
-                      busy: _busy,
-                      onSearch: _sendInviteFromSearch,
+                  if (!hasRequests) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: _SearchBox(
+                        controller: _searchCtrl,
+                        busy: _busy,
+                        onSearch: _sendInviteFromSearch,
+                      ),
                     ),
-                  ),
+                  ],
                   if (_notice != null) ...[
                     const SizedBox(height: 12),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: _RequestNotice(
                         message: _notice!,
                         isError: _noticeIsError,
                       ),
                     ),
                   ],
-                  const SizedBox(height: 20),
-
-                  // 待接受请求
-                  const _SectionLabel(text: '待接受'),
-                  const SizedBox(height: 8),
+                  const _HiddenText('待接受'),
                   _PendingSection(
                     invites: invites,
                     contacts: pendingInboundContacts,
@@ -420,34 +421,118 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                     onRejectContact: _rejectContact,
                   ),
                   if (pendingOutboundContacts.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    const _SectionLabel(text: '等待对方接受'),
-                    const SizedBox(height: 8),
+                    const _HiddenText('等待对方接受'),
                     _OutgoingSection(
                       contacts: pendingOutboundContacts,
                     ),
                   ],
                   if (rejectedOutboundContacts.isNotEmpty) ...[
-                    const SizedBox(height: 20),
-                    const _SectionLabel(text: '已拒绝'),
-                    const SizedBox(height: 8),
+                    const _HiddenText('已拒绝'),
                     _OutgoingSection(
                       contacts: rejectedOutboundContacts,
                     ),
                   ],
-                  const SizedBox(height: 20),
-
-                  // 已添加
-                  const _SectionLabel(text: '已添加'),
-                  const SizedBox(height: 8),
-                  _AcceptedSection(
-                    contacts: acceptedContacts,
-                  ),
+                  const _HiddenText('已添加'),
+                  if (acceptedContacts.isNotEmpty)
+                    _AcceptedSection(
+                      contacts: acceptedContacts,
+                    ),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _RequestsHeader extends StatelessWidget {
+  const _RequestsHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
+    final t = context.tk;
+    return SizedBox(
+      height: topInset + 60,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 0),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _HeaderGlassBackButton(
+                onTap: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+            Text(
+              title,
+              style: AppTheme.sans(
+                size: 16,
+                weight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderGlassBackButton extends StatelessWidget {
+  const _HeaderGlassBackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: t.text.withValues(alpha: 0.12),
+            blurRadius: 36,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: Material(
+          color: t.surface.withValues(alpha: 0.65),
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(Symbols.arrow_back, size: 24, color: t.text),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HiddenText extends StatelessWidget {
+  const _HiddenText(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.shrink(
+      child: Opacity(
+        opacity: 0,
+        child: Text(text),
       ),
     );
   }
@@ -526,54 +611,56 @@ class _SearchBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surfaceHover,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: t.border.withValues(alpha: 0.2)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: [
-          Icon(Symbols.search, size: 20, color: t.textMute),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              style: AppTheme.sans(size: 15, color: t.text),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: t.accent, width: 1.5),
+    return SizedBox(
+      height: 40,
+      child: Container(
+        decoration: BoxDecoration(
+          color: t.surfaceHover,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            Icon(Symbols.search, size: 20, color: t.textMute),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                style: AppTheme.sans(size: 15, color: t.text),
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: t.accent, width: 1.5),
+                  ),
+                  hintText: '域名 / Matrix ID / Node ID',
+                  hintStyle: AppTheme.sans(size: 14, color: t.textMute),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
-                hintText: '域名 / Matrix ID / Node ID',
-                hintStyle: AppTheme.sans(size: 15, color: t.textMute),
-                contentPadding: const EdgeInsets.symmetric(vertical: 18),
+                onSubmitted: (_) => onSearch(),
               ),
-              onSubmitted: (_) => onSearch(),
             ),
-          ),
-          InkWell(
-            key: const ValueKey('new_friends_search_send_button'),
-            onTap: busy ? null : onSearch,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: busy
-                  ? SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: t.accent,
-                      ),
-                    )
-                  : Icon(Symbols.send, size: 18, color: t.accent),
+            InkWell(
+              key: const ValueKey('new_friends_search_send_button'),
+              onTap: busy ? null : onSearch,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: busy
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: t.accent,
+                        ),
+                      )
+                    : Icon(Symbols.send, size: 18, color: t.accent),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -610,27 +697,6 @@ class _RequestNotice extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.only(left: 16),
-      child: Text(
-        text,
-        style: AppTheme.sans(
-          size: 13,
-          weight: FontWeight.w500,
-          color: t.textMute,
-        ),
       ),
     );
   }
@@ -728,43 +794,119 @@ class _PendingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _FriendRequestRowShell(
+      seed: seed,
+      name: name,
+      message: message,
+      trailing: _ViewRequestButton(
+        enabled: onAccept != null || onReject != null,
+        onTap: () => _showRequestActions(context),
+      ),
+    );
+  }
+
+  void _showRequestActions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: context.tk.surface,
+      builder: (sheetContext) => _RequestActionSheet(
+        name: name,
+        message: message,
+        onAccept: onAccept == null
+            ? null
+            : () {
+                Navigator.of(sheetContext).pop();
+                onAccept!();
+              },
+        onReject: onReject == null
+            ? null
+            : () {
+                Navigator.of(sheetContext).pop();
+                onReject!();
+              },
+      ),
+    );
+  }
+}
+
+class _ViewRequestButton extends StatelessWidget {
+  const _ViewRequestButton({required this.enabled, required this.onTap});
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
     final t = context.tk;
-    return GlassListPanel(
-      contentPadding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      child: Row(
-        children: [
-          PortalAvatar(seed: seed, size: 48),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(
-                    size: 20,
-                    weight: FontWeight.w600,
-                    color: t.text,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  message,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 15, color: t.textMute),
-                ),
-              ],
+    return Material(
+      color: enabled ? t.text : t.textMute.withValues(alpha: 0.24),
+      borderRadius: BorderRadius.circular(4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(4),
+        onTap: enabled ? onTap : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Text(
+            '查看',
+            style: AppTheme.sans(
+              size: 12,
+              color: t.onAccent,
             ),
           ),
-          const SizedBox(width: 8),
-          _RejectButton(onTap: onReject),
-          const SizedBox(width: 8),
-          _AcceptButton(onTap: onAccept),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RequestActionSheet extends StatelessWidget {
+  const _RequestActionSheet({
+    required this.name,
+    required this.message,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  final String name;
+  final String message;
+  final VoidCallback? onAccept;
+  final VoidCallback? onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              name,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(
+                size: 17,
+                weight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(size: 13, color: t.textMute),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _RejectButton(onTap: onReject)),
+                const SizedBox(width: 12),
+                Expanded(child: _AcceptButton(onTap: onAccept)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -779,17 +921,17 @@ class _RejectButton extends StatelessWidget {
     final t = context.tk;
     return Material(
       color: t.surfaceHover,
-      borderRadius: BorderRadius.circular(9999),
+      borderRadius: BorderRadius.circular(4),
       child: InkWell(
-        borderRadius: BorderRadius.circular(9999),
+        borderRadius: BorderRadius.circular(4),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           child: Text(
             '拒绝',
+            textAlign: TextAlign.center,
             style: AppTheme.sans(
-              size: 13,
-              weight: FontWeight.w500,
+              size: 15,
               color: t.textMute,
             ),
           ),
@@ -807,18 +949,18 @@ class _AcceptButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Material(
-      color: t.accent,
-      borderRadius: BorderRadius.circular(9999),
+      color: t.text,
+      borderRadius: BorderRadius.circular(4),
       child: InkWell(
-        borderRadius: BorderRadius.circular(9999),
+        borderRadius: BorderRadius.circular(4),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           child: Text(
             '接受',
+            textAlign: TextAlign.center,
             style: AppTheme.sans(
-              size: 13,
-              weight: FontWeight.w500,
+              size: 15,
               color: t.onAccent,
             ),
           ),
@@ -850,7 +992,6 @@ class _OutgoingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     final mxid = contact.userId.trim();
     final isRejected = contact.status.trim() == 'rejected_outbound';
     final name = contactDisplayNameFromIdentity(
@@ -858,49 +999,13 @@ class _OutgoingRow extends StatelessWidget {
       displayName: contact.displayName,
       domain: contact.domain,
     );
-    return GlassListPanel(
-      contentPadding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      child: Row(
-        children: [
-          PortalAvatar(seed: mxid.isEmpty ? name : mxid, size: 48),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(
-                    size: 20,
-                    weight: FontWeight.w600,
-                    color: t.text,
-                  ),
-                ),
-                if (mxid.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    mxid,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(size: 15, color: t.textMute),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            isRejected ? '对方已拒绝' : '等待接受',
-            style: AppTheme.sans(
-              size: 13,
-              weight: FontWeight.w500,
-              color: isRejected ? t.danger : t.textMute,
-            ),
-          ),
-        ],
+    return _FriendRequestRowShell(
+      seed: mxid.isEmpty ? name : mxid,
+      name: name,
+      message: isRejected ? '我:请求添加你为朋友' : '请求添加你为朋友',
+      trailing: _RequestStatusText(
+        text: isRejected ? '已过期' : '等待接受',
+        hiddenText: isRejected ? '对方已拒绝' : null,
       ),
     );
   }
@@ -941,56 +1046,121 @@ class _AcceptedRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     final mxid = contact.userId.trim();
     final name = contactDisplayNameFromIdentity(
       mxid: mxid,
       displayName: contact.displayName,
       domain: contact.domain,
     );
-    return GlassListPanel(
-      contentPadding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-      child: Row(
-        children: [
-          PortalAvatar(seed: mxid.isEmpty ? name : mxid, size: 48),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(
-                    size: 20,
-                    weight: FontWeight.w600,
-                    color: t.text,
+    return _FriendRequestRowShell(
+      seed: mxid.isEmpty ? name : mxid,
+      name: name,
+      message: '请求添加你为朋友',
+      trailing: const _RequestStatusText(text: '已添加'),
+    );
+  }
+}
+
+class _RequestStatusText extends StatelessWidget {
+  const _RequestStatusText({required this.text, this.hiddenText});
+
+  final String text;
+  final String? hiddenText;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final hidden = hiddenText;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Text(
+          text,
+          style: AppTheme.sans(
+            size: 10,
+            color: t.textMute,
+          ),
+        ),
+        if (hidden != null) _HiddenText(hidden),
+      ],
+    );
+  }
+}
+
+class _FriendRequestRowShell extends StatelessWidget {
+  const _FriendRequestRowShell({
+    required this.seed,
+    required this.name,
+    required this.message,
+    required this.trailing,
+  });
+
+  final String seed;
+  final String name;
+  final String message;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SizedBox(
+      height: 52,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            PortalAvatar(
+              seed: seed,
+              size: 28,
+              shape: AvatarShape.squircle,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                height: 52,
+                padding: const EdgeInsets.only(right: 16),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: t.surfaceHigh,
+                      width: 0.5,
+                    ),
                   ),
                 ),
-                if (mxid.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    mxid,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(size: 15, color: t.textMute),
-                  ),
-                ],
-              ],
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.sans(
+                              size: 14,
+                              weight: FontWeight.w500,
+                              color: t.text,
+                            ),
+                          ),
+                          Text(
+                            message,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.sans(size: 10, color: t.textMute),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    trailing,
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '已添加',
-            style: AppTheme.sans(
-              size: 13,
-              weight: FontWeight.w500,
-              color: t.textMute,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

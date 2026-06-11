@@ -60,22 +60,22 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     tertiaryFixed: Color(0xFF72FE88),
   );
 
-  // M3 深色（设计稿仅给浅色，按 M3 标准深色调色板补全）
+  // M3 深色（对齐 toklink_Wechat_glass_dark，accent 保持产品蓝）
   static const dark = PortalTokens(
-    bg: Color(0xFF111318),
-    surface: Color(0xFF1E2026),
-    surfaceHover: Color(0xFF2A2D33),
-    border: Color(0xFF42474E),
-    text: Color(0xFFE2E2E9),
-    textMute: Color(0xFFC3C6CF),
-    accent: Color(0xFFADC6FF),
-    accentCool: Color(0xFF53E16F),
-    danger: Color(0xFFFFB4AB),
-    onAccent: Color(0xFF002E69),
-    primaryContainer: Color(0xFF004493),
-    onPrimaryContainer: Color(0xFFD8E2FF),
-    surfaceHigh: Color(0xFF292B31),
-    secondaryContainer: Color(0xFF3F4759),
+    bg: Color(0xFF1C1D23),
+    surface: Color(0xFF23242B),
+    surfaceHover: Color(0xFF2A2B33),
+    border: Color(0xFF3C3B3B),
+    text: Color(0xFFF4F4F5),
+    textMute: Color(0xFFC7C8CE),
+    accent: Color(0xFF3097CB),
+    accentCool: Color(0xFF3097CB),
+    danger: Color(0xFFFF5656),
+    onAccent: Color(0xFFFFFFFF),
+    primaryContainer: Color(0xFF12384C),
+    onPrimaryContainer: Color(0xFFEAF7FF),
+    surfaceHigh: Color(0xFF30313A),
+    secondaryContainer: Color(0xFF152F3E),
     tertiaryFixed: Color(0xFF72FE88),
   );
 
@@ -96,23 +96,24 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     Color? surfaceHigh,
     Color? secondaryContainer,
     Color? tertiaryFixed,
-  }) => PortalTokens(
-    bg: bg ?? this.bg,
-    surface: surface ?? this.surface,
-    surfaceHover: surfaceHover ?? this.surfaceHover,
-    border: border ?? this.border,
-    text: text ?? this.text,
-    textMute: textMute ?? this.textMute,
-    accent: accent ?? this.accent,
-    accentCool: accentCool ?? this.accentCool,
-    danger: danger ?? this.danger,
-    onAccent: onAccent ?? this.onAccent,
-    primaryContainer: primaryContainer ?? this.primaryContainer,
-    onPrimaryContainer: onPrimaryContainer ?? this.onPrimaryContainer,
-    surfaceHigh: surfaceHigh ?? this.surfaceHigh,
-    secondaryContainer: secondaryContainer ?? this.secondaryContainer,
-    tertiaryFixed: tertiaryFixed ?? this.tertiaryFixed,
-  );
+  }) =>
+      PortalTokens(
+        bg: bg ?? this.bg,
+        surface: surface ?? this.surface,
+        surfaceHover: surfaceHover ?? this.surfaceHover,
+        border: border ?? this.border,
+        text: text ?? this.text,
+        textMute: textMute ?? this.textMute,
+        accent: accent ?? this.accent,
+        accentCool: accentCool ?? this.accentCool,
+        danger: danger ?? this.danger,
+        onAccent: onAccent ?? this.onAccent,
+        primaryContainer: primaryContainer ?? this.primaryContainer,
+        onPrimaryContainer: onPrimaryContainer ?? this.onPrimaryContainer,
+        surfaceHigh: surfaceHigh ?? this.surfaceHigh,
+        secondaryContainer: secondaryContainer ?? this.secondaryContainer,
+        tertiaryFixed: tertiaryFixed ?? this.tertiaryFixed,
+      );
 
   @override
   PortalTokens lerp(ThemeExtension<PortalTokens>? other, double t) {

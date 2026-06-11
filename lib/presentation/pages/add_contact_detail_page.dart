@@ -7,16 +7,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
 import '../mock/mock_data.dart';
-import '../providers/as_client_provider.dart';
-import '../providers/as_sync_cache_provider.dart';
-import '../providers/auth_provider.dart';
 import '../utils/contact_identity_label.dart';
 import '../widgets/portal_avatar.dart';
-
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
 
 class AddContactDetailPage extends ConsumerStatefulWidget {
   const AddContactDetailPage({
@@ -36,40 +28,14 @@ class AddContactDetailPage extends ConsumerStatefulWidget {
 class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
   bool _muted = false;
   bool _blocked = false;
-  bool _loading = false;
-  bool _requested = false;
 
-  Future<void> _requestFriend(_AddContactProfile profile) async {
-    if (_loading || _requested) return;
-    setState(() => _loading = true);
-    try {
-      final isLoggedIn =
-          ref.read(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
-      if (!_mockAuthEnabled && isLoggedIn) {
-        final contact = await ref.read(asClientProvider).createContactRequest(
-              mxid: widget.userId,
-              displayName: profile.name,
-              domain: profile.domain,
-            );
-        ref.read(asSyncCacheProvider.notifier).update(
-              (state) => state.withContactEntry(contact),
-            );
-      }
-      if (!mounted) return;
-      setState(() => _requested = true);
-      final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.addContactRequestSent)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.addContactRequestFailed(e.toString()))),
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+  void _openVerification() {
+    final query = widget.displayName == null || widget.displayName!.isEmpty
+        ? ''
+        : '?name=${Uri.encodeQueryComponent(widget.displayName!)}';
+    context.push(
+      '/add-contact/verify/${Uri.encodeComponent(widget.userId)}$query',
+    );
   }
 
   @override
@@ -131,9 +97,7 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
               ),
             ),
             _ApplyFriendButton(
-              loading: _loading,
-              requested: _requested,
-              onTap: () => _requestFriend(profile),
+              onTap: _openVerification,
             ),
           ],
         ),
@@ -455,13 +419,9 @@ class _DetailNavigationRow extends StatelessWidget {
 
 class _ApplyFriendButton extends StatelessWidget {
   const _ApplyFriendButton({
-    required this.loading,
-    required this.requested,
     required this.onTap,
   });
 
-  final bool loading;
-  final bool requested;
   final VoidCallback onTap;
 
   @override
@@ -475,33 +435,21 @@ class _ApplyFriendButton extends StatelessWidget {
           height: 44,
           width: double.infinity,
           child: FilledButton(
-            onPressed: loading || requested ? null : onTap,
+            onPressed: onTap,
             style: FilledButton.styleFrom(
               backgroundColor: t.accent,
-              disabledBackgroundColor: t.accent.withValues(alpha: 0.45),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: loading
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(t.onAccent),
-                    ),
-                  )
-                : Text(
-                    requested
-                        ? AppLocalizations.of(context).contactFriendRequested
-                        : AppLocalizations.of(context).contactApplyFriend,
-                    style: AppTheme.sans(
-                      size: 14,
-                      weight: FontWeight.w500,
-                      color: t.onAccent,
-                    ).copyWith(letterSpacing: -0.4),
-                  ),
+            child: Text(
+              AppLocalizations.of(context).contactApplyFriend,
+              style: AppTheme.sans(
+                size: 14,
+                weight: FontWeight.w500,
+                color: t.onAccent,
+              ).copyWith(letterSpacing: -0.4),
+            ),
           ),
         ),
       ),

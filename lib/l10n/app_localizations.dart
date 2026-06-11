@@ -190,6 +190,18 @@ abstract class AppLocalizations {
   /// **'跟随系统'**
   String get settingsFollowSystem;
 
+  /// No description provided for @settingsThemeLight.
+  ///
+  /// In zh, this message translates to:
+  /// **'浅色'**
+  String get settingsThemeLight;
+
+  /// No description provided for @settingsThemeDark.
+  ///
+  /// In zh, this message translates to:
+  /// **'深色'**
+  String get settingsThemeDark;
+
   /// No description provided for @settingsFavorites.
   ///
   /// In zh, this message translates to:
@@ -322,6 +334,24 @@ abstract class AppLocalizations {
   /// **'添加好友后即可视频通话'**
   String get addContactVideoAfterAdding;
 
+  /// No description provided for @addContactVerificationTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'好友验证'**
+  String get addContactVerificationTitle;
+
+  /// No description provided for @addContactVerificationMessageTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送好友申请'**
+  String get addContactVerificationMessageTitle;
+
+  /// No description provided for @addContactVerificationSend.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送申请'**
+  String get addContactVerificationSend;
+
   /// No description provided for @addContactRequestSent.
   ///
   /// In zh, this message translates to:
@@ -387,6 +417,48 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'申请好友'**
   String get contactApplyFriend;
+
+  /// No description provided for @contactsSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'ID/昵称/邮箱'**
+  String get contactsSearchHint;
+
+  /// No description provided for @contactsNewFriends.
+  ///
+  /// In zh, this message translates to:
+  /// **'新朋友'**
+  String get contactsNewFriends;
+
+  /// No description provided for @contactsNewGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'新的群聊'**
+  String get contactsNewGroup;
+
+  /// No description provided for @contactsMyGroups.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的群组'**
+  String get contactsMyGroups;
+
+  /// No description provided for @contactsGroups.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊'**
+  String get contactsGroups;
+
+  /// No description provided for @contactsFollows.
+  ///
+  /// In zh, this message translates to:
+  /// **'关注'**
+  String get contactsFollows;
+
+  /// No description provided for @contactsCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'联系人 ({count})'**
+  String contactsCount(int count);
 
   /// No description provided for @qrInvalidFormat.
   ///

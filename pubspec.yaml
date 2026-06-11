@@ -17,6 +17,7 @@ dependencies:
 
   # HTTP（well-known 域名发现 + AS Admin API 调用）
   http: ^1.2.0
+  crypto: ^3.0.7
 
   # WebRTC（matrix VoIP 必需，不是自动传递依赖，必须显式声明）
   flutter_webrtc: ^1.4.1

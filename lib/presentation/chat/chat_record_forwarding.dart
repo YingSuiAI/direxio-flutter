@@ -404,16 +404,54 @@ class ChatRecordSelectionBar extends StatelessWidget {
     required this.onExit,
     required this.onForward,
     this.onDelete,
+    this.onFavorite,
+    this.compact = false,
   });
 
   final int count;
   final VoidCallback onExit;
   final VoidCallback onForward;
   final VoidCallback? onDelete;
+  final VoidCallback? onFavorite;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    if (compact) {
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (onDelete != null)
+                _CompactSelectionAction(
+                  tooltip: '删除',
+                  icon: Symbols.delete,
+                  onTap: count > 0 ? onDelete : null,
+                ),
+              if (onDelete != null) const SizedBox(width: 59),
+              if (onFavorite != null) ...[
+                _CompactSelectionAction(
+                  tooltip: '收藏',
+                  icon: Symbols.bookmark,
+                  onTap: count > 0 ? onFavorite : null,
+                ),
+                const SizedBox(width: 59),
+              ],
+              _CompactSelectionAction(
+                tooltip: '转发',
+                icon: Symbols.ios_share,
+                onTap: count > 0 ? onForward : null,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -455,6 +493,12 @@ class ChatRecordSelectionBar extends StatelessWidget {
                     icon: Icon(Symbols.forward, color: t.accent, size: 22),
                     onPressed: count > 0 ? onForward : null,
                   ),
+                  if (onFavorite != null)
+                    IconButton(
+                      tooltip: '收藏',
+                      icon: Icon(Symbols.bookmark, color: t.accent, size: 22),
+                      onPressed: count > 0 ? onFavorite : null,
+                    ),
                   if (onDelete != null)
                     IconButton(
                       tooltip: '删除',
@@ -462,6 +506,53 @@ class ChatRecordSelectionBar extends StatelessWidget {
                       onPressed: count > 0 ? onDelete : null,
                     ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactSelectionAction extends StatelessWidget {
+  const _CompactSelectionAction({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Tooltip(
+      message: tooltip,
+      child: ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 9.6, sigmaY: 9.6),
+          child: Material(
+            color: t.surfaceHigh.withValues(alpha: 0.8),
+            shape: CircleBorder(
+              side: BorderSide(
+                color: t.surface.withValues(alpha: 0.9),
+                width: 1.2,
+              ),
+            ),
+            shadowColor: t.text.withValues(alpha: 0.12),
+            elevation: 8,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: Opacity(
+                opacity: onTap == null ? 0.38 : 1,
+                child: SizedBox.square(
+                  dimension: 48,
+                  child: Icon(icon, size: 28, color: t.text),
+                ),
               ),
             ),
           ),

@@ -54,6 +54,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsFollowSystem => 'Follow system';
 
   @override
+  String get settingsThemeLight => 'Light';
+
+  @override
+  String get settingsThemeDark => 'Dark';
+
+  @override
   String get settingsFavorites => 'Favorites';
 
   @override
@@ -125,6 +131,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Add this friend before starting a video call';
 
   @override
+  String get addContactVerificationTitle => 'Friend Verification';
+
+  @override
+  String get addContactVerificationMessageTitle => 'Send friend request';
+
+  @override
+  String get addContactVerificationSend => 'Send Request';
+
+  @override
   String get addContactRequestSent =>
       'Friend request sent. Waiting for acceptance.';
 
@@ -159,6 +174,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get contactApplyFriend => 'Add Friend';
+
+  @override
+  String get contactsSearchHint => 'ID / Nickname / Email';
+
+  @override
+  String get contactsNewFriends => 'New Friends';
+
+  @override
+  String get contactsNewGroup => 'New Group Chat';
+
+  @override
+  String get contactsMyGroups => 'My Groups';
+
+  @override
+  String get contactsGroups => 'Groups';
+
+  @override
+  String get contactsFollows => 'Following';
+
+  @override
+  String contactsCount(int count) {
+    return 'Contacts ($count)';
+  }
 
   @override
   String get qrInvalidFormat => 'Invalid QR code format';

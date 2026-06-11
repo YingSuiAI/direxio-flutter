@@ -95,4 +95,102 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonCancel => 'Cancel';
+
+  @override
+  String get commonSearch => 'Search';
+
+  @override
+  String get commonShare => 'Share';
+
+  @override
+  String get addContactTitle => 'Add Friend';
+
+  @override
+  String get addContactEmptyHint => 'Enter a nickname or Portal URL to search';
+
+  @override
+  String get addContactDomainNotProductUser =>
+      'This domain is not a product user';
+
+  @override
+  String get addContactMessageAfterAdding =>
+      'Add this friend before sending messages';
+
+  @override
+  String get addContactVoiceAfterAdding =>
+      'Add this friend before starting an audio call';
+
+  @override
+  String get addContactVideoAfterAdding =>
+      'Add this friend before starting a video call';
+
+  @override
+  String get addContactRequestSent =>
+      'Friend request sent. Waiting for acceptance.';
+
+  @override
+  String addContactRequestFailed(String error) {
+    return 'Failed to send friend request: $error';
+  }
+
+  @override
+  String get contactSendMessage => 'Message';
+
+  @override
+  String get contactVoiceCall => 'Audio Call';
+
+  @override
+  String get contactVideoCall => 'Video Call';
+
+  @override
+  String get contactMuteMessages => 'Mute Messages';
+
+  @override
+  String get contactBlockUser => 'Block User';
+
+  @override
+  String get contactReportUser => 'Report User';
+
+  @override
+  String get contactReportTodo => 'Report feature is not connected yet';
+
+  @override
+  String get contactFriendRequested => 'Requested';
+
+  @override
+  String get contactApplyFriend => 'Add Friend';
+
+  @override
+  String get qrInvalidFormat => 'Invalid QR code format';
+
+  @override
+  String get qrInvalidUser => 'Invalid user QR code';
+
+  @override
+  String get qrInvalidGroup => 'Invalid group QR code';
+
+  @override
+  String get qrUnsupportedGroup => 'This group QR code is not supported yet';
+
+  @override
+  String get qrScannerInstruction =>
+      'Place the QR code inside the frame to scan automatically';
+
+  @override
+  String get qrScannerSupportUsers => 'User QR codes are supported';
+
+  @override
+  String get meQrTitle => 'My QR Code';
+
+  @override
+  String get meQrHint => 'Scan this QR code to add me as a friend.';
+
+  @override
+  String get meQrSaveToAlbum => 'Save to Photos';
+
+  @override
+  String get meQrSaveTodo => 'Save to Photos is not connected yet';
+
+  @override
+  String get meQrUnconnectedDomain => 'No connected domain';
 }

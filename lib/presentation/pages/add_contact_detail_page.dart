@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../mock/mock_data.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -56,13 +57,15 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
       }
       if (!mounted) return;
       setState(() => _requested = true);
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('好友请求已发送，等待对方接受。')),
+        SnackBar(content: Text(l10n.addContactRequestSent)),
       );
     } catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('发送好友请求失败: $e')),
+        SnackBar(content: Text(l10n.addContactRequestFailed(e.toString()))),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -73,6 +76,7 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
   Widget build(BuildContext context) {
     final profile = _profileForAddContact(widget.userId, widget.displayName);
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: t.surfaceHover,
       body: SafeArea(
@@ -98,26 +102,29 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
                     _ProfileHeader(profile: profile),
                     const SizedBox(height: 24),
                     _DetailActionRow(
-                      onMessage: () => _toast(context, '添加好友后即可发消息'),
-                      onVoice: () => _toast(context, '添加好友后即可音频通话'),
-                      onVideo: () => _toast(context, '添加好友后即可视频通话'),
+                      onMessage: () =>
+                          _toast(context, l10n.addContactMessageAfterAdding),
+                      onVoice: () =>
+                          _toast(context, l10n.addContactVoiceAfterAdding),
+                      onVideo: () =>
+                          _toast(context, l10n.addContactVideoAfterAdding),
                     ),
                     const SizedBox(height: 24),
                     _DetailSwitchRow(
-                      label: '消息免打扰',
+                      label: l10n.contactMuteMessages,
                       value: _muted,
                       onChanged: (value) => setState(() => _muted = value),
                     ),
                     const SizedBox(height: 16),
                     _DetailSwitchRow(
-                      label: '屏蔽用户',
+                      label: l10n.contactBlockUser,
                       value: _blocked,
                       onChanged: (value) => setState(() => _blocked = value),
                     ),
                     const SizedBox(height: 16),
                     _DetailNavigationRow(
-                      label: '举报用户',
-                      onTap: () => _toast(context, '举报功能待接入'),
+                      label: l10n.contactReportUser,
+                      onTap: () => _toast(context, l10n.contactReportTodo),
                     ),
                   ],
                 ),
@@ -282,7 +289,7 @@ class _DetailActionRow extends StatelessWidget {
         Expanded(
           child: _DetailActionButton(
             icon: Symbols.chat_bubble,
-            label: '发消息',
+            label: AppLocalizations.of(context).contactSendMessage,
             onTap: onMessage,
           ),
         ),
@@ -290,7 +297,7 @@ class _DetailActionRow extends StatelessWidget {
         Expanded(
           child: _DetailActionButton(
             icon: Symbols.call,
-            label: '音频通话',
+            label: AppLocalizations.of(context).contactVoiceCall,
             onTap: onVoice,
           ),
         ),
@@ -298,7 +305,7 @@ class _DetailActionRow extends StatelessWidget {
         Expanded(
           child: _DetailActionButton(
             icon: Symbols.videocam,
-            label: '视频通话',
+            label: AppLocalizations.of(context).contactVideoCall,
             onTap: onVideo,
           ),
         ),
@@ -486,7 +493,9 @@ class _ApplyFriendButton extends StatelessWidget {
                     ),
                   )
                 : Text(
-                    requested ? '已申请' : '申请好友',
+                    requested
+                        ? AppLocalizations.of(context).contactFriendRequested
+                        : AppLocalizations.of(context).contactApplyFriend,
                     style: AppTheme.sans(
                       size: 14,
                       weight: FontWeight.w500,

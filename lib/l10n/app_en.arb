@@ -28,5 +28,42 @@
   "settingsLogout": "Log Out",
   "settingsLogoutConfirmTitle": "Log Out",
   "settingsLogoutConfirmMessage": "Are you sure you want to log out?",
-  "commonCancel": "Cancel"
+  "commonCancel": "Cancel",
+  "commonSearch": "Search",
+  "commonShare": "Share",
+  "addContactTitle": "Add Friend",
+  "addContactEmptyHint": "Enter a nickname or Portal URL to search",
+  "addContactDomainNotProductUser": "This domain is not a product user",
+  "addContactMessageAfterAdding": "Add this friend before sending messages",
+  "addContactVoiceAfterAdding": "Add this friend before starting an audio call",
+  "addContactVideoAfterAdding": "Add this friend before starting a video call",
+  "addContactRequestSent": "Friend request sent. Waiting for acceptance.",
+  "addContactRequestFailed": "Failed to send friend request: {error}",
+  "@addContactRequestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactSendMessage": "Message",
+  "contactVoiceCall": "Audio Call",
+  "contactVideoCall": "Video Call",
+  "contactMuteMessages": "Mute Messages",
+  "contactBlockUser": "Block User",
+  "contactReportUser": "Report User",
+  "contactReportTodo": "Report feature is not connected yet",
+  "contactFriendRequested": "Requested",
+  "contactApplyFriend": "Add Friend",
+  "qrInvalidFormat": "Invalid QR code format",
+  "qrInvalidUser": "Invalid user QR code",
+  "qrInvalidGroup": "Invalid group QR code",
+  "qrUnsupportedGroup": "This group QR code is not supported yet",
+  "qrScannerInstruction": "Place the QR code inside the frame to scan automatically",
+  "qrScannerSupportUsers": "User QR codes are supported",
+  "meQrTitle": "My QR Code",
+  "meQrHint": "Scan this QR code to add me as a friend.",
+  "meQrSaveToAlbum": "Save to Photos",
+  "meQrSaveTodo": "Save to Photos is not connected yet",
+  "meQrUnconnectedDomain": "No connected domain"
 }

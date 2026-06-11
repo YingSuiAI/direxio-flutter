@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../../data/well_known_service.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../utils/contact_identity_label.dart';
 import '../mock/mock_data.dart';
 import '../widgets/portal_avatar.dart';
@@ -40,6 +41,7 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
   Future<void> _resolve() async {
     final portalUrl = _normalizePortalUrlInput(_domainCtrl.text);
     if (portalUrl.isEmpty) return;
+    final l10n = AppLocalizations.of(context);
     setState(() {
       _loading = true;
       _error = null;
@@ -77,9 +79,9 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
             };
           });
         case PortalAvailability.notDeployed:
-          setState(() => _error = '该域名不是产品用户');
+          setState(() => _error = l10n.addContactDomainNotProductUser);
         case PortalAvailability.unreachable:
-          setState(() => _error = '该域名不是产品用户');
+          setState(() => _error = l10n.addContactDomainNotProductUser);
       }
     } catch (e) {
       setState(() => _error = e.toString());
@@ -191,7 +193,7 @@ class _AddContactHeader extends StatelessWidget {
               child: _HeaderGlassButton(onTap: () => context.pop()),
             ),
             Text(
-              '添加好友',
+              AppLocalizations.of(context).addContactTitle,
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w600,
@@ -283,7 +285,7 @@ class _SearchField extends StatelessWidget {
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
-            hintText: '搜索',
+            hintText: AppLocalizations.of(context).commonSearch,
             hintStyle: AppTheme.sans(size: 16, color: t.textMute),
             prefixIcon: Icon(Symbols.search, size: 18, color: t.textMute),
             prefixIconConstraints: const BoxConstraints(
@@ -461,7 +463,7 @@ class _EmptyPlaceholder extends StatelessWidget {
           Icon(Symbols.person_search, size: 56, color: t.textMute),
           const SizedBox(height: 12),
           Text(
-            '输入对方昵称或 Portal URL 查找',
+            AppLocalizations.of(context).addContactEmptyHint,
             textAlign: TextAlign.center,
             style: AppTheme.sans(size: 15, color: t.textMute),
           ),

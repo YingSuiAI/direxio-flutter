@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../mock/mock_data.dart';
 import '../providers/auth_provider.dart';
 import '../providers/personal_space_provider.dart';
@@ -35,7 +36,8 @@ class MeQrPage extends ConsumerWidget {
             ? profileName!
             : localpart;
     final avatarUrl = profileAvatarHttpUrl(profile, client) ?? MockAvatars.me;
-    final domain = _domainFromMxid(userId);
+    final l10n = AppLocalizations.of(context);
+    final domain = _domainFromMxid(userId, l10n);
     final payload = Uri(
       scheme: 'p2pim',
       host: 'add-contact',
@@ -97,7 +99,7 @@ class _QrHeader extends StatelessWidget {
               ),
             ),
             Text(
-              '我的二维码',
+              AppLocalizations.of(context).meQrTitle,
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w600,
@@ -216,7 +218,7 @@ class _QrCard extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: '分享',
+                  tooltip: AppLocalizations.of(context).commonShare,
                   onPressed: () => Share.share(payload),
                   icon: Icon(Symbols.ios_share, size: 24, color: t.text),
                 ),
@@ -233,7 +235,7 @@ class _QrCard extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              '扫一扫上面的二维码图案，加我为好友。',
+              AppLocalizations.of(context).meQrHint,
               textAlign: TextAlign.center,
               style: AppTheme.sans(size: 14, color: t.textMute),
             ),
@@ -242,7 +244,9 @@ class _QrCard extends StatelessWidget {
               height: 44,
               child: FilledButton(
                 onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('保存到相册功能待接入')),
+                  SnackBar(
+                    content: Text(AppLocalizations.of(context).meQrSaveTodo),
+                  ),
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: t.accent,
@@ -252,7 +256,7 @@ class _QrCard extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  '保存到相册',
+                  AppLocalizations.of(context).meQrSaveToAlbum,
                   style: AppTheme.sans(
                     size: 14,
                     weight: FontWeight.w500,
@@ -278,8 +282,10 @@ String _localpartFromMxid(String mxid) {
   return trimmed;
 }
 
-String _domainFromMxid(String mxid) {
+String _domainFromMxid(String mxid, AppLocalizations l10n) {
   final colon = mxid.indexOf(':');
-  if (colon == -1 || colon == mxid.length - 1) return '未连接域名';
+  if (colon == -1 || colon == mxid.length - 1) {
+    return l10n.meQrUnconnectedDomain;
+  }
   return mxid.substring(colon + 1);
 }

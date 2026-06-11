@@ -31,5 +31,42 @@
   "settingsLogout": "退出登录",
   "settingsLogoutConfirmTitle": "退出登录",
   "settingsLogoutConfirmMessage": "确定要退出登录吗？",
-  "commonCancel": "取消"
+  "commonCancel": "取消",
+  "commonSearch": "搜索",
+  "commonShare": "分享",
+  "addContactTitle": "添加好友",
+  "addContactEmptyHint": "输入对方昵称或 Portal URL 查找",
+  "addContactDomainNotProductUser": "该域名不是产品用户",
+  "addContactMessageAfterAdding": "添加好友后即可发消息",
+  "addContactVoiceAfterAdding": "添加好友后即可音频通话",
+  "addContactVideoAfterAdding": "添加好友后即可视频通话",
+  "addContactRequestSent": "好友请求已发送，等待对方接受。",
+  "addContactRequestFailed": "发送好友请求失败: {error}",
+  "@addContactRequestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactSendMessage": "发消息",
+  "contactVoiceCall": "音频通话",
+  "contactVideoCall": "视频通话",
+  "contactMuteMessages": "消息免打扰",
+  "contactBlockUser": "屏蔽用户",
+  "contactReportUser": "举报用户",
+  "contactReportTodo": "举报功能待接入",
+  "contactFriendRequested": "已申请",
+  "contactApplyFriend": "申请好友",
+  "qrInvalidFormat": "无效的二维码格式",
+  "qrInvalidUser": "无效的用户二维码",
+  "qrInvalidGroup": "无效的群二维码",
+  "qrUnsupportedGroup": "暂不支持该群二维码",
+  "qrScannerInstruction": "将二维码放入框内，即可自动扫描",
+  "qrScannerSupportUsers": "支持扫描用户二维码",
+  "meQrTitle": "我的二维码",
+  "meQrHint": "扫一扫上面的二维码图案，加我为好友。",
+  "meQrSaveToAlbum": "保存到相册",
+  "meQrSaveTodo": "保存到相册功能待接入",
+  "meQrUnconnectedDomain": "未连接域名"
 }

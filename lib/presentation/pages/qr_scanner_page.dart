@@ -5,6 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../qr/qr_scan_parser.dart';
 
 class QrScannerPage extends StatefulWidget {
@@ -41,8 +42,9 @@ class _QrScannerPageState extends State<QrScannerPage> {
   void _handleScanResult(String raw) {
     final target = parseQrScanTarget(raw);
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     if (target == null) {
-      _showErrorAndResume('无效的二维码格式');
+      _showErrorAndResume(l10n.qrInvalidFormat);
       return;
     }
 
@@ -50,7 +52,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
       case QrScanKind.user:
         final userId = target.userId?.trim();
         if (userId == null || userId.isEmpty) {
-          _showErrorAndResume('无效的用户二维码');
+          _showErrorAndResume(l10n.qrInvalidUser);
           return;
         }
         context.pushReplacement(
@@ -59,14 +61,14 @@ class _QrScannerPageState extends State<QrScannerPage> {
       case QrScanKind.group:
         final groupId = target.groupId?.trim();
         if (groupId == null || groupId.isEmpty) {
-          _showErrorAndResume('无效的群二维码');
+          _showErrorAndResume(l10n.qrInvalidGroup);
           return;
         }
         if (groupId.startsWith('!')) {
           context
               .pushReplacement('/group-detail/${Uri.encodeComponent(groupId)}');
         } else {
-          _showErrorAndResume('暂不支持该群二维码');
+          _showErrorAndResume(l10n.qrUnsupportedGroup);
         }
     }
   }
@@ -85,6 +87,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Colors.black, // theme-fixed scanner camera background
       body: Stack(
@@ -109,7 +112,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '将二维码放入框内，即可自动扫描',
+                  l10n.qrScannerInstruction,
                   textAlign: TextAlign.center,
                   style: AppTheme.sans(size: 14, color: t.onAccent),
                 ),
@@ -117,7 +120,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
                 const _ScannerFrame(),
                 const SizedBox(height: 20),
                 Text(
-                  '支持扫描用户二维码',
+                  l10n.qrScannerSupportUsers,
                   textAlign: TextAlign.center,
                   style: AppTheme.sans(
                     size: 12,

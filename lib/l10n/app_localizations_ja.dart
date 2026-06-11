@@ -94,4 +94,96 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get commonCancel => 'キャンセル';
+
+  @override
+  String get commonSearch => '検索';
+
+  @override
+  String get commonShare => '共有';
+
+  @override
+  String get addContactTitle => '友だちを追加';
+
+  @override
+  String get addContactEmptyHint => '相手のニックネームまたは Portal URL を入力して検索';
+
+  @override
+  String get addContactDomainNotProductUser => 'このドメインは製品ユーザーではありません';
+
+  @override
+  String get addContactMessageAfterAdding => '友だち追加後にメッセージを送信できます';
+
+  @override
+  String get addContactVoiceAfterAdding => '友だち追加後に音声通話できます';
+
+  @override
+  String get addContactVideoAfterAdding => '友だち追加後にビデオ通話できます';
+
+  @override
+  String get addContactRequestSent => '友だち申請を送信しました。承認を待っています。';
+
+  @override
+  String addContactRequestFailed(String error) {
+    return '友だち申請の送信に失敗しました: $error';
+  }
+
+  @override
+  String get contactSendMessage => 'メッセージ';
+
+  @override
+  String get contactVoiceCall => '音声通話';
+
+  @override
+  String get contactVideoCall => 'ビデオ通話';
+
+  @override
+  String get contactMuteMessages => '通知をミュート';
+
+  @override
+  String get contactBlockUser => 'ユーザーをブロック';
+
+  @override
+  String get contactReportUser => 'ユーザーを報告';
+
+  @override
+  String get contactReportTodo => '報告機能はまだ接続されていません';
+
+  @override
+  String get contactFriendRequested => '申請済み';
+
+  @override
+  String get contactApplyFriend => '友だち申請';
+
+  @override
+  String get qrInvalidFormat => '無効なQRコード形式です';
+
+  @override
+  String get qrInvalidUser => '無効なユーザーQRコードです';
+
+  @override
+  String get qrInvalidGroup => '無効なグループQRコードです';
+
+  @override
+  String get qrUnsupportedGroup => 'このグループQRコードはまだサポートされていません';
+
+  @override
+  String get qrScannerInstruction => 'QRコードを枠内に入れると自動でスキャンします';
+
+  @override
+  String get qrScannerSupportUsers => 'ユーザーQRコードのスキャンに対応しています';
+
+  @override
+  String get meQrTitle => '自分のQRコード';
+
+  @override
+  String get meQrHint => '上のQRコードをスキャンして友だちに追加できます。';
+
+  @override
+  String get meQrSaveToAlbum => '写真に保存';
+
+  @override
+  String get meQrSaveTodo => '写真への保存機能はまだ接続されていません';
+
+  @override
+  String get meQrUnconnectedDomain => '接続済みドメインなし';
 }

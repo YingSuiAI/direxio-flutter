@@ -28,5 +28,42 @@
   "settingsLogout": "ログアウト",
   "settingsLogoutConfirmTitle": "ログアウト",
   "settingsLogoutConfirmMessage": "ログアウトしてもよろしいですか？",
-  "commonCancel": "キャンセル"
+  "commonCancel": "キャンセル",
+  "commonSearch": "検索",
+  "commonShare": "共有",
+  "addContactTitle": "友だちを追加",
+  "addContactEmptyHint": "相手のニックネームまたは Portal URL を入力して検索",
+  "addContactDomainNotProductUser": "このドメインは製品ユーザーではありません",
+  "addContactMessageAfterAdding": "友だち追加後にメッセージを送信できます",
+  "addContactVoiceAfterAdding": "友だち追加後に音声通話できます",
+  "addContactVideoAfterAdding": "友だち追加後にビデオ通話できます",
+  "addContactRequestSent": "友だち申請を送信しました。承認を待っています。",
+  "addContactRequestFailed": "友だち申請の送信に失敗しました: {error}",
+  "@addContactRequestFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactSendMessage": "メッセージ",
+  "contactVoiceCall": "音声通話",
+  "contactVideoCall": "ビデオ通話",
+  "contactMuteMessages": "通知をミュート",
+  "contactBlockUser": "ユーザーをブロック",
+  "contactReportUser": "ユーザーを報告",
+  "contactReportTodo": "報告機能はまだ接続されていません",
+  "contactFriendRequested": "申請済み",
+  "contactApplyFriend": "友だち申請",
+  "qrInvalidFormat": "無効なQRコード形式です",
+  "qrInvalidUser": "無効なユーザーQRコードです",
+  "qrInvalidGroup": "無効なグループQRコードです",
+  "qrUnsupportedGroup": "このグループQRコードはまだサポートされていません",
+  "qrScannerInstruction": "QRコードを枠内に入れると自動でスキャンします",
+  "qrScannerSupportUsers": "ユーザーQRコードのスキャンに対応しています",
+  "meQrTitle": "自分のQRコード",
+  "meQrHint": "上のQRコードをスキャンして友だちに追加できます。",
+  "meQrSaveToAlbum": "写真に保存",
+  "meQrSaveTodo": "写真への保存機能はまだ接続されていません",
+  "meQrUnconnectedDomain": "接続済みドメインなし"
 }

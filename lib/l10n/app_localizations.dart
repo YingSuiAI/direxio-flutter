@@ -273,6 +273,186 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'取消'**
   String get commonCancel;
+
+  /// No description provided for @commonSearch.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索'**
+  String get commonSearch;
+
+  /// No description provided for @commonShare.
+  ///
+  /// In zh, this message translates to:
+  /// **'分享'**
+  String get commonShare;
+
+  /// No description provided for @addContactTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加好友'**
+  String get addContactTitle;
+
+  /// No description provided for @addContactEmptyHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入对方昵称或 Portal URL 查找'**
+  String get addContactEmptyHint;
+
+  /// No description provided for @addContactDomainNotProductUser.
+  ///
+  /// In zh, this message translates to:
+  /// **'该域名不是产品用户'**
+  String get addContactDomainNotProductUser;
+
+  /// No description provided for @addContactMessageAfterAdding.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加好友后即可发消息'**
+  String get addContactMessageAfterAdding;
+
+  /// No description provided for @addContactVoiceAfterAdding.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加好友后即可音频通话'**
+  String get addContactVoiceAfterAdding;
+
+  /// No description provided for @addContactVideoAfterAdding.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加好友后即可视频通话'**
+  String get addContactVideoAfterAdding;
+
+  /// No description provided for @addContactRequestSent.
+  ///
+  /// In zh, this message translates to:
+  /// **'好友请求已发送，等待对方接受。'**
+  String get addContactRequestSent;
+
+  /// No description provided for @addContactRequestFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送好友请求失败: {error}'**
+  String addContactRequestFailed(String error);
+
+  /// No description provided for @contactSendMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'发消息'**
+  String get contactSendMessage;
+
+  /// No description provided for @contactVoiceCall.
+  ///
+  /// In zh, this message translates to:
+  /// **'音频通话'**
+  String get contactVoiceCall;
+
+  /// No description provided for @contactVideoCall.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频通话'**
+  String get contactVideoCall;
+
+  /// No description provided for @contactMuteMessages.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息免打扰'**
+  String get contactMuteMessages;
+
+  /// No description provided for @contactBlockUser.
+  ///
+  /// In zh, this message translates to:
+  /// **'屏蔽用户'**
+  String get contactBlockUser;
+
+  /// No description provided for @contactReportUser.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报用户'**
+  String get contactReportUser;
+
+  /// No description provided for @contactReportTodo.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报功能待接入'**
+  String get contactReportTodo;
+
+  /// No description provided for @contactFriendRequested.
+  ///
+  /// In zh, this message translates to:
+  /// **'已申请'**
+  String get contactFriendRequested;
+
+  /// No description provided for @contactApplyFriend.
+  ///
+  /// In zh, this message translates to:
+  /// **'申请好友'**
+  String get contactApplyFriend;
+
+  /// No description provided for @qrInvalidFormat.
+  ///
+  /// In zh, this message translates to:
+  /// **'无效的二维码格式'**
+  String get qrInvalidFormat;
+
+  /// No description provided for @qrInvalidUser.
+  ///
+  /// In zh, this message translates to:
+  /// **'无效的用户二维码'**
+  String get qrInvalidUser;
+
+  /// No description provided for @qrInvalidGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'无效的群二维码'**
+  String get qrInvalidGroup;
+
+  /// No description provided for @qrUnsupportedGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂不支持该群二维码'**
+  String get qrUnsupportedGroup;
+
+  /// No description provided for @qrScannerInstruction.
+  ///
+  /// In zh, this message translates to:
+  /// **'将二维码放入框内，即可自动扫描'**
+  String get qrScannerInstruction;
+
+  /// No description provided for @qrScannerSupportUsers.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持扫描用户二维码'**
+  String get qrScannerSupportUsers;
+
+  /// No description provided for @meQrTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的二维码'**
+  String get meQrTitle;
+
+  /// No description provided for @meQrHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫一扫上面的二维码图案，加我为好友。'**
+  String get meQrHint;
+
+  /// No description provided for @meQrSaveToAlbum.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存到相册'**
+  String get meQrSaveToAlbum;
+
+  /// No description provided for @meQrSaveTodo.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存到相册功能待接入'**
+  String get meQrSaveTodo;
+
+  /// No description provided for @meQrUnconnectedDomain.
+  ///
+  /// In zh, this message translates to:
+  /// **'未连接域名'**
+  String get meQrUnconnectedDomain;
 }
 
 class _AppLocalizationsDelegate

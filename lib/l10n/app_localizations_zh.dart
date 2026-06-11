@@ -94,4 +94,96 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get commonCancel => '取消';
+
+  @override
+  String get commonSearch => '搜索';
+
+  @override
+  String get commonShare => '分享';
+
+  @override
+  String get addContactTitle => '添加好友';
+
+  @override
+  String get addContactEmptyHint => '输入对方昵称或 Portal URL 查找';
+
+  @override
+  String get addContactDomainNotProductUser => '该域名不是产品用户';
+
+  @override
+  String get addContactMessageAfterAdding => '添加好友后即可发消息';
+
+  @override
+  String get addContactVoiceAfterAdding => '添加好友后即可音频通话';
+
+  @override
+  String get addContactVideoAfterAdding => '添加好友后即可视频通话';
+
+  @override
+  String get addContactRequestSent => '好友请求已发送，等待对方接受。';
+
+  @override
+  String addContactRequestFailed(String error) {
+    return '发送好友请求失败: $error';
+  }
+
+  @override
+  String get contactSendMessage => '发消息';
+
+  @override
+  String get contactVoiceCall => '音频通话';
+
+  @override
+  String get contactVideoCall => '视频通话';
+
+  @override
+  String get contactMuteMessages => '消息免打扰';
+
+  @override
+  String get contactBlockUser => '屏蔽用户';
+
+  @override
+  String get contactReportUser => '举报用户';
+
+  @override
+  String get contactReportTodo => '举报功能待接入';
+
+  @override
+  String get contactFriendRequested => '已申请';
+
+  @override
+  String get contactApplyFriend => '申请好友';
+
+  @override
+  String get qrInvalidFormat => '无效的二维码格式';
+
+  @override
+  String get qrInvalidUser => '无效的用户二维码';
+
+  @override
+  String get qrInvalidGroup => '无效的群二维码';
+
+  @override
+  String get qrUnsupportedGroup => '暂不支持该群二维码';
+
+  @override
+  String get qrScannerInstruction => '将二维码放入框内，即可自动扫描';
+
+  @override
+  String get qrScannerSupportUsers => '支持扫描用户二维码';
+
+  @override
+  String get meQrTitle => '我的二维码';
+
+  @override
+  String get meQrHint => '扫一扫上面的二维码图案，加我为好友。';
+
+  @override
+  String get meQrSaveToAlbum => '保存到相册';
+
+  @override
+  String get meQrSaveTodo => '保存到相册功能待接入';
+
+  @override
+  String get meQrUnconnectedDomain => '未连接域名';
 }

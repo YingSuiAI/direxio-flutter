@@ -69,6 +69,7 @@ const _chatPeerBubble = Color(0xFFEEEEEF);
 const _chatOwnBubble = Color(0xFF34C759);
 const _chatText = Color(0xFF262628);
 const _chatTime = Color(0xFFA3A3A4);
+const _chatAccentBlue = Color(0xFF0089FF);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAT PAGE — index.html `s-chat` 1:1 复刻
@@ -3198,17 +3199,20 @@ class _SChatBubble extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: bubbleColor,
-            borderRadius: _figmaBubbleRadius(isMe),
+            borderRadius: chatDirectionalBubbleRadius(isMe),
+            border: isMe
+                ? null
+                : Border.all(color: Colors.black.withValues(alpha: 0.06)),
           ),
-          padding: EdgeInsets.fromLTRB(12, isMe ? 7 : 8, 12, isMe ? 7 : 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: markdownChild ??
               Text(
                 text,
                 style: AppTheme.sans(
-                  size: 15,
+                  size: 17,
                   weight: FontWeight.w500,
                   color: textColor,
-                ).copyWith(height: 23 / 15),
+                ).copyWith(height: 1.25),
               ),
         ),
       ),
@@ -3479,22 +3483,6 @@ class _MessageAvatar extends StatelessWidget {
   }
 }
 
-BorderRadius _figmaBubbleRadius(bool isMe) {
-  return isMe
-      ? const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(2),
-        )
-      : const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-          bottomLeft: Radius.circular(2),
-          bottomRight: Radius.circular(24),
-        );
-}
-
 class _SChatSystemNotice extends StatelessWidget {
   const _SChatSystemNotice({required this.text});
 
@@ -3655,8 +3643,8 @@ class _SChatImageBubble extends StatelessWidget {
       onSecondaryTapDown: (d) => pos = d.globalPosition,
       onSecondaryTap: () => onLongPressAt?.call(pos),
       child: ChatMediaBubbleFrame(
-        width: 208,
-        height: 160,
+        width: chatMessageMediaWidth,
+        height: chatMessageMediaHeight,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -3741,8 +3729,11 @@ class _SChatFileBubble extends StatelessWidget {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 260),
           decoration: BoxDecoration(
-            color: t.surface,
-            borderRadius: _figmaBubbleRadius(isMe),
+            color: isMe ? _chatOwnBubble : _chatPeerBubble,
+            borderRadius: chatDirectionalBubbleRadius(isMe),
+            border: isMe
+                ? null
+                : Border.all(color: Colors.black.withValues(alpha: 0.06)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -3751,16 +3742,24 @@ class _SChatFileBubble extends StatelessWidget {
               ),
             ],
           ),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: t.danger.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+                  color: isMe
+                      ? Colors.white.withValues(alpha: 0.20)
+                      : _chatAccentBlue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                padding: const EdgeInsets.all(8),
-                child: Icon(leadingIcon, size: 22, color: t.danger),
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                child: Icon(
+                  leadingIcon,
+                  size: 22,
+                  color: isMe ? Colors.white : _chatAccentBlue,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -3773,24 +3772,38 @@ class _SChatFileBubble extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
-                        size: 13,
-                        color: t.text,
-                        weight: FontWeight.w500,
+                        size: 15,
+                        color: isMe ? Colors.white : t.text,
+                        weight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       sizeLabel,
-                      style: AppTheme.sans(size: 11, color: t.textMute),
+                      style: AppTheme.sans(
+                        size: 12,
+                        weight: FontWeight.w500,
+                        color: isMe
+                            ? Colors.white.withValues(alpha: 0.78)
+                            : t.textMute,
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
               multiSelect
-                  ? Icon(Symbols.description, size: 20, color: t.textMute)
+                  ? Icon(
+                      Symbols.description,
+                      size: 20,
+                      color: isMe ? Colors.white : t.textMute,
+                    )
                   : trailing ??
-                      Icon(Symbols.download, size: 20, color: t.textMute),
+                      Icon(
+                        Symbols.download,
+                        size: 20,
+                        color: isMe ? Colors.white : t.textMute,
+                      ),
             ],
           ),
         ),

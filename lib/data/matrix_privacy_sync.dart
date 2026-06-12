@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import 'api_logger.dart';
+
 class MatrixPrivacySyncException implements Exception {
   const MatrixPrivacySyncException(this.message, {this.statusCode});
 
@@ -121,9 +123,33 @@ class MatrixPrivacySyncService {
         },
       ),
     );
-    final response = await httpClient.get(
-      uri,
-      headers: {'authorization': 'Bearer $accessToken'},
+    final stopwatch = Stopwatch()..start();
+    late http.Response response;
+    try {
+      response = await httpClient.get(
+        uri,
+        headers: {'authorization': 'Bearer $accessToken'},
+      );
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      ApiLogger.failure(
+        service: 'Matrix sync',
+        method: 'GET',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+    stopwatch.stop();
+    ApiLogger.response(
+      service: 'Matrix sync',
+      method: 'GET',
+      uri: uri,
+      statusCode: response.statusCode,
+      elapsed: stopwatch.elapsed,
+      responseBody: response.body,
     );
     if (response.statusCode != 200) {
       throw MatrixPrivacySyncException(
@@ -131,7 +157,22 @@ class MatrixPrivacySyncService {
         statusCode: response.statusCode,
       );
     }
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final Map<String, dynamic> json;
+    try {
+      json = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (error, stackTrace) {
+      ApiLogger.failure(
+        service: 'Matrix sync',
+        method: 'DECODE',
+        uri: uri,
+        elapsed: Duration.zero,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
     final nextBatch = json['next_batch'] as String?;
     if (nextBatch == null || nextBatch.isEmpty) {
       throw const MatrixPrivacySyncException(

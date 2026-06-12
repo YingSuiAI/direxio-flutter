@@ -16,6 +16,9 @@ import '../../data/well_known_service.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 
+const _requestsToolbarHeight = 48.0;
+const _requestsSearchGap = 12.0;
+
 /// `s-new-friends` — 新朋友 (index.html L1494-1564)
 class RequestsPage extends ConsumerStatefulWidget {
   const RequestsPage({super.key});
@@ -30,6 +33,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   bool _busy = false;
   String? _notice;
   bool _noticeIsError = false;
+  String _query = '';
 
   @override
   void initState() {
@@ -37,6 +41,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final client = ref.read(matrixClientProvider);
     _syncSub = client.onSync.stream.listen((_) {
       if (mounted) setState(() {});
+    });
+    _searchCtrl.addListener(() {
+      final next = _searchCtrl.text;
+      if (next == _query) return;
+      setState(() {
+        _query = next;
+        _notice = null;
+        _noticeIsError = false;
+      });
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -372,34 +385,40 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final pendingOutboundContacts = syncCache.pendingOutboundContacts;
     final rejectedOutboundContacts = syncCache.rejectedOutboundContacts;
     final acceptedContacts = syncCache.acceptedContacts;
-
-    final hasRequests = invites.isNotEmpty ||
-        pendingInboundContacts.isNotEmpty ||
-        pendingOutboundContacts.isNotEmpty ||
-        rejectedOutboundContacts.isNotEmpty ||
-        acceptedContacts.isNotEmpty;
+    final searchResults = _searchResultsForQuery(
+      query: _query,
+      invites: invites,
+      pendingInboundContacts: pendingInboundContacts,
+      pendingOutboundContacts: pendingOutboundContacts,
+      rejectedOutboundContacts: rejectedOutboundContacts,
+      acceptedContacts: acceptedContacts,
+    );
+    final isSearching = _query.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: context.tk.surfaceHover,
       body: Column(
         children: [
-          const _RequestsHeader(title: '新的好友'),
+          _RequestsHeader(title: isSearching ? '添加好友' : '新的好友'),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(0, 0, 0, 24),
+              padding: const EdgeInsets.fromLTRB(
+                0,
+                _requestsSearchGap,
+                0,
+                24,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (!hasRequests) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: _SearchBox(
-                        controller: _searchCtrl,
-                        busy: _busy,
-                        onSearch: _sendInviteFromSearch,
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _SearchBox(
+                      controller: _searchCtrl,
+                      busy: _busy,
+                      onSearch: _sendInviteFromSearch,
                     ),
-                  ],
+                  ),
                   if (_notice != null) ...[
                     const SizedBox(height: 12),
                     Padding(
@@ -410,33 +429,52 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       ),
                     ),
                   ],
-                  const _HiddenText('待接受'),
-                  _PendingSection(
-                    invites: invites,
-                    contacts: pendingInboundContacts,
-                    busy: _busy,
-                    onAccept: _accept,
-                    onReject: _reject,
-                    onAcceptContact: _acceptContact,
-                    onRejectContact: _rejectContact,
-                  ),
-                  if (pendingOutboundContacts.isNotEmpty) ...[
-                    const _HiddenText('等待对方接受'),
-                    _OutgoingSection(
-                      contacts: pendingOutboundContacts,
+                  if (isSearching) ...[
+                    const SizedBox(height: _requestsSearchGap),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _SearchResultList(
+                        query: _query,
+                        results: searchResults,
+                        busy: _busy,
+                        onTap: (result) {
+                          _searchCtrl.text = result.mxid;
+                          _searchCtrl.selection = TextSelection.collapsed(
+                            offset: _searchCtrl.text.length,
+                          );
+                          _sendInviteFromSearch();
+                        },
+                      ),
                     ),
+                  ] else ...[
+                    const _HiddenText('待接受'),
+                    _PendingSection(
+                      invites: invites,
+                      contacts: pendingInboundContacts,
+                      busy: _busy,
+                      onAccept: _accept,
+                      onReject: _reject,
+                      onAcceptContact: _acceptContact,
+                      onRejectContact: _rejectContact,
+                    ),
+                    if (pendingOutboundContacts.isNotEmpty) ...[
+                      const _HiddenText('等待对方接受'),
+                      _OutgoingSection(
+                        contacts: pendingOutboundContacts,
+                      ),
+                    ],
+                    if (rejectedOutboundContacts.isNotEmpty) ...[
+                      const _HiddenText('已拒绝'),
+                      _OutgoingSection(
+                        contacts: rejectedOutboundContacts,
+                      ),
+                    ],
+                    const _HiddenText('已添加'),
+                    if (acceptedContacts.isNotEmpty)
+                      _AcceptedSection(
+                        contacts: acceptedContacts,
+                      ),
                   ],
-                  if (rejectedOutboundContacts.isNotEmpty) ...[
-                    const _HiddenText('已拒绝'),
-                    _OutgoingSection(
-                      contacts: rejectedOutboundContacts,
-                    ),
-                  ],
-                  const _HiddenText('已添加'),
-                  if (acceptedContacts.isNotEmpty)
-                    _AcceptedSection(
-                      contacts: acceptedContacts,
-                    ),
                 ],
               ),
             ),
@@ -457,7 +495,7 @@ class _RequestsHeader extends StatelessWidget {
     final topInset = MediaQuery.paddingOf(context).top;
     final t = context.tk;
     return SizedBox(
-      height: topInset + 60,
+      height: topInset + _requestsToolbarHeight,
       child: Padding(
         padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 0),
         child: Stack(
@@ -598,6 +636,91 @@ String _formatInviteError(Object error) {
   return msg.startsWith('Exception: ') ? msg.substring(11) : msg;
 }
 
+List<_FriendSearchResult> _searchResultsForQuery({
+  required String query,
+  required List<Room> invites,
+  required List<AsSyncContact> pendingInboundContacts,
+  required List<AsSyncContact> pendingOutboundContacts,
+  required List<AsSyncContact> rejectedOutboundContacts,
+  required List<AsSyncContact> acceptedContacts,
+}) {
+  final needle = query.trim().toLowerCase();
+  if (needle.isEmpty) return const [];
+
+  final results = <_FriendSearchResult>[];
+  final seen = <String>{};
+
+  void add({
+    required String mxid,
+    required String displayName,
+    required String seed,
+  }) {
+    final cleanMxid = mxid.trim();
+    final cleanName = displayName.trim();
+    final cleanSeed = seed.trim().isEmpty ? cleanName : seed.trim();
+    if (cleanName.isEmpty || cleanSeed.isEmpty) return;
+    final haystack = '$cleanName $cleanMxid'.toLowerCase();
+    if (!haystack.contains(needle)) return;
+    final key = cleanMxid.isEmpty ? cleanSeed : cleanMxid;
+    if (!seen.add(key)) return;
+    results.add(
+      _FriendSearchResult(
+        mxid: cleanMxid,
+        displayName: cleanName,
+        seed: cleanSeed,
+      ),
+    );
+  }
+
+  for (final contact in [
+    ...pendingInboundContacts,
+    ...pendingOutboundContacts,
+    ...rejectedOutboundContacts,
+    ...acceptedContacts,
+  ]) {
+    final mxid = contact.userId.trim();
+    add(
+      mxid: mxid,
+      displayName: contactDisplayNameFromIdentity(
+        mxid: mxid,
+        displayName: contact.displayName,
+        domain: contact.domain,
+      ),
+      seed: mxid,
+    );
+  }
+
+  for (final room in invites) {
+    final mxid = room.directChatMatrixID ??
+        room.getState(EventTypes.RoomCreate)?.senderId ??
+        '';
+    add(
+      mxid: mxid,
+      displayName: contactDisplayNameFromIdentity(
+        mxid: mxid,
+        displayName: room.getLocalizedDisplayname(),
+        domain: domainFromMxid(mxid),
+        fallback: room.getLocalizedDisplayname(),
+      ),
+      seed: mxid,
+    );
+  }
+
+  return results.take(8).toList(growable: false);
+}
+
+class _FriendSearchResult {
+  const _FriendSearchResult({
+    required this.mxid,
+    required this.displayName,
+    required this.seed,
+  });
+
+  final String mxid;
+  final String displayName;
+  final String seed;
+}
+
 class _SearchBox extends StatelessWidget {
   const _SearchBox({
     required this.controller,
@@ -612,58 +735,161 @@ class _SearchBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     return SizedBox(
-      height: 40,
-      child: Container(
+      height: 36,
+      child: DecoratedBox(
         decoration: BoxDecoration(
-          color: t.surfaceHover,
+          color: t.textMute.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(10),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            Icon(Symbols.search, size: 20, color: t.textMute),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                style: AppTheme.sans(size: 15, color: t.text),
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: t.accent, width: 1.5),
-                  ),
-                  hintText: '域名 / Matrix ID / Node ID',
-                  hintStyle: AppTheme.sans(size: 14, color: t.textMute),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                onSubmitted: (_) => onSearch(),
-              ),
+        child: TextField(
+          controller: controller,
+          enabled: !busy,
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.search,
+          style: AppTheme.sans(
+            size: 16,
+            weight: FontWeight.w500,
+            color: t.accent,
+          ),
+          decoration: InputDecoration(
+            isCollapsed: true,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            hintText: '搜索',
+            hintStyle: AppTheme.sans(size: 16, color: t.textMute),
+            prefixIcon: Icon(Symbols.search, size: 18, color: t.textMute),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 32,
+              minHeight: 36,
             ),
-            InkWell(
-              key: const ValueKey('new_friends_search_send_button'),
-              onTap: busy ? null : onSearch,
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: busy
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: t.accent,
-                        ),
-                      )
-                    : Icon(Symbols.send, size: 18, color: t.accent),
-              ),
-            ),
-          ],
+            contentPadding: const EdgeInsets.fromLTRB(0, 8, 12, 8),
+          ),
+          onEditingComplete: onSearch,
+          onSubmitted: (_) => onSearch(),
         ),
       ),
     );
   }
+}
+
+class _SearchResultList extends StatelessWidget {
+  const _SearchResultList({
+    required this.query,
+    required this.results,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final String query;
+  final List<_FriendSearchResult> results;
+  final bool busy;
+  final ValueChanged<_FriendSearchResult> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (results.isEmpty) return const SizedBox.shrink();
+    return Column(
+      children: [
+        for (final result in results)
+          _SearchResultRow(
+            result: result,
+            query: query,
+            onTap: busy ? null : () => onTap(result),
+          ),
+      ],
+    );
+  }
+}
+
+class _SearchResultRow extends StatelessWidget {
+  const _SearchResultRow({
+    required this.result,
+    required this.query,
+    required this.onTap,
+  });
+
+  final _FriendSearchResult result;
+  final String query;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Material(
+      color: t.surfaceHover,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          key: const ValueKey('requests_search_result_row'),
+          height: 52,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: t.border.withValues(alpha: 0.45),
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                PortalAvatar(
+                  seed: result.seed,
+                  size: 28,
+                  shape: AvatarShape.squircle,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: RichText(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    text: _highlightSearchNameSpan(
+                      context,
+                      result.displayName,
+                      query,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+TextSpan _highlightSearchNameSpan(
+  BuildContext context,
+  String name,
+  String query,
+) {
+  final t = context.tk;
+  final base = AppTheme.sans(
+    size: 16,
+    weight: FontWeight.w500,
+    color: t.text,
+  ).copyWith(letterSpacing: -0.4);
+  final accent = base.copyWith(color: t.accent);
+  final needle = query.trim();
+  final index =
+      needle.isEmpty ? -1 : name.toLowerCase().indexOf(needle.toLowerCase());
+  if (index < 0) return TextSpan(text: name, style: base);
+  return TextSpan(
+    children: [
+      if (index > 0) TextSpan(text: name.substring(0, index), style: base),
+      TextSpan(
+        text: name.substring(index, index + needle.length),
+        style: accent,
+      ),
+      if (index + needle.length < name.length)
+        TextSpan(
+          text: name.substring(index + needle.length),
+          style: base,
+        ),
+    ],
+  );
 }
 
 class _RequestNotice extends StatelessWidget {

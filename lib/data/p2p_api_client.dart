@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
+import 'api_logger.dart';
 import 'as_client.dart';
 
 class P2pApiException implements Exception {
@@ -49,17 +50,22 @@ class P2pApiClient {
     });
     final nonce = _nonce();
     final signature = _md5Hex('$biSecret\n$nonce\n$body');
-    final response = await _http
-        .post(
-          _resolve('/bi/events/report'),
-          headers: {
-            'Content-Type': 'application/json',
-            'X-BI-Nonce': nonce,
-            'X-BI-Signature': signature,
-          },
-          body: body,
-        )
-        .timeout(timeout);
+    final uri = _resolve('/bi/events/report');
+    final response = await _send(
+      'POST',
+      uri,
+      () => _http
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-BI-Nonce': nonce,
+              'X-BI-Signature': signature,
+            },
+            body: body,
+          )
+          .timeout(timeout),
+    );
     _ensureSuccess(response);
   }
 
@@ -71,22 +77,59 @@ class P2pApiClient {
     String sortBy = 'createdAt',
     bool desc = true,
   }) async {
-    final response = await _http.get(
-      _resolve(
-        '/im/channel/list',
-        queryParameters: {
-          'page': page.toString(),
-          'pageSize': pageSize.toString(),
-          if (ownerDomain.trim().isNotEmpty) 'ownerDomain': ownerDomain.trim(),
-          if (keyword.trim().isNotEmpty) 'keyword': keyword.trim(),
-          if (sortBy.trim().isNotEmpty) 'sortBy': sortBy.trim(),
-          'desc': desc.toString(),
-        },
-      ),
-      headers: const {'Accept': 'application/json'},
-    ).timeout(timeout);
+    final uri = _resolve(
+      '/im/channel/list',
+      queryParameters: {
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+        if (ownerDomain.trim().isNotEmpty) 'ownerDomain': ownerDomain.trim(),
+        if (keyword.trim().isNotEmpty) 'keyword': keyword.trim(),
+        if (sortBy.trim().isNotEmpty) 'sortBy': sortBy.trim(),
+        'desc': desc.toString(),
+      },
+    );
+    final response = await _send(
+      'GET',
+      uri,
+      () => _http.get(
+        uri,
+        headers: const {'Accept': 'application/json'},
+      ).timeout(timeout),
+    );
     final decoded = _decodeObject(response);
     return _parseChannelList(decoded);
+  }
+
+  Future<http.Response> _send(
+    String method,
+    Uri uri,
+    Future<http.Response> Function() send,
+  ) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await send();
+      stopwatch.stop();
+      ApiLogger.response(
+        service: 'P2P API',
+        method: method,
+        uri: uri,
+        statusCode: response.statusCode,
+        elapsed: stopwatch.elapsed,
+        responseBody: response.body,
+      );
+      return response;
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      ApiLogger.failure(
+        service: 'P2P API',
+        method: method,
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   Uri _resolve(String path, {Map<String, String>? queryParameters}) {
@@ -105,13 +148,38 @@ class P2pApiClient {
   Map<String, dynamic> _decodeObject(http.Response response) {
     _ensureSuccess(response);
     if (response.body.trim().isEmpty) return const {};
-    final decoded = jsonDecode(response.body);
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error, stackTrace) {
+      ApiLogger.failure(
+        service: 'P2P API',
+        method: 'DECODE',
+        uri: response.request?.url ?? Uri(),
+        elapsed: Duration.zero,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
     if (decoded is! Map<String, dynamic>) {
-      throw P2pApiException(
+      final exception = P2pApiException(
         'P2P API returned a non-object JSON response',
         statusCode: response.statusCode,
         payload: decoded,
       );
+      ApiLogger.failure(
+        service: 'P2P API',
+        method: 'DECODE',
+        uri: response.request?.url ?? Uri(),
+        elapsed: Duration.zero,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: exception,
+      );
+      throw exception;
     }
     return decoded;
   }

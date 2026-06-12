@@ -19,7 +19,6 @@ import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../mock/mock_data.dart';
-import '../mock/mock_channels.dart';
 import '../../data/as_client.dart';
 import '../../data/local_outbox_store.dart';
 import '../../l10n/app_localizations.dart';
@@ -36,8 +35,6 @@ import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
 import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/app_glass_background.dart';
-import '../widgets/glass_list_tile.dart';
-import '../widgets/m3/glass_header.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 
@@ -49,6 +46,8 @@ const _homeBg = Color(0xFFFAFAFA);
 const _homeText = Color(0xFF262628);
 const _homeMuted = Color(0xFFA3A3A4);
 const _homeBorder = Color(0xFFE6E6E6);
+const _channelBlue = Color(0xFF077AB3);
+const _channelSelectedBg = Color(0xFFDDF0FA);
 const _conversationTileAvatarSize = 42.0;
 const _iconMenuAddFriend = 'assets/icons/menu_add_friend.svg';
 const _iconMenuCreateGroup = 'assets/icons/menu_create_group.svg';
@@ -302,37 +301,6 @@ class _HomePageState extends ConsumerState<HomePage>
     }
   }
 
-  List<Widget> _headerActions(BuildContext context, Client client) {
-    switch (_tab) {
-      case 0:
-      case 1:
-        return [
-          GlassHeaderButton(
-            icon: Symbols.search,
-            onTap: () => context.push('/search'),
-          ),
-          const _HomePlusMenuButton(),
-        ];
-      case 2:
-        return [
-          GlassHeaderButton(
-            icon: Symbols.search,
-            onTap: () => context.push('/channels/search'),
-          ),
-          const _HomePlusMenuButton(),
-        ];
-      case 3:
-        return [
-          GlassHeaderButton(
-            icon: Symbols.menu,
-            onTap: () => context.push('/me/menu'),
-          ),
-        ];
-      default:
-        return const [];
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
@@ -370,11 +338,6 @@ class _HomePageState extends ConsumerState<HomePage>
             _HomeTitleTopBar(
               title: _homeTabTitle(l10n, _tab),
               onPlusTap: () => _handleHomePlusTap(context, ref),
-            )
-          else if (_tab == 2)
-            GlassHeader.primary(
-              title: _homeTabTitle(l10n, _tab),
-              actions: _headerActions(context, client),
             ),
           Expanded(
             child: LayoutBuilder(
@@ -572,18 +535,6 @@ List<String> _pendingFriendRequestRoomIds({
 String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';
 
 enum _PlusAction { contact, group, channel, scan }
-
-class _HomePlusMenuButton extends ConsumerWidget {
-  const _HomePlusMenuButton();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return GlassHeaderButton(
-      icon: Symbols.add,
-      onTap: () => _handleHomePlusTap(context, ref),
-    );
-  }
-}
 
 Future<void> _handleHomePlusTap(BuildContext context, WidgetRef ref) async {
   final action = await _showHomePlusMenu(context);
@@ -1965,11 +1916,6 @@ class _ContactList extends ConsumerWidget {
                   onTap: () => context.push('/requests'),
                 ),
                 _SectionAction(
-                  iconAsset: _iconMenuCreateGroup,
-                  label: l10n?.contactsNewGroup ?? '新的群聊',
-                  onTap: () => showCreateGroupFlow(context, ref),
-                ),
-                _SectionAction(
                   iconAsset: _iconTabContacts,
                   label: l10n?.contactsMyGroups ?? '我的群组',
                   onTap: () => context.push('/groups'),
@@ -2397,52 +2343,252 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
             fallbackDomain: _clientServerName(client),
           )
         : _mockChannelItems();
-    final categories = ChannelInboxData.categories(channels);
-    final selectedCategory = categories.contains(_category) ? _category : '全部';
-    final visibleChannels = ChannelInboxData.filtered(
-      channels,
-      selectedCategory,
-    );
+    final selectedCategory = _channelFilterLabels.contains(_category)
+        ? _category
+        : _channelFilterLabels.first;
+    final visibleChannels = _channelFilteredItems(channels, selectedCategory);
 
     if (!_mockAuthEnabled && isLoggedIn && bootstrap == null) {
-      return const _Empty(
-        icon: Symbols.sync,
-        title: '正在同步频道',
-        subtitle: '请稍候',
+      return const _ChannelFrame(
+        child: Center(
+          child: _Empty(
+            icon: Symbols.sync,
+            title: '正在同步频道',
+            subtitle: '请稍候',
+          ),
+        ),
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(0, 8, 0, 96),
-      children: [
-        SizedBox(
-          height: 38,
-          child: ListView.separated(
-            key: const ValueKey('channel_category_strip'),
-            padding: const EdgeInsets.symmetric(
-              horizontal: glassListTileHorizontalMargin,
+    final topInset = MediaQuery.of(context).padding.top;
+    return _ChannelFrame(
+      child: Stack(
+        children: [
+          Positioned(
+            left: 24,
+            top: topInset + 22,
+            width: 140,
+            height: 34,
+            child: Text(
+              key: const ValueKey('channel_tab_title'),
+              '频道',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 26,
+                weight: FontWeight.w600,
+                color: _homeTextColor(context),
+              ).copyWith(height: 33 / 26),
             ),
-            scrollDirection: Axis.horizontal,
-            itemBuilder: (context, i) {
-              final category = categories[i];
-              return _ChannelCategoryChip(
-                label: category,
-                selected: category == selectedCategory,
-                onTap: () => setState(() => _category = category),
-              );
-            },
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemCount: categories.length,
           ),
-        ),
-        const SizedBox(height: 10),
-        if (visibleChannels.isEmpty)
-          _ChannelEmptyArea(selectedCategory: selectedCategory)
-        else
-          _ChannelInboxList(channels: visibleChannels),
-      ],
+          Positioned(
+            right: 26,
+            top: topInset + 23,
+            child: _ChannelSearchButton(
+              onTap: () => context.push('/channels/search'),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            top: topInset + 76,
+            height: 42,
+            child: _ChannelFilterBar(
+              key: const ValueKey('channel_filter_bar'),
+              selectedCategory: selectedCategory,
+              onChanged: (category) => setState(() => _category = category),
+            ),
+          ),
+          Positioned.fill(
+            top: topInset + 132,
+            child: visibleChannels.isEmpty
+                ? _ChannelEmptyArea(selectedCategory: selectedCategory)
+                : _ChannelInboxList(channels: visibleChannels),
+          ),
+          Positioned(
+            right: 24,
+            bottom: 28,
+            child: _ChannelFloatingPostButton(
+              key: const ValueKey('channel_post_button'),
+              onTap: () => _showCreateChannelDialog(context, ref),
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _ChannelFrame extends StatelessWidget {
+  const _ChannelFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: _homeBgColor(context),
+      child: child,
+    );
+  }
+}
+
+class _ChannelFilterBar extends StatelessWidget {
+  const _ChannelFilterBar({
+    super.key,
+    required this.selectedCategory,
+    required this.onChanged,
+  });
+
+  final String selectedCategory;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: _homeDark(context) ? context.tk.surfaceHigh : Colors.white,
+        borderRadius: BorderRadius.circular(21),
+      ),
+      child: Row(
+        children: [
+          for (final label in _channelFilterLabels)
+            Expanded(
+              child: _ChannelFilterSegment(
+                label: label,
+                selected: label == selectedCategory,
+                onTap: () => onChanged(label),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelFilterSegment extends StatelessWidget {
+  const _ChannelFilterSegment({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedColor = _homeDark(context)
+        ? context.tk.accent.withValues(alpha: 0.18)
+        : _channelSelectedBg;
+    return Material(
+      color: selected ? selectedColor : Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox.expand(
+          child: Center(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(
+                size: 13,
+                weight: FontWeight.w500,
+                color: selected ? _channelBlue : _homeMutedColor(context),
+              ).copyWith(height: 16 / 13),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelSearchButton extends StatelessWidget {
+  const _ChannelSearchButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox.square(
+        key: const ValueKey('channel_search_button'),
+        dimension: 40,
+        child: Center(
+          child: Icon(
+            Symbols.search,
+            size: 28,
+            color: _homeTextColor(context),
+            weight: 700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelFloatingPostButton extends StatelessWidget {
+  const _ChannelFloatingPostButton({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _homeDark(context) ? context.tk.accent : _channelBlue,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox.square(
+          dimension: 56,
+          child: Center(
+            child: Text(
+              '+',
+              style: AppTheme.sans(
+                size: 30,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ).copyWith(height: 38 / 30),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+const _channelFilterLabels = ['全部', '我的频道'];
+
+List<ChannelInboxItem> _channelFilteredItems(
+  List<ChannelInboxItem> channels,
+  String category,
+) {
+  final sorted = switch (category) {
+    '我的频道' => channels.where((channel) => channel.isOwned).toList(),
+    _ => [...channels],
+  };
+  sorted.sort((a, b) {
+    final aMs = a.latestAt?.millisecondsSinceEpoch ?? 0;
+    final bMs = b.latestAt?.millisecondsSinceEpoch ?? 0;
+    return bMs.compareTo(aMs);
+  });
+  return sorted;
+}
+
+DateTime _weekdayRelativeDate(int weekday) {
+  final now = DateTime.now();
+  final daysBack = (now.weekday - weekday) % DateTime.daysPerWeek;
+  final target = now.subtract(Duration(days: daysBack == 0 ? 7 : daysBack));
+  return DateTime(target.year, target.month, target.day, 12);
 }
 
 class _ChannelEmptyArea extends StatelessWidget {
@@ -2465,14 +2611,6 @@ class _ChannelEmptyArea extends StatelessWidget {
                 subtitle:
                     selectedCategory == '我的频道' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
               ),
-              if (selectedCategory != '我的频道') ...[
-                const SizedBox(height: 10),
-                FilledButton.tonalIcon(
-                  onPressed: () => context.push('/channels/search'),
-                  icon: const Icon(Symbols.search),
-                  label: const Text('搜索频道'),
-                ),
-              ],
             ],
           ),
         ),
@@ -2487,91 +2625,124 @@ class _ChannelInboxList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      color: t.surface,
-      child: Column(
-        children: [
-          for (var i = 0; i < channels.length; i++) ...[
-            _ChannelInboxTile(channel: channels[i]),
-            if (i != channels.length - 1)
-              Divider(
-                height: 1,
-                indent: 76,
-                color: t.border.withValues(alpha: 0.16),
-              ),
-          ],
-        ],
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 104),
+      itemCount: channels.length,
+      itemBuilder: (context, index) => _ChannelInboxTile(
+        channel: channels[index],
+        showDivider: index != channels.length - 1,
       ),
     );
   }
 }
 
 class _ChannelInboxTile extends StatelessWidget {
-  const _ChannelInboxTile({required this.channel});
+  const _ChannelInboxTile({
+    required this.channel,
+    required this.showDivider,
+  });
+
   final ChannelInboxItem channel;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
+    final mutedColor = _homeMutedColor(context);
+    final textColor = _homeTextColor(context);
+    final borderColor = _homeBorderColor(context);
     return InkWell(
       onTap: () => context.push('/channel/${Uri.encodeComponent(channel.id)}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: SizedBox(
+        height: 64,
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _ChannelAvatar(channel: channel, size: 48),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
+            _ChannelAvatar(channel: channel, size: 42),
+            const SizedBox(width: 8),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          channel.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTheme.sans(
-                            size: 16,
-                            weight: FontWeight.w600,
-                            color: t.text,
-                          ),
+              child: Container(
+                decoration: BoxDecoration(
+                  border: showDivider
+                      ? Border(
+                          bottom: BorderSide(color: borderColor, width: 0.5),
+                        )
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 10, bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: 20,
+                              child: Text(
+                                channel.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 14,
+                                  weight: FontWeight.w500,
+                                  color: textColor,
+                                ).copyWith(height: 18 / 14),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            SizedBox(
+                              height: 18,
+                              child: Text(
+                                channel.latestPreview,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 12,
+                                  weight: FontWeight.w400,
+                                  color: mutedColor,
+                                ).copyWith(height: 15 / 12),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      if (channel.isOwned) ...[
-                        const SizedBox(width: 6),
-                        const _ChannelOwnerBadge(),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    channel.latestPreview,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(size: 14, color: t.textMute),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _formatChannelTime(channel.latestAt),
-                  style: AppTheme.sans(size: 12, color: t.textMute),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 40,
+                      height: 64,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 10, bottom: 11),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            SizedBox(
+                              height: 18,
+                              child: Text(
+                                _formatChannelTime(channel.latestAt),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.right,
+                                style: AppTheme.sans(
+                                  size: 12,
+                                  weight: FontWeight.w500,
+                                  color: mutedColor,
+                                ).copyWith(height: 15 / 12),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (channel.unreadCount > 0)
+                              _ChannelUnreadNumber(channel: channel)
+                            else
+                              const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                  ],
                 ),
-                const SizedBox(height: 7),
-                if (channel.unreadCount > 0)
-                  _ChannelUnreadNumber(channel: channel)
-                else
-                  const SizedBox(height: 18),
-              ],
+              ),
             ),
           ],
         ),
@@ -2587,22 +2758,25 @@ class _ChannelUnreadNumber extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return SizedBox(
-      height: 18,
+    return Container(
+      width: 20,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF5656),
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: Text(
         _formatBadgeCount(channel.unreadCount),
         key: ValueKey('channel_unread_count_${channel.id}'),
-        textAlign: TextAlign.right,
-        textHeightBehavior: const TextHeightBehavior(
-          applyHeightToFirstAscent: false,
-          applyHeightToLastDescent: false,
-        ),
+        maxLines: 1,
+        overflow: TextOverflow.visible,
+        textAlign: TextAlign.center,
         style: AppTheme.sans(
-          size: 12,
-          weight: FontWeight.w600,
-          color: t.textMute.withValues(alpha: 0.74),
-        ).copyWith(height: 1),
+          size: channel.unreadCount > 9 ? 9 : 11,
+          weight: FontWeight.w400,
+          color: Colors.white,
+        ).copyWith(height: 14 / 11),
       ),
     );
   }
@@ -2615,51 +2789,115 @@ class _ChannelAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
+    final bg = _channelAvatarColor(channel);
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: t.accent.withValues(alpha: 0.12),
-        shape: BoxShape.circle,
+        color:
+            _homeDark(context) ? context.tk.accent.withValues(alpha: 0.16) : bg,
+        borderRadius: BorderRadius.circular(8),
       ),
       alignment: Alignment.center,
-      child: Icon(
-        Symbols.campaign,
-        size: size * 0.52,
-        color: t.accent,
-        fill: 1,
+      child: Text(
+        _channelInitial(channel.name),
+        maxLines: 1,
+        overflow: TextOverflow.clip,
+        textAlign: TextAlign.center,
+        style: AppTheme.sans(
+          size: 15,
+          weight: FontWeight.w600,
+          color: _channelBlue,
+        ).copyWith(height: 19 / 15),
       ),
     );
   }
 }
 
-List<ChannelInboxItem> _mockChannelItems() {
-  return MockChannels.items
-      .map(
-        (channel) => ChannelInboxItem(
-          id: channel.id,
-          roomId: channel.id,
-          name: channel.name,
-          domain: channel.domain,
-          avatarUrl: '',
-          latestPreview: channel.latestMessage,
-          latestAt: _mockChannelDateTime(channel.latestAt),
-          unreadCount: channel.unreadCount,
-          isOwned: channel.isOwned,
-          tags: channel.tags,
-        ),
-      )
-      .toList();
+String _channelInitial(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '频';
+  final first = trimmed.characters.first;
+  if (RegExp(r'[A-Za-z]').hasMatch(first)) {
+    final letters = trimmed
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part.characters.first.toUpperCase())
+        .join();
+    return letters.isEmpty ? first.toUpperCase() : letters;
+  }
+  return first;
 }
 
-DateTime? _mockChannelDateTime(int value) {
-  final raw = value.toString().padLeft(12, '0');
-  if (raw.length != 12) return null;
-  return DateTime.tryParse(
-    '${raw.substring(0, 4)}-${raw.substring(4, 6)}-${raw.substring(6, 8)} '
-    '${raw.substring(8, 10)}:${raw.substring(10, 12)}:00',
-  );
+Color _channelAvatarColor(ChannelInboxItem channel) {
+  final name = channel.name;
+  if (name.contains('产品')) return const Color(0xFFE5F0FF);
+  if (name.contains('设计')) return const Color(0xFFF0EBFF);
+  if (name.contains('Agent') || name.contains('AI')) {
+    return const Color(0xFFE5F5FA);
+  }
+  if (name.contains('草稿')) return const Color(0xFFF5F2E5);
+  return const Color(0xFFDDF0FA);
+}
+
+List<ChannelInboxItem> _mockChannelItems() {
+  return [
+    ChannelInboxItem(
+      id: 'p2p-im',
+      roomId: 'p2p-im',
+      name: 'owner',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '后端部署清单已更新：个人资料、二维码加好友...',
+      latestAt: _todayAt(18, 40),
+      unreadCount: 7,
+      isOwned: true,
+      tags: const ['产品'],
+      role: asChannelRoleOwner,
+    ),
+    ChannelInboxItem(
+      id: 'product',
+      roomId: 'product',
+      name: '产品频道',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '频道页会先按用户自己的频道展示',
+      latestAt: _todayAt(16, 10),
+      unreadCount: 4,
+      isOwned: false,
+      tags: const ['产品'],
+    ),
+    ChannelInboxItem(
+      id: 'design',
+      roomId: 'design',
+      name: '设计频道',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '频道帖子支持图片、视频、链接、表情和转发',
+      latestAt: DateTime.now().subtract(const Duration(days: 1)),
+      unreadCount: 0,
+      isOwned: false,
+      tags: const ['设计'],
+    ),
+    ChannelInboxItem(
+      id: 'agent',
+      roomId: 'agent',
+      name: 'Agent 通知',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: 'OpenClaw、Helm、Hermes Agent 通道状态更新',
+      latestAt: _weekdayRelativeDate(DateTime.sunday),
+      unreadCount: 1,
+      isOwned: false,
+      tags: const ['AI'],
+    ),
+  ];
+}
+
+DateTime _todayAt(int hour, int minute) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day, hour, minute);
 }
 
 String _formatChannelTime(DateTime? value) {
@@ -2674,68 +2912,6 @@ String _clientServerName(Client client) {
   final homeserver = client.homeserver;
   if (homeserver != null && homeserver.host.isNotEmpty) return homeserver.host;
   return 'p2p-im.com';
-}
-
-class _ChannelOwnerBadge extends StatelessWidget {
-  const _ChannelOwnerBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      decoration: BoxDecoration(
-        color: t.surfaceHover,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        '我的',
-        style: AppTheme.sans(
-          size: 10,
-          weight: FontWeight.w600,
-          color: t.textMute,
-        ),
-      ),
-    );
-  }
-}
-
-class _ChannelCategoryChip extends StatelessWidget {
-  const _ChannelCategoryChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Material(
-      color: selected ? t.accent : t.surfaceHover,
-      borderRadius: BorderRadius.circular(9999),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9999),
-        child: Container(
-          height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: AppTheme.sans(
-              size: 13,
-              weight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected ? t.onAccent : t.textMute,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _MePage extends ConsumerStatefulWidget {
@@ -3026,17 +3202,27 @@ class _MeProfileTile extends StatelessWidget {
                     onTap: onUidTap,
                     child: SizedBox(
                       height: 20,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'UID $uid',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTheme.sans(
-                            size: 14,
-                            color: const Color(0xFF666666),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'UID: $uid',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.sans(
+                                size: 14,
+                                color: const Color(0xFF666666),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Symbols.content_copy,
+                            size: 16,
+                            color: context.tk.textMute,
+                          ),
+                        ],
                       ),
                     ),
                   ),

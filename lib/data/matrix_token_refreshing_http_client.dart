@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'api_logger.dart';
+
 class MatrixTokenRefreshingHttpClient extends http.BaseClient {
   MatrixTokenRefreshingHttpClient({
     http.Client? inner,
@@ -23,22 +25,34 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final retryRequest = _cloneRequest(request);
     final http.StreamedResponse response;
+    final stopwatch = Stopwatch()..start();
     try {
       response = await _inner.send(request);
     } on http.ClientException catch (error, stackTrace) {
+      stopwatch.stop();
+      _logFailure(request, stopwatch.elapsed, error, stackTrace);
       return _retryTransientUpload(request, retryRequest, error, stackTrace);
     } on TimeoutException catch (error, stackTrace) {
+      stopwatch.stop();
+      _logFailure(request, stopwatch.elapsed, error, stackTrace);
       return _retryTransientUpload(request, retryRequest, error, stackTrace);
     }
+    stopwatch.stop();
+
+    if (!_isMatrixRequest(response.request?.url ?? request.url)) {
+      return response;
+    }
+
+    final responseBody = await response.stream.toBytes();
+    _logResponse(request, response, stopwatch.elapsed, responseBody);
 
     if (response.statusCode != 401 ||
         retryRequest == null ||
         !_isMatrixRequest(response.request?.url ?? request.url) ||
         !_hasBearerAuth(retryRequest.headers)) {
-      return response;
+      return _rebuildResponse(response, responseBody);
     }
 
-    final responseBody = await response.stream.toBytes();
     if (!_isTokenFailure(responseBody)) {
       return _rebuildResponse(response, responseBody);
     }
@@ -54,7 +68,29 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
     }
 
     _setBearerAuth(retryRequest.headers, token);
-    return _inner.send(retryRequest);
+    return _sendRetry(retryRequest);
+  }
+
+  Future<http.StreamedResponse> _sendRetry(http.BaseRequest request) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await _inner.send(request);
+      stopwatch.stop();
+      if (!_isMatrixRequest(response.request?.url ?? request.url)) {
+        return response;
+      }
+      final responseBody = await response.stream.toBytes();
+      _logResponse(request, response, stopwatch.elapsed, responseBody);
+      return _rebuildResponse(response, responseBody);
+    } on http.ClientException catch (error, stackTrace) {
+      stopwatch.stop();
+      _logFailure(request, stopwatch.elapsed, error, stackTrace);
+      rethrow;
+    } on TimeoutException catch (error, stackTrace) {
+      stopwatch.stop();
+      _logFailure(request, stopwatch.elapsed, error, stackTrace);
+      rethrow;
+    }
   }
 
   Future<http.StreamedResponse> _retryTransientUpload(
@@ -160,6 +196,39 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       isRedirect: response.isRedirect,
       persistentConnection: response.persistentConnection,
       reasonPhrase: response.reasonPhrase,
+    );
+  }
+
+  void _logResponse(
+    http.BaseRequest request,
+    http.StreamedResponse response,
+    Duration elapsed,
+    List<int> body,
+  ) {
+    ApiLogger.response(
+      service: 'Matrix',
+      method: request.method,
+      uri: response.request?.url ?? request.url,
+      statusCode: response.statusCode,
+      elapsed: elapsed,
+      responseBody: utf8.decode(body, allowMalformed: true),
+    );
+  }
+
+  void _logFailure(
+    http.BaseRequest request,
+    Duration elapsed,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    if (!_isMatrixRequest(request.url)) return;
+    ApiLogger.failure(
+      service: 'Matrix',
+      method: request.method,
+      uri: request.url,
+      elapsed: elapsed,
+      error: error,
+      stackTrace: stackTrace,
     );
   }
 

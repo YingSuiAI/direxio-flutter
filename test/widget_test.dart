@@ -19,6 +19,7 @@ import 'package:portal_app/data/as_gateway_client.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
+import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
 import 'package:portal_app/presentation/pages/add_contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_page.dart';
@@ -3203,24 +3204,19 @@ void main() {
     );
     await tester.pump();
 
-    for (final title in ['消息', '联系人', '频道']) {
+    for (final title in ['消息', '通讯录', '频道']) {
       if (title != '消息') {
         await tester.tap(find.text(title).last);
         await tester.pump();
       }
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is GlassHeaderButton && widget.icon == Symbols.search,
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.byWidgetPredicate(
-          (widget) => widget is GlassHeaderButton && widget.icon == Symbols.add,
-        ),
-        findsOneWidget,
-      );
+      if (title == '频道') {
+        expect(find.byKey(const ValueKey('channel_search_button')),
+            findsOneWidget);
+        expect(
+            find.byKey(const ValueKey('channel_post_button')), findsOneWidget);
+      } else {
+        expect(find.byIcon(Symbols.add), findsOneWidget);
+      }
     }
   });
 
@@ -3250,12 +3246,13 @@ void main() {
     expect(find.text('Agent'), findsNothing);
     expect(find.byType(PageView), findsNothing);
     expect(find.text('我的频道'), findsOneWidget);
-    expect(find.text('P2P IM 官方'), findsOneWidget);
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.text('草稿箱'), findsNothing);
     expect(find.byIcon(Symbols.search), findsOneWidget);
-    expect(find.byIcon(Symbols.add), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_post_button')), findsOneWidget);
   });
 
-  testWidgets('channel tab keeps title visible in top header', (tester) async {
+  testWidgets('channel tab matches figma header controls', (tester) async {
     final client = Client('PortalIMChannelHeaderTest');
 
     await tester.pumpWidget(
@@ -3272,20 +3269,10 @@ void main() {
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
 
-    expect(_headerTitle('频道'), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is GlassHeaderButton && widget.icon == Symbols.search,
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.byWidgetPredicate(
-        (widget) => widget is GlassHeaderButton && widget.icon == Symbols.add,
-      ),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('channel_tab_title')), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_search_button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_filter_bar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_post_button')), findsOneWidget);
   });
 
   testWidgets('home plus menu has the unified action order', (tester) async {
@@ -3505,7 +3492,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('新朋友'), findsOneWidget);
-    expect(find.text('新的群聊'), findsOneWidget);
+    expect(find.text('新的群聊'), findsNothing);
     expect(find.text('我的群组'), findsOneWidget);
     expect(find.text('关注'), findsNothing);
   });
@@ -3742,6 +3729,57 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
   });
 
+  testWidgets('new friends search matches add friend Figma list style',
+      (tester) async {
+    final client = Client('PortalIMRequestsSearchStyleTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 27, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('新的好友'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'own');
+    await tester.pump();
+
+    expect(find.text('添加好友'), findsOneWidget);
+    expect(find.text('owner', findRichText: true), findsOneWidget);
+    final requestsSearchRect = tester.getRect(find.byType(TextField));
+    final requestsResultRect = tester
+        .getRect(find.byKey(const ValueKey('requests_search_result_row')));
+    expect(requestsResultRect.top - requestsSearchRect.bottom, 12);
+    expect(find.text('等待对方接受'), findsNothing);
+  });
+
   testWidgets('new friends page shows rejected outbound contacts separately',
       (tester) async {
     final client = Client('PortalIMOutgoingRejectedBootstrapTest')
@@ -3911,8 +3949,11 @@ void main() {
     );
     await tester.pump();
 
+    await tester.tap(find.byType(TextField));
     await tester.enterText(find.byType(TextField), '@alice:example.com');
-    await tester.tap(find.byIcon(Symbols.send));
+    tester.widget<TextField>(find.byType(TextField)).onSubmitted?.call(
+          '@alice:example.com',
+        );
     await tester.pump();
     await tester.pump(const Duration(seconds: 3));
     await tester.pump();
@@ -3950,10 +3991,12 @@ void main() {
     );
     await tester.pump();
 
+    await tester.tap(find.byType(TextField));
     await tester.enterText(find.byType(TextField), 'unknown.portal.local');
     await tester.pump();
-    await tester
-        .tap(find.byKey(const ValueKey('new_friends_search_send_button')));
+    tester.widget<TextField>(find.byType(TextField)).onSubmitted?.call(
+          'unknown.portal.local',
+        );
     await tester.pumpAndSettle();
 
     expect(find.textContaining('该域名不是产品用户'), findsOneWidget);
@@ -4058,7 +4101,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('关注'), findsNothing);
-    expect(find.text('新的群聊'), findsOneWidget);
+    expect(find.text('新的群聊'), findsNothing);
     expect(find.text('我的群组'), findsOneWidget);
   });
 
@@ -4173,6 +4216,9 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           routerConfig: router,
         ),
       ),
@@ -4189,6 +4235,10 @@ void main() {
 
     expect(find.text('Alice Chen', findRichText: true), findsOneWidget);
     expect(find.text('添加'), findsNothing);
+    final addContactSearchRect = tester.getRect(find.byType(TextField));
+    final addContactResultRect =
+        tester.getRect(find.byKey(const ValueKey('add_contact_result_row')));
+    expect(addContactResultRect.top - addContactSearchRect.bottom, 12);
 
     await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
     await tester.pumpAndSettle();
@@ -6053,16 +6103,21 @@ void main() {
     expect(find.text('搜索频道、群体、话题'), findsNothing);
     expect(find.textContaining('推荐频道'), findsNothing);
     expect(find.text('关注'), findsNothing);
-    for (final label in ['全部', '我的频道', 'AI', '产品', '创作', '部署']) {
+    for (final label in ['全部', '我的频道']) {
       expect(find.text(label), findsOneWidget);
     }
+    expect(find.text('已加入'), findsNothing);
+    expect(find.text('草稿'), findsNothing);
 
-    expect(find.text('P2P IM 官方'), findsOneWidget);
-    expect(find.text('Agent 工作流'), findsOneWidget);
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.text('产品频道'), findsOneWidget);
+    expect(find.text('设计频道'), findsOneWidget);
+    expect(find.text('Agent 通知'), findsOneWidget);
+    expect(find.text('草稿箱'), findsNothing);
     expect(find.textContaining('后端部署清单已更新'), findsOneWidget);
 
-    final firstTop = tester.getTopLeft(find.text('P2P IM 官方')).dy;
-    final secondTop = tester.getTopLeft(find.text('Agent 工作流')).dy;
+    final firstTop = tester.getTopLeft(find.text('owner')).dy;
+    final secondTop = tester.getTopLeft(find.text('产品频道')).dy;
     expect(firstTop, lessThan(secondTop));
   });
 
@@ -6144,13 +6199,12 @@ void main() {
     await tester.tap(find.text('我的频道'));
     await tester.pump();
 
-    expect(find.text('P2P IM 官方'), findsOneWidget);
-    expect(find.text('AI 创作实验室'), findsOneWidget);
-    expect(find.text('Agent 工作流'), findsNothing);
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.text('草稿箱'), findsNothing);
+    expect(find.text('产品频道'), findsNothing);
   });
 
-  testWidgets('channel categories overflow horizontally and reveal more tags',
-      (tester) async {
+  testWidgets('channel filters use fixed figma segments', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -6173,16 +6227,13 @@ void main() {
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
 
+    for (final label in ['全部', '我的频道']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(find.text('已加入'), findsNothing);
+    expect(find.text('草稿'), findsNothing);
     expect(find.text('活动'), findsNothing);
-    await tester.dragUntilVisible(
-      find.text('活动'),
-      find.byKey(const ValueKey('channel_category_strip')),
-      const Offset(-180, 0),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('活动'), findsOneWidget);
-    expect(find.text('节点'), findsOneWidget);
+    expect(find.text('节点'), findsNothing);
   });
 
   testWidgets('channel list opens the selected channel detail page',
@@ -6217,7 +6268,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('P2P IM 官方').last);
+    await tester.tap(find.text('owner').last);
     await tester.pumpAndSettle();
 
     expect(find.text('p2p-im.com · 我的频道'), findsOneWidget);
@@ -6279,7 +6330,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('还没有频道'), findsOneWidget);
-    expect(find.text('搜索频道'), findsOneWidget);
+    expect(find.text('搜索频道'), findsNothing);
+    expect(find.text('草稿箱'), findsNothing);
+    expect(find.text('2 条帖子待发布'), findsNothing);
     expect(find.text('AI'), findsNothing);
     expect(find.text('产品'), findsNothing);
     expect(find.text('样例频道'), findsNothing);
@@ -6959,6 +7012,9 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           routerConfig: router,
         ),
       ),
@@ -6969,16 +7025,21 @@ void main() {
 
     expect(_headerTitle('我的'), findsNothing);
     expect(find.text('owner'), findsOneWidget);
-    expect(find.text('UID https://p2p-im.com'), findsOneWidget);
+    expect(find.text('UID: https://p2p-im.com'), findsOneWidget);
     expect(find.text('我的频道'), findsOneWidget);
     expect(find.text('@me'), findsNothing);
     expect(find.textContaining('Node:'), findsNothing);
 
-    await tester.tap(find.text('UID https://p2p-im.com'));
+    await tester.tap(find.text('UID: https://p2p-im.com'));
     await tester.pumpAndSettle();
     expect(find.text('已复制 UID'), findsOneWidget);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
     expect(copied?.text, 'https://p2p-im.com');
+
+    await tester.tap(find.byIcon(Symbols.content_copy));
+    await tester.pumpAndSettle();
+    final copiedFromIcon = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copiedFromIcon?.text, 'https://p2p-im.com');
 
     await tester.tap(find.byKey(const ValueKey('me_domain_qr_button')));
     await tester.pumpAndSettle();
@@ -8017,7 +8078,7 @@ void main() {
     expect(asClient.sendRoomMessageCalls, 0);
   });
 
-  testWidgets('login page exposes QR setup entry', (tester) async {
+  testWidgets('login page hides setup shortcuts below login', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -8028,7 +8089,9 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('扫码添加服务器'), findsOneWidget);
+    expect(find.text('或'), findsNothing);
+    expect(find.text('扫码添加服务器'), findsNothing);
+    expect(find.text('初始化 Portal'), findsNothing);
   });
 
   testWidgets('login page does not default to a real node', (tester) async {
@@ -8043,6 +8106,25 @@ void main() {
     await tester.pump();
 
     expect(find.text('https://p2p-im.com'), findsNothing);
-    expect(find.text('https://你的域名'), findsOneWidget);
+    expect(find.text('https://'), findsOneWidget);
+  });
+
+  testWidgets('login page follows app locale', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Log In'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
+    expect(find.text('登录'), findsNothing);
   });
 }

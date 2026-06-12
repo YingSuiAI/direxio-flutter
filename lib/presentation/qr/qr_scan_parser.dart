@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 enum QrScanKind { user, group }
 
 class QrScanTarget {
@@ -25,6 +27,9 @@ QrScanTarget? parseQrScanTarget(String rawValue) {
   final value = rawValue.trim();
   if (value.isEmpty) return null;
 
+  final jsonTarget = _parseJsonQr(value);
+  if (jsonTarget != null) return jsonTarget;
+
   final p2pTarget = _parseP2pQr(value);
   if (p2pTarget != null) return p2pTarget;
 
@@ -41,17 +46,66 @@ QrScanTarget? parseQrScanTarget(String rawValue) {
   return null;
 }
 
+QrScanTarget? _parseJsonQr(String value) {
+  if (!value.startsWith('{')) return null;
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(value);
+  } on FormatException {
+    return null;
+  }
+  if (decoded is! Map<String, dynamic>) return null;
+  final kind = _firstString(decoded, const ['kind', 'type', 'action']);
+  final mxid = _firstString(decoded, const [
+    'mxid',
+    'user_id',
+    'userId',
+    'matrix_user_id',
+    'matrixUserId',
+  ]);
+  if (mxid != null &&
+      (kind == null || kind.contains('user') || kind.contains('contact'))) {
+    return QrScanTarget.user(
+      userId: mxid,
+      displayName: _firstString(
+        decoded,
+        const ['display_name', 'displayName', 'name'],
+      ),
+    );
+  }
+  final groupId = _firstString(decoded, const [
+    'room_id',
+    'roomId',
+    'group_id',
+    'groupId',
+  ]);
+  if (groupId != null &&
+      (kind == null || kind.contains('group') || kind.contains('room'))) {
+    return QrScanTarget.group(groupId: groupId);
+  }
+  return null;
+}
+
+String? _firstString(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final value = map[key];
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+  }
+  return null;
+}
+
 QrScanTarget? _parseP2pQr(String value) {
   final uri = Uri.tryParse(value);
   if (uri == null) return null;
-  if (uri.scheme != 'p2pim') return null;
+  if (uri.scheme != 'p2pim') return _parseUniversalUri(uri, value);
 
   if (uri.host == 'add-contact' || uri.host == 'user') {
-    final mxid = uri.queryParameters['mxid']?.trim();
+    final mxid = _queryParam(uri, const ['mxid', 'user_id', 'userId']);
     if (mxid == null || mxid.isEmpty) return null;
     return QrScanTarget.user(
       userId: mxid,
-      displayName: uri.queryParameters['name']?.trim(),
+      displayName:
+          _queryParam(uri, const ['name', 'display_name', 'displayName']),
     );
   }
 
@@ -65,6 +119,59 @@ QrScanTarget? _parseP2pQr(String value) {
   return null;
 }
 
+QrScanTarget? _parseUniversalUri(Uri uri, String rawValue) {
+  final mxid = _queryParam(uri, const [
+    'mxid',
+    'user_id',
+    'userId',
+    'matrix_user_id',
+    'matrixUserId',
+  ]);
+  if (mxid != null) {
+    return QrScanTarget.user(
+      userId: mxid,
+      displayName:
+          _queryParam(uri, const ['name', 'display_name', 'displayName']),
+    );
+  }
+
+  final groupId = _queryParam(uri, const [
+    'room_id',
+    'roomId',
+    'group_id',
+    'groupId',
+  ]);
+  if (groupId != null) return QrScanTarget.group(groupId: groupId);
+
+  if (uri.host == 'matrix.to' && uri.fragment.isNotEmpty) {
+    final fragment = Uri.decodeComponent(
+      uri.fragment.startsWith('/') ? uri.fragment.substring(1) : uri.fragment,
+    );
+    if (fragment.startsWith('@')) return QrScanTarget.user(userId: fragment);
+    if (fragment.startsWith('!') || fragment.startsWith('#')) {
+      return QrScanTarget.group(groupId: fragment);
+    }
+  }
+
+  final mxidMatch = RegExp(r'@[^/?#\s]+:[^/?#\s]+').firstMatch(rawValue);
+  if (mxidMatch != null) return QrScanTarget.user(userId: mxidMatch.group(0)!);
+
+  final roomMatch = RegExp(r'![^/?#\s]+:[^/?#\s]+').firstMatch(rawValue);
+  if (roomMatch != null) {
+    return QrScanTarget.group(groupId: roomMatch.group(0)!);
+  }
+
+  return null;
+}
+
+String? _queryParam(Uri uri, List<String> keys) {
+  for (final key in keys) {
+    final value = uri.queryParameters[key]?.trim();
+    if (value != null && value.isNotEmpty) return value;
+  }
+  return null;
+}
+
 String? _parseUserId(String value) {
   if (value.contains(_openImFriendScheme)) {
     final index = value.indexOf(_openImFriendScheme);
@@ -74,8 +181,10 @@ String? _parseUserId(String value) {
   final openImUri = Uri.tryParse(value);
   if (openImUri != null &&
       openImUri.scheme == 'openim' &&
-      openImUri.path.startsWith('/addFriend/')) {
-    return openImUri.path.substring('/addFriend/'.length).trim();
+      openImUri.host == 'addFriend') {
+    return openImUri.pathSegments.isEmpty
+        ? null
+        : openImUri.pathSegments.first.trim();
   }
 
   final addFriendMatch = RegExp(r'/addFriend/([^/?#]+)').firstMatch(value);
@@ -97,8 +206,10 @@ String? _parseGroupId(String value) {
   final openImUri = Uri.tryParse(value);
   if (openImUri != null &&
       openImUri.scheme == 'openim' &&
-      openImUri.path.startsWith('/joinGroup/')) {
-    return openImUri.path.substring('/joinGroup/'.length).trim();
+      openImUri.host == 'joinGroup') {
+    return openImUri.pathSegments.isEmpty
+        ? null
+        : openImUri.pathSegments.first.trim();
   }
 
   final joinGroupMatch = RegExp(r'/joinGroup/([^/?#]+)').firstMatch(value);

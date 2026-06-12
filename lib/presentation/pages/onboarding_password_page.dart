@@ -22,6 +22,7 @@ class OnboardingPasswordPage extends ConsumerStatefulWidget {
 
 class _OnboardingPasswordPageState
     extends ConsumerState<OnboardingPasswordPage> {
+  final _setupCodeCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   bool _loading = false;
@@ -30,15 +31,22 @@ class _OnboardingPasswordPageState
 
   @override
   void dispose() {
+    _setupCodeCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
+    final setupCode =
+        widget.payload.hasCode ? widget.payload.code : _setupCodeCtrl.text;
     final password = _passwordCtrl.text.trim();
     final confirm = _confirmCtrl.text.trim();
     setState(() => _error = null);
+    if (!SetupPayload.isValidSetupCode(setupCode)) {
+      setState(() => _error = '请输入 8 位设置码');
+      return;
+    }
     if (password != confirm) {
       setState(() => _error = '两次输入的口令不一致');
       return;
@@ -50,7 +58,7 @@ class _OnboardingPasswordPageState
           .read(authStateNotifierProvider.notifier)
           .bootstrapAndChangePortalToken(
             widget.payload.server.toString(),
-            widget.payload.code,
+            setupCode.trim(),
             password,
           );
       if (mounted) context.go('/home');
@@ -99,11 +107,22 @@ class _OnboardingPasswordPageState
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '设置后，当前二维码设置码会失效',
+                        widget.payload.hasCode
+                            ? '设置后，当前二维码设置码会失效'
+                            : '输入该 Portal 的设置码并设置登录口令',
                         textAlign: TextAlign.center,
                         style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
                       const SizedBox(height: 28),
+                      if (!widget.payload.hasCode) ...[
+                        M3InputField(
+                          controller: _setupCodeCtrl,
+                          icon: Symbols.password,
+                          hint: '设置码',
+                          onSubmitted: (_) => _submit(),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       M3InputField(
                         controller: _passwordCtrl,
                         icon: Symbols.key,

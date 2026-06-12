@@ -298,6 +298,42 @@ abstract class AppLocalizations {
   /// **'分享'**
   String get commonShare;
 
+  /// No description provided for @loginTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'Portal IM'**
+  String get loginTitle;
+
+  /// No description provided for @loginSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用你的 Portal 域名和密码进入去中心化通讯空间'**
+  String get loginSubtitle;
+
+  /// No description provided for @loginDomainHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'https://你的域名'**
+  String get loginDomainHint;
+
+  /// No description provided for @loginPasswordHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录密码'**
+  String get loginPasswordHint;
+
+  /// No description provided for @loginButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录'**
+  String get loginButton;
+
+  /// No description provided for @loginButtonLoading.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录中…'**
+  String get loginButtonLoading;
+
   /// No description provided for @addContactTitle.
   ///
   /// In zh, this message translates to:

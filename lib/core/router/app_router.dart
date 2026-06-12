@@ -108,6 +108,7 @@ String? authRedirectLocation({
   required bool callAutotestEnabled,
   required bool isAuthLoading,
   required bool isLoggedIn,
+  bool requiresProfileSetup = false,
   required String matchedLocation,
   required Uri uri,
 }) {
@@ -125,6 +126,9 @@ String? authRedirectLocation({
 
   if (!isLoggedIn && matchedLocation == '/restore') return '/login';
   if (!isLoggedIn && !isLoginRoute) return '/login';
+  if (isLoggedIn && requiresProfileSetup) {
+    return matchedLocation == '/init' ? null : '/init';
+  }
   if (isLoggedIn && matchedLocation == '/restore') {
     return callAutotestRestoreNextRoute(
           callAutotestEnabled: callAutotestEnabled,
@@ -250,6 +254,8 @@ GoRouter appRouter(Ref ref) {
         callAutotestEnabled: _callAutotestEnabled,
         isAuthLoading: authState.isLoading && authState.valueOrNull == null,
         isLoggedIn: authState.valueOrNull?.isLoggedIn ?? false,
+        requiresProfileSetup:
+            authState.valueOrNull?.requiresProfileSetup ?? false,
         matchedLocation: state.matchedLocation,
         uri: state.uri,
       );

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
@@ -17,7 +17,7 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _domainCtrl = TextEditingController();
+  final _domainCtrl = TextEditingController(text: 'https://');
   final _portalTokenCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
@@ -26,21 +26,34 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _loadLastDomain();
+    _loadLastLogin();
   }
 
-  Future<void> _loadLastDomain() async {
+  Future<void> _loadLastLogin() async {
     // ?hs= URL param overrides storage (useful for testing)
     final hsParam = Uri.base.queryParameters['hs'];
     if (hsParam != null && hsParam.isNotEmpty) {
-      if (mounted) setState(() => _domainCtrl.text = hsParam);
+      if (mounted) setState(() => _domainCtrl.text = _withHttpsPrefix(hsParam));
       return;
     }
     const storage = FlutterSecureStorage();
-    final hs = await storage.read(key: 'matrix_homeserver');
-    if (hs != null && mounted) {
-      final host = Uri.tryParse(hs)?.host ?? '';
-      if (host.isNotEmpty) setState(() => _domainCtrl.text = host);
+    final hs =
+        await storage.read(key: AuthStateNotifier.lastLoginHomeserverKey) ??
+            await storage.read(key: 'matrix_homeserver');
+    final portalToken =
+        await storage.read(key: AuthStateNotifier.lastLoginPortalTokenKey) ??
+            await storage.read(key: 'portal_token');
+    if (!mounted) return;
+    if (hs != null) {
+      final uri = Uri.tryParse(hs);
+      final authority = uri?.hasAuthority == true ? uri!.authority : '';
+      if (authority.isNotEmpty) {
+        final scheme = uri!.scheme.isNotEmpty ? uri.scheme : 'https';
+        setState(() => _domainCtrl.text = '$scheme://$authority');
+      }
+    }
+    if (portalToken != null && portalToken.trim().isNotEmpty) {
+      setState(() => _portalTokenCtrl.text = portalToken.trim());
     }
   }
 
@@ -70,6 +83,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -77,7 +94,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
               child: Column(
                 children: [
                   // App icon — squircle 112
@@ -105,7 +122,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Agent P2P',
+                    l10n?.loginTitle ?? 'Portal IM',
                     style: AppTheme.sans(
                       size: 28,
                       weight: FontWeight.w700,
@@ -114,8 +131,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '去中心化 · 端对端加密 · 安全通讯',
-                    style: AppTheme.sans(size: 15, color: t.textMute),
+                    l10n?.loginSubtitle ?? '使用你的 Portal 域名和密码进入去中心化通讯空间',
+                    style: AppTheme.sans(size: 12, color: t.textMute),
                   ),
                   const SizedBox(height: 40),
 
@@ -123,7 +140,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   M3InputField(
                     controller: _domainCtrl,
                     icon: Symbols.link,
-                    hint: 'https://你的域名',
+                    hint: l10n?.loginDomainHint ?? 'https://你的域名',
                     keyboardType: TextInputType.url,
                   ),
                   const SizedBox(height: 12),
@@ -131,13 +148,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   M3InputField(
                     controller: _portalTokenCtrl,
                     icon: Symbols.key,
-                    hint: 'Portal Token',
+                    hint: l10n?.loginPasswordHint ?? '登录密码',
                     obscure: _obscure,
                     onSubmitted: (_) => _login(),
                     trailing: IconButton(
                       icon: Icon(
                         _obscure ? Symbols.visibility : Symbols.visibility_off,
-                        size: 20,
+                        size: 16,
                         color: t.textMute,
                       ),
                       onPressed: () => setState(() => _obscure = !_obscure),
@@ -149,54 +166,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     _ErrorBanner(message: _error!),
                   ],
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 40),
                   M3PrimaryButton(
-                    label: _loading ? '登录中…' : '登录',
+                    label: _loading
+                        ? l10n?.loginButtonLoading ?? '登录中…'
+                        : l10n?.loginButton ?? '登录',
                     onPressed: _loading ? null : _login,
-                  ),
-
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Divider(color: t.border.withValues(alpha: 0.4)),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          '或',
-                          style: AppTheme.sans(size: 15, color: t.textMute),
-                        ),
-                      ),
-                      Expanded(
-                        child: Divider(color: t.border.withValues(alpha: 0.4)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  OutlinedButton.icon(
-                    onPressed: () => context.push('/setup/scan'),
-                    icon: const Icon(Symbols.qr_code_scanner, size: 20),
-                    label: Text(
-                      '扫码添加服务器',
-                      style: AppTheme.sans(size: 15, weight: FontWeight.w600),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      foregroundColor: t.accent,
-                      side: BorderSide(color: t.border.withValues(alpha: 0.5)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () => context.go('/init'),
-                    child: Text(
-                      '初始化 Portal',
-                      style: AppTheme.sans(size: 15, color: t.accent),
-                    ),
                   ),
                 ],
               ),
@@ -206,6 +181,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       ),
     );
   }
+}
+
+String _withHttpsPrefix(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return 'https://';
+  final hasScheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(trimmed);
+  return hasScheme ? trimmed : 'https://$trimmed';
 }
 
 class _ErrorBanner extends StatelessWidget {

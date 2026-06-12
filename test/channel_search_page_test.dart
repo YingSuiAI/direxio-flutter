@@ -97,7 +97,7 @@ class _ChannelSearchAsClient extends MockAsClient {
 
 class _ChannelSearchP2pApiClient extends P2pApiClient {
   _ChannelSearchP2pApiClient()
-      : super(baseUri: Uri.parse('http://192.168.1.104:8888'));
+      : super(baseUri: Uri.parse('http://192.168.1.103:9090'));
 
   String? lastKeyword;
   String? lastOwnerDomain;

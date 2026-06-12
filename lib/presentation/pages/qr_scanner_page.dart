@@ -44,7 +44,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
     if (target == null) {
-      _showErrorAndResume(l10n.qrInvalidFormat);
+      _showErrorAndResume('${l10n.qrInvalidFormat}: ${_rawPreview(raw)}');
       return;
     }
 
@@ -134,6 +134,12 @@ class _QrScannerPageState extends State<QrScannerPage> {
       ),
     );
   }
+}
+
+String _rawPreview(String raw) {
+  final compact = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (compact.length <= 48) return compact;
+  return '${compact.substring(0, 48)}...';
 }
 
 String _addContactDetailRoute(String userId, String? displayName) {

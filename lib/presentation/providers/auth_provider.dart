@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -61,12 +63,16 @@ class AuthState {
     this.userId,
     this.homeserver,
     this.portalToken,
+    this.ownerDisplayName,
+    this.requiresProfileSetup = false,
   });
 
   final bool isLoggedIn;
   final String? userId;
   final String? homeserver;
   final String? portalToken;
+  final String? ownerDisplayName;
+  final bool requiresProfileSetup;
 }
 
 Future<String?> _refreshMatrixAccessTokenFromPortal(
@@ -91,10 +97,13 @@ Future<String?> _refreshMatrixAccessTokenFromPortal(
     httpClient: httpClient,
   );
   final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
-  final deviceId = client.deviceID ??
-      session.deviceId ??
-      storedDeviceId ??
-      _createDeviceId();
+  final deviceId = await _resolveSessionDeviceId(
+    httpClient: httpClient,
+    homeserver: matrixUri,
+    accessToken: session.accessToken,
+    sessionDeviceId: session.deviceId,
+    storedDeviceId: client.deviceID ?? storedDeviceId,
+  );
 
   client.homeserver = matrixUri;
   client.accessToken = session.accessToken;
@@ -169,9 +178,63 @@ String _createDeviceId() {
   return 'PORTALIM${DateTime.now().microsecondsSinceEpoch}';
 }
 
+Future<String> _resolveSessionDeviceId({
+  required http.Client httpClient,
+  required Uri homeserver,
+  required String accessToken,
+  String? sessionDeviceId,
+  String? storedDeviceId,
+}) async {
+  final cleanSessionDeviceId = sessionDeviceId?.trim();
+  if (cleanSessionDeviceId != null && cleanSessionDeviceId.isNotEmpty) {
+    return cleanSessionDeviceId;
+  }
+
+  final tokenDeviceId = await _fetchTokenDeviceId(
+    httpClient: httpClient,
+    homeserver: homeserver,
+    accessToken: accessToken,
+  );
+  if (tokenDeviceId != null && tokenDeviceId.isNotEmpty) {
+    return tokenDeviceId;
+  }
+
+  final cleanStoredDeviceId = storedDeviceId?.trim();
+  if (cleanStoredDeviceId != null && cleanStoredDeviceId.isNotEmpty) {
+    return cleanStoredDeviceId;
+  }
+  return _createDeviceId();
+}
+
+Future<String?> _fetchTokenDeviceId({
+  required http.Client httpClient,
+  required Uri homeserver,
+  required String accessToken,
+}) async {
+  final uri = homeserver.replace(
+    path: '/_matrix/client/v3/account/whoami',
+    query: null,
+    queryParameters: null,
+  );
+  try {
+    final response = await httpClient.get(
+      uri,
+      headers: {'authorization': 'Bearer $accessToken'},
+    );
+    if (response.statusCode != 200) return null;
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) return null;
+    return decoded['device_id'] as String?;
+  } catch (_) {
+    return null;
+  }
+}
+
 @riverpod
 class AuthStateNotifier extends _$AuthStateNotifier {
   static const _storage = FlutterSecureStorage();
+  static const lastLoginHomeserverKey = 'last_login_homeserver';
+  static const lastLoginPortalTokenKey = 'last_login_portal_token';
 
   @override
   Future<AuthState> build() async {
@@ -220,21 +283,29 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     String portalToken, {
     String? displayName,
     bool publishState = true,
+    bool useBootstrap = false,
   }) async {
     final client = ref.read(matrixClientProvider);
     final inputUri = _normalizeHomeserverUri(homeserverUrl);
     final cleanPortalToken = portalToken.trim();
     if (cleanPortalToken.isEmpty) {
-      throw ArgumentError('Portal Token 不能为空');
+      throw ArgumentError('登录密码 不能为空');
     }
 
-    // §3.1 / §7 步骤 3：先确认 Portal 已部署。
+    final baseUri = HttpAsClient.defaultAdminBaseUri(inputUri);
+    final session = useBootstrap
+        ? await HttpAsClient.bootstrapPortal(
+            baseUri: baseUri,
+            setupCode: cleanPortalToken,
+            httpClient: client.httpClient,
+          )
+        : await HttpAsClient.authenticatePortal(
+            baseUri: baseUri,
+            portalToken: cleanPortalToken,
+            httpClient: client.httpClient,
+          );
+    // 认证成功后再读取 owner.json，用于确认 Portal owner 信息。
     await _assertPortalDeployed(inputUri.host);
-    final session = await HttpAsClient.authenticatePortal(
-      baseUri: HttpAsClient.defaultAdminBaseUri(inputUri),
-      portalToken: cleanPortalToken,
-      httpClient: client.httpClient,
-    );
     final effectivePortalToken =
         (session.portalToken?.trim().isNotEmpty ?? false)
             ? session.portalToken!.trim()
@@ -247,7 +318,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await client.checkHomeserver(matrixUri);
     final checkedHomeserver = client.homeserver ?? matrixUri;
     final storedDeviceId = await _storage.read(key: 'matrix_device_id');
-    final deviceId = session.deviceId ?? storedDeviceId ?? _createDeviceId();
+    final deviceId = await _resolveSessionDeviceId(
+      httpClient: client.httpClient,
+      homeserver: checkedHomeserver,
+      accessToken: session.accessToken,
+      sessionDeviceId: session.deviceId,
+      storedDeviceId: storedDeviceId,
+    );
     await _establishPrivacyBaselineBeforeInit(
       client,
       homeserver: checkedHomeserver,
@@ -288,8 +365,15 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: effectivePortalToken,
       deviceId: deviceId,
     );
+    final ownerProfile = await HttpAsClient.fromPortalSession(
+      client,
+      portalToken: effectivePortalToken,
+      baseUri: HttpAsClient.defaultAdminBaseUri(checkedHomeserver),
+    ).getOwnerProfile();
     if (publishState) {
-      state = AsyncData(result.toAuthState());
+      state = AsyncData(
+        result.toAuthState(ownerDisplayName: ownerProfile.displayName),
+      );
     }
     reportBiInBackground(
       () => ref.read(biAnalyticsServiceProvider).reportLogin(
@@ -309,6 +393,65 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       homeserverUrl,
       portalToken,
       displayName: displayName,
+    );
+  }
+
+  Future<void> completeOwnerProfileSetup({
+    required String displayName,
+    required String newPortalToken,
+  }) async {
+    final cleanDisplayName = displayName.trim();
+    if (cleanDisplayName.isEmpty) {
+      throw ArgumentError('用户昵称不能为空');
+    }
+    final cleanToken = _validatePortalLoginToken(newPortalToken);
+    final client = ref.read(matrixClientProvider);
+    final auth = state.valueOrNull;
+    final currentPortalToken =
+        auth?.portalToken ?? await _storage.read(key: 'portal_token');
+    if (currentPortalToken == null || currentPortalToken.trim().isEmpty) {
+      throw StateError('当前登录口令缺失，请重新登录');
+    }
+    final homeserver = client.homeserver ??
+        Uri.tryParse(auth?.homeserver ?? '') ??
+        Uri.tryParse(await _storage.read(key: 'matrix_homeserver') ?? '');
+    if (homeserver == null) {
+      throw StateError('当前 Portal 地址缺失，请重新登录');
+    }
+
+    final asClient = HttpAsClient.fromPortalSession(
+      client,
+      portalToken: currentPortalToken.trim(),
+      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+    );
+    final profile =
+        await asClient.updateOwnerProfile(displayName: cleanDisplayName);
+    final savedToken = await asClient.changePortalToken(cleanToken);
+    final deviceId = client.deviceID ??
+        await _storage.read(key: 'matrix_device_id') ??
+        _createDeviceId();
+    final userId = client.userID ?? auth?.userId ?? profile.userId;
+    if (userId.isNotEmpty) {
+      await client.setDisplayName(userId, cleanDisplayName);
+    }
+    await _persistSession(
+      client,
+      homeserver,
+      portalToken: savedToken,
+      deviceId: deviceId,
+      userId: userId,
+    );
+    final savedDisplayName = profile.displayName.trim().isNotEmpty
+        ? profile.displayName.trim()
+        : cleanDisplayName;
+    state = AsyncData(
+      AuthState(
+        isLoggedIn: true,
+        userId: userId,
+        homeserver: homeserver.toString(),
+        portalToken: savedToken,
+        ownerDisplayName: savedDisplayName,
+      ),
     );
   }
 
@@ -389,6 +532,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       homeserverUrl,
       setupCode,
       publishState: false,
+      useBootstrap: true,
     );
     if (result.portalToken == setupCode.trim()) {
       throw StateError('服务器没有返回长期 Portal Token，请检查后端版本');
@@ -495,12 +639,19 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: cleanPortalToken,
       httpClient: client.httpClient,
     );
+    final refreshedDeviceId = await _resolveSessionDeviceId(
+      httpClient: client.httpClient,
+      homeserver: homeserver,
+      accessToken: session.accessToken,
+      sessionDeviceId: session.deviceId,
+      storedDeviceId: deviceId,
+    );
     await _applyRefreshedSession(
       client,
       homeserver,
       session,
       portalToken: cleanPortalToken,
-      deviceId: deviceId,
+      deviceId: refreshedDeviceId,
     );
   }
 
@@ -626,12 +777,30 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       value: client.deviceID ?? deviceId,
     );
     await _storage.write(key: 'portal_token', value: portalToken);
+    await _storage.write(key: lastLoginHomeserverKey, value: uri.toString());
+    await _storage.write(key: lastLoginPortalTokenKey, value: portalToken);
   }
 
   Future<void> logout() async {
     final client = ref.read(matrixClientProvider);
+    final lastHomeserver = await _storage.read(key: lastLoginHomeserverKey) ??
+        await _storage.read(key: 'matrix_homeserver');
+    final lastPortalToken = await _storage.read(key: lastLoginPortalTokenKey) ??
+        await _storage.read(key: 'portal_token');
     await client.logout();
     await _storage.deleteAll();
+    if (lastHomeserver != null && lastHomeserver.trim().isNotEmpty) {
+      await _storage.write(
+        key: lastLoginHomeserverKey,
+        value: lastHomeserver.trim(),
+      );
+    }
+    if (lastPortalToken != null && lastPortalToken.trim().isNotEmpty) {
+      await _storage.write(
+        key: lastLoginPortalTokenKey,
+        value: lastPortalToken.trim(),
+      );
+    }
     state = const AsyncData(AuthState(isLoggedIn: false));
   }
 }
@@ -660,10 +829,12 @@ class _PortalLoginResult {
   final String portalToken;
   final String deviceId;
 
-  AuthState toAuthState() => AuthState(
+  AuthState toAuthState({String ownerDisplayName = ''}) => AuthState(
         isLoggedIn: true,
         userId: userId,
         homeserver: homeserver.toString(),
         portalToken: portalToken,
+        ownerDisplayName: ownerDisplayName,
+        requiresProfileSetup: ownerDisplayName.trim().isEmpty,
       );
 }

@@ -5,6 +5,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import 'api_logger.dart';
+
 //// `/.well-known/portal/owner.json` 的解析结果
 class PortalOwner {
   const PortalOwner({required this.matrixUserId, required this.displayName});
@@ -73,12 +75,11 @@ class WellKnownService {
   /// GET https://{domain}/.well-known/matrix/client
   Future<String?> discoverHomeserver(String domain) async {
     final d = _normalizeDomain(domain);
+    final uri = Uri.parse('https://$d/.well-known/matrix/client');
     try {
-      final resp = await _http
-          .get(Uri.parse('https://$d/.well-known/matrix/client'))
-          .timeout(_timeout);
+      final resp = await _get(uri);
       if (resp.statusCode != 200) return null;
-      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final json = _decodeObject(uri, resp);
       final hs = json['m.homeserver'] as Map<String, dynamic>?;
       return hs?['base_url'] as String?;
     } catch (_) {
@@ -94,17 +95,16 @@ class WellKnownService {
     String domain,
   ) async {
     final d = _normalizeDomain(domain);
+    final uri = Uri.parse('https://$d/.well-known/portal/owner.json');
     try {
-      final resp = await _http
-          .get(Uri.parse('https://$d/.well-known/portal/owner.json'))
-          .timeout(_timeout);
+      final resp = await _get(uri);
       if (resp.statusCode == 404) {
         return (availability: PortalAvailability.notDeployed, owner: null);
       }
       if (resp.statusCode != 200) {
         return (availability: PortalAvailability.unreachable, owner: null);
       }
-      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final json = _decodeObject(uri, resp);
       return (
         availability: PortalAvailability.online,
         owner: PortalOwner.fromJson(json),
@@ -118,19 +118,18 @@ class WellKnownService {
   /// GET https://{domain}/.well-known/matrix/server
   Future<String?> discoverFederation(String domain) async {
     final d = _normalizeDomain(domain);
+    final uri = Uri.parse('https://$d/.well-known/matrix/server');
     try {
-      final resp = await _http
-          .get(Uri.parse('https://$d/.well-known/matrix/server'))
-          .timeout(_timeout);
+      final resp = await _get(uri);
       if (resp.statusCode != 200) return null;
-      final json = jsonDecode(resp.body) as Map<String, dynamic>;
+      final json = _decodeObject(uri, resp);
       return json['m.server'] as String?;
     } catch (_) {
       return null;
     }
   }
 
-  /// 一次性发现全部 —— App 初始化流程 §7 步骤 2-3 用。
+  /// 发现全部 —— App 初始化流程 §7 步骤 2-3 用。
   Future<WellKnownResult> discoverAll(String domain) async {
     final ownerResult = await discoverOwner(domain);
     // owner.json 不通就没必要继续；homeserver / federation 一般也不可用
@@ -151,5 +150,51 @@ class WellKnownService {
   static String agentMxidForDomain(String domain) {
     final d = domain.trim().replaceAll(RegExp(r'^https?://'), '');
     return '@agent:$d';
+  }
+
+  Future<http.Response> _get(Uri uri) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await _http.get(uri).timeout(_timeout);
+      stopwatch.stop();
+      ApiLogger.response(
+        service: 'well-known',
+        method: 'GET',
+        uri: uri,
+        statusCode: response.statusCode,
+        elapsed: stopwatch.elapsed,
+        responseBody: response.body,
+      );
+      return response;
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      ApiLogger.failure(
+        service: 'well-known',
+        method: 'GET',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
+  Map<String, dynamic> _decodeObject(Uri uri, http.Response response) {
+    try {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (error, stackTrace) {
+      ApiLogger.failure(
+        service: 'well-known',
+        method: 'DECODE',
+        uri: uri,
+        elapsed: Duration.zero,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 }

@@ -38,11 +38,22 @@ class _InitPageState extends ConsumerState<InitPage> {
       _error = null;
     });
     try {
-      await ref.read(authStateNotifierProvider.notifier).register(
-            _domainCtrl.text.trim(),
-            _portalTokenCtrl.text,
-            _displayNameCtrl.text.trim(),
-          );
+      final auth = ref.read(authStateNotifierProvider).valueOrNull;
+      if (auth?.isLoggedIn == true) {
+        await ref
+            .read(authStateNotifierProvider.notifier)
+            .completeOwnerProfileSetup(
+              displayName: _displayNameCtrl.text.trim(),
+              newPortalToken: _portalTokenCtrl.text,
+            );
+        if (mounted) context.go('/home');
+      } else {
+        await ref.read(authStateNotifierProvider.notifier).register(
+              _domainCtrl.text.trim(),
+              _portalTokenCtrl.text,
+              _displayNameCtrl.text.trim(),
+            );
+      }
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -53,11 +64,16 @@ class _InitPageState extends ConsumerState<InitPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final auth = ref.watch(authStateNotifierProvider).valueOrNull;
+    final isLoggedIn = auth?.isLoggedIn ?? false;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          GlassHeader.detail(title: '创建账号', onBack: () => context.go('/login')),
+          GlassHeader.detail(
+            title: isLoggedIn ? '初始化账号' : '创建账号',
+            onBack: () => context.go(isLoggedIn ? '/home' : '/login'),
+          ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -84,7 +100,7 @@ class _InitPageState extends ConsumerState<InitPage> {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        '初始化你的 Portal',
+                        isLoggedIn ? '完善你的账号' : '初始化你的 Portal',
                         textAlign: TextAlign.center,
                         style: AppTheme.sans(
                           size: 20,
@@ -94,28 +110,32 @@ class _InitPageState extends ConsumerState<InitPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '输入 AS 启动时生成的 Portal Token',
+                        isLoggedIn
+                            ? '设置用户昵称和长期登录口令'
+                            : '输入 AS 启动时生成的 Portal Token',
                         textAlign: TextAlign.center,
                         style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
                       const SizedBox(height: 28),
-                      M3InputField(
-                        controller: _domainCtrl,
-                        icon: Symbols.link,
-                        hint: 'Portal 域名',
-                        keyboardType: TextInputType.url,
-                      ),
-                      const SizedBox(height: 12),
+                      if (!isLoggedIn) ...[
+                        M3InputField(
+                          controller: _domainCtrl,
+                          icon: Symbols.link,
+                          hint: 'Portal 域名',
+                          keyboardType: TextInputType.url,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       M3InputField(
                         controller: _displayNameCtrl,
                         icon: Symbols.person,
-                        hint: '显示名称',
+                        hint: '用户昵称',
                       ),
                       const SizedBox(height: 12),
                       M3InputField(
                         controller: _portalTokenCtrl,
                         icon: Symbols.key,
-                        hint: 'Portal Token',
+                        hint: isLoggedIn ? '长期登录口令' : '登录密码',
                         obscure: _obscure,
                         onSubmitted: (_) => _register(),
                         trailing: IconButton(
@@ -135,17 +155,23 @@ class _InitPageState extends ConsumerState<InitPage> {
                       ],
                       const SizedBox(height: 20),
                       M3PrimaryButton(
-                        label: _loading ? '初始化中…' : '初始化 Portal',
+                        label: _loading
+                            ? '初始化中…'
+                            : isLoggedIn
+                                ? '完成初始化'
+                                : '初始化 Portal',
                         onPressed: _loading ? null : _register,
                       ),
-                      const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () => context.go('/login'),
-                        child: Text(
-                          '已有账号？登录',
-                          style: AppTheme.sans(size: 15, color: t.accent),
+                      if (!isLoggedIn) ...[
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () => context.go('/login'),
+                          child: Text(
+                            '已有账号？登录',
+                            style: AppTheme.sans(size: 15, color: t.accent),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

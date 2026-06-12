@@ -15,6 +15,8 @@ const _mockAuthEnabled = bool.fromEnvironment(
   'P2P_MATRIX_MOCK_AUTH',
   defaultValue: false,
 );
+const _addContactToolbarHeight = 48.0;
+const _addContactSearchGap = 12.0;
 
 /// 添加朋友 —— 对齐设计稿 s-new-friends 顶部「搜索 + 添加」流程。
 class AddContactPage extends ConsumerStatefulWidget {
@@ -99,7 +101,12 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
           const _AddContactHeader(),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              padding: const EdgeInsets.fromLTRB(
+                16,
+                _addContactSearchGap,
+                16,
+                24,
+              ),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 640),
@@ -117,7 +124,7 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                         }),
                         onSubmitted: (_) => _resolve(),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: _addContactSearchGap),
                       if (_loading && _resolved == null)
                         _LoadingPlaceholder()
                       else if (_resolved != null)
@@ -182,7 +189,7 @@ class _AddContactHeader extends StatelessWidget {
     final topInset = MediaQuery.paddingOf(context).top;
     final t = context.tk;
     return SizedBox(
-      height: topInset + 56,
+      height: topInset + _addContactToolbarHeight,
       child: Padding(
         padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 0),
         child: Stack(
@@ -384,6 +391,7 @@ class _SearchResultRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
+          key: const ValueKey('add_contact_result_row'),
           height: 52,
           child: DecoratedBox(
             decoration: BoxDecoration(

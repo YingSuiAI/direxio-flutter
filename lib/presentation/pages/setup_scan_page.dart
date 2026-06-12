@@ -43,7 +43,7 @@ class _SetupScanPageState extends State<SetupScanPage> {
         return;
       } on FormatException catch (e) {
         if (mounted) {
-          setState(() => _error = e.message);
+          setState(() => _error = '${e.message}: ${_rawPreview(raw)}');
         }
       }
     }
@@ -169,6 +169,12 @@ class _SetupScanPageState extends State<SetupScanPage> {
       ),
     );
   }
+}
+
+String _rawPreview(String raw) {
+  final compact = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (compact.length <= 48) return compact;
+  return '${compact.substring(0, 48)}...';
 }
 
 class _ManualSetupSheet extends StatefulWidget {

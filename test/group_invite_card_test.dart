@@ -138,6 +138,6 @@ void main() {
                   container.padding == const EdgeInsets.fromLTRB(13, 10, 13, 9),
             );
     final decoration = card.decoration! as BoxDecoration;
-    expect(decoration.borderRadius, BorderRadius.circular(16));
+    expect(decoration.borderRadius, chatMessageBubbleRadius);
   });
 }

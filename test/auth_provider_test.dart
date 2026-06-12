@@ -100,7 +100,8 @@ void main() {
     expect(auth.homeserver, 'https://example.com');
   });
 
-  test('restores stored auth state without waiting for Matrix preflight network',
+  test(
+      'restores stored auth state without waiting for Matrix preflight network',
       () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'stored-token',
@@ -137,20 +138,29 @@ void main() {
 
   test('portal login reuses an already logged-in Matrix client', () async {
     FlutterSecureStorage.setMockInitialValues({});
+    final requestPaths = <String>[];
     final client = Client(
       'AuthAlreadyLoggedPortalLoginTest',
       httpClient: MockClient((request) async {
+        requestPaths.add(request.url.path);
         if (request.url.path == '/.well-known/portal/owner.json') {
           return http.Response(
             '{"matrix_user_id":"@owner:example.com","display_name":"owner"}',
             200,
           );
         }
-        if (request.url.path == '/_as/bootstrap') {
+        if (request.url.path == '/_as/auth') {
           return http.Response(
             '{"access_token":"fresh-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
             '"portal_token":"long-portal-token"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_as/profile') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","display_name":"owner",'
+            '"domain":"example.com"}',
             200,
           );
         }
@@ -193,7 +203,12 @@ void main() {
 
     expect(auth?.isLoggedIn, isTrue);
     expect(auth?.portalToken, 'long-portal-token');
+    expect(auth?.requiresProfileSetup, isFalse);
     expect(client.accessToken, 'fresh-token');
+    expect(
+      requestPaths.indexOf('/_as/auth'),
+      lessThan(requestPaths.indexOf('/.well-known/portal/owner.json')),
+    );
   });
 
   test('portal login does not wait for first Matrix sync after baseline',
@@ -209,11 +224,18 @@ void main() {
             200,
           );
         }
-        if (request.url.path == '/_as/bootstrap') {
+        if (request.url.path == '/_as/auth') {
           return http.Response(
             '{"access_token":"fresh-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
             '"portal_token":"long-portal-token"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_as/profile') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","display_name":"owner",'
+            '"domain":"example.com"}',
             200,
           );
         }
@@ -257,5 +279,131 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
     expect(auth?.portalToken, 'long-portal-token');
+  });
+
+  test('portal login resolves device id from Matrix token owner', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final client = Client(
+      'AuthPortalLoginWhoamiDeviceTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_as/auth') {
+          return http.Response(
+            '{"access_token":"fresh-token","user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"portal_token":"long-portal-token"}',
+            200,
+          );
+        }
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:example.com","display_name":"owner"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"TOKEN_DEVICE"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_as/profile') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","display_name":"owner",'
+            '"domain":"example.com"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync' &&
+            request.url.queryParameters['timeout'] == '0') {
+          return http.Response('{"next_batch":"baseline","rooms":{}}', 200);
+        }
+        return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .login('https://example.com', 'portal-token');
+
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_device_id'),
+      'TOKEN_DEVICE',
+    );
+  });
+
+  test('portal login marks empty AS profile display name for setup', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final client = Client(
+      'AuthPortalLoginEmptyProfileTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:example.com","display_name":""}',
+            200,
+          );
+        }
+        if (request.url.path == '/_as/auth') {
+          return http.Response(
+            '{"access_token":"fresh-token","user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com","device_id":"DEVICE1",'
+            '"portal_token":"long-portal-token"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_as/profile') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","display_name":"",'
+            '"domain":"example.com"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync' &&
+            request.url.queryParameters['timeout'] == '0') {
+          return http.Response('{"next_batch":"baseline","rooms":{}}', 200);
+        }
+        return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .login('https://example.com', 'portal-token');
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.requiresProfileSetup, isTrue);
+    expect(auth?.ownerDisplayName, isEmpty);
   });
 }

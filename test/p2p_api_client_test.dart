@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:portal_app/data/bi_analytics_service.dart';
 import 'package:portal_app/data/p2p_api_client.dart';
 
 void main() {
@@ -81,5 +82,20 @@ void main() {
       'phoneModel': 'phone 16',
       'reportTime': 123,
     });
+  });
+
+  test('disabled BI analytics does not send network requests', () async {
+    final client = P2pApiClient(
+      baseUri: Uri.parse('http://192.168.1.104:8888'),
+      httpClient: MockClient((_) async {
+        fail('BI should not send requests when disabled');
+      }),
+    );
+    final analytics = BiAnalyticsService(apiClient: client, enabled: false);
+
+    await analytics.reportLogin(
+      homeserver: 'https://im.jkmf.top',
+      userId: '@owner:im.jkmf.top',
+    );
   });
 }

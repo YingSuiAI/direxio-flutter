@@ -56,7 +56,7 @@ void main() {
     expect(find.text('聊天记录'), findsOneWidget);
 
     final size = tester.getSize(find.byType(ChatRecordPreviewCard));
-    expect(size.width, chatMessageCardTotalWidth);
+    expect(size.width, chatMessageCompactCardWidth);
     expect(size.height, chatMessageCardHeight);
   });
 
@@ -95,7 +95,7 @@ void main() {
                   container.padding == const EdgeInsets.fromLTRB(13, 10, 13, 9),
             );
     final decoration = card.decoration! as BoxDecoration;
-    expect(decoration.borderRadius, BorderRadius.circular(16));
+    expect(decoration.borderRadius, chatMessageBubbleRadius);
   });
 
   testWidgets('call record bubble uses call icon and concise text',

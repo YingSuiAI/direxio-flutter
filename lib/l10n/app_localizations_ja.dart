@@ -9,7 +9,7 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
-  String get appTitle => 'TokLink';
+  String get appTitle => 'P2P-IM';
 
   @override
   String get languageSystem => 'システムに従う';
@@ -106,6 +106,24 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get commonShare => '共有';
+
+  @override
+  String get loginTitle => 'Portal IM';
+
+  @override
+  String get loginSubtitle => 'Portal ドメインとパスワードで分散型メッセージに入ります';
+
+  @override
+  String get loginDomainHint => 'https://あなたのドメイン';
+
+  @override
+  String get loginPasswordHint => 'パスワード';
+
+  @override
+  String get loginButton => 'ログイン';
+
+  @override
+  String get loginButtonLoading => 'ログイン中…';
 
   @override
   String get addContactTitle => '友だちを追加';

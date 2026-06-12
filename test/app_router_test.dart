@@ -66,7 +66,8 @@ void main() {
     );
   });
 
-  test('initial call autotest route can be injected by consumed route file', () {
+  test('initial call autotest route can be injected by consumed route file',
+      () {
     expect(
       initialAppLocation(
         mockAuthEnabled: false,
@@ -94,13 +95,15 @@ void main() {
     );
   });
 
-  test('call autotest restore redirects to injected route after auth loads', () {
+  test('call autotest restore redirects to injected route after auth loads',
+      () {
     expect(
       authRedirectLocation(
         mockAuthEnabled: false,
         callAutotestEnabled: true,
         isAuthLoading: false,
         isLoggedIn: true,
+        requiresProfileSetup: false,
         matchedLocation: '/restore',
         uri: Uri.parse(
           '/restore?next=%2Fgroup-call%2F%21room%253Ap2p.test',
@@ -114,6 +117,7 @@ void main() {
         callAutotestEnabled: true,
         isAuthLoading: false,
         isLoggedIn: true,
+        requiresProfileSetup: false,
         matchedLocation: '/restore',
         uri: Uri.parse('/restore?next=%2Fhome'),
       ),
@@ -128,6 +132,7 @@ void main() {
         callAutotestEnabled: false,
         isAuthLoading: true,
         isLoggedIn: false,
+        requiresProfileSetup: false,
         matchedLocation: '/login',
         uri: Uri.parse('/login'),
       ),
@@ -139,6 +144,7 @@ void main() {
         callAutotestEnabled: false,
         isAuthLoading: true,
         isLoggedIn: false,
+        requiresProfileSetup: false,
         matchedLocation: '/restore',
         uri: Uri.parse('/restore'),
       ),
@@ -154,6 +160,7 @@ void main() {
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: true,
+        requiresProfileSetup: false,
         matchedLocation: '/restore',
         uri: Uri.parse('/restore'),
       ),
@@ -165,10 +172,38 @@ void main() {
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: false,
+        requiresProfileSetup: false,
         matchedLocation: '/restore',
         uri: Uri.parse('/restore'),
       ),
       '/login',
+    );
+  });
+
+  test('auth redirect sends logged-in uninitialized profile to init', () {
+    expect(
+      authRedirectLocation(
+        mockAuthEnabled: false,
+        callAutotestEnabled: false,
+        isAuthLoading: false,
+        isLoggedIn: true,
+        requiresProfileSetup: true,
+        matchedLocation: '/login',
+        uri: Uri.parse('/login'),
+      ),
+      '/init',
+    );
+    expect(
+      authRedirectLocation(
+        mockAuthEnabled: false,
+        callAutotestEnabled: false,
+        isAuthLoading: false,
+        isLoggedIn: true,
+        requiresProfileSetup: true,
+        matchedLocation: '/init',
+        uri: Uri.parse('/init'),
+      ),
+      isNull,
     );
   });
 }

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import 'api_logger.dart';
 import 'as_client.dart';
 
 /// HTTP implementation for the p2p-matrix-as Admin API.
@@ -63,7 +64,11 @@ class HttpAsClient implements AsClient {
     final host = homeserver.host;
     final isLoopback =
         host == 'localhost' || host == '127.0.0.1' || host == '::1';
-    final port = isLoopback ? 9090 : (homeserver.hasPort ? homeserver.port : 0);
+    final port = isLoopback
+        ? 9090
+        : homeserver.hasPort
+            ? homeserver.port
+            : null;
     return Uri(
       scheme: homeserver.scheme.isEmpty ? 'https' : homeserver.scheme,
       host: host,
@@ -100,16 +105,22 @@ class HttpAsClient implements AsClient {
     final client = httpClient ?? http.Client();
     final normalizedBase = _normalizeBaseUri(baseUri);
     try {
-      return await _postPortalAuth(
-        client,
-        normalizedBase,
-        'bootstrap',
-        portalToken,
-        allowAlreadyInitialized: true,
-      );
-    } on AsClientException catch (e) {
-      if (e.statusCode != 409) rethrow;
       return _postPortalAuth(client, normalizedBase, 'auth', portalToken);
+    } finally {
+      if (ownsClient) client.close();
+    }
+  }
+
+  static Future<AsPortalSession> bootstrapPortal({
+    required Uri baseUri,
+    required String setupCode,
+    http.Client? httpClient,
+  }) async {
+    final ownsClient = httpClient == null;
+    final client = httpClient ?? http.Client();
+    final normalizedBase = _normalizeBaseUri(baseUri);
+    try {
+      return _postPortalAuth(client, normalizedBase, 'bootstrap', setupCode);
     } finally {
       if (ownsClient) client.close();
     }
@@ -1028,8 +1039,32 @@ class HttpAsClient implements AsClient {
       path,
       queryParameters: queryParameters,
     );
-    final response = await _http.get(uri,
-        headers: const {'Accept': 'application/json'}).timeout(_timeout);
+    final stopwatch = Stopwatch()..start();
+    late http.Response response;
+    try {
+      response = await _http.get(uri,
+          headers: const {'Accept': 'application/json'}).timeout(_timeout);
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      ApiLogger.failure(
+        service: 'AS public',
+        method: 'GET',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+    stopwatch.stop();
+    ApiLogger.response(
+      service: 'AS public',
+      method: 'GET',
+      uri: uri,
+      statusCode: response.statusCode,
+      elapsed: stopwatch.elapsed,
+      responseBody: response.body,
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AsClientException(
         _extractErrorMessage(response),
@@ -1037,12 +1072,37 @@ class HttpAsClient implements AsClient {
       );
     }
     if (response.body.trim().isEmpty) return const {};
-    final decoded = jsonDecode(response.body);
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error, stackTrace) {
+      ApiLogger.failure(
+        service: 'AS public',
+        method: 'GET',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
     if (decoded is! Map<String, dynamic>) {
-      throw AsClientException(
+      final error = AsClientException(
         'AS returned a non-object JSON response',
         statusCode: response.statusCode,
       );
+      ApiLogger.failure(
+        service: 'AS public',
+        method: 'GET',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+      );
+      throw error;
     }
     return decoded;
   }
@@ -1064,8 +1124,32 @@ class HttpAsClient implements AsClient {
       request.body = jsonEncode(body);
     }
 
-    final streamed = await _http.send(request).timeout(_timeout);
-    final response = await http.Response.fromStream(streamed);
+    final stopwatch = Stopwatch()..start();
+    late http.Response response;
+    try {
+      final streamed = await _http.send(request).timeout(_timeout);
+      response = await http.Response.fromStream(streamed);
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      ApiLogger.failure(
+        service: 'AS admin',
+        method: method,
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+    stopwatch.stop();
+    ApiLogger.response(
+      service: 'AS admin',
+      method: method,
+      uri: uri,
+      statusCode: response.statusCode,
+      elapsed: stopwatch.elapsed,
+      responseBody: response.body,
+    );
     if (!allowedStatusCodes.contains(response.statusCode)) {
       throw AsClientException(
         _extractErrorMessage(response),
@@ -1073,12 +1157,37 @@ class HttpAsClient implements AsClient {
       );
     }
     if (response.body.trim().isEmpty) return const {};
-    final decoded = jsonDecode(response.body);
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error, stackTrace) {
+      ApiLogger.failure(
+        service: 'AS admin',
+        method: method,
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
     if (decoded is! Map<String, dynamic>) {
-      throw AsClientException(
+      final error = AsClientException(
         'AS returned a non-object JSON response',
         statusCode: response.statusCode,
       );
+      ApiLogger.failure(
+        service: 'AS admin',
+        method: method,
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+      );
+      throw error;
     }
     return decoded;
   }
@@ -1141,48 +1250,100 @@ class HttpAsClient implements AsClient {
     http.Client client,
     Uri baseUri,
     String path,
-    String portalToken, {
-    bool allowAlreadyInitialized = false,
-  }) async {
+    String portalToken,
+  ) async {
     final uri = _resolveStatic(baseUri, path);
-    final response = await client
-        .post(
-          uri,
-          headers: const {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json; charset=utf-8',
-          },
-          body: jsonEncode({'token': portalToken}),
-        )
-        .timeout(_timeout);
-
-    if (allowAlreadyInitialized && response.statusCode == 409) {
-      throw AsClientException(
-        _extractErrorMessage(response),
-        statusCode: response.statusCode,
+    final stopwatch = Stopwatch()..start();
+    late http.Response response;
+    try {
+      response = await client
+          .post(
+            uri,
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode({'token': portalToken}),
+          )
+          .timeout(_timeout);
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      ApiLogger.failure(
+        service: 'AS auth',
+        method: 'POST',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        error: error,
+        stackTrace: stackTrace,
       );
+      rethrow;
     }
+    stopwatch.stop();
+    ApiLogger.response(
+      service: 'AS auth',
+      method: 'POST',
+      uri: uri,
+      statusCode: response.statusCode,
+      elapsed: stopwatch.elapsed,
+      responseBody: response.body,
+    );
+
     if (response.statusCode != 200) {
       throw AsClientException(
         _extractErrorMessage(response),
         statusCode: response.statusCode,
       );
     }
-    final decoded = jsonDecode(response.body);
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error, stackTrace) {
+      ApiLogger.failure(
+        service: 'AS auth',
+        method: 'POST',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
     if (decoded is! Map<String, dynamic>) {
-      throw AsClientException(
+      final error = AsClientException(
         'AS returned a non-object JSON response',
         statusCode: response.statusCode,
       );
+      ApiLogger.failure(
+        service: 'AS auth',
+        method: 'POST',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+      );
+      throw error;
     }
     final session = AsPortalSession.fromJson(decoded);
     if (session.accessToken.isEmpty ||
         session.userId.isEmpty ||
         session.homeserver.isEmpty) {
-      throw AsClientException(
+      final error = AsClientException(
         'AS auth response is missing access_token, user_id, or homeserver',
         statusCode: response.statusCode,
       );
+      ApiLogger.failure(
+        service: 'AS auth',
+        method: 'POST',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: error,
+      );
+      throw error;
     }
     return session;
   }

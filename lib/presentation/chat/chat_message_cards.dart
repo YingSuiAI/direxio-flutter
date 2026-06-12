@@ -6,11 +6,30 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import 'chat_record_forwarding.dart';
 
-const chatMessageCardWidth = 273.0;
+const chatMessageCardWidth = 220.0;
 const chatMessageCardHeight = 130.0;
 const chatMessageCardTotalWidth = chatMessageCardWidth;
 const chatMessageCardMaxWidthFactor = 0.77;
 const chatMessageBubbleRadius = BorderRadius.all(Radius.circular(24));
+const chatMessageMediaWidth = 220.0;
+const chatMessageMediaHeight = 160.0;
+const chatMessageCompactCardWidth = chatMessageCardWidth;
+
+BorderRadius chatDirectionalBubbleRadius(bool isMe) {
+  return isMe
+      ? const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(2),
+        )
+      : const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+          bottomLeft: Radius.circular(2),
+          bottomRight: Radius.circular(24),
+        );
+}
 
 class ChatBubbleFrame extends StatelessWidget {
   const ChatBubbleFrame({
@@ -76,11 +95,11 @@ class ChatCardBubbleFrame extends StatelessWidget {
       onSecondaryTapDown: (details) => pressPosition = details.globalPosition,
       onSecondaryTap: () => onLongPressAt?.call(pressPosition),
       child: SizedBox(
-        width: chatMessageCardTotalWidth,
+        width: chatMessageCompactCardWidth,
         height: chatMessageCardHeight,
         child: ChatBubbleFrame(
           child: Container(
-            width: chatMessageCardWidth,
+            width: chatMessageCompactCardWidth,
             height: chatMessageCardHeight,
             padding: const EdgeInsets.fromLTRB(13, 10, 13, 9),
             decoration: BoxDecoration(

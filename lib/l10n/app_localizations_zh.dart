@@ -108,6 +108,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonShare => '分享';
 
   @override
+  String get loginTitle => 'Portal IM';
+
+  @override
+  String get loginSubtitle => '使用你的 Portal 域名和密码进入去中心化通讯空间';
+
+  @override
+  String get loginDomainHint => 'https://你的域名';
+
+  @override
+  String get loginPasswordHint => '登录密码';
+
+  @override
+  String get loginButton => '登录';
+
+  @override
+  String get loginButtonLoading => '登录中…';
+
+  @override
   String get addContactTitle => '添加好友';
 
   @override

@@ -11,6 +11,32 @@ void main() {
     expect(payload.code, 'a7k9m2q4');
   });
 
+  test('parses setup QR payload from json wrapper', () {
+    final payload = SetupPayload.parse(
+      '{"portal_url":"https://example.com/setup","setup_code":"a7k9m2q4"}',
+    );
+
+    expect(payload.server.toString(), 'https://example.com');
+    expect(payload.code, 'a7k9m2q4');
+  });
+
+  test('parses setup QR payload from https query link', () {
+    final payload = SetupPayload.parse(
+      'https://example.com/setup?code=a7k9m2q4',
+    );
+
+    expect(payload.server.toString(), 'https://example.com');
+    expect(payload.code, 'a7k9m2q4');
+  });
+
+  test('parses setup page link without one-time code', () {
+    final payload = SetupPayload.parse('https://lytestl.p2p-im.com/setup');
+
+    expect(payload.server.toString(), 'https://lytestl.p2p-im.com');
+    expect(payload.code, isEmpty);
+    expect(payload.hasCode, isFalse);
+  });
+
   test('builds setup QR payload with encoded server', () {
     final payload = SetupPayload(
       server: Uri.parse('https://example.com'),

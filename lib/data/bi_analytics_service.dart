@@ -10,16 +10,20 @@ class BiAnalyticsService {
   BiAnalyticsService({
     required P2pApiClient apiClient,
     FlutterSecureStorage storage = const FlutterSecureStorage(),
+    bool enabled = true,
   })  : _apiClient = apiClient,
-        _storage = storage;
+        _storage = storage,
+        _enabled = enabled;
 
   final P2pApiClient _apiClient;
   final FlutterSecureStorage _storage;
+  final bool _enabled;
 
   static const _deviceNoKey = 'p2p_bi_device_no';
   static const _installReportedKey = 'p2p_bi_install_reported';
 
   Future<void> reportInstallAndLaunch() async {
+    if (!_enabled) return;
     final installReported = await _storage.read(key: _installReportedKey);
     if (installReported != 'true') {
       await _report('install', payload: await _basePayload(page: '/install'));
@@ -29,10 +33,12 @@ class BiAnalyticsService {
   }
 
   Future<void> reportLaunch() async {
+    if (!_enabled) return;
     await _report('launch', payload: await _basePayload(page: '/home'));
   }
 
   Future<void> reportLogin({String homeserver = '', String userId = ''}) async {
+    if (!_enabled) return;
     await _report(
       'login',
       payload: {
@@ -47,6 +53,7 @@ class BiAnalyticsService {
     String eventType, {
     Map<String, Object?> payload = const {},
   }) async {
+    if (!_enabled) return;
     await _apiClient.reportBiEvent(
       deviceNo: await _deviceNo(),
       eventType: eventType,

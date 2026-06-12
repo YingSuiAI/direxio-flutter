@@ -24,6 +24,25 @@ void main() {
     expect(parseQrScanTarget('6346071045')?.userId, '6346071045');
   });
 
+  test('parses common user qr wrappers', () {
+    expect(
+      parseQrScanTarget(
+        '{"matrix_user_id":"@alice:portal.local","display_name":"Alice"}',
+      )?.userId,
+      '@alice:portal.local',
+    );
+    expect(
+      parseQrScanTarget(
+        'https://portal.local/add-contact?mxid=@alice:portal.local&name=Alice',
+      )?.userId,
+      '@alice:portal.local',
+    );
+    expect(
+      parseQrScanTarget('https://matrix.to/#/@alice:portal.local')?.userId,
+      '@alice:portal.local',
+    );
+  });
+
   test('parses mobile join group qr formats', () {
     expect(
       parseQrScanTarget('https://io.openim.app/joinGroup/group-a')?.groupId,
@@ -32,6 +51,10 @@ void main() {
     expect(
       parseQrScanTarget('openim://joinGroup/group-a')?.groupId,
       'group-a',
+    );
+    expect(
+      parseQrScanTarget('https://matrix.to/#/!room:portal.local')?.groupId,
+      '!room:portal.local',
     );
   });
 

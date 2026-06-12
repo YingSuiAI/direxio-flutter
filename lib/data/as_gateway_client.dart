@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'api_logger.dart';
+
 class AsGatewayException implements Exception {
   AsGatewayException(this.message, {this.statusCode, this.payload});
 
@@ -171,8 +173,33 @@ class AsGatewayClient {
     final request = http.Request(method, uri);
     request.headers.addAll(headers);
     if (body != null) request.body = body;
-    final streamed = await _http.send(request).timeout(timeout);
-    return http.Response.fromStream(streamed).timeout(timeout);
+    final stopwatch = Stopwatch()..start();
+    try {
+      final streamed = await _http.send(request).timeout(timeout);
+      final response =
+          await http.Response.fromStream(streamed).timeout(timeout);
+      stopwatch.stop();
+      ApiLogger.response(
+        service: 'AS gateway',
+        method: method,
+        uri: uri,
+        statusCode: response.statusCode,
+        elapsed: stopwatch.elapsed,
+        responseBody: response.body,
+      );
+      return response;
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      ApiLogger.failure(
+        service: 'AS gateway',
+        method: method,
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   bool _shouldRetryStatus(int statusCode) {
@@ -211,12 +238,23 @@ class AsGatewayClient {
       payload = response.body.isEmpty
           ? <String, dynamic>{}
           : jsonDecode(response.body);
-    } catch (_) {
-      throw AsGatewayException(
+    } catch (error, stackTrace) {
+      final exception = AsGatewayException(
         'AS Gateway returned invalid JSON',
         statusCode: response.statusCode,
         payload: response.body,
       );
+      ApiLogger.failure(
+        service: 'AS gateway',
+        method: 'DECODE',
+        uri: response.request?.url ?? Uri(),
+        elapsed: Duration.zero,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: exception,
+        stackTrace: stackTrace,
+      );
+      throw exception;
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -232,11 +270,21 @@ class AsGatewayClient {
     }
 
     if (payload is! Map<String, dynamic>) {
-      throw AsGatewayException(
+      final exception = AsGatewayException(
         'AS Gateway returned a non-object JSON response',
         statusCode: response.statusCode,
         payload: payload,
       );
+      ApiLogger.failure(
+        service: 'AS gateway',
+        method: 'DECODE',
+        uri: response.request?.url ?? Uri(),
+        elapsed: Duration.zero,
+        statusCode: response.statusCode,
+        responseBody: response.body,
+        error: exception,
+      );
+      throw exception;
     }
     return payload;
   }

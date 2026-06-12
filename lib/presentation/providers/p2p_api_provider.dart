@@ -13,6 +13,11 @@ const _p2pBiSecret = String.fromEnvironment(
   defaultValue: '',
 );
 
+const _p2pBiEnabled = bool.fromEnvironment(
+  'P2P_BI_ENABLED',
+  defaultValue: false,
+);
+
 final p2pApiClientProvider = Provider<P2pApiClient>((ref) {
   return P2pApiClient(
     baseUri: Uri.parse(_p2pApiBaseUrl),
@@ -21,5 +26,8 @@ final p2pApiClientProvider = Provider<P2pApiClient>((ref) {
 });
 
 final biAnalyticsServiceProvider = Provider<BiAnalyticsService>((ref) {
-  return BiAnalyticsService(apiClient: ref.watch(p2pApiClientProvider));
+  return BiAnalyticsService(
+    apiClient: ref.watch(p2pApiClientProvider),
+    enabled: _p2pBiEnabled,
+  );
 });

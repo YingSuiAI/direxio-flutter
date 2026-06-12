@@ -23,6 +23,14 @@ void main() {
     expect(base.toString(), 'http://127.0.0.1:9090/_as');
   });
 
+  test('maps hosted homeserver without synthetic port', () {
+    final base = HttpAsClient.defaultAdminBaseUri(
+      Uri.parse('https://im.jkmf.top'),
+    );
+
+    expect(base.toString(), 'https://im.jkmf.top/_as');
+  });
+
   test('search calls AS admin API with portal bearer token', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
@@ -1750,13 +1758,13 @@ void main() {
     );
   });
 
-  test('authenticatePortal bootstraps with body token', () async {
+  test('authenticatePortal posts body token to auth', () async {
     final session = await HttpAsClient.authenticatePortal(
       baseUri: Uri.parse('https://example.com/_as'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/bootstrap');
+        expect(request.url.path, '/_as/auth');
         expect(request.headers['Authorization'], isNull);
         expect(jsonDecode(request.body), {'token': 'portal-token'});
         return http.Response(
@@ -1781,35 +1789,28 @@ void main() {
     expect(session.portalToken, 'long-portal-token');
   });
 
-  test('authenticatePortal falls back to auth when already initialized',
-      () async {
-    var calls = 0;
-    final session = await HttpAsClient.authenticatePortal(
+  test('bootstrapPortal posts setup code to bootstrap', () async {
+    final session = await HttpAsClient.bootstrapPortal(
       baseUri: Uri.parse('https://example.com/_as'),
-      portalToken: 'portal-token',
+      setupCode: 'setup-code',
       httpClient: MockClient((request) async {
-        calls += 1;
-        if (calls == 1) {
-          expect(request.url.path, '/_as/bootstrap');
-          return http.Response(
-            jsonEncode({'error': 'portal already initialised'}),
-            409,
-          );
-        }
-        expect(request.url.path, '/_as/auth');
-        expect(jsonDecode(request.body), {'token': 'portal-token'});
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/bootstrap');
+        expect(request.headers['Authorization'], isNull);
+        expect(jsonDecode(request.body), {'token': 'setup-code'});
         return http.Response(
           jsonEncode({
-            'access_token': 'fresh-matrix-token',
+            'access_token': 'bootstrapped-matrix-token',
             'user_id': '@owner:example.com',
             'homeserver': 'https://example.com',
+            'portal_token': 'long-portal-token',
           }),
           200,
         );
       }),
     );
 
-    expect(calls, 2);
-    expect(session.accessToken, 'fresh-matrix-token');
+    expect(session.accessToken, 'bootstrapped-matrix-token');
+    expect(session.portalToken, 'long-portal-token');
   });
 }

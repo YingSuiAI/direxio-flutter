@@ -49,6 +49,10 @@ import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
 
+const _groupChatPeerBubble = Color(0xFFEEEEEF);
+const _groupChatOwnBubble = Color(0xFF34C759);
+const _groupChatAccentBlue = Color(0xFF0089FF);
+
 Future<void> _popGroupChatOrHome(BuildContext context) async {
   final didPop = await Navigator.of(context).maybePop();
   if (!context.mounted || didPop) return;
@@ -1789,8 +1793,8 @@ class _GroupImageMessageBubble extends StatelessWidget {
       onTap: onTap,
       onLongPressStart: (details) => onLongPressAt(details.globalPosition),
       child: ChatMediaBubbleFrame(
-        width: 208,
-        height: 160,
+        width: chatMessageMediaWidth,
+        height: chatMessageMediaHeight,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -1955,11 +1959,15 @@ class _GroupFileMessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     final senderName = event.senderFromMemoryOrFallback.calcDisplayname();
-    final cardColor = selected ? t.accent.withValues(alpha: 0.18) : t.surface;
+    final cardColor = selected
+        ? t.accent.withValues(alpha: 0.18)
+        : isMe
+            ? _groupChatOwnBubble
+            : _groupChatPeerBubble;
     final card = _GroupFileCardSurface(
       isMe: isMe,
       color: cardColor,
-      borderRadius: chatMessageBubbleRadius,
+      borderRadius: chatDirectionalBubbleRadius(isMe),
       fileName: fileName,
       sizeLabel: sizeLabel,
       trailing: multiSelect
@@ -2077,6 +2085,9 @@ class _GroupFileCardSurface extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             borderRadius: borderRadius,
+            border: isMe
+                ? null
+                : Border.all(color: Colors.black.withValues(alpha: 0.06)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -2085,16 +2096,24 @@ class _GroupFileCardSurface extends StatelessWidget {
               ),
             ],
           ),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: t.danger.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+                  color: isMe
+                      ? Colors.white.withValues(alpha: 0.20)
+                      : _groupChatAccentBlue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                padding: const EdgeInsets.all(8),
-                child: Icon(Symbols.description, size: 22, color: t.danger),
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                child: Icon(
+                  Symbols.description,
+                  size: 22,
+                  color: isMe ? Colors.white : _groupChatAccentBlue,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2107,15 +2126,21 @@ class _GroupFileCardSurface extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
-                        size: 13,
-                        color: t.text,
-                        weight: FontWeight.w500,
+                        size: 15,
+                        color: isMe ? Colors.white : t.text,
+                        weight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       sizeLabel,
-                      style: AppTheme.sans(size: 11, color: t.textMute),
+                      style: AppTheme.sans(
+                        size: 12,
+                        weight: FontWeight.w500,
+                        color: isMe
+                            ? Colors.white.withValues(alpha: 0.78)
+                            : t.textMute,
+                      ),
                     ),
                   ],
                 ),
@@ -2208,8 +2233,8 @@ class _GroupMessageBubble extends StatelessWidget {
     final bubbleColor = selected
         ? t.accent.withValues(alpha: 0.18)
         : isMe
-            ? t.accent
-            : t.surface;
+            ? _groupChatOwnBubble
+            : _groupChatPeerBubble;
 
     final bubble = channelSharePayload != null
         ? ChannelSharePreviewCard(
@@ -2226,7 +2251,12 @@ class _GroupMessageBubble extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       color: bubbleColor,
-                      borderRadius: chatMessageBubbleRadius,
+                      borderRadius: chatDirectionalBubbleRadius(isMe),
+                      border: isMe
+                          ? null
+                          : Border.all(
+                              color: Colors.black.withValues(alpha: 0.06),
+                            ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.04),
@@ -2236,7 +2266,9 @@ class _GroupMessageBubble extends StatelessWidget {
                       ],
                     ),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     child: Text(
                       body,
                       style: AppTheme.sans(

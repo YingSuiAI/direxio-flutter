@@ -32,6 +32,25 @@ class _RecordingMediaThumbnailPreloader implements MediaThumbnailPreloader {
 }
 
 void main() {
+  test('warmup starts Matrix conversation sync for logged-in clients',
+      () async {
+    var syncCalls = 0;
+    final client = Client('PortalIMWarmupMatrixSyncTest')
+      ..accessToken = 'token';
+    final service = AppWarmupService(
+      client: client,
+      avatarPreloader: _NoopAvatarPreloader(),
+      loadCurrentUserProfile: () async => null,
+      syncMatrixConversations: () async {
+        syncCalls++;
+      },
+    );
+
+    await service.warmup();
+
+    expect(syncCalls, 1);
+  });
+
   test(
       'warmup starts unread and bootstrap in parallel, then applies unread first',
       () async {

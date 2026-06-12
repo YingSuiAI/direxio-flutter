@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
@@ -12,12 +14,14 @@ class PortalAvatar extends StatelessWidget {
     required this.seed,
     this.size = 40,
     this.imageUrl,
+    this.imageBytes,
     this.shape = AvatarShape.circle,
   });
 
   final String seed;
   final double size;
   final String? imageUrl;
+  final Uint8List? imageBytes;
   final AvatarShape shape;
 
   @override
@@ -36,7 +40,8 @@ class PortalAvatar extends StatelessWidget {
     final effective = (seed.startsWith('@') && seed.contains(':'))
         ? seed.substring(1, seed.indexOf(':'))
         : seed;
-    final letter = effective.isNotEmpty ? effective.characters.first.toUpperCase() : '?';
+    final letter =
+        effective.isNotEmpty ? effective.characters.first.toUpperCase() : '?';
 
     final radius = shape == AvatarShape.circle
         ? BorderRadius.circular(size / 2)
@@ -48,20 +53,30 @@ class PortalAvatar extends StatelessWidget {
       decoration: BoxDecoration(color: bg, borderRadius: radius),
       clipBehavior: Clip.antiAlias,
       alignment: Alignment.center,
-      child: imageUrl != null
-          ? Image.network(
-              imageUrl!,
+      child: imageBytes != null
+          ? Image.memory(
+              imageBytes!,
               fit: BoxFit.cover,
+              gaplessPlayback: true,
               errorBuilder: (_, __, ___) => _letter(letter, fg),
             )
-          : _letter(letter, fg),
+          : imageUrl != null
+              ? Image.network(
+                  key: ValueKey(imageUrl),
+                  imageUrl!,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => _letter(letter, fg),
+                )
+              : _letter(letter, fg),
     );
   }
 
   Widget _letter(String letter, Color fg) => Text(
-    letter,
-    style: AppTheme.sans(size: size * 0.42, color: fg, weight: FontWeight.w600),
-  );
+        letter,
+        style: AppTheme.sans(
+            size: size * 0.42, color: fg, weight: FontWeight.w600),
+      );
 }
 
 /// 在线状态绿点 —— 叠在头像右下角。

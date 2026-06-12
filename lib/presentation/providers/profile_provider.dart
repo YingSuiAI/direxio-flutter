@@ -12,7 +12,11 @@ final currentUserProfileProvider = FutureProvider<Profile?>((ref) async {
   if (!auth.isLoggedIn || userId == null || userId.isEmpty) return null;
 
   try {
-    return await ref.read(matrixClientProvider).getProfileFromUserId(userId);
+    return await ref.read(matrixClientProvider).getProfileFromUserId(
+          userId,
+          cache: false,
+          getFromRooms: false,
+        );
   } catch (_) {
     return null;
   }

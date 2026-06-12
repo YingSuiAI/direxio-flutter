@@ -33,6 +33,8 @@ class MockMessage {
     this.toolResultSummary,
     this.toolLatencyMs,
     this.toolWarnings,
+    this.quotedSender,
+    this.quotedText,
     this.chatRecordContent = const {},
   });
   final bool isMe;
@@ -56,6 +58,8 @@ class MockMessage {
   final String? toolResultSummary;
   final int? toolLatencyMs;
   final List<String>? toolWarnings;
+  final String? quotedSender;
+  final String? quotedText;
 
   /// 转发的聊天记录消息专用：保存 Matrix 兼容的 chat_record payload。
   final Map<String, Object?> chatRecordContent;

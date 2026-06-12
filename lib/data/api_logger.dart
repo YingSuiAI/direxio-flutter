@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
 
 class ApiLogger {
@@ -9,6 +10,7 @@ class ApiLogger {
     required Uri uri,
     required int statusCode,
     required Duration elapsed,
+    String? requestBody,
     String? responseBody,
   }) {
     final ok = statusCode >= 200 && statusCode < 300;
@@ -18,6 +20,7 @@ class ApiLogger {
       uri: uri,
       statusCode: statusCode,
       elapsed: elapsed,
+      requestBody: requestBody,
       responseBody: responseBody,
     );
     developer.log(
@@ -35,6 +38,7 @@ class ApiLogger {
     required Object error,
     StackTrace? stackTrace,
     String? responseBody,
+    String? requestBody,
     int? statusCode,
   }) {
     developer.log(
@@ -45,6 +49,7 @@ class ApiLogger {
         statusCode: statusCode,
         elapsed: elapsed,
         error: error,
+        requestBody: requestBody,
         responseBody: responseBody,
       ),
       name: 'portal.api',
@@ -61,6 +66,7 @@ class ApiLogger {
     required Duration elapsed,
     int? statusCode,
     Object? error,
+    String? requestBody,
     String? responseBody,
   }) {
     final status = statusCode == null ? 'ERR' : statusCode.toString();
@@ -73,8 +79,10 @@ class ApiLogger {
       '${elapsed.inMilliseconds}ms',
     ];
     if (error != null) parts.add('error=$error');
-    final preview = _preview(responseBody);
-    if (preview != null) parts.add('body=$preview');
+    final requestPreview = _previewRequestBody(requestBody);
+    if (requestPreview != null) parts.add('request=$requestPreview');
+    final responsePreview = _preview(responseBody);
+    if (responsePreview != null) parts.add('body=$responsePreview');
     return parts.join(' ');
   }
 
@@ -103,5 +111,31 @@ class ApiLogger {
     const maxLength = 600;
     if (trimmed.length <= maxLength) return trimmed;
     return '${trimmed.substring(0, maxLength)}...';
+  }
+
+  static String? _previewRequestBody(String? body) {
+    final trimmed = body?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(trimmed);
+      return _preview(jsonEncode(_redactSensitiveJson(decoded)));
+    } catch (_) {
+      return _preview(trimmed);
+    }
+  }
+
+  static Object? _redactSensitiveJson(Object? value) {
+    if (value is Map) {
+      return {
+        for (final entry in value.entries)
+          entry.key.toString(): _isSensitiveKey(entry.key.toString())
+              ? '<redacted>'
+              : _redactSensitiveJson(entry.value),
+      };
+    }
+    if (value is List) {
+      return [for (final item in value) _redactSensitiveJson(item)];
+    }
+    return value;
   }
 }

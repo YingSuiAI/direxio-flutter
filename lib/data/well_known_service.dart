@@ -9,7 +9,11 @@ import 'api_logger.dart';
 
 //// `/.well-known/portal/owner.json` 的解析结果
 class PortalOwner {
-  const PortalOwner({required this.matrixUserId, required this.displayName});
+  const PortalOwner({
+    required this.matrixUserId,
+    required this.displayName,
+    this.avatarUrl = '',
+  });
 
   /// Portal 主人的 MXID，如 `@owner:liyananp2p.com`
   final String matrixUserId;
@@ -17,9 +21,15 @@ class PortalOwner {
   /// 显示名，如 "施歌"
   final String displayName;
 
+  /// 头像地址，通常是 mxc:// 或 https://。
+  final String avatarUrl;
+
   factory PortalOwner.fromJson(Map<String, dynamic> json) => PortalOwner(
         matrixUserId: json['matrix_user_id'] as String,
         displayName: (json['display_name'] as String?) ?? '',
+        avatarUrl: (json['avatar_url'] as String?) ??
+            (json['avatarUrl'] as String?) ??
+            '',
       );
 }
 

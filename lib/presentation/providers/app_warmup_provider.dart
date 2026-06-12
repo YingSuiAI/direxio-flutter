@@ -35,6 +35,7 @@ typedef RecentRoomEventsLoader = Future<List<Event>> Function(
   Room room,
   int limit,
 );
+typedef MatrixConversationSync = Future<void> Function();
 
 abstract class AvatarPreloader {
   Future<void> preload(String url);
@@ -117,6 +118,7 @@ final appWarmupServiceProvider = Provider<AppWarmupService>((ref) {
     avatarPreloader: ref.watch(avatarPreloaderProvider),
     mediaThumbnailPreloader: ref.watch(mediaThumbnailPreloaderProvider),
     loadCurrentUserProfile: () => ref.read(currentUserProfileProvider.future),
+    syncMatrixConversations: () => ref.read(matrixClientProvider).oneShotSync(),
     loadCachedBootstrap: bootstrapRepository.readCached,
     loadBootstrap: bootstrapRepository.refresh,
     loadUnread: ({int limitPerRoom = 200}) =>
@@ -161,6 +163,7 @@ class AppWarmupService {
     required this.avatarPreloader,
     this.mediaThumbnailPreloader,
     required this.loadCurrentUserProfile,
+    this.syncMatrixConversations,
     this.loadBootstrap,
     this.loadCachedBootstrap,
     this.loadUnread,
@@ -188,6 +191,7 @@ class AppWarmupService {
   final AvatarPreloader avatarPreloader;
   final MediaThumbnailPreloader? mediaThumbnailPreloader;
   final Future<Profile?> Function() loadCurrentUserProfile;
+  final MatrixConversationSync? syncMatrixConversations;
   final AsBootstrapLoader? loadBootstrap;
   final CachedAsBootstrapLoader? loadCachedBootstrap;
   final AsUnreadLoader? loadUnread;
@@ -216,12 +220,14 @@ class AppWarmupService {
     final unreadFuture = _loadUnreadRecovery();
     final bootstrapFuture = _loadBootstrapMetadata();
     final profileFuture = _loadProfile();
+    final matrixSyncFuture = _syncMatrixConversations();
 
     final cachedUnread = await cachedUnreadFuture;
     final cachedBootstrap = await cachedBootstrapFuture;
     final unread = await unreadFuture;
     final bootstrap = await bootstrapFuture ?? cachedBootstrap;
     final profile = await profileFuture;
+    await matrixSyncFuture;
 
     final urls = <String>[];
     _addUnique(urls, profileAvatarHttpUrl(profile, client));
@@ -319,6 +325,16 @@ class AppWarmupService {
     } catch (e) {
       debugPrint('app warmup profile failed: $e');
       return null;
+    }
+  }
+
+  Future<void> _syncMatrixConversations() async {
+    final sync = syncMatrixConversations;
+    if (sync == null || !client.isLogged()) return;
+    try {
+      await sync().timeout(syncTimeout);
+    } catch (e) {
+      debugPrint('app warmup Matrix conversation sync failed: $e');
     }
   }
 

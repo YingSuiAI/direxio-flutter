@@ -479,9 +479,11 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<String> changePortalToken(String newToken) async {
+  Future<void> changePortalPassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
     await Future.delayed(_latency);
-    return newToken.trim();
   }
 
   @override

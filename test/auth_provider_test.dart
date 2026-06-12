@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -134,6 +135,53 @@ void main() {
     expect(auth.isLoggedIn, isTrue);
     expect(auth.userId, '@owner:example.com');
     expect(auth.homeserver, 'https://example.com');
+  });
+
+  test('restores auth from stored portal token when Matrix token is missing',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'portal-token',
+    });
+    final requestPaths = <String>[];
+    final client = Client(
+      'AuthStoredPortalTokenRestoreTest',
+      httpClient: MockClient((request) async {
+        requestPaths.add(request.url.path);
+        if (request.url.path == '/_as/auth') {
+          return http.Response(
+            '{"access_token":"fresh-token","user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s0","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    final auth = await container
+        .read(authStateNotifierProvider.future)
+        .timeout(const Duration(milliseconds: 500));
+
+    expect(auth.isLoggedIn, isTrue);
+    expect(auth.userId, '@owner:example.com');
+    expect(auth.homeserver, 'https://example.com');
+    expect(auth.portalToken, 'portal-token');
+    expect(client.accessToken, 'fresh-token');
+    expect(requestPaths, contains('/_as/auth'));
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      'fresh-token',
+    );
   });
 
   test('portal login reuses an already logged-in Matrix client', () async {
@@ -405,5 +453,86 @@ void main() {
     expect(auth?.isLoggedIn, isTrue);
     expect(auth?.requiresProfileSetup, isTrue);
     expect(auth?.ownerDisplayName, isEmpty);
+  });
+
+  test('bootstrap long-term password posts old and new password', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final requestPaths = <String>[];
+    final client = Client(
+      'AuthBootstrapPasswordChangeTest',
+      httpClient: MockClient((request) async {
+        requestPaths.add(request.url.path);
+        if (request.url.path == '/_as/bootstrap') {
+          expect(jsonDecode(request.body), {'token': '11111111'});
+          return http.Response(
+            '{"access_token":"fresh-token","user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:example.com","display_name":""}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        if (request.url.path == '/_as/profile') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","display_name":"",'
+            '"domain":"example.com"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_as/portal/password') {
+          expect(request.method, 'PUT');
+          expect(request.headers['Authorization'], 'Bearer 11111111');
+          expect(jsonDecode(request.body), {
+            'old_password': '11111111',
+            'new_password': '22222222',
+          });
+          return http.Response('{}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .bootstrapAndChangePortalToken(
+          'https://example.com',
+          '11111111',
+          '22222222',
+        );
+
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.portalToken, '22222222');
+    expect(
+      requestPaths.indexOf('/_as/bootstrap'),
+      lessThan(requestPaths.indexOf('/_as/portal/password')),
+    );
+    expect(
+      await const FlutterSecureStorage().read(key: 'portal_token'),
+      '22222222',
+    );
   });
 }

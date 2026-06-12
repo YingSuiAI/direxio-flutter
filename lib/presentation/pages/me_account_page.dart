@@ -82,36 +82,55 @@ class ChangePortalTokenPage extends ConsumerStatefulWidget {
 }
 
 class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
-  final _tokenCtrl = TextEditingController();
+  final _oldCtrl = TextEditingController();
+  final _newCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
-  bool _obscure = true;
+  bool _oldObscure = true;
+  bool _newObscure = true;
+  bool _confirmObscure = true;
   bool _loading = false;
   String? _error;
 
   @override
   void dispose() {
-    _tokenCtrl.dispose();
+    _oldCtrl.dispose();
+    _newCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
   }
 
+  void _clearErrorOnEdit(String _) {
+    if (_error != null) setState(() => _error = null);
+  }
+
   Future<void> _save() async {
-    final token = _tokenCtrl.text.trim();
+    final oldPassword = _oldCtrl.text.trim();
+    final newPassword = _newCtrl.text.trim();
     final confirm = _confirmCtrl.text.trim();
+    if (oldPassword.length < 8) {
+      setState(() => _error = '原密码至少 8 位');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setState(() => _error = '新密码至少 8 位');
+      return;
+    }
+    if (newPassword != confirm) {
+      setState(() => _error = '两次输入的密码不一致');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      if (token != confirm) {
-        throw ArgumentError('两次输入不一致');
-      }
-      await ref.read(authStateNotifierProvider.notifier).changePortalToken(
-            token,
+      await ref.read(authStateNotifierProvider.notifier).changePortalPassword(
+            oldPassword: oldPassword,
+            newPassword: newPassword,
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('登录口令已更新')),
+        const SnackBar(content: Text('密码已修改')),
       );
       context.pop();
     } catch (e) {
@@ -142,28 +161,67 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       M3InputField(
-                        controller: _tokenCtrl,
+                        controller: _oldCtrl,
                         icon: Symbols.key,
-                        hint: '新登录口令',
-                        obscure: _obscure,
+                        hint: '原密码',
+                        obscure: _oldObscure,
+                        autofocus: true,
+                        onChanged: _clearErrorOnEdit,
                         trailing: IconButton(
                           icon: Icon(
-                            _obscure
+                            _oldObscure
                                 ? Symbols.visibility
                                 : Symbols.visibility_off,
                             size: 20,
                             color: t.textMute,
                           ),
-                          onPressed: () => setState(() => _obscure = !_obscure),
+                          onPressed: () =>
+                              setState(() => _oldObscure = !_oldObscure),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      M3InputField(
+                        controller: _newCtrl,
+                        icon: Symbols.lock_reset,
+                        hint: '新密码',
+                        obscure: _newObscure,
+                        onChanged: _clearErrorOnEdit,
+                        trailing: IconButton(
+                          icon: Icon(
+                            _newObscure
+                                ? Symbols.visibility
+                                : Symbols.visibility_off,
+                            size: 20,
+                            color: t.textMute,
+                          ),
+                          onPressed: () =>
+                              setState(() => _newObscure = !_newObscure),
                         ),
                       ),
                       const SizedBox(height: 12),
                       M3InputField(
                         controller: _confirmCtrl,
                         icon: Symbols.check,
-                        hint: '确认新登录口令',
-                        obscure: _obscure,
+                        hint: '再次输入新密码',
+                        obscure: _confirmObscure,
+                        onChanged: _clearErrorOnEdit,
                         onSubmitted: (_) => _loading ? null : _save(),
+                        trailing: IconButton(
+                          icon: Icon(
+                            _confirmObscure
+                                ? Symbols.visibility
+                                : Symbols.visibility_off,
+                            size: 20,
+                            color: t.textMute,
+                          ),
+                          onPressed: () => setState(
+                              () => _confirmObscure = !_confirmObscure),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        '密码至少 8 位',
+                        style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
                       if (_error != null) ...[
                         const SizedBox(height: 12),
@@ -171,7 +229,7 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
                       ],
                       const SizedBox(height: 16),
                       M3PrimaryButton(
-                        label: _loading ? '保存中…' : '保存',
+                        label: _loading ? '提交中…' : '提交修改',
                         onPressed: _loading ? null : _save,
                       ),
                     ],

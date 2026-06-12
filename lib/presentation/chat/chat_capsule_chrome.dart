@@ -352,10 +352,10 @@ class ChatCapsuleHeader extends StatelessWidget {
                   child: _FigmaGlassCircleButton(
                     tooltip: '返回',
                     onTap: onBack,
-                    child: const Icon(
+                    child: Icon(
                       Symbols.arrow_back,
                       size: 24,
-                      color: Color(0xFF222325),
+                      color: t.text,
                     ),
                   ),
                 ),
@@ -363,20 +363,50 @@ class ChatCapsuleHeader extends StatelessWidget {
               ChatDirectionalEntrance(
                 direction: ChatEntranceDirection.top,
                 delay: const Duration(milliseconds: 35),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onTitleTap,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width - 128,
-                    ),
-                    child: _HeaderTextLine(
-                      text: title,
-                      baseSize: _chatHeaderTitleSize,
-                      minScale: 0.82,
-                      weight: FontWeight.w600,
-                      color: t.text,
-                    ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width - 128,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onAvatarTap,
+                        child: leadingAvatar,
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onTitleTap,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _HeaderTextLine(
+                                text: title,
+                                baseSize: _chatHeaderTitleSize,
+                                minScale: 0.82,
+                                weight: FontWeight.w600,
+                                color: t.text,
+                              ),
+                              if (subtitle != null &&
+                                  subtitle!.trim().isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                _HeaderTextLine(
+                                  text: subtitle!,
+                                  baseSize: 11,
+                                  minScale: 0.82,
+                                  weight: FontWeight.w400,
+                                  color: t.textMute,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -391,7 +421,7 @@ class ChatCapsuleHeader extends StatelessWidget {
                     child: _chatAsset(
                       _assetChatMore,
                       size: 17,
-                      color: const Color(0xFF222325),
+                      color: t.text,
                     ),
                   ),
                 ),
@@ -849,10 +879,10 @@ class _AssetCircleCapsuleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     final color = accent
-        ? const Color(0xFF34C759)
+        ? t.accent
         : active
             ? t.surface.withValues(alpha: 0.86)
-            : Colors.white.withValues(alpha: 0.80);
+            : t.surface.withValues(alpha: 0.80);
     final iconColor = !enabled
         ? t.textMute.withValues(alpha: 0.42)
         : accent
@@ -898,11 +928,12 @@ class _FigmaGlassCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Tooltip(
       message: tooltip,
       child: _BlurSurface(
         borderRadius: BorderRadius.circular(9999),
-        color: Colors.white.withValues(alpha: 0.65),
+        color: t.surface.withValues(alpha: 0.65),
         child: Material(
           color: Colors.transparent,
           shape: const CircleBorder(),
@@ -944,7 +975,7 @@ class _CapsuleSurface extends StatelessWidget {
     );
     return _BlurSurface(
       borderRadius: BorderRadius.circular(9999),
-      color: Colors.white.withValues(alpha: 0.82),
+      color: context.tk.surface.withValues(alpha: 0.82),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(9999),
@@ -984,7 +1015,7 @@ class _BlurSurface extends StatelessWidget {
             borderRadius: radius,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
+                color: context.tk.text.withValues(alpha: 0.08),
                 blurRadius: 18,
                 offset: const Offset(0, 7),
               ),

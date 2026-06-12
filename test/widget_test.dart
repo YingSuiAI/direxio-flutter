@@ -144,7 +144,10 @@ class _EmptyAsClient implements AsClient {
   Future<void> addFollow(String domain) async {}
 
   @override
-  Future<String> changePortalToken(String newToken) async => newToken;
+  Future<void> changePortalPassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {}
 
   @override
   Future<AsCallSession> createCall({
@@ -2091,7 +2094,7 @@ void main() {
         pending: const AsSyncPending.empty(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('owner'), findsOneWidget);
     expect(find.textContaining('Group with'), findsNothing);
@@ -2149,7 +2152,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is PortalAvatar &&
-            widget.size == 44 &&
+            widget.size == 42 &&
             widget.imageUrl == 'https://as-cache.example.com/yanan.png',
       ),
       findsOneWidget,
@@ -2260,7 +2263,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is PortalAvatar &&
-            widget.size == 44 &&
+            widget.size == 42 &&
             widget.imageUrl == 'https://matrix.example.com/yanan.png',
       ),
       findsOneWidget,
@@ -3371,6 +3374,9 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           routerConfig: router,
         ),
       ),
@@ -4196,6 +4202,7 @@ void main() {
           builder: (_, state) => AddContactDetailPage(
             userId: state.pathParameters['userId']!,
             displayName: state.uri.queryParameters['name'],
+            avatarUrl: state.uri.queryParameters['avatar'],
           ),
         ),
         GoRoute(
@@ -4223,14 +4230,12 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('添加好友'), findsOneWidget);
     expect(find.text('搜索'), findsOneWidget);
 
-    await tester.enterText(
-        find.byType(TextField), 'https://alice.portal.local/');
-    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.enterText(find.byType(TextField), 'Alice');
     await tester.pumpAndSettle();
 
     expect(find.text('Alice Chen', findRichText: true), findsOneWidget);
@@ -4250,6 +4255,31 @@ void main() {
     expect(find.text('消息免打扰'), findsOneWidget);
     expect(find.text('屏蔽用户'), findsOneWidget);
     expect(find.text('举报用户'), findsOneWidget);
+  });
+
+  testWidgets('add contact detail uses provided avatar url', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactDetailPage(
+            userId: '@remote:portal.local',
+            displayName: 'Alice Chen',
+            avatarUrl: 'https://cdn.example.com/alice.png',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final avatar = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 60)
+        .single;
+    expect(avatar.imageUrl, 'https://cdn.example.com/alice.png');
   });
 
   testWidgets('add contact rejects domains without portal owner discovery',
@@ -4311,10 +4341,14 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const AddContactVerificationPage(
-            userId: '@alice:portal.local',
-            displayName: 'Alice Chen',
-          ),
+          initialRoute: '/verify',
+          routes: {
+            '/': (_) => const Scaffold(body: Text('上一页')),
+            '/verify': (_) => const AddContactVerificationPage(
+                  userId: '@alice:portal.local',
+                  displayName: 'Alice Chen',
+                ),
+          },
         ),
       ),
     );
@@ -4330,12 +4364,15 @@ void main() {
     expect(find.text('7/200'), findsOneWidget);
 
     await tester.tap(find.text('发送申请'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(asClient.createContactRequestCalls, 1);
     expect(asClient.createdContactMxid, '@alice:portal.local');
-    expect(find.text('已申请'), findsOneWidget);
     expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('上一页'), findsOneWidget);
+    expect(find.text('好友验证'), findsNothing);
   });
 
   testWidgets('add contact search detail can request friend', (tester) async {
@@ -4385,6 +4422,9 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           routerConfig: router,
         ),
       ),
@@ -4401,10 +4441,13 @@ void main() {
     expect(find.text('好友验证'), findsOneWidget);
     expect(find.text('发送好友申请'), findsOneWidget);
     await tester.tap(find.text('发送申请'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('已申请'), findsOneWidget);
     expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('好友验证'), findsNothing);
+    expect(find.text('申请好友'), findsOneWidget);
 
     await client.dispose(closeDatabase: false);
   });
@@ -5819,7 +5862,7 @@ void main() {
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Dave Lee'), findsOneWidget);
     expect(find.text('Agent'), findsOneWidget);
@@ -5842,8 +5885,8 @@ void main() {
               ChatPage(roomId: state.pathParameters['roomId']!),
         ),
         GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactDetailPage(
             userId: state.pathParameters['userId']!,
           ),
         ),
@@ -5870,8 +5913,9 @@ void main() {
         .tap(find.byKey(const ValueKey('chat_peer_avatar_mock_dave_1')));
     await tester.pumpAndSettle();
 
-    expect(find.text('dave.portal.local'), findsOneWidget);
-    expect(find.text('她的频道'), findsOneWidget);
+    expect(find.text('发消息'), findsOneWidget);
+    expect(find.text('音频通话'), findsOneWidget);
+    expect(find.text('删除好友'), findsOneWidget);
   });
 
   testWidgets('mock auth chat does not poll AS gateway', (tester) async {
@@ -6669,7 +6713,7 @@ void main() {
     expect(find.text('会话不存在'), findsNothing);
   });
 
-  testWidgets('mock direct chat hides peer avatar in message rows',
+  testWidgets('mock direct chat peer avatar opens contact detail page',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/chat/mock_dave',
@@ -6680,8 +6724,8 @@ void main() {
               ChatPage(roomId: state.pathParameters['roomId']!),
         ),
         GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactDetailPage(
             userId: state.pathParameters['userId']!,
           ),
         ),
@@ -6700,14 +6744,18 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
-    expect(
-      find.byKey(const ValueKey('chat_peer_avatar_mock_dave_1')),
-      findsNothing,
-    );
+    await tester
+        .tap(find.byKey(const ValueKey('chat_peer_avatar_mock_dave_1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dave Lee'), findsOneWidget);
+    expect(find.text('发消息'), findsOneWidget);
+    expect(find.text('删除好友'), findsOneWidget);
   });
 
-  testWidgets('mock direct chat header avatar opens visitor home page',
+  testWidgets('mock direct chat header avatar opens contact detail page',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/chat/mock_dave',
@@ -6718,8 +6766,8 @@ void main() {
               ChatPage(roomId: state.pathParameters['roomId']!),
         ),
         GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactDetailPage(
             userId: state.pathParameters['userId']!,
           ),
         ),
@@ -6737,15 +6785,16 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     await tester
         .tap(find.byKey(const ValueKey('chat_header_peer_avatar_mock_dave')));
     await tester.pumpAndSettle();
 
     expect(find.text('Dave Lee'), findsOneWidget);
-    expect(find.text('dave.portal.local'), findsOneWidget);
-    expect(find.text('她的频道'), findsOneWidget);
+    expect(find.text('发消息'), findsOneWidget);
+    expect(find.text('音频通话'), findsOneWidget);
+    expect(find.text('删除好友'), findsOneWidget);
   });
 
   testWidgets('contact visitor home follow button toggles locally',
@@ -7807,6 +7856,116 @@ void main() {
     expect(find.text('Alice'), findsWidgets);
   });
 
+  testWidgets('private chat uses current profile avatar for own messages',
+      (tester) async {
+    const roomId = '!own-avatar:p2p-im.com';
+    final client = Client(
+      'PortalIMOwnMessageAvatarTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: '@alice:p2p-liyanan.com',
+      peerName: 'Alice',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 12, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          currentUserProfileProvider.overrideWith(
+            (ref) async => Profile(
+              userId: '@owner:p2p-im.com',
+              displayName: 'Owner',
+              avatarUrl: Uri.parse('https://cdn.example.com/me.png'),
+            ),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-own-message',
+        rooms: RoomsUpdate(
+          join: {
+            roomId: JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: r'$own-avatar-message',
+                    roomId: roomId,
+                    senderId: '@owner:p2p-im.com',
+                    originServerTs: DateTime.utc(2026, 6, 12, 12, 10),
+                    content: const {
+                      'msgtype': MessageTypes.Text,
+                      'body': '我发出的消息',
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('我发出的消息'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 40 &&
+            widget.imageUrl == 'https://cdn.example.com/me.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('chat renders accepted-friend notice as system hint',
       (tester) async {
     final client = Client('PortalIMSystemNoticeChatTest')
@@ -7874,7 +8033,61 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const ValueKey('chat_system_notice')), findsOneWidget);
-    expect(find.text('你们已成为好友，现在可以开始聊天了'), findsOneWidget);
+    final noticeFinder = find.text('你们已成为好友，现在可以开始聊天了');
+    expect(noticeFinder, findsOneWidget);
+    final noticeText = tester.widget<Text>(noticeFinder);
+    expect(noticeText.style?.fontSize, 11);
+    expect(find.text('端对端加密'), findsNothing);
+  });
+
+  testWidgets('chat waits for Matrix room load when AS knows conversation',
+      (tester) async {
+    final client = Client('PortalIMMissingRoomRecoveryTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 12, 9),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!alice:p2p-im.com'),
+        ),
+      ),
+    );
+
+    expect(find.text('正在同步会话'), findsOneWidget);
+    expect(find.text('会话不存在'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 13));
+    await tester.pump();
+    expect(find.text('会话同步超时，请检查网络后重试'), findsOneWidget);
+    expect(find.text('会话不存在'), findsNothing);
   });
 
   testWidgets('private chat shows friendly failure when peer deleted contact',

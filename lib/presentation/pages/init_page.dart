@@ -20,6 +20,7 @@ class _InitPageState extends ConsumerState<InitPage> {
   final _domainCtrl = TextEditingController();
   final _displayNameCtrl = TextEditingController();
   final _portalTokenCtrl = TextEditingController();
+  final _confirmPortalTokenCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
   String? _error;
@@ -29,10 +30,21 @@ class _InitPageState extends ConsumerState<InitPage> {
     _domainCtrl.dispose();
     _displayNameCtrl.dispose();
     _portalTokenCtrl.dispose();
+    _confirmPortalTokenCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _register() async {
+    final portalToken = _portalTokenCtrl.text.trim();
+    final confirmPortalToken = _confirmPortalTokenCtrl.text.trim();
+    if (portalToken.length < 8) {
+      setState(() => _error = '密码至少 8 位');
+      return;
+    }
+    if (portalToken != confirmPortalToken) {
+      setState(() => _error = '两次输入的密码不一致');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -44,13 +56,13 @@ class _InitPageState extends ConsumerState<InitPage> {
             .read(authStateNotifierProvider.notifier)
             .completeOwnerProfileSetup(
               displayName: _displayNameCtrl.text.trim(),
-              newPortalToken: _portalTokenCtrl.text,
+              newPortalToken: portalToken,
             );
         if (mounted) context.go('/home');
       } else {
         await ref.read(authStateNotifierProvider.notifier).register(
               _domainCtrl.text.trim(),
-              _portalTokenCtrl.text,
+              portalToken,
               _displayNameCtrl.text.trim(),
             );
       }
@@ -148,6 +160,19 @@ class _InitPageState extends ConsumerState<InitPage> {
                           ),
                           onPressed: () => setState(() => _obscure = !_obscure),
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      M3InputField(
+                        controller: _confirmPortalTokenCtrl,
+                        icon: Symbols.verified_user,
+                        hint: isLoggedIn ? '再次输入长期登录口令' : '再次输入登录密码',
+                        obscure: _obscure,
+                        onSubmitted: (_) => _register(),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        '密码至少 8 位',
+                        style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
                       if (_error != null) ...[
                         const SizedBox(height: 12),

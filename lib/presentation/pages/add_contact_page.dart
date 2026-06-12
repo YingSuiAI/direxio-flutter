@@ -8,6 +8,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../utils/contact_identity_label.dart';
+import '../utils/avatar_url.dart';
 import '../mock/mock_data.dart';
 import '../widgets/portal_avatar.dart';
 
@@ -51,14 +52,17 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
       _resolved = null;
     });
     try {
-      final isLoggedIn =
-          ref.read(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
+      final authState = ref.read(authStateNotifierProvider);
+      final isLoggedIn = authState.valueOrNull?.isLoggedIn ?? false;
+      final authResolved = authState.hasValue;
       final mockContact = _mockContactByPortalUrl(portalUrl);
-      if ((_mockAuthEnabled || !isLoggedIn) && mockContact != null) {
+      if ((_mockAuthEnabled || (!isLoggedIn && authResolved)) &&
+          mockContact != null) {
         setState(() {
           _resolved = {
             'mxid': mockContact.mxid,
             'display_name': mockContact.name,
+            'avatar_url': mockContact.avatarUrl,
           };
         });
         return;
@@ -78,6 +82,7 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                 displayName: result.owner!.displayName,
                 domain: portalUrl,
               ),
+              'avatar_url': avatarHttpUrl(client, result.owner!.avatarUrl),
             };
           });
         case PortalAvailability.notDeployed:
@@ -134,12 +139,14 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                             _SearchResult(
                               displayName: _resolved!['display_name'] as String,
                               mxid: _resolved!['mxid'] as String,
+                              avatarUrl: _resolved!['avatar_url'] as String?,
                             ),
                           ],
                           onTap: (_) => context.push(
                             _addContactDetailRoute(
                               _resolved!['mxid'] as String,
                               _resolved!['display_name'] as String,
+                              avatarUrl: _resolved!['avatar_url'] as String?,
                             ),
                           ),
                         )
@@ -151,6 +158,7 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                             _addContactDetailRoute(
                               result.mxid,
                               result.displayName,
+                              avatarUrl: result.avatarUrl,
                             ),
                           ),
                         )
@@ -176,9 +184,17 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
   }
 }
 
-String _addContactDetailRoute(String userId, String displayName) {
+String _addContactDetailRoute(
+  String userId,
+  String displayName, {
+  String? avatarUrl,
+}) {
+  final query = <String, String>{
+    'name': displayName,
+    if (avatarUrl?.trim().isNotEmpty ?? false) 'avatar': avatarUrl!.trim(),
+  };
   return '/add-contact/detail/${Uri.encodeComponent(userId)}'
-      '?name=${Uri.encodeQueryComponent(displayName)}';
+      '?${Uri(queryParameters: query).query}';
 }
 
 class _AddContactHeader extends StatelessWidget {
@@ -331,7 +347,11 @@ List<_SearchResult> _demoSearchResults(String query) {
     const _SearchResult(displayName: 'benjamin', mxid: '@benjamin:p2p-im.com'),
     const _SearchResult(displayName: 'benjamin', mxid: '@benjamin2:p2p-im.com'),
     for (final contact in MockData.friendContacts)
-      _SearchResult(displayName: contact.name, mxid: contact.mxid),
+      _SearchResult(
+        displayName: contact.name,
+        mxid: contact.mxid,
+        avatarUrl: contact.avatarUrl,
+      ),
   ];
   return results
       .where((result) => result.displayName.toLowerCase().contains(needle))
@@ -340,9 +360,14 @@ List<_SearchResult> _demoSearchResults(String query) {
 }
 
 class _SearchResult {
-  const _SearchResult({required this.displayName, required this.mxid});
+  const _SearchResult({
+    required this.displayName,
+    required this.mxid,
+    this.avatarUrl,
+  });
   final String displayName;
   final String mxid;
+  final String? avatarUrl;
 }
 
 class _SearchResultList extends StatelessWidget {
@@ -407,6 +432,7 @@ class _SearchResultRow extends StatelessWidget {
                 PortalAvatar(
                   key: const ValueKey('add_contact_result_avatar'),
                   seed: result.mxid,
+                  imageUrl: result.avatarUrl,
                   size: 28,
                   shape: AvatarShape.squircle,
                 ),

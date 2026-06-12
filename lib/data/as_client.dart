@@ -1448,8 +1448,11 @@ abstract class AsClient {
   /// §5.5 GET /_as/portal/status
   Future<PortalStatus> getPortalStatus();
 
-  /// Rotates the Portal Token used for app login and /_as/* Admin API calls.
-  Future<String> changePortalToken(String newToken);
+  /// Updates the Portal password used for app login and /_as/* Admin API calls.
+  Future<void> changePortalPassword({
+    required String oldPassword,
+    required String newPassword,
+  });
 
   /// POST /_as/channels
   ///

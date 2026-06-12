@@ -105,7 +105,12 @@ class HttpAsClient implements AsClient {
     final client = httpClient ?? http.Client();
     final normalizedBase = _normalizeBaseUri(baseUri);
     try {
-      return _postPortalAuth(client, normalizedBase, 'auth', portalToken);
+      return _postPortalAuth(
+        client,
+        normalizedBase,
+        'auth',
+        body: {'password': portalToken},
+      );
     } finally {
       if (ownsClient) client.close();
     }
@@ -120,7 +125,12 @@ class HttpAsClient implements AsClient {
     final client = httpClient ?? http.Client();
     final normalizedBase = _normalizeBaseUri(baseUri);
     try {
-      return _postPortalAuth(client, normalizedBase, 'bootstrap', setupCode);
+      return _postPortalAuth(
+        client,
+        normalizedBase,
+        'bootstrap',
+        body: {'token': setupCode},
+      );
     } finally {
       if (ownsClient) client.close();
     }
@@ -558,15 +568,19 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Future<String> changePortalToken(String newToken) async {
-    final trimmed = newToken.trim();
-    final body = await _requestJson(
+  Future<void> changePortalPassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    await _requestJson(
       'PUT',
-      'portal/token',
-      body: {'token': trimmed},
-      allowedStatusCodes: const {200},
+      'portal/password',
+      body: {
+        'old_password': oldPassword.trim(),
+        'new_password': newPassword.trim(),
+      },
+      allowedStatusCodes: const {200, 204},
     );
-    return body['portal_token'] as String? ?? trimmed;
   }
 
   @override
@@ -1123,6 +1137,7 @@ class HttpAsClient implements AsClient {
       request.headers['Content-Type'] = 'application/json; charset=utf-8';
       request.body = jsonEncode(body);
     }
+    final requestBody = request.body.isEmpty ? null : request.body;
 
     final stopwatch = Stopwatch()..start();
     late http.Response response;
@@ -1138,6 +1153,7 @@ class HttpAsClient implements AsClient {
         elapsed: stopwatch.elapsed,
         error: error,
         stackTrace: stackTrace,
+        requestBody: requestBody,
       );
       rethrow;
     }
@@ -1148,6 +1164,7 @@ class HttpAsClient implements AsClient {
       uri: uri,
       statusCode: response.statusCode,
       elapsed: stopwatch.elapsed,
+      requestBody: requestBody,
       responseBody: response.body,
     );
     if (!allowedStatusCodes.contains(response.statusCode)) {
@@ -1167,6 +1184,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
+        requestBody: requestBody,
         responseBody: response.body,
         error: error,
         stackTrace: stackTrace,
@@ -1184,6 +1202,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
+        requestBody: requestBody,
         responseBody: response.body,
         error: error,
       );
@@ -1249,10 +1268,11 @@ class HttpAsClient implements AsClient {
   static Future<AsPortalSession> _postPortalAuth(
     http.Client client,
     Uri baseUri,
-    String path,
-    String portalToken,
-  ) async {
+    String path, {
+    required Map<String, String> body,
+  }) async {
     final uri = _resolveStatic(baseUri, path);
+    final requestBody = jsonEncode(body);
     final stopwatch = Stopwatch()..start();
     late http.Response response;
     try {
@@ -1263,7 +1283,7 @@ class HttpAsClient implements AsClient {
               'Accept': 'application/json',
               'Content-Type': 'application/json; charset=utf-8',
             },
-            body: jsonEncode({'token': portalToken}),
+            body: requestBody,
           )
           .timeout(_timeout);
     } catch (error, stackTrace) {
@@ -1275,6 +1295,7 @@ class HttpAsClient implements AsClient {
         elapsed: stopwatch.elapsed,
         error: error,
         stackTrace: stackTrace,
+        requestBody: requestBody,
       );
       rethrow;
     }
@@ -1285,6 +1306,7 @@ class HttpAsClient implements AsClient {
       uri: uri,
       statusCode: response.statusCode,
       elapsed: stopwatch.elapsed,
+      requestBody: requestBody,
       responseBody: response.body,
     );
 
@@ -1304,6 +1326,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
+        requestBody: requestBody,
         responseBody: response.body,
         error: error,
         stackTrace: stackTrace,
@@ -1321,6 +1344,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
+        requestBody: requestBody,
         responseBody: response.body,
         error: error,
       );
@@ -1340,6 +1364,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
+        requestBody: requestBody,
         responseBody: response.body,
         error: error,
       );

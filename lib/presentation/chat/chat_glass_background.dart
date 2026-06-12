@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/design_tokens.dart';
+
 class ChatGlassBackground extends StatelessWidget {
   const ChatGlassBackground({
     super.key,
@@ -11,7 +13,7 @@ class ChatGlassBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: const Color(0xFFFAFAFA),
+      color: context.tk.bg,
       child: child,
     );
   }

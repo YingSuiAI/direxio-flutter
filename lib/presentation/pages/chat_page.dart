@@ -19,6 +19,7 @@ import '../widgets/portal_avatar.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
+import '../providers/profile_provider.dart';
 import '../providers/recovered_unread_store_provider.dart';
 import '../channel/channel_share.dart';
 import '../groups/group_invite_card.dart';
@@ -65,11 +66,6 @@ const _mockAuthEnabled = bool.fromEnvironment(
   'P2P_MATRIX_MOCK_AUTH',
   defaultValue: false,
 );
-const _chatPeerBubble = Color(0xFFEEEEEF);
-const _chatOwnBubble = Color(0xFF34C759);
-const _chatText = Color(0xFF262628);
-const _chatTime = Color(0xFFA3A3A4);
-const _chatAccentBlue = Color(0xFF0089FF);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAT PAGE — index.html `s-chat` 1:1 复刻
@@ -140,6 +136,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _readMarkerInFlight = false;
   bool _readMarkerQueued = false;
   bool _thumbnailWarmupInFlight = false;
+  bool _missingRoomSyncStarted = false;
+  bool _missingRoomSyncFailed = false;
+  StreamSubscription<SyncUpdate>? _roomSyncSub;
   final Set<String> _warmedThumbnailEventIds = {};
   final Set<String> _retryingOutboxIds = {};
   final Set<String> _downloadingFileEventIds = {};
@@ -203,6 +202,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _loading = false;
       return;
     }
+    _roomSyncSub = ref.read(matrixClientProvider).onSync.stream.listen((_) {
+      if (!mounted || _room == null) return;
+      if (_timeline == null) {
+        unawaited(_initTimeline());
+      }
+      setState(() {
+        _missingRoomSyncFailed = false;
+      });
+    });
     _initTimeline();
   }
 
@@ -233,6 +241,92 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     unawaited(_markCurrentTimelineRead());
     final tl = _timeline;
     if (tl != null) unawaited(_backfillLocalStoredHistory(tl));
+  }
+
+  bool _isKnownConversationRoom(AsSyncCacheState syncCache) {
+    final roomId = widget.roomId.trim();
+    if (roomId.isEmpty) return false;
+    if (syncCache.contactForRoom(roomId) != null) return true;
+    final bootstrap = syncCache.bootstrap;
+    if (bootstrap == null) return false;
+    if (bootstrap.agentRoomId.trim() == roomId) return true;
+    bool hasRoom(List<AsSyncRoomSummary> rooms) {
+      return rooms.any((room) => room.roomId.trim() == roomId);
+    }
+
+    return hasRoom(bootstrap.rooms) || hasRoom(bootstrap.groups);
+  }
+
+  void _ensureMissingRoomSync() {
+    if (_missingRoomSyncStarted) return;
+    _missingRoomSyncStarted = true;
+    _missingRoomSyncFailed = false;
+    unawaited(_syncMissingRoom());
+  }
+
+  void _retryMissingRoomSync() {
+    setState(() {
+      _missingRoomSyncStarted = false;
+      _missingRoomSyncFailed = false;
+    });
+    _ensureMissingRoomSync();
+  }
+
+  Future<void> _syncMissingRoom() async {
+    try {
+      await ref
+          .read(matrixClientProvider)
+          .oneShotSync()
+          .timeout(const Duration(seconds: 12));
+    } catch (e) {
+      debugPrint('missing chat room sync failed: $e');
+    }
+    if (!mounted) return;
+    if (_room != null && _timeline == null) {
+      await _initTimeline();
+      return;
+    }
+    if (mounted) {
+      setState(() => _missingRoomSyncFailed = true);
+    }
+  }
+
+  Widget _missingRoomScaffold(
+    String message, {
+    bool loading = false,
+    VoidCallback? onRetry,
+  }) {
+    final t = context.tk;
+    return Scaffold(
+      backgroundColor: t.bg,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (loading) ...[
+                CircularProgressIndicator(color: t.accent),
+                const SizedBox(height: 16),
+              ],
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: AppTheme.sans(size: 15, color: t.textMute),
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Symbols.sync),
+                  label: const Text('重试'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _backfillLocalStoredHistory(Timeline timeline) async {
@@ -519,6 +613,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   void dispose() {
+    _roomSyncSub?.cancel();
     _timeline?.cancelSubscriptions();
     _initialTimelineEntranceTimer?.cancel();
     _msgCtrl.dispose();
@@ -1035,10 +1130,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
-  void _openContactHome(String userId) {
+  void _openContactDetail(String userId) {
     final id = userId.trim();
     if (id.isEmpty) return;
-    context.push('/contact-home/${Uri.encodeComponent(id)}');
+    context.push('/contact/${Uri.encodeComponent(id)}');
   }
 
   VoidCallback? _senderAvatarTap(Event event, bool isMe) {
@@ -1048,7 +1143,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final senderId = event.senderId.trim();
     if (!senderId.startsWith('@') || !senderId.contains(':')) return null;
-    return () => _openContactHome(senderId);
+    return () => _openContactDetail(senderId);
+  }
+
+  String? _senderAvatarUrl(Event event, Profile? currentUserProfile) {
+    final client = event.room.client;
+    final memberAvatarUrl = matrixContentHttpUrl(
+      client,
+      event.senderFromMemoryOrFallback.avatarUrl,
+    );
+    if (event.senderId == client.userID) {
+      return profileAvatarHttpUrl(currentUserProfile, client) ??
+          memberAvatarUrl;
+    }
+    return memberAvatarUrl;
   }
 
   Future<String> _addPendingImageUpload(ChatMediaAttachment attachment) async {
@@ -1257,6 +1365,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return '${item.messageKind.name}:$filename:$size';
   }
 
+  String? _topSystemNoticeText(List<Event> events) {
+    for (final event in events) {
+      if (event.messageType != MessageTypes.Notice) continue;
+      final text = event.body.trim();
+      if (text.isNotEmpty) return text;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_useMock) {
@@ -1265,11 +1382,25 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     final room = _room;
     final t = context.tk;
+    final syncCache = ref.watch(asSyncCacheProvider);
+    final currentUserProfile =
+        ref.watch(currentUserProfileProvider).valueOrNull;
     if (room == null) {
-      return const Scaffold(body: Center(child: Text('会话不存在')));
+      if (_isKnownConversationRoom(syncCache)) {
+        if (_missingRoomSyncFailed) {
+          return _missingRoomScaffold(
+            '会话同步超时，请检查网络后重试',
+            onRetry: _retryMissingRoomSync,
+          );
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _ensureMissingRoomSync();
+        });
+        return _missingRoomScaffold('正在同步会话', loading: true);
+      }
+      return _missingRoomScaffold('会话不存在');
     }
 
-    final syncCache = ref.watch(asSyncCacheProvider);
     final pendingMediaItems = ref
         .watch(localOutboxProvider)
         .itemsForConversation(
@@ -1300,10 +1431,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               event.originServerTs.millisecondsSinceEpoch,
           redacted: (event) => event.redacted,
         );
+    final topSystemNoticeText = _topSystemNoticeText(events);
+    final messageEvents = topSystemNoticeText == null
+        ? events
+        : events
+            .where((event) =>
+                event.messageType != MessageTypes.Notice ||
+                event.body.trim() != topSystemNoticeText)
+            .toList(growable: false);
     _scheduleAsCallSessionWarmup(events, callRecordContextEvents);
     final deliveredPendingMediaIds = _deliveredOutboxMediaIds(
       pendingMediaItems,
-      events,
+      messageEvents,
     );
     final pendingMedia = [
       for (final item in pendingMediaItems)
@@ -1311,7 +1450,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     ];
     final messageOrder = ref.watch(localMessageOrderProvider);
     final timelineItems = mergeChatTimelineItems<Event, LocalOutboxItem>(
-      events: events,
+      events: messageEvents,
       eventTimestamp: (event) => event.originServerTs,
       eventSortTimestamp: (event) =>
           messageOrder.entryForEvent(event.eventId)?.createdAt,
@@ -1357,7 +1496,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         : false;
     final headerAvatarTap =
         !isAgent && mxid.startsWith('@') && mxid.contains(':')
-            ? () => _openContactHome(mxid)
+            ? () => _openContactDetail(mxid)
             : null;
     final messagePadding = chatMessageViewportPadding(
       context,
@@ -1383,7 +1522,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       ? '等待对方接受'
                       : isAgent
                           ? (agentConnected ? '在线' : '离线')
-                          : '端对端加密',
+                          : null,
                   onBack: () => unawaited(_popChatOrHome(context)),
                   leadingAvatar: _ChatHeaderAvatar(
                     key: ValueKey('chat_header_peer_avatar_${widget.roomId}'),
@@ -1428,7 +1567,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       ),
                     ),
                   )
-                : timelineItems.isEmpty
+                : timelineItems.isEmpty && topSystemNoticeText == null
                     ? Center(
                         child: Text(
                           '开始你们的第一条消息',
@@ -1436,7 +1575,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ),
                       )
                     : ChatTimelineListMotion(
-                        itemCount: timelineItems.length,
+                        itemCount: timelineItems.length +
+                            (topSystemNoticeText == null ? 0 : 1),
                         newestItemKey: newestTimelineItemKey,
                         child: ListView.builder(
                           reverse: true,
@@ -1444,6 +1584,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           itemCount: timelineItems.length + 1,
                           itemBuilder: (context, i) {
                             if (i == timelineItems.length) {
+                              if (topSystemNoticeText != null) {
+                                return _SChatSystemNotice(
+                                  text: topSystemNoticeText,
+                                );
+                              }
                               return const _E2eFooter();
                             }
                             final itemKey = timelineItemKeys[i];
@@ -1574,6 +1719,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                           .calcDisplayname() ??
                                       e.senderFromMemoryOrFallback
                                           .calcDisplayname();
+                                  final callerAvatarUrl = _senderAvatarUrl(
+                                    callerEvent ?? e,
+                                    currentUserProfile,
+                                  );
                                   final avatarTap = isMe
                                       ? null
                                       : _senderAvatarTap(
@@ -1597,6 +1746,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       time: _formatMsgTime(e.originServerTs),
                                       showRead: false,
                                       avatarSeed: callerName,
+                                      avatarUrl: callerAvatarUrl,
                                       onAvatarTap: avatarTap,
                                       selected: selected,
                                       multiSelect: _multiSelect,
@@ -1612,6 +1762,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 final selected = _selected.contains(e.eventId);
                                 final senderName = e.senderFromMemoryOrFallback
                                     .calcDisplayname();
+                                final senderAvatarUrl =
+                                    _senderAvatarUrl(e, currentUserProfile);
                                 final localOrder =
                                     messageOrder.entryForEvent(e.eventId);
                                 final time = _formatMsgTime(
@@ -1683,6 +1835,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       time: time,
                                       showRead: isMe,
                                       avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
                                       onAvatarTap: avatarTap,
                                       selected: selected,
                                       multiSelect: _multiSelect,
@@ -1711,6 +1864,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       time: time,
                                       showRead: isMe,
                                       avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
                                       onAvatarTap: avatarTap,
                                       selected: selected,
                                       multiSelect: _multiSelect,
@@ -1738,6 +1892,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       time: time,
                                       showRead: isMe,
                                       avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
                                       onAvatarTap: avatarTap,
                                       thumb: _MatrixThumb(
                                         key: ValueKey(
@@ -1783,6 +1938,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       time: time,
                                       showRead: isMe,
                                       avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
                                       onAvatarTap: avatarTap,
                                       thumb: _MatrixThumb(
                                         key: ValueKey(
@@ -1836,6 +1992,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       time: time,
                                       showRead: isMe,
                                       avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
                                       onAvatarTap: avatarTap,
                                       leadingIcon: Symbols.description,
                                       fileName: e.body,
@@ -1870,6 +2027,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     time: time,
                                     showRead: isMe,
                                     avatarSeed: senderName,
+                                    avatarUrl: senderAvatarUrl,
                                     onAvatarTap: avatarTap,
                                     selected: selected,
                                     multiSelect: _multiSelect,
@@ -2142,7 +2300,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     if (message.isMe || _isAiBot || widget.conv.isGroup) return null;
     final mxid = widget.conv.mxid.trim();
     if (!mxid.startsWith('@') || !mxid.contains(':')) return null;
-    return () => context.push('/contact-home/${Uri.encodeComponent(mxid)}');
+    return () => _openMockContactDetail(mxid);
   }
 
   Key? _mockPeerAvatarKey(MockMessage message, int index) {
@@ -2154,7 +2312,13 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     if (_isAiBot || widget.conv.isGroup) return null;
     final mxid = widget.conv.mxid.trim();
     if (!mxid.startsWith('@') || !mxid.contains(':')) return null;
-    return () => context.push('/contact-home/${Uri.encodeComponent(mxid)}');
+    return () => _openMockContactDetail(mxid);
+  }
+
+  void _openMockContactDetail(String userId) {
+    final id = userId.trim();
+    if (id.isEmpty) return;
+    context.push('/contact/${Uri.encodeComponent(id)}');
   }
 
   Object _mockMessageKey(MockMessage message) => message;
@@ -2804,8 +2968,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                 )
               : ChatCapsuleHeader(
                   title: _isAiBot ? 'Agent' : c.name,
-                  subtitle:
-                      _isAiBot ? '端对端加密' : (c.isGroup ? '6 名成员' : '端对端加密'),
+                  subtitle: c.isGroup ? '6 名成员' : null,
                   onBack: () => unawaited(_popChatOrHome(context)),
                   leadingAvatar: _isAiBot
                       ? _AgentBadge(color: t.accent)
@@ -3160,6 +3323,7 @@ class _SChatBubble extends StatelessWidget {
     required this.showRead,
     required this.avatarSeed,
     this.avatarKey,
+    this.avatarUrl,
     this.onAvatarTap,
     this.markdownChild,
     this.selected = false,
@@ -3174,6 +3338,7 @@ class _SChatBubble extends StatelessWidget {
   final bool showRead;
   final String avatarSeed;
   final Key? avatarKey;
+  final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final Widget? markdownChild;
   final bool selected;
@@ -3184,8 +3349,8 @@ class _SChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final bubbleColor = isMe ? _chatOwnBubble : _chatPeerBubble;
-    final textColor = isMe ? Colors.white : _chatText;
+    final bubbleColor = isMe ? t.accent : t.surfaceHigh;
+    final textColor = isMe ? t.onAccent : t.text;
     Offset pos = Offset.zero;
     final bubble = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -3200,9 +3365,7 @@ class _SChatBubble extends StatelessWidget {
           decoration: BoxDecoration(
             color: bubbleColor,
             borderRadius: chatDirectionalBubbleRadius(isMe),
-            border: isMe
-                ? null
-                : Border.all(color: Colors.black.withValues(alpha: 0.06)),
+            border: isMe ? null : Border.all(color: t.border),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: markdownChild ??
@@ -3224,9 +3387,9 @@ class _SChatBubble extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(time, style: AppTheme.sans(size: 12, color: _chatTime)),
+                Text(time, style: AppTheme.sans(size: 12, color: t.textMute)),
                 const SizedBox(width: 4),
-                const Icon(Symbols.done_all, size: 14, color: _chatTime),
+                Icon(Symbols.done_all, size: 14, color: t.textMute),
               ],
             ),
           )
@@ -3234,7 +3397,7 @@ class _SChatBubble extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
             child: Text(
               time,
-              style: AppTheme.sans(size: 12, color: _chatTime),
+              style: AppTheme.sans(size: 12, color: t.textMute),
             ),
           );
 
@@ -3265,6 +3428,7 @@ class _SChatBubble extends StatelessWidget {
             _MessageAvatar(
               seed: avatarSeed,
               avatarKey: avatarKey,
+              imageUrl: avatarUrl,
               onAvatarTap: onAvatarTap,
             ),
             const SizedBox(width: 8),
@@ -3279,7 +3443,7 @@ class _SChatBubble extends StatelessWidget {
           ),
           if (isMe) ...[
             const SizedBox(width: 8),
-            _MessageAvatar(seed: avatarSeed),
+            _MessageAvatar(seed: avatarSeed, imageUrl: avatarUrl),
           ],
         ],
       ),
@@ -3302,6 +3466,7 @@ class _SChatRecordBubble extends StatelessWidget {
     required this.showRead,
     required this.avatarSeed,
     this.avatarKey,
+    this.avatarUrl,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -3315,6 +3480,7 @@ class _SChatRecordBubble extends StatelessWidget {
   final bool showRead;
   final String avatarSeed;
   final Key? avatarKey;
+  final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -3330,6 +3496,7 @@ class _SChatRecordBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarKey: avatarKey,
+      avatarUrl: avatarUrl,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -3355,6 +3522,7 @@ class _SChannelShareBubble extends StatelessWidget {
     required this.time,
     required this.showRead,
     required this.avatarSeed,
+    this.avatarUrl,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -3367,6 +3535,7 @@ class _SChannelShareBubble extends StatelessWidget {
   final String time;
   final bool showRead;
   final String avatarSeed;
+  final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -3381,6 +3550,7 @@ class _SChannelShareBubble extends StatelessWidget {
       multiSelect: multiSelect,
       selected: selected,
       avatarSeed: avatarSeed,
+      avatarUrl: avatarUrl,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -3407,6 +3577,7 @@ class _SChatCallRecordBubble extends StatelessWidget {
     required this.time,
     required this.showRead,
     required this.avatarSeed,
+    this.avatarUrl,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -3420,6 +3591,7 @@ class _SChatCallRecordBubble extends StatelessWidget {
   final String time;
   final bool showRead;
   final String avatarSeed;
+  final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -3434,6 +3606,7 @@ class _SChatCallRecordBubble extends StatelessWidget {
       multiSelect: multiSelect,
       selected: selected,
       avatarSeed: avatarSeed,
+      avatarUrl: avatarUrl,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -3459,11 +3632,13 @@ class _MessageAvatar extends StatelessWidget {
   const _MessageAvatar({
     required this.seed,
     this.avatarKey,
+    this.imageUrl,
     this.onAvatarTap,
   });
 
   final String? seed;
   final Key? avatarKey;
+  final String? imageUrl;
   final VoidCallback? onAvatarTap;
 
   @override
@@ -3472,6 +3647,7 @@ class _MessageAvatar extends StatelessWidget {
       key: avatarKey,
       seed: (seed == null || seed!.trim().isEmpty) ? 'peer' : seed!,
       size: 40,
+      imageUrl: imageUrl,
       shape: AvatarShape.squircle,
     );
     if (onAvatarTap == null) return avatar;
@@ -3493,22 +3669,16 @@ class _SChatSystemNotice extends StatelessWidget {
     final t = context.tk;
     return Padding(
       key: const ValueKey('chat_system_notice'),
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 6),
       child: Center(
-        child: Container(
+        child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: MediaQuery.of(context).size.width * 0.78,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: t.surfaceHigh,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: t.border.withValues(alpha: 0.35)),
           ),
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: AppTheme.sans(size: 13, color: t.textMute),
+            style: AppTheme.sans(size: 11, color: t.textMute),
           ),
         ),
       ),
@@ -3525,6 +3695,7 @@ Widget _bubbleRow({
   required bool selected,
   String? avatarSeed,
   Key? avatarKey,
+  String? avatarUrl,
   VoidCallback? onAvatarTap,
   VoidCallback? onSelectTap,
   required Widget child,
@@ -3549,6 +3720,7 @@ Widget _bubbleRow({
           _MessageAvatar(
             seed: avatarSeed,
             avatarKey: avatarKey,
+            imageUrl: avatarUrl,
             onAvatarTap: onAvatarTap,
           ),
           const SizedBox(width: 8),
@@ -3563,7 +3735,7 @@ Widget _bubbleRow({
         ),
         if (isMe) ...[
           const SizedBox(width: 8),
-          _MessageAvatar(seed: avatarSeed),
+          _MessageAvatar(seed: avatarSeed, imageUrl: avatarUrl),
         ],
       ],
     ),
@@ -3579,22 +3751,23 @@ Widget _bubbleRow({
 
 /// 气泡时间戳行：自己发的（showRead）多一个 `done_all` 已读标记。
 Widget _bubbleTimeRow(BuildContext context, String time, bool showRead) {
+  final t = context.tk;
   if (showRead) {
     return Padding(
       padding: const EdgeInsets.only(top: 4, right: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(time, style: AppTheme.sans(size: 12, color: _chatTime)),
+          Text(time, style: AppTheme.sans(size: 12, color: t.textMute)),
           const SizedBox(width: 4),
-          const Icon(Symbols.done_all, size: 14, color: _chatTime),
+          Icon(Symbols.done_all, size: 14, color: t.textMute),
         ],
       ),
     );
   }
   return Padding(
     padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-    child: Text(time, style: AppTheme.sans(size: 12, color: _chatTime)),
+    child: Text(time, style: AppTheme.sans(size: 12, color: t.textMute)),
   );
 }
 
@@ -3612,6 +3785,7 @@ class _SChatImageBubble extends StatelessWidget {
     this.statusOverlay,
     this.centerOverlay,
     this.avatarKey,
+    this.avatarUrl,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -3627,6 +3801,7 @@ class _SChatImageBubble extends StatelessWidget {
   final Widget? statusOverlay;
   final Widget? centerOverlay;
   final Key? avatarKey;
+  final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -3667,6 +3842,7 @@ class _SChatImageBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarKey: avatarKey,
+      avatarUrl: avatarUrl,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -3692,6 +3868,7 @@ class _SChatFileBubble extends StatelessWidget {
     required this.onTap,
     this.leadingIcon = Symbols.description,
     this.avatarKey,
+    this.avatarUrl,
     this.onAvatarTap,
     this.trailing,
     this.selected = false,
@@ -3708,6 +3885,7 @@ class _SChatFileBubble extends StatelessWidget {
   final VoidCallback? onTap;
   final IconData leadingIcon;
   final Key? avatarKey;
+  final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final Widget? trailing;
   final bool selected;
@@ -3729,14 +3907,12 @@ class _SChatFileBubble extends StatelessWidget {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 260),
           decoration: BoxDecoration(
-            color: isMe ? _chatOwnBubble : _chatPeerBubble,
+            color: isMe ? t.accent : t.surfaceHigh,
             borderRadius: chatDirectionalBubbleRadius(isMe),
-            border: isMe
-                ? null
-                : Border.all(color: Colors.black.withValues(alpha: 0.06)),
+            border: isMe ? null : Border.all(color: t.border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
+                color: t.text.withValues(alpha: 0.04),
                 blurRadius: 4,
                 offset: const Offset(0, 1),
               ),
@@ -3748,8 +3924,8 @@ class _SChatFileBubble extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   color: isMe
-                      ? Colors.white.withValues(alpha: 0.20)
-                      : _chatAccentBlue.withValues(alpha: 0.12),
+                      ? t.onAccent.withValues(alpha: 0.20)
+                      : t.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 width: 44,
@@ -3758,7 +3934,7 @@ class _SChatFileBubble extends StatelessWidget {
                 child: Icon(
                   leadingIcon,
                   size: 22,
-                  color: isMe ? Colors.white : _chatAccentBlue,
+                  color: isMe ? t.onAccent : t.accent,
                 ),
               ),
               const SizedBox(width: 12),
@@ -3773,7 +3949,7 @@ class _SChatFileBubble extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
                         size: 15,
-                        color: isMe ? Colors.white : t.text,
+                        color: isMe ? t.onAccent : t.text,
                         weight: FontWeight.w600,
                       ),
                     ),
@@ -3784,7 +3960,7 @@ class _SChatFileBubble extends StatelessWidget {
                         size: 12,
                         weight: FontWeight.w500,
                         color: isMe
-                            ? Colors.white.withValues(alpha: 0.78)
+                            ? t.onAccent.withValues(alpha: 0.78)
                             : t.textMute,
                       ),
                     ),
@@ -3796,13 +3972,13 @@ class _SChatFileBubble extends StatelessWidget {
                   ? Icon(
                       Symbols.description,
                       size: 20,
-                      color: isMe ? Colors.white : t.textMute,
+                      color: isMe ? t.onAccent : t.textMute,
                     )
                   : trailing ??
                       Icon(
                         Symbols.download,
                         size: 20,
-                        color: isMe ? Colors.white : t.textMute,
+                        color: isMe ? t.onAccent : t.textMute,
                       ),
             ],
           ),
@@ -3816,6 +3992,7 @@ class _SChatFileBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarKey: avatarKey,
+      avatarUrl: avatarUrl,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(

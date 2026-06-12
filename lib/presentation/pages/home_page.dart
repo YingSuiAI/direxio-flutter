@@ -1282,8 +1282,8 @@ String? _conversationAvatarUrl(
   final contact = conversation.contact;
   return avatarHttpUrl(client, contact?.avatarUrl) ??
       avatarHttpUrl(client, conversation.roomSummary?.avatarUrl) ??
-      (room == null ? null : roomAvatarHttpUrl(room)) ??
-      _directPeerMemberAvatarUrl(client, room, contact?.userId);
+      _directPeerMemberAvatarUrl(client, room, contact?.userId) ??
+      (room == null ? null : roomAvatarHttpUrl(room));
 }
 
 String? _directPeerMemberAvatarUrl(
@@ -2924,6 +2924,7 @@ class _MePage extends ConsumerStatefulWidget {
 
 class _MePageState extends ConsumerState<_MePage> {
   bool _avatarBusy = false;
+  Uint8List? _avatarPreviewBytes;
 
   Future<void> _pickAvatar() async {
     if (_avatarBusy) return;
@@ -2952,6 +2953,9 @@ class _MePageState extends ConsumerState<_MePage> {
               mimeType: 'image/png',
             );
             await widget.client.setAvatar(file);
+            if (mounted) {
+              setState(() => _avatarPreviewBytes = adjustedBytes);
+            }
             ref.invalidate(currentUserProfileProvider);
             await ref.read(currentUserProfileProvider.future);
             ref.invalidate(appWarmupProvider);
@@ -3024,6 +3028,7 @@ class _MePageState extends ConsumerState<_MePage> {
               displayName: displayName,
               uid: uidUrl,
               avatarUrl: avatarUrl,
+              avatarBytes: _avatarPreviewBytes,
               avatarBusy: _avatarBusy,
               onAvatarTap: _avatarBusy ? null : _pickAvatar,
               onProfileTap: () => context.push('/me/profile'),
@@ -3083,6 +3088,7 @@ class _MeTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = _homeTextColor(context);
     return SizedBox(
       height: 48,
       child: Row(
@@ -3095,7 +3101,7 @@ class _MeTopBar extends StatelessWidget {
               style: AppTheme.sans(
                 size: 20,
                 weight: FontWeight.w600,
-                color: const Color(0xFF333333),
+                color: textColor,
               ),
             ),
           ),
@@ -3115,6 +3121,7 @@ class _MeProfileTile extends StatelessWidget {
     required this.displayName,
     required this.uid,
     required this.avatarUrl,
+    required this.avatarBytes,
     required this.avatarBusy,
     required this.onAvatarTap,
     required this.onProfileTap,
@@ -3126,6 +3133,7 @@ class _MeProfileTile extends StatelessWidget {
   final String displayName;
   final String uid;
   final String avatarUrl;
+  final Uint8List? avatarBytes;
   final bool avatarBusy;
   final VoidCallback? onAvatarTap;
   final VoidCallback onProfileTap;
@@ -3134,6 +3142,8 @@ class _MeProfileTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = _homeTextColor(context);
+    final mutedColor = _homeMutedColor(context);
     return SizedBox(
       height: 60,
       child: Row(
@@ -3147,6 +3157,7 @@ class _MeProfileTile extends StatelessWidget {
                   seed: displayId,
                   size: 60,
                   imageUrl: avatarUrl,
+                  imageBytes: avatarBytes,
                   shape: AvatarShape.squircle,
                 ),
                 if (avatarBusy)
@@ -3192,7 +3203,7 @@ class _MeProfileTile extends StatelessWidget {
                       style: AppTheme.sans(
                         size: 16,
                         weight: FontWeight.w600,
-                        color: const Color(0xFF333333),
+                        color: textColor,
                       ),
                     ),
                   ),
@@ -3212,7 +3223,7 @@ class _MeProfileTile extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: AppTheme.sans(
                                 size: 14,
-                                color: const Color(0xFF666666),
+                                color: mutedColor,
                               ),
                             ),
                           ),
@@ -3256,8 +3267,10 @@ class _MeActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
+    final isDark = _homeDark(context);
     return Material(
-      color: Colors.white,
+      color: isDark ? t.surface : Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -3278,14 +3291,14 @@ class _MeActionRow extends StatelessWidget {
                     style: AppTheme.sans(
                       size: 16,
                       weight: FontWeight.w500,
-                      color: const Color(0xFF262628),
+                      color: _homeTextColor(context),
                     ).copyWith(height: 22 / 16),
                   ),
                 ),
-                const Icon(
+                Icon(
                   Symbols.chevron_right,
                   size: 24,
-                  color: Colors.black,
+                  color: _homeMutedColor(context),
                 ),
               ],
             ),
@@ -3307,12 +3320,14 @@ class _MeGlassIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
+    final isDark = _homeDark(context);
     return DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.12),
             blurRadius: 36,
             offset: const Offset(0, 7),
           ),
@@ -3322,7 +3337,9 @@ class _MeGlassIconButton extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
           child: Material(
-            color: Colors.white.withValues(alpha: 0.65),
+            color: isDark
+                ? t.surfaceHigh.withValues(alpha: 0.72)
+                : Colors.white.withValues(alpha: 0.65),
             shape: const CircleBorder(),
             child: InkWell(
               onTap: onTap,

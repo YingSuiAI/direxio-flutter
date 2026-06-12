@@ -141,7 +141,6 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     const SizedBox(height: 26),
                     _ContactSettingRow(
                       label: '设置备注',
-                      value: '备注名称',
                       onTap: () => _toast(context, '设置备注功能待接入'),
                     ),
                     const SizedBox(height: 16),
@@ -500,12 +499,10 @@ class _ContactQuickAction extends StatelessWidget {
 class _ContactSettingRow extends StatelessWidget {
   const _ContactSettingRow({
     required this.label,
-    this.value,
     required this.onTap,
   });
 
   final String label;
-  final String? value;
   final VoidCallback onTap;
 
   @override
@@ -535,21 +532,6 @@ class _ContactSettingRow extends StatelessWidget {
                     ).copyWith(letterSpacing: -0.4),
                   ),
                 ),
-                if (value != null) ...[
-                  Flexible(
-                    child: Text(
-                      value!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                      style: AppTheme.sans(
-                        size: 12,
-                        color: t.textMute,
-                      ).copyWith(letterSpacing: -0.4),
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                ],
                 Icon(
                   Symbols.chevron_right,
                   size: 24,

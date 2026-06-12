@@ -64,8 +64,14 @@ class _AddContactVerificationPageState
       if (!mounted) return;
       setState(() => _requested = true);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_requestSentText(context))),
+        SnackBar(
+          content: Text(_requestSentText(context)),
+          duration: const Duration(milliseconds: 900),
+        ),
       );
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      if (!mounted) return;
+      await Navigator.of(context).maybePop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

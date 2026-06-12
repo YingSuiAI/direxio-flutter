@@ -15,10 +15,12 @@ class AddContactDetailPage extends ConsumerStatefulWidget {
     super.key,
     required this.userId,
     this.displayName,
+    this.avatarUrl,
   });
 
   final String userId;
   final String? displayName;
+  final String? avatarUrl;
 
   @override
   ConsumerState<AddContactDetailPage> createState() =>
@@ -40,7 +42,11 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final profile = _profileForAddContact(widget.userId, widget.displayName);
+    final profile = _profileForAddContact(
+      widget.userId,
+      widget.displayName,
+      avatarUrl: widget.avatarUrl,
+    );
     final t = context.tk;
     final l10n = AppLocalizations.of(context);
     return Scaffold(
@@ -120,7 +126,11 @@ class _AddContactProfile {
   final String? avatarUrl;
 }
 
-_AddContactProfile _profileForAddContact(String userId, String? displayName) {
+_AddContactProfile _profileForAddContact(
+  String userId,
+  String? displayName, {
+  String? avatarUrl,
+}) {
   final home = MockData.contactHomeByMxid(userId);
   final domain = userId.contains(':') ? userId.split(':').last : '';
   final name = contactDisplayNameFromIdentity(
@@ -133,7 +143,9 @@ _AddContactProfile _profileForAddContact(String userId, String? displayName) {
     name: name,
     uid: _uidFromUserId(userId),
     domain: home?.domain ?? domain,
-    avatarUrl: home?.avatarUrl,
+    avatarUrl: avatarUrl?.trim().isNotEmpty == true
+        ? avatarUrl!.trim()
+        : home?.avatarUrl,
   );
 }
 

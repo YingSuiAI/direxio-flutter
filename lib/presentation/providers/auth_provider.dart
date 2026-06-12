@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -12,6 +14,7 @@ import '../../data/matrix_privacy_sync.dart';
 import '../../data/matrix_token_refreshing_http_client.dart';
 import '../../data/well_known_service.dart';
 import '../../data/bi_analytics_service.dart';
+import 'as_sync_cache_provider.dart';
 import 'p2p_api_provider.dart';
 
 part 'auth_provider.g.dart';
@@ -243,6 +246,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final homeserver = await _storage.read(key: 'matrix_homeserver');
     final userId = await _storage.read(key: 'matrix_user_id');
     final portalToken = await _storage.read(key: 'portal_token');
+    final lastLoginHomeserver =
+        await _storage.read(key: lastLoginHomeserverKey);
+    final lastLoginPortalToken =
+        await _storage.read(key: lastLoginPortalTokenKey);
+    final storedPortalToken = (portalToken?.trim().isNotEmpty ?? false)
+        ? portalToken
+        : lastLoginPortalToken;
 
     if (token != null && homeserver != null && userId != null) {
       try {
@@ -257,7 +267,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           newDeviceID: deviceId,
           newDeviceName: 'PortalIM',
           waitForFirstSync: false,
-          waitUntilLoadCompletedLoaded: false,
+          waitUntilLoadCompletedLoaded: true,
         );
         return AuthState(
           isLoggedIn: true,
@@ -269,8 +279,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         await _storage.delete(key: 'matrix_token');
       }
     }
-    final restored = await _restoreMatrixSdkSession(client, portalToken);
+    final restored = await _restoreMatrixSdkSession(client, storedPortalToken);
     if (restored != null) return restored;
+    final portalRestored = await _restorePortalSession(
+      client,
+      homeserver: homeserver ?? lastLoginHomeserver,
+      portalToken: storedPortalToken,
+    );
+    if (portalRestored != null) return portalRestored;
     return const AuthState(isLoggedIn: false);
   }
 
@@ -348,6 +364,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         newHomeserver: checkedHomeserver,
         newDeviceID: deviceId,
         newDeviceName: 'PortalIM',
+        waitForFirstSync: false,
+        waitUntilLoadCompletedLoaded: false,
       );
     }
     if (displayName != null && displayName.trim().isNotEmpty) {
@@ -365,14 +383,27 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: effectivePortalToken,
       deviceId: deviceId,
     );
-    final ownerProfile = await HttpAsClient.fromPortalSession(
+    final ownerDisplayName = await _loadOwnerDisplayNameForLogin(
       client,
+      homeserver: checkedHomeserver,
       portalToken: effectivePortalToken,
-      baseUri: HttpAsClient.defaultAdminBaseUri(checkedHomeserver),
-    ).getOwnerProfile();
+    );
     if (publishState) {
       state = AsyncData(
-        result.toAuthState(ownerDisplayName: ownerProfile.displayName),
+        AuthState(
+          isLoggedIn: true,
+          userId: result.userId,
+          homeserver: result.homeserver.toString(),
+          portalToken: result.portalToken,
+          ownerDisplayName: ownerDisplayName,
+          requiresProfileSetup:
+              ownerDisplayName != null && ownerDisplayName.trim().isEmpty,
+        ),
+      );
+      _startPostLoginConversationSync(
+        client,
+        homeserver: checkedHomeserver,
+        portalToken: effectivePortalToken,
       );
     }
     reportBiInBackground(
@@ -382,6 +413,77 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           ),
     );
     return result;
+  }
+
+  Future<String?> _loadOwnerDisplayNameForLogin(
+    Client client, {
+    required Uri homeserver,
+    required String portalToken,
+  }) async {
+    try {
+      final ownerProfile = await HttpAsClient.fromPortalSession(
+        client,
+        portalToken: portalToken,
+        baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+      ).getOwnerProfile().timeout(const Duration(seconds: 2));
+      return ownerProfile.displayName;
+    } on TimeoutException {
+      debugPrint('AS owner profile timed out during login');
+      return null;
+    } catch (e) {
+      debugPrint('AS owner profile failed during login: $e');
+      return null;
+    }
+  }
+
+  void _startPostLoginConversationSync(
+    Client client, {
+    required Uri homeserver,
+    required String portalToken,
+  }) {
+    unawaited(_syncConversationsAfterLogin(
+      client,
+      homeserver: homeserver,
+      portalToken: portalToken,
+    ));
+  }
+
+  Future<void> _syncConversationsAfterLogin(
+    Client client, {
+    required Uri homeserver,
+    required String portalToken,
+  }) async {
+    await Future.wait([
+      _syncMatrixRoomsAfterLogin(client),
+      _syncAsBootstrapAfterLogin(client, homeserver, portalToken),
+    ]);
+  }
+
+  Future<void> _syncMatrixRoomsAfterLogin(Client client) async {
+    try {
+      await client.oneShotSync().timeout(const Duration(seconds: 12));
+    } catch (e) {
+      debugPrint('post-login Matrix room sync failed: $e');
+    }
+  }
+
+  Future<void> _syncAsBootstrapAfterLogin(
+    Client client,
+    Uri homeserver,
+    String portalToken,
+  ) async {
+    try {
+      final bootstrap = await HttpAsClient.fromPortalSession(
+        client,
+        portalToken: portalToken,
+        baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+      ).syncBootstrap().timeout(const Duration(seconds: 10));
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.copyWith(bootstrap: bootstrap),
+          );
+    } catch (e) {
+      debugPrint('post-login AS bootstrap sync failed: $e');
+    }
   }
 
   Future<void> register(
@@ -426,7 +528,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     );
     final profile =
         await asClient.updateOwnerProfile(displayName: cleanDisplayName);
-    final savedToken = await asClient.changePortalToken(cleanToken);
+    await asClient.changePortalPassword(
+      oldPassword: currentPortalToken.trim(),
+      newPassword: cleanToken,
+    );
     final deviceId = client.deviceID ??
         await _storage.read(key: 'matrix_device_id') ??
         _createDeviceId();
@@ -437,7 +542,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _persistSession(
       client,
       homeserver,
-      portalToken: savedToken,
+      portalToken: cleanToken,
       deviceId: deviceId,
       userId: userId,
     );
@@ -449,9 +554,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         isLoggedIn: true,
         userId: userId,
         homeserver: homeserver.toString(),
-        portalToken: savedToken,
+        portalToken: cleanToken,
         ownerDisplayName: savedDisplayName,
       ),
+    );
+    _startPostLoginConversationSync(
+      client,
+      homeserver: homeserver,
+      portalToken: cleanToken,
     );
   }
 
@@ -480,8 +590,18 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     );
   }
 
-  Future<void> changePortalToken(String newToken) async {
-    final cleanToken = _validatePortalLoginToken(newToken);
+  Future<void> changePortalPassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    final cleanOldPassword = oldPassword.trim();
+    final cleanNewPassword = _validatePortalLoginToken(newPassword);
+    if (cleanOldPassword.length < 8) {
+      throw ArgumentError('原密码至少 8 位');
+    }
+    if (cleanOldPassword.contains(RegExp(r'\s'))) {
+      throw ArgumentError('原密码不能包含空格');
+    }
 
     final client = ref.read(matrixClientProvider);
     final auth = state.valueOrNull;
@@ -502,14 +622,17 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: currentPortalToken.trim(),
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
     );
-    final savedToken = await asClient.changePortalToken(cleanToken);
+    await asClient.changePortalPassword(
+      oldPassword: cleanOldPassword,
+      newPassword: cleanNewPassword,
+    );
     final deviceId = client.deviceID ??
         await _storage.read(key: 'matrix_device_id') ??
         _createDeviceId();
     await _persistSession(
       client,
       homeserver,
-      portalToken: savedToken,
+      portalToken: cleanNewPassword,
       deviceId: deviceId,
     );
     state = AsyncData(
@@ -517,7 +640,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         isLoggedIn: true,
         userId: client.userID ?? auth?.userId,
         homeserver: homeserver.toString(),
-        portalToken: savedToken,
+        portalToken: cleanNewPassword,
       ),
     );
   }
@@ -527,28 +650,32 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     String setupCode,
     String newToken,
   ) async {
+    final cleanSetupCode = setupCode.trim();
     final cleanNewToken = _validatePortalLoginToken(newToken);
     final result = await _loginWithPortal(
       homeserverUrl,
-      setupCode,
+      cleanSetupCode,
       publishState: false,
       useBootstrap: true,
     );
-    if (result.portalToken == setupCode.trim()) {
-      throw StateError('服务器没有返回长期 Portal Token，请检查后端版本');
-    }
 
     final client = ref.read(matrixClientProvider);
+    final currentPortalToken = result.portalToken.trim().isNotEmpty
+        ? result.portalToken
+        : cleanSetupCode;
     final asClient = HttpAsClient.fromPortalSession(
       client,
-      portalToken: result.portalToken,
+      portalToken: currentPortalToken,
       baseUri: HttpAsClient.defaultAdminBaseUri(result.homeserver),
     );
-    final savedToken = await asClient.changePortalToken(cleanNewToken);
+    await asClient.changePortalPassword(
+      oldPassword: cleanSetupCode,
+      newPassword: cleanNewToken,
+    );
     await _persistSession(
       client,
       result.homeserver,
-      portalToken: savedToken,
+      portalToken: cleanNewToken,
       deviceId: result.deviceId,
     );
     state = AsyncData(
@@ -556,7 +683,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         isLoggedIn: true,
         userId: client.userID ?? result.userId,
         homeserver: result.homeserver.toString(),
-        portalToken: savedToken,
+        portalToken: cleanNewToken,
       ),
     );
   }
@@ -569,7 +696,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       if (client.onLoginStateChanged.value != LoginState.loggedIn) {
         await client.init(
           waitForFirstSync: false,
-          waitUntilLoadCompletedLoaded: false,
+          waitUntilLoadCompletedLoaded: true,
         );
       }
       if (!client.isLogged()) return null;
@@ -611,6 +738,71 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         portalToken: portalToken,
       );
     } catch (_) {
+      return null;
+    }
+  }
+
+  Future<AuthState?> _restorePortalSession(
+    Client client, {
+    required String? homeserver,
+    required String? portalToken,
+  }) async {
+    final cleanPortalToken = portalToken?.trim() ?? '';
+    if (cleanPortalToken.isEmpty) return null;
+    final homeserverUri = Uri.tryParse(homeserver?.trim() ?? '');
+    if (homeserverUri == null || homeserverUri.host.isEmpty) return null;
+
+    try {
+      final session = await HttpAsClient.authenticatePortal(
+        baseUri: HttpAsClient.defaultAdminBaseUri(homeserverUri),
+        portalToken: cleanPortalToken,
+        httpClient: client.httpClient,
+      );
+      final matrixUri = _resolveClientHomeserver(
+        homeserverUri,
+        session.homeserver,
+      );
+      final deviceId = await _resolveSessionDeviceId(
+        httpClient: client.httpClient,
+        homeserver: matrixUri,
+        accessToken: session.accessToken,
+        sessionDeviceId: session.deviceId,
+        storedDeviceId: await _storage.read(key: 'matrix_device_id'),
+      );
+      if (client.onLoginStateChanged.value == LoginState.loggedIn) {
+        await _applyRefreshedSession(
+          client,
+          matrixUri,
+          session,
+          portalToken: cleanPortalToken,
+          deviceId: deviceId,
+        );
+      } else {
+        await client.init(
+          newToken: session.accessToken,
+          newUserID: session.userId,
+          newHomeserver: matrixUri,
+          newDeviceID: deviceId,
+          newDeviceName: 'PortalIM',
+          waitForFirstSync: false,
+          waitUntilLoadCompletedLoaded: true,
+        );
+        await _persistSession(
+          client,
+          matrixUri,
+          portalToken: cleanPortalToken,
+          deviceId: deviceId,
+          userId: session.userId,
+        );
+      }
+      return AuthState(
+        isLoggedIn: true,
+        userId: client.userID ?? session.userId,
+        homeserver: (client.homeserver ?? matrixUri).toString(),
+        portalToken: cleanPortalToken,
+      );
+    } catch (e) {
+      debugPrint('portal token restore failed: $e');
       return null;
     }
   }

@@ -15,7 +15,6 @@ import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
-import '../widgets/m3/m3_search_field.dart';
 import '../widgets/portal_avatar.dart';
 
 final groupCreationSyncAfterCreateProvider = Provider<bool>((ref) => true);
@@ -25,7 +24,8 @@ const _createGroupText = Color(0xFF262628);
 const _createGroupHint = Color(0xFF999999);
 const _createGroupMuted = Color(0xFFA3A3A4);
 const _createGroupBorder = Color(0xFFE6E6E6);
-const _createGroupAccent = Color(0xFF2FA0D0);
+const _createGroupAccent = Color(0xFF34C759);
+const _createGroupSearchFill = Color(0x1F767680);
 
 Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
   final client = ref.read(matrixClientProvider);
@@ -301,6 +301,7 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
                         top: 10,
                         child: _CreateGroupDoneButton(
                           enabled: canComplete,
+                          count: _selectedMxids.length,
                           onTap: canComplete ? _complete : null,
                         ),
                       ),
@@ -311,7 +312,7 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                   child: _CreateGroupSearchField(controller: _queryController),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 13),
                 Expanded(
                   child: widget.contacts.isEmpty
                       ? const _CreateGroupEmptyState(
@@ -350,7 +351,7 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
             ),
             if (filteredContacts.isNotEmpty)
               Positioned(
-                top: 192,
+                top: 193,
                 right: 12,
                 bottom: 30,
                 child: _CreateGroupAlphabetIndex(
@@ -490,10 +491,12 @@ class _CreateGroupCircleButton extends StatelessWidget {
 class _CreateGroupDoneButton extends StatelessWidget {
   const _CreateGroupDoneButton({
     required this.enabled,
+    required this.count,
     required this.onTap,
   });
 
   final bool enabled;
+  final int count;
   final VoidCallback? onTap;
 
   @override
@@ -504,12 +507,13 @@ class _CreateGroupDoneButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(4),
-        child: SizedBox(
+        child: Container(
           height: 30,
-          width: 48,
+          constraints: const BoxConstraints(minWidth: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Center(
             child: Text(
-              '完成',
+              count > 0 ? '完成($count)' : '完成',
               style: AppTheme.sans(
                 size: 12,
                 weight: FontWeight.w700,
@@ -530,7 +534,51 @@ class _CreateGroupSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return M3SearchField(controller: controller, hint: 'ID/昵称/邮箱');
+    return Container(
+      key: const ValueKey('create_group_search_field'),
+      height: 36,
+      decoration: BoxDecoration(
+        color: _createGroupSearchFill,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 16),
+          const Icon(
+            Symbols.search,
+            size: 16,
+            color: _createGroupHint,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              textInputAction: TextInputAction.search,
+              cursorColor: _createGroupAccent,
+              style: AppTheme.sans(
+                size: 16,
+                weight: FontWeight.w400,
+                color: _createGroupText,
+              ),
+              decoration: InputDecoration(
+                isCollapsed: true,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                hintText: 'ID/昵称/邮箱',
+                hintStyle: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w400,
+                  color: _createGroupHint,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+        ],
+      ),
+    );
   }
 }
 
@@ -640,9 +688,9 @@ class _CreateGroupCheck extends StatelessWidget {
       height: 16,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected ? _createGroupText : Colors.transparent,
+        color: selected ? _createGroupAccent : Colors.transparent,
         border: Border.all(
-          color: selected ? _createGroupText : _createGroupBorder,
+          color: selected ? _createGroupAccent : _createGroupBorder,
           width: 1,
         ),
       ),

@@ -3530,7 +3530,7 @@ void main() {
 
     await tester.tap(find.text('Alice Chen').last);
     await tester.pump();
-    await tester.tap(find.text('完成'));
+    await tester.tap(find.text('完成(1)'));
     await tester.pumpAndSettle();
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -4936,7 +4936,7 @@ void main() {
     await tester.tap(find.text('Alice Chen'));
     await tester.tap(find.text('Bob Lin'));
     await tester.pump();
-    await tester.tap(find.text('完成'));
+    await tester.tap(find.text('完成(2)'));
     await tester.pumpAndSettle();
 
     expect(asClient.createdGroupName, 'Alice Chen、Bob Lin的群聊');
@@ -6081,6 +6081,38 @@ void main() {
     expect(harness.asClient.sentContent, '引用后的回复');
     expect(harness.asClient.sentReplyToEventId, r'$group-text');
     expect(find.byIcon(Symbols.reply), findsNothing);
+
+    await harness.client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-local-reply-event',
+        rooms: RoomsUpdate(
+          join: {
+            '!group:p2p-im.com': JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: 'event',
+                    roomId: '!group:p2p-im.com',
+                    senderId: '@owner:p2p-im.com',
+                    originServerTs: DateTime.utc(2026, 5, 30, 10, 1),
+                    content: const {
+                      'msgtype': MessageTypes.Text,
+                      'body': '引用后的回复',
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(
+        find.byKey(const ValueKey('group_chat_quote_block')), findsOneWidget);
   });
 
   testWidgets('group chat renders AS reply_to as quoted bubble',
@@ -6117,6 +6149,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
+    expect(
+        find.byKey(const ValueKey('group_chat_quote_block')), findsOneWidget);
     expect(find.text('引用后的回复'), findsOneWidget);
     expect(find.text('群聊长按消息'), findsNWidgets(2));
   });
@@ -6157,6 +6191,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
+    expect(
+        find.byKey(const ValueKey('group_chat_quote_block')), findsOneWidget);
     expect(find.text('引用后的回复'), findsOneWidget);
     expect(find.text('群聊长按消息'), findsNWidgets(2));
   });

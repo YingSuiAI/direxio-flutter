@@ -1119,6 +1119,23 @@ Widget _assetIcon(String assetName, {required double size, Color? color}) {
   return _SafeAssetIcon(assetName: assetName, size: size, color: color);
 }
 
+final Map<String, Future<ByteData>> _assetLoadFutures = {};
+final Map<String, ByteData> _assetByteCache = {};
+final Set<String> _assetLoadFailures = {};
+
+Future<ByteData> _loadAssetBytes(String assetName) {
+  return _assetLoadFutures.putIfAbsent(assetName, () async {
+    try {
+      final data = await rootBundle.load(assetName);
+      _assetByteCache[assetName] = data;
+      return data;
+    } catch (_) {
+      _assetLoadFailures.add(assetName);
+      rethrow;
+    }
+  });
+}
+
 class _SafeAssetIcon extends StatelessWidget {
   const _SafeAssetIcon({
     required this.assetName,
@@ -1132,8 +1149,20 @@ class _SafeAssetIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (_assetLoadFailures.contains(assetName)) {
+      final iconColor = color ?? context.tk.textMute;
+      return Icon(
+        _fallbackIconForAsset(assetName),
+        size: size,
+        color: iconColor,
+      );
+    }
+    final cached = _assetByteCache[assetName];
+    if (cached != null) {
+      return _loadedAssetIcon(assetName, size: size, color: color);
+    }
     return FutureBuilder<ByteData>(
-      future: rootBundle.load(assetName),
+      future: _loadAssetBytes(assetName),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           final iconColor = color ?? context.tk.textMute;
@@ -1143,7 +1172,7 @@ class _SafeAssetIcon extends StatelessWidget {
             color: iconColor,
           );
         }
-        if (snapshot.connectionState != ConnectionState.done) {
+        if (!snapshot.hasData) {
           return SizedBox.square(dimension: size);
         }
         return _loadedAssetIcon(assetName, size: size, color: color);

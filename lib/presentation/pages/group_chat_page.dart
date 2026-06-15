@@ -280,6 +280,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   bool _showEmojiPanel = false;
   final Set<String> _selected = {};
   Event? _replyTo;
+  final Map<String, _GroupQuotedMessagePreview> _localReplyPreviews = {};
+  final Map<String, GlobalKey> _messageAnchorKeys = {};
+  final Map<String, int> _messageListIndexes = {};
+  final ScrollController _messageScrollCtrl = ScrollController();
+  String? _flashingMessageEventId;
+  Timer? _flashingMessageTimer;
   final ChatVoicePlayer _voicePlayer = ChatVoicePlayer();
   final ChatVoiceRecorder _voiceRecorder = ChatVoiceRecorder();
   bool _stoppingVoiceRecording = false;
@@ -410,6 +416,96 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       },
       outbox: (outbox) => 'group-outbox-${outbox.id}',
       asCall: (session) => 'group-as-call-${session.callId}',
+    );
+  }
+
+  GlobalKey _messageAnchorKey(String eventId) {
+    final trimmed = eventId.trim();
+    return _messageAnchorKeys.putIfAbsent(trimmed, GlobalKey.new);
+  }
+
+  void _scrollToQuotedEvent(String? eventId) {
+    final trimmed = eventId?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      _showQuotedMessageUnavailable();
+      return;
+    }
+    if (_ensureQuotedEventVisible(trimmed)) return;
+    final index = _messageListIndexes[trimmed];
+    if (index == null || !_messageScrollCtrl.hasClients) {
+      _showQuotedMessageUnavailable();
+      return;
+    }
+    unawaited(_scrollToQuotedEventIndex(trimmed, index));
+  }
+
+  bool _ensureQuotedEventVisible(String eventId) {
+    final key = _messageAnchorKeys[eventId];
+    final targetContext = key?.currentContext;
+    if (targetContext == null) return false;
+    Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      alignment: 0.35,
+    );
+    _flashMessage(eventId);
+    return true;
+  }
+
+  Future<void> _scrollToQuotedEventIndex(String eventId, int index) async {
+    final position = _messageScrollCtrl.position;
+    final estimate = (index * 88.0).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    await _messageScrollCtrl.animateTo(
+      estimate,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_ensureQuotedEventVisible(eventId)) {
+        _showQuotedMessageUnavailable();
+      }
+    });
+  }
+
+  void _showQuotedMessageUnavailable() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('原消息暂不可见')),
+    );
+  }
+
+  void _flashMessage(String eventId) {
+    final trimmed = eventId.trim();
+    if (trimmed.isEmpty) return;
+    _flashingMessageTimer?.cancel();
+    if (mounted) setState(() => _flashingMessageEventId = trimmed);
+    _flashingMessageTimer = Timer(const Duration(milliseconds: 2500), () {
+      if (mounted) setState(() => _flashingMessageEventId = null);
+    });
+  }
+
+  void _syncMessageListIndexes(List<_GroupTimelineItem> items) {
+    _messageListIndexes.clear();
+    for (var i = 0; i < items.length; i++) {
+      items[i].when(
+        event: (event) {
+          final id = event.eventId.trim();
+          if (id.isNotEmpty) _messageListIndexes[id] = i;
+        },
+        outbox: (_) {},
+        asCall: (_) {},
+      );
+    }
+  }
+
+  void _pruneMessageAnchors() {
+    _messageAnchorKeys.removeWhere(
+      (eventId, _) => !_messageListIndexes.containsKey(eventId),
     );
   }
 
@@ -946,6 +1042,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     Event event,
     List<Event> visibleEvents,
   ) {
+    final localPreview = _localReplyPreviews[event.eventId.trim()];
+    if (localPreview != null) return localPreview;
     final fallbackPreview = _groupReplyPreviewFromMatrixFallbackBody(
       event.body,
     );
@@ -959,11 +1057,23 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       }
     }
     if (quoted == null) {
-      return fallbackPreview ?? _missingGroupQuotedMessagePreview;
+      return fallbackPreview?.withEventId(replyEventId) ??
+          _missingGroupQuotedMessagePreview.withEventId(replyEventId);
     }
     return _GroupQuotedMessagePreview(
+      eventId: quoted.eventId,
       sender: quoted.senderFromMemoryOrFallback.calcDisplayname(),
       text: quotedEventPreviewText(quoted),
+    );
+  }
+
+  void _rememberLocalReplyPreview(String eventId, Event? replyTo) {
+    final trimmed = eventId.trim();
+    if (trimmed.isEmpty || replyTo == null) return;
+    _localReplyPreviews[trimmed] = _GroupQuotedMessagePreview(
+      eventId: replyTo.eventId,
+      sender: replyTo.senderFromMemoryOrFallback.calcDisplayname(),
+      text: quotedEventPreviewText(replyTo),
     );
   }
 
@@ -972,9 +1082,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _timeline?.cancelSubscriptions();
     _initialTimelineEntranceTimer?.cancel();
     _asCallHistoryReloadTimer?.cancel();
+    _flashingMessageTimer?.cancel();
     _voicePlayer.playback.removeListener(_onVoicePlaybackChanged);
     unawaited(_voicePlayer.dispose());
     unawaited(_voiceRecorder.dispose());
+    _messageScrollCtrl.dispose();
     _msgCtrl.dispose();
     super.dispose();
   }
@@ -988,11 +1100,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _msgCtrl.clear();
     setState(() => _replyTo = null);
     try {
-      await ref.read(asClientProvider).sendRoomMessage(
+      final eventId = await ref.read(asClientProvider).sendRoomMessage(
             room.id,
             text,
             replyToEventId: replyTo?.eventId,
           );
+      _rememberLocalReplyPreview(eventId, replyTo);
       await ref.read(matrixClientProvider).oneShotSync();
     } on Object catch (e) {
       if (!mounted) return;
@@ -1625,6 +1738,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final displayTimelineItemKeys = timelineItemKeys.reversed.toList(
       growable: false,
     );
+    _syncMessageListIndexes(displayTimelineItems);
+    _pruneMessageAnchors();
     _seedInitialTimelineEntrances(timelineItemKeys);
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
@@ -1744,6 +1859,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                         itemCount: timelineItems.length,
                         newestItemKey: newestTimelineItemKey,
                         child: ListView.builder(
+                          controller: _messageScrollCtrl,
                           padding: messagePadding,
                           itemCount: timelineItems.length,
                           itemBuilder: (context, i) {
@@ -1752,6 +1868,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                               Widget child, {
                               required bool isMe,
                               required Object id,
+                              GlobalKey? anchorKey,
+                              bool flashing = false,
                             }) {
                               return chatMessageEntrance(
                                 key: ValueKey('group_message_enter_$id'),
@@ -1759,7 +1877,18 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                 index: i,
                                 enabled:
                                     _initialTimelineEntrances.contains(itemKey),
-                                child: child,
+                                child: anchorKey == null
+                                    ? _MessageJumpFlash(
+                                        flashing: flashing,
+                                        child: child,
+                                      )
+                                    : KeyedSubtree(
+                                        key: anchorKey,
+                                        child: _MessageJumpFlash(
+                                          flashing: flashing,
+                                          child: child,
+                                        ),
+                                      ),
                               );
                             }
 
@@ -1838,6 +1967,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                   Map<String, Object?>.from(e.content),
                                 );
                                 final isMe = e.senderId == myId;
+                                final anchorKey = _messageAnchorKey(e.eventId);
+                                final flashing =
+                                    _flashingMessageEventId == e.eventId.trim();
                                 final senderAvatarUrl = _avatarUrlForMxid(
                                   room,
                                   syncCache,
@@ -1910,6 +2042,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     ),
                                     isMe: callerIsMe,
                                     id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
                                   );
                                 }
                                 if (e.messageType == MessageTypes.Image &&
@@ -1947,6 +2081,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     ),
                                     isMe: isMe,
                                     id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
                                   );
                                 }
                                 if (e.messageType == MessageTypes.Video &&
@@ -1973,6 +2109,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     ),
                                     isMe: isMe,
                                     id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
                                   );
                                 }
                                 if (_isGroupVoiceEvent(e)) {
@@ -2016,6 +2154,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     ),
                                     isMe: isMe,
                                     id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
                                   );
                                 }
                                 if (e.messageType == MessageTypes.File &&
@@ -2068,6 +2208,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     ),
                                     isMe: isMe,
                                     id: e.eventId,
+                                    anchorKey: anchorKey,
+                                    flashing: flashing,
                                   );
                                 }
                                 return enter(
@@ -2077,6 +2219,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                       e,
                                       visibleEvents,
                                     ),
+                                    onTapQuote: _scrollToQuotedEvent,
                                     isMe: isMe,
                                     senderAvatarUrl: senderAvatarUrl,
                                     selected: selected,
@@ -2101,6 +2244,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                   ),
                                   isMe: isMe,
                                   id: e.eventId,
+                                  anchorKey: anchorKey,
+                                  flashing: flashing,
                                 );
                               },
                             );
@@ -2802,12 +2947,24 @@ class _GroupMessageSelectCheckmark extends StatelessWidget {
 
 class _GroupQuotedMessagePreview {
   const _GroupQuotedMessagePreview({
+    this.eventId,
     required this.sender,
     required this.text,
   });
 
+  final String? eventId;
   final String sender;
   final String text;
+
+  _GroupQuotedMessagePreview withEventId(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty || eventId == trimmed) return this;
+    return _GroupQuotedMessagePreview(
+      eventId: trimmed,
+      sender: sender,
+      text: text,
+    );
+  }
 }
 
 String _groupMessageDisplayText(Event event) {
@@ -2866,6 +3023,44 @@ String _stripGroupMatrixReplyFallback(String body) {
   return body;
 }
 
+class _MessageJumpFlash extends StatelessWidget {
+  const _MessageJumpFlash({
+    required this.flashing,
+    required this.child,
+  });
+
+  final bool flashing;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Stack(
+      children: [
+        child,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: flashing ? 1 : 0,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutCubic,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: t.accent.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _GroupMessageBubble extends StatelessWidget {
   const _GroupMessageBubble({
     required this.event,
@@ -2876,6 +3071,7 @@ class _GroupMessageBubble extends StatelessWidget {
     this.quote,
     this.senderAvatarUrl,
     this.onTap,
+    this.onTapQuote,
   });
   final Event event;
   final bool isMe;
@@ -2885,6 +3081,7 @@ class _GroupMessageBubble extends StatelessWidget {
   final _GroupQuotedMessagePreview? quote;
   final String? senderAvatarUrl;
   final VoidCallback? onTap;
+  final ValueChanged<String?>? onTapQuote;
 
   @override
   Widget build(BuildContext context) {
@@ -2936,6 +3133,7 @@ class _GroupMessageBubble extends StatelessWidget {
                           _GroupQuotedMessageBlock(
                             quote: quote!,
                             isMe: isMe,
+                            onTap: multiSelect ? null : onTapQuote,
                           ),
                           const SizedBox(height: 10),
                         ],
@@ -3031,55 +3229,65 @@ class _GroupQuotedMessageBlock extends StatelessWidget {
   const _GroupQuotedMessageBlock({
     required this.quote,
     required this.isMe,
+    this.onTap,
   });
 
   final _GroupQuotedMessagePreview quote;
   final bool isMe;
+  final ValueChanged<String?>? onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     final senderColor = isMe ? t.onAccent.withValues(alpha: 0.88) : t.accent;
     final bodyColor = isMe ? t.onAccent.withValues(alpha: 0.78) : t.textMute;
+    final block = Container(
+      key: const ValueKey('group_chat_quote_block'),
+      constraints: const BoxConstraints(minWidth: 160),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isMe
+            ? t.onAccent.withValues(alpha: 0.18)
+            : t.accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            quote.sender,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.sans(
+              size: 13,
+              color: senderColor,
+              weight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            quote.text.isEmpty ? '消息' : quote.text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.sans(
+              size: 12,
+              color: bodyColor,
+              weight: FontWeight.w500,
+            ).copyWith(height: 1.2),
+          ),
+        ],
+      ),
+    );
     return Align(
       alignment: Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: isMe
-              ? t.onAccent.withValues(alpha: 0.18)
-              : t.accent.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              quote.sender,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 13,
-                color: senderColor,
-                weight: FontWeight.w700,
-              ),
+      child: onTap == null
+          ? block
+          : GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onTap?.call(quote.eventId),
+              child: block,
             ),
-            const SizedBox(height: 6),
-            Text(
-              quote.text.isEmpty ? '消息' : quote.text,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 12,
-                color: bodyColor,
-                weight: FontWeight.w500,
-              ).copyWith(height: 1.2),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

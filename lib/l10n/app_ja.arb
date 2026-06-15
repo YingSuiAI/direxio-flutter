@@ -20,6 +20,7 @@
   "settingsFavorites": "お気に入り",
   "settingsPrivacySecurity": "プライバシーとセキュリティ",
   "settingsBlacklist": "連絡先ブラックリスト",
+  "settingsChangePassword": "パスワードを変更",
   "settingsMessagesNotifications": "メッセージと通知",
   "settingsDoNotDisturb": "おやすみモード",
   "settingsMessageSound": "新着メッセージ音",
@@ -90,5 +91,29 @@
   "meQrHint": "上のQRコードをスキャンして友だちに追加できます。",
   "meQrSaveToAlbum": "写真に保存",
   "meQrSaveTodo": "写真への保存機能はまだ接続されていません",
-  "meQrUnconnectedDomain": "接続済みドメインなし"
+  "meQrUnconnectedDomain": "接続済みドメインなし",
+  "groupInviteTitle": "グループチャットへの招待",
+  "groupInviteJoining": "「{groupName}」に参加中",
+  "@groupInviteJoining": {
+    "placeholders": {
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInviteBody": "{inviter}が「{groupName}」に招待しました",
+  "@groupInviteBody": {
+    "placeholders": {
+      "inviter": {
+        "type": "String"
+      },
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInviteFallbackInviter": "相手",
+  "groupInviteJoinButton": "参加",
+  "groupInviteJoiningButton": "参加中…",
+  "groupInviteAlreadyJoined": "すでにこのグループに参加しています"
 }

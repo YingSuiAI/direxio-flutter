@@ -7,7 +7,12 @@ import UniformTypeIdentifiers
 
 @available(iOS 14, *)
 final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewControllerDelegate {
+  private static let maxSelectionLimit = 9
+  private static let compressedMaxDimension: CGFloat = 1600
+  private static let compressedQuality: CGFloat = 0.78
+
   private var pendingResult: FlutterResult?
+  private var pendingOriginal = false
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
@@ -22,10 +27,13 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
       result(FlutterMethodNotImplemented)
       return
     }
-    presentPicker(result: result)
+    let arguments = call.arguments as? [String: Any]
+    let original = arguments?["original"] as? Bool ?? false
+    let limit = arguments?["limit"] as? Int ?? Self.maxSelectionLimit
+    presentPicker(result: result, original: original, limit: limit)
   }
 
-  private func presentPicker(result: @escaping FlutterResult) {
+  private func presentPicker(result: @escaping FlutterResult, original: Bool, limit: Int) {
     guard #available(iOS 14, *) else {
       result(
         FlutterError(
@@ -60,7 +68,7 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
     var configuration = PHPickerConfiguration(photoLibrary: .shared())
     configuration.filter = .images
     configuration.preferredAssetRepresentationMode = .current
-    configuration.selectionLimit = 0
+    configuration.selectionLimit = min(max(limit, 1), Self.maxSelectionLimit)
     if #available(iOS 15, *) {
       configuration.selection = .ordered
     }
@@ -68,15 +76,18 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
     let picker = PHPickerViewController(configuration: configuration)
     picker.delegate = self
     pendingResult = result
+    pendingOriginal = original
     presenter.present(picker, animated: true)
   }
 
   func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
     picker.dismiss(animated: true)
     guard let result = pendingResult else { return }
+    let original = pendingOriginal
     pendingResult = nil
+    pendingOriginal = false
 
-    loadImages(results) { images, error in
+    loadImages(results, original: original) { images, error in
       if let error {
         result(error)
         return
@@ -87,6 +98,7 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
 
   private func loadImages(
     _ results: [PHPickerResult],
+    original: Bool,
     completion: @escaping ([[String: String]]?, FlutterError?) -> Void
   ) {
     guard !results.isEmpty else {
@@ -136,22 +148,20 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
       provider.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { fileURL, error in
         if let fileURL {
           do {
-            let fileName = Self.fileName(
-              suggestedName: provider.suggestedName,
-              typeIdentifier: typeIdentifier
-            )
-            let destinationURL = outputDirectory
-              .appendingPathComponent("\(UUID().uuidString)-\(fileName)")
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-              try FileManager.default.removeItem(at: destinationURL)
-            }
-            try FileManager.default.copyItem(at: fileURL, to: destinationURL)
+            let image = original
+              ? try Self.copyOriginalImageFile(
+                from: fileURL,
+                suggestedName: provider.suggestedName,
+                typeIdentifier: typeIdentifier,
+                outputDirectory: outputDirectory
+              )
+              : try Self.writeCompressedImageFile(
+                from: fileURL,
+                suggestedName: provider.suggestedName,
+                outputDirectory: outputDirectory
+              )
             stateQueue.sync {
-              loadedImages[index] = [
-                "path": destinationURL.path,
-                "name": fileName,
-                "mimeType": Self.mimeType(for: typeIdentifier),
-              ]
+              loadedImages[index] = image
             }
           } catch {
             stateQueue.sync {
@@ -195,18 +205,20 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
           }
 
           do {
-            let fileName = Self.fileName(
-              suggestedName: provider.suggestedName,
-              typeIdentifier: typeIdentifier
-            )
-            let fileURL = outputDirectory.appendingPathComponent("\(UUID().uuidString)-\(fileName)")
-            try data.write(to: fileURL, options: .atomic)
+            let image = original
+              ? try Self.writeOriginalImageData(
+                data,
+                suggestedName: provider.suggestedName,
+                typeIdentifier: typeIdentifier,
+                outputDirectory: outputDirectory
+              )
+              : try Self.writeCompressedImageData(
+                data,
+                suggestedName: provider.suggestedName,
+                outputDirectory: outputDirectory
+              )
             stateQueue.sync {
-              loadedImages[index] = [
-                "path": fileURL.path,
-                "name": fileName,
-                "mimeType": Self.mimeType(for: typeIdentifier),
-              ]
+              loadedImages[index] = image
             }
           } catch {
             stateQueue.sync {
@@ -227,6 +239,116 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
         return
       }
       completion(loadedImages.compactMap { $0 }, nil)
+    }
+  }
+
+  private static func copyOriginalImageFile(
+    from sourceURL: URL,
+    suggestedName: String?,
+    typeIdentifier: String,
+    outputDirectory: URL
+  ) throws -> [String: String] {
+    let fileName = Self.fileName(suggestedName: suggestedName, typeIdentifier: typeIdentifier)
+    let destinationURL = outputDirectory.appendingPathComponent("\(UUID().uuidString)-\(fileName)")
+    if FileManager.default.fileExists(atPath: destinationURL.path) {
+      try FileManager.default.removeItem(at: destinationURL)
+    }
+    try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+    return [
+      "path": destinationURL.path,
+      "name": fileName,
+      "mimeType": Self.mimeType(for: typeIdentifier),
+    ]
+  }
+
+  private static func writeOriginalImageData(
+    _ data: Data,
+    suggestedName: String?,
+    typeIdentifier: String,
+    outputDirectory: URL
+  ) throws -> [String: String] {
+    let fileName = Self.fileName(suggestedName: suggestedName, typeIdentifier: typeIdentifier)
+    let fileURL = outputDirectory.appendingPathComponent("\(UUID().uuidString)-\(fileName)")
+    try data.write(to: fileURL, options: .atomic)
+    return [
+      "path": fileURL.path,
+      "name": fileName,
+      "mimeType": Self.mimeType(for: typeIdentifier),
+    ]
+  }
+
+  private static func writeCompressedImageFile(
+    from sourceURL: URL,
+    suggestedName: String?,
+    outputDirectory: URL
+  ) throws -> [String: String] {
+    guard let image = UIImage(contentsOfFile: sourceURL.path) else {
+      let data = try Data(contentsOf: sourceURL)
+      return try writeCompressedImageData(
+        data,
+        suggestedName: suggestedName,
+        outputDirectory: outputDirectory
+      )
+    }
+    return try writeCompressedImage(image, suggestedName: suggestedName, outputDirectory: outputDirectory)
+  }
+
+  private static func writeCompressedImageData(
+    _ data: Data,
+    suggestedName: String?,
+    outputDirectory: URL
+  ) throws -> [String: String] {
+    guard let image = UIImage(data: data) else {
+      throw NSError(
+        domain: "p2p_im.ordered_image_picker",
+        code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "Failed to decode selected image."]
+      )
+    }
+    return try writeCompressedImage(image, suggestedName: suggestedName, outputDirectory: outputDirectory)
+  }
+
+  private static func writeCompressedImage(
+    _ image: UIImage,
+    suggestedName: String?,
+    outputDirectory: URL
+  ) throws -> [String: String] {
+    let resized = resizedImageIfNeeded(image)
+    guard let data = resized.jpegData(compressionQuality: Self.compressedQuality) else {
+      throw NSError(
+        domain: "p2p_im.ordered_image_picker",
+        code: 2,
+        userInfo: [NSLocalizedDescriptionKey: "Failed to encode selected image."]
+      )
+    }
+    let base = sanitizedFileName(
+      suggestedName
+        .flatMap { $0.isEmpty ? nil : ($0 as NSString).deletingPathExtension }
+        ?? "image"
+    )
+    let fileName = "\(base).jpg"
+    let fileURL = outputDirectory.appendingPathComponent("\(UUID().uuidString)-\(fileName)")
+    try data.write(to: fileURL, options: .atomic)
+    return [
+      "path": fileURL.path,
+      "name": fileName,
+      "mimeType": "image/jpeg",
+    ]
+  }
+
+  private static func resizedImageIfNeeded(_ image: UIImage) -> UIImage {
+    let width = image.size.width
+    let height = image.size.height
+    let longest = max(width, height)
+    guard longest > Self.compressedMaxDimension, width > 0, height > 0 else {
+      return image
+    }
+    let scale = Self.compressedMaxDimension / longest
+    let targetSize = CGSize(width: width * scale, height: height * scale)
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = 1
+    return UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+      image.draw(in: CGRect(origin: .zero, size: targetSize))
     }
   }
 

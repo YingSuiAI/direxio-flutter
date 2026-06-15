@@ -111,12 +111,6 @@ class MeMenuPage extends StatelessWidget {
                     ),
                     const _MeMenuDivider(),
                     _MeMenuRow(
-                      icon: Symbols.history,
-                      title: '浏览记录',
-                      onTap: () => context.push('/me/history'),
-                    ),
-                    const _MeMenuDivider(),
-                    _MeMenuRow(
                       icon: Symbols.account_balance_wallet,
                       title: '我的钱包',
                       onTap: () => context.push('/me/wallet'),

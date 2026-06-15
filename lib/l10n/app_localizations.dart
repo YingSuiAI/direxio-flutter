@@ -220,6 +220,12 @@ abstract class AppLocalizations {
   /// **'通讯录黑名单'**
   String get settingsBlacklist;
 
+  /// No description provided for @settingsChangePassword.
+  ///
+  /// In zh, this message translates to:
+  /// **'修改密码'**
+  String get settingsChangePassword;
+
   /// No description provided for @settingsMessagesNotifications.
   ///
   /// In zh, this message translates to:
@@ -561,6 +567,48 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'未连接域名'**
   String get meQrUnconnectedDomain;
+
+  /// No description provided for @groupInviteTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请加入群聊'**
+  String get groupInviteTitle;
+
+  /// No description provided for @groupInviteJoining.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在加入“{groupName}”'**
+  String groupInviteJoining(String groupName);
+
+  /// No description provided for @groupInviteBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'{inviter} 邀请你加入“{groupName}”'**
+  String groupInviteBody(String inviter, String groupName);
+
+  /// No description provided for @groupInviteFallbackInviter.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方'**
+  String get groupInviteFallbackInviter;
+
+  /// No description provided for @groupInviteJoinButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入群聊'**
+  String get groupInviteJoinButton;
+
+  /// No description provided for @groupInviteJoiningButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入中…'**
+  String get groupInviteJoiningButton;
+
+  /// No description provided for @groupInviteAlreadyJoined.
+  ///
+  /// In zh, this message translates to:
+  /// **'已在群里中'**
+  String get groupInviteAlreadyJoined;
 }
 
 class _AppLocalizationsDelegate

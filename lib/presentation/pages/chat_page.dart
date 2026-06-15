@@ -22,9 +22,6 @@ import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/recovered_unread_store_provider.dart';
 import '../channel/channel_share.dart';
-import '../groups/group_invite_card.dart';
-import '../groups/group_invite_content.dart';
-import '../groups/group_invite_join_flow.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
@@ -37,12 +34,16 @@ import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_media_warmup.dart';
 import '../chat/chat_media_send_flow.dart';
 import '../chat/chat_timeline_items.dart';
+import '../chat/chat_video_preview_page.dart';
 import '../chat/chat_voice_player.dart';
 import '../chat/chat_voice_recorder.dart';
 import '../chat/favorite_message_mapper.dart';
 import '../chat/local_outbox_image_thumb.dart';
 import '../chat/product_media_outbox_flow.dart';
 import '../chat/product_room_media_send_flow.dart';
+import '../groups/group_invite_card.dart';
+import '../groups/group_invite_content.dart';
+import '../groups/group_invite_join_flow.dart';
 import '../mock/mock_data.dart';
 import '../mock/mcp_policy.dart';
 import '../mock/mock_mcp_client.dart';
@@ -800,7 +801,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final action = await _showMsgContextMenu(
       ctx,
       pos,
-      canEdit: _canEditEvent(e),
       canRecall: e.canRedact,
     );
     if (!mounted || action == null) return;
@@ -835,100 +835,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       case 'delete':
         await _deleteEventForMe(e);
         break;
-      case 'edit':
-        await _editEvent(e);
-        break;
       case 'recall':
         await _recallEvent(e);
         break;
       case 'fav':
         await _favoriteEvent(e);
         break;
-    }
-  }
-
-  bool _canEditEvent(Event event) {
-    final room = _room;
-    if (room == null || event.room.id != room.id) return false;
-    return event.senderId == room.client.userID &&
-        event.type == EventTypes.Message &&
-        event.messageType == MessageTypes.Text &&
-        event.plaintextBody.trim().isNotEmpty &&
-        !event.redacted;
-  }
-
-  Future<void> _editEvent(Event event) async {
-    if (!_canEditEvent(event)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('只能编辑自己发送的文本消息')),
-      );
-      return;
-    }
-    final controller = TextEditingController(text: event.plaintextBody);
-    final next = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        final t = dialogContext.tk;
-        return AlertDialog(
-          title: Text(
-            '编辑消息',
-            style: AppTheme.sans(size: 17, weight: FontWeight.w600),
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            minLines: 1,
-            maxLines: 5,
-            decoration: InputDecoration(
-              hintText: '输入消息内容',
-              hintStyle: AppTheme.sans(size: 15, color: t.textMute),
-            ),
-            style: AppTheme.sans(size: 15, color: t.text),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                '取消',
-                style: AppTheme.sans(size: 15, color: t.textMute),
-              ),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: Text(
-                '保存',
-                style: AppTheme.sans(
-                  size: 15,
-                  weight: FontWeight.w600,
-                  color: t.accent,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    controller.dispose();
-    if (!mounted || next == null) return;
-    if (next.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('消息内容不能为空')),
-      );
-      return;
-    }
-    try {
-      await event.room.sendTextEvent(next, editEventId: event.eventId);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('消息已编辑')),
-      );
-    } on Object catch (err) {
-      debugPrint('edit message failed: $err');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('编辑消息失败：$err')),
-      );
     }
   }
 
@@ -1050,6 +962,43 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     if (!mounted) return;
     setState(() {
+      _multiSelect = false;
+      _selected.clear();
+    });
+  }
+
+  Future<void> _copySelectedEvents(List<Event> events) async {
+    final selectedEvents = events
+        .where((event) => _selected.contains(event.eventId))
+        .toList(growable: false)
+      ..sort((a, b) => a.originServerTs.compareTo(b.originServerTs));
+    final text = selectedEvents
+        .map((event) => event.body.trim())
+        .where((body) => body.isNotEmpty)
+        .join('\n');
+    if (text.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    setState(() {
+      _multiSelect = false;
+      _selected.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('已复制'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _quoteFirstSelectedEvent(List<Event> events) {
+    final selectedEvents = events
+        .where((event) => _selected.contains(event.eventId))
+        .toList(growable: false)
+      ..sort((a, b) => a.originServerTs.compareTo(b.originServerTs));
+    if (selectedEvents.isEmpty) return;
+    setState(() {
+      _replyTo = selectedEvents.first;
       _multiSelect = false;
       _selected.clear();
     });
@@ -1237,6 +1186,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  bool _isJoinedGroupRoom(String roomId) {
+    final normalized = roomId.trim();
+    if (normalized.isEmpty) return false;
+    return ref.read(matrixClientProvider).getRoomById(normalized)?.membership ==
+        Membership.join;
+  }
+
   Future<void> _joinGroupInvite(GroupInviteContent invite) async {
     final eventId = invite.inviteEventId.trim();
     if (eventId.isNotEmpty && _joiningGroupInviteEventIds.contains(eventId)) {
@@ -1267,7 +1223,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
-  /// 点击图片只做临时预览；长期保存必须由气泡右下角的下载标识触发。
+  /// 点击图片进入临时预览；长期保存由预览页底部下载按钮触发。
   Future<void> _openImageEvent(Event e, String meta) async {
     final cacheKey = e.eventId.trim();
     final cacheFuture =
@@ -1287,6 +1243,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return MemoryImage(file.bytes);
       },
       meta: meta,
+      onDownload: () => _downloadImageEvent(e),
     );
   }
 
@@ -1371,6 +1328,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('打开失败：$err')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openVideoEvent(Event e) async {
+    try {
+      final file = await _materializeFileEvent(e, persistent: false);
+      if (!mounted) return;
+      await openChatVideoPreview(context, file: file, title: e.body);
+    } on Object catch (err) {
+      debugPrint('open video failed: $err');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('播放失败：$err')),
         );
       }
     }
@@ -1778,13 +1750,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           redacted: (event) => event.redacted,
         );
     final topSystemNoticeText = _topSystemNoticeText(events);
-    final messageEvents = topSystemNoticeText == null
-        ? events
-        : events
-            .where((event) =>
-                event.messageType != MessageTypes.Notice ||
-                event.body.trim() != topSystemNoticeText)
-            .toList(growable: false);
+    final messageEvents = events
+        .where(
+          (event) =>
+              topSystemNoticeText == null ||
+              event.messageType != MessageTypes.Notice ||
+              event.body.trim() != topSystemNoticeText,
+        )
+        .toList(growable: false);
     _scheduleAsCallSessionWarmup(events, callRecordContextEvents);
     final deliveredPendingMediaIds = _deliveredOutboxMediaIds(
       pendingMediaItems,
@@ -1806,6 +1779,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final timelineItemKeys = [
       for (final item in timelineItems) _timelineItemKey(item),
     ];
+    final displayTimelineItems = timelineItems.reversed.toList(growable: false);
+    final displayTimelineItemKeys = timelineItemKeys.reversed.toList(
+      growable: false,
+    );
     _seedInitialTimelineEntrances(timelineItemKeys);
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
@@ -1830,20 +1807,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final name = isAgent
         ? 'Agent'
         : directContactDisplayName(contact, room, peerMxid: mxid);
-    final peerMember =
-        mxid.isEmpty ? null : room.unsafeGetUserFromMemoryOrFallback(mxid);
-    final peerAvatarUrl = avatarHttpUrl(room.client, contact?.avatarUrl) ??
-        matrixContentHttpUrl(room.client, peerMember?.avatarUrl);
     final agentConnected = isAgent
         ? ref.watch(agentStatusProvider).maybeWhen(
               data: (status) => status.connected,
               orElse: () => false,
             )
         : false;
-    final headerAvatarTap =
-        !isAgent && mxid.startsWith('@') && mxid.contains(':')
-            ? () => _openContactDetail(mxid)
-            : null;
     final messagePadding = chatMessageViewportPadding(
       context,
       replyBarVisible: _replyTo != null,
@@ -1869,14 +1838,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       : isAgent
                           ? (agentConnected ? '在线' : '离线')
                           : null,
+                  subtitleStatus: isAgent
+                      ? (agentConnected
+                          ? ChatCapsuleSubtitleStatus.online
+                          : ChatCapsuleSubtitleStatus.offline)
+                      : null,
                   onBack: () => unawaited(_popChatOrHome(context)),
-                  leadingAvatar: _ChatHeaderAvatar(
-                    key: ValueKey('chat_header_peer_avatar_${widget.roomId}'),
-                    seed: name,
-                    imageUrl: isAgent ? null : peerAvatarUrl,
-                    online: isAgent && agentConnected,
-                  ),
-                  onAvatarTap: headerAvatarTap,
+                  showEncryptionIcon: true,
                   actions: [
                     ChatCapsuleAction(
                       icon: Symbols.call,
@@ -1925,11 +1893,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             (topSystemNoticeText == null ? 0 : 1),
                         newestItemKey: newestTimelineItemKey,
                         child: ListView.builder(
-                          reverse: true,
                           padding: messagePadding,
                           itemCount: timelineItems.length + 1,
                           itemBuilder: (context, i) {
-                            if (i == timelineItems.length) {
+                            if (i == 0) {
                               if (topSystemNoticeText != null) {
                                 return _SChatSystemNotice(
                                   text: topSystemNoticeText,
@@ -1937,7 +1904,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               }
                               return const _E2eFooter();
                             }
-                            final itemKey = timelineItemKeys[i];
+                            final itemIndex = i - 1;
+                            final itemKey = displayTimelineItemKeys[itemIndex];
                             Widget enter(
                               Widget child, {
                               required bool isMe,
@@ -1946,14 +1914,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               return chatMessageEntrance(
                                 key: ValueKey('private_message_enter_$id'),
                                 isMe: isMe,
-                                index: i,
+                                index: itemIndex,
                                 enabled:
                                     _initialTimelineEntrances.contains(itemKey),
                                 child: child,
                               );
                             }
 
-                            return timelineItems[i].when(
+                            return displayTimelineItems[itemIndex].when(
                               outbox: (pending) {
                                 if (_isVoiceOutboxItem(pending)) {
                                   final playback = _voicePlayer.playback.value;
@@ -2157,6 +2125,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   directRoomId: widget.roomId,
                                 );
                                 if (groupInvite != null) {
+                                  final alreadyJoined = _isJoinedGroupRoom(
+                                    groupInvite.groupRoomId,
+                                  );
                                   return enter(
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
@@ -2177,9 +2148,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                           child: GroupInviteCard(
                                             invite: groupInvite,
                                             inviterDisplayName:
-                                                isMe ? '我' : name,
+                                                isMe ? '我' : senderName,
                                             joining: _joiningGroupInviteEventIds
                                                 .contains(e.eventId),
+                                            alreadyJoined: alreadyJoined,
                                             onJoin: () => unawaited(
                                               _joinGroupInvite(groupInvite),
                                             ),
@@ -2258,7 +2230,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 // 图片消息 → 缩略图气泡，点击全屏预览
                                 if (e.messageType == MessageTypes.Image &&
                                     e.hasAttachment) {
-                                  final eventId = e.eventId.trim();
                                   return enter(
                                     _SChatImageBubble(
                                       isMe: isMe,
@@ -2273,19 +2244,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         ),
                                         event: e,
                                       ),
-                                      statusOverlay: _multiSelect
-                                          ? null
-                                          : _ImageDownloadStatusBadge(
-                                              downloading:
-                                                  _downloadingImageEventIds
-                                                      .contains(eventId),
-                                              downloaded:
-                                                  _downloadedImageEventIds
-                                                      .contains(eventId),
-                                              onDownload: () => unawaited(
-                                                _downloadImageEvent(e),
-                                              ),
-                                            ),
                                       selected: selected,
                                       multiSelect: _multiSelect,
                                       onTap: _multiSelect
@@ -2339,7 +2297,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       multiSelect: _multiSelect,
                                       onTap: _multiSelect
                                           ? toggle
-                                          : () => _openFileEvent(e),
+                                          : () => _openVideoEvent(e),
                                       onLongPressAt: (pos) =>
                                           _onLongPressEvent(context, e, pos),
                                     ),
@@ -2475,7 +2433,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     _multiSelect = false;
                     _selected.clear();
                   }),
+                  onCopy: () => unawaited(_copySelectedEvents(events)),
                   onFavorite: () => unawaited(_favoriteSelectedEvents(events)),
+                  onQuote: () => _quoteFirstSelectedEvent(events),
                   onForward: () => unawaited(
                     _forwardSelectedEvents(
                       events,
@@ -2517,7 +2477,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   onVoiceRecordStop: _stopVoiceRecording,
                   onVoiceRecordCancel: _cancelVoiceRecording,
                   enabled: canSendMessages,
-                  hintText: isWaitingForAccept ? '等待对方接受后才能发送消息' : '消息…',
+                  hintText: isWaitingForAccept ? '等待对方接受后才能发送消息' : '',
                 ),
               if (_showPlusPanel)
                 ChatAttachmentPanel(
@@ -2540,6 +2500,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   onVideoUploadDelivered: _recordDeliveredMediaUpload,
                   onVideoUploadFinished: _removePendingMediaUpload,
                   onVideoUploadFailed: _failPendingMediaUpload,
+                  onVoiceCall: isAgent
+                      ? null
+                      : () {
+                          if (!canSendMessages) {
+                            _showPendingContactToast(context);
+                            return;
+                          }
+                          context.push(
+                            _privateVoiceCallRoute(widget.roomId, mxid, name),
+                          );
+                        },
                   onVideoCall: isAgent
                       ? null
                       : () {
@@ -2733,13 +2704,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   Key? _mockPeerAvatarKey(MockMessage message, int index) {
     if (message.isMe || _isAiBot || widget.conv.isGroup) return null;
     return ValueKey('chat_peer_avatar_${widget.conv.id}_$index');
-  }
-
-  VoidCallback? _mockHeaderAvatarTap() {
-    if (_isAiBot || widget.conv.isGroup) return null;
-    final mxid = widget.conv.mxid.trim();
-    if (!mxid.startsWith('@') || !mxid.contains(':')) return null;
-    return () => _openMockContactDetail(mxid);
   }
 
   void _openMockContactDetail(String userId) {
@@ -3219,6 +3183,43 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     );
   }
 
+  Future<void> _copySelectedMockMessages() async {
+    final selectedMessages = _selected
+        .where((index) => index >= 0 && index < _messages.length)
+        .toList(growable: false)
+      ..sort();
+    final text = selectedMessages
+        .map((index) => _messages[index].text.trim())
+        .where((body) => body.isNotEmpty)
+        .join('\n');
+    if (text.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    setState(() {
+      _multiSelect = false;
+      _selected.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('已复制'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _quoteFirstSelectedMockMessage() {
+    final selectedMessages = _selected
+        .where((index) => index >= 0 && index < _messages.length)
+        .toList(growable: false)
+      ..sort();
+    if (selectedMessages.isEmpty) return;
+    setState(() {
+      _replyTo = _messages[selectedMessages.first];
+      _multiSelect = false;
+      _selected.clear();
+    });
+  }
+
   Future<void> _forwardSelectedMockMessages() async {
     final selectedMessages = _selected
         .where((index) => index >= 0 && index < _messages.length)
@@ -3397,31 +3398,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                   title: _isAiBot ? 'Agent' : c.name,
                   subtitle: c.isGroup ? '6 名成员' : null,
                   onBack: () => unawaited(_popChatOrHome(context)),
-                  leadingAvatar: _isAiBot
-                      ? _AgentBadge(color: t.accent)
-                      : c.isGroup
-                          ? Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: t.surfaceHigh,
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: Icon(
-                                Symbols.groups,
-                                size: 20,
-                                color: t.textMute,
-                                fill: 1,
-                              ),
-                            )
-                          : _ChatHeaderAvatar(
-                              key: ValueKey('chat_header_peer_avatar_${c.id}'),
-                              seed: c.name,
-                              imageUrl: c.avatarUrl,
-                            ),
-                  onAvatarTap:
-                      c.isGroup || _isAiBot ? null : _mockHeaderAvatarTap(),
+                  showEncryptionIcon: true,
                   actions: [
                     ChatCapsuleAction(
                       icon: Symbols.call,
@@ -3650,7 +3627,9 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                     _multiSelect = false;
                     _selected.clear();
                   }),
+                  onCopy: () => unawaited(_copySelectedMockMessages()),
                   onFavorite: _favoriteSelectedMockMessages,
+                  onQuote: _quoteFirstSelectedMockMessage,
                   onForward: () => unawaited(_forwardSelectedMockMessages()),
                   onDelete: () {
                     setState(() {
@@ -3709,43 +3688,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
 // ═══════════════════════════════════════════════════════════════════════════
 // 共享 widget：气泡 / 输入栏 / 面板 / 长按菜单 / 回复栏 / 多选栏
 // ═══════════════════════════════════════════════════════════════════════════
-
-class _ChatHeaderAvatar extends StatelessWidget {
-  const _ChatHeaderAvatar({
-    super.key,
-    required this.seed,
-    this.imageUrl,
-    this.online = false,
-  });
-
-  final String seed;
-  final String? imageUrl;
-  final bool online;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: Stack(
-        children: [
-          PortalAvatar(
-            seed: seed,
-            size: 40,
-            imageUrl: imageUrl,
-            shape: AvatarShape.squircle,
-          ),
-          if (online)
-            const Positioned(
-              bottom: 0,
-              right: 0,
-              child: OnlineDot(size: 10),
-            ),
-        ],
-      ),
-    );
-  }
-}
 
 /// s-chat 私聊气泡：私聊顶部已经展示对方头像和名字，消息行本身不再重复显示头像。
 /// 自己右对齐 + `accent` 气泡 + 时间戳行内 `done_all` 已读图标。
@@ -4991,26 +4933,6 @@ Future<void> _openImgPreview(
   );
 }
 
-/// s-chat 头部 AI 标记：`smart_toy` 圆形 36 像素徽章。
-class _AgentBadge extends StatelessWidget {
-  const _AgentBadge({required this.color});
-  final Color color;
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: t.primaryContainer.withValues(alpha: 0.30),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Icon(Symbols.smart_toy, size: 20, color: color, fill: 1),
-    );
-  }
-}
-
 void _showPendingContactToast(BuildContext context) {
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
@@ -5116,7 +5038,6 @@ class _ReplyBar extends StatelessWidget {
 Future<String?> _showMsgContextMenu(
   BuildContext context,
   Offset pos, {
-  bool canEdit = false,
   bool canRecall = false,
 }) {
   final size = MediaQuery.of(context).size;
@@ -5152,7 +5073,6 @@ Future<String?> _showMsgContextMenu(
             child: _MsgCtxMenuCard(
               pointerX: pointerX,
               pointerOnTop: pointerOnTop,
-              canEdit: canEdit,
               canRecall: canRecall,
             ),
           ),
@@ -5168,13 +5088,11 @@ class _MsgCtxMenuCard extends StatelessWidget {
   const _MsgCtxMenuCard({
     required this.pointerX,
     required this.pointerOnTop,
-    required this.canEdit,
     required this.canRecall,
   });
 
   final double pointerX;
   final bool pointerOnTop;
-  final bool canEdit;
   final bool canRecall;
 
   @override
@@ -5267,22 +5185,9 @@ class _MsgCtxMenuCard extends StatelessWidget {
                         value: 'quote',
                       ),
                     ),
-                    if (canEdit)
-                      const Positioned(
-                        left: 70,
-                        top: 87,
-                        width: 69,
-                        height: 58,
-                        child: _MsgCtxMenuItem(
-                          width: 69,
-                          icon: Symbols.edit,
-                          label: '编辑',
-                          value: 'edit',
-                        ),
-                      ),
                     if (canRecall)
                       const Positioned(
-                        left: 139,
+                        left: 70,
                         top: 87,
                         width: 69,
                         height: 58,

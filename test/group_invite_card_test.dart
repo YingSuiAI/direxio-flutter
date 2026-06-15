@@ -80,6 +80,33 @@ void main() {
     expect(joins, 0);
   });
 
+  testWidgets('shows already joined notice without joining again',
+      (tester) async {
+    var joins = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: GroupInviteCard(
+            invite: const GroupInviteContent(
+              groupRoomId: '!group:p2p-im.com',
+              groupName: '产品测试群',
+            ),
+            joining: false,
+            alreadyJoined: true,
+            onJoin: () => joins++,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('加入群聊'));
+    await tester.pump();
+
+    expect(joins, 0);
+    expect(find.text('已在群里中'), findsOneWidget);
+  });
+
   testWidgets('uses compact chat-bubble dimensions', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

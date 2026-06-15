@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,6 +34,7 @@ import '../chat/chat_message_cards.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_media_send_flow.dart';
+import '../chat/chat_video_preview_page.dart';
 import '../chat/chat_voice_player.dart';
 import '../chat/chat_voice_recorder.dart';
 import '../chat/favorite_message_mapper.dart';
@@ -53,14 +55,25 @@ import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
 
-const _groupChatPeerBubble = Color(0xFFEEEEEF);
-const _groupChatOwnBubble = Color(0xFF34C759);
-const _groupChatAccentBlue = Color(0xFF0089FF);
-
 Future<void> _popGroupChatOrHome(BuildContext context) async {
   final didPop = await Navigator.of(context).maybePop();
   if (!context.mounted || didPop) return;
   context.go('/home');
+}
+
+Color _groupBubbleColor(PortalTokens t,
+    {required bool isMe, bool selected = false}) {
+  if (selected) return t.accent.withValues(alpha: 0.18);
+  return isMe ? t.accent : t.surfaceHigh;
+}
+
+BoxBorder? _groupPeerBubbleBorder(PortalTokens t, {required bool isMe}) {
+  if (isMe) return null;
+  return Border.all(color: t.border.withValues(alpha: 0.55));
+}
+
+Color _groupBubbleShadowColor(PortalTokens t) {
+  return t.text.withValues(alpha: 0.04);
 }
 
 class _GroupChatActiveCall {
@@ -249,6 +262,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   bool _readMarkerInFlight = false;
   bool _readMarkerQueued = false;
   bool _thumbnailWarmupInFlight = false;
+  bool _roomRecoveryInFlight = false;
+  bool _roomRecoveryAttempted = false;
   final Set<String> _warmedThumbnailEventIds = {};
   final Set<String> _favoritingEventIds = {};
   final Set<String> _retryingOutboxIds = {};
@@ -464,6 +479,20 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     }
   }
 
+  Future<void> _openVideoEvent(Event event) async {
+    try {
+      final file = await _materializeFileEvent(event, persistent: false);
+      if (!mounted) return;
+      await openChatVideoPreview(context, file: file, title: event.body);
+    } on Object catch (err) {
+      debugPrint('open group video failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('播放失败：$err')),
+      );
+    }
+  }
+
   Future<void> _playVoiceEvent(Event event) async {
     try {
       final matrixFile = await downloadChatEventAttachment(event);
@@ -525,6 +554,14 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
 
+  AsSyncRoomSummary? _groupSummary(AsSyncCacheState syncCache) {
+    for (final group
+        in syncCache.bootstrap?.groups ?? const <AsSyncRoomSummary>[]) {
+      if (group.roomId.trim() == widget.roomId) return group;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -535,7 +572,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   Future<void> _initTimeline() async {
     final room = _room;
-    if (room == null) return;
+    if (room == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     void rebuild() {
       if (mounted) setState(() {});
       _scheduleAsCallHistoryReloadForTimeline();
@@ -577,6 +617,46 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         if (mounted) setState(() {});
         _scheduleTimelineThumbnailWarmup();
       }());
+    }
+  }
+
+  Future<void> _recoverMissingGroupRoom({bool force = false}) async {
+    if (_roomRecoveryInFlight) return;
+    if (_roomRecoveryAttempted && !force) return;
+    _roomRecoveryInFlight = true;
+    _roomRecoveryAttempted = true;
+    try {
+      var syncCache = ref.read(asSyncCacheProvider);
+      var group = _groupSummary(syncCache);
+      if (group == null && syncCache.bootstrap == null) {
+        try {
+          final bootstrap =
+              await ref.read(asBootstrapRepositoryProvider).refresh();
+          if (!mounted) return;
+          ref.read(asSyncCacheProvider.notifier).update(
+                (state) => state.copyWith(bootstrap: bootstrap),
+              );
+          syncCache = ref.read(asSyncCacheProvider);
+          group = _groupSummary(syncCache);
+        } on Object catch (e) {
+          debugPrint('group chat bootstrap recovery failed: $e');
+        }
+      }
+      if (group == null && !force) return;
+      try {
+        await ref.read(matrixClientProvider).oneShotSync();
+      } on Object catch (e) {
+        debugPrint('group chat Matrix room recovery sync failed: $e');
+      }
+      if (!mounted) return;
+      if (_room != null) {
+        setState(() => _loading = true);
+        await _initTimeline();
+      } else {
+        setState(() {});
+      }
+    } finally {
+      _roomRecoveryInFlight = false;
     }
   }
 
@@ -1095,7 +1175,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final action = await _showGroupMessageContextMenu(
       context,
       position,
-      canEdit: _canEditEvent(event),
       canRecall: event.canRedact,
     );
     if (!mounted || action == null) return;
@@ -1120,9 +1199,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'delete':
         await _deleteEventForMe(event);
         break;
-      case 'edit':
-        await _editEvent(event);
-        break;
       case 'recall':
         await _recallEvent(event);
         break;
@@ -1135,91 +1211,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
           _selected.add(event.eventId);
         });
         break;
-    }
-  }
-
-  bool _canEditEvent(Event event) {
-    final room = _room;
-    if (room == null || event.room.id != room.id) return false;
-    return event.senderId == room.client.userID &&
-        event.type == EventTypes.Message &&
-        event.messageType == MessageTypes.Text &&
-        event.plaintextBody.trim().isNotEmpty &&
-        !event.redacted;
-  }
-
-  Future<void> _editEvent(Event event) async {
-    if (!_canEditEvent(event)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('只能编辑自己发送的文本消息')),
-      );
-      return;
-    }
-    final controller = TextEditingController(text: event.plaintextBody);
-    final next = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        final t = dialogContext.tk;
-        return AlertDialog(
-          title: Text(
-            '编辑消息',
-            style: AppTheme.sans(size: 17, weight: FontWeight.w600),
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            minLines: 1,
-            maxLines: 5,
-            decoration: InputDecoration(
-              hintText: '输入消息内容',
-              hintStyle: AppTheme.sans(size: 15, color: t.textMute),
-            ),
-            style: AppTheme.sans(size: 15, color: t.text),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                '取消',
-                style: AppTheme.sans(size: 15, color: t.textMute),
-              ),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: Text(
-                '保存',
-                style: AppTheme.sans(
-                  size: 15,
-                  weight: FontWeight.w600,
-                  color: t.accent,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    controller.dispose();
-    if (!mounted || next == null) return;
-    if (next.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('消息内容不能为空')),
-      );
-      return;
-    }
-    try {
-      await event.room.sendTextEvent(next, editEventId: event.eventId);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('消息已编辑')),
-      );
-    } on Object catch (err) {
-      debugPrint('edit group message failed: $err');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('编辑消息失败：$err')),
-      );
     }
   }
 
@@ -1367,6 +1358,43 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     });
   }
 
+  Future<void> _copySelectedEvents(List<Event> events) async {
+    final selectedEvents = events
+        .where((event) => _selected.contains(event.eventId))
+        .toList(growable: false)
+      ..sort((a, b) => a.originServerTs.compareTo(b.originServerTs));
+    final text = selectedEvents
+        .map((event) => event.body.trim())
+        .where((body) => body.isNotEmpty)
+        .join('\n');
+    if (text.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    setState(() {
+      _multiSelect = false;
+      _selected.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('已复制'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+  }
+
+  void _quoteFirstSelectedEvent(List<Event> events) {
+    final selectedEvents = events
+        .where((event) => _selected.contains(event.eventId))
+        .toList(growable: false)
+      ..sort((a, b) => a.originServerTs.compareTo(b.originServerTs));
+    if (selectedEvents.isEmpty) return;
+    setState(() {
+      _replyTo = selectedEvents.first;
+      _multiSelect = false;
+      _selected.clear();
+    });
+  }
+
   Future<AsFavoriteMessageDraft> _favoriteDraftForEvent(Event event) async {
     final ownerUserId = ref.read(matrixClientProvider).userID ?? '';
     final baseDraft = favoriteDraftFromMatrixMessage(
@@ -1472,6 +1500,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final room = _room;
     if (room == null) {
       final t = context.tk;
+      final syncCache = ref.watch(asSyncCacheProvider);
+      final group = _groupSummary(syncCache);
+      final bootstrapKnown = syncCache.bootstrap != null;
+      final canRecover = group != null || !bootstrapKnown;
+      final title =
+          group?.name.trim().isNotEmpty == true ? group!.name.trim() : '群聊';
+      if (canRecover) {
+        unawaited(_recoverMissingGroupRoom());
+      }
       return Scaffold(
         body: ChatGlassBackground(
           child: Column(
@@ -1479,17 +1516,41 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: ChatCapsuleHeader(
-                  title: '群组不存在',
+                  title: canRecover ? title : '群组不存在',
                   onBack: () => unawaited(_popGroupChatOrHome(context)),
-                  leadingAvatar: const _GroupAvatar(seed: '#'),
                   actions: const [],
                 ),
               ),
               Expanded(
                 child: Center(
-                  child: Text(
-                    '这个群聊暂时无法打开',
-                    style: AppTheme.sans(size: 15, color: t.textMute),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (canRecover) ...[
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: t.accent,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      Text(
+                        canRecover ? '正在恢复群聊...' : '这个群聊暂时无法打开',
+                        style: AppTheme.sans(size: 15, color: t.textMute),
+                      ),
+                      if (!canRecover) ...[
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () => unawaited(
+                            _recoverMissingGroupRoom(force: true),
+                          ),
+                          child: const Text('重试'),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
@@ -1559,6 +1620,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final timelineItemKeys = [
       for (final item in timelineItems) _timelineItemKey(item),
     ];
+    final displayTimelineItems = timelineItems.reversed.toList(growable: false);
+    final displayTimelineItemKeys = timelineItemKeys.reversed.toList(
+      growable: false,
+    );
     _seedInitialTimelineEntrances(timelineItemKeys);
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
@@ -1612,10 +1677,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                   ),
                                 ),
                         onBack: () => unawaited(_popGroupChatOrHome(context)),
-                        leadingAvatar: _GroupAvatar(
-                          seed: name,
-                          imageUrl: roomAvatarHttpUrl(room),
-                        ),
+                        showEncryptionIcon: true,
                         actions: [
                           ChatCapsuleAction(
                             icon: Symbols.call,
@@ -1667,11 +1729,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                         itemCount: timelineItems.length,
                         newestItemKey: newestTimelineItemKey,
                         child: ListView.builder(
-                          reverse: true,
                           padding: messagePadding,
                           itemCount: timelineItems.length,
                           itemBuilder: (context, i) {
-                            final itemKey = timelineItemKeys[i];
+                            final itemKey = displayTimelineItemKeys[i];
                             Widget enter(
                               Widget child, {
                               required bool isMe,
@@ -1687,7 +1748,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                               );
                             }
 
-                            return timelineItems[i].when(
+                            return displayTimelineItems[i].when(
                               outbox: (pending) {
                                 final playback = _voicePlayer.playback.value;
                                 final isPlaying =
@@ -1887,7 +1948,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                           const _GroupVideoPlayOverlay(),
                                       onTap: _multiSelect
                                           ? toggle
-                                          : () => unawaited(_openFileEvent(e)),
+                                          : () => unawaited(_openVideoEvent(e)),
                                       onLongPressAt: (position) =>
                                           _onLongPressEvent(
                                         e,
@@ -2050,7 +2111,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     _multiSelect = false;
                     _selected.clear();
                   }),
+                  onCopy: () => unawaited(_copySelectedEvents(events)),
                   onFavorite: () => unawaited(_favoriteSelectedEvents(events)),
+                  onQuote: () => _quoteFirstSelectedEvent(events),
                   onForward: () =>
                       unawaited(_forwardSelectedEvents(events, name)),
                   onDelete: () async {
@@ -2111,6 +2174,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                   onVideoUploadDelivered: _recordDeliveredMediaUpload,
                   onVideoUploadFinished: _removePendingMediaUpload,
                   onVideoUploadFailed: _failPendingMediaUpload,
+                  onVoiceCall: () {
+                    context.push(
+                      groupCallInviteRoute(
+                        roomId: widget.roomId,
+                        roomName: name,
+                        callType: ProductCallType.voice,
+                      ),
+                    );
+                  },
                   onVideoCall: () {
                     context.push(
                       groupCallInviteRoute(
@@ -2135,23 +2207,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// 头部群头像：squircle, tertiary-container 底, 白色字。
-class _GroupAvatar extends StatelessWidget {
-  const _GroupAvatar({required this.seed, this.imageUrl});
-  final String seed;
-  final String? imageUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return PortalAvatar(
-      seed: seed,
-      size: 36,
-      imageUrl: imageUrl,
-      shape: AvatarShape.squircle,
     );
   }
 }
@@ -2353,11 +2408,7 @@ class _GroupFileMessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     final senderName = event.senderFromMemoryOrFallback.calcDisplayname();
-    final cardColor = selected
-        ? t.accent.withValues(alpha: 0.18)
-        : isMe
-            ? _groupChatOwnBubble
-            : _groupChatPeerBubble;
+    final cardColor = _groupBubbleColor(t, isMe: isMe, selected: selected);
     final card = _GroupFileCardSurface(
       isMe: isMe,
       color: cardColor,
@@ -2472,11 +2523,7 @@ class _GroupVoiceMessageBubble extends StatelessWidget {
     final senderName =
         event?.senderFromMemoryOrFallback.calcDisplayname() ?? '';
     final senderId = event?.senderId ?? 'me';
-    final cardColor = selected
-        ? t.accent.withValues(alpha: 0.18)
-        : isMe
-            ? _groupChatOwnBubble
-            : _groupChatPeerBubble;
+    final cardColor = _groupBubbleColor(t, isMe: isMe, selected: selected);
     Offset pos = Offset.zero;
     final bubble = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -2490,10 +2537,10 @@ class _GroupVoiceMessageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: cardColor,
           borderRadius: chatDirectionalBubbleRadius(isMe),
-          border: isMe ? null : Border.all(color: t.border),
+          border: _groupPeerBubbleBorder(t, isMe: isMe),
           boxShadow: [
             BoxShadow(
-              color: t.text.withValues(alpha: 0.04),
+              color: _groupBubbleShadowColor(t),
               blurRadius: 4,
               offset: const Offset(0, 1),
             ),
@@ -2624,12 +2671,10 @@ class _GroupFileCardSurface extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             borderRadius: borderRadius,
-            border: isMe
-                ? null
-                : Border.all(color: Colors.black.withValues(alpha: 0.06)),
+            border: _groupPeerBubbleBorder(t, isMe: isMe),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
+                color: _groupBubbleShadowColor(t),
                 blurRadius: 4,
                 offset: const Offset(0, 1),
               ),
@@ -2641,8 +2686,8 @@ class _GroupFileCardSurface extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   color: isMe
-                      ? Colors.white.withValues(alpha: 0.20)
-                      : _groupChatAccentBlue.withValues(alpha: 0.12),
+                      ? t.onAccent.withValues(alpha: 0.20)
+                      : t.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 width: 44,
@@ -2651,7 +2696,7 @@ class _GroupFileCardSurface extends StatelessWidget {
                 child: Icon(
                   Symbols.description,
                   size: 22,
-                  color: isMe ? Colors.white : _groupChatAccentBlue,
+                  color: isMe ? t.onAccent : t.accent,
                 ),
               ),
               const SizedBox(width: 12),
@@ -2666,7 +2711,7 @@ class _GroupFileCardSurface extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
                         size: 15,
-                        color: isMe ? Colors.white : t.text,
+                        color: isMe ? t.onAccent : t.text,
                         weight: FontWeight.w600,
                       ),
                     ),
@@ -2677,7 +2722,7 @@ class _GroupFileCardSurface extends StatelessWidget {
                         size: 12,
                         weight: FontWeight.w500,
                         color: isMe
-                            ? Colors.white.withValues(alpha: 0.78)
+                            ? t.onAccent.withValues(alpha: 0.78)
                             : t.textMute,
                       ),
                     ),
@@ -2837,11 +2882,7 @@ class _GroupMessageBubble extends StatelessWidget {
     final channelSharePayload = channelSharePayloadFromContent(
       Map<String, Object?>.from(event.content),
     );
-    final bubbleColor = selected
-        ? t.accent.withValues(alpha: 0.18)
-        : isMe
-            ? _groupChatOwnBubble
-            : _groupChatPeerBubble;
+    final bubbleColor = _groupBubbleColor(t, isMe: isMe, selected: selected);
 
     final bubble = channelSharePayload != null
         ? ChannelSharePreviewCard(
@@ -2859,14 +2900,10 @@ class _GroupMessageBubble extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: bubbleColor,
                       borderRadius: chatDirectionalBubbleRadius(isMe),
-                      border: isMe
-                          ? null
-                          : Border.all(
-                              color: Colors.black.withValues(alpha: 0.06),
-                            ),
+                      border: _groupPeerBubbleBorder(t, isMe: isMe),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
+                          color: _groupBubbleShadowColor(t),
                           blurRadius: 4,
                           offset: const Offset(0, 1),
                         ),
@@ -3452,7 +3489,6 @@ class _GroupVideoPlayOverlay extends StatelessWidget {
 Future<String?> _showGroupMessageContextMenu(
   BuildContext context,
   Offset position, {
-  bool canEdit = false,
   bool canRecall = false,
 }) {
   final size = MediaQuery.of(context).size;
@@ -3460,24 +3496,34 @@ Future<String?> _showGroupMessageContextMenu(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'group-msg-ctx',
-    barrierColor: Colors.black.withValues(alpha: 0.15),
+    barrierColor: Colors.transparent,
     transitionDuration: const Duration(milliseconds: 120),
     pageBuilder: (ctx, a1, a2) {
-      const menuW = 300.0;
+      const horizontalMargin = 16.0;
+      final menuW = math.min(343.0, size.width - horizontalMargin * 2);
       const menuH = 168.0;
       var left = position.dx - menuW / 2;
       var top = position.dy - menuH - 12;
-      if (left < 12) left = 12;
-      if (left + menuW > size.width - 12) left = size.width - menuW - 12;
-      if (top < 60) top = position.dy + 12;
+      var pointerOnTop = false;
+      if (left < horizontalMargin) left = horizontalMargin;
+      if (left + menuW > size.width - horizontalMargin) {
+        left = size.width - menuW - horizontalMargin;
+      }
+      if (top < 60) {
+        top = position.dy + 12;
+        pointerOnTop = true;
+      }
+      final pointerX = (position.dx - left - 10).clamp(18.0, menuW - 38.0);
       return Stack(
         children: [
           Positioned(
             left: left,
             top: top,
             width: menuW,
+            height: menuH,
             child: _GroupMsgCtxMenuCard(
-              canEdit: canEdit,
+              pointerX: pointerX,
+              pointerOnTop: pointerOnTop,
               canRecall: canRecall,
             ),
           ),
@@ -3491,166 +3537,221 @@ Future<String?> _showGroupMessageContextMenu(
 
 class _GroupMsgCtxMenuCard extends StatelessWidget {
   const _GroupMsgCtxMenuCard({
-    required this.canEdit,
+    required this.pointerX,
+    required this.pointerOnTop,
     required this.canRecall,
   });
 
-  final bool canEdit;
+  final double pointerX;
+  final bool pointerOnTop;
   final bool canRecall;
 
   @override
   Widget build(BuildContext context) {
-    const dark = Color(0xFF1E2026);
-    const divider = Color(0x1AFFFFFF);
-    const labelColor = Color(0xB3FFFFFF);
-    const iconColor = Color(0xCCFFFFFF);
-    const danger = Color(0xFFFF6B6B);
+    const dark = Color(0xFF4A4A4A);
+    const divider = Color(0x17FFFFFF);
+    const itemW = 68.6;
     return Material(
       color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: dark,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      child: SizedBox(
+        height: 168,
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            IntrinsicHeight(
-              child: Row(
-                children: [
-                  _ctxBtn(
-                    context,
-                    Symbols.content_copy,
-                    '复制',
-                    'copy',
-                    iconColor,
-                    labelColor,
-                  ),
-                  const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(
-                    context,
-                    Symbols.forward,
-                    '转发',
-                    'forward',
-                    iconColor,
-                    labelColor,
-                  ),
-                  const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(
-                    context,
-                    Symbols.star,
-                    '收藏',
-                    'fav',
-                    iconColor,
-                    labelColor,
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1, color: divider),
-            IntrinsicHeight(
-              child: Row(
-                children: [
-                  _ctxBtn(
-                    context,
-                    Symbols.delete,
-                    '删除',
-                    'delete',
-                    danger,
-                    danger,
-                  ),
-                  const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(
-                    context,
-                    Symbols.checklist,
-                    '多选',
-                    'multi',
-                    iconColor,
-                    labelColor,
-                  ),
-                  const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(
-                    context,
-                    Symbols.format_quote,
-                    '引用',
-                    'quote',
-                    iconColor,
-                    labelColor,
-                  ),
-                ],
-              ),
-            ),
-            if (canEdit || canRecall) ...[
-              const Divider(height: 1, color: divider),
-              IntrinsicHeight(
-                child: Row(
+            Positioned(
+              left: 0,
+              right: 0,
+              top: pointerOnTop ? 10 : 0,
+              height: 158,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: dark,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Stack(
                   children: [
-                    if (canEdit)
-                      _ctxBtn(
-                        context,
-                        Symbols.edit,
-                        '编辑',
-                        'edit',
-                        iconColor,
-                        labelColor,
+                    const Positioned(
+                      left: 16,
+                      right: 16,
+                      top: 78,
+                      child: Divider(height: 1, thickness: 1, color: divider),
+                    ),
+                    const Positioned(
+                      left: 0,
+                      top: 12,
+                      right: 0,
+                      height: 58,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _GroupMsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.content_copy,
+                            label: '复制',
+                            value: 'copy',
+                          ),
+                          _GroupMsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.forward,
+                            label: '转发',
+                            value: 'forward',
+                          ),
+                          _GroupMsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.deployed_code,
+                            label: '收藏',
+                            value: 'fav',
+                          ),
+                          _GroupMsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.delete,
+                            label: '删除',
+                            value: 'delete',
+                          ),
+                          _GroupMsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.format_list_bulleted,
+                            label: '多选',
+                            value: 'multi',
+                          ),
+                        ],
                       ),
-                    if (canRecall) ...[
-                      if (canEdit)
-                        const VerticalDivider(width: 1, color: divider),
-                      _ctxBtn(
-                        context,
-                        Symbols.undo,
-                        '撤回',
-                        'recall',
-                        danger,
-                        danger,
+                    ),
+                    const Positioned(
+                      left: 1,
+                      top: 87,
+                      width: 69,
+                      height: 58,
+                      child: _GroupMsgCtxMenuItem(
+                        width: 69,
+                        icon: Symbols.format_quote_rounded,
+                        label: '引用',
+                        value: 'quote',
                       ),
-                    ],
+                    ),
+                    if (canRecall)
+                      const Positioned(
+                        left: 70,
+                        top: 87,
+                        width: 69,
+                        height: 58,
+                        child: _GroupMsgCtxMenuItem(
+                          width: 69,
+                          icon: Symbols.undo,
+                          label: '撤回',
+                          value: 'recall',
+                        ),
+                      ),
                   ],
                 ),
               ),
-            ],
+            ),
+            Positioned(
+              left: pointerX,
+              top: pointerOnTop ? 0 : 157,
+              width: 20,
+              height: 12,
+              child: CustomPaint(
+                painter: _GroupMsgCtxPointerPainter(
+                  color: dark,
+                  pointsDown: !pointerOnTop,
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _ctxBtn(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String value,
-    Color iconColor,
-    Color labelColor,
-  ) {
-    return Expanded(
-      child: InkWell(
-        onTap: () => Navigator.of(context).pop(value),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+class _GroupMsgCtxMenuItem extends StatelessWidget {
+  const _GroupMsgCtxMenuItem({
+    required this.width,
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final double width;
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: 58,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => Navigator.of(context).pop(value),
+          borderRadius: BorderRadius.circular(8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 22, color: iconColor),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: AppTheme.sans(size: 12, color: labelColor),
+              Icon(icon, size: 24, color: Colors.white, fill: 0),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 24,
+                child: Center(
+                  child: Text(
+                    label,
+                    style: AppTheme.sans(
+                      size: 15,
+                      weight: FontWeight.w500,
+                      color: Colors.white,
+                    ).copyWith(height: 20 / 15),
+                  ),
+                ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class _GroupMsgCtxPointerPainter extends CustomPainter {
+  const _GroupMsgCtxPointerPainter({
+    required this.color,
+    required this.pointsDown,
+  });
+
+  final Color color;
+  final bool pointsDown;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    if (pointsDown) {
+      path
+        ..moveTo(0, 0)
+        ..lineTo(size.width, 0)
+        ..lineTo(size.width / 2, size.height)
+        ..close();
+    } else {
+      path
+        ..moveTo(size.width / 2, 0)
+        ..lineTo(size.width, size.height)
+        ..lineTo(0, size.height)
+        ..close();
+    }
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GroupMsgCtxPointerPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.pointsDown != pointsDown;
   }
 }
 

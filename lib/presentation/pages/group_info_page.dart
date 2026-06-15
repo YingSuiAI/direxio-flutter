@@ -9,6 +9,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../groups/group_leave_flow.dart';
+import '../groups/group_member_invite_flow.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
@@ -39,7 +40,11 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   Future<void> _fetchMembers() async {
     final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
     if (room == null) return;
-    await room.requestParticipants();
+    try {
+      await room.requestParticipants();
+    } on Object catch (e) {
+      debugPrint('group info request participants failed: $e');
+    }
     if (mounted) setState(() {});
   }
 
@@ -54,6 +59,10 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
             .where((m) => m.membership == Membership.join)
             .toList() ??
         const <User>[];
+    final existingMemberMxids = members
+        .map((member) => member.id.trim())
+        .where((mxid) => mxid.isNotEmpty)
+        .toSet();
     final memberCount = room?.summary.mJoinedMemberCount ?? members.length;
 
     return Scaffold(
@@ -89,19 +98,24 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                             avatarUrl:
                                 matrixContentHttpUrl(client, m.avatarUrl),
                           ),
-                        _InviteChip(onTap: () {}),
+                        _InviteChip(
+                          onTap: () => showInviteGroupMembersFlow(
+                            context,
+                            ref,
+                            roomId: widget.roomId,
+                            existingMemberMxids: existingMemberMxids,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                // 群公告 / 群管理 / 备注
+                // 群管理 / 备注
                 M3Card(
                   padding: EdgeInsets.zero,
                   child: Column(
                     children: [
-                      InfoNavRow(label: '群公告', onTap: () {}),
-                      const InfoDivider(),
                       InfoNavRow(
                           label: '群管理',
                           onTap: () => context.push(
@@ -156,8 +170,6 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                   padding: EdgeInsets.zero,
                   child: Column(
                     children: [
-                      InfoNavRow(label: '设置当前聊天背景', onTap: () {}),
-                      const InfoDivider(),
                       InfoNavRow(label: '清空聊天记录', onTap: () {}),
                     ],
                   ),
@@ -256,25 +268,28 @@ class _InviteChip extends StatelessWidget {
     final t = context.tk;
     return Padding(
       padding: const EdgeInsets.only(right: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: t.border, width: 1.5),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: t.border, width: 1.5),
+                ),
+                child: Icon(Symbols.add, size: 22, color: t.textMute),
               ),
-              child: Icon(Symbols.add, size: 22, color: t.textMute),
-            ),
+              const SizedBox(height: 4),
+              Text('邀请', style: AppTheme.sans(size: 10, color: t.textMute)),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text('邀请', style: AppTheme.sans(size: 10, color: t.textMute)),
-        ],
+        ),
       ),
     );
   }

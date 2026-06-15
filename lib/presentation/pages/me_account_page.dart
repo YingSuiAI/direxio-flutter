@@ -104,6 +104,7 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
   }
 
   Future<void> _save() async {
+    if (_loading) return;
     final oldPassword = _oldCtrl.text.trim();
     final newPassword = _newCtrl.text.trim();
     final confirm = _confirmCtrl.text.trim();

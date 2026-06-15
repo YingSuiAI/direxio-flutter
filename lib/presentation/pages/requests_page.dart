@@ -273,7 +273,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             : '已向 ${target.displayName} 发送好友请求';
         _noticeIsError = false;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint(
+          'send friend request from requests page failed: $e\n$stackTrace');
       if (mounted) {
         setState(() {
           _notice = _formatInviteError(e);

@@ -137,29 +137,43 @@ class _DetailContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    const sideWidth = 88.0;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          GlassHeaderButton(
-            icon: Symbols.arrow_back,
-            color: t.accent,
-            onTap: onBack ?? () => Navigator.of(context).maybePop(),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: sideWidth,
+              child: Row(
+                children: [
+                  GlassHeaderButton(
+                    icon: Symbols.arrow_back,
+                    color: t.accent,
+                    onTap: onBack ?? () => Navigator.of(context).maybePop(),
+                  ),
+                  if (centerLeading != null) ...[
+                    centerLeading!,
+                    const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
           ),
-          if (centerLeading != null) ...[
-            centerLeading!,
-            const SizedBox(width: 8),
-          ],
-          Expanded(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: sideWidth),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                   style: AppTheme.sans(
                     size: 20,
                     weight: FontWeight.w600,
@@ -179,6 +193,7 @@ class _DetailContent extends StatelessWidget {
                           subtitle!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
                           style: AppTheme.sans(size: 11, color: t.textMute),
                         ),
                       ),
@@ -187,7 +202,16 @@ class _DetailContent extends StatelessWidget {
               ],
             ),
           ),
-          ...actions,
+          Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: sideWidth,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: actions,
+              ),
+            ),
+          ),
         ],
       ),
     );

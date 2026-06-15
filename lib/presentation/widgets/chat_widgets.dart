@@ -32,9 +32,8 @@ class MessageBubble extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment: isMe
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (!isMe) ...[
             PortalAvatar(seed: event.senderId, size: 28),
@@ -46,9 +45,8 @@ class MessageBubble extends StatelessWidget {
                 maxWidth: MediaQuery.of(context).size.width * 0.78,
               ),
               child: Column(
-                crossAxisAlignment: isMe
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
                   Container(
                     decoration: BoxDecoration(
@@ -145,7 +143,7 @@ class MessageInputBar extends StatelessWidget {
                               maxLines: 5,
                               style: AppTheme.sans(size: 17, color: t.text),
                               decoration: InputDecoration(
-                                hintText: '消息...',
+                                hintText: '',
                                 hintStyle: AppTheme.sans(
                                   size: 17,
                                   color: t.textMute,

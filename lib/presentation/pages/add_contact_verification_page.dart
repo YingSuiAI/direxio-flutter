@@ -72,7 +72,9 @@ class _AddContactVerificationPageState
       await Future<void>.delayed(const Duration(milliseconds: 450));
       if (!mounted) return;
       await Navigator.of(context).maybePop();
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint(
+          'send add-contact verification request failed: $e\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_requestFailedText(context, '$e'))),
@@ -91,6 +93,7 @@ class _AddContactVerificationPageState
     );
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Scaffold(
+      key: const ValueKey('add_contact_verification_scaffold'),
       backgroundColor: t.surfaceHover,
       body: Stack(
         children: [
@@ -243,8 +246,10 @@ class _VerificationCardState extends State<_VerificationCard> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final count = widget.controller.text.characters.length;
     return Container(
+      key: const ValueKey('add_contact_verification_card'),
       margin: const EdgeInsets.only(top: 4),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -264,9 +269,10 @@ class _VerificationCardState extends State<_VerificationCard> {
           ),
           const SizedBox(height: 8),
           Container(
+            key: const ValueKey('add_contact_verification_message_box'),
             height: 74,
             decoration: BoxDecoration(
-              color: t.bg,
+              color: isDark ? t.surfaceHover : t.bg,
               borderRadius: BorderRadius.circular(4),
             ),
             child: TextField(
@@ -276,11 +282,13 @@ class _VerificationCardState extends State<_VerificationCard> {
               expands: true,
               textAlignVertical: TextAlignVertical.top,
               style: AppTheme.sans(size: 14, color: t.text),
-              decoration: const InputDecoration(
+              cursorColor: t.accent,
+              decoration: InputDecoration(
                 counterText: '',
                 border: InputBorder.none,
                 isCollapsed: true,
-                contentPadding: EdgeInsets.all(8),
+                hintStyle: AppTheme.sans(size: 14, color: t.textMute),
+                contentPadding: const EdgeInsets.all(8),
               ),
             ),
           ),
@@ -324,6 +332,7 @@ class _VerificationSubmitButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: t.accent,
           disabledBackgroundColor: t.accent.withValues(alpha: 0.45),
+          disabledForegroundColor: t.onAccent.withValues(alpha: 0.72),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),

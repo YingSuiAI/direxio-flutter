@@ -1145,30 +1145,41 @@ void main() {
     expect(status.allHealthy, isTrue);
   });
 
-  test('changePortalPassword posts old and new password to AS admin API',
-      () async {
+  test('changePortalPassword posts token payload to AS admin API', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
-      portalToken: '11111111',
+      portalToken: 'admin-token',
+      matrixAccessTokenForDebug: 'matrix-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'PUT');
         expect(request.url.path, '/_as/portal/password');
-        expect(request.headers['Authorization'], 'Bearer 11111111');
+        expect(request.headers['Authorization'], 'Bearer admin-token');
         expect(jsonDecode(request.body), {
-          'old_password': '11111111',
-          'new_password': '22222222',
+          'admin_access_token': 'admin-token',
+          'matrix_access_token': 'matrix-token',
+          'password': '22222222',
         });
-        return http.Response('{}', 200);
+        return http.Response(
+          jsonEncode({
+            'matrix_access_token': 'new-matrix-token',
+            'admin_access_token': 'new-admin-token',
+            'user_id': '@owner:example.com',
+            'homeserver': 'https://example.com',
+            'device_id': 'DEVICE2',
+          }),
+          200,
+        );
       }),
     );
 
-    await expectLater(
-      client.changePortalPassword(
-        oldPassword: '11111111',
-        newPassword: '22222222',
-      ),
-      completes,
+    final session = await client.changePortalPassword(
+      oldPassword: '11111111',
+      newPassword: '22222222',
     );
+
+    expect(session.matrixAccessToken, 'new-matrix-token');
+    expect(session.adminAccessToken, 'new-admin-token');
+    expect(session.deviceId, 'DEVICE2');
   });
 
   test('createChannel posts channel metadata to AS admin API', () async {
@@ -1827,7 +1838,8 @@ void main() {
         expect(jsonDecode(request.body), {'password': '11111111'});
         return http.Response(
           jsonEncode({
-            'access_token': 'matrix-access-token',
+            'matrix_access_token': 'matrix-access-token',
+            'admin_access_token': 'admin-access-token',
             'user_id': '@owner:example.com',
             'homeserver': 'https://example.com',
             'agent_room_id': '!agent:example.com',
@@ -1837,12 +1849,12 @@ void main() {
       }),
     );
 
-    expect(session.accessToken, 'matrix-access-token');
+    expect(session.matrixAccessToken, 'matrix-access-token');
+    expect(session.adminAccessToken, 'admin-access-token');
     expect(session.userId, '@owner:example.com');
     expect(session.homeserver, 'https://example.com');
     expect(session.deviceId, isNull);
     expect(session.agentRoomId, '!agent:example.com');
-    expect(session.portalToken, isNull);
   });
 
   test('bootstrapPortal posts setup code to bootstrap', () async {
@@ -1856,17 +1868,17 @@ void main() {
         expect(jsonDecode(request.body), {'token': 'setup-code'});
         return http.Response(
           jsonEncode({
-            'access_token': 'bootstrapped-matrix-token',
+            'matrix_access_token': 'bootstrapped-matrix-token',
+            'admin_access_token': 'bootstrapped-admin-token',
             'user_id': '@owner:example.com',
             'homeserver': 'https://example.com',
-            'portal_token': 'long-portal-token',
           }),
           200,
         );
       }),
     );
 
-    expect(session.accessToken, 'bootstrapped-matrix-token');
-    expect(session.portalToken, 'long-portal-token');
+    expect(session.matrixAccessToken, 'bootstrapped-matrix-token');
+    expect(session.adminAccessToken, 'bootstrapped-admin-token');
   });
 }

@@ -483,11 +483,12 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<void> changePortalPassword({
+  Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,
   }) async {
     await Future.delayed(_latency);
+    throw UnsupportedError('Mock AS does not issue auth tokens');
   }
 
   @override

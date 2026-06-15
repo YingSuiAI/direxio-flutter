@@ -46,7 +46,6 @@ const _homeText = Color(0xFF262628);
 const _homeMuted = Color(0xFFA3A3A4);
 const _homeBorder = Color(0xFFE6E6E6);
 const _channelBlue = Color(0xFF077AB3);
-const _channelSelectedBg = Color(0xFFDDF0FA);
 const _conversationTileAvatarSize = 42.0;
 const _iconMenuAddFriend = 'assets/icons/menu_add_friend.svg';
 const _iconMenuCreateGroup = 'assets/icons/menu_create_group.svg';
@@ -70,8 +69,6 @@ const _assetMeFavorites =
     'assets/resources/ic_profile_favorites__ic_profile_favorites.png';
 const _assetMeComments =
     'assets/resources/ic_profile_verification__ic_profile_verification.png';
-const _assetMeHistory =
-    'assets/resources/ic_profile_clear_chat__ic_profile_clear_chat.png';
 const _meIconBlue = Color(0xFF3097CB);
 const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
@@ -456,25 +453,34 @@ class _HomeTitleTopBar extends StatelessWidget {
       height: topInset + 56,
       padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 4),
       color: _homeBgColor(context),
-      child: Row(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 20,
-                weight: FontWeight.w600,
-                color: textColor,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 48),
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.left,
+                style: AppTheme.sans(
+                  size: 20,
+                  weight: FontWeight.w600,
+                  color: textColor,
+                ),
               ),
             ),
           ),
-          _GlassCircleButton(
-            icon: Symbols.add,
-            size: 40,
-            iconSize: 24,
-            onTap: onPlusTap,
+          Align(
+            alignment: Alignment.centerRight,
+            child: _GlassCircleButton(
+              icon: Symbols.add,
+              size: 40,
+              iconSize: 24,
+              onTap: onPlusTap,
+            ),
           ),
         ],
       ),
@@ -528,25 +534,34 @@ class _ChatsTopBar extends StatelessWidget {
       height: topInset + 56,
       padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 4),
       color: _homeBgColor(context),
-      child: Row(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 20,
-                weight: FontWeight.w600,
-                color: textColor,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 48),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.left,
+                style: AppTheme.sans(
+                  size: 20,
+                  weight: FontWeight.w600,
+                  color: textColor,
+                ),
               ),
             ),
           ),
-          _GlassCircleButton(
-            icon: Symbols.add,
-            size: 40,
-            iconSize: 25,
-            onTap: onPlusTap,
+          Align(
+            alignment: Alignment.centerRight,
+            child: _GlassCircleButton(
+              icon: Symbols.add,
+              size: 40,
+              iconSize: 25,
+              onTap: onPlusTap,
+            ),
           ),
         ],
       ),
@@ -637,18 +652,25 @@ class _HomePlusMenuPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
+    final isDark = _homeDark(context);
+    final panelColor =
+        (isDark ? t.surfaceHigh : t.surface).withValues(alpha: 0.86);
+    final borderColor =
+        (isDark ? t.border : t.surface).withValues(alpha: isDark ? 0.9 : 1);
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: Container(
+          key: const ValueKey('home_plus_menu_panel'),
           decoration: BoxDecoration(
-            color: const Color(0xFFF7F7F7).withValues(alpha: 0.80),
+            color: panelColor,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFF7F7F7)),
+            border: Border.all(color: borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
+                color: Colors.black.withValues(alpha: isDark ? 0.32 : 0.12),
                 blurRadius: 36,
                 offset: const Offset(0, 7),
               ),
@@ -756,9 +778,30 @@ class _HomeNavItem {
   final String? activeIconAsset;
   final String? inactiveIconAsset;
   final double iconSize;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _HomeNavItem &&
+        other.iconAsset == iconAsset &&
+        other.labelIndex == labelIndex &&
+        other.badge == badge &&
+        other.activeIconAsset == activeIconAsset &&
+        other.inactiveIconAsset == inactiveIconAsset &&
+        other.iconSize == iconSize;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        iconAsset,
+        labelIndex,
+        badge,
+        activeIconAsset,
+        inactiveIconAsset,
+        iconSize,
+      );
 }
 
-class _HomeBottomBar extends StatelessWidget {
+class _HomeBottomBar extends StatefulWidget {
   const _HomeBottomBar({
     required this.items,
     required this.currentIndex,
@@ -772,8 +815,47 @@ class _HomeBottomBar extends StatelessWidget {
   final VoidCallback onSearchTap;
 
   @override
+  State<_HomeBottomBar> createState() => _HomeBottomBarState();
+}
+
+class _HomeBottomBarState extends State<_HomeBottomBar> {
+  Widget? _cached;
+  int? _cachedIndex;
+  List<_HomeNavItem>? _cachedItems;
+  Brightness? _cachedBrightness;
+  Locale? _cachedLocale;
+  double? _cachedBottomInset;
+
+  bool _itemsEqual(List<_HomeNavItem>? a, List<_HomeNavItem> b) {
+    if (a == null || a.length != b.length) return false;
+    for (var i = 0; i < b.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final locale = Localizations.localeOf(context);
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    if (_cached != null &&
+        _cachedIndex == widget.currentIndex &&
+        _cachedBrightness == brightness &&
+        _cachedLocale == locale &&
+        _cachedBottomInset == bottomInset &&
+        _itemsEqual(_cachedItems, widget.items)) {
+      return _cached!;
+    }
+    _cachedIndex = widget.currentIndex;
+    _cachedBrightness = brightness;
+    _cachedLocale = locale;
+    _cachedBottomInset = bottomInset;
+    _cachedItems = List<_HomeNavItem>.of(widget.items);
+    return _cached = _buildBar(context, bottomInset: bottomInset);
+  }
+
+  Widget _buildBar(BuildContext context, {required double bottomInset}) {
     final bg = _homeBgColor(context);
     return RepaintBoundary(
       child: SizedBox(
@@ -802,9 +884,9 @@ class _HomeBottomBar extends StatelessWidget {
               width: 291,
               height: 56,
               child: _LiquidTabPill(
-                items: items,
-                currentIndex: currentIndex,
-                onTap: onTap,
+                items: widget.items,
+                currentIndex: widget.currentIndex,
+                onTap: widget.onTap,
               ),
             ),
             Positioned(
@@ -812,7 +894,7 @@ class _HomeBottomBar extends StatelessWidget {
               bottom: bottomInset + 4,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: onSearchTap,
+                onTap: widget.onSearchTap,
                 child: SizedBox(
                   width: _bottomSearchTapSize,
                   height: _bottomSearchTapSize,
@@ -1182,6 +1264,10 @@ class _ChatList extends ConsumerWidget {
       ref.watch(asSyncCacheProvider),
       currentUserId,
     );
+    final friendRequestReadState = ref.watch(friendRequestReadProvider);
+    final pendingFriendRequests = friendRequestReadState.unreadCountForRoomIds(
+      _pendingFriendRequestRoomIds(client: client, syncCache: syncCache),
+    );
     final outbox = ref.watch(localOutboxProvider);
     final messageOrder = ref.watch(localMessageOrderProvider);
     final asGroupRoomIds = (syncCache.bootstrap?.groups ?? const [])
@@ -1207,9 +1293,27 @@ class _ChatList extends ConsumerWidget {
       final convs = MockData.conversations.toList();
       return ListView.builder(
         padding: const EdgeInsets.only(top: 4, bottom: 96),
-        itemCount: convs.length,
+        itemCount: convs.length + 2,
         itemBuilder: (context, i) {
-          final c = convs[i];
+          if (i == 0) {
+            return _ChatShortcutRow(
+              iconAsset: _iconMenuAddFriend,
+              name: '新的好友',
+              lastMessage: '查看好友请求',
+              unread: pendingFriendRequests,
+              onTap: () => context.push('/requests'),
+            );
+          }
+          if (i == 1) {
+            return _ChatShortcutRow(
+              iconAsset: _iconMenuCreateGroup,
+              name: '创建群聊',
+              lastMessage: '选择好友发起群聊',
+              onTap: () => showCreateGroupFlow(context, ref),
+            );
+          }
+          final conversationIndex = i - 2;
+          final c = convs[conversationIndex];
           final last = c.lastMessage;
           final isAgent = c.id == 'mock_aibot';
           return _ConvRow(
@@ -1270,14 +1374,6 @@ class _ChatList extends ConsumerWidget {
       );
     }
 
-    if (visibleConversations.isEmpty) {
-      return const _Empty(
-        icon: Symbols.forum,
-        title: '还没有会话',
-        subtitle: '去添加联系人，或等待 Agent 会话创建完成',
-      );
-    }
-
     final sortedConversations = [...visibleConversations]..sort((a, b) {
         if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
         return _conversationSortTime(
@@ -1303,9 +1399,26 @@ class _ChatList extends ConsumerWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
-      itemCount: sortedConversations.length,
+      itemCount: sortedConversations.length + 2,
       itemBuilder: (context, i) {
-        final conversation = sortedConversations[i];
+        if (i == 0) {
+          return _ChatShortcutRow(
+            iconAsset: _iconMenuAddFriend,
+            name: '新的好友',
+            lastMessage: pendingFriendRequests > 0 ? '有新的好友请求' : '查看好友请求',
+            unread: pendingFriendRequests,
+            onTap: () => context.push('/requests'),
+          );
+        }
+        if (i == 1) {
+          return _ChatShortcutRow(
+            iconAsset: _iconMenuCreateGroup,
+            name: '创建群聊',
+            lastMessage: '选择好友发起群聊',
+            onTap: () => showCreateGroupFlow(context, ref),
+          );
+        }
+        final conversation = sortedConversations[i - 2];
         final room = conversation.room;
         final lastEvent = room?.lastEvent;
         final failedOutbox =
@@ -1659,6 +1772,110 @@ void _homeToast(BuildContext context, String message) {
   );
 }
 
+class _ChatShortcutRow extends StatelessWidget {
+  const _ChatShortcutRow({
+    required this.iconAsset,
+    required this.name,
+    required this.lastMessage,
+    required this.onTap,
+    this.unread = 0,
+  });
+
+  final String iconAsset;
+  final String name;
+  final String lastMessage;
+  final int unread;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = _homeTextColor(context);
+    final mutedColor = _homeMutedColor(context);
+    final borderColor = _homeBorderColor(context);
+    final t = context.tk;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Container(
+                width: _conversationTileAvatarSize,
+                height: _conversationTileAvatarSize,
+                decoration: BoxDecoration(
+                  color: t.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: _DesignAssetIcon(
+                  assetName: iconAsset,
+                  size: 22,
+                  color: t.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  height: 64,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: borderColor, width: 0.5),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.sans(
+                                size: 14,
+                                weight: FontWeight.w600,
+                                color: textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              lastMessage,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.sans(
+                                size: 12,
+                                color: mutedColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 36,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: unread > 0
+                              ? _ConversationUnreadBadge(count: unread)
+                              : const SizedBox(height: 20),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 会话列表行 —— 对齐 Figma node 53:505。
 /// 头像 42×42、圆角 8、头像与内容间距 8，右侧时间/未读固定宽度。
 class _ConvRow extends StatelessWidget {
@@ -1987,54 +2204,40 @@ Future<void> _showCreateChannelDialog(
   BuildContext context,
   WidgetRef ref,
 ) async {
-  final nameCtrl = TextEditingController();
-  final topicCtrl = TextEditingController();
-
-  final confirmed = await showDialog<bool>(
+  final draft = await showGeneralDialog<_CreateChannelDraft>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('创建频道'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: nameCtrl,
-            decoration: const InputDecoration(labelText: '频道名称'),
-            autofocus: true,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: topicCtrl,
-            decoration: const InputDecoration(
-              labelText: '频道简介（可选）',
-              hintText: '展示在频道列表里',
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(ctx).pop(true),
-          child: const Text('创建'),
-        ),
-      ],
-    ),
+    barrierDismissible: true,
+    barrierLabel: 'create-channel',
+    barrierColor: Colors.transparent,
+    transitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (ctx, animation, secondaryAnimation) {
+      return const _CreateChannelSheet();
+    },
+    transitionBuilder: (ctx, animation, secondaryAnimation, child) {
+      return FadeTransition(opacity: animation, child: child);
+    },
   );
 
-  if (confirmed != true || !context.mounted) return;
-  final name = nameCtrl.text.trim();
-  if (name.isEmpty) return;
+  if (draft == null || !context.mounted) return;
+  final name = draft.name.trim();
+  if (name.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('频道名称不能为空')),
+    );
+    return;
+  }
 
   try {
     await ref.read(asClientProvider).createChannel(
-          name: name,
-          topic: topicCtrl.text.trim(),
-        );
+      name: name,
+      visibility: draft.isPublic
+          ? asChannelVisibilityPublic
+          : asChannelVisibilityPrivate,
+      joinPolicy: draft.needsApproval
+          ? asChannelJoinPolicyApproval
+          : asChannelJoinPolicyOpen,
+      tags: [draft.type],
+    );
     final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
     ref.read(asSyncCacheProvider.notifier).update(
           (state) => state.copyWith(bootstrap: bootstrap),
@@ -2044,6 +2247,579 @@ Future<void> _showCreateChannelDialog(
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('创建频道失败：$e')),
+    );
+  }
+}
+
+class _CreateChannelDraft {
+  const _CreateChannelDraft({
+    required this.name,
+    required this.type,
+    required this.isPublic,
+    required this.needsApproval,
+  });
+
+  final String name;
+  final String type;
+  final bool isPublic;
+  final bool needsApproval;
+}
+
+class _CreateChannelSheet extends StatefulWidget {
+  const _CreateChannelSheet();
+
+  @override
+  State<_CreateChannelSheet> createState() => _CreateChannelSheetState();
+}
+
+class _CreateChannelSheetState extends State<_CreateChannelSheet> {
+  final _nameCtrl = TextEditingController();
+  String _type = '文字';
+  bool _isPublic = true;
+  bool _needsApproval = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.of(context).padding.top;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FA),
+      resizeToAvoidBottomInset: false,
+      body: Stack(
+        children: [
+          Positioned(
+            left: 38,
+            top: topInset + 42,
+            child: _CreateChannelCircleClose(
+              onTap: () => Navigator.of(context).pop(),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: topInset + 56,
+            child: Center(
+              child: Text(
+                '创建频道',
+                style: AppTheme.sans(
+                  size: 20,
+                  weight: FontWeight.w800,
+                  color: const Color(0xFF101927),
+                ).copyWith(height: 28 / 20),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            top: topInset + 122,
+            bottom: 96,
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 38),
+              children: [
+                _CreateChannelCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _CreateChannelSectionHeader(
+                        title: '频道名称',
+                        meta: '必填',
+                      ),
+                      const SizedBox(height: 14),
+                      _CreateChannelNameField(controller: _nameCtrl),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _CreateChannelCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _CreateChannelSectionHeader(
+                        title: '上传频道头像',
+                        meta: '可选',
+                      ),
+                      const SizedBox(height: 16),
+                      _CreateChannelAvatarPicker(
+                        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('头像上传功能待接入')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _CreateChannelCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _CreateChannelSectionHeader(
+                        title: '选择频道类型',
+                        meta: 'P0',
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _CreateChannelTypeTile(
+                              selected: _type == '文字',
+                              icon: Symbols.chat_bubble,
+                              title: '文字',
+                              subtitle: '成员自由发言',
+                              onTap: () => setState(() => _type = '文字'),
+                            ),
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: _CreateChannelTypeTile(
+                              selected: _type == '帖子',
+                              icon: Symbols.article,
+                              title: '帖子',
+                              subtitle: '帖子与评论',
+                              onTap: () => setState(() => _type = '帖子'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _CreateChannelCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '频道权限',
+                        style: AppTheme.sans(
+                          size: 18,
+                          weight: FontWeight.w800,
+                          color: const Color(0xFF101927),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _CreateChannelSwitchRow(
+                        title: '是否公开',
+                        subtitle: '关闭后仅通过邀请加入',
+                        value: _isPublic,
+                        onChanged: (value) => setState(() => _isPublic = value),
+                      ),
+                      const Divider(height: 24, color: Color(0xFFE3E8EF)),
+                      _CreateChannelSwitchRow(
+                        title: '加入是否需要审核',
+                        subtitle: '开启后需管理员通过',
+                        value: _needsApproval,
+                        onChanged: (value) =>
+                            setState(() => _needsApproval = value),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 24,
+            right: 24,
+            bottom: 20,
+            child: SafeArea(
+              top: false,
+              child: _CreateChannelSubmitButton(
+                onTap: () => Navigator.of(context).pop(
+                  _CreateChannelDraft(
+                    name: _nameCtrl.text,
+                    type: _type,
+                    isPublic: _isPublic,
+                    needsApproval: _needsApproval,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreateChannelCircleClose extends StatelessWidget {
+  const _CreateChannelCircleClose({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 14,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: const SizedBox.square(
+          dimension: 43,
+          child: Icon(
+            Symbols.close,
+            size: 30,
+            color: Color(0xFF141C26),
+            weight: 700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateChannelCard extends StatelessWidget {
+  const _CreateChannelCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 18, 14, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _CreateChannelSectionHeader extends StatelessWidget {
+  const _CreateChannelSectionHeader({
+    required this.title,
+    required this.meta,
+  });
+
+  final String title;
+  final String meta;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: AppTheme.sans(
+              size: 18,
+              weight: FontWeight.w800,
+              color: const Color(0xFF101927),
+            ),
+          ),
+        ),
+        Text(
+          meta,
+          style: AppTheme.sans(
+            size: 13,
+            weight: FontWeight.w800,
+            color: const Color(0xFF758296),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CreateChannelNameField extends StatelessWidget {
+  const _CreateChannelNameField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFCDECF8), width: 2),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 16),
+          const Text(
+            '#',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF2FA0D0),
+              height: 1,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                hintText: '输入频道名称',
+                hintStyle: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w800,
+                  color: const Color(0xFF9AA5B5),
+                ),
+              ),
+              style: AppTheme.sans(
+                size: 16,
+                weight: FontWeight.w800,
+                color: const Color(0xFF101927),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreateChannelAvatarPicker extends StatelessWidget {
+  const _CreateChannelAvatarPicker({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF0F3F7),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 78,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 62,
+                height: 62,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDDF6FF),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Symbols.add_photo_alternate,
+                  color: Color(0xFF198DC2),
+                  size: 31,
+                  fill: 1,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '选择头像',
+                      style: AppTheme.sans(
+                        size: 16,
+                        weight: FontWeight.w800,
+                        color: const Color(0xFF101927),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '支持图片上传，作为频道展示头像',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 13,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFF758296),
+                      ).copyWith(height: 18 / 13),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Symbols.chevron_right,
+                color: Color(0xFF101927),
+                size: 30,
+                weight: 700,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateChannelTypeTile extends StatelessWidget {
+  const _CreateChannelTypeTile({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? const Color(0xFFEAF8FE) : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 102,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color:
+                  selected ? const Color(0xFF2FA0D0) : const Color(0xFFE1E6ED),
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 35,
+                height: 35,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? const Color(0xFFDDF6FF)
+                      : const Color(0xFFF0F3F7),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  icon,
+                  size: 23,
+                  color: selected
+                      ? const Color(0xFF198DC2)
+                      : const Color(0xFF697586),
+                  weight: 700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: AppTheme.sans(
+                  size: 17,
+                  weight: FontWeight.w800,
+                  color: const Color(0xFF101927),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: AppTheme.sans(
+                  size: 12,
+                  weight: FontWeight.w800,
+                  color: const Color(0xFF758296),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateChannelSwitchRow extends StatelessWidget {
+  const _CreateChannelSwitchRow({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w800,
+                  color: const Color(0xFF101927),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: AppTheme.sans(
+                  size: 13,
+                  weight: FontWeight.w700,
+                  color: const Color(0xFF758296),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: Colors.white,
+          activeTrackColor: const Color(0xFF2FA0D0),
+        ),
+      ],
+    );
+  }
+}
+
+class _CreateChannelSubmitButton extends StatelessWidget {
+  const _CreateChannelSubmitButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF2FA0D0),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 48,
+          child: Center(
+            child: Text(
+              '创建频道',
+              style: AppTheme.sans(
+                size: 16,
+                weight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2538,7 +3314,8 @@ class _ChannelExplorePage extends ConsumerStatefulWidget {
 }
 
 class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
-  String _category = '全部';
+  String _section = '已加入';
+  String _contentType = '全部';
 
   @override
   Widget build(BuildContext context) {
@@ -2554,10 +3331,13 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
             fallbackDomain: _clientServerName(client),
           )
         : _mockChannelItems();
-    final selectedCategory = _channelFilterLabels.contains(_category)
-        ? _category
-        : _channelFilterLabels.first;
-    final visibleChannels = _channelFilteredItems(channels, selectedCategory);
+    final joinedChannels = _channelFilteredItems(channels, _contentType);
+    final discoverChannels = _channelFilteredItems(
+      _discoverChannelItems(),
+      _contentType,
+    );
+    final visibleChannels =
+        _section == '已加入' ? joinedChannels : discoverChannels;
 
     if (!_mockAuthEnabled && isLoggedIn && bootstrap == null) {
       return const _ChannelFrame(
@@ -2579,53 +3359,84 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
             left: 24,
             top: topInset + 22,
             width: 140,
-            height: 34,
+            height: 42,
             child: Text(
               key: const ValueKey('channel_tab_title'),
               '频道',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTheme.sans(
-                size: 26,
-                weight: FontWeight.w600,
+                size: 28,
+                weight: FontWeight.w800,
                 color: _homeTextColor(context),
-              ).copyWith(height: 33 / 26),
+              ).copyWith(height: 38 / 28),
             ),
-          ),
-          Positioned(
-            right: 26,
-            top: topInset + 23,
-            child: _ChannelSearchButton(
-              onTap: () => context.push('/channels/search'),
-            ),
-          ),
-          Positioned(
-            left: 16,
-            right: 16,
-            top: topInset + 76,
-            height: 42,
-            child: _ChannelFilterBar(
-              key: const ValueKey('channel_filter_bar'),
-              selectedCategory: selectedCategory,
-              onChanged: (category) => setState(() => _category = category),
-            ),
-          ),
-          Positioned.fill(
-            top: topInset + 132,
-            child: visibleChannels.isEmpty
-                ? _ChannelEmptyArea(selectedCategory: selectedCategory)
-                : _ChannelInboxList(channels: visibleChannels),
           ),
           Positioned(
             right: 24,
-            bottom: 28,
-            child: _ChannelFloatingPostButton(
-              key: const ValueKey('channel_post_button'),
-              onTap: () => _showCreateChannelDialog(context, ref),
+            top: topInset + 12,
+            child: Row(
+              children: [
+                _ChannelTopCircleButton(
+                  icon: Symbols.checklist,
+                  badgeCount: _channelPendingCount(channels),
+                  onTap: () => context.push('/channels/manage'),
+                ),
+                const SizedBox(width: 10),
+                _ChannelSearchButton(
+                  onTap: () => context.push('/channels/search'),
+                ),
+                const SizedBox(width: 10),
+                _ChannelTopCircleButton(
+                  key: const ValueKey('channel_post_button'),
+                  icon: Symbols.add,
+                  iconSize: 31,
+                  onTap: () => _showCreateChannelDialog(context, ref),
+                ),
+              ],
             ),
+          ),
+          Positioned(
+            left: 24,
+            right: 24,
+            top: topInset + 92,
+            height: 40,
+            child: _ChannelSectionSwitch(
+              key: const ValueKey('channel_filter_bar'),
+              value: _section,
+              onChanged: (value) => setState(() => _section = value),
+            ),
+          ),
+          Positioned(
+            left: 24,
+            top: topInset + 148,
+            height: 28,
+            child: _ChannelTypeFilter(
+              value: _contentType,
+              onChanged: (value) => setState(() => _contentType = value),
+            ),
+          ),
+          Positioned.fill(
+            top: topInset + 202,
+            child: visibleChannels.isEmpty
+                ? _ChannelEmptyArea(selectedSection: _section)
+                : _ChannelInboxList(
+                    channels: visibleChannels,
+                    mode: _section == '已加入'
+                        ? _ChannelListMode.joined
+                        : _ChannelListMode.discover,
+                    onJoin: _section == '已加入' ? null : _handleDiscoverJoin,
+                  ),
           ),
         ],
       ),
+    );
+  }
+
+  void _handleDiscoverJoin(ChannelInboxItem channel) {
+    final pending = channel.joinPolicy == asChannelJoinPolicyApproval;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(pending ? '已提交加入申请' : '已加入频道')),
     );
   }
 }
@@ -2644,31 +3455,33 @@ class _ChannelFrame extends StatelessWidget {
   }
 }
 
-class _ChannelFilterBar extends StatelessWidget {
-  const _ChannelFilterBar({
+class _ChannelSectionSwitch extends StatelessWidget {
+  const _ChannelSectionSwitch({
     super.key,
-    required this.selectedCategory,
+    required this.value,
     required this.onChanged,
   });
 
-  final String selectedCategory;
+  final String value;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(5),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: _homeDark(context) ? context.tk.surfaceHigh : Colors.white,
-        borderRadius: BorderRadius.circular(21),
+        color: _homeDark(context)
+            ? context.tk.surfaceHigh
+            : const Color(0xFFE9EDF2),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          for (final label in _channelFilterLabels)
+          for (final label in _channelSections)
             Expanded(
-              child: _ChannelFilterSegment(
+              child: _ChannelSectionSegment(
                 label: label,
-                selected: label == selectedCategory,
+                selected: label == value,
                 onTap: () => onChanged(label),
               ),
             ),
@@ -2678,8 +3491,8 @@ class _ChannelFilterBar extends StatelessWidget {
   }
 }
 
-class _ChannelFilterSegment extends StatelessWidget {
-  const _ChannelFilterSegment({
+class _ChannelSectionSegment extends StatelessWidget {
+  const _ChannelSectionSegment({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -2691,15 +3504,12 @@ class _ChannelFilterSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedColor = _homeDark(context)
-        ? context.tk.accent.withValues(alpha: 0.18)
-        : _channelSelectedBg;
     return Material(
-      color: selected ? selectedColor : Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
+      color: selected ? Colors.white : Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: SizedBox.expand(
           child: Center(
             child: Text(
@@ -2708,10 +3518,82 @@ class _ChannelFilterSegment extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w800,
+                color: selected
+                    ? _homeTextColor(context)
+                    : _homeMutedColor(context),
+              ).copyWith(height: 22 / 15),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelTypeFilter extends StatelessWidget {
+  const _ChannelTypeFilter({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final label in _channelTypeFilters) ...[
+          _ChannelTypePill(
+            label: label,
+            selected: label == value,
+            onTap: () => onChanged(label),
+          ),
+          if (label != _channelTypeFilters.last) const SizedBox(width: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _ChannelTypePill extends StatelessWidget {
+  const _ChannelTypePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected
+        ? const Color(0xFFDDF6FF)
+        : (_homeDark(context)
+            ? context.tk.surfaceHigh
+            : const Color(0xFFF0F3F7));
+    final fg = selected ? _channelBlue : const Color(0xFF6E7C91);
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(15),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: SizedBox(
+          width: label == '全部' ? 48 : 50,
+          height: 28,
+          child: Center(
+            child: Text(
+              label,
+              style: AppTheme.sans(
                 size: 13,
-                weight: FontWeight.w500,
-                color: selected ? _channelBlue : _homeMutedColor(context),
-              ).copyWith(height: 16 / 13),
+                weight: FontWeight.w800,
+                color: fg,
+              ).copyWith(height: 18 / 13),
             ),
           ),
         ),
@@ -2727,49 +3609,58 @@ class _ChannelSearchButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return _ChannelTopCircleButton(
+      key: const ValueKey('channel_search_button'),
+      icon: Symbols.search,
       onTap: onTap,
-      child: SizedBox.square(
-        key: const ValueKey('channel_search_button'),
-        dimension: 40,
-        child: Center(
-          child: Icon(
-            Symbols.search,
-            size: 28,
-            color: _homeTextColor(context),
-            weight: 700,
-          ),
-        ),
-      ),
     );
   }
 }
 
-class _ChannelFloatingPostButton extends StatelessWidget {
-  const _ChannelFloatingPostButton({super.key, required this.onTap});
+class _ChannelTopCircleButton extends StatelessWidget {
+  const _ChannelTopCircleButton({
+    super.key,
+    required this.icon,
+    required this.onTap,
+    this.iconSize = 28,
+    this.badgeCount = 0,
+  });
 
+  final IconData icon;
   final VoidCallback onTap;
+  final double iconSize;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: _homeDark(context) ? context.tk.accent : _channelBlue,
+      color: Colors.white,
       shape: const CircleBorder(),
+      elevation: 14,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
       child: InkWell(
-        onTap: onTap,
         customBorder: const CircleBorder(),
+        onTap: onTap,
         child: SizedBox.square(
-          dimension: 56,
-          child: Center(
-            child: Text(
-              '+',
-              style: AppTheme.sans(
-                size: 30,
-                weight: FontWeight.w600,
-                color: Colors.white,
-              ).copyWith(height: 38 / 30),
-            ),
+          dimension: 39,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Center(
+                child: Icon(
+                  icon,
+                  size: iconSize,
+                  color: _homeTextColor(context),
+                  weight: 700,
+                ),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  top: -2,
+                  right: -1,
+                  child: _ChannelActionBadge(count: badgeCount),
+                ),
+            ],
           ),
         ),
       ),
@@ -2777,14 +3668,45 @@ class _ChannelFloatingPostButton extends StatelessWidget {
   }
 }
 
-const _channelFilterLabels = ['全部', '我的频道'];
+class _ChannelActionBadge extends StatelessWidget {
+  const _ChannelActionBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: Color(0xFFFF5268),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        _formatBadgeCount(count),
+        style: AppTheme.sans(
+          size: 11,
+          weight: FontWeight.w800,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+const _channelSections = ['已加入', '频道列表'];
+const _channelTypeFilters = ['全部', '文字', '帖子'];
+
+enum _ChannelListMode { joined, discover }
 
 List<ChannelInboxItem> _channelFilteredItems(
   List<ChannelInboxItem> channels,
   String category,
 ) {
   final sorted = switch (category) {
-    '我的频道' => channels.where((channel) => channel.isOwned).toList(),
+    '文字' => channels.where(_channelIsTextType).toList(),
+    '帖子' => channels.where((channel) => !_channelIsTextType(channel)).toList(),
     _ => [...channels],
   };
   sorted.sort((a, b) {
@@ -2795,17 +3717,27 @@ List<ChannelInboxItem> _channelFilteredItems(
   return sorted;
 }
 
-DateTime _weekdayRelativeDate(int weekday) {
-  final now = DateTime.now();
-  final daysBack = (now.weekday - weekday) % DateTime.daysPerWeek;
-  final target = now.subtract(Duration(days: daysBack == 0 ? 7 : daysBack));
-  return DateTime(target.year, target.month, target.day, 12);
+bool _channelIsTextType(ChannelInboxItem channel) {
+  final tags = channel.tags.map((tag) => tag.trim()).toSet();
+  if (tags.contains('文字')) return true;
+  if (tags.contains('帖子')) return false;
+  return channel.name.contains('综合') ||
+      channel.name.contains('前端') ||
+      channel.name.contains('Matrix');
+}
+
+int _channelPendingCount(List<ChannelInboxItem> channels) {
+  final count = channels.fold<int>(
+    0,
+    (sum, channel) => sum + channel.pendingJoinCount,
+  );
+  return count > 0 ? count : 1;
 }
 
 class _ChannelEmptyArea extends StatelessWidget {
-  const _ChannelEmptyArea({required this.selectedCategory});
+  const _ChannelEmptyArea({required this.selectedSection});
 
-  final String selectedCategory;
+  final String selectedSection;
 
   @override
   Widget build(BuildContext context) {
@@ -2820,7 +3752,7 @@ class _ChannelEmptyArea extends StatelessWidget {
                 icon: Symbols.campaign,
                 title: '还没有频道',
                 subtitle:
-                    selectedCategory == '我的频道' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
+                    selectedSection == '频道列表' ? '暂时没有可加入的频道' : '加入频道后会显示在这里',
               ),
             ],
           ),
@@ -2831,8 +3763,15 @@ class _ChannelEmptyArea extends StatelessWidget {
 }
 
 class _ChannelInboxList extends StatelessWidget {
-  const _ChannelInboxList({required this.channels});
+  const _ChannelInboxList({
+    required this.channels,
+    required this.mode,
+    this.onJoin,
+  });
+
   final List<ChannelInboxItem> channels;
+  final _ChannelListMode mode;
+  final ValueChanged<ChannelInboxItem>? onJoin;
 
   @override
   Widget build(BuildContext context) {
@@ -2841,7 +3780,9 @@ class _ChannelInboxList extends StatelessWidget {
       itemCount: channels.length,
       itemBuilder: (context, index) => _ChannelInboxTile(
         channel: channels[index],
+        mode: mode,
         showDivider: index != channels.length - 1,
+        onJoin: onJoin,
       ),
     );
   }
@@ -2850,11 +3791,15 @@ class _ChannelInboxList extends StatelessWidget {
 class _ChannelInboxTile extends StatelessWidget {
   const _ChannelInboxTile({
     required this.channel,
+    required this.mode,
     required this.showDivider,
+    this.onJoin,
   });
 
   final ChannelInboxItem channel;
+  final _ChannelListMode mode;
   final bool showDivider;
+  final ValueChanged<ChannelInboxItem>? onJoin;
 
   @override
   Widget build(BuildContext context) {
@@ -2864,12 +3809,12 @@ class _ChannelInboxTile extends StatelessWidget {
     return InkWell(
       onTap: () => context.push('/channel/${Uri.encodeComponent(channel.id)}'),
       child: SizedBox(
-        height: 64,
+        height: 76,
         child: Row(
           children: [
+            const SizedBox(width: 24),
+            _ChannelAvatar(channel: channel, size: 44),
             const SizedBox(width: 16),
-            _ChannelAvatar(channel: channel, size: 42),
-            const SizedBox(width: 8),
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -2883,35 +3828,43 @@ class _ChannelInboxTile extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.only(top: 10, bottom: 8),
+                        padding: const EdgeInsets.only(top: 10, bottom: 10),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(
-                              height: 20,
-                              child: Text(
-                                channel.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(
-                                  size: 14,
-                                  weight: FontWeight.w500,
-                                  color: textColor,
-                                ).copyWith(height: 18 / 14),
-                              ),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    '#${channel.name}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTheme.sans(
+                                      size: 16,
+                                      weight: FontWeight.w800,
+                                      color: textColor,
+                                    ).copyWith(height: 22 / 16),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _ChannelKindBadge(
+                                  label:
+                                      _channelIsTextType(channel) ? '文字' : '帖子',
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 4),
                             SizedBox(
-                              height: 18,
+                              height: 22,
                               child: Text(
                                 channel.latestPreview,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTheme.sans(
-                                  size: 12,
+                                  size: 13,
                                   weight: FontWeight.w400,
-                                  color: mutedColor,
-                                ).copyWith(height: 15 / 12),
+                                  color: const Color(0xFF6D7B91),
+                                ).copyWith(height: 20 / 13),
                               ),
                             ),
                           ],
@@ -2919,38 +3872,34 @@ class _ChannelInboxTile extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    SizedBox(
-                      width: 40,
-                      height: 64,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 10, bottom: 11),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            SizedBox(
-                              height: 18,
-                              child: Text(
-                                _formatChannelTime(channel.latestAt),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.right,
-                                style: AppTheme.sans(
-                                  size: 12,
-                                  weight: FontWeight.w500,
-                                  color: mutedColor,
-                                ).copyWith(height: 15 / 12),
-                              ),
+                    if (mode == _ChannelListMode.joined)
+                      SizedBox(
+                        width: 48,
+                        height: 76,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 18, bottom: 11),
+                          child: Align(
+                            alignment: Alignment.topRight,
+                            child: Text(
+                              _formatChannelTime(channel.latestAt),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: AppTheme.sans(
+                                size: 12,
+                                weight: FontWeight.w500,
+                                color: mutedColor,
+                              ).copyWith(height: 18 / 12),
                             ),
-                            const SizedBox(height: 4),
-                            if (channel.unreadCount > 0)
-                              _ChannelUnreadNumber(channel: channel)
-                            else
-                              const SizedBox(height: 20),
-                          ],
+                          ),
                         ),
+                      )
+                    else
+                      _ChannelJoinButton(
+                        channel: channel,
+                        onTap: () => onJoin?.call(channel),
                       ),
-                    ),
-                    const SizedBox(width: 15),
+                    const SizedBox(width: 24),
                   ],
                 ),
               ),
@@ -2962,32 +3911,62 @@ class _ChannelInboxTile extends StatelessWidget {
   }
 }
 
-class _ChannelUnreadNumber extends StatelessWidget {
-  const _ChannelUnreadNumber({required this.channel});
+class _ChannelKindBadge extends StatelessWidget {
+  const _ChannelKindBadge({required this.label});
 
-  final ChannelInboxItem channel;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 20,
-      height: 20,
-      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFFF5656),
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFFEFF3F8),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
-        _formatBadgeCount(channel.unreadCount),
-        key: ValueKey('channel_unread_count_${channel.id}'),
-        maxLines: 1,
-        overflow: TextOverflow.visible,
-        textAlign: TextAlign.center,
+        label,
         style: AppTheme.sans(
-          size: channel.unreadCount > 9 ? 9 : 11,
-          weight: FontWeight.w400,
-          color: Colors.white,
-        ).copyWith(height: 14 / 11),
+          size: 11,
+          weight: FontWeight.w800,
+          color: const Color(0xFF758296),
+        ).copyWith(height: 15 / 11),
+      ),
+    );
+  }
+}
+
+class _ChannelJoinButton extends StatelessWidget {
+  const _ChannelJoinButton({required this.channel, required this.onTap});
+
+  final ChannelInboxItem channel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final approval = channel.joinPolicy == asChannelJoinPolicyApproval;
+    return Material(
+      color: approval ? const Color(0xFFFFF0D8) : const Color(0xFFDDF6FF),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: SizedBox(
+          width: 54,
+          height: 31,
+          child: Center(
+            child: Text(
+              approval ? '申请' : '加入',
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w800,
+                color: approval
+                    ? const Color(0xFF9B5B00)
+                    : const Color(0xFF0780B9),
+              ).copyWith(height: 21 / 15),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -3001,6 +3980,8 @@ class _ChannelAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = _channelAvatarColor(channel);
+    final icon = _channelIcon(channel);
+    final fg = _channelIconColor(channel);
     return Container(
       width: size,
       height: size,
@@ -3010,46 +3991,41 @@ class _ChannelAvatar extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       alignment: Alignment.center,
-      child: Text(
-        _channelInitial(channel.name),
-        maxLines: 1,
-        overflow: TextOverflow.clip,
-        textAlign: TextAlign.center,
-        style: AppTheme.sans(
-          size: 15,
-          weight: FontWeight.w600,
-          color: _channelBlue,
-        ).copyWith(height: 19 / 15),
+      child: Icon(
+        icon,
+        size: 27,
+        color: fg,
+        weight: 700,
       ),
     );
   }
 }
 
-String _channelInitial(String name) {
-  final trimmed = name.trim();
-  if (trimmed.isEmpty) return '频';
-  final first = trimmed.characters.first;
-  if (RegExp(r'[A-Za-z]').hasMatch(first)) {
-    final letters = trimmed
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .take(2)
-        .map((part) => part.characters.first.toUpperCase())
-        .join();
-    return letters.isEmpty ? first.toUpperCase() : letters;
-  }
-  return first;
-}
-
 Color _channelAvatarColor(ChannelInboxItem channel) {
   final name = channel.name;
-  if (name.contains('产品')) return const Color(0xFFE5F0FF);
-  if (name.contains('设计')) return const Color(0xFFF0EBFF);
-  if (name.contains('Agent') || name.contains('AI')) {
-    return const Color(0xFFE5F5FA);
+  if (name.contains('新手') || name.contains('AI') || name.contains('知识')) {
+    return const Color(0xFFE2F7EC);
   }
-  if (name.contains('草稿')) return const Color(0xFFF5F2E5);
-  return const Color(0xFFDDF0FA);
+  return const Color(0xFFDDF6FF);
+}
+
+Color _channelIconColor(ChannelInboxItem channel) {
+  final name = channel.name;
+  if (name.contains('新手') || name.contains('AI') || name.contains('知识')) {
+    return const Color(0xFF25A86D);
+  }
+  return const Color(0xFF198DC2);
+}
+
+IconData _channelIcon(ChannelInboxItem channel) {
+  final name = channel.name;
+  if (name.contains('综合')) return Symbols.tag;
+  if (name.contains('新手')) return Symbols.question_mark;
+  if (name.contains('前端')) return Symbols.code;
+  if (name.contains('AI')) return Symbols.psychology;
+  if (name.contains('Matrix')) return Symbols.hub;
+  if (name.contains('知识')) return Symbols.forum;
+  return Symbols.tag;
 }
 
 List<ChannelInboxItem> _mockChannelItems() {
@@ -3057,51 +4033,80 @@ List<ChannelInboxItem> _mockChannelItems() {
     ChannelInboxItem(
       id: 'p2p-im',
       roomId: 'p2p-im',
-      name: 'owner',
+      name: '综合讨论',
       domain: 'p2p-im.com',
       avatarUrl: '',
-      latestPreview: '后端部署清单已更新：个人资料、二维码加好友...',
-      latestAt: _todayAt(18, 40),
-      unreadCount: 7,
-      isOwned: true,
-      tags: const ['产品'],
-      role: asChannelRoleOwner,
-    ),
-    ChannelInboxItem(
-      id: 'product',
-      roomId: 'product',
-      name: '产品频道',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '频道页会先按用户自己的频道展示',
-      latestAt: _todayAt(16, 10),
-      unreadCount: 4,
+      latestPreview: '自由讨论、技术交流与闲聊',
+      latestAt: _todayAt(9, 15),
+      unreadCount: 0,
       isOwned: false,
-      tags: const ['产品'],
+      tags: const ['文字'],
     ),
     ChannelInboxItem(
-      id: 'design',
-      roomId: 'design',
-      name: '设计频道',
+      id: 'new-user',
+      roomId: 'new-user',
+      name: '新手问答',
       domain: 'p2p-im.com',
       avatarUrl: '',
-      latestPreview: '频道帖子支持图片、视频、链接、表情和转发',
+      latestPreview: '问题交流和经验分享',
       latestAt: DateTime.now().subtract(const Duration(days: 1)),
       unreadCount: 0,
       isOwned: false,
-      tags: const ['设计'],
+      tags: const ['帖子'],
     ),
+  ];
+}
+
+List<ChannelInboxItem> _discoverChannelItems() {
+  return [
     ChannelInboxItem(
-      id: 'agent',
-      roomId: 'agent',
-      name: 'Agent 通知',
+      id: 'frontend',
+      roomId: 'frontend',
+      name: '前端开发者',
       domain: 'p2p-im.com',
       avatarUrl: '',
-      latestPreview: 'OpenClaw、Helm、Hermes Agent 通道状态更新',
-      latestAt: _weekdayRelativeDate(DateTime.sunday),
-      unreadCount: 1,
+      latestPreview: 'Web、跨端与工程化实践',
+      latestAt: _todayAt(10, 30),
+      unreadCount: 0,
       isOwned: false,
-      tags: const ['AI'],
+      tags: const ['文字'],
+    ),
+    ChannelInboxItem(
+      id: 'ai-product',
+      roomId: 'ai-product',
+      name: 'AI 产品研究',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '模型、Agent 与产品设计',
+      latestAt: _todayAt(10, 20),
+      unreadCount: 0,
+      isOwned: false,
+      tags: const ['帖子'],
+      joinPolicy: asChannelJoinPolicyApproval,
+    ),
+    ChannelInboxItem(
+      id: 'matrix-practice',
+      roomId: 'matrix-practice',
+      name: 'Matrix 实战',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: 'Matrix 房间、联邦与端到端加密实践',
+      latestAt: _todayAt(10, 10),
+      unreadCount: 0,
+      isOwned: false,
+      tags: const ['文字'],
+    ),
+    ChannelInboxItem(
+      id: 'knowledge-qa',
+      roomId: 'knowledge-qa',
+      name: '知识问答',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '沉淀问题和最佳答案',
+      latestAt: _todayAt(10, 0),
+      unreadCount: 0,
+      isOwned: false,
+      tags: const ['帖子'],
     ),
   ];
 }
@@ -3190,12 +4195,6 @@ class _MePageState extends ConsumerState<_MePage> {
               assetName: _assetMeComments,
               label: '评论',
               onTap: () => context.push('/me/comments'),
-            ),
-            const SizedBox(height: 16),
-            _MeActionRow(
-              assetName: _assetMeHistory,
-              label: '浏览记录',
-              onTap: () => context.push('/me/history'),
             ),
           ],
         ),

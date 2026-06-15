@@ -41,8 +41,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         await storage.read(key: AuthStateNotifier.lastLoginHomeserverKey) ??
             await storage.read(key: 'matrix_homeserver');
     final portalToken =
-        await storage.read(key: AuthStateNotifier.lastLoginPortalTokenKey) ??
-            await storage.read(key: 'portal_token');
+        await storage.read(key: AuthStateNotifier.lastLoginPortalTokenKey);
     if (!mounted) return;
     if (hs != null) {
       final uri = Uri.tryParse(hs);

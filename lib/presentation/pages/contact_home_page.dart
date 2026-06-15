@@ -165,7 +165,8 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
           content: Text(restored ? '已恢复旧会话，可以继续聊天。' : '好友请求已发送，等待对方接受。'),
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('send friend request failed: $e\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('发送好友请求失败: $e')),

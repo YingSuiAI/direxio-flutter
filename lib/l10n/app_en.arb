@@ -20,6 +20,7 @@
   "settingsFavorites": "Favorites",
   "settingsPrivacySecurity": "Privacy & Security",
   "settingsBlacklist": "Blocked Contacts",
+  "settingsChangePassword": "Change Password",
   "settingsMessagesNotifications": "Messages & Notifications",
   "settingsDoNotDisturb": "Do Not Disturb",
   "settingsMessageSound": "New Message Sound",
@@ -90,5 +91,29 @@
   "meQrHint": "Scan this QR code to add me as a friend.",
   "meQrSaveToAlbum": "Save to Photos",
   "meQrSaveTodo": "Save to Photos is not connected yet",
-  "meQrUnconnectedDomain": "No connected domain"
+  "meQrUnconnectedDomain": "No connected domain",
+  "groupInviteTitle": "Group invitation",
+  "groupInviteJoining": "Joining \"{groupName}\"",
+  "@groupInviteJoining": {
+    "placeholders": {
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInviteBody": "{inviter} invited you to join \"{groupName}\"",
+  "@groupInviteBody": {
+    "placeholders": {
+      "inviter": {
+        "type": "String"
+      },
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInviteFallbackInviter": "They",
+  "groupInviteJoinButton": "Join Group",
+  "groupInviteJoiningButton": "Joining…",
+  "groupInviteAlreadyJoined": "You are already in this group"
 }

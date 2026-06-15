@@ -4,6 +4,14 @@ import 'dart:developer' as developer;
 class ApiLogger {
   const ApiLogger._();
 
+  static void info(String message) {
+    developer.log(
+      message,
+      name: 'portal.api',
+      level: 800,
+    );
+  }
+
   static void response({
     required String service,
     required String method,

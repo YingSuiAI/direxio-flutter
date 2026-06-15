@@ -20,6 +20,7 @@ class ChatMediaAttachment {
     required this.name,
     required this.bytes,
     this.mimeType = '',
+    this.original = false,
     this.thumbnailBytes,
     this.thumbnailMimeType = '',
     this.width = 0,
@@ -31,12 +32,14 @@ class ChatMediaAttachment {
     required String name,
     required List<int> bytes,
     String mimeType = '',
+    bool original = false,
   }) {
     return ChatMediaAttachment._(
       kind: ChatMediaKind.image,
       name: name,
       bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
       mimeType: mimeType,
+      original: original,
     );
   }
 
@@ -99,6 +102,7 @@ class ChatMediaAttachment {
   final String name;
   final Uint8List bytes;
   final String mimeType;
+  final bool original;
   final Uint8List? thumbnailBytes;
   final String thumbnailMimeType;
   final int width;

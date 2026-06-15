@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../../data/as_client.dart';
-import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../channel/channel_inbox_data.dart';
 import '../providers/as_client_provider.dart';
@@ -18,8 +17,6 @@ import '../mock/mock_channels.dart';
 import '../mock/mock_data.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
-import '../widgets/m3/glass_header.dart';
-import '../widgets/m3/m3_card.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -30,6 +27,7 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final _ctrl = TextEditingController();
+  final _focusNode = FocusNode();
   Timer? _debounce;
   List<_GlobalSearchResult> _results = [];
   bool _loading = false;
@@ -96,60 +94,57 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void dispose() {
     _debounce?.cancel();
     _ctrl.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     return Scaffold(
+      backgroundColor: _searchPageBg,
       body: Column(
         children: [
-          GlassHeader.detail(title: '搜索'),
+          _SearchToolbar(onBack: () => context.pop()),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: M3InputField(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: _SearchInput(
               controller: _ctrl,
-              icon: Symbols.search,
-              hint: '搜索消息、联系人、群聊、频道',
-              autofocus: true,
+              focusNode: _focusNode,
               onChanged: _onChanged,
             ),
           ),
-          Expanded(child: _buildBody(t)),
+          Expanded(child: _buildBody()),
         ],
       ),
     );
   }
 
-  Widget _buildBody(PortalTokens t) {
+  Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_lastQuery.isEmpty) {
-      return Center(
-        child: Text(
-          '输入关键词开始搜索',
-          style: AppTheme.sans(size: 13, color: t.textMute),
+      return const Center(
+        child: SizedBox.square(
+          dimension: 22,
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );
+    }
+    if (_lastQuery.isEmpty) {
+      return const SizedBox.shrink();
     }
     if (_results.isEmpty) {
       return Center(
         child: Text(
           '没有找到包含「$_lastQuery」的内容',
-          style: AppTheme.sans(size: 13, color: t.textMute),
+          style: AppTheme.sans(size: 13, color: _searchMuted),
         ),
       );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       itemCount: _results.length,
-      separatorBuilder: (_, __) =>
-          Divider(height: 1, color: t.border, indent: 16),
       itemBuilder: (context, i) {
         final r = _results[i];
-        return _SearchResultTile(result: r);
+        return _SearchResultTile(result: r, query: _lastQuery);
       },
     );
   }
@@ -341,6 +336,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 }
 
+const _searchPageBg = Color(0xFFEFEFF3);
+const _searchText = Color(0xFF262628);
+const _searchMuted = Color(0xFFA3A3A4);
+const _searchBorder = Color(0xFFE6E6E6);
+const _searchBrand = Color(0xFF3097CB);
+const _searchInputBg = Color(0x1F767680);
+const _searchToolbarHeight = 48.0;
+const _searchInputHeight = 36.0;
+
 String _fallbackDomain(Client client) {
   final userId = client.userID ?? '';
   final idx = userId.lastIndexOf(':');
@@ -424,46 +428,274 @@ class _GlobalSearchResult {
 }
 
 class _SearchResultTile extends StatelessWidget {
-  const _SearchResultTile({required this.result});
+  const _SearchResultTile({required this.result, required this.query});
+
+  final _GlobalSearchResult result;
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: result.route == null
+            ? () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('频道详情功能待接入')),
+                )
+            : () => context.push(result.route!),
+        child: SizedBox(
+          height: 52,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: _searchBorder, width: 0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                _ResultThumbnail(result: result),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _HighlightedResultTitle(
+                        text: result.title,
+                        query: query,
+                      ),
+                      if (result.subtitle.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          result.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(size: 12, color: _searchMuted)
+                              .copyWith(letterSpacing: 0),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (result.timestamp != null) ...[
+                  const SizedBox(width: 8),
+                  Text(
+                    DateFormat('MM-dd HH:mm').format(result.timestamp!),
+                    style: AppTheme.sans(size: 11, color: _searchMuted),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchToolbar extends StatelessWidget {
+  const _SearchToolbar({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: _searchToolbarHeight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _SearchBackButton(onTap: onBack),
+              ),
+              Text(
+                '搜索',
+                style: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w600,
+                  color: _searchText,
+                ).copyWith(letterSpacing: 0),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchBackButton extends StatelessWidget {
+  const _SearchBackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 36,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.65),
+          child: InkWell(
+            onTap: onTap,
+            child: const SizedBox.square(
+              dimension: 40,
+              child: Icon(Symbols.arrow_back, size: 24, color: _searchText),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchInput extends StatelessWidget {
+  const _SearchInput({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _searchInputHeight,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: _searchInputBg,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: TextField(
+          controller: controller,
+          focusNode: focusNode,
+          autofocus: true,
+          cursorColor: _searchBrand,
+          textInputAction: TextInputAction.search,
+          onChanged: onChanged,
+          style: AppTheme.sans(
+            size: 16,
+            weight: FontWeight.w500,
+            color: _searchBrand,
+          ).copyWith(letterSpacing: 0),
+          decoration: InputDecoration(
+            isCollapsed: true,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            hintText: '搜索',
+            hintStyle: AppTheme.sans(size: 16, color: _searchMuted),
+            prefixIcon: const Icon(
+              Symbols.search,
+              size: 16,
+              color: _searchMuted,
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 32,
+              minHeight: _searchInputHeight,
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(0, 8, 12, 8),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResultThumbnail extends StatelessWidget {
+  const _ResultThumbnail({required this.result});
 
   final _GlobalSearchResult result;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: t.surfaceHover,
-        child: Icon(result.icon, size: 18, color: t.textMute),
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: _thumbnailColor(result.type),
+        borderRadius: BorderRadius.circular(5.6),
       ),
-      title: Text(
-        result.title,
-        style: AppTheme.sans(
-          size: 14,
-          weight: FontWeight.w600,
-          color: t.text,
-        ),
-      ),
-      subtitle: Text(
-        result.subtitle,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: AppTheme.sans(size: 12, color: t.textMute),
-      ),
-      trailing: result.timestamp == null
-          ? Text(result.label,
-              style: AppTheme.mono(size: 10, color: t.textMute))
-          : Text(
-              DateFormat('MM-dd HH:mm').format(result.timestamp!),
-              style: AppTheme.mono(size: 10, color: t.textMute),
-            ),
-      onTap: result.route == null
-          ? () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('频道详情功能待接入')),
-              )
-          : () => context.push(result.route!),
+      alignment: Alignment.center,
+      child: Icon(result.icon, size: 17, color: Colors.white),
     );
   }
+}
+
+Color _thumbnailColor(_SearchResultType type) {
+  return switch (type) {
+    _SearchResultType.message => const Color(0xFF5AC8FA),
+    _SearchResultType.contact => const Color(0xFF3097CB),
+    _SearchResultType.group => const Color(0xFF6F4CE6),
+    _SearchResultType.channel => const Color(0xFF1FAF71),
+  };
+}
+
+class _HighlightedResultTitle extends StatelessWidget {
+  const _HighlightedResultTitle({required this.text, required this.query});
+
+  final String text;
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    final spans = _highlightSpans(text, query);
+    return Text.rich(
+      TextSpan(children: spans),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppTheme.sans(
+        size: 16,
+        weight: FontWeight.w500,
+        color: _searchText,
+      ).copyWith(letterSpacing: 0),
+    );
+  }
+}
+
+List<TextSpan> _highlightSpans(String text, String query) {
+  final q = query.trim();
+  if (q.isEmpty) return [TextSpan(text: text)];
+  final lowerText = text.toLowerCase();
+  final lowerQuery = q.toLowerCase();
+  final spans = <TextSpan>[];
+  var start = 0;
+  while (start < text.length) {
+    final index = lowerText.indexOf(lowerQuery, start);
+    if (index < 0) {
+      spans.add(TextSpan(text: text.substring(start)));
+      break;
+    }
+    if (index > start) {
+      spans.add(TextSpan(text: text.substring(start, index)));
+    }
+    final end = index + q.length;
+    spans.add(
+      TextSpan(
+        text: text.substring(index, end),
+        style: const TextStyle(color: _searchBrand),
+      ),
+    );
+    start = end;
+  }
+  return spans.isEmpty ? [TextSpan(text: text)] : spans;
 }
 
 bool _isSearchableMessage(Event event) {

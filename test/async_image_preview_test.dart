@@ -106,6 +106,40 @@ void main() {
     expect(find.byIcon(Symbols.forward), findsNothing);
     expect(find.byIcon(Symbols.download), findsNothing);
   });
+
+  testWidgets('shows bottom download action when provided', (tester) async {
+    var downloads = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return TextButton(
+              onPressed: () {
+                unawaited(showAsyncImagePreview(
+                  context,
+                  loadProvider: () async => MemoryImage(_transparentPng),
+                  meta: '我 · 16:25',
+                  onDownload: () async => downloads++,
+                ));
+              },
+              child: const Text('open'),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Symbols.download), findsOneWidget);
+
+    await tester.tap(find.byIcon(Symbols.download));
+    await tester.pumpAndSettle();
+
+    expect(downloads, 1);
+    expect(find.byIcon(Symbols.check), findsOneWidget);
+  });
 }
 
 final _transparentPng = Uint8List.fromList([

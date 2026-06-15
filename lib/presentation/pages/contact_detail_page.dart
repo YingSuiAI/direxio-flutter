@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:share_plus/share_plus.dart';
@@ -65,8 +66,8 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final canOpenChat = canUseRealRoom || canUseMock;
     final acceptedContact = acceptedContactForUser ??
         (room == null ? null : syncCache.acceptedContactForRoom(room.id));
-    final localpart = _localpartFromMxid(userId);
     final domain = userId.contains(':') ? userId.split(':').last : userId;
+    final uidDomain = _contactDomain(userId, acceptedContact?.domain);
     final displayName = contactDisplayNameFromIdentity(
       mxid: userId,
       displayName: acceptedContact?.displayName ??
@@ -76,7 +77,6 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       domain: acceptedContact?.domain ?? domain,
       fallback: mock?.name ?? userId,
     );
-    final uid = _uidFromUserId(userId, localpart);
     final peerMember = room?.unsafeGetUserFromMemoryOrFallback(userId);
     final avatarUrl = avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
         (room == null
@@ -106,7 +106,8 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     _UserHeader(
                       name: displayName,
                       badge: _roleBadge(acceptedContact?.domain),
-                      uid: uid,
+                      uid: uidDomain,
+                      onUidTap: () => _copyUid(context, uidDomain),
                       avatarUrl: avatarUrl,
                       seed: userId,
                     ),
@@ -319,6 +320,12 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     await Share.share('推荐联系人：$name\n$userId');
   }
 
+  Future<void> _copyUid(BuildContext context, String uid) async {
+    await Clipboard.setData(ClipboardData(text: uid));
+    if (!context.mounted) return;
+    _toast(context, '已复制 UID');
+  }
+
   Future<void> _deleteContact(BuildContext context, String roomId) async {
     final client = ref.read(matrixClientProvider);
     try {
@@ -401,6 +408,7 @@ class _UserHeader extends StatelessWidget {
     required this.name,
     required this.badge,
     required this.uid,
+    required this.onUidTap,
     required this.seed,
     this.avatarUrl,
   });
@@ -408,6 +416,7 @@ class _UserHeader extends StatelessWidget {
   final String name;
   final String badge;
   final String uid;
+  final VoidCallback onUidTap;
   final String seed;
   final String? avatarUrl;
 
@@ -446,11 +455,15 @@ class _UserHeader extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(
-                'UID $uid',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.sans(size: 14, color: t.textMute),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onUidTap,
+                child: Text(
+                  'UID $uid',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(size: 14, color: t.textMute),
+                ),
               ),
             ],
           ),
@@ -1008,22 +1021,14 @@ class _ReportRadio extends StatelessWidget {
   }
 }
 
-String _localpartFromMxid(String userId) {
-  if (userId.startsWith('@') && userId.contains(':')) {
-    return userId.substring(1, userId.indexOf(':'));
+String _contactDomain(String userId, String? domain) {
+  final value = domain?.trim() ?? '';
+  if (value.isNotEmpty) return value;
+  final idx = userId.indexOf(':');
+  if (idx >= 0 && idx < userId.length - 1) {
+    return userId.substring(idx + 1);
   }
   return userId;
-}
-
-String _uidFromUserId(String userId, String localpart) {
-  final digits =
-      RegExp(r'\d+').allMatches(userId).map((match) => match.group(0)!).join();
-  if (digits.length >= 6) return digits;
-  final hash = userId.codeUnits.fold<int>(0, (value, unit) => value + unit);
-  return '${localpart.hashCode.abs()}$hash'
-      .replaceAll('-', '')
-      .padRight(10, '0')
-      .substring(0, 10);
 }
 
 String _roleBadge(String? domain) {

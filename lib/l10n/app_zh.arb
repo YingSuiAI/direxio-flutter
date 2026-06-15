@@ -23,6 +23,7 @@
   "settingsFavorites": "收藏",
   "settingsPrivacySecurity": "隐私与安全",
   "settingsBlacklist": "通讯录黑名单",
+  "settingsChangePassword": "修改密码",
   "settingsMessagesNotifications": "消息与通知",
   "settingsDoNotDisturb": "勿扰模式",
   "settingsMessageSound": "新消息提示音",
@@ -93,5 +94,29 @@
   "meQrHint": "扫一扫上面的二维码图案，加我为好友。",
   "meQrSaveToAlbum": "保存到相册",
   "meQrSaveTodo": "保存到相册功能待接入",
-  "meQrUnconnectedDomain": "未连接域名"
+  "meQrUnconnectedDomain": "未连接域名",
+  "groupInviteTitle": "邀请加入群聊",
+  "groupInviteJoining": "正在加入“{groupName}”",
+  "@groupInviteJoining": {
+    "placeholders": {
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInviteBody": "{inviter} 邀请你加入“{groupName}”",
+  "@groupInviteBody": {
+    "placeholders": {
+      "inviter": {
+        "type": "String"
+      },
+      "groupName": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInviteFallbackInviter": "对方",
+  "groupInviteJoinButton": "加入群聊",
+  "groupInviteJoiningButton": "加入中…",
+  "groupInviteAlreadyJoined": "已在群里中"
 }

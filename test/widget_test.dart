@@ -25,6 +25,7 @@ import 'package:portal_app/presentation/pages/add_contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_verification_page.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
+import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/pages/chat_info_page.dart';
 import 'package:portal_app/presentation/pages/chat_page.dart';
 import 'package:portal_app/presentation/pages/contact_detail_page.dart';
@@ -36,6 +37,7 @@ import 'package:portal_app/presentation/mock/mock_data.dart';
 import 'package:portal_app/presentation/pages/home_page.dart';
 import 'package:portal_app/presentation/pages/group_chat_page.dart';
 import 'package:portal_app/presentation/pages/group_detail_page.dart';
+import 'package:portal_app/presentation/pages/group_info_page.dart';
 import 'package:portal_app/presentation/pages/group_manage_page.dart';
 import 'package:portal_app/presentation/pages/groups_list_page.dart';
 import 'package:portal_app/presentation/pages/me_account_page.dart';
@@ -144,10 +146,12 @@ class _EmptyAsClient implements AsClient {
   Future<void> addFollow(String domain) async {}
 
   @override
-  Future<void> changePortalPassword({
+  Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,
-  }) async {}
+  }) async {
+    throw UnsupportedError('Test AS fake does not issue auth tokens');
+  }
 
   @override
   Future<AsCallSession> createCall({
@@ -3281,8 +3285,10 @@ void main() {
     expect(find.text('关注'), findsNothing);
     expect(find.text('Agent'), findsNothing);
     expect(find.byType(PageView), findsNothing);
-    expect(find.text('我的频道'), findsOneWidget);
-    expect(find.text('owner'), findsOneWidget);
+    expect(find.text('已加入'), findsOneWidget);
+    expect(find.text('频道列表'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('#新手问答'), findsOneWidget);
     expect(find.text('草稿箱'), findsNothing);
     expect(find.byIcon(Symbols.search), findsOneWidget);
     expect(find.byKey(const ValueKey('channel_post_button')), findsOneWidget);
@@ -3309,6 +3315,63 @@ void main() {
     expect(find.byKey(const ValueKey('channel_search_button')), findsOneWidget);
     expect(find.byKey(const ValueKey('channel_filter_bar')), findsOneWidget);
     expect(find.byKey(const ValueKey('channel_post_button')), findsOneWidget);
+  });
+
+  testWidgets('channel search page matches figma empty state', (tester) async {
+    final client = Client('PortalIMChannelSearchTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child:
+            MaterialApp(theme: AppTheme.light, home: const ChannelSearchPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('搜索频道...'), findsOneWidget);
+    expect(find.text('搜索频道'), findsOneWidget);
+    expect(find.text('输入关键词查找感兴趣的频道'), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_back), findsOneWidget);
+    expect(find.byIcon(Symbols.search), findsWidgets);
+  });
+
+  testWidgets('create channel entry opens figma form', (tester) async {
+    final client = Client('PortalIMCreateChannelTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('channel_post_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('创建频道'), findsWidgets);
+    expect(find.text('频道名称'), findsOneWidget);
+    expect(find.text('输入频道名称'), findsOneWidget);
+    expect(find.text('上传频道头像'), findsOneWidget);
+    expect(find.text('选择头像'), findsOneWidget);
+    expect(find.text('选择频道类型'), findsOneWidget);
+    expect(find.text('文字'), findsAtLeastNWidgets(1));
+    expect(find.text('帖子'), findsAtLeastNWidgets(1));
+    await tester.drag(find.byType(ListView).last, const Offset(0, -260));
+    await tester.pump();
+    expect(find.text('频道权限'), findsOneWidget);
+    expect(find.text('是否公开'), findsOneWidget);
+    expect(find.text('加入是否需要审核'), findsOneWidget);
   });
 
   testWidgets('home plus menu has the unified action order', (tester) async {
@@ -3341,6 +3404,35 @@ void main() {
     expect(positions, orderedEquals([...positions]..sort()));
   });
 
+  testWidgets('home plus menu uses dark surface in dark mode', (tester) async {
+    final client = Client('PortalIMHomePlusDarkTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.dark, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Symbols.add));
+    await tester.pumpAndSettle();
+
+    final panel = tester.widget<Container>(
+      find.byKey(const ValueKey('home_plus_menu_panel')),
+    );
+    final decoration = panel.decoration! as BoxDecoration;
+    expect(
+      decoration.color,
+      PortalTokens.dark.surfaceHigh.withValues(alpha: 0.86),
+    );
+    expect(find.text('添加好友'), findsOneWidget);
+  });
+
   testWidgets('home plus group creation uses accepted contacts and opens group',
       (tester) async {
     final asClient = _TrackingAsClient();
@@ -3357,7 +3449,7 @@ void main() {
         AsSyncContact(
           userId: '@alice:p2p-liyanan.com',
           displayName: 'Alice Chen',
-          avatarUrl: '',
+          avatarUrl: 'https://example.com/alice.png',
           roomId: '!alice:p2p-im.com',
           domain: 'p2p-liyanan.com',
           status: 'accepted',
@@ -3381,8 +3473,10 @@ void main() {
         GoRoute(path: '/home', builder: (_, __) => const HomePage()),
         GoRoute(
           path: '/group/:roomId',
-          builder: (_, state) => GroupChatPage(
-            roomId: state.pathParameters['roomId']!,
+          builder: (_, state) => Scaffold(
+            body: Text(
+              'group:${state.pathParameters['roomId']!}',
+            ),
           ),
         ),
       ],
@@ -3418,27 +3512,32 @@ void main() {
 
     await tester.tap(find.byIcon(Symbols.add));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('发起群聊'));
+    await tester.tap(find.text('创建群聊').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('选择成员'), findsOneWidget);
+    expect(find.text('发起群聊'), findsOneWidget);
     expect(find.text('Alice Chen'), findsWidgets);
     expect(find.text('Pending User'), findsNothing);
+    expect(
+      tester
+          .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+          .any((avatar) => avatar.imageUrl == 'https://example.com/alice.png'),
+      isTrue,
+    );
 
-    await tester.enterText(find.byType(TextField).last, '首页群');
     await tester.tap(find.text('Alice Chen').last);
     await tester.pump();
-    await tester.tap(find.text('创建'));
+    await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
     await tester.pumpAndSettle();
 
-    expect(asClient.createdGroupName, '首页群');
+    expect(asClient.createdGroupName, 'Alice Chen的群聊');
     expect(asClient.createdGroupInvites, ['@alice:p2p-liyanan.com']);
     expect(find.text('群组不存在'), findsNothing);
-    expect(find.text('首页群'), findsOneWidget);
+    expect(find.text('group:!new-group:p2p-im.com'), findsOneWidget);
   });
 
   testWidgets('missing group page keeps a usable back button', (tester) async {
@@ -4408,6 +4507,47 @@ void main() {
     expect(find.text('好友验证'), findsNothing);
   });
 
+  testWidgets('add contact verification page uses dark tokens in dark mode',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const AddContactVerificationPage(
+            userId: '@alice:portal.local',
+            displayName: 'Alice Chen',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final scaffold = tester.widget<Scaffold>(
+      find.byKey(const ValueKey('add_contact_verification_scaffold')),
+    );
+    final card = tester.widget<Container>(
+      find.byKey(const ValueKey('add_contact_verification_card')),
+    );
+    final messageBox = tester.widget<Container>(
+      find.byKey(const ValueKey('add_contact_verification_message_box')),
+    );
+    final cardDecoration = card.decoration! as BoxDecoration;
+    final messageDecoration = messageBox.decoration! as BoxDecoration;
+
+    expect(scaffold.backgroundColor, PortalTokens.dark.surfaceHover);
+    expect(cardDecoration.color, PortalTokens.dark.surface);
+    expect(messageDecoration.color, PortalTokens.dark.surfaceHover);
+    expect(find.text('好友验证'), findsOneWidget);
+  });
+
   testWidgets('add contact search detail can request friend', (tester) async {
     final client = Client(
       'PortalIMAddContactInboundRequestTest',
@@ -4710,7 +4850,7 @@ void main() {
         AsSyncContact(
           userId: '@alice:p2p-liyanan.com',
           displayName: 'Alice Chen',
-          avatarUrl: '',
+          avatarUrl: 'https://example.com/alice.png',
           roomId: '!alice:p2p-im.com',
           domain: 'p2p-liyanan.com',
           status: 'accepted',
@@ -4718,7 +4858,7 @@ void main() {
         AsSyncContact(
           userId: '@bob:p2p-liyanan.com',
           displayName: 'Bob Lin',
-          avatarUrl: '',
+          avatarUrl: 'https://example.com/bob.png',
           roomId: '!bob:p2p-im.com',
           domain: 'p2p-liyanan.com',
           status: 'accepted',
@@ -4775,19 +4915,28 @@ void main() {
     await tester.tap(find.byIcon(Symbols.group_add));
     await tester.pumpAndSettle();
 
-    expect(find.text('选择成员'), findsOneWidget);
+    expect(find.text('发起群聊'), findsOneWidget);
     expect(find.text('Alice Chen'), findsOneWidget);
     expect(find.text('Bob Lin'), findsOneWidget);
     expect(find.text('Pending User'), findsNothing);
+    final avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
+    expect(
+      avatars
+          .any((avatar) => avatar.imageUrl == 'https://example.com/alice.png'),
+      isTrue,
+    );
+    expect(
+      avatars.any((avatar) => avatar.imageUrl == 'https://example.com/bob.png'),
+      isTrue,
+    );
 
-    await tester.enterText(find.byType(TextField).last, '测试群');
     await tester.tap(find.text('Alice Chen'));
     await tester.tap(find.text('Bob Lin'));
     await tester.pump();
-    await tester.tap(find.text('创建'));
+    await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
 
-    expect(asClient.createdGroupName, '测试群');
+    expect(asClient.createdGroupName, 'Alice Chen、Bob Lin的群聊');
     expect(
       asClient.createdGroupInvites,
       ['@alice:p2p-liyanan.com', '@bob:p2p-liyanan.com'],
@@ -4867,6 +5016,8 @@ void main() {
     expect(find.text('Alice'), findsOneWidget);
     expect(find.text('Carol'), findsNothing);
     expect(find.text('群管理'), findsNothing);
+    expect(find.text('群公告'), findsNothing);
+    expect(find.text('设置当前聊天背景'), findsNothing);
   });
 
   testWidgets('group detail keeps management visible for group owner',
@@ -4894,6 +5045,8 @@ void main() {
 
     expect(find.text('聊天信息(2)'), findsOneWidget);
     expect(find.text('群管理'), findsOneWidget);
+    expect(find.text('群公告'), findsNothing);
+    expect(find.text('设置当前聊天背景'), findsNothing);
   });
 
   testWidgets('group detail leaves through AS and refreshes bootstrap',
@@ -5080,6 +5233,82 @@ void main() {
     expect(asClient.invitedGroupRoomId, '!group:p2p-im.com');
     expect(asClient.invitedGroupMembers, ['@carol:p2p-carol.com']);
     expect(find.text('已发送 1 个群邀请'), findsOneWidget);
+  });
+
+  testWidgets('group info invite button posts member invites through AS',
+      (tester) async {
+    final client = Client('PortalIMGroupInfoInviteAsTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-liyanan.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 15, 9),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@carol:p2p-carol.com',
+          displayName: 'Carol',
+          avatarUrl: '',
+          roomId: '!carol:p2p-im.com',
+          domain: 'p2p-carol.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('邀请'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Carol'));
+    await tester.pump();
+    await tester.tap(find.text('发送邀请'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.inviteGroupMembersCalls, 1);
+    expect(asClient.invitedGroupRoomId, '!group:p2p-im.com');
+    expect(asClient.invitedGroupMembers, ['@carol:p2p-carol.com']);
   });
 
   testWidgets('group detail shows owner-admin invite permission failure',
@@ -5291,6 +5520,51 @@ void main() {
     expect(asClient.sendRoomMessageCalls, 1);
     expect(asClient.sentRoomId, '!group:p2p-im.com');
     expect(asClient.sentContent, '群聊走 AS');
+  });
+
+  testWidgets('group chat recovers when Matrix room cache is missing',
+      (tester) async {
+    final client = Client('PortalIMGroupChatMissingRoomRecoveryTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('真实群'), findsOneWidget);
+    expect(find.text('正在恢复群聊...'), findsOneWidget);
+    expect(find.text('这个群聊暂时无法打开'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('group chat header opens active group call from title capsule',
@@ -6181,21 +6455,20 @@ void main() {
     expect(find.text('搜索频道、群体、话题'), findsNothing);
     expect(find.textContaining('推荐频道'), findsNothing);
     expect(find.text('关注'), findsNothing);
-    for (final label in ['全部', '我的频道']) {
+    for (final label in ['已加入', '频道列表', '全部']) {
       expect(find.text(label), findsOneWidget);
     }
-    expect(find.text('已加入'), findsNothing);
+    expect(find.text('文字'), findsAtLeastNWidgets(1));
+    expect(find.text('帖子'), findsAtLeastNWidgets(1));
     expect(find.text('草稿'), findsNothing);
 
-    expect(find.text('owner'), findsOneWidget);
-    expect(find.text('产品频道'), findsOneWidget);
-    expect(find.text('设计频道'), findsOneWidget);
-    expect(find.text('Agent 通知'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('#新手问答'), findsOneWidget);
     expect(find.text('草稿箱'), findsNothing);
-    expect(find.textContaining('后端部署清单已更新'), findsOneWidget);
+    expect(find.text('自由讨论、技术交流与闲聊'), findsOneWidget);
 
-    final firstTop = tester.getTopLeft(find.text('owner')).dy;
-    final secondTop = tester.getTopLeft(find.text('产品频道')).dy;
+    final firstTop = tester.getTopLeft(find.text('#综合讨论')).dy;
+    final secondTop = tester.getTopLeft(find.text('#新手问答')).dy;
     expect(firstTop, lessThan(secondTop));
   });
 
@@ -6251,14 +6524,11 @@ void main() {
 
     expect(find.byKey(const ValueKey('bottom_nav_badge_频道')), findsNothing);
 
-    final unreadFinder =
-        find.byKey(const ValueKey('channel_unread_count_ch_updates'));
-    expect(unreadFinder, findsOneWidget);
-    final unreadText = tester.widget<Text>(unreadFinder);
-    expect(unreadText.data, '12');
+    expect(find.byKey(const ValueKey('channel_unread_count_ch_updates')),
+        findsNothing);
   });
 
-  testWidgets('channel tab filters owned channels separately', (tester) async {
+  testWidgets('channel tab switches to discover channel list', (tester) async {
     final client = Client('PortalIMTest');
 
     await tester.pumpWidget(
@@ -6274,12 +6544,14 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('我的频道'));
+    await tester.tap(find.text('频道列表'));
     await tester.pump();
 
-    expect(find.text('owner'), findsOneWidget);
-    expect(find.text('草稿箱'), findsNothing);
-    expect(find.text('产品频道'), findsNothing);
+    expect(find.text('#前端开发者'), findsOneWidget);
+    expect(find.text('#AI 产品研究'), findsOneWidget);
+    expect(find.text('加入'), findsWidgets);
+    expect(find.text('申请'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsNothing);
   });
 
   testWidgets('channel filters use fixed figma segments', (tester) async {
@@ -6305,10 +6577,11 @@ void main() {
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
 
-    for (final label in ['全部', '我的频道']) {
+    for (final label in ['已加入', '频道列表', '全部']) {
       expect(find.text(label), findsOneWidget);
     }
-    expect(find.text('已加入'), findsNothing);
+    expect(find.text('文字'), findsAtLeastNWidgets(1));
+    expect(find.text('帖子'), findsAtLeastNWidgets(1));
     expect(find.text('草稿'), findsNothing);
     expect(find.text('活动'), findsNothing);
     expect(find.text('节点'), findsNothing);
@@ -6346,7 +6619,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('owner').last);
+    await tester.tap(find.text('#综合讨论').last);
     await tester.pumpAndSettle();
 
     expect(find.text('p2p-im.com · 我的频道'), findsOneWidget);
@@ -6557,6 +6830,27 @@ void main() {
   });
 
   testWidgets('contact detail shows user info actions', (tester) async {
+    var clipboardText = '';
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardText = (call.arguments as Map)['text'] as String? ?? '';
+            return null;
+          case 'Clipboard.getData':
+            return {'text': clipboardText};
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -6578,6 +6872,14 @@ void main() {
     expect(find.text('屏蔽用户'), findsOneWidget);
     expect(find.text('举报用户'), findsOneWidget);
     expect(find.text('删除好友'), findsOneWidget);
+    expect(find.text('UID portal.local'), findsOneWidget);
+
+    await tester.tap(find.text('UID portal.local'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('已复制 UID'), findsOneWidget);
+    final copied = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copied?.text, 'portal.local');
   });
 
   testWidgets(
@@ -7169,7 +7471,7 @@ void main() {
     expect(find.text('我的点赞'), findsOneWidget);
     expect(find.text('我的评论'), findsOneWidget);
     expect(find.text('草稿箱'), findsOneWidget);
-    expect(find.text('浏览记录'), findsOneWidget);
+    expect(find.text('浏览记录'), findsNothing);
     expect(find.text('我的钱包'), findsOneWidget);
     expect(find.text('通用设置'), findsOneWidget);
 

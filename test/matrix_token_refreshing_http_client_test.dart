@@ -69,6 +69,41 @@ void main() {
     expect(refreshes, 0);
   });
 
+  test('notifies auth failure when refreshed Matrix token is rejected',
+      () async {
+    var calls = 0;
+    var authFailures = 0;
+    final client = MatrixTokenRefreshingHttpClient(
+      inner: MockClient((request) async {
+        calls += 1;
+        return http.Response(
+          jsonEncode({
+            'errcode': 'M_UNKNOWN_TOKEN',
+            'error': 'Unknown token',
+          }),
+          401,
+        );
+      }),
+    );
+    client.refreshAccessToken = () async => 'new-token';
+    client.onAuthenticationFailed = () async {
+      authFailures += 1;
+    };
+
+    final request = http.Request(
+      'GET',
+      Uri.parse('https://example.com/_matrix/client/v3/sync'),
+    )..headers['authorization'] = 'Bearer old-token';
+
+    final response = await client.send(request);
+    final body = await response.stream.bytesToString();
+
+    expect(response.statusCode, 401);
+    expect(jsonDecode(body), containsPair('errcode', 'M_UNKNOWN_TOKEN'));
+    expect(calls, 2);
+    expect(authFailures, 1);
+  });
+
   test('retries Matrix media upload after transient header close', () async {
     var calls = 0;
     final client = MatrixTokenRefreshingHttpClient(

@@ -18,9 +18,13 @@ class HttpAsClient implements AsClient {
     required Uri baseUri,
     String? portalToken,
     String? accessToken,
+    String authSource = 'portal_token',
+    String? matrixAccessTokenForDebug,
     http.Client? httpClient,
   })  : _baseUri = _normalizeBaseUri(baseUri),
         _portalToken = _requireToken(portalToken ?? accessToken),
+        _authSource = authSource,
+        _matrixAccessTokenForDebug = matrixAccessTokenForDebug,
         _http = httpClient ?? http.Client();
 
   factory HttpAsClient.fromPortalSession(
@@ -35,6 +39,8 @@ class HttpAsClient implements AsClient {
     return HttpAsClient(
       baseUri: baseUri ?? defaultAdminBaseUri(homeserver),
       portalToken: portalToken,
+      authSource: 'portal_token',
+      matrixAccessTokenForDebug: client.accessToken,
       httpClient: client.httpClient,
     );
   }
@@ -50,12 +56,16 @@ class HttpAsClient implements AsClient {
     return HttpAsClient(
       baseUri: baseUri ?? defaultAdminBaseUri(homeserver),
       accessToken: token,
+      authSource: 'matrix_access_token',
+      matrixAccessTokenForDebug: token,
       httpClient: client.httpClient,
     );
   }
 
   final Uri _baseUri;
   final String _portalToken;
+  final String? _authSource;
+  final String? _matrixAccessTokenForDebug;
   final http.Client _http;
 
   static const _timeout = Duration(seconds: 10);
@@ -270,17 +280,39 @@ class HttpAsClient implements AsClient {
     String displayName = '',
     String domain = '',
   }) async {
-    final body = await _requestJson(
-      'POST',
-      'contacts/requests',
-      body: {
-        'mxid': mxid.trim(),
-        if (displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
-        if (domain.trim().isNotEmpty) 'domain': domain.trim(),
-      },
-      allowedStatusCodes: const {200},
+    final requestBody = {
+      'mxid': mxid.trim(),
+      if (displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
+      if (domain.trim().isNotEmpty) 'domain': domain.trim(),
+    };
+    ApiLogger.info(
+      '[AS admin] friend request params '
+      'auth_source=$_authSourceLabel '
+      'params=${jsonEncode(requestBody)}',
     );
-    return ContactEntry.fromJson(body);
+    try {
+      final body = await _requestJson(
+        'POST',
+        'contacts/requests',
+        body: requestBody,
+        allowedStatusCodes: const {200},
+      );
+      final contact = ContactEntry.fromJson(body);
+      ApiLogger.info(
+        '[AS admin] friend request result '
+        'status=ok '
+        'result=${jsonEncode(_contactEntryLogJson(contact))}',
+      );
+      return contact;
+    } catch (error) {
+      ApiLogger.info(
+        '[AS admin] friend request result '
+        'status=error '
+        'params=${jsonEncode(requestBody)} '
+        'error=$error',
+      );
+      rethrow;
+    }
   }
 
   @override
@@ -576,19 +608,37 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Future<void> changePortalPassword({
+  Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,
   }) async {
-    await _requestJson(
+    final matrixAccessToken = _matrixAccessTokenForDebug?.trim() ?? '';
+    if (matrixAccessToken.isEmpty) {
+      throw AsClientException(
+        'AS password request is missing matrix_access_token',
+      );
+    }
+    final response = await _requestJson(
       'PUT',
       'portal/password',
       body: {
-        'old_password': oldPassword.trim(),
-        'new_password': newPassword.trim(),
+        'admin_access_token': _portalToken.trim(),
+        'matrix_access_token': matrixAccessToken,
+        'password': newPassword.trim(),
       },
-      allowedStatusCodes: const {200, 204},
+      allowedStatusCodes: const {200},
     );
+    final session = AsPortalSession.fromJson(response);
+    if (session.matrixAccessToken.isEmpty ||
+        session.adminAccessToken.isEmpty ||
+        session.userId.isEmpty ||
+        session.homeserver.isEmpty) {
+      throw AsClientException(
+        'AS password response is missing matrix_access_token, '
+        'admin_access_token, user_id, or homeserver',
+      );
+    }
+    return session;
   }
 
   @override
@@ -1158,6 +1208,23 @@ class HttpAsClient implements AsClient {
       request.headers['Content-Type'] = 'application/json; charset=utf-8';
       request.body = jsonEncode(body);
     }
+    if (method == 'POST' && path == 'contacts/requests') {
+      final authorization = request.headers['Authorization'] ?? '';
+      final matrixAccessToken = _matrixAccessTokenForDebug?.trim() ?? '';
+      ApiLogger.info(
+        '[AS admin] friend request auth '
+        'authorization_present=${authorization.isNotEmpty} '
+        'bearer=${authorization.startsWith('Bearer ')} '
+        'auth_source=$_authSourceLabel '
+        'portal_token_present=${_portalToken.trim().isNotEmpty} '
+        'portal_token_length=${_portalToken.length} '
+        'matrix_access_token_present=${matrixAccessToken.isNotEmpty} '
+        'matrix_access_token_length=${matrixAccessToken.length} '
+        'authorization_matches_matrix_access_token='
+        '${authorization == 'Bearer $matrixAccessToken'} '
+        'target=${_friendRequestTarget(body)}',
+      );
+    }
     final requestBody = request.body.isEmpty ? null : request.body;
 
     final stopwatch = Stopwatch()..start();
@@ -1230,6 +1297,11 @@ class HttpAsClient implements AsClient {
       throw error;
     }
     return decoded;
+  }
+
+  String get _authSourceLabel {
+    final value = _authSource?.trim();
+    return value == null || value.isEmpty ? 'unknown' : value;
   }
 
   Uri _resolve(String path, {Map<String, String>? queryParameters}) {
@@ -1372,11 +1444,13 @@ class HttpAsClient implements AsClient {
       throw error;
     }
     final session = AsPortalSession.fromJson(decoded);
-    if (session.accessToken.isEmpty ||
+    if (session.matrixAccessToken.isEmpty ||
+        session.adminAccessToken.isEmpty ||
         session.userId.isEmpty ||
         session.homeserver.isEmpty) {
       final error = AsClientException(
-        'AS auth response is missing access_token, user_id, or homeserver',
+        'AS auth response is missing matrix_access_token, '
+        'admin_access_token, user_id, or homeserver',
         statusCode: response.statusCode,
       );
       ApiLogger.failure(
@@ -1402,33 +1476,21 @@ class HttpAsClient implements AsClient {
   }
 }
 
-class AsPortalSession {
-  const AsPortalSession({
-    required this.accessToken,
-    required this.userId,
-    required this.homeserver,
-    this.deviceId,
-    this.agentRoomId,
-    this.portalToken,
-  });
+String _friendRequestTarget(Object? body) {
+  if (body is! Map) return '<unknown>';
+  final mxid = body['mxid'];
+  if (mxid is! String || mxid.trim().isEmpty) return '<unknown>';
+  return mxid.trim();
+}
 
-  final String accessToken;
-  final String userId;
-  final String homeserver;
-  final String? deviceId;
-  final String? agentRoomId;
-  final String? portalToken;
-
-  factory AsPortalSession.fromJson(Map<String, dynamic> json) {
-    return AsPortalSession(
-      accessToken: json['access_token'] as String? ?? '',
-      userId: json['user_id'] as String? ?? '',
-      homeserver: json['homeserver'] as String? ?? '',
-      deviceId: json['device_id'] as String?,
-      agentRoomId: json['agent_room_id'] as String?,
-      portalToken: json['portal_token'] as String?,
-    );
-  }
+Map<String, dynamic> _contactEntryLogJson(ContactEntry contact) {
+  return {
+    'peer_mxid': contact.peerMxid,
+    'display_name': contact.displayName,
+    'domain': contact.domain,
+    'room_id': contact.roomId,
+    'status': contact.status,
+  };
 }
 
 List<String> _normalizedStringList(Iterable<String> values) {

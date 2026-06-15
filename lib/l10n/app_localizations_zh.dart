@@ -69,6 +69,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsBlacklist => '通讯录黑名单';
 
   @override
+  String get settingsChangePassword => '修改密码';
+
+  @override
   String get settingsMessagesNotifications => '消息与通知';
 
   @override
@@ -242,4 +245,29 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get meQrUnconnectedDomain => '未连接域名';
+
+  @override
+  String get groupInviteTitle => '邀请加入群聊';
+
+  @override
+  String groupInviteJoining(String groupName) {
+    return '正在加入“$groupName”';
+  }
+
+  @override
+  String groupInviteBody(String inviter, String groupName) {
+    return '$inviter 邀请你加入“$groupName”';
+  }
+
+  @override
+  String get groupInviteFallbackInviter => '对方';
+
+  @override
+  String get groupInviteJoinButton => '加入群聊';
+
+  @override
+  String get groupInviteJoiningButton => '加入中…';
+
+  @override
+  String get groupInviteAlreadyJoined => '已在群里中';
 }

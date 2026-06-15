@@ -69,6 +69,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsBlacklist => '連絡先ブラックリスト';
 
   @override
+  String get settingsChangePassword => 'パスワードを変更';
+
+  @override
   String get settingsMessagesNotifications => 'メッセージと通知';
 
   @override
@@ -242,4 +245,29 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get meQrUnconnectedDomain => '接続済みドメインなし';
+
+  @override
+  String get groupInviteTitle => 'グループチャットへの招待';
+
+  @override
+  String groupInviteJoining(String groupName) {
+    return '「$groupName」に参加中';
+  }
+
+  @override
+  String groupInviteBody(String inviter, String groupName) {
+    return '$inviterが「$groupName」に招待しました';
+  }
+
+  @override
+  String get groupInviteFallbackInviter => '相手';
+
+  @override
+  String get groupInviteJoinButton => '参加';
+
+  @override
+  String get groupInviteJoiningButton => '参加中…';
+
+  @override
+  String get groupInviteAlreadyJoined => 'すでにこのグループに参加しています';
 }

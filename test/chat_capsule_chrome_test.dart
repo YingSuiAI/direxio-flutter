@@ -32,7 +32,7 @@ void main() {
     expect(find.text('在线'), findsOneWidget);
   });
 
-  testWidgets('chat capsule header caps action capsule at two buttons',
+  testWidgets('chat capsule header shows encryption lock next to detail',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -42,20 +42,49 @@ void main() {
             title: 'Group',
             subtitle: '3 名成员',
             onBack: () {},
+            showEncryptionIcon: true,
             leadingAvatar: const CircleAvatar(child: Text('G')),
             actions: const [
               ChatCapsuleAction(icon: Symbols.call, tooltip: '语音通话'),
-              ChatCapsuleAction(icon: Symbols.more_vert, tooltip: '详情'),
               ChatCapsuleAction(icon: Symbols.videocam, tooltip: '视频通话'),
+              ChatCapsuleAction(icon: Symbols.more_vert, tooltip: '详情'),
             ],
           ),
         ),
       ),
     );
 
-    expect(find.byTooltip('语音通话'), findsOneWidget);
+    expect(find.byTooltip('端对端加密'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('chat_header_encryption_lock')),
+      findsOneWidget,
+    );
     expect(find.byTooltip('详情'), findsOneWidget);
+    expect(find.byTooltip('语音通话'), findsNothing);
     expect(find.byTooltip('视频通话'), findsNothing);
+  });
+
+  testWidgets('chat capsule header shows status dot before online subtitle',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: ChatCapsuleHeader(
+            title: 'Agent',
+            subtitle: '在线',
+            subtitleStatus: ChatCapsuleSubtitleStatus.online,
+            onBack: () {},
+            actions: const [
+              ChatCapsuleAction(icon: Symbols.more_vert, tooltip: '详情'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('在线'), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat_header_status_dot')), findsOne);
   });
 
   testWidgets('chat capsule header title capsule can open active call',
@@ -113,14 +142,14 @@ void main() {
     final actions = tester
         .getRect(find.byKey(const ValueKey('chat_header_actions_capsule')));
 
-    expect(left.height, title.height);
-    expect(actions.height, title.height);
-    expect(left.height, 48);
+    expect(left.height, actions.height);
+    expect(left.height, 40);
+    expect(title.height, lessThanOrEqualTo(48));
 
     final titleText = tester.widget<Text>(find.text('Yanan'));
     final subtitleText = tester.widget<Text>(find.text('在线'));
-    expect(titleText.style?.fontSize, 18);
-    expect(subtitleText.style?.fontSize, 11.7);
+    expect(titleText.style?.fontSize, 16);
+    expect(subtitleText.style?.fontSize, 11);
   });
 
   testWidgets('chat capsule header keeps side capsules symmetric',
@@ -189,8 +218,8 @@ void main() {
     final titleText = tester.widget<Text>(find.text(longTitle));
     final subtitleText = tester.widget<Text>(find.text(longSubtitle));
 
-    expect(titleText.style?.fontSize, lessThan(18));
-    expect(subtitleText.style?.fontSize, lessThan(11.7));
+    expect(titleText.style?.fontSize, lessThan(16));
+    expect(subtitleText.style?.fontSize, lessThan(11));
   });
 
   testWidgets('chat capsule input switches between text and voice modes',
@@ -393,5 +422,43 @@ void main() {
         tester.getCenter(find.byKey(const ValueKey('chat_input_emoji_circle')));
 
     expect(emojiCenter.dy, input.center.dy);
+  });
+
+  testWidgets('chat capsule input shows iOS send button when text exists',
+      (tester) async {
+    final ctrl = TextEditingController();
+    addTearDown(ctrl.dispose);
+    var sent = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ChatCapsuleInputBar(
+              ctrl: ctrl,
+              onSend: () => sent++,
+              onPlus: () {},
+              onEmoji: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('chat_input_plus_circle')), findsOne);
+    expect(find.byKey(const ValueKey('chat_input_send_button')), findsNothing);
+
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('chat_input_plus_circle')), findsNothing);
+    expect(find.byKey(const ValueKey('chat_input_send_button')), findsOne);
+    expect(find.text('发送'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat_input_send_button')));
+    expect(sent, 1);
   });
 }

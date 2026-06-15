@@ -236,7 +236,12 @@ String? consumeCallAutotestInitialRouteFile() {
 
 @riverpod
 GoRouter appRouter(Ref ref) {
-  final authState = ref.watch(authStateNotifierProvider);
+  final authRefresh = ValueNotifier<int>(0);
+  ref
+    ..onDispose(authRefresh.dispose)
+    ..listen(authStateNotifierProvider, (_, __) {
+      authRefresh.value++;
+    });
   if (_callAutotestEnabled) {
     _pendingCallAutotestInitialRoute = rememberCallAutotestInitialRoute(
       previousRoute: _pendingCallAutotestInitialRoute,
@@ -252,7 +257,9 @@ GoRouter appRouter(Ref ref) {
       arguments: io.Platform.executableArguments,
       routeFileContent: _pendingCallAutotestInitialRoute,
     ),
+    refreshListenable: authRefresh,
     redirect: (context, state) {
+      final authState = ref.read(authStateNotifierProvider);
       return authRedirectLocation(
         mockAuthEnabled: _mockAuthEnabled,
         callAutotestEnabled: _callAutotestEnabled,

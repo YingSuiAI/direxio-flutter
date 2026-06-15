@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 
 import 'api_logger.dart';
 
+const _logFullTokens = bool.fromEnvironment('PORTAL_LOG_FULL_TOKENS');
+
 class MatrixTokenRefreshingHttpClient extends http.BaseClient {
   MatrixTokenRefreshingHttpClient({
     http.Client? inner,
@@ -17,6 +19,7 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
   final int uploadMaxRetries;
   final Duration uploadRetryDelay;
   Future<String?> Function()? refreshAccessToken;
+  Future<void> Function()? onAuthenticationFailed;
   Future<String?>? _refreshInFlight;
 
   http.Client get innerClient => _inner;
@@ -57,21 +60,51 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       return _rebuildResponse(response, responseBody);
     }
 
+    final originalToken = _bearerToken(retryRequest.headers);
+    ApiLogger.info(
+      '[Matrix] access token refresh requested '
+      'uri=${request.url} ${_tokenPreview('old_token', originalToken)}',
+    );
     String? token;
     try {
       token = await _refreshOnce();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      ApiLogger.failure(
+        service: 'Matrix token refresh',
+        method: request.method,
+        uri: request.url,
+        elapsed: Duration.zero,
+        error: error,
+        stackTrace: stackTrace,
+        requestBody: _tokenPreview('old_token', originalToken),
+      );
+      await _notifyAuthenticationFailed();
       return _rebuildResponse(response, responseBody);
     }
     if (token == null || token.isEmpty) {
+      ApiLogger.info(
+        '[Matrix] access token refresh returned empty '
+        'uri=${request.url} ${_tokenPreview('old_token', originalToken)}',
+      );
+      await _notifyAuthenticationFailed();
       return _rebuildResponse(response, responseBody);
     }
 
+    ApiLogger.info(
+      '[Matrix] access token refresh succeeded '
+      'uri=${request.url} '
+      '${_tokenPreview('old_token', originalToken)} '
+      '${_tokenPreview('new_token', token)} '
+      'changed=${originalToken != token}',
+    );
     _setBearerAuth(retryRequest.headers, token);
-    return _sendRetry(retryRequest);
+    return _sendRetry(retryRequest, notifyAuthenticationFailed: true);
   }
 
-  Future<http.StreamedResponse> _sendRetry(http.BaseRequest request) async {
+  Future<http.StreamedResponse> _sendRetry(
+    http.BaseRequest request, {
+    bool notifyAuthenticationFailed = false,
+  }) async {
     final stopwatch = Stopwatch()..start();
     try {
       final response = await _inner.send(request);
@@ -81,6 +114,11 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       }
       final responseBody = await response.stream.toBytes();
       _logResponse(request, response, stopwatch.elapsed, responseBody);
+      if (notifyAuthenticationFailed &&
+          response.statusCode == 401 &&
+          _isTokenFailure(responseBody)) {
+        await _notifyAuthenticationFailed();
+      }
       return _rebuildResponse(response, responseBody);
     } on http.ClientException catch (error, stackTrace) {
       stopwatch.stop();
@@ -140,6 +178,23 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
     return future.whenComplete(() => _refreshInFlight = null);
   }
 
+  Future<void> _notifyAuthenticationFailed() async {
+    final callback = onAuthenticationFailed;
+    if (callback == null) return;
+    try {
+      await callback();
+    } catch (error, stackTrace) {
+      ApiLogger.failure(
+        service: 'Matrix auth failure',
+        method: 'CALLBACK',
+        uri: Uri.parse('matrix://local/auth-failure'),
+        elapsed: Duration.zero,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
   http.BaseRequest? _cloneRequest(http.BaseRequest request) {
     if (request is! http.Request) return null;
     final clone = http.Request(request.method, request.url)
@@ -165,11 +220,34 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
   }
 
   void _setBearerAuth(Map<String, String> headers, String token) {
-    final existingKey = headers.keys.cast<String?>().firstWhere(
-          (key) => key?.toLowerCase() == 'authorization',
-          orElse: () => null,
-        );
+    String? existingKey;
+    for (final key in headers.keys) {
+      if (key.toLowerCase() == 'authorization') {
+        existingKey = key;
+        break;
+      }
+    }
     headers[existingKey ?? 'authorization'] = 'Bearer $token';
+  }
+
+  String _bearerToken(Map<String, String> headers) {
+    String authorization = '';
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() == 'authorization') {
+        authorization = entry.value;
+        break;
+      }
+    }
+    if (!authorization.toLowerCase().startsWith('bearer ')) return '';
+    return authorization.substring(7).trim();
+  }
+
+  String _tokenPreview(String label, String? token) {
+    final value = token ?? '';
+    final tail = value.length <= 6 ? value : value.substring(value.length - 6);
+    return '${label}_length=${value.length} '
+        '${label}_tail=${value.isEmpty ? '<none>' : tail}'
+        '${_logFullTokens && value.isNotEmpty ? ' $label=$value' : ''}';
   }
 
   bool _isTokenFailure(List<int> body) {
@@ -211,8 +289,23 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       uri: response.request?.url ?? request.url,
       statusCode: response.statusCode,
       elapsed: elapsed,
+      requestBody: _authorizationPreview(request.headers),
       responseBody: _responseBodyPreview(response, body),
     );
+  }
+
+  String _authorizationPreview(Map<String, String> headers) {
+    String authorization = '';
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() == 'authorization') {
+        authorization = entry.value;
+        break;
+      }
+    }
+    final hasBearer = authorization.toLowerCase().startsWith('bearer ');
+    final token = hasBearer ? authorization.substring(7).trim() : '';
+    return 'authorization_present=${authorization.isNotEmpty} '
+        'bearer=$hasBearer ${_tokenPreview('token', token)}';
   }
 
   String _responseBodyPreview(http.StreamedResponse response, List<int> body) {

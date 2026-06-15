@@ -4,7 +4,14 @@ import 'package:image_picker/image_picker.dart';
 
 import 'chat_media_send_flow.dart';
 
-typedef PickChatImages = Future<List<PickedChatImage>> Function();
+const chatImagePickerMaxSelection = 9;
+const chatImagePickerCompressedMaxDimension = 1600.0;
+const chatImagePickerCompressedQuality = 78;
+
+typedef PickChatImages = Future<List<PickedChatImage>> Function({
+  required bool original,
+  required int limit,
+});
 
 class PickedChatImage {
   const PickedChatImage({
@@ -36,10 +43,16 @@ class ChatImageAttachmentPicker {
   factory ChatImageAttachmentPicker.platform() {
     final imagePicker = ImagePicker();
     return ChatImageAttachmentPicker(
-      useIOSOrderedPicker: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+      useIOSOrderedPicker:
+          !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
       pickOrderedIOSImages: const IOSOrderedImagePicker().pickImages,
-      pickFallbackImages: () async {
-        final files = await imagePicker.pickMultiImage();
+      pickFallbackImages: ({required original, required limit}) async {
+        final files = await imagePicker.pickMultiImage(
+          maxWidth: original ? null : chatImagePickerCompressedMaxDimension,
+          maxHeight: original ? null : chatImagePickerCompressedMaxDimension,
+          imageQuality: original ? null : chatImagePickerCompressedQuality,
+          limit: limit,
+        );
         return files.map(PickedChatImage.fromXFile).toList(growable: false);
       },
     );
@@ -49,18 +62,26 @@ class ChatImageAttachmentPicker {
   final PickChatImages pickOrderedIOSImages;
   final PickChatImages pickFallbackImages;
 
-  Future<List<ChatMediaAttachment>> pickImages() async {
+  Future<List<ChatMediaAttachment>> pickImages({
+    bool original = false,
+    int limit = chatImagePickerMaxSelection,
+  }) async {
+    final cappedLimit = limit.clamp(1, chatImagePickerMaxSelection).toInt();
     final images = useIOSOrderedPicker
-        ? await _pickOrderedIOSImagesWithFallback()
-        : await pickFallbackImages();
+        ? await _pickOrderedIOSImagesWithFallback(
+            original: original,
+            limit: cappedLimit,
+          )
+        : await pickFallbackImages(original: original, limit: cappedLimit);
     final attachments = <ChatMediaAttachment>[];
-    for (final image in images) {
+    for (final image in images.take(cappedLimit)) {
       try {
         attachments.add(
           ChatMediaAttachment.image(
             name: image.name,
             bytes: await image.readAsBytes(),
             mimeType: image.mimeType.isEmpty ? 'image/jpeg' : image.mimeType,
+            original: original,
           ),
         );
       } on Object catch (error, stackTrace) {
@@ -75,14 +96,17 @@ class ChatImageAttachmentPicker {
     return attachments;
   }
 
-  Future<List<PickedChatImage>> _pickOrderedIOSImagesWithFallback() async {
+  Future<List<PickedChatImage>> _pickOrderedIOSImagesWithFallback({
+    required bool original,
+    required int limit,
+  }) async {
     try {
-      return await pickOrderedIOSImages();
+      return await pickOrderedIOSImages(original: original, limit: limit);
     } on MissingPluginException {
-      return pickFallbackImages();
+      return pickFallbackImages(original: original, limit: limit);
     } on PlatformException catch (error) {
       if (error.code == IOSOrderedImagePicker.unavailableCode) {
-        return pickFallbackImages();
+        return pickFallbackImages(original: original, limit: limit);
       }
       rethrow;
     }
@@ -98,8 +122,14 @@ class IOSOrderedImagePicker {
 
   final MethodChannel channel;
 
-  Future<List<PickedChatImage>> pickImages() async {
-    final values = await channel.invokeMethod<List<dynamic>>('pickOrderedImages');
+  Future<List<PickedChatImage>> pickImages({
+    required bool original,
+    required int limit,
+  }) async {
+    final values = await channel.invokeMethod<List<dynamic>>(
+      'pickOrderedImages',
+      {'original': original, 'limit': limit},
+    );
     return (values ?? const <dynamic>[])
         .map((value) => PickedChatImage.fromXFile(_xFileFromNativeValue(value)))
         .toList(growable: false);
@@ -118,7 +148,8 @@ class IOSOrderedImagePicker {
     return XFile(
       path,
       name: name is String && name.isNotEmpty ? name : _fileNameFromPath(path),
-      mimeType: mimeType is String && mimeType.isNotEmpty ? mimeType : 'image/jpeg',
+      mimeType:
+          mimeType is String && mimeType.isNotEmpty ? mimeType : 'image/jpeg',
     );
   }
 

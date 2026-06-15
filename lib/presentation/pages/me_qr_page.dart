@@ -50,8 +50,10 @@ class MeQrPage extends ConsumerWidget {
     final uid = localpart.isEmpty ? userId : localpart;
     final topInset = MediaQuery.of(context).padding.top;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: t.surfaceHover,
+      backgroundColor: isDark ? t.bg : t.surfaceHover,
       body: SafeArea(
         top: false,
         child: Column(
@@ -125,12 +127,13 @@ class _QrGlassButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: t.text.withValues(alpha: 0.12),
+            color: t.text.withValues(alpha: isDark ? 0.18 : 0.12),
             blurRadius: 36,
             offset: const Offset(0, 7),
           ),
@@ -176,8 +179,11 @@ class _QrCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: t.surface,
+      shadowColor: t.text.withValues(alpha: isDark ? 0.28 : 0.08),
+      elevation: isDark ? 2 : 0,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -226,11 +232,28 @@ class _QrCard extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Center(
-              child: QrImageView(
-                data: payload,
-                version: QrVersions.auto,
-                size: 150,
-                backgroundColor: t.surface,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: QrImageView(
+                    data: payload,
+                    version: QrVersions.auto,
+                    size: 150,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: Colors.black,
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 24),

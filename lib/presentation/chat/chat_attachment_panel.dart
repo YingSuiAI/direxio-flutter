@@ -41,6 +41,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
     this.onVideoUploadDelivered,
     this.onVideoUploadFinished,
     this.onVideoUploadFailed,
+    this.onVoiceCall,
     this.onVideoCall,
   });
 
@@ -70,6 +71,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
       onVideoUploadDelivered;
   final FutureOr<void> Function(String pendingUploadId)? onVideoUploadFinished;
   final FutureOr<void> Function(String pendingUploadId)? onVideoUploadFailed;
+  final VoidCallback? onVoiceCall;
   final VoidCallback? onVideoCall;
 
   void _showMediaSnack(
@@ -144,7 +146,10 @@ class ChatAttachmentPanel extends ConsumerWidget {
     try {
       await pickAndSendChatMediaAttachments(
         closePanel: onClose,
-        pickAttachments: ChatImageAttachmentPicker.platform().pickImages,
+        pickAttachments: () => ChatImageAttachmentPicker.platform().pickImages(
+          original: false,
+          limit: chatImagePickerMaxSelection,
+        ),
         prepareAttachments: useAsProductMedia
             ? (attachments) async {
                 final ids =
@@ -173,7 +178,9 @@ class ChatAttachmentPanel extends ConsumerWidget {
                   ? 'image/jpeg'
                   : attachment.mimeType,
             ),
-            shrinkImageMaxDimension: 1600,
+            shrinkImageMaxDimension: attachment.original
+                ? null
+                : chatImagePickerCompressedMaxDimension.toInt(),
           );
         },
         showNotice: (
@@ -374,6 +381,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
         '拍摄',
         canSend ? () => _pickImage(context, ref) : null,
       ),
+      (Symbols.call, '语音通话', onVoiceCall),
       (Symbols.videocam, '视频通话', onVideoCall),
       (
         Symbols.movie,

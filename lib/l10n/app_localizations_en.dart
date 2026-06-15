@@ -69,6 +69,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsBlacklist => 'Blocked Contacts';
 
   @override
+  String get settingsChangePassword => 'Change Password';
+
+  @override
   String get settingsMessagesNotifications => 'Messages & Notifications';
 
   @override
@@ -250,4 +253,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get meQrUnconnectedDomain => 'No connected domain';
+
+  @override
+  String get groupInviteTitle => 'Group invitation';
+
+  @override
+  String groupInviteJoining(String groupName) {
+    return 'Joining \"$groupName\"';
+  }
+
+  @override
+  String groupInviteBody(String inviter, String groupName) {
+    return '$inviter invited you to join \"$groupName\"';
+  }
+
+  @override
+  String get groupInviteFallbackInviter => 'They';
+
+  @override
+  String get groupInviteJoinButton => 'Join Group';
+
+  @override
+  String get groupInviteJoiningButton => 'Joining…';
+
+  @override
+  String get groupInviteAlreadyJoined => 'You are already in this group';
 }

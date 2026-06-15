@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
@@ -8,8 +9,8 @@ import 'auth_provider.dart';
 
 /// Global AS Admin API client.
 ///
-/// It reuses the active Matrix session's homeserver and the persisted
-/// `portal_token`, matching p2p-matrix-as v2 Admin API authentication.
+/// It reuses the active Matrix session's homeserver and the persisted AS
+/// `admin_access_token`, matching p2p-matrix-as Admin API authentication.
 final asClientProvider = Provider<AsClient>((ref) {
   final client = ref.watch(matrixClientProvider);
   final portalToken =
@@ -17,6 +18,11 @@ final asClientProvider = Provider<AsClient>((ref) {
   if (portalToken != null && portalToken.isNotEmpty) {
     return HttpAsClient.fromPortalSession(client, portalToken: portalToken);
   }
+  debugPrint(
+    'asClientProvider missing admin_access_token; falling back to Matrix '
+    'access token for AS Admin API. This will fail on AS v2 with '
+    'M_UNKNOWN_TOKEN.',
+  );
   return HttpAsClient.fromMatrixClient(client);
 });
 

@@ -197,7 +197,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         ),
                         _SettingsRow(
                           icon: Symbols.key,
-                          label: '修改密码',
+                          label: l10n?.settingsChangePassword ?? '修改密码',
                           onTap: () => context.push('/me/account/password'),
                         ),
                       ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../chat/chat_message_cards.dart';
 import 'group_invite_content.dart';
 
@@ -13,21 +14,30 @@ class GroupInviteCard extends StatelessWidget {
     required this.joining,
     required this.onJoin,
     this.inviterDisplayName = '',
+    this.alreadyJoined = false,
   });
 
   final GroupInviteContent invite;
   final bool joining;
   final VoidCallback onJoin;
   final String inviterDisplayName;
+  final bool alreadyJoined;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final inviter = inviterDisplayName.trim().isNotEmpty
         ? inviterDisplayName.trim()
         : invite.inviterDisplayName.isEmpty
             ? invite.inviterMxid
             : invite.inviterDisplayName;
+    final fallbackInviter = l10n?.groupInviteFallbackInviter ?? '对方';
+    final displayInviter = inviter.trim().isEmpty ? fallbackInviter : inviter;
+    final alreadyJoinedMessage = l10n?.groupInviteAlreadyJoined ?? '已在群里中';
     final titleColor = t.text;
     final bodyColor = t.textMute;
     final buttonColor = t.accent;
@@ -45,7 +55,7 @@ class GroupInviteCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '邀请加入群聊',
+                        l10n?.groupInviteTitle ?? '邀请加入群聊',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(
@@ -57,8 +67,13 @@ class GroupInviteCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         joining
-                            ? '正在加入“${invite.groupName}”'
-                            : '${inviter.trim().isEmpty ? '对方' : inviter} 邀请你加入“${invite.groupName}”',
+                            ? l10n?.groupInviteJoining(invite.groupName) ??
+                                '正在加入“${invite.groupName}”'
+                            : l10n?.groupInviteBody(
+                                  displayInviter,
+                                  invite.groupName,
+                                ) ??
+                                '$displayInviter 邀请你加入“${invite.groupName}”',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(
@@ -83,11 +98,25 @@ class GroupInviteCard extends StatelessWidget {
                   joining ? buttonColor.withValues(alpha: 0.48) : buttonColor,
               borderRadius: BorderRadius.circular(8),
               child: InkWell(
-                onTap: joining ? null : onJoin,
+                onTap: joining
+                    ? null
+                    : alreadyJoined
+                        ? () {
+                            final messenger = ScaffoldMessenger.maybeOf(
+                              context,
+                            );
+                            messenger?.hideCurrentSnackBar();
+                            messenger?.showSnackBar(
+                              SnackBar(content: Text(alreadyJoinedMessage)),
+                            );
+                          }
+                        : onJoin,
                 borderRadius: BorderRadius.circular(8),
                 child: Center(
                   child: Text(
-                    joining ? '加入中…' : '加入群聊',
+                    joining
+                        ? l10n?.groupInviteJoiningButton ?? '加入中…'
+                        : l10n?.groupInviteJoinButton ?? '加入群聊',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.sans(

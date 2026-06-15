@@ -54,11 +54,15 @@ class ChatInitialEntranceRegistry {
   bool contains(Object key) => !_closed && _keys.contains(key);
 }
 
-const double _chatHeaderChromeClearance = 92;
-const double _chatBottomChromeClearance = 88;
+const double _chatHeaderChromeClearance = 52;
+const double _chatBottomChromeClearance = 76;
 const double _chatReplyBarClearance = 54;
 const double _chatSelectionBarClearance = 64;
 const double _chatBottomPanelClearance = 268;
+
+const double _composerButtonSize = 40;
+const double _composerFieldHeight = 40;
+const double _composerFieldRadius = 22;
 
 EdgeInsets chatMessageViewportPadding(
   BuildContext context, {
@@ -310,25 +314,34 @@ Widget chatMessageEntrance({
 const double _chatHeaderButtonSize = 40;
 const double _chatHeaderTitleSize = 16;
 
+enum ChatCapsuleSubtitleStatus {
+  online,
+  offline,
+}
+
 class ChatCapsuleHeader extends StatelessWidget {
   const ChatCapsuleHeader({
     super.key,
     required this.title,
     required this.onBack,
-    required this.leadingAvatar,
     required this.actions,
+    this.leadingAvatar,
     this.subtitle,
+    this.subtitleStatus,
     this.onAvatarTap,
     this.onTitleTap,
+    this.showEncryptionIcon = false,
   });
 
   final String title;
   final String? subtitle;
+  final ChatCapsuleSubtitleStatus? subtitleStatus;
   final VoidCallback onBack;
-  final Widget leadingAvatar;
+  final Widget? leadingAvatar;
   final VoidCallback? onAvatarTap;
   final VoidCallback? onTitleTap;
   final List<ChatCapsuleAction> actions;
+  final bool showEncryptionIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -347,13 +360,16 @@ class ChatCapsuleHeader extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: ChatDirectionalEntrance(
                   direction: ChatEntranceDirection.top,
-                  child: _FigmaGlassCircleButton(
-                    tooltip: '返回',
-                    onTap: onBack,
-                    child: Icon(
-                      Symbols.arrow_back,
-                      size: 24,
-                      color: t.text,
+                  child: KeyedSubtree(
+                    key: const ValueKey('chat_header_left_capsule'),
+                    child: _FigmaGlassCircleButton(
+                      tooltip: '返回',
+                      onTap: onBack,
+                      child: Icon(
+                        Symbols.arrow_back,
+                        size: 24,
+                        color: t.text,
+                      ),
                     ),
                   ),
                 ),
@@ -368,36 +384,58 @@ class ChatCapsuleHeader extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: onAvatarTap,
-                        child: leadingAvatar,
-                      ),
-                      const SizedBox(width: 8),
+                      if (leadingAvatar != null) ...[
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onAvatarTap,
+                          child: leadingAvatar,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       Flexible(
                         child: GestureDetector(
+                          key: const ValueKey('chat_header_title_capsule'),
                           behavior: HitTestBehavior.opaque,
                           onTap: onTitleTap,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _HeaderTextLine(
-                                text: title,
-                                baseSize: _chatHeaderTitleSize,
-                                minScale: 0.82,
-                                weight: FontWeight.w600,
-                                color: t.text,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: _HeaderTextLine(
+                                      text: title,
+                                      baseSize: _chatHeaderTitleSize,
+                                      minScale: 0.82,
+                                      weight: FontWeight.w600,
+                                      color: t.text,
+                                    ),
+                                  ),
+                                  if (showEncryptionIcon) ...[
+                                    const SizedBox(width: 3),
+                                    Tooltip(
+                                      message: '端对端加密',
+                                      child: Icon(
+                                        Symbols.lock,
+                                        key: const ValueKey(
+                                          'chat_header_encryption_lock',
+                                        ),
+                                        size: 13,
+                                        color: t.accentCool,
+                                        fill: 1,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                               if (subtitle != null &&
                                   subtitle!.trim().isNotEmpty) ...[
                                 const SizedBox(height: 2),
-                                _HeaderTextLine(
+                                _HeaderSubtitleLine(
                                   text: subtitle!,
-                                  baseSize: 11,
-                                  minScale: 0.82,
-                                  weight: FontWeight.w400,
-                                  color: t.textMute,
+                                  status: subtitleStatus,
                                 ),
                               ],
                             ],
@@ -413,14 +451,20 @@ class ChatCapsuleHeader extends StatelessWidget {
                 child: ChatDirectionalEntrance(
                   direction: ChatEntranceDirection.top,
                   delay: const Duration(milliseconds: 70),
-                  child: _FigmaGlassCircleButton(
-                    tooltip: detailAction?.tooltip ?? '详情',
-                    onTap: detailAction?.onTap,
-                    child: _chatAsset(
-                      _assetChatMore,
-                      size: 17,
-                      color: t.text,
-                    ),
+                  child: Row(
+                    key: const ValueKey('chat_header_actions_capsule'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _FigmaGlassCircleButton(
+                        tooltip: detailAction?.tooltip ?? '详情',
+                        onTap: detailAction?.onTap,
+                        child: _chatAsset(
+                          _assetChatMore,
+                          size: 17,
+                          color: t.text,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -490,6 +534,58 @@ class ChatSelectionHeader extends StatelessWidget {
   }
 }
 
+class _HeaderSubtitleLine extends StatelessWidget {
+  const _HeaderSubtitleLine({
+    required this.text,
+    this.status,
+  });
+
+  final String text;
+  final ChatCapsuleSubtitleStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final status = this.status;
+    if (status == null) {
+      return _HeaderTextLine(
+        text: text,
+        baseSize: 11,
+        minScale: 0.82,
+        weight: FontWeight.w400,
+        color: t.textMute,
+      );
+    }
+    final dotColor = status == ChatCapsuleSubtitleStatus.online
+        ? t.tertiaryFixed
+        : t.textMute.withValues(alpha: 0.55);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          key: const ValueKey('chat_header_status_dot'),
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: dotColor,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: _HeaderTextLine(
+            text: text,
+            baseSize: 11,
+            minScale: 0.82,
+            weight: FontWeight.w400,
+            color: t.textMute,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _HeaderTextLine extends StatelessWidget {
   const _HeaderTextLine({
     required this.text,
@@ -555,7 +651,7 @@ class ChatCapsuleInputBar extends StatefulWidget {
     this.onVoiceRecordStop,
     this.onVoiceRecordCancel,
     this.enabled = true,
-    this.hintText = '消息…',
+    this.hintText = '',
   });
 
   final TextEditingController ctrl;
@@ -700,211 +796,241 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
         : _cancelVoicePressOnRelease
             ? t.danger.withValues(alpha: 0.10)
             : t.accent.withValues(alpha: 0.10);
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.suggestions.isNotEmpty)
-              SizedBox(
-                height: 38,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(bottom: 6),
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Row(
-                        children: [
-                          Icon(Symbols.auto_awesome, size: 14, color: t.accent),
-                          const SizedBox(width: 4),
-                          Text(
-                            'AI 建议',
-                            style: AppTheme.sans(
-                              size: 12,
-                              color: t.textMute,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    ...widget.suggestions.map(
-                      (suggestion) => Padding(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: t.bg,
+        border: Border(
+          top: BorderSide(color: t.border.withValues(alpha: 0.45), width: 0.5),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            12,
+            10,
+            12,
+            (_shouldFlushToBottom(context) ? 0 : 12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.suggestions.isNotEmpty)
+                SizedBox(
+                  height: 38,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(bottom: 6),
+                    children: [
+                      Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: _CapsuleSurface(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          height: 30,
-                          onTap: () => widget.onPickSuggestion?.call(
-                            suggestion,
-                          ),
-                          child: Center(
-                            child: Text(
+                        child: Row(
+                          children: [
+                            Icon(Symbols.auto_awesome,
+                                size: 14, color: t.accent),
+                            const SizedBox(width: 4),
+                            Text(
+                              'AI 建议',
+                              style: AppTheme.sans(
+                                size: 12,
+                                color: t.textMute,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ...widget.suggestions.map(
+                        (suggestion) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _CapsuleSurface(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            height: 30,
+                            onTap: () => widget.onPickSuggestion?.call(
                               suggestion,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.sans(size: 13, color: t.text),
+                            ),
+                            child: Center(
+                              child: Text(
+                                suggestion,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(size: 13, color: t.text),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                ChatDirectionalEntrance(
-                  direction: ChatEntranceDirection.bottom,
-                  child: SizedBox(
-                    key: const ValueKey('chat_input_mic_circle'),
-                    width: 40,
-                    height: 40,
-                    child: _AssetCircleCapsuleButton(
-                      icon: _voiceMode ? Symbols.keyboard : Symbols.mic,
-                      tooltip: _voiceMode ? '键盘' : '语音',
-                      enabled: widget.enabled,
-                      onTap: () => setState(() => _voiceMode = !_voiceMode),
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ChatDirectionalEntrance(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ChatDirectionalEntrance(
                     direction: ChatEntranceDirection.bottom,
-                    delay: const Duration(milliseconds: 35),
-                    child: ConstrainedBox(
-                      key: const ValueKey('chat_input_text_capsule'),
-                      constraints: const BoxConstraints(minHeight: 40),
-                      child: _CapsuleSurface(
-                        minHeight: 40,
-                        height: _voiceMode ? 40 : null,
-                        padding: EdgeInsets.zero,
-                        color: _voiceMode ? voiceSurfaceColor : null,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 140),
-                          child: _voiceMode
-                              ? Listener(
-                                  key: const ValueKey('voice_mode'),
-                                  behavior: HitTestBehavior.translucent,
-                                  onPointerDown: (event) =>
-                                      _startVoicePress(event.position),
-                                  onPointerMove: (event) =>
-                                      _updateVoicePress(event.position),
-                                  onPointerUp: (_) => _stopVoicePress(),
-                                  onPointerCancel: (_) => _cancelVoicePress(),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    child: Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        voicePrompt,
-                                        style: AppTheme.sans(
-                                          size: 17,
-                                          color: voicePromptColor,
-                                          weight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : Row(
-                                  key: const ValueKey('text_mode'),
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Expanded(
-                                      child: TextField(
-                                        controller: widget.ctrl,
-                                        enabled: widget.enabled,
-                                        textInputAction:
-                                            TextInputAction.newline,
-                                        maxLines: 5,
-                                        minLines: 1,
-                                        style: AppTheme.sans(
-                                          size: 15,
-                                          color: t.text,
-                                        ),
-                                        decoration: InputDecoration(
-                                          hintText: widget.hintText,
-                                          hintStyle: AppTheme.sans(
-                                            size: 17,
-                                            color: t.textMute,
-                                          ),
-                                          isCollapsed: true,
-                                          contentPadding:
-                                              const EdgeInsets.fromLTRB(
-                                            16,
-                                            12,
-                                            4,
-                                            12,
-                                          ),
-                                          filled: false,
-                                          border: InputBorder.none,
-                                          enabledBorder: InputBorder.none,
-                                          focusedBorder: InputBorder.none,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
+                    child: SizedBox(
+                      key: const ValueKey('chat_input_mic_circle'),
+                      width: _composerButtonSize,
+                      height: _composerButtonSize,
+                      child: _AssetCircleCapsuleButton(
+                        icon: _voiceMode ? Symbols.keyboard : Symbols.mic,
+                        tooltip: _voiceMode ? '键盘' : '语音',
+                        enabled: widget.enabled,
+                        onTap: () => setState(() => _voiceMode = !_voiceMode),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                ChatDirectionalEntrance(
-                  direction: ChatEntranceDirection.bottom,
-                  delay: const Duration(milliseconds: 70),
-                  child: SizedBox(
-                    key: const ValueKey('chat_input_emoji_circle'),
-                    width: 40,
-                    height: 40,
-                    child: _AssetCircleCapsuleButton(
-                      assetName: _assetChatEmoji,
-                      tooltip: '表情',
-                      active: widget.emojiActive,
-                      enabled: widget.enabled,
-                      onTap: widget.onEmoji,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: widget.ctrl,
-                  builder: (_, value, __) {
-                    final hasText = value.text.trim().isNotEmpty;
-                    return ChatDirectionalEntrance(
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ChatDirectionalEntrance(
                       direction: ChatEntranceDirection.bottom,
-                      delay: const Duration(milliseconds: 90),
-                      child: SizedBox(
-                        key: const ValueKey('chat_input_plus_circle'),
-                        width: 40,
-                        height: 40,
-                        child: _AssetCircleCapsuleButton(
-                          assetName: hasText ? null : _assetChatPlus,
-                          icon: hasText ? Symbols.arrow_upward : null,
-                          tooltip: hasText ? '发送' : '更多',
-                          active: widget.plusActive,
-                          accent: hasText,
-                          enabled: widget.enabled,
-                          onTap: hasText ? widget.onSend : widget.onPlus,
+                      delay: const Duration(milliseconds: 35),
+                      child: ConstrainedBox(
+                        key: const ValueKey('chat_input_text_capsule'),
+                        constraints: const BoxConstraints(
+                          minHeight: _composerFieldHeight,
+                        ),
+                        child: _CapsuleSurface(
+                          minHeight: _composerFieldHeight,
+                          height: _voiceMode ? _composerFieldHeight : null,
+                          padding: EdgeInsets.zero,
+                          color: _voiceMode ? voiceSurfaceColor : null,
+                          borderRadius: BorderRadius.circular(
+                            _composerFieldRadius,
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 140),
+                            child: _voiceMode
+                                ? Listener(
+                                    key: const ValueKey('voice_mode'),
+                                    behavior: HitTestBehavior.translucent,
+                                    onPointerDown: (event) =>
+                                        _startVoicePress(event.position),
+                                    onPointerMove: (event) =>
+                                        _updateVoicePress(event.position),
+                                    onPointerUp: (_) => _stopVoicePress(),
+                                    onPointerCancel: (_) => _cancelVoicePress(),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      child: Align(
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          voicePrompt,
+                                          style: AppTheme.sans(
+                                            size: 17,
+                                            color: voicePromptColor,
+                                            weight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : Row(
+                                    key: const ValueKey('text_mode'),
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        child: TextField(
+                                          controller: widget.ctrl,
+                                          enabled: widget.enabled,
+                                          textInputAction:
+                                              TextInputAction.newline,
+                                          maxLines: 5,
+                                          minLines: 1,
+                                          style: AppTheme.sans(
+                                            size: 15,
+                                            color: t.text,
+                                          ),
+                                          decoration: InputDecoration(
+                                            hintText: widget.hintText,
+                                            hintStyle: AppTheme.sans(
+                                              size: 17,
+                                              color: t.textMute,
+                                            ),
+                                            isCollapsed: true,
+                                            contentPadding:
+                                                const EdgeInsets.fromLTRB(
+                                              16,
+                                              10,
+                                              4,
+                                              10,
+                                            ),
+                                            filled: false,
+                                            border: InputBorder.none,
+                                            enabledBorder: InputBorder.none,
+                                            focusedBorder: InputBorder.none,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ChatDirectionalEntrance(
+                    direction: ChatEntranceDirection.bottom,
+                    delay: const Duration(milliseconds: 70),
+                    child: SizedBox(
+                      key: const ValueKey('chat_input_emoji_circle'),
+                      width: _composerButtonSize,
+                      height: _composerButtonSize,
+                      child: _AssetCircleCapsuleButton(
+                        assetName: _assetChatEmoji,
+                        tooltip: '表情',
+                        active: widget.emojiActive,
+                        enabled: widget.enabled,
+                        onTap: widget.onEmoji,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: widget.ctrl,
+                    builder: (_, value, __) {
+                      final hasText = value.text.trim().isNotEmpty;
+                      return ChatDirectionalEntrance(
+                        direction: ChatEntranceDirection.bottom,
+                        delay: const Duration(milliseconds: 90),
+                        child: hasText
+                            ? _ComposerSendButton(
+                                key: const ValueKey('chat_input_send_button'),
+                                enabled: widget.enabled,
+                                onTap: widget.onSend,
+                              )
+                            : SizedBox(
+                                key: const ValueKey('chat_input_plus_circle'),
+                                width: _composerButtonSize,
+                                height: _composerButtonSize,
+                                child: _AssetCircleCapsuleButton(
+                                  assetName: _assetChatPlus,
+                                  tooltip: '更多',
+                                  active: widget.plusActive,
+                                  enabled: widget.enabled,
+                                  onTap: widget.onPlus,
+                                ),
+                              ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  bool _shouldFlushToBottom(BuildContext context) {
+    return widget.plusActive ||
+        widget.emojiActive ||
+        MediaQuery.viewInsetsOf(context).bottom > 0;
   }
 }
 
@@ -1177,7 +1303,6 @@ class _AssetCircleCapsuleButton extends StatelessWidget {
     this.assetName,
     this.icon,
     this.active = false,
-    this.accent = false,
     this.enabled = true,
   });
 
@@ -1186,27 +1311,22 @@ class _AssetCircleCapsuleButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback? onTap;
   final bool active;
-  final bool accent;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final color = accent
-        ? t.accent
-        : active
-            ? t.surface.withValues(alpha: 0.86)
-            : t.surface.withValues(alpha: 0.80);
-    final iconColor = !enabled
-        ? t.textMute.withValues(alpha: 0.42)
-        : accent
-            ? t.onAccent
-            : t.text;
+    final color = t.surface;
+    final iconColor = !enabled ? t.textMute.withValues(alpha: 0.42) : t.text;
     return Tooltip(
       message: tooltip,
       child: _BlurSurface(
         borderRadius: BorderRadius.circular(9999),
         color: color,
+        border: Border.all(
+          color: t.border.withValues(alpha: active ? 0.86 : 0.70),
+          width: 0.8,
+        ),
         child: Material(
           color: t.surface.withValues(alpha: 0),
           shape: const CircleBorder(),
@@ -1214,12 +1334,54 @@ class _AssetCircleCapsuleButton extends StatelessWidget {
             customBorder: const CircleBorder(),
             onTap: enabled ? onTap : null,
             child: SizedBox(
-              width: 40,
-              height: 40,
+              width: _composerButtonSize,
+              height: _composerButtonSize,
               child: Center(
                 child: assetName == null
-                    ? Icon(icon, size: 24, color: iconColor)
-                    : _chatAsset(assetName!, size: 24, color: iconColor),
+                    ? Icon(icon, size: 22, color: iconColor)
+                    : _chatAsset(assetName!, size: 22, color: iconColor),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ComposerSendButton extends StatelessWidget {
+  const _ComposerSendButton({
+    super.key,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Tooltip(
+      message: '发送',
+      child: Material(
+        color: enabled ? t.accent : t.textMute.withValues(alpha: 0.32),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: enabled ? onTap : null,
+          child: SizedBox(
+            key: const ValueKey('chat_input_send_text'),
+            width: 50,
+            height: 36,
+            child: Center(
+              child: Text(
+                '发送',
+                style: AppTheme.sans(
+                  size: 15,
+                  color: t.onAccent,
+                  weight: FontWeight.w500,
+                ),
               ),
             ),
           ),
@@ -1273,6 +1435,7 @@ class _CapsuleSurface extends StatelessWidget {
     this.height,
     this.minHeight = 46,
     this.color,
+    this.borderRadius,
     this.onTap,
   });
 
@@ -1281,6 +1444,7 @@ class _CapsuleSurface extends StatelessWidget {
   final double? height;
   final double minHeight;
   final Color? color;
+  final BorderRadius? borderRadius;
   final VoidCallback? onTap;
 
   @override
@@ -1289,14 +1453,19 @@ class _CapsuleSurface extends StatelessWidget {
       constraints: BoxConstraints(minHeight: minHeight),
       child: Padding(padding: padding, child: child),
     );
+    final radius = borderRadius ?? BorderRadius.circular(9999);
     return _BlurSurface(
-      borderRadius: BorderRadius.circular(9999),
-      color: color ?? context.tk.surface.withValues(alpha: 0.82),
+      borderRadius: radius,
+      color: color ?? context.tk.surface,
+      border: Border.all(
+        color: context.tk.border.withValues(alpha: 0.22),
+        width: 0.5,
+      ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(9999),
+        borderRadius: radius,
         child: InkWell(
-          borderRadius: BorderRadius.circular(9999),
+          borderRadius: radius,
           onTap: onTap,
           child: height == null
               ? content
@@ -1312,11 +1481,13 @@ class _BlurSurface extends StatelessWidget {
     required this.child,
     required this.color,
     this.borderRadius,
+    this.border,
   });
 
   final Widget child;
   final Color color;
   final BorderRadius? borderRadius;
+  final BoxBorder? border;
 
   @override
   Widget build(BuildContext context) {
@@ -1329,6 +1500,7 @@ class _BlurSurface extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
             borderRadius: radius,
+            border: border,
             boxShadow: [
               BoxShadow(
                 color: context.tk.text.withValues(alpha: 0.08),

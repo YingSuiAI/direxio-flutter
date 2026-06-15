@@ -1,15 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 
 typedef ImageProviderLoader = Future<ImageProvider> Function();
+typedef ImagePreviewAction = FutureOr<void> Function();
 
 Future<void> showAsyncImagePreview(
   BuildContext context, {
   ImageProviderLoader? loadPreviewProvider,
   required ImageProviderLoader loadProvider,
   required String meta,
+  ImagePreviewAction? onDownload,
 }) {
   return showGeneralDialog<void>(
     context: context,
@@ -22,6 +26,7 @@ Future<void> showAsyncImagePreview(
         loadPreviewProvider: loadPreviewProvider,
         loadProvider: loadProvider,
         meta: meta,
+        onDownload: onDownload,
       );
     },
   );
@@ -32,11 +37,13 @@ class _AsyncImagePreviewDialog extends StatefulWidget {
     this.loadPreviewProvider,
     required this.loadProvider,
     required this.meta,
+    this.onDownload,
   });
 
   final ImageProviderLoader? loadPreviewProvider;
   final ImageProviderLoader loadProvider;
   final String meta;
+  final ImagePreviewAction? onDownload;
 
   @override
   State<_AsyncImagePreviewDialog> createState() =>
@@ -46,12 +53,29 @@ class _AsyncImagePreviewDialog extends StatefulWidget {
 class _AsyncImagePreviewDialogState extends State<_AsyncImagePreviewDialog> {
   Future<ImageProvider>? _previewProviderFuture;
   late final Future<ImageProvider> _providerFuture;
+  bool _downloading = false;
+  bool _downloaded = false;
 
   @override
   void initState() {
     super.initState();
     _previewProviderFuture = widget.loadPreviewProvider?.call();
     _providerFuture = widget.loadProvider();
+  }
+
+  Future<void> _download() async {
+    final onDownload = widget.onDownload;
+    if (onDownload == null || _downloading) return;
+    setState(() {
+      _downloading = true;
+      _downloaded = false;
+    });
+    try {
+      await onDownload();
+      if (mounted) setState(() => _downloaded = true);
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
   }
 
   @override
@@ -113,18 +137,75 @@ class _AsyncImagePreviewDialogState extends State<_AsyncImagePreviewDialog> {
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Text(
-              widget.meta,
-              style: AppTheme.sans(
-                size: 12,
-                color: Colors.white.withValues(alpha: 0.5),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+              child: Row(
+                children: [
+                  const SizedBox(width: 48),
+                  Expanded(
+                    child: Text(
+                      widget.meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTheme.sans(
+                        size: 12,
+                        color: Colors.white.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: widget.onDownload == null
+                        ? const SizedBox.shrink()
+                        : _PreviewDownloadButton(
+                            downloading: _downloading,
+                            downloaded: _downloaded,
+                            onTap: _download,
+                          ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PreviewDownloadButton extends StatelessWidget {
+  const _PreviewDownloadButton({
+    required this.downloading,
+    required this.downloaded,
+    required this.onTap,
+  });
+
+  final bool downloading;
+  final bool downloaded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: downloading ? null : onTap,
+      tooltip: downloaded ? '已下载' : '下载',
+      icon: downloading
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : Icon(
+              downloaded ? Symbols.check : Symbols.download,
+              color: Colors.white,
+              size: 26,
+            ),
     );
   }
 }

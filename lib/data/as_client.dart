@@ -2,8 +2,8 @@
 //
 // Matrix 标准协议不覆盖的能力（消息搜索、Agent 配置、关注系统、Portal 状态）
 // 由 p2p-matrix-as 的 Admin API 补齐，端点统一走 `https://{domain}/_as/` 前缀。
-// Admin API 使用 `portal_token` 作为 Bearer；Matrix SDK 自身继续使用
-// Matrix `access_token`。
+// Admin API 使用 AS `admin_access_token` 作为 Bearer；Matrix SDK 自身继续使用
+// Matrix `matrix_access_token`。
 //
 // 本文件只定义抽象接口与数据模型；真实 HTTP 实现在 http_as_client.dart。
 
@@ -31,6 +31,35 @@ const asChannelRoleAdmin = 'admin';
 const asChannelRoleMember = 'member';
 
 // ─────────────────────────── 数据模型 ───────────────────────────
+
+class AsPortalSession {
+  const AsPortalSession({
+    required this.matrixAccessToken,
+    required this.adminAccessToken,
+    required this.userId,
+    required this.homeserver,
+    this.deviceId,
+    this.agentRoomId,
+  });
+
+  final String matrixAccessToken;
+  final String adminAccessToken;
+  final String userId;
+  final String homeserver;
+  final String? deviceId;
+  final String? agentRoomId;
+
+  factory AsPortalSession.fromJson(Map<String, dynamic> json) {
+    return AsPortalSession(
+      matrixAccessToken: json['matrix_access_token'] as String? ?? '',
+      adminAccessToken: json['admin_access_token'] as String? ?? '',
+      userId: json['user_id'] as String? ?? '',
+      homeserver: json['homeserver'] as String? ?? '',
+      deviceId: json['device_id'] as String?,
+      agentRoomId: json['agent_room_id'] as String?,
+    );
+  }
+}
 
 /// §5.1 消息搜索单条结果
 class AsSearchResult {
@@ -1284,7 +1313,7 @@ class AsClientException implements Exception {
 
 /// p2p-matrix-as 的 Admin API 客户端。
 ///
-/// 所有实现都用 `portal_token` 做认证（Bearer）。
+/// 所有实现都用 `admin_access_token` 做认证（Bearer）。
 abstract class AsClient {
   /// GET /_as/profile
   Future<OwnerProfile> getOwnerProfile();
@@ -1452,8 +1481,8 @@ abstract class AsClient {
   /// §5.5 GET /_as/portal/status
   Future<PortalStatus> getPortalStatus();
 
-  /// Updates the Portal password used for app login and /_as/* Admin API calls.
-  Future<void> changePortalPassword({
+  /// Updates the Portal password and returns fresh service-specific tokens.
+  Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,
   });

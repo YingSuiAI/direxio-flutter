@@ -91,17 +91,15 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                   const SizedBox(height: 16),
                   _GroupedCard(
                     children: [
-                      _RowChevron(label: '群公告', onTap: () {}),
                       if (canManageGroup) ...[
-                        _Divider(),
                         _RowChevron(
                           label: '群管理',
                           onTap: () => context.push(
                             '/group-manage/${Uri.encodeComponent(widget.roomId)}',
                           ),
                         ),
+                        _Divider(),
                       ],
-                      _Divider(),
                       _RowChevron(label: '备注', onTap: () {}),
                     ],
                   ),
@@ -147,8 +145,6 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                   const SizedBox(height: 16),
                   _GroupedCard(
                     children: [
-                      _RowChevron(label: '设置当前聊天背景', onTap: () {}),
-                      _Divider(),
                       _RowChevron(label: '清空聊天记录', onTap: () {}),
                     ],
                   ),

@@ -12,8 +12,6 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/p2p_api_provider.dart';
-import '../widgets/m3/glass_header.dart';
-import '../widgets/m3/m3_card.dart';
 
 class ChannelSearchPage extends ConsumerStatefulWidget {
   const ChannelSearchPage({super.key});
@@ -125,22 +123,39 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
+    final topInset = MediaQuery.of(context).padding.top;
     return Scaffold(
-      body: Column(
+      backgroundColor: const Color(0xFFF7F8FA),
+      body: Stack(
         children: [
-          GlassHeader.detail(title: '搜索频道'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: M3InputField(
+          Positioned(
+            left: 22,
+            top: topInset + 36,
+            child: _ChannelSearchCircleButton(
+              icon: Symbols.arrow_back,
+              onTap: () => context.pop(),
+            ),
+          ),
+          Positioned(
+            left: 76,
+            right: 24,
+            top: topInset + 39,
+            height: 40,
+            child: _ChannelSearchInput(
               controller: _ctrl,
-              icon: Symbols.search,
-              hint: '输入频道名、标签、域名或 Portal URL',
-              autofocus: true,
               onChanged: _onChanged,
             ),
           ),
-          Expanded(child: _buildBody(t)),
+          Positioned.fill(
+            top: topInset + 132,
+            child: _buildBody(context.tk),
+          ),
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 16,
+            child: _ChannelSearchBottomReplica(),
+          ),
         ],
       ),
     );
@@ -152,9 +167,9 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
     }
     if (_lastQuery.isEmpty) {
       return const _ChannelSearchEmpty(
-        icon: Symbols.travel_explore,
-        title: '搜索公开频道',
-        subtitle: '搜索是加入频道的主路径，也可以通过别人分享的频道卡片加入',
+        icon: Symbols.search,
+        title: '搜索频道',
+        subtitle: '输入关键词查找感兴趣的频道',
       );
     }
     if (_error.isNotEmpty) {
@@ -226,33 +241,240 @@ class _ChannelSearchEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 42),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 42, color: t.textMute),
-            const SizedBox(height: 14),
+            Icon(icon, size: 54, color: const Color(0xFF99A3B1), weight: 500),
+            const SizedBox(height: 20),
             Text(
               title,
               style: AppTheme.sans(
-                size: 18,
-                weight: FontWeight.w600,
-                color: t.text,
+                size: 17,
+                weight: FontWeight.w500,
+                color: const Color(0xFF7D8799),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: AppTheme.sans(size: 13, color: t.textMute).copyWith(
-                height: 1.35,
+              style: AppTheme.sans(
+                size: 14,
+                color: const Color(0xFF7D8799),
+              ).copyWith(
+                height: 20 / 14,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ChannelSearchCircleButton extends StatelessWidget {
+  const _ChannelSearchCircleButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 14,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox.square(
+          dimension: 42,
+          child: Center(
+            child: Icon(
+              icon,
+              size: 28,
+              weight: 700,
+              color: const Color(0xFF141C26),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelSearchInput extends StatelessWidget {
+  const _ChannelSearchInput({
+    required this.controller,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      elevation: 14,
+      shadowColor: Colors.black.withValues(alpha: 0.06),
+      child: TextField(
+        controller: controller,
+        autofocus: true,
+        onChanged: onChanged,
+        textInputAction: TextInputAction.search,
+        cursorColor: const Color(0xFF2FA0D0),
+        style: AppTheme.sans(
+          size: 15,
+          weight: FontWeight.w600,
+          color: const Color(0xFF141C26),
+        ),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          hintText: '搜索频道...',
+          hintStyle: AppTheme.sans(
+            size: 15,
+            weight: FontWeight.w600,
+            color: const Color(0xFF9AA5B5),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelSearchBottomReplica extends StatelessWidget {
+  const _ChannelSearchBottomReplica();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 250,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _ChannelSearchBottomItem(
+                  icon: Symbols.chat_bubble,
+                  label: '消息',
+                  badge: 3,
+                ),
+                _ChannelSearchBottomItem(icon: Symbols.person, label: '通讯录'),
+                _ChannelSearchBottomItem(icon: Symbols.hub, label: '频道'),
+                _ChannelSearchBottomItem(icon: Symbols.person, label: '我的'),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Symbols.search,
+              size: 34,
+              color: Color(0xFF141C26),
+              weight: 700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelSearchBottomItem extends StatelessWidget {
+  const _ChannelSearchBottomItem({
+    required this.icon,
+    required this.label,
+    this.badge = 0,
+  });
+
+  final IconData icon;
+  final String label;
+  final int badge;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(icon, size: 22, color: const Color(0xFF141C26), weight: 700),
+              if (badge > 0)
+                Positioned(
+                  right: -8,
+                  top: -7,
+                  child: Container(
+                    width: 17,
+                    height: 17,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFF5268),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '$badge',
+                      style: AppTheme.sans(
+                        size: 10,
+                        weight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            style: AppTheme.sans(
+              size: 11,
+              weight: FontWeight.w800,
+              color: const Color(0xFF141C26),
+            ),
+          ),
+        ],
       ),
     );
   }

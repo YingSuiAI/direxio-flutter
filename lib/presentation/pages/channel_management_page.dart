@@ -70,7 +70,6 @@ class _ChannelManagementPageState extends ConsumerState<ChannelManagementPage> {
               title: _section.title,
               subtitle: selected.name,
               onBack: () => context.pop(),
-              onCreate: () => _showComingSoon(context, '创建频道'),
             ),
             Expanded(
               child: ListView(
@@ -197,7 +196,8 @@ List<_ManageChannel> _managementChannels(WidgetRef ref) {
   }
 
   return [
-    for (final channel in MockChannels.items.where((channel) => channel.isOwned))
+    for (final channel
+        in MockChannels.items.where((channel) => channel.isOwned))
       _ManageChannel(
         id: channel.id,
         name: channel.name,
@@ -247,13 +247,11 @@ class _ChannelManageTopBar extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onBack,
-    required this.onCreate,
   });
 
   final String title;
   final String subtitle;
   final VoidCallback onBack;
-  final VoidCallback onCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -297,15 +295,6 @@ class _ChannelManageTopBar extends StatelessWidget {
                 ),
               ],
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: _CircleButton(
-                icon: Symbols.add,
-                iconSize: 24,
-                color: const Color(0xFF3097CB),
-                onTap: onCreate,
-              ),
-            ),
           ],
         ),
       ),
@@ -318,13 +307,11 @@ class _CircleButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.iconSize = 22,
-    this.color = const Color(0xFF222325),
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final double iconSize;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -339,7 +326,7 @@ class _CircleButton extends StatelessWidget {
         child: SizedBox(
           width: 40,
           height: 40,
-          child: Icon(icon, size: iconSize, color: color),
+          child: Icon(icon, size: iconSize, color: const Color(0xFF222325)),
         ),
       ),
     );
@@ -404,9 +391,8 @@ class _SectionTab extends StatelessWidget {
             style: AppTheme.sans(
               size: 12,
               weight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected
-                  ? const Color(0xFF222325)
-                  : const Color(0xFF747B85),
+              color:
+                  selected ? const Color(0xFF222325) : const Color(0xFF747B85),
             ),
           ),
         ),

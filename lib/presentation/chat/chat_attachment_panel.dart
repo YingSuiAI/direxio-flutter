@@ -101,22 +101,26 @@ class ChatAttachmentPanel extends ConsumerWidget {
         return switch (attachment.kind) {
           ChatMediaKind.image => onImageUploadStarted?.call(attachment),
           ChatMediaKind.video => onVideoUploadStarted?.call(attachment),
+          ChatMediaKind.audio => onFileUploadStarted?.call(attachment),
           ChatMediaKind.file => onFileUploadStarted?.call(attachment),
         };
       },
       onDelivered: switch (attachment.kind) {
         ChatMediaKind.image => onImageUploadDelivered,
         ChatMediaKind.video => onVideoUploadDelivered,
+        ChatMediaKind.audio => onFileUploadDelivered,
         ChatMediaKind.file => onFileUploadDelivered,
       },
       onSucceeded: switch (attachment.kind) {
         ChatMediaKind.image => onImageUploadFinished,
         ChatMediaKind.video => onVideoUploadFinished,
+        ChatMediaKind.audio => onFileUploadFinished,
         ChatMediaKind.file => onFileUploadFinished,
       },
       onFailed: switch (attachment.kind) {
         ChatMediaKind.image => onImageUploadFailed,
         ChatMediaKind.video => onVideoUploadFailed,
+        ChatMediaKind.audio => onFileUploadFailed,
         ChatMediaKind.file => onFileUploadFailed,
       },
     );

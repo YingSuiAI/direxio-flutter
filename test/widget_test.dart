@@ -520,7 +520,11 @@ class _EmptyAsClient implements AsClient {
   }) async {}
 
   @override
-  Future<String> sendRoomMessage(String roomId, String content) async =>
+  Future<String> sendRoomMessage(
+    String roomId,
+    String content, {
+    String? replyToEventId,
+  }) async =>
       'event';
 
   @override
@@ -666,7 +670,11 @@ class _StatefulPendingContactAsClient extends _EmptyAsClient {
 
 class _PeerDeletedAsClient extends _EmptyAsClient {
   @override
-  Future<String> sendRoomMessage(String roomId, String content) async {
+  Future<String> sendRoomMessage(
+    String roomId,
+    String content, {
+    String? replyToEventId,
+  }) async {
     throw AsClientException('peer deleted contact', statusCode: 403);
   }
 }
@@ -1072,6 +1080,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   int sendRoomMessageCalls = 0;
   String? sentRoomId;
   String? sentContent;
+  String? sentReplyToEventId;
   int createGroupCalls = 0;
   String? createdGroupName;
   List<String> createdGroupInvites = const [];
@@ -1129,10 +1138,15 @@ class _TrackingAsClient extends _EmptyAsClient {
   }
 
   @override
-  Future<String> sendRoomMessage(String roomId, String content) async {
+  Future<String> sendRoomMessage(
+    String roomId,
+    String content, {
+    String? replyToEventId,
+  }) async {
     sendRoomMessageCalls++;
     sentRoomId = roomId;
     sentContent = content;
+    sentReplyToEventId = replyToEventId;
     return 'event';
   }
 
@@ -5769,6 +5783,7 @@ void main() {
 
     expect(harness.asClient.sentRoomId, '!group:p2p-im.com');
     expect(harness.asClient.sentContent, '引用后的回复');
+    expect(harness.asClient.sentReplyToEventId, r'$group-text');
     expect(find.byIcon(Symbols.reply), findsNothing);
   });
 
@@ -7435,6 +7450,65 @@ void main() {
 
     expect(asClient.deletedFavoriteIds, contains(2));
     await tester.pump();
+    expect(find.text('report.pdf'), findsNothing);
+  });
+
+  testWidgets('me favorites page filters items by search text', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_FavoritesAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'report');
+    await tester.pumpAndSettle();
+
+    expect(find.text('report.pdf'), findsOneWidget);
+    expect(find.text('明天上午继续测试'), findsNothing);
+
+    await tester.tap(find.byTooltip('清除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('明天上午继续测试'), findsOneWidget);
+  });
+
+  testWidgets('me favorites card can be deleted by swipe confirmation',
+      (tester) async {
+    final asClient = _FavoritesAsClient();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.text('report.pdf'), findsOneWidget);
+
+    await tester.drag(
+      find.byKey(const ValueKey('favorite-card-2')),
+      const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('取消收藏'), findsOneWidget);
+    expect(find.text('确认删除该收藏吗？'), findsOneWidget);
+
+    await tester.tap(find.text('确认'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.deletedFavoriteIds, contains(2));
     expect(find.text('report.pdf'), findsNothing);
   });
 

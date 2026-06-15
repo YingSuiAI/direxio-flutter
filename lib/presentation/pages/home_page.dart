@@ -6,7 +6,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 import '../channel/channel_inbox_data.dart';
@@ -33,7 +32,6 @@ import '../call/voice_call_display_name.dart';
 import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
-import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/app_glass_background.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
@@ -2923,77 +2921,6 @@ class _MePage extends ConsumerStatefulWidget {
 }
 
 class _MePageState extends ConsumerState<_MePage> {
-  bool _avatarBusy = false;
-  Uint8List? _avatarPreviewBytes;
-
-  Future<void> _pickAvatar() async {
-    if (_avatarBusy) return;
-
-    try {
-      setState(() => _avatarBusy = true);
-      final xFile = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 92,
-        maxWidth: 2048,
-        maxHeight: 2048,
-        requestFullMetadata: false,
-      );
-      if (xFile == null) return;
-
-      final bytes = await xFile.readAsBytes();
-      if (!mounted) return;
-      await showAvatarAdjustSheet(
-        context,
-        imageBytes: bytes,
-        onConfirm: (adjustedBytes) async {
-          try {
-            final file = MatrixFile(
-              bytes: adjustedBytes,
-              name: 'avatar.png',
-              mimeType: 'image/png',
-            );
-            await widget.client.setAvatar(file);
-            if (mounted) {
-              setState(() => _avatarPreviewBytes = adjustedBytes);
-            }
-            ref.invalidate(currentUserProfileProvider);
-            await ref.read(currentUserProfileProvider.future);
-            ref.invalidate(appWarmupProvider);
-            unawaited(ref.read(appWarmupProvider.future));
-          } catch (e) {
-            throw StateError(_avatarErrorText(e));
-          }
-        },
-      );
-    } catch (e) {
-      debugPrint('Avatar update failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_avatarErrorText(e))),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _avatarBusy = false);
-    }
-  }
-
-  bool _isTokenFailure(MatrixException error) {
-    return error.errcode == 'M_UNKNOWN_TOKEN' ||
-        error.errcode == 'M_MISSING_TOKEN' ||
-        error.response?.statusCode == 401;
-  }
-
-  String _avatarErrorText(Object error) {
-    if (error is FileTooBigMatrixException) {
-      return '图片太大，请换一张 10MB 内的图片';
-    }
-    if (error is MatrixException && _isTokenFailure(error)) {
-      return '登录状态已过期，请重新登录后再试';
-    }
-    if (error is StateError) return error.message;
-    return '头像更新失败: $error';
-  }
-
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
@@ -3028,9 +2955,7 @@ class _MePageState extends ConsumerState<_MePage> {
               displayName: displayName,
               uid: uidUrl,
               avatarUrl: avatarUrl,
-              avatarBytes: _avatarPreviewBytes,
-              avatarBusy: _avatarBusy,
-              onAvatarTap: _avatarBusy ? null : _pickAvatar,
+              onAvatarTap: () => context.push('/me/profile'),
               onProfileTap: () => context.push('/me/profile'),
               onUidTap: () => _copyUidUrl(context, uidUrl),
               onQrTap: () => context.push('/me/qr'),
@@ -3121,8 +3046,6 @@ class _MeProfileTile extends StatelessWidget {
     required this.displayName,
     required this.uid,
     required this.avatarUrl,
-    required this.avatarBytes,
-    required this.avatarBusy,
     required this.onAvatarTap,
     required this.onProfileTap,
     required this.onUidTap,
@@ -3133,8 +3056,6 @@ class _MeProfileTile extends StatelessWidget {
   final String displayName;
   final String uid;
   final String avatarUrl;
-  final Uint8List? avatarBytes;
-  final bool avatarBusy;
   final VoidCallback? onAvatarTap;
   final VoidCallback onProfileTap;
   final VoidCallback onUidTap;
@@ -3150,38 +3071,11 @@ class _MeProfileTile extends StatelessWidget {
         children: [
           GestureDetector(
             onTap: onAvatarTap,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                PortalAvatar(
-                  seed: displayId,
-                  size: 60,
-                  imageUrl: avatarUrl,
-                  imageBytes: avatarBytes,
-                  shape: AvatarShape.squircle,
-                ),
-                if (avatarBusy)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(13.5),
-                    child: ColoredBox(
-                      color: Colors.black.withValues(alpha: 0.24),
-                      child: const SizedBox(
-                        width: 60,
-                        height: 60,
-                        child: Center(
-                          child: SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+            child: PortalAvatar(
+              seed: displayId,
+              size: 60,
+              imageUrl: avatarUrl,
+              shape: AvatarShape.squircle,
             ),
           ),
           const SizedBox(width: 8),

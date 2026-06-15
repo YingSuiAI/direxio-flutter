@@ -92,6 +92,53 @@ void main() {
     expect(sentMsgType, 'm.file');
   });
 
+  test('sends voice recordings as AS file media with audio metadata', () async {
+    String? sentMsgType;
+    String? sentMimeType;
+    int? sentDurationMs;
+
+    final result = await sendProductChatMedia(
+      roomId: '!voice:p2p-im.com',
+      attachment: ChatMediaAttachment.audio(
+        name: 'portal_voice.m4a',
+        bytes: [1, 2, 3, 4],
+        mimeType: 'audio/mp4',
+        durationMs: 2460,
+      ),
+      uploadContent: (_, {required filename, contentType}) async {
+        expect(filename, 'portal_voice.m4a');
+        expect(contentType, 'audio/mp4');
+        return Uri.parse('mxc://p2p-im.com/voice');
+      },
+      sendMedia: ({
+        required roomId,
+        required msgType,
+        required body,
+        required filename,
+        required mediaUrl,
+        String mimeType = '',
+        int size = 0,
+        String thumbnailUrl = '',
+        String thumbnailMimeType = '',
+        int thumbnailSize = 0,
+        int width = 0,
+        int height = 0,
+        int durationMs = 0,
+      }) async {
+        sentMsgType = msgType;
+        sentMimeType = mimeType;
+        sentDurationMs = durationMs;
+        return r'$voice';
+      },
+      oneShotSync: () async {},
+    );
+
+    expect(result.eventId, r'$voice');
+    expect(sentMsgType, 'm.file');
+    expect(sentMimeType, 'audio/mp4');
+    expect(sentDurationMs, 2460);
+  });
+
   test('surfaces upload stage when media never reaches AS', () async {
     await expectLater(
       sendProductChatMedia(

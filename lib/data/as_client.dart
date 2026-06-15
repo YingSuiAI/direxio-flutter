@@ -1371,7 +1371,11 @@ abstract class AsClient {
   });
 
   /// POST /_as/rooms/{roomId}/send
-  Future<String> sendRoomMessage(String roomId, String content);
+  Future<String> sendRoomMessage(
+    String roomId,
+    String content, {
+    String? replyToEventId,
+  });
 
   /// POST /_as/rooms/{roomId}/send with message_type=chat_record
   Future<String> sendChatRecordMessage({

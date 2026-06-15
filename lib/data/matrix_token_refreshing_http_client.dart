@@ -211,8 +211,29 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       uri: response.request?.url ?? request.url,
       statusCode: response.statusCode,
       elapsed: elapsed,
-      responseBody: utf8.decode(body, allowMalformed: true),
+      responseBody: _responseBodyPreview(response, body),
     );
+  }
+
+  String _responseBodyPreview(http.StreamedResponse response, List<int> body) {
+    final uri = response.request?.url;
+    final contentType = response.headers.entries
+        .firstWhere(
+          (entry) => entry.key.toLowerCase() == 'content-type',
+          orElse: () => const MapEntry('content-type', ''),
+        )
+        .value
+        .toLowerCase();
+    final isMediaDownload =
+        uri != null && uri.path.startsWith('/_matrix/media/');
+    final isTextLike = contentType.contains('json') ||
+        contentType.startsWith('text/') ||
+        contentType.contains('xml');
+    if (!isTextLike || isMediaDownload) {
+      final label = contentType.trim().isEmpty ? 'unknown' : contentType.trim();
+      return '<binary ${body.length} bytes content-type=$label>';
+    }
+    return utf8.decode(body, allowMalformed: true);
   }
 
   void _logFailure(

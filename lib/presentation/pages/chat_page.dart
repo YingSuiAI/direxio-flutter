@@ -37,6 +37,8 @@ import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_media_warmup.dart';
 import '../chat/chat_media_send_flow.dart';
 import '../chat/chat_timeline_items.dart';
+import '../chat/chat_voice_player.dart';
+import '../chat/chat_voice_recorder.dart';
 import '../chat/favorite_message_mapper.dart';
 import '../chat/local_outbox_image_thumb.dart';
 import '../chat/product_media_outbox_flow.dart';
@@ -47,10 +49,12 @@ import '../mock/mock_mcp_client.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/avatar_url.dart';
+import '../utils/chat_event_attachment.dart';
 import '../utils/chat_file_actions.dart';
 import '../utils/read_marker_sync.dart';
 import '../utils/recovered_unread_events.dart';
 import '../utils/chat_time_format.dart';
+import '../utils/message_preview.dart';
 import '../utils/room_read_state.dart';
 import '../widgets/agent_message_body.dart';
 import '../widgets/async_image_preview.dart';
@@ -159,8 +163,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _multiSelect = false;
   final Set<String> _selected = {};
   Event? _replyTo;
+  final ChatVoicePlayer _voicePlayer = ChatVoicePlayer();
+  final ChatVoiceRecorder _voiceRecorder = ChatVoiceRecorder();
+  bool _stoppingVoiceRecording = false;
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
+
+  void _onVoicePlaybackChanged() {
+    if (mounted) setState(() {});
+  }
 
   /// 未登录且 roomId 命中演示数据时走本地渲染；
   /// 已登录则一律走真 Matrix timeline。
@@ -198,6 +209,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   void initState() {
     super.initState();
+    _voicePlayer.playback.addListener(_onVoicePlaybackChanged);
     if (_useMock) {
       _loading = false;
       return;
@@ -616,6 +628,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _roomSyncSub?.cancel();
     _timeline?.cancelSubscriptions();
     _initialTimelineEntranceTimer?.cancel();
+    _voicePlayer.playback.removeListener(_onVoicePlaybackChanged);
+    unawaited(_voicePlayer.dispose());
+    unawaited(_voiceRecorder.dispose());
     _msgCtrl.dispose();
     super.dispose();
   }
@@ -625,6 +640,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (text.isEmpty) return;
     final room = _room;
     if (room == null) return;
+    final replyTo = _replyTo;
     final syncCache = ref.read(asSyncCacheProvider);
     if (!_canSendRoomMessage(room, syncCache)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -636,12 +652,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     setState(() => _replyTo = null);
     try {
       if (isPortalAgentDirectRoom(room)) {
-        await room.sendTextEvent(text);
+        await room.sendTextEvent(text, inReplyTo: replyTo);
       } else if (_isProductDirectRoomForChat(room, syncCache)) {
-        await ref.read(asClientProvider).sendRoomMessage(room.id, text);
+        await ref.read(asClientProvider).sendRoomMessage(
+              room.id,
+              text,
+              replyToEventId: replyTo?.eventId,
+            );
         await ref.read(matrixClientProvider).oneShotSync();
       } else {
-        await room.sendTextEvent(text);
+        await room.sendTextEvent(text, inReplyTo: replyTo);
       }
     } on Object catch (e) {
       if (!mounted) return;
@@ -666,6 +686,115 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         _showPlusPanel = false;
         _showEmojiPanel = false;
       });
+
+  void _startVoiceRecording() {
+    unawaited(_startVoiceRecordingAsync());
+  }
+
+  Future<void> _startVoiceRecordingAsync() async {
+    final room = _room;
+    if (room == null) return;
+    if (!_canSendRoomMessage(room, ref.read(asSyncCacheProvider))) {
+      _showPendingContactToast(context);
+      return;
+    }
+    try {
+      await _voiceRecorder.start();
+    } on ChatVoiceRecorderException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(e.message), duration: const Duration(seconds: 2)),
+      );
+    } on Object catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('语音录制失败：$e'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _stopVoiceRecording() {
+    unawaited(_stopVoiceRecordingAsync());
+  }
+
+  Future<void> _stopVoiceRecordingAsync() async {
+    if (_stoppingVoiceRecording) return;
+    _stoppingVoiceRecording = true;
+    try {
+      final recording = await _voiceRecorder.stop();
+      if (recording == null) return;
+      if (recording.durationMs < 700) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('说话时间太短'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+        return;
+      }
+      await _sendVoiceRecording(recording);
+    } finally {
+      _stoppingVoiceRecording = false;
+    }
+  }
+
+  void _cancelVoiceRecording() {
+    unawaited(_voiceRecorder.cancel());
+  }
+
+  Future<void> _sendVoiceRecording(ChatVoiceRecording recording) async {
+    final room = _room;
+    if (room == null) return;
+    final replyTo = _replyTo;
+    final attachment = ChatMediaAttachment.audio(
+      name: recording.filename,
+      bytes: recording.bytes,
+      mimeType: recording.mimeType,
+      durationMs: recording.durationMs,
+    );
+    final syncCache = ref.read(asSyncCacheProvider);
+    setState(() => _replyTo = null);
+    if (_isProductDirectRoomForChat(room, syncCache) &&
+        !isPortalAgentDirectRoom(room)) {
+      await sendProductMediaWithPendingState(
+        messenger: ScaffoldMessenger.of(context),
+        attachment: attachment,
+        sendAttachment: createProductRoomMediaSender(
+          matrixClient: ref.read(matrixClientProvider),
+          asClient: ref.read(asClientProvider),
+          roomId: widget.roomId,
+        ),
+        thumbnailCacheFuture: null,
+        onStarted: () => _addPendingFileUpload(attachment),
+        onDelivered: _recordDeliveredMediaUpload,
+        onSucceeded: _removePendingMediaUpload,
+        onFailed: _failPendingMediaUpload,
+      );
+      return;
+    }
+
+    try {
+      await room.sendFileEvent(
+        MatrixFile.fromMimeType(
+          bytes: recording.bytes,
+          name: recording.filename,
+          mimeType: recording.mimeType,
+        ),
+        inReplyTo: replyTo,
+      );
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() => _replyTo = replyTo);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(productSendFailureMessage(e))),
+      );
+    }
+  }
 
   Future<void> _onLongPressEvent(BuildContext ctx, Event e, Offset pos) async {
     final action = await _showMsgContextMenu(ctx, pos);
@@ -1059,8 +1188,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<File> _materializeFileEvent(
     Event e, {
     required bool persistent,
+    String? fileName,
   }) async {
-    final matrixFile = await e.downloadAndDecryptAttachment();
+    final matrixFile = await downloadChatEventAttachment(e);
     final baseDir = persistent
         ? Directory(
             '${(await getApplicationDocumentsDirectory()).path}/P2P IM Downloads',
@@ -1068,12 +1198,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         : Directory('${(await getTemporaryDirectory()).path}/p2p-im-open');
     return writeChatActionFile(
       directory: baseDir,
-      fileName: e.body,
+      fileName: fileName ?? e.body,
       bytes: matrixFile.bytes,
     );
   }
 
   Future<void> _openFileEvent(Event e) async {
+    if (_isVoiceEvent(e)) {
+      await _playVoiceEvent(e);
+      return;
+    }
     try {
       final file = await _materializeFileEvent(e, persistent: false);
       await previewChatActionFile(file);
@@ -1085,6 +1219,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
       }
     }
+  }
+
+  Future<void> _playVoiceEvent(Event e) async {
+    try {
+      final matrixFile = await downloadChatEventAttachment(e);
+      await _voicePlayer.playBytes(
+        matrixFile.bytes,
+        mimeType: e.attachmentMimetype,
+        messageId: e.eventId.trim().isEmpty ? null : e.eventId.trim(),
+      );
+    } on Object catch (err) {
+      debugPrint('play voice failed: $err');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('播放失败：$err')),
+        );
+      }
+    }
+  }
+
+  void _seekVoiceEvent(Event event, int seconds) {
+    if (_voicePlayer.playback.value.messageId != event.eventId.trim()) return;
+    unawaited(_voicePlayer.seek(Duration(seconds: seconds)));
   }
 
   Future<void> _downloadFileEvent(Event e) async {
@@ -1280,11 +1437,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             height: item.height,
             durationMs: item.durationMs,
           ),
-        _ => ChatMediaAttachment.file(
-            name: item.filename.isEmpty ? 'file' : item.filename,
-            bytes: bytes,
-            mimeType: item.mimeType,
-          ),
+        _ => item.mimeType.startsWith('audio/')
+            ? ChatMediaAttachment.audio(
+                name: item.filename.isEmpty ? 'voice.m4a' : item.filename,
+                bytes: bytes,
+                mimeType: item.mimeType.isEmpty ? 'audio/mp4' : item.mimeType,
+                durationMs: item.durationMs,
+              )
+            : ChatMediaAttachment.file(
+                name: item.filename.isEmpty ? 'file' : item.filename,
+                bytes: bytes,
+                mimeType: item.mimeType,
+              ),
       };
       await sendProductMediaWithPendingState(
         messenger: ScaffoldMessenger.of(context),
@@ -1372,6 +1536,33 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (text.isNotEmpty) return text;
     }
     return null;
+  }
+
+  _QuotedMessagePreview? _replyPreviewForEvent(
+    Event event,
+    List<Event> visibleEvents,
+  ) {
+    final replyEventId = event.relationshipType == RelationshipTypes.reply
+        ? event.relationshipEventId?.trim()
+        : null;
+    if (replyEventId == null || replyEventId.isEmpty) return null;
+    Event? quoted;
+    for (final candidate in visibleEvents) {
+      if (candidate.eventId == replyEventId) {
+        quoted = candidate;
+        break;
+      }
+    }
+    if (quoted == null) {
+      return const _QuotedMessagePreview(
+        sender: '引用消息',
+        text: '原消息暂不可见',
+      );
+    }
+    return _QuotedMessagePreview(
+      sender: quoted.senderFromMemoryOrFallback.calcDisplayname(),
+      text: quotedEventPreviewText(quoted),
+    );
   }
 
   @override
@@ -1609,6 +1800,33 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
                             return timelineItems[i].when(
                               outbox: (pending) {
+                                if (_isVoiceOutboxItem(pending)) {
+                                  final playback = _voicePlayer.playback.value;
+                                  final isPlaying =
+                                      playback.messageId == pending.id &&
+                                          playback.playing;
+                                  return enter(
+                                    _SChatVoiceBubble(
+                                      key: ValueKey(pending.id),
+                                      isMe: true,
+                                      time: _formatMsgTime(pending.createdAt),
+                                      showRead: false,
+                                      avatarSeed: 'me',
+                                      durationSeconds:
+                                          _voiceDurationSecondsFromMs(
+                                        pending.durationMs,
+                                      ),
+                                      selected: false,
+                                      multiSelect: false,
+                                      isPlaying: isPlaying,
+                                      currentPlaySeconds:
+                                          playback.position.inSeconds,
+                                      onTap: null,
+                                    ),
+                                    isMe: true,
+                                    id: pending.id,
+                                  );
+                                }
                                 if (pending.messageKind ==
                                     LocalOutboxMessageKind.file) {
                                   return enter(
@@ -1975,9 +2193,45 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   );
                                 }
 
-                                // 文件 / 音频附件 → 文件卡片，点击预览，右侧下载。
-                                if ((e.messageType == MessageTypes.File ||
-                                        e.messageType == MessageTypes.Audio) &&
+                                if (_isVoiceEvent(e)) {
+                                  final playback = _voicePlayer.playback.value;
+                                  final eventId = e.eventId.trim();
+                                  final isPlaying =
+                                      playback.messageId == eventId &&
+                                          playback.playing;
+                                  return enter(
+                                    _SChatVoiceBubble(
+                                      isMe: isMe,
+                                      time: time,
+                                      showRead: isMe,
+                                      avatarSeed: senderName,
+                                      avatarUrl: senderAvatarUrl,
+                                      onAvatarTap: avatarTap,
+                                      durationSeconds:
+                                          _voiceDurationSecondsForEvent(e),
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
+                                      isPlaying: isPlaying,
+                                      currentPlaySeconds:
+                                          playback.position.inSeconds,
+                                      onSeek: isPlaying
+                                          ? (seconds) =>
+                                              _seekVoiceEvent(e, seconds)
+                                          : null,
+                                      onTap: _multiSelect
+                                          ? toggle
+                                          : () => _openFileEvent(e),
+                                      onLongPressAt: (pos) =>
+                                          _onLongPressEvent(context, e, pos),
+                                    ),
+                                    isMe: isMe,
+                                    id: e.eventId,
+                                  );
+                                }
+
+                                // 文件附件 → 文件卡片，点击预览，右侧下载。
+                                if (e.messageType == MessageTypes.File &&
+                                    !_isVoiceEvent(e) &&
                                     e.hasAttachment) {
                                   final size = e.infoMap['size'];
                                   final sizeBytes = size is int ? size : 0;
@@ -2023,7 +2277,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 return enter(
                                   _SChatBubble(
                                     isMe: isMe,
-                                    text: e.body,
+                                    text: _messageDisplayText(e),
+                                    quote: _replyPreviewForEvent(
+                                      e,
+                                      messageEvents,
+                                    ),
                                     time: time,
                                     showRead: isMe,
                                     avatarSeed: senderName,
@@ -2100,6 +2358,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       : () => _showPendingContactToast(context),
                   plusActive: _showPlusPanel,
                   emojiActive: _showEmojiPanel,
+                  onVoiceRecordStart: _startVoiceRecording,
+                  onVoiceRecordStop: _stopVoiceRecording,
+                  onVoiceRecordCancel: _cancelVoiceRecording,
                   enabled: canSendMessages,
                   hintText: isWaitingForAccept ? '等待对方接受后才能发送消息' : '消息…',
                 ),
@@ -2227,7 +2488,18 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   Future<void> _send() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
-    final sent = MockMessage(isMe: true, text: text, time: DateTime.now());
+    final replyTo = _replyTo;
+    final sent = MockMessage(
+      isMe: true,
+      text: text,
+      time: DateTime.now(),
+      quotedSender: replyTo == null
+          ? null
+          : replyTo.isMe
+              ? '我'
+              : widget.conv.name,
+      quotedText: replyTo?.text,
+    );
     setState(() {
       _messages.add(sent);
       _ctrl.clear();
@@ -3168,6 +3440,13 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                           _SChatBubble(
                             isMe: m.isMe,
                             text: m.text,
+                            quote: (m.quotedSender?.trim().isNotEmpty == true ||
+                                    m.quotedText?.trim().isNotEmpty == true)
+                                ? _QuotedMessagePreview(
+                                    sender: (m.quotedSender ?? '引用消息').trim(),
+                                    text: (m.quotedText ?? '消息').trim(),
+                                  )
+                                : null,
                             time: time,
                             showRead: m.isMe,
                             avatarSeed: m.isMe ? 'me' : c.name,
@@ -3315,6 +3594,72 @@ class _ChatHeaderAvatar extends StatelessWidget {
 
 /// s-chat 私聊气泡：私聊顶部已经展示对方头像和名字，消息行本身不再重复显示头像。
 /// 自己右对齐 + `accent` 气泡 + 时间戳行内 `done_all` 已读图标。
+class _QuotedMessagePreview {
+  const _QuotedMessagePreview({
+    required this.sender,
+    required this.text,
+  });
+
+  final String sender;
+  final String text;
+}
+
+String _messageDisplayText(Event event) {
+  final plain = event.plaintextBody.trim();
+  if (plain.isNotEmpty && plain != event.body.trim()) return plain;
+  return _stripMatrixReplyFallback(event.body).trim();
+}
+
+bool _isVoiceOutboxItem(LocalOutboxItem item) {
+  return item.messageKind == LocalOutboxMessageKind.file &&
+      item.mimeType.toLowerCase().startsWith('audio/');
+}
+
+bool _isVoiceEvent(Event event) {
+  if (!event.hasAttachment) return false;
+  if (event.messageType == MessageTypes.Audio) return true;
+  if (event.messageType != MessageTypes.File) return false;
+  final mime = event.attachmentMimetype.toLowerCase();
+  if (mime.startsWith('audio/')) return true;
+  final name = event.body.toLowerCase();
+  return name.endsWith('.m4a') ||
+      name.endsWith('.aac') ||
+      name.endsWith('.mp3') ||
+      name.endsWith('.wav') ||
+      name.endsWith('.ogg') ||
+      name.endsWith('.opus') ||
+      name.endsWith('.amr');
+}
+
+int _voiceDurationSecondsForEvent(Event event) {
+  final info = event.infoMap;
+  final raw = info['duration'] ?? info['duration_ms'];
+  final ms = raw is int
+      ? raw
+      : raw is num
+          ? raw.toInt()
+          : int.tryParse(raw?.toString() ?? '') ?? 0;
+  return _voiceDurationSecondsFromMs(ms);
+}
+
+int _voiceDurationSecondsFromMs(int durationMs) {
+  if (durationMs <= 0) return 1;
+  return (durationMs / 1000).ceil().clamp(1, 60 * 60);
+}
+
+String _stripMatrixReplyFallback(String body) {
+  final lines = body.split('\n');
+  if (lines.isEmpty || !lines.first.startsWith('> ')) return body;
+  var index = 0;
+  while (index < lines.length && lines[index].startsWith('> ')) {
+    index++;
+  }
+  if (index < lines.length && lines[index].trim().isEmpty) {
+    return lines.skip(index + 1).join('\n');
+  }
+  return body;
+}
+
 class _SChatBubble extends StatelessWidget {
   const _SChatBubble({
     required this.isMe,
@@ -3322,6 +3667,7 @@ class _SChatBubble extends StatelessWidget {
     required this.time,
     required this.showRead,
     required this.avatarSeed,
+    this.quote,
     this.avatarKey,
     this.avatarUrl,
     this.onAvatarTap,
@@ -3337,6 +3683,7 @@ class _SChatBubble extends StatelessWidget {
   final String time;
   final bool showRead;
   final String avatarSeed;
+  final _QuotedMessagePreview? quote;
   final Key? avatarKey;
   final String? avatarUrl;
   final VoidCallback? onAvatarTap;
@@ -3368,15 +3715,28 @@ class _SChatBubble extends StatelessWidget {
             border: isMe ? null : Border.all(color: t.border),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: markdownChild ??
-              Text(
-                text,
-                style: AppTheme.sans(
-                  size: 17,
-                  weight: FontWeight.w500,
-                  color: textColor,
-                ).copyWith(height: 1.25),
-              ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (quote != null) ...[
+                _QuotedMessageBlock(
+                  quote: quote!,
+                  isMe: isMe,
+                ),
+                const SizedBox(height: 10),
+              ],
+              markdownChild ??
+                  Text(
+                    text,
+                    style: AppTheme.sans(
+                      size: 17,
+                      weight: FontWeight.w500,
+                      color: textColor,
+                    ).copyWith(height: 1.25),
+                  ),
+            ],
+          ),
         ),
       ),
     );
@@ -3454,6 +3814,63 @@ class _SChatBubble extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: row,
+    );
+  }
+}
+
+class _QuotedMessageBlock extends StatelessWidget {
+  const _QuotedMessageBlock({
+    required this.quote,
+    required this.isMe,
+  });
+
+  final _QuotedMessagePreview quote;
+  final bool isMe;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final senderColor = isMe ? t.onAccent.withValues(alpha: 0.88) : t.accent;
+    final bodyColor = isMe ? t.onAccent.withValues(alpha: 0.86) : t.accent;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 168, minWidth: 92),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isMe
+              ? t.onAccent.withValues(alpha: 0.18)
+              : t.accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              quote.sender,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 13,
+                color: senderColor,
+                weight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              quote.text.isEmpty ? '消息' : quote.text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 13,
+                color: bodyColor,
+                weight: FontWeight.w500,
+              ).copyWith(height: 1.2),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -3849,6 +4266,102 @@ class _SChatImageBubble extends StatelessWidget {
         crossAxisAlignment:
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [image, _bubbleTimeRow(context, time, showRead)],
+      ),
+    );
+  }
+}
+
+class _SChatVoiceBubble extends StatelessWidget {
+  const _SChatVoiceBubble({
+    super.key,
+    required this.isMe,
+    required this.time,
+    required this.showRead,
+    required this.avatarSeed,
+    required this.durationSeconds,
+    required this.onTap,
+    this.isPlaying = false,
+    this.currentPlaySeconds = 0,
+    this.onSeek,
+    this.avatarUrl,
+    this.onAvatarTap,
+    this.selected = false,
+    this.multiSelect = false,
+    this.onLongPressAt,
+  });
+
+  final bool isMe;
+  final String time;
+  final bool showRead;
+  final String avatarSeed;
+  final int durationSeconds;
+  final VoidCallback? onTap;
+  final bool isPlaying;
+  final int currentPlaySeconds;
+  final ValueChanged<int>? onSeek;
+  final String? avatarUrl;
+  final VoidCallback? onAvatarTap;
+  final bool selected;
+  final bool multiSelect;
+  final void Function(Offset globalPos)? onLongPressAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    Offset pos = Offset.zero;
+    final bubble = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (d) => pos = d.globalPosition,
+      onTap: onTap,
+      onLongPress: () => onLongPressAt?.call(pos),
+      onSecondaryTapDown: (d) => pos = d.globalPosition,
+      onSecondaryTap: () => onLongPressAt?.call(pos),
+      child: ChatBubbleFrame(
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 116, maxWidth: 220),
+          decoration: BoxDecoration(
+            color: isMe ? t.accent : t.surfaceHigh,
+            borderRadius: chatDirectionalBubbleRadius(isMe),
+            border: isMe ? null : Border.all(color: t.border),
+            boxShadow: [
+              BoxShadow(
+                color: t.text.withValues(alpha: 0.04),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: ChatVoiceBubbleContent(
+                  isMe: isMe,
+                  durationSeconds: durationSeconds,
+                  isPlaying: isPlaying,
+                  currentPlaySeconds: currentPlaySeconds,
+                  onSeek: onSeek,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return _bubbleRow(
+      context: context,
+      isMe: isMe,
+      multiSelect: multiSelect,
+      selected: selected,
+      avatarSeed: avatarSeed,
+      avatarUrl: avatarUrl,
+      onAvatarTap: onAvatarTap,
+      onSelectTap: onTap,
+      child: Column(
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [bubble, _bubbleTimeRow(context, time, showRead)],
       ),
     );
   }
@@ -4444,31 +4957,42 @@ class _ReplyBar extends StatelessWidget {
   }
 }
 
-/// `msg-ctx-menu`：深色 `#1E2026` 圆角浮层 / 2 行 × 3 列 — 复制/转发/收藏 + 删除/多选/引用。
+/// `msg-ctx-menu`：WeChat-style long-press popup from Figma node 73:3243.
 Future<String?> _showMsgContextMenu(BuildContext context, Offset pos) {
   final size = MediaQuery.of(context).size;
   return showGeneralDialog<String>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'msg-ctx',
-    barrierColor: Colors.black.withValues(alpha: 0.15),
+    barrierColor: Colors.transparent,
     transitionDuration: const Duration(milliseconds: 120),
     pageBuilder: (ctx, a1, a2) {
-      // 锚点：限制在屏内
-      const menuW = 300.0;
+      const horizontalMargin = 16.0;
+      final menuW = math.min(343.0, size.width - horizontalMargin * 2);
       const menuH = 168.0;
       var left = pos.dx - menuW / 2;
       var top = pos.dy - menuH - 12;
-      if (left < 12) left = 12;
-      if (left + menuW > size.width - 12) left = size.width - menuW - 12;
-      if (top < 60) top = pos.dy + 12;
+      var pointerOnTop = false;
+      if (left < horizontalMargin) left = horizontalMargin;
+      if (left + menuW > size.width - horizontalMargin) {
+        left = size.width - menuW - horizontalMargin;
+      }
+      if (top < 60) {
+        top = pos.dy + 12;
+        pointerOnTop = true;
+      }
+      final pointerX = (pos.dx - left - 10).clamp(18.0, menuW - 38.0);
       return Stack(
         children: [
           Positioned(
             left: left,
             top: top,
             width: menuW,
-            child: const _MsgCtxMenuCard(),
+            height: menuH,
+            child: _MsgCtxMenuCard(
+              pointerX: pointerX,
+              pointerOnTop: pointerOnTop,
+            ),
           ),
         ],
       );
@@ -4479,96 +5003,118 @@ Future<String?> _showMsgContextMenu(BuildContext context, Offset pos) {
 }
 
 class _MsgCtxMenuCard extends StatelessWidget {
-  const _MsgCtxMenuCard();
+  const _MsgCtxMenuCard({
+    required this.pointerX,
+    required this.pointerOnTop,
+  });
+
+  final double pointerX;
+  final bool pointerOnTop;
+
   @override
   Widget build(BuildContext context) {
-    // s-chat 长按菜单固定用深色背景（与 light/dark 主题无关）
-    const dark = Color(0xFF1E2026);
-    const divider = Color(0x1AFFFFFF);
-    const labelColor = Color(0xB3FFFFFF);
-    const iconColor = Color(0xCCFFFFFF);
-    const danger = Color(0xFFFF6B6B);
+    const dark = Color(0xFF4A4A4A); // theme-fixed: Figma menu surface
+    const divider = Color(0x17FFFFFF); // theme-fixed: Figma row divider
+    const itemW = 68.6;
     return Material(
       color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: dark,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      child: SizedBox(
+        height: 168,
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            IntrinsicHeight(
-              child: Row(
-                children: [
-                  _ctxBtn(
-                    context,
-                    Symbols.content_copy,
-                    '复制',
-                    'copy',
-                    iconColor,
-                    labelColor,
-                  ),
-                  const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(
-                    context,
-                    Symbols.forward,
-                    '转发',
-                    'forward',
-                    iconColor,
-                    labelColor,
-                  ),
-                  const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(
-                    context,
-                    Symbols.star,
-                    '收藏',
-                    'fav',
-                    iconColor,
-                    labelColor,
-                  ),
-                ],
+            Positioned(
+              left: 0,
+              right: 0,
+              top: pointerOnTop ? 10 : 0,
+              height: 158,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: dark,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Stack(
+                  children: [
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      top: 78,
+                      child: Divider(height: 1, thickness: 1, color: divider),
+                    ),
+                    Positioned(
+                      left: 0,
+                      top: 12,
+                      right: 0,
+                      height: 58,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _MsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.content_copy,
+                            label: '复制',
+                            value: 'copy',
+                          ),
+                          _MsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.forward,
+                            label: '转发',
+                            value: 'forward',
+                          ),
+                          _MsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.deployed_code,
+                            label: '收藏',
+                            value: 'fav',
+                          ),
+                          _MsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.delete,
+                            label: '删除',
+                            value: 'delete',
+                          ),
+                          _MsgCtxMenuItem(
+                            width: itemW,
+                            icon: Symbols.format_list_bulleted,
+                            label: '多选',
+                            value: 'multi',
+                          ),
+                        ],
+                      ),
+                    ),
+                    Positioned(
+                      left: 1,
+                      top: 87,
+                      width: 69,
+                      height: 58,
+                      child: _MsgCtxMenuItem(
+                        width: 69,
+                        icon: Symbols.format_quote_rounded,
+                        label: '引用',
+                        value: 'quote',
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const Divider(height: 1, color: divider),
-            IntrinsicHeight(
-              child: Row(
-                children: [
-                  _ctxBtn(
-                    context,
-                    Symbols.delete,
-                    '删除',
-                    'delete',
-                    danger,
-                    danger,
-                  ),
-                  const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(
-                    context,
-                    Symbols.checklist,
-                    '多选',
-                    'multi',
-                    iconColor,
-                    labelColor,
-                  ),
-                  const VerticalDivider(width: 1, color: divider),
-                  _ctxBtn(
-                    context,
-                    Symbols.format_quote,
-                    '引用',
-                    'quote',
-                    iconColor,
-                    labelColor,
-                  ),
-                ],
+            Positioned(
+              left: pointerX,
+              top: pointerOnTop ? 0 : 157,
+              width: 20,
+              height: 12,
+              child: CustomPaint(
+                painter: _MsgCtxPointerPainter(
+                  color: dark,
+                  pointsDown: !pointerOnTop,
+                ),
               ),
             ),
           ],
@@ -4576,31 +5122,93 @@ class _MsgCtxMenuCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _ctxBtn(
-    BuildContext context,
-    IconData icon,
-    String label,
-    String value,
-    Color iconColor,
-    Color labelColor,
-  ) {
-    return Expanded(
-      child: InkWell(
-        onTap: () => Navigator.of(context).pop(value),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+class _MsgCtxMenuItem extends StatelessWidget {
+  const _MsgCtxMenuItem({
+    required this.width,
+    required this.label,
+    required this.value,
+    this.icon,
+  });
+
+  final double width;
+  final IconData? icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: 58,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => Navigator.of(context).pop(value),
+          borderRadius: BorderRadius.circular(8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 22, color: iconColor),
-              const SizedBox(height: 6),
-              Text(label, style: AppTheme.sans(size: 11, color: labelColor)),
+              Icon(
+                icon,
+                size: 24,
+                color: Colors.white, // theme-fixed: Figma menu icon
+                fill: 0,
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 24,
+                child: Center(
+                  child: Text(
+                    label,
+                    style: AppTheme.sans(
+                      size: 15,
+                      weight: FontWeight.w500,
+                      color: Colors.white, // theme-fixed: Figma menu label
+                    ).copyWith(height: 20 / 15),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class _MsgCtxPointerPainter extends CustomPainter {
+  const _MsgCtxPointerPainter({
+    required this.color,
+    required this.pointsDown,
+  });
+
+  final Color color;
+  final bool pointsDown;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path();
+    if (pointsDown) {
+      path
+        ..moveTo(0, 0)
+        ..lineTo(size.width, 0)
+        ..lineTo(size.width / 2, size.height)
+        ..close();
+    } else {
+      path
+        ..moveTo(size.width / 2, 0)
+        ..lineTo(size.width, size.height)
+        ..lineTo(0, size.height)
+        ..close();
+    }
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MsgCtxPointerPainter oldDelegate) {
+    return oldDelegate.color != color || oldDelegate.pointsDown != pointsDown;
   }
 }
 

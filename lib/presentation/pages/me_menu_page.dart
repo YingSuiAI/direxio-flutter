@@ -151,6 +151,8 @@ class MeFavoritesPage extends ConsumerStatefulWidget {
 
 class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
   String _messageType = '';
+  String _searchText = '';
+  final TextEditingController _searchController = TextEditingController();
   final Set<int> _removedFavoriteIds = {};
   late Future<List<AsFavoriteMessage>> _future = _load();
 
@@ -169,6 +171,12 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
       _messageType = messageType;
       _future = _load();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _handleFavoriteTap(AsFavoriteMessage favorite) async {
@@ -222,9 +230,60 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
       },
     );
     if (action != 'delete') return;
+    await _deleteFavorite(favorite);
+  }
+
+  Future<bool> _confirmDeleteFavorite(AsFavoriteMessage favorite) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final t = context.tk;
+        return AlertDialog(
+          backgroundColor: t.surface,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            '取消收藏',
+            style: AppTheme.sans(
+              size: 18,
+              weight: FontWeight.w700,
+              color: t.text,
+            ),
+          ),
+          content: Text(
+            '确认删除该收藏吗？',
+            style: AppTheme.sans(size: 14, color: t.textMute),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                '取消',
+                style: AppTheme.sans(size: 14, color: t.textMute),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(
+                '确认',
+                style: AppTheme.sans(
+                  size: 14,
+                  weight: FontWeight.w700,
+                  color: t.danger,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return false;
+    return _deleteFavorite(favorite);
+  }
+
+  Future<bool> _deleteFavorite(AsFavoriteMessage favorite) async {
     try {
       await ref.read(asClientProvider).deleteFavorite(favorite.id);
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _removedFavoriteIds.add(favorite.id);
         _future = _load();
@@ -232,11 +291,13 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('已删除收藏')),
       );
+      return true;
     } on Object catch (err) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('删除收藏失败：$err')),
       );
+      return false;
     }
   }
 
@@ -278,6 +339,14 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
       body: Column(
         children: [
           GlassHeader.detail(title: '我的收藏'),
+          _FavoriteSearchBar(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _searchText = value),
+            onClear: () {
+              _searchController.clear();
+              setState(() => _searchText = '');
+            },
+          ),
           _FavoriteFilters(selected: _messageType, onSelected: _setFilter),
           Expanded(
             child: FutureBuilder<List<AsFavoriteMessage>>(
@@ -302,16 +371,21 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
                     emptySubtitle: '${snapshot.error}',
                   );
                 }
-                final favorites = (snapshot.data ?? const [])
-                    .where(
-                      (favorite) => !_removedFavoriteIds.contains(favorite.id),
-                    )
-                    .toList(growable: false);
+                final favorites = _searchFavorites(
+                  (snapshot.data ?? const [])
+                      .where(
+                        (favorite) =>
+                            !_removedFavoriteIds.contains(favorite.id),
+                      )
+                      .toList(growable: false),
+                  _searchText,
+                );
                 if (favorites.isEmpty) {
-                  return const _MeEmptyUtilityContent(
+                  final searching = _searchText.trim().isNotEmpty;
+                  return _MeEmptyUtilityContent(
                     icon: Symbols.bookmarks,
-                    emptyTitle: '暂无收藏',
-                    emptySubtitle: '长按聊天消息收藏后会显示在这里',
+                    emptyTitle: searching ? '未找到相关收藏' : '暂无收藏',
+                    emptySubtitle: searching ? '换个关键词试试' : '长按聊天消息收藏后会显示在这里',
                   );
                 }
                 return ListView.builder(
@@ -323,6 +397,7 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
                       onTap: () => unawaited(_handleFavoriteTap(favorite)),
                       onLongPress: () =>
                           unawaited(_handleFavoriteLongPress(favorite)),
+                      onDismissDelete: () => _confirmDeleteFavorite(favorite),
                     );
                   },
                   itemCount: favorites.length,
@@ -671,6 +746,65 @@ class _MeEmptyUtilityContent extends StatelessWidget {
   }
 }
 
+class _FavoriteSearchBar extends StatelessWidget {
+  const _FavoriteSearchBar({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      color: t.bg,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      child: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: controller,
+        builder: (context, value, _) {
+          final hasText = value.text.trim().isNotEmpty;
+          return Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: t.surfaceHigh,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              textInputAction: TextInputAction.search,
+              style: AppTheme.sans(size: 14, color: t.text),
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                hintText: '搜索收藏内容',
+                hintStyle: AppTheme.sans(size: 14, color: t.textMute),
+                prefixIcon: Icon(Symbols.search, size: 20, color: t.textMute),
+                suffixIcon: hasText
+                    ? IconButton(
+                        tooltip: '清除',
+                        onPressed: onClear,
+                        icon: Icon(
+                          Symbols.cancel,
+                          size: 18,
+                          color: t.textMute,
+                        ),
+                      )
+                    : null,
+                contentPadding: const EdgeInsets.symmetric(vertical: 11),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _FavoriteFilters extends StatelessWidget {
   const _FavoriteFilters({
     required this.selected,
@@ -758,60 +892,120 @@ class _FavoriteTile extends StatelessWidget {
     required this.favorite,
     required this.onTap,
     required this.onLongPress,
+    required this.onDismissDelete,
   });
 
   final AsFavoriteMessage favorite;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final Future<bool> Function() onDismissDelete;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return GlassListPanel(
-      key: ValueKey('favorite-card-${favorite.id}'),
-      onTap: onTap,
-      onLongPress: onLongPress,
-      contentPadding: const EdgeInsets.all(14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _FavoritePreview(favorite: favorite),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _favoriteListTitle(favorite),
-                  maxLines: favorite.messageType == 'file' ? 2 : 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(
-                    size: 16,
-                    weight: FontWeight.w600,
-                    color: t.text,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _favoriteSourceLabel(favorite),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 12, color: t.textMute),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _favoriteListMeta(favorite),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 12, color: t.textMute),
-                ),
-              ],
-            ),
+    return Dismissible(
+      key: ValueKey('favorite-dismiss-${favorite.id}'),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => onDismissDelete(),
+      background: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        child: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          decoration: BoxDecoration(
+            color: t.danger.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ],
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: t.danger.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Symbols.delete, color: t.danger, size: 22),
+          ),
+        ),
+      ),
+      child: GlassListPanel(
+        key: ValueKey('favorite-card-${favorite.id}'),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        contentPadding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _FavoritePreview(favorite: favorite),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _favoriteListTitle(favorite),
+                    maxLines: favorite.messageType == 'file' ? 2 : 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 16,
+                      weight: FontWeight.w600,
+                      color: t.text,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _favoriteSourceLabel(favorite),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(size: 12, color: t.textMute),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _favoriteListMeta(favorite),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(size: 12, color: t.textMute),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+List<AsFavoriteMessage> _searchFavorites(
+  List<AsFavoriteMessage> favorites,
+  String query,
+) {
+  final keyword = query.trim().toLowerCase();
+  if (keyword.isEmpty) return favorites;
+  return favorites
+      .where((favorite) => _favoriteSearchText(favorite).contains(keyword))
+      .toList(growable: false);
+}
+
+String _favoriteSearchText(AsFavoriteMessage favorite) {
+  final values = <String>[
+    _favoriteListTitle(favorite),
+    _favoriteSourceLabel(favorite),
+    _favoriteMessageBody(favorite),
+    _favoriteTypeLabel(favorite.messageType),
+    favorite.body,
+    favorite.filename,
+    favorite.url,
+    favorite.mimeType,
+    favorite.senderId,
+    favorite.senderName,
+    favorite.roomId,
+    favorite.eventId,
+    favorite.roomType,
+  ];
+  return values
+      .where((value) => value.trim().isNotEmpty)
+      .join('\n')
+      .toLowerCase();
 }
 
 class _FavoritePreview extends ConsumerStatefulWidget {

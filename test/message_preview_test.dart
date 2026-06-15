@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
+import 'package:portal_app/presentation/chat/chat_record_forwarding.dart';
 import 'package:portal_app/presentation/utils/message_preview.dart';
 
 void main() {
@@ -67,6 +68,73 @@ void main() {
     expect(roomEventPreviewText(received, isAgent: false), '收到文件');
   });
 
+  test('uses voice label for audio message previews', () {
+    final client = Client('MessagePreviewAudioTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+
+    final sent = Event(
+      room: room,
+      eventId: r'$sent-audio',
+      senderId: '@me:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 5, 28),
+      content: {
+        'msgtype': MessageTypes.Audio,
+        'body': 'voice.m4a',
+      },
+    );
+    final received = Event(
+      room: room,
+      eventId: r'$received-audio',
+      senderId: '@peer:p2p-liyanan.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 5, 28),
+      content: {
+        'msgtype': MessageTypes.Audio,
+        'body': 'voice.ogg',
+      },
+    );
+
+    expect(roomEventPreviewText(sent, isAgent: false), '[语音]');
+    expect(roomEventPreviewText(received, isAgent: false), '[语音]');
+  });
+
+  test('uses voice label for audio files sent through media route', () {
+    final client = Client('MessagePreviewAudioFileTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+
+    final sent = Event(
+      room: room,
+      eventId: r'$sent-audio-file',
+      senderId: '@me:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 5, 28),
+      content: {
+        'msgtype': MessageTypes.File,
+        'body': 'voice.m4a',
+        'info': {'mimetype': 'audio/mp4'},
+      },
+    );
+    final received = Event(
+      room: room,
+      eventId: r'$received-audio-file',
+      senderId: '@peer:p2p-liyanan.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 5, 28),
+      content: {
+        'msgtype': MessageTypes.File,
+        'body': 'voice.ogg',
+        'info': {'mimetype': 'audio/ogg'},
+      },
+    );
+
+    expect(roomEventPreviewText(sent, isAgent: false), '[语音]');
+    expect(roomEventPreviewText(received, isAgent: false), '[语音]');
+    expect(quotedEventPreviewText(sent), '[语音]');
+  });
+
   test('uses direction-specific labels for video message previews', () {
     final client = Client('MessagePreviewVideoTest')
       ..setUserId('@me:p2p-im.com');
@@ -116,6 +184,75 @@ void main() {
     );
 
     expect(roomEventPreviewText(event, isAgent: false), 'hello world');
+  });
+
+  test('uses type labels for quoted media previews', () {
+    final client = Client('QuotedMessagePreviewMediaTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+
+    Event event(String id, String msgtype, String body) => Event(
+          room: room,
+          eventId: id,
+          senderId: '@peer:p2p-liyanan.com',
+          type: EventTypes.Message,
+          originServerTs: DateTime.utc(2026, 6, 12),
+          content: {
+            'msgtype': msgtype,
+            'body': body,
+          },
+        );
+
+    expect(
+      quotedEventPreviewText(event(r'$image', MessageTypes.Image, 'a.jpg')),
+      '[图片]',
+    );
+    expect(
+      quotedEventPreviewText(event(r'$video', MessageTypes.Video, 'v.mp4')),
+      '[视频]',
+    );
+    expect(
+      quotedEventPreviewText(event(r'$file', MessageTypes.File, 'doc.pdf')),
+      '[文件]',
+    );
+    expect(
+      quotedEventPreviewText(event(r'$audio', MessageTypes.Audio, 'voice.ogg')),
+      '[语音]',
+    );
+  });
+
+  test('uses type labels for quoted product card previews', () {
+    final client = Client('QuotedMessagePreviewCardTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+
+    final chatRecord = Event(
+      room: room,
+      eventId: r'$record',
+      senderId: '@peer:p2p-liyanan.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 12),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '聊天记录',
+        chatRecordMatrixMarkerKey: chatRecordMessageType,
+      },
+    );
+    final channelShare = Event(
+      room: room,
+      eventId: r'$channel',
+      senderId: '@peer:p2p-liyanan.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 12),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '频道分享',
+        chatRecordMatrixMarkerKey: 'channel_share',
+      },
+    );
+
+    expect(quotedEventPreviewText(chatRecord), '[聊天记录]');
+    expect(quotedEventPreviewText(channelShare), '[频道]');
   });
 
   test('uses call events as conversation previews', () {

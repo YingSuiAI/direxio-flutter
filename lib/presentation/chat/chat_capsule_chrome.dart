@@ -8,8 +8,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 
-const _assetChatKeyboard =
-    'assets/resources/chat_composer_keyboard__chat_composer_keyboard.svg';
 const _assetChatEmoji =
     'assets/resources/chat_composer_emoji__chat_composer_emoji.svg';
 const _assetChatPlus =
@@ -553,6 +551,9 @@ class ChatCapsuleInputBar extends StatefulWidget {
     this.emojiActive = false,
     this.suggestions = const [],
     this.onPickSuggestion,
+    this.onVoiceRecordStart,
+    this.onVoiceRecordStop,
+    this.onVoiceRecordCancel,
     this.enabled = true,
     this.hintText = '消息…',
   });
@@ -565,6 +566,9 @@ class ChatCapsuleInputBar extends StatefulWidget {
   final bool emojiActive;
   final List<String> suggestions;
   final ValueChanged<String>? onPickSuggestion;
+  final VoidCallback? onVoiceRecordStart;
+  final VoidCallback? onVoiceRecordStop;
+  final VoidCallback? onVoiceRecordCancel;
   final bool enabled;
   final String hintText;
 
@@ -573,11 +577,129 @@ class ChatCapsuleInputBar extends StatefulWidget {
 }
 
 class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
-  bool _voiceMode = true;
+  bool _voiceMode = false;
+  bool _pressingVoice = false;
+  bool _cancelVoicePressOnRelease = false;
+  Offset? _voicePressStartGlobal;
+  DateTime? _voicePressStartedAt;
+  Duration _voiceElapsed = Duration.zero;
+  Timer? _voiceElapsedTimer;
+  OverlayEntry? _voiceOverlayEntry;
+
+  void _startVoicePress(Offset globalPosition) {
+    if (!widget.enabled) return;
+    if (_pressingVoice) return;
+    setState(() {
+      _pressingVoice = true;
+      _cancelVoicePressOnRelease = false;
+      _voicePressStartGlobal = globalPosition;
+      _voicePressStartedAt = DateTime.now();
+      _voiceElapsed = Duration.zero;
+    });
+    _showVoiceOverlay();
+    _startVoiceElapsedTimer();
+    widget.onVoiceRecordStart?.call();
+  }
+
+  void _stopVoicePress() {
+    if (!_pressingVoice) return;
+    final shouldCancel = _cancelVoicePressOnRelease;
+    _clearVoiceOverlay();
+    setState(() {
+      _pressingVoice = false;
+      _cancelVoicePressOnRelease = false;
+      _voicePressStartGlobal = null;
+      _voicePressStartedAt = null;
+      _voiceElapsed = Duration.zero;
+    });
+    if (shouldCancel) {
+      widget.onVoiceRecordCancel?.call();
+    } else {
+      widget.onVoiceRecordStop?.call();
+    }
+  }
+
+  void _cancelVoicePress() {
+    if (!_pressingVoice) return;
+    _clearVoiceOverlay();
+    setState(() {
+      _pressingVoice = false;
+      _cancelVoicePressOnRelease = false;
+      _voicePressStartGlobal = null;
+      _voicePressStartedAt = null;
+      _voiceElapsed = Duration.zero;
+    });
+    widget.onVoiceRecordCancel?.call();
+  }
+
+  void _updateVoicePress(Offset globalPosition) {
+    final start = _voicePressStartGlobal;
+    if (!_pressingVoice || start == null) return;
+    final shouldCancel = start.dy - globalPosition.dy >= 160;
+    if (shouldCancel == _cancelVoicePressOnRelease) return;
+    setState(() => _cancelVoicePressOnRelease = shouldCancel);
+    _voiceOverlayEntry?.markNeedsBuild();
+  }
+
+  void _showVoiceOverlay() {
+    if (_voiceOverlayEntry != null) {
+      _voiceOverlayEntry!.markNeedsBuild();
+      return;
+    }
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+    _voiceOverlayEntry = OverlayEntry(
+      builder: (_) => _VoiceRecordingOverlay(
+        canceling: _cancelVoicePressOnRelease,
+        elapsed: _voiceElapsed,
+      ),
+    );
+    overlay.insert(_voiceOverlayEntry!);
+  }
+
+  void _startVoiceElapsedTimer() {
+    _voiceElapsedTimer?.cancel();
+    _voiceElapsedTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
+      final startedAt = _voicePressStartedAt;
+      if (!_pressingVoice || startedAt == null) return;
+      _voiceElapsed = DateTime.now().difference(startedAt);
+      _voiceOverlayEntry?.markNeedsBuild();
+    });
+  }
+
+  void _clearVoiceOverlay() {
+    _voiceElapsedTimer?.cancel();
+    _voiceElapsedTimer = null;
+    _voiceOverlayEntry?.remove();
+    _voiceOverlayEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _clearVoiceOverlay();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final voicePrompt = !_pressingVoice
+        ? '按住 说话'
+        : _cancelVoicePressOnRelease
+            ? '松开 取消'
+            : '松开 发送';
+    final voicePromptColor = !widget.enabled
+        ? t.textMute.withValues(alpha: 0.45)
+        : !_pressingVoice
+            ? t.text
+            : _cancelVoicePressOnRelease
+                ? t.danger
+                : t.accent;
+    final voiceSurfaceColor = !_pressingVoice
+        ? null
+        : _cancelVoicePressOnRelease
+            ? t.danger.withValues(alpha: 0.10)
+            : t.accent.withValues(alpha: 0.10);
     return SafeArea(
       top: false,
       child: Padding(
@@ -633,17 +755,16 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                 ),
               ),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 ChatDirectionalEntrance(
                   direction: ChatEntranceDirection.bottom,
                   child: SizedBox(
-                    key: const ValueKey('chat_input_keyboard_circle'),
+                    key: const ValueKey('chat_input_mic_circle'),
                     width: 40,
                     height: 40,
                     child: _AssetCircleCapsuleButton(
-                      assetName: _voiceMode ? _assetChatKeyboard : null,
-                      icon: _voiceMode ? null : Symbols.mic,
+                      icon: _voiceMode ? Symbols.keyboard : Symbols.mic,
                       tooltip: _voiceMode ? '键盘' : '语音',
                       enabled: widget.enabled,
                       onTap: () => setState(() => _voiceMode = !_voiceMode),
@@ -662,24 +783,32 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                         minHeight: 40,
                         height: _voiceMode ? 40 : null,
                         padding: EdgeInsets.zero,
+                        color: _voiceMode ? voiceSurfaceColor : null,
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 140),
                           child: _voiceMode
-                              ? GestureDetector(
+                              ? Listener(
                                   key: const ValueKey('voice_mode'),
-                                  behavior: HitTestBehavior.opaque,
-                                  onLongPressStart: (_) {},
-                                  onLongPressEnd: (_) {},
-                                  child: Center(
-                                    child: Text(
-                                      '按住 说话',
-                                      style: AppTheme.sans(
-                                        size: 15,
-                                        color: widget.enabled
-                                            ? t.text
-                                            : t.textMute
-                                                .withValues(alpha: 0.45),
-                                        weight: FontWeight.w600,
+                                  behavior: HitTestBehavior.translucent,
+                                  onPointerDown: (event) =>
+                                      _startVoicePress(event.position),
+                                  onPointerMove: (event) =>
+                                      _updateVoicePress(event.position),
+                                  onPointerUp: (_) => _stopVoicePress(),
+                                  onPointerCancel: (_) => _cancelVoicePress(),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        voicePrompt,
+                                        style: AppTheme.sans(
+                                          size: 17,
+                                          color: voicePromptColor,
+                                          weight: FontWeight.w500,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -856,6 +985,191 @@ class ChatEmojiPanel extends StatelessWidget {
   }
 }
 
+class _VoiceRecordingOverlay extends StatelessWidget {
+  const _VoiceRecordingOverlay({
+    required this.canceling,
+    required this.elapsed,
+  });
+
+  final bool canceling;
+  final Duration elapsed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final actionColor = canceling ? t.danger : t.accent;
+    return IgnorePointer(
+      child: Material(
+        key: const ValueKey('voice_recording_overlay'),
+        color: Colors.transparent,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(color: t.text.withValues(alpha: 0.70)),
+            Positioned(
+              left: 45,
+              right: 45,
+              bottom: 314,
+              child: _VoiceWaveCard(
+                key: const ValueKey('voice_recording_wave_card'),
+                color: actionColor,
+                elapsed: elapsed,
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 170,
+              child: CustomPaint(
+                key: const ValueKey('voice_recording_release_arc'),
+                painter: _VoiceReleaseArcPainter(actionColor),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 30),
+                  child: Text(
+                    canceling ? '松开取消' : '松开发送，上滑取消',
+                    style: AppTheme.sans(
+                      size: 16,
+                      color: t.onAccent,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VoiceWaveCard extends StatelessWidget {
+  const _VoiceWaveCard({
+    super.key,
+    required this.color,
+    required this.elapsed,
+  });
+
+  final Color color;
+  final Duration elapsed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      height: 76,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: t.text.withValues(alpha: 0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _VoiceWaveform(color: t.onAccent),
+          const SizedBox(height: 8),
+          Text(
+            _formatVoiceElapsed(elapsed),
+            style: AppTheme.sans(
+              size: 12,
+              color: t.onAccent,
+              weight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VoiceWaveform extends StatelessWidget {
+  const _VoiceWaveform({required this.color});
+
+  final Color color;
+
+  static const _barHeights = <double>[
+    14,
+    20,
+    10,
+    18,
+    26,
+    12,
+    30,
+    16,
+    24,
+    11,
+    18,
+    13,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 30,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          for (var i = 0; i < _barHeights.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              child: Container(
+                width: 3,
+                height: _barHeights[i],
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: i.isEven ? 0.52 : 0.90),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VoiceReleaseArcPainter extends CustomPainter {
+  const _VoiceReleaseArcPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawOval(
+      Rect.fromLTWH(-48, 16, size.width + 96, 220),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _VoiceReleaseArcPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
+}
+
+String _formatVoiceElapsed(Duration elapsed) {
+  final seconds = elapsed.inSeconds.clamp(0, 99 * 60 + 59);
+  final minutesPart = (seconds ~/ 60).toString().padLeft(2, '0');
+  final secondsPart = (seconds % 60).toString().padLeft(2, '0');
+  return '$minutesPart:$secondsPart';
+}
+
 class _AssetCircleCapsuleButton extends StatelessWidget {
   const _AssetCircleCapsuleButton({
     required this.tooltip,
@@ -958,6 +1272,7 @@ class _CapsuleSurface extends StatelessWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 12),
     this.height,
     this.minHeight = 46,
+    this.color,
     this.onTap,
   });
 
@@ -965,6 +1280,7 @@ class _CapsuleSurface extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final double? height;
   final double minHeight;
+  final Color? color;
   final VoidCallback? onTap;
 
   @override
@@ -975,7 +1291,7 @@ class _CapsuleSurface extends StatelessWidget {
     );
     return _BlurSurface(
       borderRadius: BorderRadius.circular(9999),
-      color: context.tk.surface.withValues(alpha: 0.82),
+      color: color ?? context.tk.surface.withValues(alpha: 0.82),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(9999),

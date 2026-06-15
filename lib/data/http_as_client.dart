@@ -359,11 +359,19 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Future<String> sendRoomMessage(String roomId, String content) async {
+  Future<String> sendRoomMessage(
+    String roomId,
+    String content, {
+    String? replyToEventId,
+  }) async {
+    final replyTo = replyToEventId?.trim();
     final body = await _requestJson(
       'POST',
       'rooms/${Uri.encodeComponent(roomId)}/send',
-      body: {'content': content},
+      body: {
+        'content': content,
+        if (replyTo != null && replyTo.isNotEmpty) 'reply_to': replyTo,
+      },
       allowedStatusCodes: const {200},
     );
     return body['event_id'] as String? ?? '';

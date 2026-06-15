@@ -5,6 +5,7 @@ enum ChatMediaKind {
   image,
   video,
   file,
+  audio,
 }
 
 enum ChatMediaSendStage {
@@ -52,6 +53,21 @@ class ChatMediaAttachment {
     );
   }
 
+  factory ChatMediaAttachment.audio({
+    required String name,
+    required List<int> bytes,
+    String mimeType = 'audio/mp4',
+    int durationMs = 0,
+  }) {
+    return ChatMediaAttachment._(
+      kind: ChatMediaKind.audio,
+      name: name,
+      bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+      mimeType: mimeType,
+      durationMs: durationMs,
+    );
+  }
+
   factory ChatMediaAttachment.video({
     required String name,
     required List<int> bytes,
@@ -96,6 +112,7 @@ class ChatMediaAttachment {
       ChatMediaKind.image => 'm.image',
       ChatMediaKind.video => 'm.video',
       ChatMediaKind.file => 'm.file',
+      ChatMediaKind.audio => 'm.audio',
     };
   }
 
@@ -104,6 +121,7 @@ class ChatMediaAttachment {
       ChatMediaKind.image => '图片',
       ChatMediaKind.video => '视频',
       ChatMediaKind.file => '文件',
+      ChatMediaKind.audio => '语音',
     };
   }
 }
@@ -347,7 +365,7 @@ Future<ChatMediaSendResult> sendProductChatMedia({
     attachment.label,
     () => sendMedia(
       roomId: roomId,
-      msgType: attachment.msgType,
+      msgType: _asSendMediaMsgType(attachment),
       body: attachment.name,
       filename: attachment.name,
       mediaUrl: mediaUrl.toString(),
@@ -373,6 +391,13 @@ Future<ChatMediaSendResult> sendProductChatMedia({
   }
 
   return ChatMediaSendResult(eventId: eventId, mediaUrl: mediaUrl);
+}
+
+String _asSendMediaMsgType(ChatMediaAttachment attachment) {
+  return switch (attachment.kind) {
+    ChatMediaKind.audio => 'm.file',
+    _ => attachment.msgType,
+  };
 }
 
 String _videoThumbnailFilename(String videoName) {

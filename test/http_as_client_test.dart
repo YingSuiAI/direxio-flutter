@@ -226,6 +226,30 @@ void main() {
     expect(eventId, r'$sent');
   });
 
+  test('sendRoomMessage includes reply target when present', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/rooms/!alice%3Ap2p-im.com/send');
+        expect(jsonDecode(request.body), {
+          'content': 'hello',
+          'reply_to': r'$quoted',
+        });
+        return http.Response(jsonEncode({'event_id': r'$sent'}), 200);
+      }),
+    );
+
+    final eventId = await client.sendRoomMessage(
+      '!alice:p2p-im.com',
+      'hello',
+      replyToEventId: r'$quoted',
+    );
+
+    expect(eventId, r'$sent');
+  });
+
   test('sendRoomMediaMessage posts media through AS product route', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),

@@ -286,7 +286,11 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<String> sendRoomMessage(String roomId, String content) async {
+  Future<String> sendRoomMessage(
+    String roomId,
+    String content, {
+    String? replyToEventId,
+  }) async {
     await Future.delayed(_latency);
     return 'mock-event';
   }

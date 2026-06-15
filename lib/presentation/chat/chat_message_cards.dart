@@ -271,6 +271,265 @@ class ChatCallRecordBubble extends StatelessWidget {
   }
 }
 
+class ChatVoiceBubbleContent extends StatefulWidget {
+  const ChatVoiceBubbleContent({
+    super.key,
+    required this.isMe,
+    required this.durationSeconds,
+    this.isPlaying = false,
+    this.currentPlaySeconds = 0,
+    this.onSeek,
+  });
+
+  final bool isMe;
+  final int durationSeconds;
+  final bool isPlaying;
+  final int currentPlaySeconds;
+  final ValueChanged<int>? onSeek;
+
+  static const _barWidth = 1.0;
+  static const _barSpacing = 0.5;
+
+  @override
+  State<ChatVoiceBubbleContent> createState() => _ChatVoiceBubbleContentState();
+}
+
+class _ChatVoiceBubbleContentState extends State<ChatVoiceBubbleContent> {
+  bool _dragging = false;
+  double _dragProgress = 0;
+  int? _lastSeekSeconds;
+
+  int get _duration => widget.durationSeconds <= 0 ? 1 : widget.durationSeconds;
+  int get _barCount => _duration.clamp(3, 60);
+
+  double get _progress {
+    if (_dragging) return _dragProgress.clamp(0, 1);
+    if (!widget.isPlaying || _duration <= 0) return 0;
+    return (widget.currentPlaySeconds / _duration).clamp(0, 1);
+  }
+
+  int get _activeCount {
+    if (!widget.isPlaying && !_dragging) return 0;
+    return (_barCount * _progress).floor().clamp(0, _barCount);
+  }
+
+  int get _displaySeconds {
+    if (_dragging) {
+      return (_duration - _seekSecondsForProgress(_dragProgress))
+          .clamp(0, _duration);
+    }
+    if (!widget.isPlaying) return _duration;
+    return (_duration - widget.currentPlaySeconds).clamp(0, _duration);
+  }
+
+  int _seekSecondsForProgress(double progress) {
+    return (progress.clamp(0, 1) * _duration).round().clamp(0, _duration);
+  }
+
+  void _handleSeek(DragUpdateDetails details, double width) {
+    final onSeek = widget.onSeek;
+    if (onSeek == null || _duration <= 0) return;
+    final localX = details.localPosition.dx.clamp(0, width);
+    final progress = width <= 0 ? 0.0 : localX / width;
+    final seconds = _seekSecondsForProgress(progress);
+    setState(() {
+      _dragging = true;
+      _dragProgress = progress;
+    });
+    if (_lastSeekSeconds != seconds) {
+      _lastSeekSeconds = seconds;
+      onSeek(seconds);
+    }
+  }
+
+  void _endSeek() {
+    if (!_dragging) return;
+    setState(() {
+      _dragging = false;
+      _lastSeekSeconds = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final foreground = widget.isMe ? t.onAccent : t.text;
+    final inactive = foreground.withValues(alpha: widget.isMe ? 0.4 : 0.22);
+    final children = <Widget>[
+      _VoiceIcon(
+        isMe: widget.isMe,
+        color: foreground,
+        isPlaying: widget.isPlaying,
+      ),
+      _VoiceWaveform(
+        barCount: _barCount,
+        durationSeconds: _duration,
+        isMe: widget.isMe,
+        activeCount: _activeCount,
+        activeColor: foreground,
+        inactiveColor: inactive,
+      ),
+      SizedBox(
+        width: 33,
+        child: Text(
+          '${_displaySeconds}s',
+          maxLines: 1,
+          textAlign: TextAlign.center,
+          style: AppTheme.sans(size: 14, color: foreground).copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ),
+    ];
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : (33 + _barCount * 1.5 + 24);
+          return GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragUpdate: widget.onSeek == null
+                ? null
+                : (details) => _handleSeek(details, width),
+            onHorizontalDragEnd:
+                widget.onSeek == null ? null : (_) => _endSeek(),
+            onHorizontalDragCancel: widget.onSeek == null ? null : _endSeek,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 2,
+              children: widget.isMe ? children.reversed.toList() : children,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _VoiceWaveform extends StatelessWidget {
+  const _VoiceWaveform({
+    required this.barCount,
+    required this.durationSeconds,
+    required this.isMe,
+    required this.activeCount,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  final int barCount;
+  final int durationSeconds;
+  final bool isMe;
+  final int activeCount;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 20,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          for (var i = 0; i < barCount; i++) ...[
+            Container(
+              width: ChatVoiceBubbleContent._barWidth,
+              height: _heightFor(i),
+              decoration: BoxDecoration(
+                color: i < activeCount ? activeColor : inactiveColor,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            if (i != barCount - 1)
+              const SizedBox(width: ChatVoiceBubbleContent._barSpacing),
+          ],
+        ],
+      ),
+    );
+  }
+
+  double _heightFor(int index) {
+    final seedBase = durationSeconds * 31 + (isMe ? 13 : 7);
+    final seed = (seedBase ^ (index * 97)).abs();
+    final normalized = (seed % 1000) / 1000;
+    return 4 + normalized * 16;
+  }
+}
+
+class _VoiceIcon extends StatefulWidget {
+  const _VoiceIcon({
+    required this.isMe,
+    required this.color,
+    required this.isPlaying,
+  });
+
+  final bool isMe;
+  final Color color;
+  final bool isPlaying;
+
+  @override
+  State<_VoiceIcon> createState() => _VoiceIconState();
+}
+
+class _VoiceIconState extends State<_VoiceIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 800),
+    lowerBound: 0.96,
+    upperBound: 1.08,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isPlaying) {
+      _controller.repeat(reverse: true);
+    } else {
+      _controller.value = 1;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _VoiceIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying == oldWidget.isPlaying) return;
+    if (widget.isPlaying) {
+      _controller.repeat(reverse: true);
+    } else {
+      _controller.stop();
+      _controller.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = Icon(
+      Symbols.graphic_eq,
+      size: 20,
+      color: widget.color,
+      fill: widget.isPlaying ? 1 : 0,
+    );
+    return ScaleTransition(
+      scale: _controller,
+      child: Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.diagonal3Values(widget.isMe ? -1.0 : 1.0, 1.0, 1.0),
+        child: icon,
+      ),
+    );
+  }
+}
+
 String _chatRecordCardTitle(ChatRecordPayload payload) {
   return switch (payload.sourceRoomType) {
     'group' => '群聊的聊天记录',

@@ -218,13 +218,115 @@ void main() {
     expect(find.byKey(const ValueKey('chat_input_plus_circle')), findsOne);
     expect(find.byKey(const ValueKey('chat_input_text_capsule')), findsOne);
     expect(find.byKey(const ValueKey('chat_input_mic_circle')), findsOne);
-    expect(find.text('按住发语音'), findsNothing);
+    expect(find.text('按住 说话'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('chat_input_mic_circle')));
     await tester.pumpAndSettle();
 
-    expect(find.text('按住发语音'), findsOneWidget);
+    expect(find.text('按住 说话'), findsOneWidget);
     expect(find.byIcon(Symbols.keyboard), findsOneWidget);
+  });
+
+  testWidgets('chat capsule input records voice while pressed', (tester) async {
+    final ctrl = TextEditingController();
+    addTearDown(ctrl.dispose);
+    var started = 0;
+    var stopped = 0;
+    var canceled = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ChatCapsuleInputBar(
+              ctrl: ctrl,
+              onSend: () {},
+              onPlus: () {},
+              onEmoji: () {},
+              onVoiceRecordStart: () => started++,
+              onVoiceRecordStop: () => stopped++,
+              onVoiceRecordCancel: () => canceled++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('chat_input_mic_circle')));
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('voice_mode'))),
+    );
+    await tester.pump();
+
+    expect(started, 1);
+    expect(find.text('松开 发送'), findsOneWidget);
+    expect(find.byKey(const ValueKey('voice_recording_overlay')), findsOne);
+    expect(find.byKey(const ValueKey('voice_recording_wave_card')), findsOne);
+    expect(find.text('松开发送，上滑取消'), findsOne);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(stopped, 1);
+    expect(canceled, 0);
+    expect(find.text('按住 说话'), findsOneWidget);
+    expect(find.byKey(const ValueKey('voice_recording_overlay')), findsNothing);
+  });
+
+  testWidgets('chat capsule input cancels voice after sliding up',
+      (tester) async {
+    final ctrl = TextEditingController();
+    addTearDown(ctrl.dispose);
+    var started = 0;
+    var stopped = 0;
+    var canceled = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ChatCapsuleInputBar(
+              ctrl: ctrl,
+              onSend: () {},
+              onPlus: () {},
+              onEmoji: () {},
+              onVoiceRecordStart: () => started++,
+              onVoiceRecordStop: () => stopped++,
+              onVoiceRecordCancel: () => canceled++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('chat_input_mic_circle')));
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('voice_mode'))),
+    );
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, -180));
+    await tester.pump();
+
+    expect(started, 1);
+    expect(find.text('松开 取消'), findsOneWidget);
+    expect(find.byKey(const ValueKey('voice_recording_overlay')), findsOne);
+    expect(find.text('松开取消'), findsOne);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(stopped, 0);
+    expect(canceled, 1);
+    expect(find.text('按住 说话'), findsOneWidget);
+    expect(find.byKey(const ValueKey('voice_recording_overlay')), findsNothing);
   });
 
   testWidgets('chat capsule input keeps three controls on one center axis',
@@ -287,7 +389,8 @@ void main() {
 
     final input =
         tester.getRect(find.byKey(const ValueKey('chat_input_text_capsule')));
-    final emojiCenter = tester.getCenter(find.byIcon(Symbols.mood));
+    final emojiCenter =
+        tester.getCenter(find.byKey(const ValueKey('chat_input_emoji_circle')));
 
     expect(emojiCenter.dy, input.center.dy);
   });

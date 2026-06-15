@@ -79,6 +79,14 @@ LocalOutboxDraft mediaOutboxDraftForAttachment(
         mimeType: attachment.mimeType,
         bytes: attachment.bytes,
       ),
+    ChatMediaKind.audio => LocalOutboxDraft.media(
+        messageKind: LocalOutboxMessageKind.file,
+        filename: attachment.name,
+        mimeType:
+            attachment.mimeType.isEmpty ? 'audio/mp4' : attachment.mimeType,
+        bytes: attachment.bytes,
+        durationMs: attachment.durationMs,
+      ),
   };
 }
 

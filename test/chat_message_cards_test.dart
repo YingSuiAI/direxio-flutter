@@ -138,6 +138,59 @@ void main() {
     expect(find.text('未接通'), findsOneWidget);
   });
 
+  testWidgets('voice bubble content matches iOS voice message layout',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: const Scaffold(
+          body: ChatVoiceBubbleContent(
+            isMe: true,
+            durationSeconds: 12,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('12s'), findsOneWidget);
+    expect(find.byIcon(Symbols.graphic_eq), findsOneWidget);
+    expect(find.byType(ChatVoiceBubbleContent), findsOneWidget);
+
+    final durationRect = tester.getRect(find.text('12s'));
+    final iconRect = tester.getRect(find.byIcon(Symbols.graphic_eq));
+    expect(durationRect.left, lessThan(iconRect.left));
+  });
+
+  testWidgets('voice bubble content shows playback progress and supports seek',
+      (tester) async {
+    final seeks = <int>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Center(
+            child: ChatVoiceBubbleContent(
+              isMe: false,
+              durationSeconds: 12,
+              isPlaying: true,
+              currentPlaySeconds: 4,
+              onSeek: seeks.add,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('8s'), findsOneWidget);
+    expect(find.text('12s'), findsNothing);
+
+    await tester.drag(find.byType(ChatVoiceBubbleContent), const Offset(80, 0));
+    await tester.pump();
+
+    expect(seeks, isNotEmpty);
+    expect(seeks.last, inInclusiveRange(0, 12));
+  });
+
   testWidgets('chat bubble frame does not reserve tail space', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

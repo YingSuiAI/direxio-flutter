@@ -934,6 +934,44 @@ class _DesignAssetIcon extends StatelessWidget {
 }
 
 Widget _assetIcon(String assetName, {required double size, Color? color}) {
+  return _SafeAssetIcon(assetName: assetName, size: size, color: color);
+}
+
+class _SafeAssetIcon extends StatelessWidget {
+  const _SafeAssetIcon({
+    required this.assetName,
+    required this.size,
+    this.color,
+  });
+
+  final String assetName;
+  final double size;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<ByteData>(
+      future: rootBundle.load(assetName),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          final iconColor = color ?? context.tk.textMute;
+          return Icon(
+            _fallbackIconForAsset(assetName),
+            size: size,
+            color: iconColor,
+          );
+        }
+        if (snapshot.connectionState != ConnectionState.done) {
+          return SizedBox.square(dimension: size);
+        }
+        return _loadedAssetIcon(assetName, size: size, color: color);
+      },
+    );
+  }
+}
+
+Widget _loadedAssetIcon(String assetName,
+    {required double size, Color? color}) {
   if (assetName.toLowerCase().endsWith('.svg')) {
     return SvgPicture.asset(
       assetName,
@@ -957,6 +995,24 @@ Widget _assetIcon(String assetName, {required double size, Color? color}) {
     colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
     child: image,
   );
+}
+
+IconData _fallbackIconForAsset(String assetName) {
+  if (assetName.contains('me_channel') || assetName.contains('channel')) {
+    return Symbols.forum;
+  }
+  if (assetName.contains('qr')) return Symbols.qr_code;
+  if (assetName.contains('favorite')) return Symbols.favorite;
+  if (assetName.contains('verification')) return Symbols.verified_user;
+  if (assetName.contains('clear')) return Symbols.delete_sweep;
+  if (assetName.contains('setting')) return Symbols.settings;
+  if (assetName.contains('more')) return Symbols.more_vert;
+  if (assetName.contains('back')) return Symbols.arrow_back;
+  if (assetName.contains('emoji')) return Symbols.emoji_emotions;
+  if (assetName.contains('plus') || assetName.contains('add')) {
+    return Symbols.add;
+  }
+  return Symbols.image;
 }
 
 class _GlassCircleButton extends StatelessWidget {

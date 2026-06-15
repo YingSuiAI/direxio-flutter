@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,7 +16,12 @@ import '../../data/matrix_token_refreshing_http_client.dart';
 import '../../data/well_known_service.dart';
 import '../../data/bi_analytics_service.dart';
 import 'as_sync_cache_provider.dart';
+import 'as_call_session_store_provider.dart';
+import 'friend_request_read_provider.dart';
+import 'local_message_order_provider.dart';
+import 'local_outbox_provider.dart';
 import 'p2p_api_provider.dart';
+import 'recovered_unread_store_provider.dart';
 
 part 'auth_provider.g.dart';
 
@@ -320,6 +326,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             portalToken: cleanPortalToken,
             httpClient: client.httpClient,
           );
+    final storedUserId = await _storage.read(key: 'matrix_user_id');
     // 认证成功后再读取 owner.json，用于确认 Portal owner 信息。
     await _assertPortalDeployed(inputUri.host);
     final effectivePortalToken =
@@ -327,8 +334,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             ? session.portalToken!.trim()
             : cleanPortalToken;
 
-    if (_isLoggedInAsDifferentUser(client, session.userId)) {
-      await client.clear();
+    if (_isDifferentAccountLogin(
+      client,
+      session.userId,
+      storedUserId: storedUserId,
+    )) {
+      await _clearUserScopedLocalState(client);
     }
     final matrixUri = _resolveClientHomeserver(inputUri, session.homeserver);
     await client.checkHomeserver(matrixUri);
@@ -886,9 +897,18 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         client.userID == userId;
   }
 
-  bool _isLoggedInAsDifferentUser(Client client, String userId) {
-    return client.onLoginStateChanged.value == LoginState.loggedIn &&
-        client.userID != userId;
+  bool _isDifferentAccountLogin(
+    Client client,
+    String nextUserId, {
+    required String? storedUserId,
+  }) {
+    final next = nextUserId.trim();
+    if (next.isEmpty) return false;
+    final current = client.userID?.trim() ?? '';
+    if (current.isNotEmpty && current != next) return true;
+    final stored = storedUserId?.trim() ?? '';
+    if (stored.isNotEmpty && stored != next) return true;
+    return client.rooms.isNotEmpty && !_isLoggedInAs(client, next);
   }
 
   bool _isTokenFailure(Object error) {
@@ -973,13 +993,61 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _storage.write(key: lastLoginPortalTokenKey, value: portalToken);
   }
 
+  Future<void> _clearUserScopedLocalState(
+    Client client, {
+    bool clearMatrix = true,
+  }) async {
+    if (clearMatrix) {
+      await client.clear();
+    }
+    ref.read(asSyncCacheProvider.notifier).state = const AsSyncCacheState();
+    ref.invalidate(localOutboxProvider);
+    ref.invalidate(localOutboxStoreProvider);
+    ref.invalidate(localMessageOrderProvider);
+    ref.invalidate(localMessageOrderStoreProvider);
+    ref.invalidate(friendRequestReadProvider);
+    ref.invalidate(friendRequestReadStoreProvider);
+    ref.invalidate(recoveredUnreadStoreProvider);
+    ref.invalidate(asCallSessionStoreProvider);
+    await _deleteUserScopedSupportFiles();
+  }
+
+  Future<void> _deleteUserScopedSupportFiles() async {
+    final dir = await getApplicationSupportDirectory();
+    const filenames = [
+      'portal_im_as_bootstrap.json',
+      'portal_im_recovered_unread.json',
+      'portal_im_pending_media_uploads.json',
+      'portal_im_local_message_order.json',
+      'portal_im_call_sessions.json',
+      'portal_im_friend_request_read.json',
+      'portal_im_channel_posts.json',
+    ];
+    for (final filename in filenames) {
+      final file = File('${dir.path}/$filename');
+      try {
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        debugPrint('clear user cache failed for $filename: $e');
+      }
+    }
+  }
+
   Future<void> logout() async {
     final client = ref.read(matrixClientProvider);
     final lastHomeserver = await _storage.read(key: lastLoginHomeserverKey) ??
         await _storage.read(key: 'matrix_homeserver');
     final lastPortalToken = await _storage.read(key: lastLoginPortalTokenKey) ??
         await _storage.read(key: 'portal_token');
-    await client.logout();
+    try {
+      await client.logout();
+    } catch (e) {
+      debugPrint('matrix logout failed: $e');
+      await client.clear();
+    }
+    await _clearUserScopedLocalState(client, clearMatrix: false);
     await _storage.deleteAll();
     if (lastHomeserver != null && lastHomeserver.trim().isNotEmpty) {
       await _storage.write(

@@ -86,7 +86,12 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                       children: [
                         _GroupedCard(
                           children: [
-                            _RowChevron(label: '查找聊天记录', onTap: () {}),
+                            _RowChevron(
+                              label: '查找聊天记录',
+                              onTap: () => context.push(
+                                '/room-search/${Uri.encodeComponent(widget.roomId)}',
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),

@@ -283,6 +283,61 @@ class AsSyncCacheState {
     );
   }
 
+  AsSyncCacheState withContactDisplayName({
+    required String userId,
+    required String displayName,
+  }) {
+    final trimmedUserId = userId.trim();
+    final trimmedName = displayName.trim();
+    if (trimmedUserId.isEmpty || trimmedName.isEmpty) return this;
+
+    final entries = Map<String, ContactEntry>.from(localContactEntriesByRoomId);
+    for (final entry in entries.entries.toList()) {
+      final contact = entry.value;
+      if (contact.peerMxid.trim() != trimmedUserId) continue;
+      entries[entry.key] = ContactEntry(
+        peerMxid: contact.peerMxid,
+        displayName: trimmedName,
+        domain: contact.domain,
+        roomId: contact.roomId,
+        status: contact.status,
+        visibleAfterTs: contact.visibleAfterTs,
+        deletedEventIds: contact.deletedEventIds,
+      );
+    }
+
+    final current = bootstrap;
+    final updatedBootstrap = current == null
+        ? null
+        : AsSyncBootstrap(
+            syncedAt: current.syncedAt,
+            user: current.user,
+            agentRoomId: current.agentRoomId,
+            rooms: current.rooms,
+            contacts: current.contacts.map((contact) {
+              if (contact.userId.trim() != trimmedUserId) return contact;
+              return AsSyncContact(
+                userId: contact.userId,
+                displayName: trimmedName,
+                avatarUrl: contact.avatarUrl,
+                roomId: contact.roomId,
+                domain: contact.domain,
+                status: contact.status,
+                visibleAfterTs: contact.visibleAfterTs,
+                deletedEventIds: contact.deletedEventIds,
+              );
+            }).toList(growable: false),
+            groups: current.groups,
+            channels: current.channels,
+            pending: current.pending,
+          );
+
+    return copyWith(
+      bootstrap: updatedBootstrap,
+      localContactEntriesByRoomId: entries,
+    );
+  }
+
   List<AsUnreadMessage> unreadMessagesForRoom(String roomId) {
     return unread?.messagesForRoom(roomId) ?? const [];
   }
@@ -411,6 +466,22 @@ class AsSyncCacheState {
 final asSyncCacheProvider = StateProvider<AsSyncCacheState>((ref) {
   return const AsSyncCacheState();
 });
+
+bool asBootstrapBelongsToUser(AsSyncBootstrap? bootstrap, String? userId) {
+  if (bootstrap == null) return true;
+  final expectedUserId = userId?.trim() ?? '';
+  if (expectedUserId.isEmpty) return true;
+  final bootstrapUserId = bootstrap.user.userId.trim();
+  return bootstrapUserId.isNotEmpty && bootstrapUserId == expectedUserId;
+}
+
+AsSyncCacheState asSyncCacheForUser(
+  AsSyncCacheState state,
+  String? userId,
+) {
+  if (asBootstrapBelongsToUser(state.bootstrap, userId)) return state;
+  return const AsSyncCacheState();
+}
 
 AsSyncBootstrap _bootstrapApplyingLocalReadMarkers(
   AsSyncBootstrap bootstrap,

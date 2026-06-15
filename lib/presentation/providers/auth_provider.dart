@@ -489,6 +489,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         portalToken: portalToken,
         baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
       ).syncBootstrap().timeout(const Duration(seconds: 10));
+      if (!asBootstrapBelongsToUser(bootstrap, client.userID)) {
+        debugPrint(
+          'post-login ignored AS bootstrap for ${bootstrap.user.userId}; '
+          'current user is ${client.userID}',
+        );
+        return;
+      }
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
           );

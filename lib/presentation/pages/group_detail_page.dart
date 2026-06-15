@@ -67,7 +67,9 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
               GlassHeaderButton(
                 icon: Symbols.search,
                 color: t.accent,
-                onTap: () {},
+                onTap: () => context.push(
+                  '/room-search/${Uri.encodeComponent(widget.roomId)}',
+                ),
               ),
             ],
           ),
@@ -105,7 +107,14 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                   ),
                   const SizedBox(height: 16),
                   _GroupedCard(
-                    children: [_RowChevron(label: '查找聊天记录', onTap: () {})],
+                    children: [
+                      _RowChevron(
+                        label: '查找聊天记录',
+                        onTap: () => context.push(
+                          '/room-search/${Uri.encodeComponent(widget.roomId)}',
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   _GroupedCard(

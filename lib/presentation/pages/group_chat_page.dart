@@ -1092,7 +1092,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     Offset position, {
     required String roomName,
   }) async {
-    final action = await _showGroupMessageContextMenu(context, position);
+    final action = await _showGroupMessageContextMenu(
+      context,
+      position,
+      canEdit: _canEditEvent(event),
+      canRecall: event.canRedact,
+    );
     if (!mounted || action == null) return;
     switch (action) {
       case 'copy':
@@ -1115,6 +1120,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'delete':
         await _deleteEventForMe(event);
         break;
+      case 'edit':
+        await _editEvent(event);
+        break;
+      case 'recall':
+        await _recallEvent(event);
+        break;
       case 'fav':
         await _favoriteEvent(event);
         break;
@@ -1124,6 +1135,150 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
           _selected.add(event.eventId);
         });
         break;
+    }
+  }
+
+  bool _canEditEvent(Event event) {
+    final room = _room;
+    if (room == null || event.room.id != room.id) return false;
+    return event.senderId == room.client.userID &&
+        event.type == EventTypes.Message &&
+        event.messageType == MessageTypes.Text &&
+        event.plaintextBody.trim().isNotEmpty &&
+        !event.redacted;
+  }
+
+  Future<void> _editEvent(Event event) async {
+    if (!_canEditEvent(event)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('只能编辑自己发送的文本消息')),
+      );
+      return;
+    }
+    final controller = TextEditingController(text: event.plaintextBody);
+    final next = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final t = dialogContext.tk;
+        return AlertDialog(
+          title: Text(
+            '编辑消息',
+            style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 1,
+            maxLines: 5,
+            decoration: InputDecoration(
+              hintText: '输入消息内容',
+              hintStyle: AppTheme.sans(size: 15, color: t.textMute),
+            ),
+            style: AppTheme.sans(size: 15, color: t.text),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                '取消',
+                style: AppTheme.sans(size: 15, color: t.textMute),
+              ),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: Text(
+                '保存',
+                style: AppTheme.sans(
+                  size: 15,
+                  weight: FontWeight.w600,
+                  color: t.accent,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted || next == null) return;
+    if (next.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('消息内容不能为空')),
+      );
+      return;
+    }
+    try {
+      await event.room.sendTextEvent(next, editEventId: event.eventId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('消息已编辑')),
+      );
+    } on Object catch (err) {
+      debugPrint('edit group message failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('编辑消息失败：$err')),
+      );
+    }
+  }
+
+  Future<void> _recallEvent(Event event) async {
+    if (!event.canRedact) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('没有权限撤回该消息')),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final t = dialogContext.tk;
+        return AlertDialog(
+          title: Text(
+            '撤回消息',
+            style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+          ),
+          content: Text(
+            '撤回后，群成员也将看不到这条消息。',
+            style: AppTheme.sans(size: 15, color: t.textMute),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                '取消',
+                style: AppTheme.sans(size: 15, color: t.textMute),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                '撤回',
+                style: AppTheme.sans(
+                  size: 15,
+                  weight: FontWeight.w600,
+                  color: t.danger,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await event.redactEvent(reason: '撤回消息');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('消息已撤回')),
+      );
+    } on Object catch (err) {
+      debugPrint('recall group message failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('撤回消息失败：$err')),
+      );
     }
   }
 
@@ -3296,8 +3451,10 @@ class _GroupVideoPlayOverlay extends StatelessWidget {
 
 Future<String?> _showGroupMessageContextMenu(
   BuildContext context,
-  Offset position,
-) {
+  Offset position, {
+  bool canEdit = false,
+  bool canRecall = false,
+}) {
   final size = MediaQuery.of(context).size;
   return showGeneralDialog<String>(
     context: context,
@@ -3319,7 +3476,10 @@ Future<String?> _showGroupMessageContextMenu(
             left: left,
             top: top,
             width: menuW,
-            child: const _GroupMsgCtxMenuCard(),
+            child: _GroupMsgCtxMenuCard(
+              canEdit: canEdit,
+              canRecall: canRecall,
+            ),
           ),
         ],
       );
@@ -3330,7 +3490,13 @@ Future<String?> _showGroupMessageContextMenu(
 }
 
 class _GroupMsgCtxMenuCard extends StatelessWidget {
-  const _GroupMsgCtxMenuCard();
+  const _GroupMsgCtxMenuCard({
+    required this.canEdit,
+    required this.canRecall,
+  });
+
+  final bool canEdit;
+  final bool canRecall;
 
   @override
   Widget build(BuildContext context) {
@@ -3422,6 +3588,36 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (canEdit || canRecall) ...[
+              const Divider(height: 1, color: divider),
+              IntrinsicHeight(
+                child: Row(
+                  children: [
+                    if (canEdit)
+                      _ctxBtn(
+                        context,
+                        Symbols.edit,
+                        '编辑',
+                        'edit',
+                        iconColor,
+                        labelColor,
+                      ),
+                    if (canRecall) ...[
+                      if (canEdit)
+                        const VerticalDivider(width: 1, color: divider),
+                      _ctxBtn(
+                        context,
+                        Symbols.undo,
+                        '撤回',
+                        'recall',
+                        danger,
+                        danger,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

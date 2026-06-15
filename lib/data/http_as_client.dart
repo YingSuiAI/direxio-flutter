@@ -966,6 +966,19 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<void> removeGroupMember({
+    required String roomId,
+    required String peerMxid,
+  }) async {
+    await _requestJson(
+      'POST',
+      'groups/${Uri.encodeComponent(roomId)}/members/'
+          '${Uri.encodeComponent(peerMxid.trim())}/remove',
+      allowedStatusCodes: const {200},
+    );
+  }
+
+  @override
   Future<AsGroupResult> updateGroupInvitePolicy({
     required String roomId,
     required String invitePolicy,

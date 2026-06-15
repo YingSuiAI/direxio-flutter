@@ -66,7 +66,9 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
               GlassHeaderButton(
                 icon: Symbols.search,
                 color: t.accent,
-                onTap: () {},
+                onTap: () => context.push(
+                  '/room-search/${Uri.encodeComponent(widget.roomId)}',
+                ),
               ),
             ],
           ),
@@ -113,7 +115,12 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                 // 查找聊天记录
                 M3Card(
                   padding: EdgeInsets.zero,
-                  child: InfoNavRow(label: '查找聊天记录', onTap: () {}),
+                  child: InfoNavRow(
+                    label: '查找聊天记录',
+                    onTap: () => context.push(
+                      '/room-search/${Uri.encodeComponent(widget.roomId)}',
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 // 开关组

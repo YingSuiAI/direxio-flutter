@@ -298,6 +298,13 @@ class AppWarmupService {
     try {
       final bootstrap = await loader();
       if (bootstrap == null) return null;
+      if (!asBootstrapBelongsToUser(bootstrap, client.userID)) {
+        debugPrint(
+          'app warmup ignored cached bootstrap for ${bootstrap.user.userId}; '
+          'current user is ${client.userID}',
+        );
+        return null;
+      }
       onBootstrapLoaded?.call(bootstrap);
       return bootstrap;
     } catch (e) {
@@ -311,6 +318,13 @@ class AppWarmupService {
     if (loader == null) return null;
     try {
       final bootstrap = await loader().timeout(syncTimeout);
+      if (!asBootstrapBelongsToUser(bootstrap, client.userID)) {
+        debugPrint(
+          'app warmup ignored bootstrap for ${bootstrap.user.userId}; '
+          'current user is ${client.userID}',
+        );
+        return null;
+      }
       onBootstrapLoaded?.call(bootstrap);
       return bootstrap;
     } catch (e) {

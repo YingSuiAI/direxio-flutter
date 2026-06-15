@@ -688,6 +688,36 @@ void main() {
     expect(group.invitedCount, 1);
   });
 
+  test('removeGroupMember posts member removal through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/_as/groups/!group%3Ap2p-im.com/members/'
+          '%40carol%3Ap2p-carol.com/remove',
+        );
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(request.body, isEmpty);
+        return http.Response(
+          jsonEncode({'room_id': '!group:p2p-im.com', 'status': 'removed'}),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    await expectLater(
+      client.removeGroupMember(
+        roomId: '!group:p2p-im.com',
+        peerMxid: ' @carol:p2p-carol.com ',
+      ),
+      completes,
+    );
+  });
+
   test('updateGroupInvitePolicy puts selected policy through AS', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),

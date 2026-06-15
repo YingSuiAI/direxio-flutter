@@ -591,6 +591,12 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
+  Future<void> removeGroupMember({
+    required String roomId,
+    required String peerMxid,
+  }) async {}
+
+  @override
   Future<AsGroupResult> updateGroupInvitePolicy({
     required String roomId,
     required String invitePolicy,
@@ -1092,6 +1098,9 @@ class _TrackingAsClient extends _EmptyAsClient {
   AsSyncBootstrap? bootstrapAfterCreate;
   int leaveGroupCalls = 0;
   String? leftGroupRoomId;
+  int removeGroupMemberCalls = 0;
+  String? removedGroupRoomId;
+  String? removedGroupPeerMxid;
   AsSyncBootstrap? bootstrapAfterLeave;
   int updateGroupInvitePolicyCalls = 0;
   String? updatedGroupInvitePolicyRoomId;
@@ -1211,6 +1220,16 @@ class _TrackingAsClient extends _EmptyAsClient {
       memberCount: 2,
       invitedCount: invite.length,
     );
+  }
+
+  @override
+  Future<void> removeGroupMember({
+    required String roomId,
+    required String peerMxid,
+  }) async {
+    removeGroupMemberCalls++;
+    removedGroupRoomId = roomId;
+    removedGroupPeerMxid = peerMxid;
   }
 
   @override
@@ -7742,7 +7761,7 @@ void main() {
     expect(find.text('通用设置'), findsOneWidget);
     expect(find.text('语言'), findsOneWidget);
     expect(find.text('主题'), findsOneWidget);
-    expect(find.text('收藏'), findsOneWidget);
+    expect(find.text('收藏'), findsNothing);
     expect(find.text('隐私与安全'), findsOneWidget);
     expect(find.text('通讯录黑名单'), findsOneWidget);
     expect(find.text('消息与通知'), findsOneWidget);

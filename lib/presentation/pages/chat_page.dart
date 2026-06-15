@@ -797,7 +797,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _onLongPressEvent(BuildContext ctx, Event e, Offset pos) async {
-    final action = await _showMsgContextMenu(ctx, pos);
+    final action = await _showMsgContextMenu(
+      ctx,
+      pos,
+      canEdit: _canEditEvent(e),
+      canRecall: e.canRedact,
+    );
     if (!mounted || action == null) return;
     switch (action) {
       case 'copy':
@@ -830,9 +835,159 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       case 'delete':
         await _deleteEventForMe(e);
         break;
+      case 'edit':
+        await _editEvent(e);
+        break;
+      case 'recall':
+        await _recallEvent(e);
+        break;
       case 'fav':
         await _favoriteEvent(e);
         break;
+    }
+  }
+
+  bool _canEditEvent(Event event) {
+    final room = _room;
+    if (room == null || event.room.id != room.id) return false;
+    return event.senderId == room.client.userID &&
+        event.type == EventTypes.Message &&
+        event.messageType == MessageTypes.Text &&
+        event.plaintextBody.trim().isNotEmpty &&
+        !event.redacted;
+  }
+
+  Future<void> _editEvent(Event event) async {
+    if (!_canEditEvent(event)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('只能编辑自己发送的文本消息')),
+      );
+      return;
+    }
+    final controller = TextEditingController(text: event.plaintextBody);
+    final next = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final t = dialogContext.tk;
+        return AlertDialog(
+          title: Text(
+            '编辑消息',
+            style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 1,
+            maxLines: 5,
+            decoration: InputDecoration(
+              hintText: '输入消息内容',
+              hintStyle: AppTheme.sans(size: 15, color: t.textMute),
+            ),
+            style: AppTheme.sans(size: 15, color: t.text),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                '取消',
+                style: AppTheme.sans(size: 15, color: t.textMute),
+              ),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: Text(
+                '保存',
+                style: AppTheme.sans(
+                  size: 15,
+                  weight: FontWeight.w600,
+                  color: t.accent,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted || next == null) return;
+    if (next.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('消息内容不能为空')),
+      );
+      return;
+    }
+    try {
+      await event.room.sendTextEvent(next, editEventId: event.eventId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('消息已编辑')),
+      );
+    } on Object catch (err) {
+      debugPrint('edit message failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('编辑消息失败：$err')),
+      );
+    }
+  }
+
+  Future<void> _recallEvent(Event event) async {
+    if (!event.canRedact) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('没有权限撤回该消息')),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final t = dialogContext.tk;
+        return AlertDialog(
+          title: Text(
+            '撤回消息',
+            style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+          ),
+          content: Text(
+            '撤回后，对方也将看不到这条消息。',
+            style: AppTheme.sans(size: 15, color: t.textMute),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(
+                '取消',
+                style: AppTheme.sans(size: 15, color: t.textMute),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                '撤回',
+                style: AppTheme.sans(
+                  size: 15,
+                  weight: FontWeight.w600,
+                  color: t.danger,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await event.redactEvent(reason: '撤回消息');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('消息已撤回')),
+      );
+    } on Object catch (err) {
+      debugPrint('recall message failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('撤回消息失败：$err')),
+      );
     }
   }
 
@@ -4958,7 +5113,12 @@ class _ReplyBar extends StatelessWidget {
 }
 
 /// `msg-ctx-menu`：WeChat-style long-press popup from Figma node 73:3243.
-Future<String?> _showMsgContextMenu(BuildContext context, Offset pos) {
+Future<String?> _showMsgContextMenu(
+  BuildContext context,
+  Offset pos, {
+  bool canEdit = false,
+  bool canRecall = false,
+}) {
   final size = MediaQuery.of(context).size;
   return showGeneralDialog<String>(
     context: context,
@@ -4992,6 +5152,8 @@ Future<String?> _showMsgContextMenu(BuildContext context, Offset pos) {
             child: _MsgCtxMenuCard(
               pointerX: pointerX,
               pointerOnTop: pointerOnTop,
+              canEdit: canEdit,
+              canRecall: canRecall,
             ),
           ),
         ],
@@ -5006,10 +5168,14 @@ class _MsgCtxMenuCard extends StatelessWidget {
   const _MsgCtxMenuCard({
     required this.pointerX,
     required this.pointerOnTop,
+    required this.canEdit,
+    required this.canRecall,
   });
 
   final double pointerX;
   final bool pointerOnTop;
+  final bool canEdit;
+  final bool canRecall;
 
   @override
   Widget build(BuildContext context) {
@@ -5040,15 +5206,15 @@ class _MsgCtxMenuCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Stack(
+                child: Stack(
                   children: [
-                    Positioned(
+                    const Positioned(
                       left: 16,
                       right: 16,
                       top: 78,
                       child: Divider(height: 1, thickness: 1, color: divider),
                     ),
-                    Positioned(
+                    const Positioned(
                       left: 0,
                       top: 12,
                       right: 0,
@@ -5089,7 +5255,7 @@ class _MsgCtxMenuCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Positioned(
+                    const Positioned(
                       left: 1,
                       top: 87,
                       width: 69,
@@ -5101,6 +5267,32 @@ class _MsgCtxMenuCard extends StatelessWidget {
                         value: 'quote',
                       ),
                     ),
+                    if (canEdit)
+                      const Positioned(
+                        left: 70,
+                        top: 87,
+                        width: 69,
+                        height: 58,
+                        child: _MsgCtxMenuItem(
+                          width: 69,
+                          icon: Symbols.edit,
+                          label: '编辑',
+                          value: 'edit',
+                        ),
+                      ),
+                    if (canRecall)
+                      const Positioned(
+                        left: 139,
+                        top: 87,
+                        width: 69,
+                        height: 58,
+                        child: _MsgCtxMenuItem(
+                          width: 69,
+                          icon: Symbols.undo,
+                          label: '撤回',
+                          value: 'recall',
+                        ),
+                      ),
                   ],
                 ),
               ),

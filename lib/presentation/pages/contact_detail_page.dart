@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
@@ -136,17 +137,25 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                                 ),
                               )
                           : null,
-                      onSearch: () => _toast(context, '搜索聊天功能待接入'),
+                      onSearch: roomId == null
+                          ? () => _toast(context, '缺少联系人房间信息，无法搜索聊天')
+                          : () => context.push(
+                                '/room-search/${Uri.encodeComponent(roomId)}',
+                              ),
                     ),
                     const SizedBox(height: 26),
                     _ContactSettingRow(
                       label: '设置备注',
-                      onTap: () => _toast(context, '设置备注功能待接入'),
+                      onTap: () => _showRemarkDialog(
+                        context,
+                        userId: userId,
+                        currentName: displayName,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     _ContactSettingRow(
                       label: '推荐给朋友',
-                      onTap: () => _toast(context, '推荐给朋友功能待接入'),
+                      onTap: () => _shareContact(displayName, userId),
                     ),
                     const SizedBox(height: 16),
                     _ContactSwitchRow(
@@ -228,6 +237,86 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         const SnackBar(content: Text('举报已提交')),
       );
     }
+  }
+
+  Future<void> _showRemarkDialog(
+    BuildContext context, {
+    required String userId,
+    required String currentName,
+  }) async {
+    final controller = TextEditingController(text: currentName);
+    final next = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final t = dialogContext.tk;
+        return AlertDialog(
+          title: Text(
+            '设置备注',
+            style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 32,
+            decoration: InputDecoration(
+              hintText: '输入备注名',
+              hintStyle: AppTheme.sans(size: 15, color: t.textMute),
+            ),
+            style: AppTheme.sans(size: 15, color: t.text),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                '取消',
+                style: AppTheme.sans(size: 15, color: t.textMute),
+              ),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: Text(
+                '保存',
+                style: AppTheme.sans(
+                  size: 15,
+                  weight: FontWeight.w600,
+                  color: t.accent,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (!context.mounted || next == null) return;
+    if (next.trim().isEmpty) {
+      _toast(context, '备注不能为空');
+      return;
+    }
+    ref.read(asSyncCacheProvider.notifier).update(
+          (state) => state.withContactDisplayName(
+            userId: userId,
+            displayName: next,
+          ),
+        );
+    final bootstrap = ref.read(asSyncCacheProvider).bootstrap;
+    if (bootstrap != null) {
+      unawaited(
+        ref
+            .read(asBootstrapStoreProvider.future)
+            .then((store) => store.write(bootstrap))
+            .catchError((error) {
+          debugPrint('persist contact remark bootstrap failed: $error');
+        }),
+      );
+    }
+    _toast(context, '备注已更新');
+  }
+
+  Future<void> _shareContact(String displayName, String userId) async {
+    final name = displayName.trim().isEmpty ? userId : displayName.trim();
+    await Share.share('推荐联系人：$name\n$userId');
   }
 
   Future<void> _deleteContact(BuildContext context, String roomId) async {

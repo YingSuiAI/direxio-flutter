@@ -1,0 +1,61 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
+
+void main() {
+  test('withContactDisplayName updates bootstrap contact name', () {
+    final state = AsSyncCacheState(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        rooms: const [],
+        contacts: const [
+          AsSyncContact(
+            userId: '@alice:example.com',
+            displayName: 'Alice',
+            avatarUrl: 'mxc://example/avatar',
+            roomId: '!alice:example.com',
+            domain: 'example.com',
+            status: 'accepted',
+          ),
+        ],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    final next = state.withContactDisplayName(
+      userId: '@alice:example.com',
+      displayName: '  备注名  ',
+    );
+
+    final contact = next.acceptedContactForUserId('@alice:example.com');
+    expect(contact?.displayName, '备注名');
+    expect(contact?.avatarUrl, 'mxc://example/avatar');
+    expect(contact?.roomId, '!alice:example.com');
+  });
+
+  test('withContactDisplayName updates local optimistic contact name', () {
+    const entry = ContactEntry(
+      peerMxid: '@bob:example.com',
+      displayName: 'Bob',
+      domain: 'example.com',
+      roomId: '!bob:example.com',
+      status: 'accepted',
+    );
+    const state = AsSyncCacheState(
+      localContactEntriesByRoomId: {'!bob:example.com': entry},
+    );
+
+    final next = state.withContactDisplayName(
+      userId: '@bob:example.com',
+      displayName: 'Bobby',
+    );
+
+    expect(
+      next.acceptedContactForUserId('@bob:example.com')?.displayName,
+      'Bobby',
+    );
+  });
+}

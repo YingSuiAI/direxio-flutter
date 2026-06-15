@@ -184,11 +184,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           trailingText: _themeLabel(l10n, themeMode),
                           onTap: _showThemePicker,
                         ),
-                        _SettingsRow(
-                          icon: Symbols.bookmarks,
-                          label: l10n?.settingsFavorites ?? '收藏',
-                          onTap: () {},
-                        ),
                       ],
                     ),
                     const SizedBox(height: 24),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -115,7 +116,9 @@ class _HomePageState extends ConsumerState<HomePage>
   StreamSubscription<GroupCallUiState>? _groupCallSub;
   bool _resumeSyncInFlight = false;
   bool _asBootstrapRefreshInFlight = false;
+  bool _staleBootstrapClearScheduled = false;
   Timer? _asBootstrapRefreshTimer;
+  String? _lastBootstrapRefreshUserId;
   String? _incomingCallRouteRoomId;
   String? _incomingGroupCallRouteRoomId;
 
@@ -262,7 +265,16 @@ class _HomePageState extends ConsumerState<HomePage>
     if (_asBootstrapRefreshTimer?.isActive ?? false) return;
     final auth = ref.read(authStateNotifierProvider).valueOrNull;
     if (!(auth?.isLoggedIn ?? false)) return;
-    if (!refreshExisting && ref.read(asSyncCacheProvider).bootstrap != null) {
+    final currentUserId = ref.read(matrixClientProvider).userID ?? auth?.userId;
+    final cachedBootstrap = ref.read(asSyncCacheProvider).bootstrap;
+    if (!asBootstrapBelongsToUser(cachedBootstrap, currentUserId)) {
+      _scheduleStaleBootstrapClear();
+    } else if (!refreshExisting && cachedBootstrap != null) {
+      return;
+    }
+    if (!refreshExisting &&
+        cachedBootstrap == null &&
+        _lastBootstrapRefreshUserId == currentUserId) {
       return;
     }
 
@@ -284,26 +296,56 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   Future<void> _refreshAsBootstrap() async {
+    final refreshUserId = ref.read(matrixClientProvider).userID ??
+        ref.read(authStateNotifierProvider).valueOrNull?.userId;
     try {
       final bootstrap = await ref
           .read(asBootstrapRepositoryProvider)
           .refresh()
           .timeout(const Duration(seconds: 10));
+      final currentUserId = ref.read(matrixClientProvider).userID ??
+          ref.read(authStateNotifierProvider).valueOrNull?.userId;
+      if (!asBootstrapBelongsToUser(bootstrap, currentUserId)) {
+        debugPrint(
+          'home ignored bootstrap for ${bootstrap.user.userId}; '
+          'current user is $currentUserId',
+        );
+        return;
+      }
+      _lastBootstrapRefreshUserId = null;
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
           );
     } catch (e) {
+      _lastBootstrapRefreshUserId = refreshUserId;
       debugPrint('home bootstrap refresh failed: $e');
     } finally {
       _finishAsBootstrapRefresh();
     }
   }
 
+  void _scheduleStaleBootstrapClear() {
+    if (_staleBootstrapClearScheduled) return;
+    _staleBootstrapClearScheduled = true;
+    scheduleMicrotask(() {
+      _staleBootstrapClearScheduled = false;
+      if (!mounted) return;
+      final currentUserId = ref.read(matrixClientProvider).userID ??
+          ref.read(authStateNotifierProvider).valueOrNull?.userId;
+      final cachedBootstrap = ref.read(asSyncCacheProvider).bootstrap;
+      if (asBootstrapBelongsToUser(cachedBootstrap, currentUserId)) return;
+      ref.read(asSyncCacheProvider.notifier).state = const AsSyncCacheState();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
     final authState = ref.watch(authStateNotifierProvider);
-    final syncCache = ref.watch(asSyncCacheProvider);
+    final syncCache = asSyncCacheForUser(
+      ref.watch(asSyncCacheProvider),
+      client.userID ?? authState.valueOrNull?.userId,
+    );
     final friendRequestReadState = ref.watch(friendRequestReadProvider);
     final friendRequestUnreadCount = friendRequestReadState
         .unreadCountForRoomIds(_pendingFriendRequestRoomIds(
@@ -733,60 +775,62 @@ class _HomeBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final bg = _homeBgColor(context);
-    return SizedBox(
-      height: 80 + bottomInset,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      bg.withValues(alpha: 0.0),
-                      bg.withValues(alpha: _homeDark(context) ? 0.98 : 0.92),
-                    ],
+    return RepaintBoundary(
+      child: SizedBox(
+        height: 80 + bottomInset,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        bg.withValues(alpha: 0.0),
+                        bg.withValues(alpha: _homeDark(context) ? 0.98 : 0.92),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            left: 11,
-            bottom: bottomInset + 5,
-            width: 291,
-            height: 56,
-            child: _LiquidTabPill(
-              items: items,
-              currentIndex: currentIndex,
-              onTap: onTap,
+            Positioned(
+              left: 11,
+              bottom: bottomInset + 5,
+              width: 291,
+              height: 56,
+              child: _LiquidTabPill(
+                items: items,
+                currentIndex: currentIndex,
+                onTap: onTap,
+              ),
             ),
-          ),
-          Positioned(
-            right: 16,
-            bottom: bottomInset + 4,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onSearchTap,
-              child: SizedBox(
-                width: _bottomSearchTapSize,
-                height: _bottomSearchTapSize,
-                child: Center(
-                  child: SvgPicture.asset(
-                    _iconBottomSearchTg,
-                    width: _bottomSearchIconSize,
-                    height: _bottomSearchIconSize,
-                    colorFilter: _homeDark(context)
-                        ? ColorFilter.mode(context.tk.accent, BlendMode.srcIn)
-                        : null,
+            Positioned(
+              right: 16,
+              bottom: bottomInset + 4,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onSearchTap,
+                child: SizedBox(
+                  width: _bottomSearchTapSize,
+                  height: _bottomSearchTapSize,
+                  child: Center(
+                    child: SvgPicture.asset(
+                      _iconBottomSearchTg,
+                      width: _bottomSearchIconSize,
+                      height: _bottomSearchIconSize,
+                      colorFilter: _homeDark(context)
+                          ? ColorFilter.mode(context.tk.accent, BlendMode.srcIn)
+                          : null,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -810,8 +854,26 @@ class _LiquidTabPill extends StatelessWidget {
       context,
       AppLocalizations,
     );
-    return AppGlassPanel(
-      borderRadius: BorderRadius.circular(276),
+    final isDark = _homeDark(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: isDark
+            ? t.surfaceHigh.withValues(alpha: 0.92)
+            : t.surface.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(276),
+        border: Border.all(
+          color: isDark
+              ? t.border.withValues(alpha: 0.28)
+              : t.surfaceHigh.withValues(alpha: 0.72),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
         child: Row(
@@ -1115,7 +1177,11 @@ class _ChatList extends ConsumerWidget {
     final authState = ref.watch(authStateNotifierProvider);
     final isAuthLoading = authState.isLoading && authState.valueOrNull == null;
     final isLoggedIn = authState.valueOrNull?.isLoggedIn ?? false;
-    final syncCache = ref.watch(asSyncCacheProvider);
+    final currentUserId = client.userID ?? authState.valueOrNull?.userId;
+    final syncCache = asSyncCacheForUser(
+      ref.watch(asSyncCacheProvider),
+      currentUserId,
+    );
     final outbox = ref.watch(localOutboxProvider);
     final messageOrder = ref.watch(localMessageOrderProvider);
     final asGroupRoomIds = (syncCache.bootstrap?.groups ?? const [])
@@ -1226,6 +1292,14 @@ class _ChatList extends ConsumerWidget {
           ),
         );
       });
+    _debugPrintConversationList(
+      client: client,
+      auth: authState.valueOrNull,
+      syncCache: syncCache,
+      rooms: rooms,
+      conversations: sortedConversations,
+      outbox: outbox,
+    );
 
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
@@ -1272,6 +1346,89 @@ class _ChatList extends ConsumerWidget {
       },
     );
   }
+}
+
+void _debugPrintConversationList({
+  required Client client,
+  required AuthState? auth,
+  required AsSyncCacheState syncCache,
+  required List<Room> rooms,
+  required List<_VisibleConversation> conversations,
+  required LocalOutboxState outbox,
+}) {
+  if (!kDebugMode) return;
+  final bootstrap = syncCache.bootstrap;
+  final roomLines = rooms.map((room) {
+    final last = room.lastEvent;
+    return {
+      'room_id': room.id,
+      'membership': room.membership.name,
+      'name': room.getLocalizedDisplayname(),
+      'last_event_id': last?.eventId,
+      'last_event_type': last?.type,
+      'last_sender': last?.senderId,
+      'unread': room.notificationCount,
+    };
+  }).toList();
+  final conversationLines = conversations.map((conversation) {
+    final room = conversation.room;
+    return {
+      'kind': conversation.isAgent
+          ? 'agent'
+          : conversation.isGroup
+              ? 'group'
+              : 'direct',
+      'room_id': conversation.roomId,
+      'name': conversation.isAgent
+          ? 'Agent'
+          : _conversationDisplayName(conversation),
+      'contact_user_id': conversation.contact?.userId,
+      'contact_status': conversation.contact?.status,
+      'group_name': conversation.group?.name,
+      'has_matrix_room': room != null,
+      'matrix_membership': room?.membership.name,
+      'matrix_last_event_id': room?.lastEvent?.eventId,
+    };
+  }).toList();
+  final bootstrapContacts = [
+    for (final contact in bootstrap?.contacts ?? const <AsSyncContact>[])
+      {
+        'user_id': contact.userId,
+        'room_id': contact.roomId,
+        'status': contact.status,
+        'display_name': contact.displayName,
+      },
+  ];
+  final bootstrapGroups = [
+    for (final group in bootstrap?.groups ?? const <AsSyncRoomSummary>[])
+      {
+        'room_id': group.roomId,
+        'name': group.name,
+        'unread': group.unreadCount,
+      },
+  ];
+  final bootstrapChannels = [
+    for (final channel in bootstrap?.channels ?? const <AsSyncRoomSummary>[])
+      {
+        'room_id': channel.roomId,
+        'name': channel.name,
+        'unread': channel.unreadCount,
+      },
+  ];
+
+  debugPrint(
+    '[home.conversations] auth_user=${auth?.userId} '
+    'client_user=${client.userID} homeserver=${client.homeserver} '
+    'rooms=${rooms.length} bootstrap_user=${bootstrap?.user.userId} '
+    'contacts=${bootstrapContacts.length} groups=${bootstrapGroups.length} '
+    'channels=${bootstrapChannels.length} outbox=${outbox.items.length} '
+    'visible=${conversations.length}',
+  );
+  debugPrint('[home.conversations] matrix_rooms=$roomLines');
+  debugPrint('[home.conversations] bootstrap_contacts=$bootstrapContacts');
+  debugPrint('[home.conversations] bootstrap_groups=$bootstrapGroups');
+  debugPrint('[home.conversations] bootstrap_channels=$bootstrapChannels');
+  debugPrint('[home.conversations] visible_conversations=$conversationLines');
 }
 
 class _VisibleConversation {

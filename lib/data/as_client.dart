@@ -1573,6 +1573,12 @@ abstract class AsClient {
     required List<String> invite,
   });
 
+  /// POST /_as/groups/{roomId}/members/{peerMxid}/remove
+  Future<void> removeGroupMember({
+    required String roomId,
+    required String peerMxid,
+  });
+
   /// PUT /_as/groups/{roomId}/invite-policy
   Future<AsGroupResult> updateGroupInvitePolicy({
     required String roomId,

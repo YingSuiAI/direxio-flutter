@@ -5,6 +5,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../data/as_bootstrap_store.dart';
 import 'as_client_provider.dart';
+import 'as_sync_cache_provider.dart';
+import 'auth_provider.dart';
 
 final asBootstrapStoreProvider = FutureProvider<AsBootstrapStore>((ref) async {
   final dir = await getApplicationSupportDirectory();
@@ -15,7 +17,17 @@ final asBootstrapStoreProvider = FutureProvider<AsBootstrapStore>((ref) async {
 
 final asBootstrapRepositoryProvider = Provider<AsBootstrapRepository>((ref) {
   return AsBootstrapRepository(
-    loadBootstrap: () => ref.read(asClientProvider).syncBootstrap(),
+    loadBootstrap: () async {
+      final bootstrap = await ref.read(asClientProvider).syncBootstrap();
+      final currentUserId = ref.read(matrixClientProvider).userID;
+      if (!asBootstrapBelongsToUser(bootstrap, currentUserId)) {
+        throw StateError(
+          'AS bootstrap user mismatch: current=$currentUserId '
+          'bootstrap=${bootstrap.user.userId}',
+        );
+      }
+      return bootstrap;
+    },
     store: DeferredAsBootstrapStore(
       () => ref.read(asBootstrapStoreProvider.future),
     ),

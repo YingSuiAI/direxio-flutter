@@ -323,7 +323,11 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/contact/:userId',
         pageBuilder: (_, state) => _slidePage(
-          ContactDetailPage(userId: state.pathParameters['userId']!),
+          ContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            fromChatAvatar:
+                state.uri.queryParameters['source'] == 'chat_avatar',
+          ),
         ),
       ),
       GoRoute(

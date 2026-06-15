@@ -34,6 +34,93 @@
   "commonCancel": "キャンセル",
   "commonSearch": "検索",
   "commonShare": "共有",
+  "channelManageTitle": "チャンネル管理",
+  "channelManageProfileTitle": "チャンネル情報",
+  "channelManageMembersTitle": "メンバーと役割",
+  "channelManageModerationTitle": "コンテンツ審査",
+  "channelManageTabOverview": "自分のチャンネル",
+  "channelManageTabProfile": "情報権限",
+  "channelManageTabMembers": "メンバー役割",
+  "channelManageTabModeration": "審査",
+  "channelManageStatSubscribers": "登録者数",
+  "channelManageStatTodayMessages": "今日のメッセージ",
+  "channelManageStatPending": "審査待ち",
+  "channelManageStatAdmins": "管理者",
+  "channelManageStatNewToday": "今日の新規",
+  "channelManageStatMuted": "ミュート中",
+  "channelManageStatReports": "報告",
+  "channelManageStatAutoApproved": "自動承認",
+  "channelManageMyChannels": "自分のチャンネル",
+  "channelManageCreateChannel": "新しいチャンネルを作成",
+  "channelManageCreateChannelValue": "名前、アバター、紹介",
+  "channelManageInviteLinks": "招待リンク",
+  "channelManageInviteLinksValue": "{count} 件有効",
+  "@channelManageInviteLinksValue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "channelManagePermissions": "チャンネル権限",
+  "channelManageVisibility": "公開範囲",
+  "channelManageSpeechPermission": "投稿権限",
+  "channelManageInvitePermission": "招待権限",
+  "channelManageMessageEncryption": "メッセージ暗号化",
+  "channelManageEnabled": "有効",
+  "channelManageDisabled": "無効",
+  "channelManageDisableChannel": "チャンネルを無効化",
+  "channelManageVisibilityPublic": "公開",
+  "channelManageVisibilityPrivate": "非公開",
+  "channelManageSpeechAdminReview": "管理者審査",
+  "channelManageSpeechMembers": "メンバーが投稿可能",
+  "channelManageInviteAdmin": "管理者",
+  "channelManageInviteAdmins": "管理者を招待",
+  "channelManageInviteAdminsValue": "ID またはリンクで招待",
+  "channelManageOwnerOnline": "所有者 · オンライン",
+  "channelManageAdminModeration": "管理者 · 審査",
+  "channelManageAdminOperations": "管理者 · 運営",
+  "channelManageBotRiskControl": "Bot · リスク管理",
+  "channelManageReviewSpeechTitle": "新メンバーの投稿申請",
+  "channelManageReviewSpeechBody": "ユーザー @ray が告知チャンネルにノード同期メモの投稿を申請しました。",
+  "channelManageReviewSpeechTag": "投稿",
+  "channelManageReviewLinkTitle": "リンクリスク警告",
+  "channelManageReviewLinkBody": "外部リンクが検出されました。表示前に管理者の確認が必要です。",
+  "channelManageReviewLinkTag": "リンク",
+  "channelManageReviewReportTitle": "報告されたメッセージ",
+  "channelManageReviewReportBody": "2 人のメンバーがこのメッセージを重複広告として報告しました。",
+  "channelManageReviewReportTag": "報告",
+  "channelManageAutoRules": "自動審査ルール",
+  "channelManageAutoRulesValue": "キーワード / リンク / 頻度",
+  "channelManageEditProfile": "情報を編集",
+  "channelManageManage": "管理",
+  "channelManageManaging": "管理中",
+  "channelManageApprove": "承認",
+  "channelManageReject": "拒否",
+  "channelManageDefaultChannelName": "P2P Matrix お知らせ",
+  "channelManageDefaultChannelDescription": "プロジェクト告知、ノード状態、リリース情報",
+  "channelManageChannelSummary": "{visibility}チャンネル · {members} 人 · 今日 {messages} 件",
+  "@channelManageChannelSummary": {
+    "placeholders": {
+      "visibility": {
+        "type": "String"
+      },
+      "members": {
+        "type": "String"
+      },
+      "messages": {
+        "type": "int"
+      }
+    }
+  },
+  "channelManageComingSoon": "{label}機能はまだ接続されていません",
+  "@channelManageComingSoon": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "loginTitle": "Portal IM",
   "loginSubtitle": "Portal ドメインとパスワードで分散型メッセージに入ります",
   "loginDomainHint": "https://あなたのドメイン",
@@ -73,6 +160,29 @@
   "contactsMyGroups": "自分のグループ",
   "contactsGroups": "グループチャット",
   "contactsFollows": "フォロー",
+  "createGroupTitle": "グループチャットを開始",
+  "createGroupDone": "完了",
+  "createGroupEmptyTitle": "招待できる友だちがいません",
+  "createGroupEmptySubtitle": "友だちを追加してからグループチャットを開始してください",
+  "createGroupNoResultsTitle": "友だちが見つかりません",
+  "createGroupNoResultsSubtitle": "別のID、ニックネーム、メールで試してください",
+  "createGroupDefaultName": "グループチャット",
+  "createGroupSingleName": "{name}のグループチャット",
+  "@createGroupSingleName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "createGroupMultipleName": "{names}たちのグループチャット",
+  "@createGroupMultipleName": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
   "contactsCount": "連絡先 ({count})",
   "@contactsCount": {
     "placeholders": {

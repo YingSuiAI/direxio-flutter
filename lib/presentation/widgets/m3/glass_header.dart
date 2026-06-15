@@ -151,7 +151,7 @@ class _DetailContent extends StatelessWidget {
                 children: [
                   GlassHeaderButton(
                     icon: Symbols.arrow_back,
-                    color: t.accent,
+                    color: t.text,
                     onTap: onBack ?? () => Navigator.of(context).maybePop(),
                   ),
                   if (centerLeading != null) ...[

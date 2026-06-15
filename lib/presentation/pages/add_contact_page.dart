@@ -11,6 +11,7 @@ import '../utils/contact_identity_label.dart';
 import '../utils/avatar_url.dart';
 import '../mock/mock_data.dart';
 import '../widgets/portal_avatar.dart';
+import '../widgets/m3/m3_search_field.dart';
 
 const _mockAuthEnabled = bool.fromEnvironment(
   'P2P_MATRIX_MOCK_AUTH',
@@ -283,42 +284,13 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return SizedBox(
-      height: 36,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: t.textMute.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: TextField(
-          controller: controller,
-          enabled: enabled,
-          keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.search,
-          onChanged: onChanged,
-          onSubmitted: onSubmitted,
-          style: AppTheme.sans(
-            size: 16,
-            weight: FontWeight.w500,
-            color: t.accent,
-          ),
-          decoration: InputDecoration(
-            isCollapsed: true,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            hintText: AppLocalizations.of(context).commonSearch,
-            hintStyle: AppTheme.sans(size: 16, color: t.textMute),
-            prefixIcon: Icon(Symbols.search, size: 18, color: t.textMute),
-            prefixIconConstraints: const BoxConstraints(
-              minWidth: 32,
-              minHeight: 36,
-            ),
-            contentPadding: const EdgeInsets.fromLTRB(0, 8, 12, 8),
-          ),
-        ),
-      ),
+    return M3SearchField(
+      controller: controller,
+      enabled: enabled,
+      keyboardType: TextInputType.url,
+      hint: AppLocalizations.of(context).commonSearch,
+      onChanged: onChanged,
+      onSubmitted: onSubmitted,
     );
   }
 }

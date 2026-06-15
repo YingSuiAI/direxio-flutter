@@ -3338,6 +3338,9 @@ void main() {
     expect(find.text('输入关键词查找感兴趣的频道'), findsOneWidget);
     expect(find.byIcon(Symbols.arrow_back), findsOneWidget);
     expect(find.byIcon(Symbols.search), findsWidgets);
+    for (final label in ['消息', '通讯录', '频道', '我的']) {
+      expect(find.text(label), findsNothing);
+    }
   });
 
   testWidgets('create channel entry opens figma form', (tester) async {
@@ -5513,7 +5516,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), '群聊走 AS');
     await tester.pump();
-    await tester.tap(find.byIcon(Symbols.arrow_upward));
+    await tester.tap(find.text('发送'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 3));
 
@@ -6070,7 +6073,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), '引用后的回复');
     await tester.pump();
-    await tester.tap(find.byIcon(Symbols.arrow_upward));
+    await tester.tap(find.text('发送'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 3));
 
@@ -6078,6 +6081,84 @@ void main() {
     expect(harness.asClient.sentContent, '引用后的回复');
     expect(harness.asClient.sentReplyToEventId, r'$group-text');
     expect(find.byIcon(Symbols.reply), findsNothing);
+  });
+
+  testWidgets('group chat renders AS reply_to as quoted bubble',
+      (tester) async {
+    final harness = await _pumpGroupChatWithTextEvent(tester);
+
+    await harness.client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-group-reply',
+        rooms: RoomsUpdate(
+          join: {
+            '!group:p2p-im.com': JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: r'$group-reply',
+                    roomId: '!group:p2p-im.com',
+                    senderId: '@owner:p2p-im.com',
+                    originServerTs: DateTime.utc(2026, 5, 30, 10, 1),
+                    content: const {
+                      'msgtype': MessageTypes.Text,
+                      'body': '引用后的回复',
+                      'reply_to': r'$group-text',
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('引用后的回复'), findsOneWidget);
+    expect(find.text('群聊长按消息'), findsNWidgets(2));
+  });
+
+  testWidgets('group chat renders Matrix reply fallback as quoted bubble',
+      (tester) async {
+    final harness = await _pumpGroupChatWithTextEvent(tester);
+
+    await harness.client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-group-matrix-reply',
+        rooms: RoomsUpdate(
+          join: {
+            '!group:p2p-im.com': JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: r'$group-matrix-reply',
+                    roomId: '!group:p2p-im.com',
+                    senderId: '@owner:p2p-im.com',
+                    originServerTs: DateTime.utc(2026, 5, 30, 10, 2),
+                    content: const {
+                      'msgtype': MessageTypes.Text,
+                      'body': '> <@alice:p2p-im.com> 群聊长按消息\n\n引用后的回复',
+                      'm.relates_to': {
+                        'm.in_reply_to': {'event_id': r'$group-text'},
+                      },
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('引用后的回复'), findsOneWidget);
+    expect(find.text('群聊长按消息'), findsNWidgets(2));
   });
 
   testWidgets('group chat single forward opens target sheet', (tester) async {
@@ -6196,6 +6277,8 @@ void main() {
           path: '/contact/:userId',
           builder: (_, state) => ContactDetailPage(
             userId: state.pathParameters['userId']!,
+            fromChatAvatar:
+                state.uri.queryParameters['source'] == 'chat_avatar',
           ),
         ),
       ],
@@ -6717,6 +6800,36 @@ void main() {
     expect(find.textContaining('有人分享了群聊总结模板'), findsWidgets);
   });
 
+  testWidgets('channel detail and sheets use dark tokens and app font',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const ChannelPage(channelId: 'agent-workflows'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final title = tester.widget<Text>(find.text('频道帖子'));
+    expect(title.style?.color, PortalTokens.dark.text);
+    expect(title.style?.fontSize, 15);
+    expect(title.style?.letterSpacing, 0);
+
+    await tester.tap(find.text('评论 12'));
+    await tester.pumpAndSettle();
+
+    final modal = tester.widget<Material>(
+      find.byKey(const ValueKey('channel_modal_surface')),
+    );
+    final sheetTitle = tester.widget<Text>(find.text('评论线程'));
+    expect(modal.color, PortalTokens.dark.surface);
+    expect(sheetTitle.style?.color, PortalTokens.dark.text);
+    expect(sheetTitle.style?.fontSize, 20);
+    expect(sheetTitle.style?.letterSpacing, 0);
+  });
+
   testWidgets('global search includes contacts groups and channels',
       (tester) async {
     final client = Client('PortalIMTest');
@@ -6923,6 +7036,8 @@ void main() {
           path: '/contact/:userId',
           builder: (_, state) => ContactDetailPage(
             userId: state.pathParameters['userId']!,
+            fromChatAvatar:
+                state.uri.queryParameters['source'] == 'chat_avatar',
           ),
         ),
       ],
@@ -7063,6 +7178,8 @@ void main() {
           path: '/contact/:userId',
           builder: (_, state) => ContactDetailPage(
             userId: state.pathParameters['userId']!,
+            fromChatAvatar:
+                state.uri.queryParameters['source'] == 'chat_avatar',
           ),
         ),
       ],
@@ -7088,6 +7205,10 @@ void main() {
 
     expect(find.text('Dave Lee'), findsOneWidget);
     expect(find.text('发消息'), findsOneWidget);
+    expect(find.text('搜索聊天'), findsNothing);
+    expect(find.text('消息免打扰'), findsNothing);
+    expect(find.text('屏蔽用户'), findsNothing);
+    expect(find.text('举报用户'), findsNothing);
     expect(find.text('删除好友'), findsOneWidget);
   });
 
@@ -7105,6 +7226,8 @@ void main() {
           path: '/contact/:userId',
           builder: (_, state) => ContactDetailPage(
             userId: state.pathParameters['userId']!,
+            fromChatAvatar:
+                state.uri.queryParameters['source'] == 'chat_avatar',
           ),
         ),
       ],
@@ -7130,6 +7253,10 @@ void main() {
     expect(find.text('Dave Lee'), findsOneWidget);
     expect(find.text('发消息'), findsOneWidget);
     expect(find.text('音频通话'), findsOneWidget);
+    expect(find.text('搜索聊天'), findsNothing);
+    expect(find.text('消息免打扰'), findsNothing);
+    expect(find.text('屏蔽用户'), findsNothing);
+    expect(find.text('举报用户'), findsNothing);
     expect(find.text('删除好友'), findsOneWidget);
   });
 
@@ -7521,6 +7648,32 @@ void main() {
     expect(find.textContaining('146 KB'), findsAtLeastNWidgets(1));
     expect(find.textContaining('私聊'), findsAtLeastNWidgets(1));
     expect(find.textContaining('群聊'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('me favorites page uses unified dark background and back button',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_FavoritesAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final scaffold = tester.widget<Scaffold>(
+      find.byKey(const ValueKey('me_favorites_scaffold')),
+    );
+    final backIcon = tester.widget<Icon>(find.byIcon(Symbols.arrow_back));
+
+    expect(scaffold.backgroundColor, PortalTokens.dark.bg);
+    expect(backIcon.color, PortalTokens.dark.text);
+    expect(find.text('我的收藏'), findsOneWidget);
   });
 
   testWidgets('me likes page renders AS channel reaction history',
@@ -7950,6 +8103,27 @@ void main() {
 
   testWidgets('me profile header opens editable profile info page',
       (tester) async {
+    var clipboardText = '';
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardText = (call.arguments as Map)['text'] as String? ?? '';
+            return null;
+          case 'Clipboard.getData':
+            return {'text': clipboardText};
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
     final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
     final router = GoRouter(
       initialLocation: '/home',
@@ -7985,10 +8159,22 @@ void main() {
     expect(find.text('我的信息'), findsOneWidget);
     expect(find.text('修改'), findsOneWidget);
     expect(find.text('名字'), findsOneWidget);
+    expect(find.text('UID: https://p2p-im.com'), findsOneWidget);
     expect(find.text('性别'), findsOneWidget);
     expect(find.text('生日'), findsOneWidget);
     expect(find.text('手机号码'), findsOneWidget);
     expect(find.text('邮箱'), findsOneWidget);
+
+    await tester.tap(find.text('UID: https://p2p-im.com'));
+    await tester.pumpAndSettle();
+    expect(find.text('已复制 UID'), findsOneWidget);
+    final copied = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copied?.text, 'https://p2p-im.com');
+
+    await tester.tap(find.byIcon(Symbols.content_copy));
+    await tester.pumpAndSettle();
+    final copiedFromIcon = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copiedFromIcon?.text, 'https://p2p-im.com');
   });
 
   testWidgets('editing profile name updates me page header', (tester) async {

@@ -12,6 +12,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/p2p_api_provider.dart';
+import '../widgets/m3/m3_search_field.dart';
 
 class ChannelSearchPage extends ConsumerStatefulWidget {
   const ChannelSearchPage({super.key});
@@ -150,12 +151,6 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
             top: topInset + 132,
             child: _buildBody(context.tk),
           ),
-          const Positioned(
-            left: 0,
-            right: 0,
-            bottom: 16,
-            child: _ChannelSearchBottomReplica(),
-          ),
         ],
       ),
     );
@@ -187,7 +182,7 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       itemCount: _results.length,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
@@ -321,161 +316,11 @@ class _ChannelSearchInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
-      elevation: 14,
-      shadowColor: Colors.black.withValues(alpha: 0.06),
-      child: TextField(
-        controller: controller,
-        autofocus: true,
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        cursorColor: const Color(0xFF2FA0D0),
-        style: AppTheme.sans(
-          size: 15,
-          weight: FontWeight.w600,
-          color: const Color(0xFF141C26),
-        ),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-          hintText: '搜索频道...',
-          hintStyle: AppTheme.sans(
-            size: 15,
-            weight: FontWeight.w600,
-            color: const Color(0xFF9AA5B5),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChannelSearchBottomReplica extends StatelessWidget {
-  const _ChannelSearchBottomReplica();
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 250,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _ChannelSearchBottomItem(
-                  icon: Symbols.chat_bubble,
-                  label: '消息',
-                  badge: 3,
-                ),
-                _ChannelSearchBottomItem(icon: Symbols.person, label: '通讯录'),
-                _ChannelSearchBottomItem(icon: Symbols.hub, label: '频道'),
-                _ChannelSearchBottomItem(icon: Symbols.person, label: '我的'),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Symbols.search,
-              size: 34,
-              color: Color(0xFF141C26),
-              weight: 700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ChannelSearchBottomItem extends StatelessWidget {
-  const _ChannelSearchBottomItem({
-    required this.icon,
-    required this.label,
-    this.badge = 0,
-  });
-
-  final IconData icon;
-  final String label;
-  final int badge;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(icon, size: 22, color: const Color(0xFF141C26), weight: 700),
-              if (badge > 0)
-                Positioned(
-                  right: -8,
-                  top: -7,
-                  child: Container(
-                    width: 17,
-                    height: 17,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF5268),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '$badge',
-                      style: AppTheme.sans(
-                        size: 10,
-                        weight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            style: AppTheme.sans(
-              size: 11,
-              weight: FontWeight.w800,
-              color: const Color(0xFF141C26),
-            ),
-          ),
-        ],
-      ),
+    return M3SearchField(
+      controller: controller,
+      hint: '搜索频道...',
+      autofocus: true,
+      onChanged: onChanged,
     );
   }
 }

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../channel/channel_inbox_data.dart';
 import '../mock/mock_channels.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -56,18 +58,20 @@ class _ChannelManagementPageState extends ConsumerState<ChannelManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final channels = _managementChannels(ref);
-    final selected = _selectedChannel(channels, _selectedChannelId);
+    final selected = _selectedChannel(channels, _selectedChannelId, l10n);
     _selectedChannelId ??= selected.id;
+    final t = context.tk;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: t.bg,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
             _ChannelManageTopBar(
-              title: _section.title,
+              title: _section.title(l10n),
               subtitle: selected.name,
               onBack: () => context.pop(),
             ),
@@ -113,21 +117,21 @@ class _ChannelManagementPageState extends ConsumerState<ChannelManagementPage> {
 }
 
 extension on ChannelManagementSection {
-  String get title {
+  String title(AppLocalizations l10n) {
     return switch (this) {
-      ChannelManagementSection.overview => '频道管理',
-      ChannelManagementSection.profile => '频道资料',
-      ChannelManagementSection.members => '成员与角色',
-      ChannelManagementSection.moderation => '内容审核',
+      ChannelManagementSection.overview => l10n.channelManageTitle,
+      ChannelManagementSection.profile => l10n.channelManageProfileTitle,
+      ChannelManagementSection.members => l10n.channelManageMembersTitle,
+      ChannelManagementSection.moderation => l10n.channelManageModerationTitle,
     };
   }
 
-  String get label {
+  String label(AppLocalizations l10n) {
     return switch (this) {
-      ChannelManagementSection.overview => '我的频道',
-      ChannelManagementSection.profile => '资料权限',
-      ChannelManagementSection.members => '成员角色',
-      ChannelManagementSection.moderation => '内容审核',
+      ChannelManagementSection.overview => l10n.channelManageTabOverview,
+      ChannelManagementSection.profile => l10n.channelManageTabProfile,
+      ChannelManagementSection.members => l10n.channelManageTabMembers,
+      ChannelManagementSection.moderation => l10n.channelManageTabModeration,
     };
   }
 }
@@ -187,9 +191,10 @@ List<_ManageChannel> _managementChannels(WidgetRef ref) {
           pendingCount: channel.pendingJoinCount,
           color: const Color(0xFF3097CB),
           isOwned: true,
-          visibility: channel.visibility == 'private' ? '私密' : '公开',
-          speechPolicy: channel.joinPolicy == 'approval' ? '管理员审核' : '成员可发言',
-          invitePolicy: channel.role.isEmpty ? '管理员' : channel.role,
+          visibility: channel.visibility == 'private' ? 'private' : 'public',
+          speechPolicy:
+              channel.joinPolicy == 'approval' ? 'admin_review' : 'members',
+          invitePolicy: channel.role.isEmpty ? 'admin' : channel.role,
           encrypted: true,
         ),
     ];
@@ -212,32 +217,36 @@ List<_ManageChannel> _managementChannels(WidgetRef ref) {
         pendingCount: channel.unreadCount,
         color: channel.color,
         isOwned: channel.isOwned,
-        visibility: '公开',
-        speechPolicy: '管理员审核',
-        invitePolicy: '管理员',
+        visibility: 'public',
+        speechPolicy: 'admin_review',
+        invitePolicy: 'admin',
         encrypted: true,
       ),
   ];
 }
 
-_ManageChannel _selectedChannel(List<_ManageChannel> channels, String? id) {
+_ManageChannel _selectedChannel(
+  List<_ManageChannel> channels,
+  String? id,
+  AppLocalizations l10n,
+) {
   for (final channel in channels) {
     if (channel.id == id) return channel;
   }
   if (channels.isNotEmpty) return channels.first;
-  return const _ManageChannel(
+  return _ManageChannel(
     id: 'p2p-im',
-    name: 'P2P Matrix 公告',
+    name: l10n.channelManageDefaultChannelName,
     domain: 'p2p-im.com',
-    description: '项目公告、节点状态与版本发布',
+    description: l10n.channelManageDefaultChannelDescription,
     memberCount: 5824,
     todayMessages: 96,
     pendingCount: 3,
-    color: Color(0xFF3097CB),
+    color: const Color(0xFF3097CB),
     isOwned: true,
-    visibility: '公开',
-    speechPolicy: '管理员审核',
-    invitePolicy: '管理员',
+    visibility: 'public',
+    speechPolicy: 'admin_review',
+    invitePolicy: 'admin',
     encrypted: true,
   );
 }
@@ -255,6 +264,7 @@ class _ChannelManageTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return SizedBox(
       height: 58,
       child: Padding(
@@ -280,7 +290,7 @@ class _ChannelManageTopBar extends StatelessWidget {
                   style: AppTheme.sans(
                     size: 17,
                     weight: FontWeight.w600,
-                    color: const Color(0xFF222325),
+                    color: t.text,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -290,7 +300,7 @@ class _ChannelManageTopBar extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTheme.sans(
                     size: 12,
-                    color: const Color(0xFF747B85),
+                    color: t.textMute,
                   ),
                 ),
               ],
@@ -315,18 +325,19 @@ class _CircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: Colors.white.withValues(alpha: 0.86),
+      color: t.surface.withValues(alpha: 0.86),
       shape: const CircleBorder(),
       elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.08),
+      shadowColor: t.text.withValues(alpha: 0.10),
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: SizedBox(
           width: 40,
           height: 40,
-          child: Icon(icon, size: iconSize, color: const Color(0xFF222325)),
+          child: Icon(icon, size: iconSize, color: t.text),
         ),
       ),
     );
@@ -341,11 +352,12 @@ class _SectionTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Container(
       height: 40,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F3F6),
+        color: t.surfaceHover,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -353,7 +365,7 @@ class _SectionTabs extends StatelessWidget {
           for (final section in ChannelManagementSection.values)
             Expanded(
               child: _SectionTab(
-                label: section.label,
+                label: section.label(AppLocalizations.of(context)),
                 selected: section == selected,
                 onTap: () => onChanged(section),
               ),
@@ -377,8 +389,9 @@ class _SectionTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: selected ? Colors.white : Colors.transparent,
+      color: selected ? t.surface : Colors.transparent,
       borderRadius: BorderRadius.circular(17),
       child: InkWell(
         borderRadius: BorderRadius.circular(17),
@@ -391,8 +404,7 @@ class _SectionTab extends StatelessWidget {
             style: AppTheme.sans(
               size: 12,
               weight: selected ? FontWeight.w600 : FontWeight.w400,
-              color:
-                  selected ? const Color(0xFF222325) : const Color(0xFF747B85),
+              color: selected ? t.text : t.textMute,
             ),
           ),
         ),
@@ -416,6 +428,8 @@ class _OverviewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = context.tk;
     final totalMembers = channels.fold<int>(
       0,
       (value, channel) => value + channel.memberCount,
@@ -435,15 +449,15 @@ class _OverviewSection extends StatelessWidget {
           children: [
             Expanded(
               child: _StatCard(
-                label: '订阅人数',
+                label: l10n.channelManageStatSubscribers,
                 value: _compactCount(totalMembers),
-                color: const Color(0xFF3097CB),
+                color: t.accent,
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: '今日消息',
+                label: l10n.channelManageStatTodayMessages,
                 value: '$totalMessages',
                 color: const Color(0xFF1FAF71),
               ),
@@ -451,7 +465,7 @@ class _OverviewSection extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: '待审核',
+                label: l10n.channelManageStatPending,
                 value: '$pending',
                 color: const Color(0xFFF59E0B),
               ),
@@ -460,11 +474,11 @@ class _OverviewSection extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         Text(
-          '我的频道',
+          l10n.channelManageMyChannels,
           style: AppTheme.sans(
             size: 17,
             weight: FontWeight.w600,
-            color: const Color(0xFF222325),
+            color: t.text,
           ),
         ),
         const SizedBox(height: 10),
@@ -479,18 +493,21 @@ class _OverviewSection extends StatelessWidget {
         ],
         _ActionRow(
           icon: Symbols.add_circle,
-          label: '创建新频道',
-          value: '名称、头像、简介',
-          color: const Color(0xFF3097CB),
-          onTap: () => _showComingSoon(context, '创建新频道'),
+          label: l10n.channelManageCreateChannel,
+          value: l10n.channelManageCreateChannelValue,
+          color: t.accent,
+          onTap: () => _showComingSoon(
+            context,
+            l10n.channelManageCreateChannel,
+          ),
         ),
         const SizedBox(height: 12),
         _ActionRow(
           icon: Symbols.link,
-          label: '频道邀请链接',
-          value: '3 个有效',
+          label: l10n.channelManageInviteLinks,
+          value: l10n.channelManageInviteLinksValue(3),
           color: const Color(0xFF1FAF71),
-          onTap: () => _showComingSoon(context, '频道邀请链接'),
+          onTap: () => _showComingSoon(context, l10n.channelManageInviteLinks),
         ),
       ],
     );
@@ -504,53 +521,72 @@ class _ProfileSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = context.tk;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ProfileHero(channel: channel),
         const SizedBox(height: 24),
         Text(
-          '频道权限',
+          l10n.channelManagePermissions,
           style: AppTheme.sans(
             size: 17,
             weight: FontWeight.w600,
-            color: const Color(0xFF222325),
+            color: t.text,
           ),
         ),
         const SizedBox(height: 10),
         _ActionRow(
           icon: Symbols.public,
-          label: '频道可见性',
-          value: channel.visibility,
-          color: const Color(0xFF3097CB),
-          onTap: () => _showComingSoon(context, '频道可见性'),
+          label: l10n.channelManageVisibility,
+          value: _visibilityLabel(l10n, channel.visibility),
+          color: t.accent,
+          onTap: () => _showComingSoon(context, l10n.channelManageVisibility),
         ),
         const SizedBox(height: 10),
         _ActionRow(
           icon: Symbols.rate_review,
-          label: '发言权限',
-          value: channel.speechPolicy,
+          label: l10n.channelManageSpeechPermission,
+          value: _speechPolicyLabel(l10n, channel.speechPolicy),
           color: const Color(0xFFF59E0B),
-          onTap: () => _showComingSoon(context, '发言权限'),
+          onTap: () => _showComingSoon(
+            context,
+            l10n.channelManageSpeechPermission,
+          ),
         ),
         const SizedBox(height: 10),
         _ActionRow(
           icon: Symbols.person_add,
-          label: '邀请权限',
-          value: channel.invitePolicy,
+          label: l10n.channelManageInvitePermission,
+          value: _invitePolicyLabel(l10n, channel.invitePolicy),
           color: const Color(0xFF1FAF71),
-          onTap: () => _showComingSoon(context, '邀请权限'),
+          onTap: () => _showComingSoon(
+            context,
+            l10n.channelManageInvitePermission,
+          ),
         ),
         const SizedBox(height: 10),
         _ActionRow(
           icon: Symbols.encrypted,
-          label: '消息加密',
-          value: channel.encrypted ? '已开启' : '未开启',
+          label: l10n.channelManageMessageEncryption,
+          value: channel.encrypted
+              ? l10n.channelManageEnabled
+              : l10n.channelManageDisabled,
           color: const Color(0xFF6F4CE6),
-          onTap: () => _showComingSoon(context, '消息加密'),
+          onTap: () => _showComingSoon(
+            context,
+            l10n.channelManageMessageEncryption,
+          ),
         ),
         const SizedBox(height: 26),
-        _DangerRow(onTap: () => _showComingSoon(context, '停用频道')),
+        _DangerRow(
+          label: l10n.channelManageDisableChannel,
+          onTap: () => _showComingSoon(
+            context,
+            l10n.channelManageDisableChannel,
+          ),
+        ),
       ],
     );
   }
@@ -563,37 +599,42 @@ class _MembersSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = context.tk;
     final members = [
-      _Member('Niki', '所有者 · 在线', channel.color),
-      const _Member('Alex Chen', '管理员 · 内容审核', Color(0xFF1FAF71)),
-      const _Member('Mina', '管理员 · 成员运营', Color(0xFF6F4CE6)),
-      const _Member('Bot Monitor', '机器人 · 风控', Color(0xFFF59E0B)),
+      _Member('Niki', l10n.channelManageOwnerOnline, channel.color),
+      _Member('Alex Chen', l10n.channelManageAdminModeration,
+          const Color(0xFF1FAF71)),
+      _Member(
+          'Mina', l10n.channelManageAdminOperations, const Color(0xFF6F4CE6)),
+      _Member('Bot Monitor', l10n.channelManageBotRiskControl,
+          const Color(0xFFF59E0B)),
     ];
     return Column(
       children: [
-        const Row(
+        Row(
           children: [
             Expanded(
               child: _StatCard(
-                label: '管理员',
+                label: l10n.channelManageStatAdmins,
                 value: '12',
-                color: Color(0xFF3097CB),
+                color: t.accent,
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: '今日新增',
+                label: l10n.channelManageStatNewToday,
                 value: '58',
-                color: Color(0xFF1FAF71),
+                color: const Color(0xFF1FAF71),
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: '禁言中',
+                label: l10n.channelManageStatMuted,
                 value: '7',
-                color: Color(0xFFEB3B3B),
+                color: t.danger,
               ),
             ),
           ],
@@ -601,10 +642,10 @@ class _MembersSection extends StatelessWidget {
         const SizedBox(height: 18),
         _ActionRow(
           icon: Symbols.admin_panel_settings,
-          label: '邀请管理员',
-          value: '通过 ID 或链接',
-          color: const Color(0xFF3097CB),
-          onTap: () => _showComingSoon(context, '邀请管理员'),
+          label: l10n.channelManageInviteAdmins,
+          value: l10n.channelManageInviteAdminsValue,
+          color: t.accent,
+          onTap: () => _showComingSoon(context, l10n.channelManageInviteAdmins),
         ),
         const SizedBox(height: 12),
         for (final member in members) ...[
@@ -623,63 +664,65 @@ class _ModerationSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = context.tk;
     return Column(
       children: [
         Row(
           children: [
             Expanded(
               child: _StatCard(
-                label: '待审核',
+                label: l10n.channelManageStatPending,
                 value: '${channel.pendingCount + 20}',
                 color: const Color(0xFFF59E0B),
               ),
             ),
             const SizedBox(width: 10),
-            const Expanded(
+            Expanded(
               child: _StatCard(
-                label: '举报',
+                label: l10n.channelManageStatReports,
                 value: '5',
-                color: Color(0xFFEB3B3B),
+                color: t.danger,
               ),
             ),
             const SizedBox(width: 10),
-            const Expanded(
+            Expanded(
               child: _StatCard(
-                label: '自动通过',
+                label: l10n.channelManageStatAutoApproved,
                 value: '91%',
-                color: Color(0xFF1FAF71),
+                color: const Color(0xFF1FAF71),
               ),
             ),
           ],
         ),
         const SizedBox(height: 18),
-        const _ReviewCard(
-          title: '新成员发言申请',
-          body: '用户 @ray 申请在公告频道发布节点同步说明。',
-          tag: '发言',
-          color: Color(0xFF3097CB),
+        _ReviewCard(
+          title: l10n.channelManageReviewSpeechTitle,
+          body: l10n.channelManageReviewSpeechBody,
+          tag: l10n.channelManageReviewSpeechTag,
+          color: t.accent,
         ),
         const SizedBox(height: 12),
-        const _ReviewCard(
-          title: '链接风险提示',
-          body: '检测到外部链接，需要管理员确认后展示。',
-          tag: '链接',
-          color: Color(0xFFF59E0B),
+        _ReviewCard(
+          title: l10n.channelManageReviewLinkTitle,
+          body: l10n.channelManageReviewLinkBody,
+          tag: l10n.channelManageReviewLinkTag,
+          color: const Color(0xFFF59E0B),
         ),
         const SizedBox(height: 12),
-        const _ReviewCard(
-          title: '举报消息',
-          body: '2 位成员举报该消息包含重复广告内容。',
-          tag: '举报',
-          color: Color(0xFFEB3B3B),
+        _ReviewCard(
+          title: l10n.channelManageReviewReportTitle,
+          body: l10n.channelManageReviewReportBody,
+          tag: l10n.channelManageReviewReportTag,
+          color: t.danger,
         ),
         const SizedBox(height: 18),
         _ActionRow(
           icon: Symbols.rule,
-          label: '自动审核规则',
-          value: '关键词 / 链接 / 频率',
+          label: l10n.channelManageAutoRules,
+          value: l10n.channelManageAutoRulesValue,
           color: const Color(0xFF6F4CE6),
-          onTap: () => _showComingSoon(context, '自动审核规则'),
+          onTap: () => _showComingSoon(context, l10n.channelManageAutoRules),
         ),
       ],
     );
@@ -699,6 +742,7 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return _Surface(
       height: 76,
       child: Padding(
@@ -723,7 +767,7 @@ class _StatCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: AppTheme.sans(
                 size: 12,
-                color: const Color(0xFF747B85),
+                color: t.textMute,
               ),
             ),
           ],
@@ -748,9 +792,11 @@ class _ChannelManageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = context.tk;
     return _Surface(
       onTap: onTap,
-      borderColor: selected ? const Color(0xFF3097CB) : const Color(0xFFE5E9EF),
+      borderColor: selected ? t.accent : t.border,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -768,17 +814,21 @@ class _ChannelManageCard extends StatelessWidget {
                     style: AppTheme.sans(
                       size: 16,
                       weight: FontWeight.w600,
-                      color: const Color(0xFF222325),
+                      color: t.text,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${channel.visibility}频道 · ${_compactCount(channel.memberCount)} 人 · 今日 ${channel.todayMessages} 条',
+                    l10n.channelManageChannelSummary(
+                      _visibilityLabel(l10n, channel.visibility),
+                      _compactCount(channel.memberCount),
+                      channel.todayMessages,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.sans(
                       size: 12,
-                      color: const Color(0xFF747B85),
+                      color: t.textMute,
                     ),
                   ),
                 ],
@@ -792,17 +842,17 @@ class _ChannelManageCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: selected
-                      ? const Color(0xFF3097CB)
-                      : const Color(0xFFF1F6F8),
+                  color: selected ? t.accent : t.surfaceHover,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
-                  selected ? '管理中' : '管理',
+                  selected
+                      ? l10n.channelManageManaging
+                      : l10n.channelManageManage,
                   style: AppTheme.sans(
                     size: 12,
                     weight: FontWeight.w600,
-                    color: selected ? Colors.white : const Color(0xFF3097CB),
+                    color: selected ? t.onAccent : t.accent,
                   ),
                 ),
               ),
@@ -821,6 +871,8 @@ class _ProfileHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = context.tk;
     return _Surface(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -839,7 +891,7 @@ class _ProfileHero extends StatelessWidget {
                     style: AppTheme.sans(
                       size: 18,
                       weight: FontWeight.w600,
-                      color: const Color(0xFF222325),
+                      color: t.text,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -849,24 +901,27 @@ class _ProfileHero extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.sans(
                       size: 13,
-                      color: const Color(0xFF747B85),
+                      color: t.textMute,
                     ),
                   ),
                   const SizedBox(height: 14),
                   SizedBox(
                     height: 32,
                     child: FilledButton(
-                      onPressed: () => _showComingSoon(context, '编辑资料'),
+                      onPressed: () => _showComingSoon(
+                        context,
+                        l10n.channelManageEditProfile,
+                      ),
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF3097CB),
+                        backgroundColor: t.accent,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
                       child: Text(
-                        '编辑资料',
+                        l10n.channelManageEditProfile,
                         style: AppTheme.sans(
                           size: 13,
                           weight: FontWeight.w600,
-                          color: Colors.white,
+                          color: t.onAccent,
                         ),
                       ),
                     ),
@@ -898,6 +953,7 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return _Surface(
       height: 56,
       onTap: onTap,
@@ -909,7 +965,7 @@ class _ActionRow extends StatelessWidget {
               width: 28,
               height: 28,
               decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              child: Icon(icon, size: 17, color: Colors.white, fill: 1),
+              child: Icon(icon, size: 17, color: t.onAccent, fill: 1),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -920,7 +976,7 @@ class _ActionRow extends StatelessWidget {
                 style: AppTheme.sans(
                   size: 15,
                   weight: FontWeight.w500,
-                  color: const Color(0xFF222325),
+                  color: t.text,
                 ),
               ),
             ),
@@ -933,15 +989,15 @@ class _ActionRow extends StatelessWidget {
                 textAlign: TextAlign.right,
                 style: AppTheme.sans(
                   size: 13,
-                  color: const Color(0xFF747B85),
+                  color: t.textMute,
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(
+            Icon(
               Symbols.chevron_right,
               size: 20,
-              color: Color(0xFF9AA2AD),
+              color: t.textMute,
             ),
           ],
         ),
@@ -951,33 +1007,35 @@ class _ActionRow extends StatelessWidget {
 }
 
 class _DangerRow extends StatelessWidget {
-  const _DangerRow({required this.onTap});
+  const _DangerRow({required this.label, required this.onTap});
 
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return _Surface(
       height: 56,
       onTap: onTap,
-      borderColor: const Color(0xFFFFDCDC),
+      borderColor: t.danger.withValues(alpha: 0.28),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18),
         child: Row(
           children: [
             Text(
-              '停用频道',
+              label,
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
-                color: const Color(0xFFEB3B3B),
+                color: t.danger,
               ),
             ),
             const Spacer(),
-            const Icon(
+            Icon(
               Symbols.chevron_right,
               size: 20,
-              color: Color(0xFFEB3B3B),
+              color: t.danger,
             ),
           ],
         ),
@@ -1001,6 +1059,8 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = context.tk;
     return _Surface(
       height: 64,
       child: Padding(
@@ -1032,7 +1092,7 @@ class _MemberRow extends StatelessWidget {
                     style: AppTheme.sans(
                       size: 15,
                       weight: FontWeight.w600,
-                      color: const Color(0xFF222325),
+                      color: t.text,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1042,7 +1102,7 @@ class _MemberRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.sans(
                       size: 12,
-                      color: const Color(0xFF747B85),
+                      color: t.textMute,
                     ),
                   ),
                 ],
@@ -1053,15 +1113,15 @@ class _MemberRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F6F8),
+                color: t.surfaceHover,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
-                '管理',
+                l10n.channelManageManage,
                 style: AppTheme.sans(
                   size: 12,
                   weight: FontWeight.w600,
-                  color: const Color(0xFF3097CB),
+                  color: t.accent,
                 ),
               ),
             ),
@@ -1087,6 +1147,8 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final t = context.tk;
     return _Surface(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1103,7 +1165,7 @@ class _ReviewCard extends StatelessWidget {
                     style: AppTheme.sans(
                       size: 15,
                       weight: FontWeight.w600,
-                      color: const Color(0xFF222325),
+                      color: t.text,
                     ),
                   ),
                 ),
@@ -1115,22 +1177,20 @@ class _ReviewCard extends StatelessWidget {
               body,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(size: 13, color: const Color(0xFF747B85)),
+              style: AppTheme.sans(size: 13, color: t.textMute),
             ),
             const SizedBox(height: 16),
-            const Row(
+            Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 _ReviewButton(
-                  label: '通过',
-                  color: Color(0xFF1FAF71),
-                  background: Color(0xFFE9F8F0),
+                  label: l10n.channelManageApprove,
+                  color: const Color(0xFF1FAF71),
                 ),
-                SizedBox(width: 10),
+                const SizedBox(width: 10),
                 _ReviewButton(
-                  label: '拒绝',
-                  color: Color(0xFFEB3B3B),
-                  background: Color(0xFFFFF0F0),
+                  label: l10n.channelManageReject,
+                  color: t.danger,
                 ),
               ],
             ),
@@ -1145,12 +1205,10 @@ class _ReviewButton extends StatelessWidget {
   const _ReviewButton({
     required this.label,
     required this.color,
-    required this.background,
   });
 
   final String label;
   final Color color;
-  final Color background;
 
   @override
   Widget build(BuildContext context) {
@@ -1159,7 +1217,7 @@ class _ReviewButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 22),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: background,
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(15),
       ),
       child: Text(
@@ -1262,25 +1320,26 @@ class _Surface extends StatelessWidget {
     required this.child,
     this.height,
     this.onTap,
-    this.borderColor = const Color(0xFFE5E9EF),
+    this.borderColor,
   });
 
   final Widget child;
   final double? height;
   final VoidCallback? onTap;
-  final Color borderColor;
+  final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     final content = Container(
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: borderColor ?? t.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: t.text.withValues(alpha: 0.04),
             blurRadius: 18,
             offset: const Offset(0, 7),
           ),
@@ -1301,6 +1360,27 @@ class _Surface extends StatelessWidget {
   }
 }
 
+String _visibilityLabel(AppLocalizations l10n, String value) {
+  return switch (value) {
+    'private' => l10n.channelManageVisibilityPrivate,
+    _ => l10n.channelManageVisibilityPublic,
+  };
+}
+
+String _speechPolicyLabel(AppLocalizations l10n, String value) {
+  return switch (value) {
+    'members' => l10n.channelManageSpeechMembers,
+    _ => l10n.channelManageSpeechAdminReview,
+  };
+}
+
+String _invitePolicyLabel(AppLocalizations l10n, String value) {
+  return switch (value) {
+    'admin' => l10n.channelManageInviteAdmin,
+    _ => value,
+  };
+}
+
 String _compactCount(int value) {
   if (value >= 10000) {
     final count = value / 10000;
@@ -1314,7 +1394,8 @@ String _compactCount(int value) {
 }
 
 void _showComingSoon(BuildContext context, String label) {
+  final l10n = AppLocalizations.of(context);
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('$label 功能待接入')),
+    SnackBar(content: Text(l10n.channelManageComingSoon(label))),
   );
 }

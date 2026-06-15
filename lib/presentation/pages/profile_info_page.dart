@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -17,6 +18,7 @@ import '../providers/auth_provider.dart';
 import '../providers/personal_space_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/direct_contact_status.dart';
 import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/portal_avatar.dart';
 
@@ -164,6 +166,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     final data = ref.watch(personalProfileProvider);
     final userId = client.userID ?? '@me:portal.agent-p2p.io';
     final localpart = _localpartFromMxid(userId);
+    final uidUrl = _profileUidUrl(client, userId);
     final profileName = profile?.displayName?.trim();
     final displayName = data.displayName?.trim().isNotEmpty == true
         ? data.displayName!.trim()
@@ -203,6 +206,11 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                         onSave: (value) =>
                             _updateDisplayName(data, userId, value),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    _ProfileUidCard(
+                      uid: uidUrl,
+                      onTap: () => _copyUidUrl(context, uidUrl),
                     ),
                     const SizedBox(height: 16),
                     _ProfileInfoCard(
@@ -265,6 +273,27 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
 
 String _emptyIfUnset(String value) =>
     value == '未设置' || value == '不展示' ? '' : value;
+
+String _profileUidUrl(Client client, String userId) {
+  final domain = serverNameFromMxid(userId) ?? _clientServerName(client);
+  final normalized = domain.trim().replaceFirst(RegExp(r'^https?://'), '');
+  if (normalized.isEmpty) return userId;
+  return 'https://$normalized';
+}
+
+String _clientServerName(Client client) {
+  final homeserver = client.homeserver;
+  if (homeserver != null && homeserver.host.isNotEmpty) return homeserver.host;
+  return 'p2p-im.com';
+}
+
+Future<void> _copyUidUrl(BuildContext context, String uidUrl) async {
+  await Clipboard.setData(ClipboardData(text: uidUrl));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('已复制 UID')),
+  );
+}
 
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({required this.topInset});
@@ -474,6 +503,68 @@ class _ProfileInfoCard extends StatelessWidget {
                       ),
                     )
                   : Icon(Symbols.chevron_right, size: 24, color: t.text),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileUidCard extends StatelessWidget {
+  const _ProfileUidCard({
+    required this.uid,
+    required this.onTap,
+  });
+
+  final String uid;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          height: 78,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'UID',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 14,
+                        weight: FontWeight.w500,
+                        color: t.textMute,
+                      ),
+                    ),
+                    Text(
+                      'UID: $uid',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 16,
+                        weight: FontWeight.w600,
+                        color: t.text,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Icon(Symbols.content_copy, size: 20, color: t.textMute),
             ],
           ),
         ),

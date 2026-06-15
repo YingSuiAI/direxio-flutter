@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -70,18 +71,41 @@ EdgeInsets chatMessageViewportPadding(
   bool replyBarVisible = false,
   bool selectionBarVisible = false,
   bool bottomPanelVisible = false,
+  bool reserveTopOverlay = true,
+  bool reserveBottomOverlay = true,
 }) {
-  final safeArea = MediaQuery.paddingOf(context);
   return EdgeInsets.fromLTRB(
     horizontal,
-    safeArea.top + _chatHeaderChromeClearance,
+    reserveTopOverlay ? chatMessageTopOverlayClearance(context) : 0,
     horizontal,
-    safeArea.bottom +
-        _chatBottomChromeClearance +
-        (replyBarVisible ? _chatReplyBarClearance : 0) +
-        (selectionBarVisible ? _chatSelectionBarClearance : 0) +
-        (bottomPanelVisible ? _chatBottomPanelClearance : 0),
+    reserveBottomOverlay
+        ? chatMessageBottomOverlayClearance(
+            context,
+            replyBarVisible: replyBarVisible,
+            selectionBarVisible: selectionBarVisible,
+            bottomPanelVisible: bottomPanelVisible,
+          )
+        : 0,
   );
+}
+
+double chatMessageTopOverlayClearance(BuildContext context) {
+  final safeArea = MediaQuery.paddingOf(context);
+  return safeArea.top + _chatHeaderChromeClearance;
+}
+
+double chatMessageBottomOverlayClearance(
+  BuildContext context, {
+  bool replyBarVisible = false,
+  bool selectionBarVisible = false,
+  bool bottomPanelVisible = false,
+}) {
+  final safeArea = MediaQuery.paddingOf(context);
+  return safeArea.bottom +
+      _chatBottomChromeClearance +
+      (replyBarVisible ? _chatReplyBarClearance : 0) +
+      (selectionBarVisible ? _chatSelectionBarClearance : 0) +
+      (bottomPanelVisible ? _chatBottomPanelClearance : 0);
 }
 
 class ChatLayeredLayout extends StatelessWidget {
@@ -90,21 +114,39 @@ class ChatLayeredLayout extends StatelessWidget {
     required this.header,
     required this.messageLayer,
     required this.bottomOverlay,
+    this.messageTopInset = 0,
+    this.messageBottomInset = 0,
   });
 
   final Widget header;
   final Widget messageLayer;
   final Widget bottomOverlay;
+  final double messageTopInset;
+  final double messageBottomInset;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned.fill(child: messageLayer),
-        Align(alignment: Alignment.topCenter, child: header),
-        Align(alignment: Alignment.bottomCenter, child: bottomOverlay),
-      ],
+    final t = context.tk;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        systemNavigationBarColor: t.bg,
+        systemNavigationBarDividerColor: t.bg,
+        systemNavigationBarIconBrightness:
+            isDark ? Brightness.light : Brightness.dark,
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            top: messageTopInset,
+            bottom: messageBottomInset,
+            child: ClipRect(child: messageLayer),
+          ),
+          Align(alignment: Alignment.topCenter, child: header),
+          Align(alignment: Alignment.bottomCenter, child: bottomOverlay),
+        ],
+      ),
     );
   }
 }

@@ -321,13 +321,6 @@ class _SettingsHeader extends StatelessWidget {
                 color: t.text,
               ),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: _SettingsGlassButton(
-                icon: Symbols.more_vert,
-                onTap: () {},
-              ),
-            ),
           ],
         ),
       ),

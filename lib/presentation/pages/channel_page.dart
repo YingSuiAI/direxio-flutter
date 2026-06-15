@@ -55,7 +55,7 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: _channelPageBackground(context),
       body: Column(
         children: [
           GlassHeader.detail(
@@ -222,6 +222,67 @@ String? _domainFromRoomId(String roomId) {
   return roomId.substring(idx + 1);
 }
 
+InputDecoration _channelInputDecoration(
+  BuildContext context, {
+  String? labelText,
+  String? helperText,
+  String? hintText,
+}) {
+  final t = context.tk;
+  return InputDecoration(
+    labelText: labelText,
+    helperText: helperText,
+    hintText: hintText,
+    labelStyle: AppTheme.sans(size: 13, color: t.textMute),
+    helperStyle: AppTheme.sans(size: 12, color: t.textMute),
+    hintStyle: AppTheme.sans(size: 14, color: t.textMute),
+    filled: true,
+    fillColor: t.surfaceHover,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: t.border.withValues(alpha: 0.55)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: t.border.withValues(alpha: 0.45)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: t.accent, width: 1.4),
+    ),
+  );
+}
+
+class _ChannelModalSurface extends StatelessWidget {
+  const _ChannelModalSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Material(
+      key: const ValueKey('channel_modal_surface'),
+      color: t.surface,
+      child: IconTheme(
+        data: IconThemeData(color: t.textMute),
+        child: DefaultTextStyle(
+          style: AppTheme.sans(size: 15, color: t.text),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+Color _channelPageBackground(BuildContext context) {
+  return context.tk.bg;
+}
+
+Color _channelModalBackground(BuildContext context) {
+  return context.tk.surface;
+}
+
 class _RealChannelPage extends ConsumerStatefulWidget {
   const _RealChannelPage({
     required this.channel,
@@ -281,7 +342,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
     final posts = postsAsync.valueOrNull ?? const <AsChannelPost>[];
     _markLatestPostRead(channel, posts);
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: _channelPageBackground(context),
       body: Column(
         children: [
           GlassHeader.detail(
@@ -466,7 +527,7 @@ class _PublicChannelScaffoldState
       builder: (context, snapshot) {
         final channel = snapshot.data;
         return Scaffold(
-          backgroundColor: Colors.transparent,
+          backgroundColor: _channelPageBackground(context),
           body: Column(
             children: [
               GlassHeader.detail(title: channel?.name ?? '频道'),
@@ -626,7 +687,14 @@ class _PublicChannelJoinBar extends StatelessWidget {
           height: 44,
           child: FilledButton(
             onPressed: joined || pending || joining ? null : onJoin,
-            child: Text(joining ? '处理中' : label),
+            child: Text(
+              joining ? '处理中' : label,
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: t.onAccent,
+              ),
+            ),
           ),
         ),
       ),
@@ -846,39 +914,115 @@ void _showRealChannelMenu(
       : const ['分享频道', '频道资料', '通知设置', '退出频道'];
   showModalBottomSheet<void>(
     context: context,
+    backgroundColor: _channelModalBackground(context),
     showDragHandle: true,
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final item in items)
-            ListTile(
-              title: Text(item),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!context.mounted) return;
-                  if (item == '分享频道') {
-                    _shareRealChannel(context, ref, channel);
-                  } else if (item == '管理频道') {
-                    context.push(
-                      '/channels/manage/${Uri.encodeComponent(channel.id)}',
-                    );
-                  } else if (item == '成员管理') {
-                    context.push(
-                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=members',
-                    );
-                  } else if (item == '频道资料') {
-                    context.push(
-                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=profile',
-                    );
-                  }
-                });
-              },
-            ),
-        ],
-      ),
-    ),
+    builder: (ctx) {
+      final t = ctx.tk;
+      return _ChannelModalSurface(
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final item in items)
+                ListTile(
+                  title: Text(
+                    item,
+                    style: AppTheme.sans(size: 15, color: t.text),
+                  ),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!context.mounted) return;
+                      if (item == '分享频道') {
+                        _shareRealChannel(context, ref, channel);
+                      } else if (item == '管理频道') {
+                        if (!_tryPushChannelRoute(
+                          context,
+                          '/channels/manage/${Uri.encodeComponent(channel.id)}',
+                        )) {
+                          _showManageChannelSheet(context, channel);
+                        }
+                      } else if (item == '成员管理') {
+                        if (!_tryPushChannelRoute(
+                          context,
+                          '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=members',
+                        )) {
+                          _showChannelMembersSheet(context, ref, channel);
+                        }
+                      } else if (item == '频道资料') {
+                        if (!_tryPushChannelRoute(
+                          context,
+                          '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=profile',
+                        )) {
+                          _showManageChannelSheet(context, channel);
+                        }
+                      }
+                    });
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+bool _tryPushChannelRoute(BuildContext context, String route) {
+  try {
+    context.push(route);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+void _showChannelMenu(BuildContext context, MockChannel channel) {
+  final items = channel.isOwned
+      ? const ['频道资料', '成员管理', '标签管理', '通知设置']
+      : const ['频道资料', '通知设置', '退出频道'];
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: _channelModalBackground(context),
+    showDragHandle: true,
+    builder: (ctx) {
+      final t = ctx.tk;
+      return _ChannelModalSurface(
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final item in items)
+                ListTile(
+                  title: Text(
+                    item,
+                    style: AppTheme.sans(size: 15, color: t.text),
+                  ),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!context.mounted) return;
+                      if (item == '频道资料') {
+                        context.push(
+                          '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=profile',
+                        );
+                      } else if (item == '成员管理') {
+                        context.push(
+                          '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=members',
+                        );
+                      } else if (item == '标签管理') {
+                        context.push(
+                          '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=moderation',
+                        );
+                      }
+                    });
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
+    },
   );
 }
 
@@ -926,6 +1070,7 @@ void _showChannelMembersSheet(
 ) {
   showModalBottomSheet<void>(
     context: context,
+    backgroundColor: _channelModalBackground(context),
     isScrollControlled: true,
     showDragHandle: true,
     builder: (ctx) => _ChannelMembersSheet(channel: channel),
@@ -939,6 +1084,7 @@ void _showManageChannelSheet(
 ) {
   showModalBottomSheet<void>(
     context: context,
+    backgroundColor: _channelModalBackground(context),
     isScrollControlled: true,
     showDragHandle: true,
     builder: (ctx) => _ManageChannelSheet(channel: channel),
@@ -958,81 +1104,83 @@ class _ChannelMembersSheet extends ConsumerWidget {
       status: asChannelMemberStatusPending,
     );
     final pending = ref.watch(channelMembersProvider(key));
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          0,
-          16,
-          16 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '成员管理',
-              style: AppTheme.sans(
-                size: 20,
-                weight: FontWeight.w600,
-                color: t.text,
+    return _ChannelModalSurface(
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '成员管理',
+                style: AppTheme.sans(
+                  size: 20,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '待审核加入申请',
-              style: AppTheme.sans(size: 13, color: t.textMute),
-            ),
-            const SizedBox(height: 12),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 360),
-              child: pending.when(
-                data: (members) {
-                  if (members.isEmpty) {
-                    return const _ChannelEmptyState(
-                      icon: Symbols.group,
-                      title: '暂无待审核成员',
-                      subtitle: '需要审核的加入申请会显示在这里',
-                    );
-                  }
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: members.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (ctx, index) {
-                      final member = members[index];
-                      return _PendingChannelMemberRow(
-                        member: member,
-                        onApprove: () => _resolvePendingMember(
-                          context,
-                          ref,
-                          channel,
-                          member,
-                          approve: true,
-                        ),
-                        onReject: () => _resolvePendingMember(
-                          context,
-                          ref,
-                          channel,
-                          member,
-                          approve: false,
-                        ),
+              const SizedBox(height: 4),
+              Text(
+                '待审核加入申请',
+                style: AppTheme.sans(size: 13, color: t.textMute),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 360),
+                child: pending.when(
+                  data: (members) {
+                    if (members.isEmpty) {
+                      return const _ChannelEmptyState(
+                        icon: Symbols.group,
+                        title: '暂无待审核成员',
+                        subtitle: '需要审核的加入申请会显示在这里',
                       );
-                    },
-                  );
-                },
-                loading: () => const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 48),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-                error: (_, __) => const _ChannelEmptyState(
-                  icon: Symbols.error,
-                  title: '成员加载失败',
-                  subtitle: '请稍后重试',
+                    }
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: members.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (ctx, index) {
+                        final member = members[index];
+                        return _PendingChannelMemberRow(
+                          member: member,
+                          onApprove: () => _resolvePendingMember(
+                            context,
+                            ref,
+                            channel,
+                            member,
+                            approve: true,
+                          ),
+                          onReject: () => _resolvePendingMember(
+                            context,
+                            ref,
+                            channel,
+                            member,
+                            approve: false,
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (_, __) => const _ChannelEmptyState(
+                    icon: Symbols.error,
+                    title: '成员加载失败',
+                    subtitle: '请稍后重试',
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1145,7 +1293,10 @@ class _PendingChannelMemberRow extends StatelessWidget {
             child: TextButton(
               onPressed: onReject,
               style: TextButton.styleFrom(padding: EdgeInsets.zero),
-              child: const Text('拒绝'),
+              child: Text(
+                '拒绝',
+                style: AppTheme.sans(size: 14, color: t.accent),
+              ),
             ),
           ),
           const SizedBox(width: 6),
@@ -1155,7 +1306,10 @@ class _PendingChannelMemberRow extends StatelessWidget {
             child: FilledButton(
               onPressed: onApprove,
               style: FilledButton.styleFrom(padding: EdgeInsets.zero),
-              child: const Text('同意'),
+              child: Text(
+                '同意',
+                style: AppTheme.sans(size: 14, color: t.onAccent),
+              ),
             ),
           ),
         ],
@@ -1253,128 +1407,166 @@ class _ManageChannelSheetState extends ConsumerState<_ManageChannelSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          0,
-          16,
-          16 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '管理频道',
-                style: AppTheme.sans(
-                  size: 20,
-                  weight: FontWeight.w600,
-                  color: t.text,
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _nameCtrl,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: '频道名称',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _descriptionCtrl,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: '频道简介',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _tagsCtrl,
-                decoration: const InputDecoration(
-                  labelText: '频道标签',
-                  helperText: '用逗号分隔多个标签',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _visibility,
-                decoration: const InputDecoration(
-                  labelText: '可见范围',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: asChannelVisibilityPublic,
-                    child: Text('公开'),
+    return _ChannelModalSurface(
+      child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '管理频道',
+                  style: AppTheme.sans(
+                    size: 20,
+                    weight: FontWeight.w600,
+                    color: t.text,
                   ),
-                  DropdownMenuItem(
-                    value: asChannelVisibilityPrivate,
-                    child: Text('私密'),
-                  ),
-                ],
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(() {
-                          _visibility = _normalizedChannelVisibility(
-                            value ?? _visibility,
-                          );
-                        }),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _joinPolicy,
-                decoration: const InputDecoration(
-                  labelText: '加入方式',
-                  border: OutlineInputBorder(),
                 ),
-                items: const [
-                  DropdownMenuItem(
-                    value: asChannelJoinPolicyOpen,
-                    child: Text('直接加入'),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _nameCtrl,
+                  style: AppTheme.sans(size: 14, color: t.text),
+                  cursorColor: t.accent,
+                  textInputAction: TextInputAction.next,
+                  decoration: _channelInputDecoration(
+                    context,
+                    labelText: '频道名称',
                   ),
-                  DropdownMenuItem(
-                    value: asChannelJoinPolicyApproval,
-                    child: Text('需要审核'),
-                  ),
-                  DropdownMenuItem(
-                    value: asChannelJoinPolicyInvite,
-                    child: Text('仅邀请'),
-                  ),
-                ],
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(() {
-                          _joinPolicy = _normalizedChannelJoinPolicy(
-                            value ?? _joinPolicy,
-                          );
-                        }),
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('允许评论'),
-                value: _commentsEnabled,
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(() => _commentsEnabled = value),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: FilledButton(
-                  onPressed: _saving ? null : _save,
-                  child: Text(_saving ? '保存中' : '保存'),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _descriptionCtrl,
+                  style: AppTheme.sans(size: 14, color: t.text),
+                  cursorColor: t.accent,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: _channelInputDecoration(
+                    context,
+                    labelText: '频道简介',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _tagsCtrl,
+                  style: AppTheme.sans(size: 14, color: t.text),
+                  cursorColor: t.accent,
+                  decoration: _channelInputDecoration(
+                    context,
+                    labelText: '频道标签',
+                    helperText: '用逗号分隔多个标签',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _visibility,
+                  dropdownColor: t.surface,
+                  style: AppTheme.sans(size: 14, color: t.text),
+                  decoration: _channelInputDecoration(
+                    context,
+                    labelText: '可见范围',
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: asChannelVisibilityPublic,
+                      child: Text(
+                        '公开',
+                        style: AppTheme.sans(size: 14, color: t.text),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: asChannelVisibilityPrivate,
+                      child: Text(
+                        '私密',
+                        style: AppTheme.sans(size: 14, color: t.text),
+                      ),
+                    ),
+                  ],
+                  onChanged: _saving
+                      ? null
+                      : (value) => setState(() {
+                            _visibility = _normalizedChannelVisibility(
+                              value ?? _visibility,
+                            );
+                          }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _joinPolicy,
+                  dropdownColor: t.surface,
+                  style: AppTheme.sans(size: 14, color: t.text),
+                  decoration: _channelInputDecoration(
+                    context,
+                    labelText: '加入方式',
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: asChannelJoinPolicyOpen,
+                      child: Text(
+                        '直接加入',
+                        style: AppTheme.sans(size: 14, color: t.text),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: asChannelJoinPolicyApproval,
+                      child: Text(
+                        '需要审核',
+                        style: AppTheme.sans(size: 14, color: t.text),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: asChannelJoinPolicyInvite,
+                      child: Text(
+                        '仅邀请',
+                        style: AppTheme.sans(size: 14, color: t.text),
+                      ),
+                    ),
+                  ],
+                  onChanged: _saving
+                      ? null
+                      : (value) => setState(() {
+                            _joinPolicy = _normalizedChannelJoinPolicy(
+                              value ?? _joinPolicy,
+                            );
+                          }),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  activeThumbColor: t.accent,
+                  title: Text(
+                    '允许评论',
+                    style: AppTheme.sans(size: 15, color: t.text),
+                  ),
+                  value: _commentsEnabled,
+                  onChanged: _saving
+                      ? null
+                      : (value) => setState(() => _commentsEnabled = value),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: FilledButton(
+                    onPressed: _saving ? null : _save,
+                    child: Text(
+                      _saving ? '保存中' : '保存',
+                      style: AppTheme.sans(
+                        size: 15,
+                        weight: FontWeight.w600,
+                        color: t.onAccent,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1572,7 +1764,10 @@ class _RealChannelPostCard extends StatelessWidget {
                   post.reactedByMe ? Icons.favorite : Icons.favorite_border,
                   size: 16,
                 ),
-                label: Text('点赞 ${post.reactionCount}'),
+                label: Text(
+                  '点赞 ${post.reactionCount}',
+                  style: AppTheme.sans(size: 13),
+                ),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   minimumSize: const Size(0, 32),
@@ -1583,7 +1778,10 @@ class _RealChannelPostCard extends StatelessWidget {
               TextButton.icon(
                 onPressed: onComments,
                 icon: const Icon(Symbols.forum, size: 16),
-                label: Text('评论 ${post.commentCount}'),
+                label: Text(
+                  '评论 ${post.commentCount}',
+                  style: AppTheme.sans(size: 13),
+                ),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   minimumSize: const Size(0, 32),
@@ -1606,6 +1804,7 @@ void _showRealPostComments(
 ) {
   showModalBottomSheet<void>(
     context: context,
+    backgroundColor: _channelModalBackground(context),
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => _RealPostCommentsSheet(channel: channel, post: post),
@@ -1644,133 +1843,148 @@ class _RealPostCommentsSheetState
     final comments = ref.watch(channelCommentsProvider(key));
     final t = context.tk;
 
-    return SafeArea(
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.fromLTRB(
-          16,
-          0,
-          16,
-          12 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+    return _ChannelModalSurface(
+      child: SafeArea(
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            12 + MediaQuery.of(context).viewInsets.bottom,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '评论线程',
-                      style: AppTheme.sans(
-                        size: 20,
-                        weight: FontWeight.w600,
-                        color: t.text,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    key: const ValueKey('channel_comments_close'),
-                    tooltip: '关闭评论',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    icon: const Icon(Symbols.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: t.surfaceHover,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  post.body,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 14, color: t.text)
-                      .copyWith(height: 1.4),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Flexible(
-                child: SizedBox(
-                  height: 180,
-                  child: comments.when(
-                    data: (items) => items.isEmpty
-                        ? Center(
-                            child: Text(
-                              '还没有评论',
-                              style: AppTheme.sans(size: 13, color: t.textMute),
-                            ),
-                          )
-                        : ListView(
-                            children: [
-                              for (final item in items)
-                                _CommentPreviewRow(
-                                  name: item.authorName.trim().isEmpty
-                                      ? _localpartFromMxid(item.authorId)
-                                      : item.authorName.trim(),
-                                  text: item.body,
-                                ),
-                            ],
-                          ),
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (_, __) => Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
                       child: Text(
-                        '评论加载失败',
-                        style: AppTheme.sans(size: 13, color: t.textMute),
+                        '评论线程',
+                        style: AppTheme.sans(
+                          size: 20,
+                          weight: FontWeight.w600,
+                          color: t.text,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('channel_comments_close'),
+                      tooltip: '关闭评论',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: Icon(Symbols.close, color: t.textMute),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: t.surfaceHover,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    post.body,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(size: 14, color: t.text)
+                        .copyWith(height: 1.4),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: SizedBox(
+                    height: 180,
+                    child: comments.when(
+                      data: (items) => items.isEmpty
+                          ? Center(
+                              child: Text(
+                                '还没有评论',
+                                style:
+                                    AppTheme.sans(size: 13, color: t.textMute),
+                              ),
+                            )
+                          : ListView(
+                              children: [
+                                for (final item in items)
+                                  _CommentPreviewRow(
+                                    name: item.authorName.trim().isEmpty
+                                        ? _localpartFromMxid(item.authorId)
+                                        : item.authorName.trim(),
+                                    text: item.body,
+                                  ),
+                              ],
+                            ),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (_, __) => Center(
+                        child: Text(
+                          '评论加载失败',
+                          style: AppTheme.sans(size: 13, color: t.textMute),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _commentCtrl,
-                      minLines: 1,
-                      maxLines: 3,
-                      decoration: const InputDecoration(hintText: '写评论'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _commentCtrl,
+                        style: AppTheme.sans(size: 14, color: t.text),
+                        cursorColor: t.accent,
+                        minLines: 1,
+                        maxLines: 3,
+                        decoration: _channelInputDecoration(
+                          context,
+                          hintText: '写评论',
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(72, 44),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(72, 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () async {
+                        final body = _commentCtrl.text.trim();
+                        if (body.isEmpty) return;
+                        await ref.read(asClientProvider).createChannelComment(
+                              channel.id,
+                              post.postId,
+                              messageType: 'text',
+                              body: body,
+                            );
+                        _commentCtrl.clear();
+                        ref.invalidate(channelCommentsProvider(key));
+                        unawaited(
+                          ref
+                              .read(channelPostsProvider(channel.id).notifier)
+                              .refresh(silent: true),
+                        );
+                      },
+                      child: Text(
+                        '发送',
+                        style: AppTheme.sans(
+                          size: 14,
+                          weight: FontWeight.w600,
+                          color: t.onAccent,
+                        ),
+                      ),
                     ),
-                    onPressed: () async {
-                      final body = _commentCtrl.text.trim();
-                      if (body.isEmpty) return;
-                      await ref.read(asClientProvider).createChannelComment(
-                            channel.id,
-                            post.postId,
-                            messageType: 'text',
-                            body: body,
-                          );
-                      _commentCtrl.clear();
-                      ref.invalidate(channelCommentsProvider(key));
-                      unawaited(
-                        ref
-                            .read(channelPostsProvider(channel.id).notifier)
-                            .refresh(silent: true),
-                      );
-                    },
-                    child: const Text('发送'),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1851,46 +2065,6 @@ class _ChannelTopicCard extends StatelessWidget {
       ),
     );
   }
-}
-
-void _showChannelMenu(BuildContext context, MockChannel channel) {
-  final items = channel.isOwned
-      ? const ['频道资料', '成员管理', '标签管理', '通知设置']
-      : const ['频道资料', '通知设置', '退出频道'];
-  showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final item in items)
-            ListTile(
-              title: Text(item),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!context.mounted) return;
-                  if (item == '频道资料') {
-                    context.push(
-                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=profile',
-                    );
-                  } else if (item == '成员管理') {
-                    context.push(
-                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=members',
-                    );
-                  } else if (item == '标签管理') {
-                    context.push(
-                      '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=moderation',
-                    );
-                  }
-                });
-              },
-            ),
-        ],
-      ),
-    ),
-  );
 }
 
 class _ChannelAvatar extends StatelessWidget {
@@ -2016,7 +2190,10 @@ class _ChannelPostCard extends StatelessWidget {
                 TextButton.icon(
                   onPressed: () => _showPostComments(context, channel, post),
                   icon: const Icon(Symbols.forum, size: 16),
-                  label: Text('评论 ${post.commentCount}'),
+                  label: Text(
+                    '评论 ${post.commentCount}',
+                    style: AppTheme.sans(size: 13),
+                  ),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     minimumSize: const Size(0, 32),
@@ -2043,51 +2220,54 @@ void _showPostComments(
 ) {
   showModalBottomSheet<void>(
     context: context,
+    backgroundColor: _channelModalBackground(context),
     showDragHandle: true,
     builder: (ctx) {
       final t = ctx.tk;
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '评论线程',
-                style: AppTheme.sans(
-                  size: 20,
-                  weight: FontWeight.w600,
-                  color: t.text,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: t.surfaceHover,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  post.body,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 14, color: t.text).copyWith(
-                    height: 1.4,
+      return _ChannelModalSurface(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '评论线程',
+                  style: AppTheme.sans(
+                    size: 20,
+                    weight: FontWeight.w600,
+                    color: t.text,
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              _CommentPreviewRow(
-                name: channel.isOwned ? 'Alice' : 'Li',
-                text: '这个方向可以先做成频道详情样例，再接真实帖子接口。',
-              ),
-              _CommentPreviewRow(
-                name: channel.isOwned ? 'Mira' : 'Chen',
-                text: '评论应该跟着单条帖子走，不要混到频道主流里。',
-              ),
-            ],
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: t.surfaceHover,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    post.body,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(size: 14, color: t.text).copyWith(
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _CommentPreviewRow(
+                  name: channel.isOwned ? 'Alice' : 'Li',
+                  text: '这个方向可以先做成频道详情样例，再接真实帖子接口。',
+                ),
+                _CommentPreviewRow(
+                  name: channel.isOwned ? 'Mira' : 'Chen',
+                  text: '评论应该跟着单条帖子走，不要混到频道主流里。',
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -2225,6 +2405,7 @@ class _OwnedChannelComposerState extends ConsumerState<_OwnedChannelComposer> {
                 ),
                 child: TextField(
                   controller: _ctrl,
+                  cursorColor: t.accent,
                   minLines: 1,
                   maxLines: 3,
                   style: AppTheme.sans(size: 14, color: t.text),
@@ -2251,7 +2432,14 @@ class _OwnedChannelComposerState extends ConsumerState<_OwnedChannelComposer> {
                   minimumSize: Size.zero,
                 ),
                 onPressed: _posting ? null : _post,
-                child: Text(_posting ? '发布中' : '发布帖子'),
+                child: Text(
+                  _posting ? '发布中' : '发布帖子',
+                  style: AppTheme.sans(
+                    size: 14,
+                    weight: FontWeight.w600,
+                    color: t.onAccent,
+                  ),
+                ),
               ),
             ),
           ],

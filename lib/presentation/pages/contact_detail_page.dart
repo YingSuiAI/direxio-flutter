@@ -21,9 +21,14 @@ import '../utils/direct_contact_status.dart';
 import '../widgets/portal_avatar.dart';
 
 class ContactDetailPage extends ConsumerStatefulWidget {
-  const ContactDetailPage({super.key, required this.userId});
+  const ContactDetailPage({
+    super.key,
+    required this.userId,
+    this.fromChatAvatar = false,
+  });
 
   final String userId;
+  final bool fromChatAvatar;
 
   @override
   ConsumerState<ContactDetailPage> createState() => _ContactDetailPageState();
@@ -83,6 +88,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
             ? mock?.avatarUrl
             : matrixContentHttpUrl(client, peerMember?.avatarUrl));
     final roomId = room?.id ?? mock?.id;
+    final hideChatAvatarEntries = widget.fromChatAvatar;
 
     return Scaffold(
       backgroundColor: t.surfaceHover,
@@ -138,11 +144,13 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                                 ),
                               )
                           : null,
-                      onSearch: roomId == null
-                          ? () => _toast(context, '缺少联系人房间信息，无法搜索聊天')
-                          : () => context.push(
-                                '/room-search/${Uri.encodeComponent(roomId)}',
-                              ),
+                      onSearch: hideChatAvatarEntries
+                          ? null
+                          : roomId == null
+                              ? () => _toast(context, '缺少联系人房间信息，无法搜索聊天')
+                              : () => context.push(
+                                    '/room-search/${Uri.encodeComponent(roomId)}',
+                                  ),
                     ),
                     const SizedBox(height: 26),
                     _ContactSettingRow(
@@ -158,24 +166,26 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                       label: '推荐给朋友',
                       onTap: () => _shareContact(displayName, userId),
                     ),
-                    const SizedBox(height: 16),
-                    _ContactSwitchRow(
-                      label: '消息免打扰',
-                      value: _muted,
-                      onChanged: (value) => setState(() => _muted = value),
-                    ),
-                    const SizedBox(height: 16),
-                    _ContactSwitchRow(
-                      label: '屏蔽用户',
-                      value: _blocked,
-                      onChanged: (value) => setState(() => _blocked = value),
-                      activeColor: t.surfaceHigh,
-                    ),
-                    const SizedBox(height: 16),
-                    _ContactSettingRow(
-                      label: '举报用户',
-                      onTap: () => _showReportDialog(context),
-                    ),
+                    if (!hideChatAvatarEntries) ...[
+                      const SizedBox(height: 16),
+                      _ContactSwitchRow(
+                        label: '消息免打扰',
+                        value: _muted,
+                        onChanged: (value) => setState(() => _muted = value),
+                      ),
+                      const SizedBox(height: 16),
+                      _ContactSwitchRow(
+                        label: '屏蔽用户',
+                        value: _blocked,
+                        onChanged: (value) => setState(() => _blocked = value),
+                        activeColor: t.surfaceHigh,
+                      ),
+                      const SizedBox(height: 16),
+                      _ContactSettingRow(
+                        label: '举报用户',
+                        onTap: () => _showReportDialog(context),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -509,7 +519,7 @@ class _QuickActionGrid extends StatelessWidget {
   final VoidCallback? onMessage;
   final VoidCallback? onVoice;
   final VoidCallback? onVideo;
-  final VoidCallback onSearch;
+  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -538,14 +548,16 @@ class _QuickActionGrid extends StatelessWidget {
             onTap: onVideo,
           ),
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _ContactQuickAction(
-            icon: Symbols.search,
-            label: '搜索聊天',
-            onTap: onSearch,
+        if (onSearch != null) ...[
+          const SizedBox(width: 16),
+          Expanded(
+            child: _ContactQuickAction(
+              icon: Symbols.search,
+              label: '搜索聊天',
+              onTap: onSearch,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

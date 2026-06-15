@@ -34,6 +34,8 @@ import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
 import '../widgets/app_glass_background.dart';
+import '../widgets/m3/glass_header.dart';
+import '../widgets/m3/m3_search_field.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 
@@ -45,7 +47,6 @@ const _homeBg = Color(0xFFFAFAFA);
 const _homeText = Color(0xFF262628);
 const _homeMuted = Color(0xFFA3A3A4);
 const _homeBorder = Color(0xFFE6E6E6);
-const _channelBlue = Color(0xFF077AB3);
 const _conversationTileAvatarSize = 42.0;
 const _iconMenuAddFriend = 'assets/icons/menu_add_friend.svg';
 const _iconMenuCreateGroup = 'assets/icons/menu_create_group.svg';
@@ -72,6 +73,7 @@ const _assetMeComments =
 const _meIconBlue = Color(0xFF3097CB);
 const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
+const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
 
 bool _homeDark(BuildContext context) {
   return Theme.of(context).brightness == Brightness.dark;
@@ -115,7 +117,9 @@ class _HomePageState extends ConsumerState<HomePage>
   bool _asBootstrapRefreshInFlight = false;
   bool _staleBootstrapClearScheduled = false;
   Timer? _asBootstrapRefreshTimer;
+  DateTime? _lastAsBootstrapRefreshAt;
   String? _lastBootstrapRefreshUserId;
+  String? _lastHomeSyncSignature;
   String? _incomingCallRouteRoomId;
   String? _incomingGroupCallRouteRoomId;
 
@@ -123,12 +127,16 @@ class _HomePageState extends ConsumerState<HomePage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // 订阅 client.onSync,任何 /sync 周期触发就重建,
-    // 让会话列表的 lastEvent / notificationCount / 新房间 实时更新。
+    // 订阅 client.onSync, 但只在会话列表关心的数据变化时重建。
+    // Matrix 的空 sync 很频繁，不能让它们触发整页刷新。
     final client = ref.read(matrixClientProvider);
+    _lastHomeSyncSignature = _homeSyncSignature(client);
     _attachVoiceCallController(client);
     _syncSub = client.onSync.stream.listen((_) {
       if (!mounted) return;
+      final nextSignature = _homeSyncSignature(client);
+      if (nextSignature == _lastHomeSyncSignature) return;
+      _lastHomeSyncSignature = nextSignature;
       _scheduleAsBootstrapRefreshIfNeeded(refreshExisting: true);
       setState(() {});
     });
@@ -260,6 +268,14 @@ class _HomePageState extends ConsumerState<HomePage>
   void _scheduleAsBootstrapRefreshIfNeeded({bool refreshExisting = false}) {
     if (_mockAuthEnabled || _asBootstrapRefreshInFlight) return;
     if (_asBootstrapRefreshTimer?.isActive ?? false) return;
+    if (refreshExisting) {
+      final refreshedAt = _lastAsBootstrapRefreshAt;
+      if (refreshedAt != null &&
+          DateTime.now().difference(refreshedAt) <
+              _asBootstrapRefreshExistingMinInterval) {
+        return;
+      }
+    }
     final auth = ref.read(authStateNotifierProvider).valueOrNull;
     if (!(auth?.isLoggedIn ?? false)) return;
     final currentUserId = ref.read(matrixClientProvider).userID ?? auth?.userId;
@@ -280,6 +296,7 @@ class _HomePageState extends ConsumerState<HomePage>
       () {
         if (!mounted || _asBootstrapRefreshInFlight) return;
         _asBootstrapRefreshInFlight = true;
+        _lastAsBootstrapRefreshAt = DateTime.now();
         unawaited(_refreshAsBootstrap());
       },
     );
@@ -287,9 +304,6 @@ class _HomePageState extends ConsumerState<HomePage>
 
   void _finishAsBootstrapRefresh() {
     _asBootstrapRefreshInFlight = false;
-    if (mounted) {
-      setState(() {});
-    }
   }
 
   Future<void> _refreshAsBootstrap() async {
@@ -512,6 +526,27 @@ int _homeUnreadTotal(Client client, AsSyncCacheState syncCache) {
     total += room.unreadCount;
   }
   return total;
+}
+
+String _homeSyncSignature(Client client) {
+  final rooms = client.rooms.toList(growable: false)
+    ..sort((a, b) => a.id.compareTo(b.id));
+  final parts = <String>[client.userID ?? ''];
+  for (final room in rooms) {
+    final lastEvent = room.lastEvent;
+    parts.add(
+      [
+        room.id,
+        room.membership.name,
+        lastEvent?.eventId ?? '',
+        lastEvent?.type ?? '',
+        lastEvent?.originServerTs.millisecondsSinceEpoch.toString() ?? '',
+        room.notificationCount.toString(),
+        room.highlightCount.toString(),
+      ].join(','),
+    );
+  }
+  return parts.join('|');
 }
 
 class _ChatsTopBar extends StatelessWidget {
@@ -963,72 +998,75 @@ class _LiquidTabPill extends StatelessWidget {
             final item = items[index];
             final active = index == currentIndex;
             final label = _homeTabTitle(l10n, item.labelIndex);
-            return SizedBox(
-              width: index == 0 ? 70 : 71,
-              height: 49,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: () => onTap(index),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (active)
-                      Positioned.fill(
-                        right: index == 0 ? 0 : 4,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: _homeDark(context)
-                                ? t.accent.withValues(alpha: 0.13)
-                                : Colors.white.withValues(alpha: 0.76),
-                            borderRadius: BorderRadius.circular(999),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 12,
-                                offset: const Offset(0, 2),
+            return Expanded(
+              child: SizedBox(
+                height: 49,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () => onTap(index),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (active)
+                        Positioned.fill(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: _homeDark(context)
+                                    ? t.accent.withValues(alpha: 0.13)
+                                    : Colors.white.withValues(alpha: 0.76),
+                                borderRadius: BorderRadius.circular(999),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            _DesignAssetIcon(
-                              assetName: active
-                                  ? item.activeIconAsset ?? item.iconAsset
-                                  : item.inactiveIconAsset ?? item.iconAsset,
-                              size: item.iconSize,
-                              color: _homeTabColor(context, active: active),
-                            ),
-                            if (item.badge != null)
-                              Positioned(
-                                key: ValueKey('bottom_nav_badge_$label'),
-                                top: -5,
-                                right: -9,
-                                child: _ConversationUnreadBadge(
-                                  count: int.tryParse(item.badge!) ?? 1,
-                                ),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              _DesignAssetIcon(
+                                assetName: active
+                                    ? item.activeIconAsset ?? item.iconAsset
+                                    : item.inactiveIconAsset ?? item.iconAsset,
+                                size: item.iconSize,
+                                color: _homeTabColor(context, active: active),
                               ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTheme.sans(
-                            size: 10,
-                            weight: FontWeight.w600,
-                            color: _homeTabColor(context, active: active),
-                          ).copyWith(height: 1.2),
-                        ),
-                      ],
-                    ),
-                  ],
+                              if (item.badge != null)
+                                Positioned(
+                                  key: ValueKey('bottom_nav_badge_$label'),
+                                  top: -5,
+                                  right: -9,
+                                  child: _ConversationUnreadBadge(
+                                    count: int.tryParse(item.badge!) ?? 1,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.sans(
+                              size: 10,
+                              weight: FontWeight.w600,
+                              color: _homeTabColor(context, active: active),
+                            ).copyWith(height: 1.2),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -1293,7 +1331,7 @@ class _ChatList extends ConsumerWidget {
       final convs = MockData.conversations.toList();
       return ListView.builder(
         padding: const EdgeInsets.only(top: 4, bottom: 96),
-        itemCount: convs.length + 2,
+        itemCount: convs.length + 1,
         itemBuilder: (context, i) {
           if (i == 0) {
             return _ChatShortcutRow(
@@ -1304,15 +1342,7 @@ class _ChatList extends ConsumerWidget {
               onTap: () => context.push('/requests'),
             );
           }
-          if (i == 1) {
-            return _ChatShortcutRow(
-              iconAsset: _iconMenuCreateGroup,
-              name: '创建群聊',
-              lastMessage: '选择好友发起群聊',
-              onTap: () => showCreateGroupFlow(context, ref),
-            );
-          }
-          final conversationIndex = i - 2;
+          final conversationIndex = i - 1;
           final c = convs[conversationIndex];
           final last = c.lastMessage;
           final isAgent = c.id == 'mock_aibot';
@@ -1399,7 +1429,7 @@ class _ChatList extends ConsumerWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
-      itemCount: sortedConversations.length + 2,
+      itemCount: sortedConversations.length + 1,
       itemBuilder: (context, i) {
         if (i == 0) {
           return _ChatShortcutRow(
@@ -1410,15 +1440,7 @@ class _ChatList extends ConsumerWidget {
             onTap: () => context.push('/requests'),
           );
         }
-        if (i == 1) {
-          return _ChatShortcutRow(
-            iconAsset: _iconMenuCreateGroup,
-            name: '创建群聊',
-            lastMessage: '选择好友发起群聊',
-            onTap: () => showCreateGroupFlow(context, ref),
-          );
-        }
-        final conversation = sortedConversations[i - 2];
+        final conversation = sortedConversations[i - 1];
         final room = conversation.room;
         final lastEvent = room?.lastEvent;
         final failedOutbox =
@@ -2287,35 +2309,23 @@ class _CreateChannelSheetState extends State<_CreateChannelSheet> {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
+    final t = context.tk;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: t.bg,
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           Positioned(
-            left: 38,
-            top: topInset + 42,
-            child: _CreateChannelCircleClose(
-              onTap: () => Navigator.of(context).pop(),
-            ),
-          ),
-          Positioned(
             left: 0,
             right: 0,
-            top: topInset + 56,
-            child: Center(
-              child: Text(
-                '创建频道',
-                style: AppTheme.sans(
-                  size: 20,
-                  weight: FontWeight.w800,
-                  color: const Color(0xFF101927),
-                ).copyWith(height: 28 / 20),
-              ),
+            top: 0,
+            child: GlassHeader.detail(
+              title: '创建频道',
+              onBack: () => Navigator.of(context).pop(),
             ),
           ),
           Positioned.fill(
-            top: topInset + 122,
+            top: topInset + 78,
             bottom: 96,
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 38),
@@ -2397,7 +2407,7 @@ class _CreateChannelSheetState extends State<_CreateChannelSheet> {
                         style: AppTheme.sans(
                           size: 18,
                           weight: FontWeight.w800,
-                          color: const Color(0xFF101927),
+                          color: t.text,
                         ),
                       ),
                       const SizedBox(height: 18),
@@ -2407,7 +2417,7 @@ class _CreateChannelSheetState extends State<_CreateChannelSheet> {
                         value: _isPublic,
                         onChanged: (value) => setState(() => _isPublic = value),
                       ),
-                      const Divider(height: 24, color: Color(0xFFE3E8EF)),
+                      Divider(height: 24, color: t.border),
                       _CreateChannelSwitchRow(
                         title: '加入是否需要审核',
                         subtitle: '开启后需管理员通过',
@@ -2445,35 +2455,6 @@ class _CreateChannelSheetState extends State<_CreateChannelSheet> {
   }
 }
 
-class _CreateChannelCircleClose extends StatelessWidget {
-  const _CreateChannelCircleClose({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      shape: const CircleBorder(),
-      elevation: 14,
-      shadowColor: Colors.black.withValues(alpha: 0.08),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: const SizedBox.square(
-          dimension: 43,
-          child: Icon(
-            Symbols.close,
-            size: 30,
-            color: Color(0xFF141C26),
-            weight: 700,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CreateChannelCard extends StatelessWidget {
   const _CreateChannelCard({required this.child});
 
@@ -2481,14 +2462,15 @@ class _CreateChannelCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 18, 14, 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: t.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: t.text.withValues(alpha: 0.04),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -2510,6 +2492,7 @@ class _CreateChannelSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Row(
       children: [
         Expanded(
@@ -2518,7 +2501,7 @@ class _CreateChannelSectionHeader extends StatelessWidget {
             style: AppTheme.sans(
               size: 18,
               weight: FontWeight.w800,
-              color: const Color(0xFF101927),
+              color: t.text,
             ),
           ),
         ),
@@ -2527,7 +2510,7 @@ class _CreateChannelSectionHeader extends StatelessWidget {
           style: AppTheme.sans(
             size: 13,
             weight: FontWeight.w800,
-            color: const Color(0xFF758296),
+            color: t.textMute,
           ),
         ),
       ],
@@ -2542,23 +2525,24 @@ class _CreateChannelNameField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Container(
       height: 52,
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFCDECF8), width: 2),
+        color: t.surface,
+        border: Border.all(color: t.accent.withValues(alpha: 0.42), width: 2),
         borderRadius: BorderRadius.circular(15),
       ),
       child: Row(
         children: [
           const SizedBox(width: 16),
-          const Text(
+          Text(
             '#',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF2FA0D0),
-              height: 1,
-            ),
+            style: AppTheme.sans(
+              size: 28,
+              weight: FontWeight.w700,
+              color: t.accent,
+            ).copyWith(height: 1),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -2571,13 +2555,13 @@ class _CreateChannelNameField extends StatelessWidget {
                 hintStyle: AppTheme.sans(
                   size: 16,
                   weight: FontWeight.w800,
-                  color: const Color(0xFF9AA5B5),
+                  color: t.textMute,
                 ),
               ),
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w800,
-                color: const Color(0xFF101927),
+                color: t.text,
               ),
             ),
           ),
@@ -2594,8 +2578,9 @@ class _CreateChannelAvatarPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: const Color(0xFFF0F3F7),
+      color: t.surfaceHover,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -2609,12 +2594,12 @@ class _CreateChannelAvatarPicker extends StatelessWidget {
                 width: 62,
                 height: 62,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDDF6FF),
+                  color: t.accent.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(
+                child: Icon(
                   Symbols.add_photo_alternate,
-                  color: Color(0xFF198DC2),
+                  color: t.accent,
                   size: 31,
                   fill: 1,
                 ),
@@ -2630,7 +2615,7 @@ class _CreateChannelAvatarPicker extends StatelessWidget {
                       style: AppTheme.sans(
                         size: 16,
                         weight: FontWeight.w800,
-                        color: const Color(0xFF101927),
+                        color: t.text,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -2641,15 +2626,15 @@ class _CreateChannelAvatarPicker extends StatelessWidget {
                       style: AppTheme.sans(
                         size: 13,
                         weight: FontWeight.w700,
-                        color: const Color(0xFF758296),
+                        color: t.textMute,
                       ).copyWith(height: 18 / 13),
                     ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Symbols.chevron_right,
-                color: Color(0xFF101927),
+                color: t.text,
                 size: 30,
                 weight: 700,
               ),
@@ -2678,8 +2663,9 @@ class _CreateChannelTypeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: selected ? const Color(0xFFEAF8FE) : Colors.white,
+      color: selected ? t.accent.withValues(alpha: 0.10) : t.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -2689,8 +2675,7 @@ class _CreateChannelTypeTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color:
-                  selected ? const Color(0xFF2FA0D0) : const Color(0xFFE1E6ED),
+              color: selected ? t.accent : t.border,
               width: selected ? 1.4 : 1,
             ),
           ),
@@ -2702,16 +2687,14 @@ class _CreateChannelTypeTile extends StatelessWidget {
                 height: 35,
                 decoration: BoxDecoration(
                   color: selected
-                      ? const Color(0xFFDDF6FF)
-                      : const Color(0xFFF0F3F7),
+                      ? t.accent.withValues(alpha: 0.14)
+                      : t.surfaceHover,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
                   icon,
                   size: 23,
-                  color: selected
-                      ? const Color(0xFF198DC2)
-                      : const Color(0xFF697586),
+                  color: selected ? t.accent : t.textMute,
                   weight: 700,
                 ),
               ),
@@ -2721,7 +2704,7 @@ class _CreateChannelTypeTile extends StatelessWidget {
                 style: AppTheme.sans(
                   size: 17,
                   weight: FontWeight.w800,
-                  color: const Color(0xFF101927),
+                  color: t.text,
                 ),
               ),
               const SizedBox(height: 4),
@@ -2730,7 +2713,7 @@ class _CreateChannelTypeTile extends StatelessWidget {
                 style: AppTheme.sans(
                   size: 12,
                   weight: FontWeight.w800,
-                  color: const Color(0xFF758296),
+                  color: t.textMute,
                 ),
               ),
             ],
@@ -2756,6 +2739,7 @@ class _CreateChannelSwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Row(
       children: [
         Expanded(
@@ -2767,7 +2751,7 @@ class _CreateChannelSwitchRow extends StatelessWidget {
                 style: AppTheme.sans(
                   size: 16,
                   weight: FontWeight.w800,
-                  color: const Color(0xFF101927),
+                  color: t.text,
                 ),
               ),
               const SizedBox(height: 4),
@@ -2776,7 +2760,7 @@ class _CreateChannelSwitchRow extends StatelessWidget {
                 style: AppTheme.sans(
                   size: 13,
                   weight: FontWeight.w700,
-                  color: const Color(0xFF758296),
+                  color: t.textMute,
                 ),
               ),
             ],
@@ -2785,8 +2769,10 @@ class _CreateChannelSwitchRow extends StatelessWidget {
         Switch(
           value: value,
           onChanged: onChanged,
-          activeThumbColor: Colors.white,
-          activeTrackColor: const Color(0xFF2FA0D0),
+          activeThumbColor: t.onAccent,
+          activeTrackColor: t.accent,
+          inactiveThumbColor: t.textMute,
+          inactiveTrackColor: t.surfaceHover,
         ),
       ],
     );
@@ -2800,8 +2786,9 @@ class _CreateChannelSubmitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: const Color(0xFF2FA0D0),
+      color: t.accent,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -2814,7 +2801,7 @@ class _CreateChannelSubmitButton extends StatelessWidget {
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w800,
-                color: Colors.white,
+                color: t.onAccent,
               ),
             ),
           ),
@@ -2992,30 +2979,10 @@ class HomeSearchBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Material(
-      color: t.surfaceHover,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              Icon(Symbols.search, size: 18, color: t.textMute),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  hint,
-                  style: AppTheme.sans(size: 14, color: t.textMute),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return M3SearchField(
+      hint: hint,
+      readOnly: true,
+      onTap: onTap,
     );
   }
 }
@@ -3338,6 +3305,10 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
     );
     final visibleChannels =
         _section == '已加入' ? joinedChannels : discoverChannels;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
 
     if (!_mockAuthEnabled && isLoggedIn && bootstrap == null) {
       return const _ChannelFrame(
@@ -3359,17 +3330,17 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
             left: 24,
             top: topInset + 22,
             width: 140,
-            height: 42,
+            height: 28,
             child: Text(
               key: const ValueKey('channel_tab_title'),
-              '频道',
+              _homeTabTitle(l10n, 2),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTheme.sans(
-                size: 28,
-                weight: FontWeight.w800,
+                size: 20,
+                weight: FontWeight.w600,
                 color: _homeTextColor(context),
-              ).copyWith(height: 38 / 28),
+              ),
             ),
           ),
           Positioned(
@@ -3467,12 +3438,12 @@ class _ChannelSectionSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: _homeDark(context)
-            ? context.tk.surfaceHigh
-            : const Color(0xFFE9EDF2),
+        color: t.surfaceHigh,
+        border: Border.all(color: t.border.withValues(alpha: 0.28)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -3504,8 +3475,9 @@ class _ChannelSectionSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: selected ? Colors.white : Colors.transparent,
+      color: selected ? t.surface : Colors.transparent,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
@@ -3520,9 +3492,7 @@ class _ChannelSectionSegment extends StatelessWidget {
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w800,
-                color: selected
-                    ? _homeTextColor(context)
-                    : _homeMutedColor(context),
+                color: selected ? t.text : t.textMute,
               ).copyWith(height: 22 / 15),
             ),
           ),
@@ -3571,12 +3541,9 @@ class _ChannelTypePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = selected
-        ? const Color(0xFFDDF6FF)
-        : (_homeDark(context)
-            ? context.tk.surfaceHigh
-            : const Color(0xFFF0F3F7));
-    final fg = selected ? _channelBlue : const Color(0xFF6E7C91);
+    final t = context.tk;
+    final bg = selected ? t.accent.withValues(alpha: 0.14) : t.surfaceHigh;
+    final fg = selected ? t.accent : t.textMute;
     return Material(
       color: bg,
       borderRadius: BorderRadius.circular(15),
@@ -3633,11 +3600,12 @@ class _ChannelTopCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: Colors.white,
+      color: t.surface,
       shape: const CircleBorder(),
       elevation: 14,
-      shadowColor: Colors.black.withValues(alpha: 0.08),
+      shadowColor: t.text.withValues(alpha: 0.12),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
@@ -3650,7 +3618,7 @@ class _ChannelTopCircleButton extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: iconSize,
-                  color: _homeTextColor(context),
+                  color: t.text,
                   weight: 700,
                 ),
               ),

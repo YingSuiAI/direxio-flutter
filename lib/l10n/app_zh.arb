@@ -37,6 +37,93 @@
   "commonCancel": "取消",
   "commonSearch": "搜索",
   "commonShare": "分享",
+  "channelManageTitle": "频道管理",
+  "channelManageProfileTitle": "频道资料",
+  "channelManageMembersTitle": "成员与角色",
+  "channelManageModerationTitle": "内容审核",
+  "channelManageTabOverview": "我的频道",
+  "channelManageTabProfile": "资料权限",
+  "channelManageTabMembers": "成员角色",
+  "channelManageTabModeration": "内容审核",
+  "channelManageStatSubscribers": "订阅人数",
+  "channelManageStatTodayMessages": "今日消息",
+  "channelManageStatPending": "待审核",
+  "channelManageStatAdmins": "管理员",
+  "channelManageStatNewToday": "今日新增",
+  "channelManageStatMuted": "禁言中",
+  "channelManageStatReports": "举报",
+  "channelManageStatAutoApproved": "自动通过",
+  "channelManageMyChannels": "我的频道",
+  "channelManageCreateChannel": "创建新频道",
+  "channelManageCreateChannelValue": "名称、头像、简介",
+  "channelManageInviteLinks": "频道邀请链接",
+  "channelManageInviteLinksValue": "{count} 个有效",
+  "@channelManageInviteLinksValue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "channelManagePermissions": "频道权限",
+  "channelManageVisibility": "频道可见性",
+  "channelManageSpeechPermission": "发言权限",
+  "channelManageInvitePermission": "邀请权限",
+  "channelManageMessageEncryption": "消息加密",
+  "channelManageEnabled": "已开启",
+  "channelManageDisabled": "未开启",
+  "channelManageDisableChannel": "停用频道",
+  "channelManageVisibilityPublic": "公开",
+  "channelManageVisibilityPrivate": "私密",
+  "channelManageSpeechAdminReview": "管理员审核",
+  "channelManageSpeechMembers": "成员可发言",
+  "channelManageInviteAdmin": "管理员",
+  "channelManageInviteAdmins": "邀请管理员",
+  "channelManageInviteAdminsValue": "通过 ID 或链接",
+  "channelManageOwnerOnline": "所有者 · 在线",
+  "channelManageAdminModeration": "管理员 · 内容审核",
+  "channelManageAdminOperations": "管理员 · 成员运营",
+  "channelManageBotRiskControl": "机器人 · 风控",
+  "channelManageReviewSpeechTitle": "新成员发言申请",
+  "channelManageReviewSpeechBody": "用户 @ray 申请在公告频道发布节点同步说明。",
+  "channelManageReviewSpeechTag": "发言",
+  "channelManageReviewLinkTitle": "链接风险提示",
+  "channelManageReviewLinkBody": "检测到外部链接，需要管理员确认后展示。",
+  "channelManageReviewLinkTag": "链接",
+  "channelManageReviewReportTitle": "举报消息",
+  "channelManageReviewReportBody": "2 位成员举报该消息包含重复广告内容。",
+  "channelManageReviewReportTag": "举报",
+  "channelManageAutoRules": "自动审核规则",
+  "channelManageAutoRulesValue": "关键词 / 链接 / 频率",
+  "channelManageEditProfile": "编辑资料",
+  "channelManageManage": "管理",
+  "channelManageManaging": "管理中",
+  "channelManageApprove": "通过",
+  "channelManageReject": "拒绝",
+  "channelManageDefaultChannelName": "P2P Matrix 公告",
+  "channelManageDefaultChannelDescription": "项目公告、节点状态与版本发布",
+  "channelManageChannelSummary": "{visibility}频道 · {members} 人 · 今日 {messages} 条",
+  "@channelManageChannelSummary": {
+    "placeholders": {
+      "visibility": {
+        "type": "String"
+      },
+      "members": {
+        "type": "String"
+      },
+      "messages": {
+        "type": "int"
+      }
+    }
+  },
+  "channelManageComingSoon": "{label} 功能待接入",
+  "@channelManageComingSoon": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "loginTitle": "Portal IM",
   "loginSubtitle": "使用你的 Portal 域名和密码进入去中心化通讯空间",
   "loginDomainHint": "https://你的域名",
@@ -76,6 +163,29 @@
   "contactsMyGroups": "我的群组",
   "contactsGroups": "群聊",
   "contactsFollows": "关注",
+  "createGroupTitle": "发起群聊",
+  "createGroupDone": "完成",
+  "createGroupEmptyTitle": "暂无可邀请联系人",
+  "createGroupEmptySubtitle": "先添加好友后再发起群聊",
+  "createGroupNoResultsTitle": "没有找到好友",
+  "createGroupNoResultsSubtitle": "换个 ID、昵称或邮箱试试",
+  "createGroupDefaultName": "群聊",
+  "createGroupSingleName": "{name}的群聊",
+  "@createGroupSingleName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "createGroupMultipleName": "{names}等人的群聊",
+  "@createGroupMultipleName": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
   "contactsCount": "联系人 ({count})",
   "@contactsCount": {
     "placeholders": {

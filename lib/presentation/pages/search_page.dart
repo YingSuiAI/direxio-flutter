@@ -9,6 +9,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../../data/as_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/design_tokens.dart';
 import '../channel/channel_inbox_data.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -17,6 +18,7 @@ import '../mock/mock_channels.dart';
 import '../mock/mock_data.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../widgets/m3/m3_search_field.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -101,7 +103,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _searchPageBg,
+      backgroundColor: context.tk.bg,
       body: Column(
         children: [
           _SearchToolbar(onBack: () => context.pop()),
@@ -135,7 +137,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       return Center(
         child: Text(
           '没有找到包含「$_lastQuery」的内容',
-          style: AppTheme.sans(size: 13, color: _searchMuted),
+          style: AppTheme.sans(size: 13, color: context.tk.textMute),
         ),
       );
     }
@@ -336,14 +338,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 }
 
-const _searchPageBg = Color(0xFFEFEFF3);
-const _searchText = Color(0xFF262628);
-const _searchMuted = Color(0xFFA3A3A4);
-const _searchBorder = Color(0xFFE6E6E6);
-const _searchBrand = Color(0xFF3097CB);
-const _searchInputBg = Color(0x1F767680);
 const _searchToolbarHeight = 48.0;
-const _searchInputHeight = 36.0;
 
 String _fallbackDomain(Client client) {
   final userId = client.userID ?? '';
@@ -435,6 +430,7 @@ class _SearchResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -446,9 +442,9 @@ class _SearchResultTile extends StatelessWidget {
         child: SizedBox(
           height: 52,
           child: DecoratedBox(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: _searchBorder, width: 0.5),
+                bottom: BorderSide(color: t.border, width: 0.5),
               ),
             ),
             child: Row(
@@ -470,7 +466,7 @@ class _SearchResultTile extends StatelessWidget {
                           result.subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTheme.sans(size: 12, color: _searchMuted)
+                          style: AppTheme.sans(size: 12, color: t.textMute)
                               .copyWith(letterSpacing: 0),
                         ),
                       ],
@@ -481,7 +477,7 @@ class _SearchResultTile extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     DateFormat('MM-dd HH:mm').format(result.timestamp!),
-                    style: AppTheme.sans(size: 11, color: _searchMuted),
+                    style: AppTheme.sans(size: 11, color: t.textMute),
                   ),
                 ],
               ],
@@ -500,6 +496,7 @@ class _SearchToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return SafeArea(
       bottom: false,
       child: SizedBox(
@@ -518,7 +515,7 @@ class _SearchToolbar extends StatelessWidget {
                 style: AppTheme.sans(
                   size: 16,
                   weight: FontWeight.w600,
-                  color: _searchText,
+                  color: t.text,
                 ).copyWith(letterSpacing: 0),
               ),
             ],
@@ -536,12 +533,13 @@ class _SearchBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return DecoratedBox(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: t.text.withValues(alpha: 0.08),
             blurRadius: 36,
             offset: const Offset(0, 7),
           ),
@@ -549,12 +547,12 @@ class _SearchBackButton extends StatelessWidget {
       ),
       child: ClipOval(
         child: Material(
-          color: Colors.white.withValues(alpha: 0.65),
+          color: t.surface.withValues(alpha: 0.72),
           child: InkWell(
             onTap: onTap,
-            child: const SizedBox.square(
+            child: SizedBox.square(
               dimension: 40,
-              child: Icon(Symbols.arrow_back, size: 24, color: _searchText),
+              child: Icon(Symbols.arrow_back, size: 24, color: t.text),
             ),
           ),
         ),
@@ -576,45 +574,12 @@ class _SearchInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: _searchInputHeight,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: _searchInputBg,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          autofocus: true,
-          cursorColor: _searchBrand,
-          textInputAction: TextInputAction.search,
-          onChanged: onChanged,
-          style: AppTheme.sans(
-            size: 16,
-            weight: FontWeight.w500,
-            color: _searchBrand,
-          ).copyWith(letterSpacing: 0),
-          decoration: InputDecoration(
-            isCollapsed: true,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            hintText: '搜索',
-            hintStyle: AppTheme.sans(size: 16, color: _searchMuted),
-            prefixIcon: const Icon(
-              Symbols.search,
-              size: 16,
-              color: _searchMuted,
-            ),
-            prefixIconConstraints: const BoxConstraints(
-              minWidth: 32,
-              minHeight: _searchInputHeight,
-            ),
-            contentPadding: const EdgeInsets.fromLTRB(0, 8, 12, 8),
-          ),
-        ),
-      ),
+    return M3SearchField(
+      controller: controller,
+      focusNode: focusNode,
+      hint: '搜索',
+      autofocus: true,
+      onChanged: onChanged,
     );
   }
 }
@@ -626,25 +591,27 @@ class _ResultThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Container(
       width: 28,
       height: 28,
       decoration: BoxDecoration(
-        color: _thumbnailColor(result.type),
+        color: _thumbnailColor(context, result.type),
         borderRadius: BorderRadius.circular(5.6),
       ),
       alignment: Alignment.center,
-      child: Icon(result.icon, size: 17, color: Colors.white),
+      child: Icon(result.icon, size: 17, color: t.onAccent),
     );
   }
 }
 
-Color _thumbnailColor(_SearchResultType type) {
+Color _thumbnailColor(BuildContext context, _SearchResultType type) {
+  final t = context.tk;
   return switch (type) {
-    _SearchResultType.message => const Color(0xFF5AC8FA),
-    _SearchResultType.contact => const Color(0xFF3097CB),
-    _SearchResultType.group => const Color(0xFF6F4CE6),
-    _SearchResultType.channel => const Color(0xFF1FAF71),
+    _SearchResultType.message => t.primaryContainer,
+    _SearchResultType.contact => t.accent,
+    _SearchResultType.group => t.secondaryContainer,
+    _SearchResultType.channel => t.accentCool,
   };
 }
 
@@ -656,7 +623,8 @@ class _HighlightedResultTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spans = _highlightSpans(text, query);
+    final t = context.tk;
+    final spans = _highlightSpans(text, query, t.accent);
     return Text.rich(
       TextSpan(children: spans),
       maxLines: 1,
@@ -664,13 +632,13 @@ class _HighlightedResultTitle extends StatelessWidget {
       style: AppTheme.sans(
         size: 16,
         weight: FontWeight.w500,
-        color: _searchText,
+        color: t.text,
       ).copyWith(letterSpacing: 0),
     );
   }
 }
 
-List<TextSpan> _highlightSpans(String text, String query) {
+List<TextSpan> _highlightSpans(String text, String query, Color highlight) {
   final q = query.trim();
   if (q.isEmpty) return [TextSpan(text: text)];
   final lowerText = text.toLowerCase();
@@ -690,7 +658,7 @@ List<TextSpan> _highlightSpans(String text, String query) {
     spans.add(
       TextSpan(
         text: text.substring(index, end),
-        style: const TextStyle(color: _searchBrand),
+        style: TextStyle(color: highlight),
       ),
     );
     start = end;

@@ -15,6 +15,7 @@ import '../../data/as_client.dart';
 import '../../data/well_known_service.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../widgets/m3/m3_search_field.dart';
 
 const _requestsToolbarHeight = 48.0;
 const _requestsSearchGap = 12.0;
@@ -735,42 +736,12 @@ class _SearchBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return SizedBox(
-      height: 36,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: t.textMute.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: TextField(
-          controller: controller,
-          enabled: !busy,
-          keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.search,
-          style: AppTheme.sans(
-            size: 16,
-            weight: FontWeight.w500,
-            color: t.accent,
-          ),
-          decoration: InputDecoration(
-            isCollapsed: true,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            hintText: '搜索',
-            hintStyle: AppTheme.sans(size: 16, color: t.textMute),
-            prefixIcon: Icon(Symbols.search, size: 18, color: t.textMute),
-            prefixIconConstraints: const BoxConstraints(
-              minWidth: 32,
-              minHeight: 36,
-            ),
-            contentPadding: const EdgeInsets.fromLTRB(0, 8, 12, 8),
-          ),
-          onEditingComplete: onSearch,
-          onSubmitted: (_) => onSearch(),
-        ),
-      ),
+    return M3SearchField(
+      controller: controller,
+      enabled: !busy,
+      keyboardType: TextInputType.url,
+      hint: '搜索',
+      onSubmitted: (_) => onSearch(),
     );
   }
 }

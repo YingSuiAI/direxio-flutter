@@ -34,6 +34,93 @@
   "commonCancel": "Cancel",
   "commonSearch": "Search",
   "commonShare": "Share",
+  "channelManageTitle": "Channel Management",
+  "channelManageProfileTitle": "Channel Profile",
+  "channelManageMembersTitle": "Members & Roles",
+  "channelManageModerationTitle": "Content Review",
+  "channelManageTabOverview": "My Channels",
+  "channelManageTabProfile": "Profile",
+  "channelManageTabMembers": "Roles",
+  "channelManageTabModeration": "Review",
+  "channelManageStatSubscribers": "Subscribers",
+  "channelManageStatTodayMessages": "Messages Today",
+  "channelManageStatPending": "Pending",
+  "channelManageStatAdmins": "Admins",
+  "channelManageStatNewToday": "New Today",
+  "channelManageStatMuted": "Muted",
+  "channelManageStatReports": "Reports",
+  "channelManageStatAutoApproved": "Auto Approved",
+  "channelManageMyChannels": "My Channels",
+  "channelManageCreateChannel": "Create Channel",
+  "channelManageCreateChannelValue": "Name, avatar, bio",
+  "channelManageInviteLinks": "Invite Links",
+  "channelManageInviteLinksValue": "{count} active",
+  "@channelManageInviteLinksValue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "channelManagePermissions": "Channel Permissions",
+  "channelManageVisibility": "Visibility",
+  "channelManageSpeechPermission": "Posting Permission",
+  "channelManageInvitePermission": "Invite Permission",
+  "channelManageMessageEncryption": "Message Encryption",
+  "channelManageEnabled": "Enabled",
+  "channelManageDisabled": "Disabled",
+  "channelManageDisableChannel": "Disable Channel",
+  "channelManageVisibilityPublic": "Public",
+  "channelManageVisibilityPrivate": "Private",
+  "channelManageSpeechAdminReview": "Admin review",
+  "channelManageSpeechMembers": "Members can post",
+  "channelManageInviteAdmin": "Admin",
+  "channelManageInviteAdmins": "Invite Admins",
+  "channelManageInviteAdminsValue": "By ID or link",
+  "channelManageOwnerOnline": "Owner · Online",
+  "channelManageAdminModeration": "Admin · Moderation",
+  "channelManageAdminOperations": "Admin · Operations",
+  "channelManageBotRiskControl": "Bot · Risk control",
+  "channelManageReviewSpeechTitle": "New member posting request",
+  "channelManageReviewSpeechBody": "User @ray requested to post a node sync note in the announcements channel.",
+  "channelManageReviewSpeechTag": "Post",
+  "channelManageReviewLinkTitle": "Link risk warning",
+  "channelManageReviewLinkBody": "An external link was detected and needs admin approval before display.",
+  "channelManageReviewLinkTag": "Link",
+  "channelManageReviewReportTitle": "Reported message",
+  "channelManageReviewReportBody": "2 members reported this message for repeated advertising.",
+  "channelManageReviewReportTag": "Report",
+  "channelManageAutoRules": "Auto Review Rules",
+  "channelManageAutoRulesValue": "Keywords / links / rate",
+  "channelManageEditProfile": "Edit Profile",
+  "channelManageManage": "Manage",
+  "channelManageManaging": "Managing",
+  "channelManageApprove": "Approve",
+  "channelManageReject": "Reject",
+  "channelManageDefaultChannelName": "P2P Matrix Announcements",
+  "channelManageDefaultChannelDescription": "Project announcements, node status, and releases",
+  "channelManageChannelSummary": "{visibility} channel · {members} members · {messages} today",
+  "@channelManageChannelSummary": {
+    "placeholders": {
+      "visibility": {
+        "type": "String"
+      },
+      "members": {
+        "type": "String"
+      },
+      "messages": {
+        "type": "int"
+      }
+    }
+  },
+  "channelManageComingSoon": "{label} is not connected yet",
+  "@channelManageComingSoon": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
   "loginTitle": "Portal IM",
   "loginSubtitle": "Use your Portal domain and password to enter decentralized messaging",
   "loginDomainHint": "https://your-domain",
@@ -73,6 +160,29 @@
   "contactsMyGroups": "My Groups",
   "contactsGroups": "Groups",
   "contactsFollows": "Following",
+  "createGroupTitle": "Start Group Chat",
+  "createGroupDone": "Done",
+  "createGroupEmptyTitle": "No friends to invite",
+  "createGroupEmptySubtitle": "Add friends before starting a group chat",
+  "createGroupNoResultsTitle": "No friends found",
+  "createGroupNoResultsSubtitle": "Try another ID, nickname, or email",
+  "createGroupDefaultName": "Group Chat",
+  "createGroupSingleName": "{name}'s Group Chat",
+  "@createGroupSingleName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "createGroupMultipleName": "{names}'s Group Chat",
+  "@createGroupMultipleName": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
   "contactsCount": "Contacts ({count})",
   "@contactsCount": {
     "placeholders": {

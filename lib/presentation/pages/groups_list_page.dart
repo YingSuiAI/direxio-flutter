@@ -11,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
 import '../widgets/m3/glass_header.dart';
+import '../widgets/m3/m3_search_field.dart';
 
 const _mockAuthEnabled = bool.fromEnvironment(
   'P2P_MATRIX_MOCK_AUTH',
@@ -141,34 +142,7 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: t.surfaceHover,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(Symbols.search, size: 18, color: t.textMute),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              onChanged: onChanged,
-              cursorColor: t.accent,
-              style: AppTheme.sans(size: 15, color: t.text),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: '搜索群聊',
-                hintStyle: AppTheme.sans(size: 15, color: t.textMute),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return M3SearchField(hint: '搜索群聊', onChanged: onChanged);
   }
 }
 

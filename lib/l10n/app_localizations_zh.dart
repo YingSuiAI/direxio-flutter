@@ -111,6 +111,193 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonShare => '分享';
 
   @override
+  String get channelManageTitle => '频道管理';
+
+  @override
+  String get channelManageProfileTitle => '频道资料';
+
+  @override
+  String get channelManageMembersTitle => '成员与角色';
+
+  @override
+  String get channelManageModerationTitle => '内容审核';
+
+  @override
+  String get channelManageTabOverview => '我的频道';
+
+  @override
+  String get channelManageTabProfile => '资料权限';
+
+  @override
+  String get channelManageTabMembers => '成员角色';
+
+  @override
+  String get channelManageTabModeration => '内容审核';
+
+  @override
+  String get channelManageStatSubscribers => '订阅人数';
+
+  @override
+  String get channelManageStatTodayMessages => '今日消息';
+
+  @override
+  String get channelManageStatPending => '待审核';
+
+  @override
+  String get channelManageStatAdmins => '管理员';
+
+  @override
+  String get channelManageStatNewToday => '今日新增';
+
+  @override
+  String get channelManageStatMuted => '禁言中';
+
+  @override
+  String get channelManageStatReports => '举报';
+
+  @override
+  String get channelManageStatAutoApproved => '自动通过';
+
+  @override
+  String get channelManageMyChannels => '我的频道';
+
+  @override
+  String get channelManageCreateChannel => '创建新频道';
+
+  @override
+  String get channelManageCreateChannelValue => '名称、头像、简介';
+
+  @override
+  String get channelManageInviteLinks => '频道邀请链接';
+
+  @override
+  String channelManageInviteLinksValue(int count) {
+    return '$count 个有效';
+  }
+
+  @override
+  String get channelManagePermissions => '频道权限';
+
+  @override
+  String get channelManageVisibility => '频道可见性';
+
+  @override
+  String get channelManageSpeechPermission => '发言权限';
+
+  @override
+  String get channelManageInvitePermission => '邀请权限';
+
+  @override
+  String get channelManageMessageEncryption => '消息加密';
+
+  @override
+  String get channelManageEnabled => '已开启';
+
+  @override
+  String get channelManageDisabled => '未开启';
+
+  @override
+  String get channelManageDisableChannel => '停用频道';
+
+  @override
+  String get channelManageVisibilityPublic => '公开';
+
+  @override
+  String get channelManageVisibilityPrivate => '私密';
+
+  @override
+  String get channelManageSpeechAdminReview => '管理员审核';
+
+  @override
+  String get channelManageSpeechMembers => '成员可发言';
+
+  @override
+  String get channelManageInviteAdmin => '管理员';
+
+  @override
+  String get channelManageInviteAdmins => '邀请管理员';
+
+  @override
+  String get channelManageInviteAdminsValue => '通过 ID 或链接';
+
+  @override
+  String get channelManageOwnerOnline => '所有者 · 在线';
+
+  @override
+  String get channelManageAdminModeration => '管理员 · 内容审核';
+
+  @override
+  String get channelManageAdminOperations => '管理员 · 成员运营';
+
+  @override
+  String get channelManageBotRiskControl => '机器人 · 风控';
+
+  @override
+  String get channelManageReviewSpeechTitle => '新成员发言申请';
+
+  @override
+  String get channelManageReviewSpeechBody => '用户 @ray 申请在公告频道发布节点同步说明。';
+
+  @override
+  String get channelManageReviewSpeechTag => '发言';
+
+  @override
+  String get channelManageReviewLinkTitle => '链接风险提示';
+
+  @override
+  String get channelManageReviewLinkBody => '检测到外部链接，需要管理员确认后展示。';
+
+  @override
+  String get channelManageReviewLinkTag => '链接';
+
+  @override
+  String get channelManageReviewReportTitle => '举报消息';
+
+  @override
+  String get channelManageReviewReportBody => '2 位成员举报该消息包含重复广告内容。';
+
+  @override
+  String get channelManageReviewReportTag => '举报';
+
+  @override
+  String get channelManageAutoRules => '自动审核规则';
+
+  @override
+  String get channelManageAutoRulesValue => '关键词 / 链接 / 频率';
+
+  @override
+  String get channelManageEditProfile => '编辑资料';
+
+  @override
+  String get channelManageManage => '管理';
+
+  @override
+  String get channelManageManaging => '管理中';
+
+  @override
+  String get channelManageApprove => '通过';
+
+  @override
+  String get channelManageReject => '拒绝';
+
+  @override
+  String get channelManageDefaultChannelName => 'P2P Matrix 公告';
+
+  @override
+  String get channelManageDefaultChannelDescription => '项目公告、节点状态与版本发布';
+
+  @override
+  String channelManageChannelSummary(
+      String visibility, String members, int messages) {
+    return '$visibility频道 · $members 人 · 今日 $messages 条';
+  }
+
+  @override
+  String channelManageComingSoon(String label) {
+    return '$label 功能待接入';
+  }
+
+  @override
   String get loginTitle => 'Portal IM';
 
   @override
@@ -207,6 +394,37 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get contactsFollows => '关注';
+
+  @override
+  String get createGroupTitle => '发起群聊';
+
+  @override
+  String get createGroupDone => '完成';
+
+  @override
+  String get createGroupEmptyTitle => '暂无可邀请联系人';
+
+  @override
+  String get createGroupEmptySubtitle => '先添加好友后再发起群聊';
+
+  @override
+  String get createGroupNoResultsTitle => '没有找到好友';
+
+  @override
+  String get createGroupNoResultsSubtitle => '换个 ID、昵称或邮箱试试';
+
+  @override
+  String get createGroupDefaultName => '群聊';
+
+  @override
+  String createGroupSingleName(String name) {
+    return '$name的群聊';
+  }
+
+  @override
+  String createGroupMultipleName(String names) {
+    return '$names等人的群聊';
+  }
 
   @override
   String contactsCount(int count) {

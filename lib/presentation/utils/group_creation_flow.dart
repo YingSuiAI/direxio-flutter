@@ -15,9 +15,17 @@ import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../widgets/m3/m3_search_field.dart';
 import '../widgets/portal_avatar.dart';
 
 final groupCreationSyncAfterCreateProvider = Provider<bool>((ref) => true);
+
+const _createGroupBg = Color(0xFFEFEFF3);
+const _createGroupText = Color(0xFF262628);
+const _createGroupHint = Color(0xFF999999);
+const _createGroupMuted = Color(0xFFA3A3A4);
+const _createGroupBorder = Color(0xFFE6E6E6);
+const _createGroupAccent = Color(0xFF2FA0D0);
 
 Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
   final client = ref.read(matrixClientProvider);
@@ -254,7 +262,7 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
     final canComplete = _selectedMxids.isNotEmpty;
 
     return Material(
-      color: const Color(0xFFEFEFF3),
+      color: _createGroupBg,
       child: SafeArea(
         bottom: false,
         child: Stack(
@@ -264,28 +272,33 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
                 SizedBox(
                   height: 56,
                   child: Stack(
-                    alignment: Alignment.center,
                     children: [
                       Positioned(
                         left: 16,
-                        top: 8,
+                        top: 4,
                         child: _CreateGroupCircleButton(
                           tooltip: '返回',
                           icon: Symbols.arrow_back,
                           onTap: () => Navigator.of(context).pop(),
                         ),
                       ),
-                      Text(
-                        '发起群聊',
-                        style: AppTheme.sans(
-                          size: 16,
-                          weight: FontWeight.w700,
-                          color: const Color(0xFF262628),
+                      Positioned.fill(
+                        top: 13,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: Text(
+                            '发起群聊',
+                            style: AppTheme.sans(
+                              size: 16,
+                              weight: FontWeight.w700,
+                              color: _createGroupText,
+                            ).copyWith(letterSpacing: -0.4011),
+                          ),
                         ),
                       ),
                       Positioned(
                         right: 16,
-                        top: 14,
+                        top: 10,
                         child: _CreateGroupDoneButton(
                           enabled: canComplete,
                           onTap: canComplete ? _complete : null,
@@ -295,7 +308,7 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 5, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                   child: _CreateGroupSearchField(controller: _queryController),
                 ),
                 const SizedBox(height: 12),
@@ -337,9 +350,9 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
             ),
             if (filteredContacts.isNotEmpty)
               Positioned(
-                top: 194,
-                right: 10,
-                bottom: 28,
+                top: 192,
+                right: 12,
+                bottom: 30,
                 child: _CreateGroupAlphabetIndex(
                   activeLetters: sectionKeys.toSet(),
                 ),
@@ -466,7 +479,7 @@ class _CreateGroupCircleButton extends StatelessWidget {
           onTap: onTap,
           child: SizedBox.square(
             dimension: 40,
-            child: Icon(icon, size: 24, color: const Color(0xFF262628)),
+            child: Icon(icon, size: 24, color: _createGroupText),
           ),
         ),
       ),
@@ -486,7 +499,7 @@ class _CreateGroupDoneButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: enabled ? const Color(0xFF2FA0D0) : const Color(0xFFA3A3A4),
+      color: enabled ? _createGroupAccent : _createGroupMuted,
       borderRadius: BorderRadius.circular(4),
       child: InkWell(
         onTap: onTap,
@@ -501,7 +514,7 @@ class _CreateGroupDoneButton extends StatelessWidget {
                 size: 12,
                 weight: FontWeight.w700,
                 color: Colors.white,
-              ),
+              ).copyWith(letterSpacing: -0.4011),
             ),
           ),
         ),
@@ -517,38 +530,7 @@ class _CreateGroupSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 36,
-      decoration: BoxDecoration(
-        color: const Color(0x1F767680),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          const Icon(Symbols.search, size: 18, color: Color(0xFF999999)),
-          const SizedBox(width: 4),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: 'ID/昵称/邮箱',
-                hintStyle: AppTheme.sans(
-                  size: 16,
-                  color: const Color(0xFF999999),
-                ),
-                isCollapsed: true,
-                border: InputBorder.none,
-              ),
-              style: AppTheme.sans(
-                size: 16,
-                color: const Color(0xFF262628),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return M3SearchField(controller: controller, hint: 'ID/昵称/邮箱');
   }
 }
 
@@ -570,7 +552,7 @@ class _CreateGroupSectionHeader extends StatelessWidget {
             style: AppTheme.sans(
               size: 16,
               weight: FontWeight.w700,
-              color: const Color(0xFF262628),
+              color: _createGroupText,
             ),
           ),
         ),
@@ -615,7 +597,7 @@ class _CreateGroupContactRow extends StatelessWidget {
                   padding: const EdgeInsets.only(right: 16),
                   decoration: const BoxDecoration(
                     border: Border(
-                      bottom: BorderSide(color: Color(0xFFE6E6E6), width: 0.5),
+                      bottom: BorderSide(color: _createGroupBorder, width: 0.5),
                     ),
                   ),
                   child: Row(
@@ -628,7 +610,7 @@ class _CreateGroupContactRow extends StatelessWidget {
                           style: AppTheme.sans(
                             size: 14,
                             weight: FontWeight.w500,
-                            color: const Color(0xFF262628),
+                            color: _createGroupText,
                           ),
                         ),
                       ),
@@ -658,9 +640,9 @@ class _CreateGroupCheck extends StatelessWidget {
       height: 16,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected ? const Color(0xFF2FA0D0) : Colors.transparent,
+        color: selected ? _createGroupText : Colors.transparent,
         border: Border.all(
-          color: selected ? const Color(0xFF2FA0D0) : const Color(0xFFE6E6E6),
+          color: selected ? _createGroupText : _createGroupBorder,
           width: 1,
         ),
       ),
@@ -756,7 +738,7 @@ class _CreateGroupEmptyState extends StatelessWidget {
             Icon(
               Symbols.group_add,
               size: 38,
-              color: const Color(0xFFA3A3A4).withValues(alpha: 0.86),
+              color: _createGroupMuted.withValues(alpha: 0.86),
             ),
             const SizedBox(height: 10),
             Text(
@@ -764,14 +746,14 @@ class _CreateGroupEmptyState extends StatelessWidget {
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w700,
-                color: const Color(0xFF262628),
+                color: _createGroupText,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: AppTheme.sans(size: 13, color: const Color(0xFF999999)),
+              style: AppTheme.sans(size: 13, color: _createGroupHint),
             ),
           ],
         ),

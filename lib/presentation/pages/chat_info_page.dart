@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../chat/chat_glass_background.dart';
 import '../mock/mock_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -57,88 +58,90 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
             : matrixContentHttpUrl(client, peerMember?.avatarUrl));
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          GlassHeader.detail(title: '聊天信息'),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _PeerHeader(
-                    name: name,
-                    avatarUrl: avatarUrl,
-                    // 仅真 Matrix 房间允许进 contact-detail（mock 路径下 contact-detail
-                    // 拿不到房间数据，跳过去是死页）。
-                    onTap: room != null && peerId != null
-                        ? () => context.push(
-                              '/contact/${Uri.encodeComponent(peerId)}',
-                            )
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _GroupedCard(
-                          children: [
-                            _RowChevron(
-                              label: '查找聊天记录',
-                              onTap: () => context.push(
-                                '/room-search/${Uri.encodeComponent(widget.roomId)}',
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _GroupedCard(
-                          children: [
-                            _RowSwitch(
-                              label: '消息免打扰',
-                              value: _mute,
-                              onChanged: (v) => setState(() => _mute = v),
-                            ),
-                            _Divider(),
-                            _RowSwitch(
-                              label: '置顶聊天',
-                              value: _pinned,
-                              onChanged: (v) => setState(() => _pinned = v),
-                            ),
-                            _Divider(),
-                            _RowSwitch(
-                              label: '提醒',
-                              value: _alert,
-                              onChanged: (v) => setState(() => _alert = v),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _GroupedCard(
-                          children: [
-                            _RowChevron(label: '设置当前聊天背景', onTap: () {}),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _GroupedCard(
-                          children: [
-                            _RowDanger(
-                              label: '清空聊天记录',
-                              onTap: () => _confirmClear(context),
-                            ),
-                          ],
-                        ),
-                      ],
+      backgroundColor: chatPageBackgroundColor(context),
+      body: ChatGlassBackground(
+        child: Column(
+          children: [
+            GlassHeader.detail(title: '聊天信息'),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _PeerHeader(
+                      name: name,
+                      avatarUrl: avatarUrl,
+                      // 仅真 Matrix 房间允许进 contact-detail（mock 路径下 contact-detail
+                      // 拿不到房间数据，跳过去是死页）。
+                      onTap: room != null && peerId != null
+                          ? () => context.push(
+                                '/contact/${Uri.encodeComponent(peerId)}',
+                              )
+                          : null,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _GroupedCard(
+                            children: [
+                              _RowChevron(
+                                label: '查找聊天记录',
+                                onTap: () => context.push(
+                                  '/room-search/${Uri.encodeComponent(widget.roomId)}',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _GroupedCard(
+                            children: [
+                              _RowSwitch(
+                                label: '消息免打扰',
+                                value: _mute,
+                                onChanged: (v) => setState(() => _mute = v),
+                              ),
+                              _Divider(),
+                              _RowSwitch(
+                                label: '置顶聊天',
+                                value: _pinned,
+                                onChanged: (v) => setState(() => _pinned = v),
+                              ),
+                              _Divider(),
+                              _RowSwitch(
+                                label: '提醒',
+                                value: _alert,
+                                onChanged: (v) => setState(() => _alert = v),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _GroupedCard(
+                            children: [
+                              _RowChevron(label: '设置当前聊天背景', onTap: () {}),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _GroupedCard(
+                            children: [
+                              _RowDanger(
+                                label: '清空聊天记录',
+                                onTap: () => _confirmClear(context),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

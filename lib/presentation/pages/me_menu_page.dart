@@ -20,6 +20,7 @@ import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
+import '../widgets/m3/m3_search_field.dart';
 
 const double _favoritePreviewSize = 62;
 const _favoriteConversationFilter = 'conversation';
@@ -329,7 +330,8 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      key: const ValueKey('me_favorites_scaffold'),
+      backgroundColor: t.bg,
       body: Column(
         children: [
           GlassHeader.detail(title: '我的收藏'),
@@ -761,37 +763,21 @@ class _FavoriteSearchBar extends StatelessWidget {
         valueListenable: controller,
         builder: (context, value, _) {
           final hasText = value.text.trim().isNotEmpty;
-          return Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: t.surfaceHigh,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: TextField(
-              controller: controller,
-              onChanged: onChanged,
-              textInputAction: TextInputAction.search,
-              style: AppTheme.sans(size: 14, color: t.text),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: '搜索收藏内容',
-                hintStyle: AppTheme.sans(size: 14, color: t.textMute),
-                prefixIcon: Icon(Symbols.search, size: 20, color: t.textMute),
-                suffixIcon: hasText
-                    ? IconButton(
-                        tooltip: '清除',
-                        onPressed: onClear,
-                        icon: Icon(
-                          Symbols.cancel,
-                          size: 18,
-                          color: t.textMute,
-                        ),
-                      )
-                    : null,
-                contentPadding: const EdgeInsets.symmetric(vertical: 11),
-              ),
-            ),
+          return M3SearchField(
+            controller: controller,
+            hint: '搜索收藏内容',
+            onChanged: onChanged,
+            trailing: hasText
+                ? IconButton(
+                    tooltip: '清除',
+                    onPressed: onClear,
+                    icon: Icon(
+                      Symbols.cancel,
+                      size: 18,
+                      color: t.textMute,
+                    ),
+                  )
+                : null,
           );
         },
       ),

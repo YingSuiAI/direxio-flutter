@@ -683,10 +683,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         if (_showEmojiPanel) _showPlusPanel = false;
       });
 
-  void _closePanels() => setState(() {
-        _showPlusPanel = false;
-        _showEmojiPanel = false;
-      });
+  void _closePanels() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _showPlusPanel = false;
+      _showEmojiPanel = false;
+    });
+  }
 
   void _startVoiceRecording() {
     unawaited(_startVoiceRecordingAsync());
@@ -1417,7 +1420,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _openContactDetail(String userId) {
     final id = userId.trim();
     if (id.isEmpty) return;
-    context.push('/contact/${Uri.encodeComponent(id)}');
+    context.push(
+      '/contact/${Uri.encodeComponent(id)}?source=chat_avatar',
+    );
   }
 
   VoidCallback? _senderAvatarTap(Event event, bool isMe) {
@@ -1440,7 +1445,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return profileAvatarHttpUrl(currentUserProfile, client) ??
           memberAvatarUrl;
     }
-    return memberAvatarUrl;
+    final syncCache = ref.read(asSyncCacheProvider);
+    final contact = syncCache.contactForUserId(event.senderId) ??
+        syncCache.contactForRoom(widget.roomId);
+    return avatarHttpUrl(client, contact?.avatarUrl) ?? memberAvatarUrl;
   }
 
   Future<String> _addPendingImageUpload(ChatMediaAttachment attachment) async {
@@ -1669,10 +1677,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     Event event,
     List<Event> visibleEvents,
   ) {
-    final replyEventId = event.relationshipType == RelationshipTypes.reply
-        ? event.relationshipEventId?.trim()
-        : null;
-    if (replyEventId == null || replyEventId.isEmpty) return null;
+    final fallbackPreview = _replyPreviewFromMatrixFallbackBody(event.body);
+    final replyEventId = _replyEventIdForEvent(event);
+    if (replyEventId == null || replyEventId.isEmpty) return fallbackPreview;
     Event? quoted;
     for (final candidate in visibleEvents) {
       if (candidate.eventId == replyEventId) {
@@ -1680,12 +1687,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         break;
       }
     }
-    if (quoted == null) {
-      return const _QuotedMessagePreview(
-        sender: '引用消息',
-        text: '原消息暂不可见',
-      );
-    }
+    if (quoted == null) return fallbackPreview ?? _missingQuotedMessagePreview;
     return _QuotedMessagePreview(
       sender: quoted.senderFromMemoryOrFallback.calcDisplayname(),
       text: quotedEventPreviewText(quoted),
@@ -1813,16 +1815,30 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               orElse: () => false,
             )
         : false;
+    final replyBarVisible = _replyTo != null;
+    final selectionBarVisible = _multiSelect;
+    final bottomPanelVisible = _showPlusPanel || _showEmojiPanel;
+    final messageTopInset = chatMessageTopOverlayClearance(context);
+    final messageBottomInset = chatMessageBottomOverlayClearance(
+      context,
+      replyBarVisible: replyBarVisible,
+      selectionBarVisible: selectionBarVisible,
+      bottomPanelVisible: bottomPanelVisible,
+    );
     final messagePadding = chatMessageViewportPadding(
       context,
-      replyBarVisible: _replyTo != null,
-      selectionBarVisible: _multiSelect,
-      bottomPanelVisible: _showPlusPanel || _showEmojiPanel,
+      replyBarVisible: replyBarVisible,
+      selectionBarVisible: selectionBarVisible,
+      bottomPanelVisible: bottomPanelVisible,
+      reserveTopOverlay: false,
+      reserveBottomOverlay: false,
     ).add(const EdgeInsets.symmetric(vertical: 12));
 
     return Scaffold(
       body: ChatGlassBackground(
         child: ChatLayeredLayout(
+          messageTopInset: messageTopInset,
+          messageBottomInset: messageBottomInset,
           header: _multiSelect
               ? ChatSelectionHeader(
                   count: _selected.length,
@@ -2709,7 +2725,9 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   void _openMockContactDetail(String userId) {
     final id = userId.trim();
     if (id.isEmpty) return;
-    context.push('/contact/${Uri.encodeComponent(id)}');
+    context.push(
+      '/contact/${Uri.encodeComponent(id)}?source=chat_avatar',
+    );
   }
 
   Object _mockMessageKey(MockMessage message) => message;
@@ -3363,20 +3381,35 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
         if (_showEmojiPanel) _showPlusPanel = false;
       });
 
-  void _closePanels() => setState(() {
-        _showPlusPanel = false;
-        _showEmojiPanel = false;
-      });
+  void _closePanels() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _showPlusPanel = false;
+      _showEmojiPanel = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     final c = widget.conv;
+    final replyBarVisible = _replyTo != null || _pendingConfirm != null;
+    final selectionBarVisible = _multiSelect;
+    final bottomPanelVisible = _showPlusPanel || _showEmojiPanel;
+    final messageTopInset = chatMessageTopOverlayClearance(context);
+    final messageBottomInset = chatMessageBottomOverlayClearance(
+      context,
+      replyBarVisible: replyBarVisible,
+      selectionBarVisible: selectionBarVisible,
+      bottomPanelVisible: bottomPanelVisible,
+    );
     final messagePadding = chatMessageViewportPadding(
       context,
-      replyBarVisible: _replyTo != null || _pendingConfirm != null,
-      selectionBarVisible: _multiSelect,
-      bottomPanelVisible: _showPlusPanel || _showEmojiPanel,
+      replyBarVisible: replyBarVisible,
+      selectionBarVisible: selectionBarVisible,
+      bottomPanelVisible: bottomPanelVisible,
+      reserveTopOverlay: false,
+      reserveBottomOverlay: false,
     ).add(const EdgeInsets.symmetric(vertical: 12));
     final messageKeys = [
       for (final message in _messages) _mockMessageKey(message)
@@ -3386,6 +3419,8 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     return Scaffold(
       body: ChatGlassBackground(
         child: ChatLayeredLayout(
+          messageTopInset: messageTopInset,
+          messageBottomInset: messageBottomInset,
           header: _multiSelect
               ? ChatSelectionHeader(
                   count: _selected.length,
@@ -3744,6 +3779,100 @@ int _voiceDurationSecondsFromMs(int durationMs) {
   return (durationMs / 1000).ceil().clamp(1, 60 * 60);
 }
 
+String? _replyEventIdForEvent(Event event) {
+  if (event.relationshipType == RelationshipTypes.reply) {
+    final id = event.relationshipEventId?.trim();
+    if (id != null && id.isNotEmpty) return id;
+  }
+  final relationshipEventId = event.relationshipEventId?.trim();
+  if (relationshipEventId != null && relationshipEventId.isNotEmpty) {
+    return relationshipEventId;
+  }
+  return _replyEventIdFromContent(event.content);
+}
+
+String? _replyEventIdFromContent(Map<String, dynamic> content) {
+  String? nonEmpty(Object? value) {
+    final text = value is String ? value.trim() : '';
+    return text.isEmpty ? null : text;
+  }
+
+  final productReply = nonEmpty(content['reply_to']) ??
+      nonEmpty(content['replyTo']) ??
+      nonEmpty(content['reply_to_event_id']);
+  if (productReply != null) return productReply;
+
+  final relatesTo = content['m.relates_to'];
+  if (relatesTo is Map) {
+    final inReplyTo = relatesTo['m.in_reply_to'];
+    if (inReplyTo is Map) {
+      final id = nonEmpty(inReplyTo['event_id']);
+      if (id != null) return id;
+    }
+    final id = nonEmpty(relatesTo['event_id']);
+    if (id != null) return id;
+  }
+
+  final inReplyTo = content['m.in_reply_to'];
+  if (inReplyTo is Map) {
+    return nonEmpty(inReplyTo['event_id']);
+  }
+  return null;
+}
+
+const _missingQuotedMessagePreview = _QuotedMessagePreview(
+  sender: '引用消息',
+  text: '原消息暂不可见',
+);
+
+_QuotedMessagePreview? _replyPreviewFromMatrixFallbackBody(String body) {
+  final parsed = _parseMatrixReplyFallbackBody(body);
+  if (parsed == null) return null;
+  return _QuotedMessagePreview(sender: parsed.sender, text: parsed.text);
+}
+
+class _ParsedMatrixReplyFallback {
+  const _ParsedMatrixReplyFallback({required this.sender, required this.text});
+
+  final String sender;
+  final String text;
+}
+
+_ParsedMatrixReplyFallback? _parseMatrixReplyFallbackBody(String body) {
+  final lines = body.split('\n');
+  if (lines.isEmpty || !lines.first.startsWith('> ')) return null;
+
+  final quotedLines = <String>[];
+  var index = 0;
+  while (index < lines.length && lines[index].startsWith('> ')) {
+    quotedLines.add(lines[index].substring(2));
+    index++;
+  }
+  if (quotedLines.isEmpty ||
+      index >= lines.length ||
+      lines[index].trim().isNotEmpty) {
+    return null;
+  }
+
+  var sender = '引用消息';
+  final textParts = <String>[];
+  for (var i = 0; i < quotedLines.length; i++) {
+    var line = quotedLines[i].trim();
+    if (i == 0 && line.startsWith('<')) {
+      final senderEnd = line.indexOf('>');
+      if (senderEnd > 1) {
+        sender = line.substring(1, senderEnd).trim();
+        line = line.substring(senderEnd + 1).trim();
+      }
+    }
+    if (line.isNotEmpty) textParts.add(line);
+  }
+
+  final text = textParts.join('\n').trim();
+  if (text.isEmpty) return null;
+  return _ParsedMatrixReplyFallback(sender: sender, text: text);
+}
+
 String _stripMatrixReplyFallback(String body) {
   final lines = body.split('\n');
   if (lines.isEmpty || !lines.first.startsWith('> ')) return body;
@@ -3928,17 +4057,17 @@ class _QuotedMessageBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     final senderColor = isMe ? t.onAccent.withValues(alpha: 0.88) : t.accent;
-    final bodyColor = isMe ? t.onAccent.withValues(alpha: 0.86) : t.accent;
+    final bodyColor = isMe ? t.onAccent.withValues(alpha: 0.78) : t.textMute;
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 168, minWidth: 92),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        constraints: const BoxConstraints(minWidth: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: isMe
               ? t.onAccent.withValues(alpha: 0.18)
-              : t.accent.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(18),
+              : t.accent.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3960,7 +4089,7 @@ class _QuotedMessageBlock extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: AppTheme.sans(
-                size: 13,
+                size: 12,
                 color: bodyColor,
                 weight: FontWeight.w500,
               ).copyWith(height: 1.2),
@@ -5063,20 +5192,22 @@ Future<String?> _showMsgContextMenu(
         pointerOnTop = true;
       }
       final pointerX = (pos.dx - left - 10).clamp(18.0, menuW - 38.0);
-      return Stack(
-        children: [
-          Positioned(
-            left: left,
-            top: top,
-            width: menuW,
-            height: menuH,
-            child: _MsgCtxMenuCard(
-              pointerX: pointerX,
-              pointerOnTop: pointerOnTop,
-              canRecall: canRecall,
+      return SizedBox.expand(
+        child: Stack(
+          children: [
+            Positioned(
+              left: left,
+              top: top,
+              width: menuW,
+              height: menuH,
+              child: _MsgCtxMenuCard(
+                pointerX: pointerX,
+                pointerOnTop: pointerOnTop,
+                canRecall: canRecall,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     },
     transitionBuilder: (ctx, a, _, child) =>

@@ -15,6 +15,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
+import '../widgets/m3/m3_search_field.dart';
 
 class RoomSearchPage extends ConsumerStatefulWidget {
   const RoomSearchPage({super.key, required this.roomId});
@@ -163,9 +164,8 @@ class _RoomSearchPageState extends ConsumerState<RoomSearchPage> {
           GlassHeader.detail(title: '查找聊天记录'),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: M3InputField(
+            child: M3SearchField(
               controller: _controller,
-              icon: Symbols.search,
               hint: '搜索当前会话',
               autofocus: true,
               onChanged: _onChanged,

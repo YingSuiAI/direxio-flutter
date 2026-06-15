@@ -304,6 +304,367 @@ abstract class AppLocalizations {
   /// **'分享'**
   String get commonShare;
 
+  /// No description provided for @channelManageTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道管理'**
+  String get channelManageTitle;
+
+  /// No description provided for @channelManageProfileTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道资料'**
+  String get channelManageProfileTitle;
+
+  /// No description provided for @channelManageMembersTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'成员与角色'**
+  String get channelManageMembersTitle;
+
+  /// No description provided for @channelManageModerationTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'内容审核'**
+  String get channelManageModerationTitle;
+
+  /// No description provided for @channelManageTabOverview.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的频道'**
+  String get channelManageTabOverview;
+
+  /// No description provided for @channelManageTabProfile.
+  ///
+  /// In zh, this message translates to:
+  /// **'资料权限'**
+  String get channelManageTabProfile;
+
+  /// No description provided for @channelManageTabMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'成员角色'**
+  String get channelManageTabMembers;
+
+  /// No description provided for @channelManageTabModeration.
+  ///
+  /// In zh, this message translates to:
+  /// **'内容审核'**
+  String get channelManageTabModeration;
+
+  /// No description provided for @channelManageStatSubscribers.
+  ///
+  /// In zh, this message translates to:
+  /// **'订阅人数'**
+  String get channelManageStatSubscribers;
+
+  /// No description provided for @channelManageStatTodayMessages.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日消息'**
+  String get channelManageStatTodayMessages;
+
+  /// No description provided for @channelManageStatPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'待审核'**
+  String get channelManageStatPending;
+
+  /// No description provided for @channelManageStatAdmins.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理员'**
+  String get channelManageStatAdmins;
+
+  /// No description provided for @channelManageStatNewToday.
+  ///
+  /// In zh, this message translates to:
+  /// **'今日新增'**
+  String get channelManageStatNewToday;
+
+  /// No description provided for @channelManageStatMuted.
+  ///
+  /// In zh, this message translates to:
+  /// **'禁言中'**
+  String get channelManageStatMuted;
+
+  /// No description provided for @channelManageStatReports.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报'**
+  String get channelManageStatReports;
+
+  /// No description provided for @channelManageStatAutoApproved.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动通过'**
+  String get channelManageStatAutoApproved;
+
+  /// No description provided for @channelManageMyChannels.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的频道'**
+  String get channelManageMyChannels;
+
+  /// No description provided for @channelManageCreateChannel.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建新频道'**
+  String get channelManageCreateChannel;
+
+  /// No description provided for @channelManageCreateChannelValue.
+  ///
+  /// In zh, this message translates to:
+  /// **'名称、头像、简介'**
+  String get channelManageCreateChannelValue;
+
+  /// No description provided for @channelManageInviteLinks.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道邀请链接'**
+  String get channelManageInviteLinks;
+
+  /// No description provided for @channelManageInviteLinksValue.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 个有效'**
+  String channelManageInviteLinksValue(int count);
+
+  /// No description provided for @channelManagePermissions.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道权限'**
+  String get channelManagePermissions;
+
+  /// No description provided for @channelManageVisibility.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道可见性'**
+  String get channelManageVisibility;
+
+  /// No description provided for @channelManageSpeechPermission.
+  ///
+  /// In zh, this message translates to:
+  /// **'发言权限'**
+  String get channelManageSpeechPermission;
+
+  /// No description provided for @channelManageInvitePermission.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请权限'**
+  String get channelManageInvitePermission;
+
+  /// No description provided for @channelManageMessageEncryption.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息加密'**
+  String get channelManageMessageEncryption;
+
+  /// No description provided for @channelManageEnabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已开启'**
+  String get channelManageEnabled;
+
+  /// No description provided for @channelManageDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'未开启'**
+  String get channelManageDisabled;
+
+  /// No description provided for @channelManageDisableChannel.
+  ///
+  /// In zh, this message translates to:
+  /// **'停用频道'**
+  String get channelManageDisableChannel;
+
+  /// No description provided for @channelManageVisibilityPublic.
+  ///
+  /// In zh, this message translates to:
+  /// **'公开'**
+  String get channelManageVisibilityPublic;
+
+  /// No description provided for @channelManageVisibilityPrivate.
+  ///
+  /// In zh, this message translates to:
+  /// **'私密'**
+  String get channelManageVisibilityPrivate;
+
+  /// No description provided for @channelManageSpeechAdminReview.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理员审核'**
+  String get channelManageSpeechAdminReview;
+
+  /// No description provided for @channelManageSpeechMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'成员可发言'**
+  String get channelManageSpeechMembers;
+
+  /// No description provided for @channelManageInviteAdmin.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理员'**
+  String get channelManageInviteAdmin;
+
+  /// No description provided for @channelManageInviteAdmins.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请管理员'**
+  String get channelManageInviteAdmins;
+
+  /// No description provided for @channelManageInviteAdminsValue.
+  ///
+  /// In zh, this message translates to:
+  /// **'通过 ID 或链接'**
+  String get channelManageInviteAdminsValue;
+
+  /// No description provided for @channelManageOwnerOnline.
+  ///
+  /// In zh, this message translates to:
+  /// **'所有者 · 在线'**
+  String get channelManageOwnerOnline;
+
+  /// No description provided for @channelManageAdminModeration.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理员 · 内容审核'**
+  String get channelManageAdminModeration;
+
+  /// No description provided for @channelManageAdminOperations.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理员 · 成员运营'**
+  String get channelManageAdminOperations;
+
+  /// No description provided for @channelManageBotRiskControl.
+  ///
+  /// In zh, this message translates to:
+  /// **'机器人 · 风控'**
+  String get channelManageBotRiskControl;
+
+  /// No description provided for @channelManageReviewSpeechTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'新成员发言申请'**
+  String get channelManageReviewSpeechTitle;
+
+  /// No description provided for @channelManageReviewSpeechBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户 @ray 申请在公告频道发布节点同步说明。'**
+  String get channelManageReviewSpeechBody;
+
+  /// No description provided for @channelManageReviewSpeechTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'发言'**
+  String get channelManageReviewSpeechTag;
+
+  /// No description provided for @channelManageReviewLinkTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'链接风险提示'**
+  String get channelManageReviewLinkTitle;
+
+  /// No description provided for @channelManageReviewLinkBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测到外部链接，需要管理员确认后展示。'**
+  String get channelManageReviewLinkBody;
+
+  /// No description provided for @channelManageReviewLinkTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'链接'**
+  String get channelManageReviewLinkTag;
+
+  /// No description provided for @channelManageReviewReportTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报消息'**
+  String get channelManageReviewReportTitle;
+
+  /// No description provided for @channelManageReviewReportBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'2 位成员举报该消息包含重复广告内容。'**
+  String get channelManageReviewReportBody;
+
+  /// No description provided for @channelManageReviewReportTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报'**
+  String get channelManageReviewReportTag;
+
+  /// No description provided for @channelManageAutoRules.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动审核规则'**
+  String get channelManageAutoRules;
+
+  /// No description provided for @channelManageAutoRulesValue.
+  ///
+  /// In zh, this message translates to:
+  /// **'关键词 / 链接 / 频率'**
+  String get channelManageAutoRulesValue;
+
+  /// No description provided for @channelManageEditProfile.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑资料'**
+  String get channelManageEditProfile;
+
+  /// No description provided for @channelManageManage.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理'**
+  String get channelManageManage;
+
+  /// No description provided for @channelManageManaging.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理中'**
+  String get channelManageManaging;
+
+  /// No description provided for @channelManageApprove.
+  ///
+  /// In zh, this message translates to:
+  /// **'通过'**
+  String get channelManageApprove;
+
+  /// No description provided for @channelManageReject.
+  ///
+  /// In zh, this message translates to:
+  /// **'拒绝'**
+  String get channelManageReject;
+
+  /// No description provided for @channelManageDefaultChannelName.
+  ///
+  /// In zh, this message translates to:
+  /// **'P2P Matrix 公告'**
+  String get channelManageDefaultChannelName;
+
+  /// No description provided for @channelManageDefaultChannelDescription.
+  ///
+  /// In zh, this message translates to:
+  /// **'项目公告、节点状态与版本发布'**
+  String get channelManageDefaultChannelDescription;
+
+  /// No description provided for @channelManageChannelSummary.
+  ///
+  /// In zh, this message translates to:
+  /// **'{visibility}频道 · {members} 人 · 今日 {messages} 条'**
+  String channelManageChannelSummary(
+      String visibility, String members, int messages);
+
+  /// No description provided for @channelManageComingSoon.
+  ///
+  /// In zh, this message translates to:
+  /// **'{label} 功能待接入'**
+  String channelManageComingSoon(String label);
+
   /// No description provided for @loginTitle.
   ///
   /// In zh, this message translates to:
@@ -495,6 +856,60 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'关注'**
   String get contactsFollows;
+
+  /// No description provided for @createGroupTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'发起群聊'**
+  String get createGroupTitle;
+
+  /// No description provided for @createGroupDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成'**
+  String get createGroupDone;
+
+  /// No description provided for @createGroupEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可邀请联系人'**
+  String get createGroupEmptyTitle;
+
+  /// No description provided for @createGroupEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'先添加好友后再发起群聊'**
+  String get createGroupEmptySubtitle;
+
+  /// No description provided for @createGroupNoResultsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到好友'**
+  String get createGroupNoResultsTitle;
+
+  /// No description provided for @createGroupNoResultsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'换个 ID、昵称或邮箱试试'**
+  String get createGroupNoResultsSubtitle;
+
+  /// No description provided for @createGroupDefaultName.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊'**
+  String get createGroupDefaultName;
+
+  /// No description provided for @createGroupSingleName.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name}的群聊'**
+  String createGroupSingleName(String name);
+
+  /// No description provided for @createGroupMultipleName.
+  ///
+  /// In zh, this message translates to:
+  /// **'{names}等人的群聊'**
+  String createGroupMultipleName(String names);
 
   /// No description provided for @contactsCount.
   ///

@@ -111,6 +111,194 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonShare => '共有';
 
   @override
+  String get channelManageTitle => 'チャンネル管理';
+
+  @override
+  String get channelManageProfileTitle => 'チャンネル情報';
+
+  @override
+  String get channelManageMembersTitle => 'メンバーと役割';
+
+  @override
+  String get channelManageModerationTitle => 'コンテンツ審査';
+
+  @override
+  String get channelManageTabOverview => '自分のチャンネル';
+
+  @override
+  String get channelManageTabProfile => '情報権限';
+
+  @override
+  String get channelManageTabMembers => 'メンバー役割';
+
+  @override
+  String get channelManageTabModeration => '審査';
+
+  @override
+  String get channelManageStatSubscribers => '登録者数';
+
+  @override
+  String get channelManageStatTodayMessages => '今日のメッセージ';
+
+  @override
+  String get channelManageStatPending => '審査待ち';
+
+  @override
+  String get channelManageStatAdmins => '管理者';
+
+  @override
+  String get channelManageStatNewToday => '今日の新規';
+
+  @override
+  String get channelManageStatMuted => 'ミュート中';
+
+  @override
+  String get channelManageStatReports => '報告';
+
+  @override
+  String get channelManageStatAutoApproved => '自動承認';
+
+  @override
+  String get channelManageMyChannels => '自分のチャンネル';
+
+  @override
+  String get channelManageCreateChannel => '新しいチャンネルを作成';
+
+  @override
+  String get channelManageCreateChannelValue => '名前、アバター、紹介';
+
+  @override
+  String get channelManageInviteLinks => '招待リンク';
+
+  @override
+  String channelManageInviteLinksValue(int count) {
+    return '$count 件有効';
+  }
+
+  @override
+  String get channelManagePermissions => 'チャンネル権限';
+
+  @override
+  String get channelManageVisibility => '公開範囲';
+
+  @override
+  String get channelManageSpeechPermission => '投稿権限';
+
+  @override
+  String get channelManageInvitePermission => '招待権限';
+
+  @override
+  String get channelManageMessageEncryption => 'メッセージ暗号化';
+
+  @override
+  String get channelManageEnabled => '有効';
+
+  @override
+  String get channelManageDisabled => '無効';
+
+  @override
+  String get channelManageDisableChannel => 'チャンネルを無効化';
+
+  @override
+  String get channelManageVisibilityPublic => '公開';
+
+  @override
+  String get channelManageVisibilityPrivate => '非公開';
+
+  @override
+  String get channelManageSpeechAdminReview => '管理者審査';
+
+  @override
+  String get channelManageSpeechMembers => 'メンバーが投稿可能';
+
+  @override
+  String get channelManageInviteAdmin => '管理者';
+
+  @override
+  String get channelManageInviteAdmins => '管理者を招待';
+
+  @override
+  String get channelManageInviteAdminsValue => 'ID またはリンクで招待';
+
+  @override
+  String get channelManageOwnerOnline => '所有者 · オンライン';
+
+  @override
+  String get channelManageAdminModeration => '管理者 · 審査';
+
+  @override
+  String get channelManageAdminOperations => '管理者 · 運営';
+
+  @override
+  String get channelManageBotRiskControl => 'Bot · リスク管理';
+
+  @override
+  String get channelManageReviewSpeechTitle => '新メンバーの投稿申請';
+
+  @override
+  String get channelManageReviewSpeechBody =>
+      'ユーザー @ray が告知チャンネルにノード同期メモの投稿を申請しました。';
+
+  @override
+  String get channelManageReviewSpeechTag => '投稿';
+
+  @override
+  String get channelManageReviewLinkTitle => 'リンクリスク警告';
+
+  @override
+  String get channelManageReviewLinkBody => '外部リンクが検出されました。表示前に管理者の確認が必要です。';
+
+  @override
+  String get channelManageReviewLinkTag => 'リンク';
+
+  @override
+  String get channelManageReviewReportTitle => '報告されたメッセージ';
+
+  @override
+  String get channelManageReviewReportBody => '2 人のメンバーがこのメッセージを重複広告として報告しました。';
+
+  @override
+  String get channelManageReviewReportTag => '報告';
+
+  @override
+  String get channelManageAutoRules => '自動審査ルール';
+
+  @override
+  String get channelManageAutoRulesValue => 'キーワード / リンク / 頻度';
+
+  @override
+  String get channelManageEditProfile => '情報を編集';
+
+  @override
+  String get channelManageManage => '管理';
+
+  @override
+  String get channelManageManaging => '管理中';
+
+  @override
+  String get channelManageApprove => '承認';
+
+  @override
+  String get channelManageReject => '拒否';
+
+  @override
+  String get channelManageDefaultChannelName => 'P2P Matrix お知らせ';
+
+  @override
+  String get channelManageDefaultChannelDescription => 'プロジェクト告知、ノード状態、リリース情報';
+
+  @override
+  String channelManageChannelSummary(
+      String visibility, String members, int messages) {
+    return '$visibilityチャンネル · $members 人 · 今日 $messages 件';
+  }
+
+  @override
+  String channelManageComingSoon(String label) {
+    return '$label機能はまだ接続されていません';
+  }
+
+  @override
   String get loginTitle => 'Portal IM';
 
   @override
@@ -207,6 +395,37 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get contactsFollows => 'フォロー';
+
+  @override
+  String get createGroupTitle => 'グループチャットを開始';
+
+  @override
+  String get createGroupDone => '完了';
+
+  @override
+  String get createGroupEmptyTitle => '招待できる友だちがいません';
+
+  @override
+  String get createGroupEmptySubtitle => '友だちを追加してからグループチャットを開始してください';
+
+  @override
+  String get createGroupNoResultsTitle => '友だちが見つかりません';
+
+  @override
+  String get createGroupNoResultsSubtitle => '別のID、ニックネーム、メールで試してください';
+
+  @override
+  String get createGroupDefaultName => 'グループチャット';
+
+  @override
+  String createGroupSingleName(String name) {
+    return '$nameのグループチャット';
+  }
+
+  @override
+  String createGroupMultipleName(String names) {
+    return '$namesたちのグループチャット';
+  }
 
   @override
   String contactsCount(int count) {

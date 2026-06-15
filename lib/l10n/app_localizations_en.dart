@@ -112,6 +112,197 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonShare => 'Share';
 
   @override
+  String get channelManageTitle => 'Channel Management';
+
+  @override
+  String get channelManageProfileTitle => 'Channel Profile';
+
+  @override
+  String get channelManageMembersTitle => 'Members & Roles';
+
+  @override
+  String get channelManageModerationTitle => 'Content Review';
+
+  @override
+  String get channelManageTabOverview => 'My Channels';
+
+  @override
+  String get channelManageTabProfile => 'Profile';
+
+  @override
+  String get channelManageTabMembers => 'Roles';
+
+  @override
+  String get channelManageTabModeration => 'Review';
+
+  @override
+  String get channelManageStatSubscribers => 'Subscribers';
+
+  @override
+  String get channelManageStatTodayMessages => 'Messages Today';
+
+  @override
+  String get channelManageStatPending => 'Pending';
+
+  @override
+  String get channelManageStatAdmins => 'Admins';
+
+  @override
+  String get channelManageStatNewToday => 'New Today';
+
+  @override
+  String get channelManageStatMuted => 'Muted';
+
+  @override
+  String get channelManageStatReports => 'Reports';
+
+  @override
+  String get channelManageStatAutoApproved => 'Auto Approved';
+
+  @override
+  String get channelManageMyChannels => 'My Channels';
+
+  @override
+  String get channelManageCreateChannel => 'Create Channel';
+
+  @override
+  String get channelManageCreateChannelValue => 'Name, avatar, bio';
+
+  @override
+  String get channelManageInviteLinks => 'Invite Links';
+
+  @override
+  String channelManageInviteLinksValue(int count) {
+    return '$count active';
+  }
+
+  @override
+  String get channelManagePermissions => 'Channel Permissions';
+
+  @override
+  String get channelManageVisibility => 'Visibility';
+
+  @override
+  String get channelManageSpeechPermission => 'Posting Permission';
+
+  @override
+  String get channelManageInvitePermission => 'Invite Permission';
+
+  @override
+  String get channelManageMessageEncryption => 'Message Encryption';
+
+  @override
+  String get channelManageEnabled => 'Enabled';
+
+  @override
+  String get channelManageDisabled => 'Disabled';
+
+  @override
+  String get channelManageDisableChannel => 'Disable Channel';
+
+  @override
+  String get channelManageVisibilityPublic => 'Public';
+
+  @override
+  String get channelManageVisibilityPrivate => 'Private';
+
+  @override
+  String get channelManageSpeechAdminReview => 'Admin review';
+
+  @override
+  String get channelManageSpeechMembers => 'Members can post';
+
+  @override
+  String get channelManageInviteAdmin => 'Admin';
+
+  @override
+  String get channelManageInviteAdmins => 'Invite Admins';
+
+  @override
+  String get channelManageInviteAdminsValue => 'By ID or link';
+
+  @override
+  String get channelManageOwnerOnline => 'Owner · Online';
+
+  @override
+  String get channelManageAdminModeration => 'Admin · Moderation';
+
+  @override
+  String get channelManageAdminOperations => 'Admin · Operations';
+
+  @override
+  String get channelManageBotRiskControl => 'Bot · Risk control';
+
+  @override
+  String get channelManageReviewSpeechTitle => 'New member posting request';
+
+  @override
+  String get channelManageReviewSpeechBody =>
+      'User @ray requested to post a node sync note in the announcements channel.';
+
+  @override
+  String get channelManageReviewSpeechTag => 'Post';
+
+  @override
+  String get channelManageReviewLinkTitle => 'Link risk warning';
+
+  @override
+  String get channelManageReviewLinkBody =>
+      'An external link was detected and needs admin approval before display.';
+
+  @override
+  String get channelManageReviewLinkTag => 'Link';
+
+  @override
+  String get channelManageReviewReportTitle => 'Reported message';
+
+  @override
+  String get channelManageReviewReportBody =>
+      '2 members reported this message for repeated advertising.';
+
+  @override
+  String get channelManageReviewReportTag => 'Report';
+
+  @override
+  String get channelManageAutoRules => 'Auto Review Rules';
+
+  @override
+  String get channelManageAutoRulesValue => 'Keywords / links / rate';
+
+  @override
+  String get channelManageEditProfile => 'Edit Profile';
+
+  @override
+  String get channelManageManage => 'Manage';
+
+  @override
+  String get channelManageManaging => 'Managing';
+
+  @override
+  String get channelManageApprove => 'Approve';
+
+  @override
+  String get channelManageReject => 'Reject';
+
+  @override
+  String get channelManageDefaultChannelName => 'P2P Matrix Announcements';
+
+  @override
+  String get channelManageDefaultChannelDescription =>
+      'Project announcements, node status, and releases';
+
+  @override
+  String channelManageChannelSummary(
+      String visibility, String members, int messages) {
+    return '$visibility channel · $members members · $messages today';
+  }
+
+  @override
+  String channelManageComingSoon(String label) {
+    return '$label is not connected yet';
+  }
+
+  @override
   String get loginTitle => 'Portal IM';
 
   @override
@@ -214,6 +405,39 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get contactsFollows => 'Following';
+
+  @override
+  String get createGroupTitle => 'Start Group Chat';
+
+  @override
+  String get createGroupDone => 'Done';
+
+  @override
+  String get createGroupEmptyTitle => 'No friends to invite';
+
+  @override
+  String get createGroupEmptySubtitle =>
+      'Add friends before starting a group chat';
+
+  @override
+  String get createGroupNoResultsTitle => 'No friends found';
+
+  @override
+  String get createGroupNoResultsSubtitle =>
+      'Try another ID, nickname, or email';
+
+  @override
+  String get createGroupDefaultName => 'Group Chat';
+
+  @override
+  String createGroupSingleName(String name) {
+    return '$name\'s Group Chat';
+  }
+
+  @override
+  String createGroupMultipleName(String names) {
+    return '$names\'s Group Chat';
+  }
 
   @override
   String contactsCount(int count) {

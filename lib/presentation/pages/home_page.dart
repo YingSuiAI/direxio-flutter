@@ -139,16 +139,21 @@ class _HomePageState extends ConsumerState<HomePage>
     _lastHomeSyncSignature = _homeSyncSignature(client);
     _attachVoiceCallController(client);
     _syncSub = client.onSync.stream.listen((_) {
-      if (!mounted) return;
-      final nextSignature = _homeSyncSignature(client);
-      if (nextSignature == _lastHomeSyncSignature) return;
-      _lastHomeSyncSignature = nextSignature;
-      _scheduleAsBootstrapRefreshIfNeeded(refreshExisting: true);
-      setState(() {});
+      _refreshHomeAfterMatrixSync(client);
+      scheduleMicrotask(() => _refreshHomeAfterMatrixSync(client));
     });
     if (!_mockAuthEnabled) {
       unawaited(ref.read(appWarmupProvider.future));
     }
+  }
+
+  void _refreshHomeAfterMatrixSync(Client client) {
+    if (!mounted) return;
+    final nextSignature = _homeSyncSignature(client);
+    if (nextSignature == _lastHomeSyncSignature) return;
+    _lastHomeSyncSignature = nextSignature;
+    _scheduleAsBootstrapRefreshIfNeeded(refreshExisting: true);
+    setState(() {});
   }
 
   @override
@@ -549,10 +554,19 @@ String _homeSyncSignature(Client client) {
         lastEvent?.originServerTs.millisecondsSinceEpoch.toString() ?? '',
         room.notificationCount.toString(),
         room.highlightCount.toString(),
+        _roomMemberAvatarSignature(client, room),
       ].join(','),
     );
   }
   return parts.join('|');
+}
+
+String _roomMemberAvatarSignature(Client client, Room room) {
+  final users = room.getParticipants()..sort((a, b) => a.id.compareTo(b.id));
+  return users.map((user) {
+    final avatar = matrixContentHttpUrl(client, user.avatarUrl) ?? '';
+    return '${user.id}:$avatar';
+  }).join(';');
 }
 
 class _ChatsTopBar extends StatelessWidget {
@@ -1499,22 +1513,39 @@ class _ChatList extends ConsumerWidget {
         final conversation = filteredConversations[i - 1];
         final room = conversation.room;
         final lastEvent = room?.lastEvent;
+        final visibilityPolicy =
+            syncCache.chatVisibilityPolicyForRoom(conversation.roomId);
+        final visibleLastEvent = lastEvent != null &&
+                visibilityPolicy.allows(
+                  eventId: lastEvent.eventId,
+                  originServerTs:
+                      lastEvent.originServerTs.millisecondsSinceEpoch,
+                  redacted: lastEvent.redacted,
+                )
+            ? lastEvent
+            : null;
         final failedOutbox =
             _latestFailedMediaOutboxForConversation(outbox, conversation);
-        final lastEventSortTime = lastEvent == null
+        final lastEventSortTime = visibleLastEvent == null
             ? null
-            : messageOrder.entryForEvent(lastEvent.eventId)?.createdAt;
+            : messageOrder.entryForEvent(visibleLastEvent.eventId)?.createdAt;
         final previewTime = _conversationPreviewTimeForConversation(
           conversation,
-          lastEvent: lastEvent,
+          lastEvent: visibleLastEvent,
           latestFailedOutbox: failedOutbox,
           lastEventSortTime: lastEventSortTime,
+          cleared: visibilityPolicy.clearedBeforeTs > 0 &&
+              visibleLastEvent == null &&
+              failedOutbox == null,
         );
         final lastMessage = _conversationPreviewTextForConversation(
           conversation,
-          lastEvent: lastEvent,
+          lastEvent: visibleLastEvent,
           latestFailedOutbox: failedOutbox,
           lastEventSortTime: lastEventSortTime,
+          cleared: visibilityPolicy.clearedBeforeTs > 0 &&
+              visibleLastEvent == null &&
+              failedOutbox == null,
         );
         return _ConvRow(
           name: conversation.isAgent
@@ -1706,10 +1737,16 @@ String? _conversationAvatarUrl(
   }
 
   final contact = conversation.contact;
-  return avatarHttpUrl(client, contact?.avatarUrl) ??
+  return _directPeerMemberAvatarUrl(client, room, contact?.userId) ??
+      avatarHttpUrl(client, contact?.avatarUrl) ??
       avatarHttpUrl(client, conversation.roomSummary?.avatarUrl) ??
-      _directPeerMemberAvatarUrl(client, room, contact?.userId) ??
       (room == null ? null : roomAvatarHttpUrl(room));
+}
+
+String? _contactListAvatarUrl(Client client, AsSyncContact contact) {
+  final room = client.getRoomById(contact.roomId.trim());
+  return _directPeerMemberAvatarUrl(client, room, contact.userId) ??
+      avatarHttpUrl(client, contact.avatarUrl);
 }
 
 String? _directPeerMemberAvatarUrl(
@@ -1788,7 +1825,9 @@ String _conversationPreviewTextForConversation(
   required Event? lastEvent,
   required LocalOutboxItem? latestFailedOutbox,
   DateTime? lastEventSortTime,
+  bool cleared = false,
 }) {
+  if (cleared) return '';
   final text = conversationPreviewText(
     lastEvent: lastEvent,
     latestFailedOutbox: latestFailedOutbox,
@@ -1806,13 +1845,16 @@ DateTime? _conversationPreviewTimeForConversation(
   required Event? lastEvent,
   required LocalOutboxItem? latestFailedOutbox,
   DateTime? lastEventSortTime,
+  bool cleared = false,
 }) {
-  return conversationPreviewTime(
-        lastEvent: lastEvent,
-        latestFailedOutbox: latestFailedOutbox,
-        lastEventSortTime: lastEventSortTime,
-      ) ??
-      conversation.roomSummary?.lastActivityAt ??
+  if (cleared) return null;
+  final previewTime = conversationPreviewTime(
+    lastEvent: lastEvent,
+    latestFailedOutbox: latestFailedOutbox,
+    lastEventSortTime: lastEventSortTime,
+  );
+  if (previewTime != null) return previewTime;
+  return conversation.roomSummary?.lastActivityAt ??
       conversation.group?.lastActivityAt;
 }
 
@@ -3083,7 +3125,7 @@ class _ContactList extends ConsumerWidget {
                 domain: contact.domain,
               ),
               mxid: peerMxid,
-              avatarUrl: avatarHttpUrl(client, contact.avatarUrl),
+              avatarUrl: _contactListAvatarUrl(client, contact),
             );
           }).toList();
     final groupedContacts = _groupContactsByInitial(contacts);

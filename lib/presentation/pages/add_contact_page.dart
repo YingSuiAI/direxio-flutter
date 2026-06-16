@@ -86,10 +86,13 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
               'avatar_url': avatarHttpUrl(client, result.owner!.avatarUrl),
             };
           });
+          break;
         case PortalAvailability.notDeployed:
           setState(() => _error = l10n.addContactDomainNotProductUser);
+          break;
         case PortalAvailability.unreachable:
           setState(() => _error = l10n.addContactDomainNotProductUser);
+          break;
       }
     } catch (e) {
       setState(() => _error = e.toString());
@@ -101,7 +104,8 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.tk.surfaceHover,
+      key: const ValueKey('add_contact_scaffold'),
+      backgroundColor: context.tk.bg,
       body: Column(
         children: [
           const _AddContactHeader(),
@@ -384,12 +388,12 @@ class _SearchResultRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Material(
-      color: t.surfaceHover,
+      color: t.bg,
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
           key: const ValueKey('add_contact_result_row'),
-          height: 52,
+          height: 60,
           child: DecoratedBox(
             decoration: BoxDecoration(
               border: Border(
@@ -410,14 +414,27 @@ class _SearchResultRow extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: RichText(
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    text: _highlightNameSpan(
-                      context,
-                      result.displayName,
-                      query,
-                    ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RichText(
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        text: _highlightNameSpan(
+                          context,
+                          result.displayName,
+                          query,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        result.mxid,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 13, color: t.textMute),
+                      ),
+                    ],
                   ),
                 ),
               ],

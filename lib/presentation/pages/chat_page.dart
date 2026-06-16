@@ -120,6 +120,20 @@ bool _canSendRoomMessage(Room room, AsSyncCacheState syncCache) {
       joinedPersonPeerMxid(room) != null;
 }
 
+bool _isPeerTyping(Room room, String peerMxid) {
+  final peerId = peerMxid.trim();
+  if (peerId.isEmpty) return false;
+  return room.typingUsers.any((user) => user.id == peerId);
+}
+
+PresenceType? _peerPresence(Client client, String peerMxid) {
+  final peerId = peerMxid.trim();
+  if (peerId.isEmpty) return null;
+  // The header needs the latest sync cache without doing network work in build.
+  // ignore: deprecated_member_use
+  return client.presences[peerId]?.presence;
+}
+
 /// 字节数 → 人类可读，如 `2.8 MB`。
 Future<void> _popChatOrHome(BuildContext context) async {
   final didPop = await Navigator.of(context).maybePop();
@@ -149,6 +163,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   StreamSubscription<SyncUpdate>? _roomSyncSub;
   final Set<String> _warmedThumbnailEventIds = {};
   final Set<String> _retryingOutboxIds = {};
+  final Set<String> _openingFileEventIds = {};
   final Set<String> _downloadingFileEventIds = {};
   final Set<String> _downloadedFileEventIds = {};
   final Set<String> _downloadingImageEventIds = {};
@@ -1086,11 +1101,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     Offset pos, {
     required _MessageContextMenuPlacement placement,
   }) async {
+    final supportsTextActions = !isCallRecordEvent(e);
     final action = await _showMsgContextMenu(
       ctx,
       pos,
       placement: placement,
-      canRecall: e.canRedact,
+      canCopy: supportsTextActions,
+      canQuote: supportsTextActions,
+      canRecall: supportsTextActions && e.canRedact,
     );
     if (!mounted || action == null) return;
     switch (action) {
@@ -1588,6 +1606,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       await _playVoiceEvent(e);
       return;
     }
+    final openKey = _fileActionKey(e);
+    if (_openingFileEventIds.contains(openKey)) return;
+    _openingFileEventIds.add(openKey);
     try {
       final file = await _materializeFileEvent(e, persistent: false);
       await previewChatActionFile(file);
@@ -1598,6 +1619,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           SnackBar(content: Text('打开失败：$err')),
         );
       }
+    } finally {
+      _openingFileEventIds.remove(openKey);
     }
   }
 
@@ -1725,7 +1748,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final syncCache = ref.read(asSyncCacheProvider);
     final contact = syncCache.contactForUserId(event.senderId) ??
         syncCache.contactForRoom(widget.roomId);
-    return avatarHttpUrl(client, contact?.avatarUrl) ?? memberAvatarUrl;
+    return memberAvatarUrl ?? avatarHttpUrl(client, contact?.avatarUrl);
   }
 
   Future<String> _addPendingImageUpload(ChatMediaAttachment attachment) async {
@@ -1837,6 +1860,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             name: item.filename.isEmpty ? 'image.jpg' : item.filename,
             bytes: bytes,
             mimeType: item.mimeType.isEmpty ? 'image/jpeg' : item.mimeType,
+            width: item.width,
+            height: item.height,
           ),
         LocalOutboxMessageKind.video => ChatMediaAttachment.video(
             name: item.filename.isEmpty ? 'video.mp4' : item.filename,
@@ -2173,8 +2198,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final peerMember = mxid.trim().isEmpty
         ? null
         : room.unsafeGetUserFromMemoryOrFallback(mxid);
-    final peerAvatarUrl = avatarHttpUrl(room.client, contact?.avatarUrl) ??
-        matrixContentHttpUrl(room.client, peerMember?.avatarUrl);
+    final peerAvatarUrl =
+        matrixContentHttpUrl(room.client, peerMember?.avatarUrl) ??
+            avatarHttpUrl(room.client, contact?.avatarUrl);
     final peerReadEventIds = _peerReadEventIds(
       room: room,
       peerMxid: mxid,
@@ -2186,6 +2212,31 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               orElse: () => false,
             )
         : false;
+    final peerIsTyping = !isAgent && _isPeerTyping(room, mxid);
+    final peerPresence = isAgent ? null : _peerPresence(room.client, mxid);
+    final peerIsOnline =
+        peerPresence != null && peerPresence != PresenceType.offline;
+    final peerIsOffline = peerPresence == PresenceType.offline;
+    final headerSubtitle = isWaitingForAccept
+        ? '等待对方接受'
+        : isAgent
+            ? (agentConnected ? '在线' : '离线')
+            : peerIsTyping
+                ? '在想'
+                : peerIsOnline
+                    ? '在线'
+                    : peerIsOffline
+                        ? '离线'
+                        : null;
+    final headerSubtitleStatus = isAgent
+        ? (agentConnected
+            ? ChatCapsuleSubtitleStatus.online
+            : ChatCapsuleSubtitleStatus.offline)
+        : (peerIsTyping || peerIsOnline
+            ? ChatCapsuleSubtitleStatus.online
+            : peerIsOffline
+                ? ChatCapsuleSubtitleStatus.offline
+                : null);
     final replyBarVisible = _replyTo != null;
     final selectionBarVisible = _multiSelect;
     final keyboardInsetBottom = MediaQuery.viewInsetsOf(context).bottom;
@@ -2235,16 +2286,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 )
               : ChatCapsuleHeader(
                   title: name,
-                  subtitle: isWaitingForAccept
-                      ? '等待对方接受'
-                      : isAgent
-                          ? (agentConnected ? '在线' : '离线')
-                          : null,
-                  subtitleStatus: isAgent
-                      ? (agentConnected
-                          ? ChatCapsuleSubtitleStatus.online
-                          : ChatCapsuleSubtitleStatus.offline)
-                      : null,
+                  subtitle: headerSubtitle,
+                  subtitleStatus: headerSubtitleStatus,
                   onBack: () => unawaited(_popChatOrHome(context)),
                   showEncryptionIcon: true,
                   actions: [
@@ -2439,6 +2482,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       time: _formatMsgTime(pending.createdAt),
                                       showRead: false,
                                       avatarSeed: 'me',
+                                      mediaSize: isPendingVideo
+                                          ? chatMessageDefaultMediaSize
+                                          : chatMediaBubbleSizeFor(
+                                              width: pending.width,
+                                              height: pending.height,
+                                            ),
                                       thumb: pending.status ==
                                               LocalOutboxItemStatus.failed
                                           ? FailedLocalOutboxImageThumb(
@@ -2731,6 +2780,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         avatarSeed: senderName,
                                         avatarUrl: senderAvatarUrl,
                                         onAvatarTap: avatarTap,
+                                        mediaSize:
+                                            chatMediaBubbleSizeForEvent(e),
                                         thumb: _MatrixThumb(
                                           key: ValueKey(
                                             'matrix_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
@@ -2774,12 +2825,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         avatarSeed: senderName,
                                         avatarUrl: senderAvatarUrl,
                                         onAvatarTap: avatarTap,
+                                        mediaSize: chatMessageDefaultMediaSize,
                                         thumb: _MatrixThumb(
                                           key: ValueKey(
                                             'matrix_video_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
                                           ),
                                           event: e,
                                           fallbackIcon: Symbols.movie,
+                                          fit: BoxFit.cover,
                                         ),
                                         statusOverlay: _multiSelect
                                             ? null
@@ -4124,9 +4177,10 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                               avatarSeed: m.isMe ? 'me' : c.name,
                               avatarKey: avatarKey,
                               onAvatarTap: avatarTap,
+                              mediaSize: chatMessageDefaultImageMediaSize,
                               thumb: Image.network(
                                 m.imageUrl!,
-                                fit: BoxFit.cover,
+                                fit: BoxFit.contain,
                               ),
                               selected: selected,
                               multiSelect: _multiSelect,
@@ -4380,6 +4434,14 @@ bool _isVoiceEvent(Event event) {
       name.endsWith('.ogg') ||
       name.endsWith('.opus') ||
       name.endsWith('.amr');
+}
+
+String _fileActionKey(Event event) {
+  final eventId = event.eventId.trim();
+  if (eventId.isNotEmpty) return eventId;
+  final url = event.content.tryGet<String>('url')?.trim() ?? '';
+  if (url.isNotEmpty) return url;
+  return '${event.room.id}:${event.senderId}:${event.body}:${event.originServerTs.millisecondsSinceEpoch}';
 }
 
 int _voiceDurationSecondsForEvent(Event event) {
@@ -5108,6 +5170,7 @@ class _SChatImageBubble extends StatelessWidget {
     required this.avatarSeed,
     required this.thumb,
     required this.onTap,
+    this.mediaSize = chatMessageDefaultImageMediaSize,
     this.statusOverlay,
     this.centerOverlay,
     this.avatarKey,
@@ -5124,6 +5187,7 @@ class _SChatImageBubble extends StatelessWidget {
   final String avatarSeed;
   final Widget thumb;
   final VoidCallback? onTap;
+  final ChatMediaBubbleSize mediaSize;
   final Widget? statusOverlay;
   final Widget? centerOverlay;
   final Key? avatarKey;
@@ -5144,8 +5208,8 @@ class _SChatImageBubble extends StatelessWidget {
       onSecondaryTapDown: (d) => pos = d.globalPosition,
       onSecondaryTap: () => onLongPressAt?.call(pos),
       child: ChatMediaBubbleFrame(
-        width: chatMessageMediaWidth,
-        height: chatMessageMediaHeight,
+        width: mediaSize.width,
+        height: mediaSize.height,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -5731,9 +5795,11 @@ class _MatrixThumb extends ConsumerWidget {
     super.key,
     required this.event,
     this.fallbackIcon = Symbols.broken_image,
+    this.fit = BoxFit.contain,
   });
   final Event event;
   final IconData fallbackIcon;
+  final BoxFit fit;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
@@ -5751,6 +5817,7 @@ class _MatrixThumb extends ConsumerWidget {
         );
         return file.bytes;
       },
+      fit: fit,
       loadingBuilder: (_) => Container(
         color: t.surfaceHigh,
         alignment: Alignment.center,
@@ -5903,6 +5970,8 @@ Future<String?> _showMsgContextMenu(
   BuildContext context,
   Offset pos, {
   required _MessageContextMenuPlacement placement,
+  bool canCopy = true,
+  bool canQuote = true,
   bool canRecall = false,
 }) {
   final size = MediaQuery.of(context).size;
@@ -5916,9 +5985,10 @@ Future<String?> _showMsgContextMenu(
       const horizontalMargin = 16.0;
       final menuW = math.min(343.0, size.width - horizontalMargin * 2);
       const menuH = 168.0;
+      const bubbleGap = 22.0;
       var left = pos.dx - menuW / 2;
       final pointerOnTop = placement == _MessageContextMenuPlacement.below;
-      var top = pointerOnTop ? pos.dy + 12 : pos.dy - menuH - 12;
+      var top = pointerOnTop ? pos.dy + bubbleGap : pos.dy - menuH - bubbleGap;
       if (left < horizontalMargin) left = horizontalMargin;
       if (left + menuW > size.width - horizontalMargin) {
         left = size.width - menuW - horizontalMargin;
@@ -5936,6 +6006,8 @@ Future<String?> _showMsgContextMenu(
               child: _MsgCtxMenuCard(
                 pointerX: pointerX,
                 pointerOnTop: pointerOnTop,
+                canCopy: canCopy,
+                canQuote: canQuote,
                 canRecall: canRecall,
               ),
             ),
@@ -5965,11 +6037,15 @@ class _MsgCtxMenuCard extends StatelessWidget {
   const _MsgCtxMenuCard({
     required this.pointerX,
     required this.pointerOnTop,
+    required this.canCopy,
+    required this.canQuote,
     required this.canRecall,
   });
 
   final double pointerX;
   final bool pointerOnTop;
+  final bool canCopy;
+  final bool canQuote;
   final bool canRecall;
 
   @override
@@ -6009,7 +6085,7 @@ class _MsgCtxMenuCard extends StatelessWidget {
                       top: 78,
                       child: Divider(height: 1, thickness: 1, color: divider),
                     ),
-                    const Positioned(
+                    Positioned(
                       left: 0,
                       top: 12,
                       right: 0,
@@ -6017,31 +6093,32 @@ class _MsgCtxMenuCard extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _MsgCtxMenuItem(
-                            width: itemW,
-                            icon: Symbols.content_copy,
-                            label: '复制',
-                            value: 'copy',
-                          ),
-                          _MsgCtxMenuItem(
+                          if (canCopy)
+                            const _MsgCtxMenuItem(
+                              width: itemW,
+                              icon: Symbols.content_copy,
+                              label: '复制',
+                              value: 'copy',
+                            ),
+                          const _MsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.forward,
                             label: '转发',
                             value: 'forward',
                           ),
-                          _MsgCtxMenuItem(
+                          const _MsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.deployed_code,
                             label: '收藏',
                             value: 'fav',
                           ),
-                          _MsgCtxMenuItem(
+                          const _MsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.delete,
                             label: '删除',
                             value: 'delete',
                           ),
-                          _MsgCtxMenuItem(
+                          const _MsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.format_list_bulleted,
                             label: '多选',
@@ -6050,18 +6127,19 @@ class _MsgCtxMenuCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const Positioned(
-                      left: 1,
-                      top: 87,
-                      width: 69,
-                      height: 58,
-                      child: _MsgCtxMenuItem(
+                    if (canQuote)
+                      const Positioned(
+                        left: 1,
+                        top: 87,
                         width: 69,
-                        icon: Symbols.format_quote_rounded,
-                        label: '引用',
-                        value: 'quote',
+                        height: 58,
+                        child: _MsgCtxMenuItem(
+                          width: 69,
+                          icon: Symbols.format_quote_rounded,
+                          label: '引用',
+                          value: 'quote',
+                        ),
                       ),
-                    ),
                     if (canRecall)
                       const Positioned(
                         left: 70,

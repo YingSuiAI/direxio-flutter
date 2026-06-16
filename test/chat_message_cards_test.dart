@@ -288,4 +288,16 @@ void main() {
     expect(incomingMedia, incomingFrame);
     expect(outgoingMedia, outgoingFrame);
   });
+
+  test('media bubble size follows image orientation', () {
+    final wide = chatMediaBubbleSizeFor(width: 1600, height: 900);
+    final tall = chatMediaBubbleSizeFor(width: 900, height: 1600);
+    final square = chatMediaBubbleSizeFor(width: 800, height: 800);
+
+    expect(wide.width, chatMessageMediaMaxWidth);
+    expect(wide.height, lessThan(wide.width));
+    expect(tall.height, chatMessageMediaMaxHeight);
+    expect(tall.width, lessThan(tall.height));
+    expect(square.width, square.height);
+  });
 }

@@ -273,6 +273,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   final Set<String> _warmedThumbnailEventIds = {};
   final Set<String> _favoritingEventIds = {};
   final Set<String> _retryingOutboxIds = {};
+  final Set<String> _openingFileEventIds = {};
   final Set<String> _downloadingFileEventIds = {};
   final Set<String> _downloadedFileEventIds = {};
   final Map<String, AsCallSession> _roomAsCallHistory = {};
@@ -691,6 +692,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       await _playVoiceEvent(event);
       return;
     }
+    final openKey = _groupFileActionKey(event);
+    if (_openingFileEventIds.contains(openKey)) return;
+    _openingFileEventIds.add(openKey);
     try {
       final file = await _materializeFileEvent(event, persistent: false);
       await previewChatActionFile(file);
@@ -700,6 +704,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('打开失败：$err')),
       );
+    } finally {
+      _openingFileEventIds.remove(openKey);
     }
   }
 
@@ -1566,6 +1572,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
             name: item.filename.isEmpty ? 'image.jpg' : item.filename,
             bytes: bytes,
             mimeType: item.mimeType.isEmpty ? 'image/jpeg' : item.mimeType,
+            width: item.width,
+            height: item.height,
           ),
         LocalOutboxMessageKind.video => ChatMediaAttachment.video(
             name: item.filename.isEmpty ? 'video.mp4' : item.filename,
@@ -1656,11 +1664,14 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     required String roomName,
     required _MessageContextMenuPlacement placement,
   }) async {
+    final supportsTextActions = !isCallRecordEvent(event);
     final action = await _showGroupMessageContextMenu(
       context,
       position,
       placement: placement,
-      canRecall: event.canRedact,
+      canCopy: supportsTextActions,
+      canQuote: supportsTextActions,
+      canRecall: supportsTextActions && event.canRedact,
     );
     if (!mounted || action == null) return;
     switch (action) {
@@ -2448,6 +2459,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                         senderAvatarUrl: senderAvatarUrl,
                                         selected: selected,
                                         multiSelect: _multiSelect,
+                                        mediaSize:
+                                            chatMediaBubbleSizeForEvent(e),
                                         onTap: _multiSelect
                                             ? toggle
                                             : () => unawaited(
@@ -2480,6 +2493,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                         selected: selected,
                                         multiSelect: _multiSelect,
                                         fallbackIcon: Symbols.movie,
+                                        fit: BoxFit.cover,
+                                        mediaSize: chatMessageDefaultMediaSize,
                                         centerOverlay:
                                             const _GroupVideoPlayOverlay(),
                                         onTap: _multiSelect
@@ -2760,6 +2775,8 @@ class _GroupImageMessageBubble extends StatelessWidget {
     required this.multiSelect,
     this.senderAvatarUrl,
     this.fallbackIcon = Symbols.broken_image,
+    this.fit = BoxFit.contain,
+    this.mediaSize = chatMessageDefaultImageMediaSize,
     this.centerOverlay,
     this.onTap,
   });
@@ -2771,6 +2788,8 @@ class _GroupImageMessageBubble extends StatelessWidget {
   final bool multiSelect;
   final String? senderAvatarUrl;
   final IconData fallbackIcon;
+  final BoxFit fit;
+  final ChatMediaBubbleSize mediaSize;
   final Widget? centerOverlay;
   final VoidCallback? onTap;
 
@@ -2782,8 +2801,8 @@ class _GroupImageMessageBubble extends StatelessWidget {
       onTap: onTap,
       onLongPressStart: (details) => onLongPressAt(details.globalPosition),
       child: ChatMediaBubbleFrame(
-        width: chatMessageMediaWidth,
-        height: chatMessageMediaHeight,
+        width: mediaSize.width,
+        height: mediaSize.height,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -2793,6 +2812,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
               ),
               event: event,
               fallbackIcon: fallbackIcon,
+              fit: fit,
             ),
             if (centerOverlay != null) centerOverlay!,
             if (selected)
@@ -3047,10 +3067,12 @@ class _GroupMatrixThumb extends ConsumerWidget {
     super.key,
     required this.event,
     this.fallbackIcon = Symbols.broken_image,
+    this.fit = BoxFit.contain,
   });
 
   final Event event;
   final IconData fallbackIcon;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -3083,6 +3105,7 @@ class _GroupMatrixThumb extends ConsumerWidget {
         alignment: Alignment.center,
         child: Icon(fallbackIcon, color: t.textMute, size: 28),
       ),
+      fit: fit,
     );
   }
 }
@@ -3542,6 +3565,14 @@ bool _isGroupVoiceEvent(Event event) {
       name.endsWith('.ogg') ||
       name.endsWith('.opus') ||
       name.endsWith('.amr');
+}
+
+String _groupFileActionKey(Event event) {
+  final eventId = event.eventId.trim();
+  if (eventId.isNotEmpty) return eventId;
+  final url = event.content.tryGet<String>('url')?.trim() ?? '';
+  if (url.isNotEmpty) return url;
+  return '${event.room.id}:${event.senderId}:${event.body}:${event.originServerTs.millisecondsSinceEpoch}';
 }
 
 int _groupVoiceDurationSecondsForEvent(Event event) {
@@ -4291,8 +4322,18 @@ class _GroupPendingImageCard extends StatelessWidget {
             overlay: isVideo ? const _GroupVideoPlayOverlay() : null,
           );
     return ChatMediaBubbleFrame(
-      width: 208,
-      height: 160,
+      width: isVideo
+          ? chatMessageDefaultMediaSize.width
+          : chatMediaBubbleSizeFor(
+              width: item.width,
+              height: item.height,
+            ).width,
+      height: isVideo
+          ? chatMessageDefaultMediaSize.height
+          : chatMediaBubbleSizeFor(
+              width: item.width,
+              height: item.height,
+            ).height,
       child: thumb,
     );
   }
@@ -4484,6 +4525,8 @@ Future<String?> _showGroupMessageContextMenu(
   BuildContext context,
   Offset position, {
   required _MessageContextMenuPlacement placement,
+  bool canCopy = true,
+  bool canQuote = true,
   bool canRecall = false,
 }) {
   final size = MediaQuery.of(context).size;
@@ -4497,9 +4540,12 @@ Future<String?> _showGroupMessageContextMenu(
       const horizontalMargin = 16.0;
       final menuW = math.min(343.0, size.width - horizontalMargin * 2);
       const menuH = 168.0;
+      const bubbleGap = 22.0;
       var left = position.dx - menuW / 2;
       final pointerOnTop = placement == _MessageContextMenuPlacement.below;
-      var top = pointerOnTop ? position.dy + 12 : position.dy - menuH - 12;
+      var top = pointerOnTop
+          ? position.dy + bubbleGap
+          : position.dy - menuH - bubbleGap;
       if (left < horizontalMargin) left = horizontalMargin;
       if (left + menuW > size.width - horizontalMargin) {
         left = size.width - menuW - horizontalMargin;
@@ -4516,6 +4562,8 @@ Future<String?> _showGroupMessageContextMenu(
             child: _GroupMsgCtxMenuCard(
               pointerX: pointerX,
               pointerOnTop: pointerOnTop,
+              canCopy: canCopy,
+              canQuote: canQuote,
               canRecall: canRecall,
             ),
           ),
@@ -4544,11 +4592,15 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
   const _GroupMsgCtxMenuCard({
     required this.pointerX,
     required this.pointerOnTop,
+    required this.canCopy,
+    required this.canQuote,
     required this.canRecall,
   });
 
   final double pointerX;
   final bool pointerOnTop;
+  final bool canCopy;
+  final bool canQuote;
   final bool canRecall;
 
   @override
@@ -4588,7 +4640,7 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
                       top: 78,
                       child: Divider(height: 1, thickness: 1, color: divider),
                     ),
-                    const Positioned(
+                    Positioned(
                       left: 0,
                       top: 12,
                       right: 0,
@@ -4596,31 +4648,32 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _GroupMsgCtxMenuItem(
-                            width: itemW,
-                            icon: Symbols.content_copy,
-                            label: '复制',
-                            value: 'copy',
-                          ),
-                          _GroupMsgCtxMenuItem(
+                          if (canCopy)
+                            const _GroupMsgCtxMenuItem(
+                              width: itemW,
+                              icon: Symbols.content_copy,
+                              label: '复制',
+                              value: 'copy',
+                            ),
+                          const _GroupMsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.forward,
                             label: '转发',
                             value: 'forward',
                           ),
-                          _GroupMsgCtxMenuItem(
+                          const _GroupMsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.deployed_code,
                             label: '收藏',
                             value: 'fav',
                           ),
-                          _GroupMsgCtxMenuItem(
+                          const _GroupMsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.delete,
                             label: '删除',
                             value: 'delete',
                           ),
-                          _GroupMsgCtxMenuItem(
+                          const _GroupMsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.format_list_bulleted,
                             label: '多选',
@@ -4629,18 +4682,19 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const Positioned(
-                      left: 1,
-                      top: 87,
-                      width: 69,
-                      height: 58,
-                      child: _GroupMsgCtxMenuItem(
+                    if (canQuote)
+                      const Positioned(
+                        left: 1,
+                        top: 87,
                         width: 69,
-                        icon: Symbols.format_quote_rounded,
-                        label: '引用',
-                        value: 'quote',
+                        height: 58,
+                        child: _GroupMsgCtxMenuItem(
+                          width: 69,
+                          icon: Symbols.format_quote_rounded,
+                          label: '引用',
+                          value: 'quote',
+                        ),
                       ),
-                    ),
                     if (canRecall)
                       const Positioned(
                         left: 70,

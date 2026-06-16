@@ -25,11 +25,15 @@ void main() {
           name: 'first.jpg',
           bytes: _transparentPng,
           mimeType: 'image/jpeg',
+          width: 640,
+          height: 360,
         ),
         ChatMediaAttachment.image(
           name: 'second.jpg',
           bytes: _transparentPng,
           mimeType: 'image/jpeg',
+          width: 720,
+          height: 1280,
         ),
       ],
     );
@@ -46,6 +50,10 @@ void main() {
     expect(store.items.map((item) => item.filename), [
       'first.jpg',
       'second.jpg',
+    ]);
+    expect(store.items.map((item) => '${item.width}x${item.height}'), [
+      '640x360',
+      '720x1280',
     ]);
     expect(store.items.map((item) => item.batchIndex), [0, 1]);
     expect(store.items.every((item) => item.thumbnailBytes != null), isTrue);

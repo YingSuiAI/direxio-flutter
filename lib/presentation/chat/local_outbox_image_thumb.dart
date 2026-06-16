@@ -131,7 +131,7 @@ class _LocalOutboxImage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Image.memory(
       bytes,
-      fit: BoxFit.cover,
+      fit: BoxFit.contain,
       cacheWidth: LocalOutboxImageThumbDefaults.decodeWidth,
       filterQuality: FilterQuality.low,
       gaplessPlayback: true,

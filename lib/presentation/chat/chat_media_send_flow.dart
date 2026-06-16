@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 enum ChatMediaKind {
   image,
@@ -33,6 +34,8 @@ class ChatMediaAttachment {
     required List<int> bytes,
     String mimeType = '',
     bool original = false,
+    int width = 0,
+    int height = 0,
   }) {
     return ChatMediaAttachment._(
       kind: ChatMediaKind.image,
@@ -40,6 +43,8 @@ class ChatMediaAttachment {
       bytes: bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
       mimeType: mimeType,
       original: original,
+      width: width,
+      height: height,
     );
   }
 
@@ -127,6 +132,40 @@ class ChatMediaAttachment {
       ChatMediaKind.file => '文件',
       ChatMediaKind.audio => '语音',
     };
+  }
+}
+
+class ChatImageDimensions {
+  const ChatImageDimensions({
+    required this.width,
+    required this.height,
+  });
+
+  final int width;
+  final int height;
+}
+
+Future<ChatImageDimensions> readChatImageDimensions(Uint8List bytes) async {
+  final codec = await ui.instantiateImageCodec(bytes);
+  final frame = await codec.getNextFrame();
+  try {
+    return ChatImageDimensions(
+      width: frame.image.width,
+      height: frame.image.height,
+    );
+  } finally {
+    frame.image.dispose();
+    codec.dispose();
+  }
+}
+
+Future<ChatImageDimensions?> tryReadChatImageDimensions(
+  Uint8List bytes,
+) async {
+  try {
+    return await readChatImageDimensions(bytes);
+  } on Object {
+    return null;
   }
 }
 

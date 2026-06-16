@@ -161,11 +161,14 @@ class ChatAttachmentPanel extends ConsumerWidget {
           final name = file.name.trim().isEmpty
               ? 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg'
               : file.name;
+          final dimensions = await tryReadChatImageDimensions(bytes);
           return [
             ChatMediaAttachment.image(
               name: name,
               bytes: bytes,
               mimeType: file.mimeType ?? _imageMimeTypeForName(name),
+              width: dimensions?.width ?? 0,
+              height: dimensions?.height ?? 0,
             ),
           ];
         } on Object catch (error, stackTrace) {

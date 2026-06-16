@@ -5,10 +5,14 @@ class ConversationPreferencesData {
   const ConversationPreferencesData({
     this.pinnedConversationIds = const {},
     this.groupRemarkNames = const {},
-  });
+    Set<String> mutedConversationIds = const {},
+  }) : _mutedConversationIds = mutedConversationIds;
 
   final Set<String> pinnedConversationIds;
   final Map<String, String> groupRemarkNames;
+  final Set<String>? _mutedConversationIds;
+
+  Set<String> get mutedConversationIds => _mutedConversationIds ?? const {};
 }
 
 abstract class ConversationPreferencesStore {
@@ -34,6 +38,7 @@ class FileConversationPreferencesStore implements ConversationPreferencesStore {
       }
       final pinned = decoded['pinned_conversation_ids'];
       final remarks = decoded['group_remark_names'];
+      final muted = decoded['muted_conversation_ids'];
       return ConversationPreferencesData(
         pinnedConversationIds: pinned is List
             ? pinned
@@ -49,6 +54,12 @@ class FileConversationPreferencesStore implements ConversationPreferencesStore {
                     '${entry.key}'.trim(): '${entry.value}'.trim(),
               })
             : const {},
+        mutedConversationIds: muted is List
+            ? muted
+                .map((value) => '$value'.trim())
+                .where((value) => value.isNotEmpty)
+                .toSet()
+            : const {},
       );
     } catch (_) {
       return const ConversationPreferencesData();
@@ -62,6 +73,7 @@ class FileConversationPreferencesStore implements ConversationPreferencesStore {
       jsonEncode({
         'pinned_conversation_ids': data.pinnedConversationIds.toList()..sort(),
         'group_remark_names': data.groupRemarkNames,
+        'muted_conversation_ids': data.mutedConversationIds.toList()..sort(),
       }),
       flush: true,
     );

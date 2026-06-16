@@ -10,20 +10,27 @@ class ConversationPreferencesState {
   const ConversationPreferencesState({
     this.pinnedConversationIds = const {},
     this.groupRemarkNames = const {},
-  });
+    Set<String> mutedConversationIds = const {},
+  }) : _mutedConversationIds = mutedConversationIds;
 
   final Set<String> pinnedConversationIds;
   final Map<String, String> groupRemarkNames;
+  final Set<String>? _mutedConversationIds;
+
+  Set<String> get mutedConversationIds => _mutedConversationIds ?? const {};
 
   ConversationPreferencesState copyWith({
     Set<String>? pinnedConversationIds,
     Map<String, String>? groupRemarkNames,
+    Set<String>? mutedConversationIds,
   }) {
     return ConversationPreferencesState(
       pinnedConversationIds:
           Set.unmodifiable(pinnedConversationIds ?? this.pinnedConversationIds),
       groupRemarkNames:
           Map.unmodifiable(groupRemarkNames ?? this.groupRemarkNames),
+      mutedConversationIds:
+          Set.unmodifiable(mutedConversationIds ?? this.mutedConversationIds),
     );
   }
 }
@@ -49,6 +56,10 @@ final groupRemarkNamesProvider = Provider<Map<String, String>>((ref) {
   return ref.watch(conversationPreferencesProvider).groupRemarkNames;
 });
 
+final mutedConversationIdsProvider = Provider<Set<String>>((ref) {
+  return ref.watch(conversationPreferencesProvider).mutedConversationIds;
+});
+
 class ConversationPreferencesController
     extends StateNotifier<ConversationPreferencesState> {
   ConversationPreferencesController(this.ref)
@@ -65,6 +76,7 @@ class ConversationPreferencesController
       state = state.copyWith(
         pinnedConversationIds: data.pinnedConversationIds,
         groupRemarkNames: data.groupRemarkNames,
+        mutedConversationIds: data.mutedConversationIds,
       );
     } catch (_) {
       // Preferences are non-critical; keep the in-memory defaults.
@@ -104,6 +116,19 @@ class ConversationPreferencesController
     _persist();
   }
 
+  void setMuted(String conversationId, bool muted) {
+    final trimmed = conversationId.trim();
+    if (trimmed.isEmpty) return;
+    final next = {...state.mutedConversationIds};
+    if (muted) {
+      next.add(trimmed);
+    } else {
+      next.remove(trimmed);
+    }
+    state = state.copyWith(mutedConversationIds: next);
+    _persist();
+  }
+
   void _persist() {
     unawaited(
       ref
@@ -113,6 +138,7 @@ class ConversationPreferencesController
               ConversationPreferencesData(
                 pinnedConversationIds: state.pinnedConversationIds,
                 groupRemarkNames: state.groupRemarkNames,
+                mutedConversationIds: state.mutedConversationIds,
               ),
             ),
           )
@@ -133,4 +159,10 @@ void setGroupRemarkName(WidgetRef ref, String roomId, String name) {
   ref
       .read(conversationPreferencesProvider.notifier)
       .setGroupRemark(roomId, name);
+}
+
+void setConversationMuted(WidgetRef ref, String conversationId, bool muted) {
+  ref
+      .read(conversationPreferencesProvider.notifier)
+      .setMuted(conversationId, muted);
 }

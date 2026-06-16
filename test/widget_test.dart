@@ -18,6 +18,7 @@ import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/as_gateway_client.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/chat_clear_state_store.dart';
+import 'package:portal_app/data/conversation_preferences_store.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
@@ -65,6 +66,7 @@ import 'package:portal_app/presentation/chat/cached_thumbnail_image.dart';
 import 'package:portal_app/presentation/utils/group_creation_flow.dart';
 import 'package:portal_app/presentation/utils/room_read_state.dart';
 import 'package:portal_app/presentation/widgets/m3/glass_header.dart';
+import 'package:portal_app/presentation/widgets/m3/m3_search_field.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 
 final _transparentPng = base64Decode(
@@ -1094,6 +1096,23 @@ class _ChannelActivityAsClient extends _EmptyAsClient {
   }
 }
 
+class _MemoryConversationPreferencesStore
+    implements ConversationPreferencesStore {
+  _MemoryConversationPreferencesStore([
+    this.data = const ConversationPreferencesData(),
+  ]);
+
+  ConversationPreferencesData data;
+
+  @override
+  Future<ConversationPreferencesData> read() async => data;
+
+  @override
+  Future<void> write(ConversationPreferencesData data) async {
+    this.data = data;
+  }
+}
+
 class _MemoryFriendRequestReadStore implements FriendRequestReadStore {
   Set<String> ids = {};
 
@@ -1392,6 +1411,15 @@ class _CompletingBootstrapAsClient extends _EmptyAsClient {
 
   @override
   Future<AsSyncBootstrap> syncBootstrap() => bootstrapCompleter.future;
+}
+
+class _StaticBootstrapAsClient extends _EmptyAsClient {
+  _StaticBootstrapAsClient(this.bootstrap);
+
+  final AsSyncBootstrap bootstrap;
+
+  @override
+  Future<AsSyncBootstrap> syncBootstrap() async => bootstrap;
 }
 
 class _RefreshingBootstrapAsClient extends _EmptyAsClient {
@@ -2190,7 +2218,7 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
   });
 
-  testWidgets('messages conversation avatar prefers AS contact cache',
+  testWidgets('messages conversation avatar prefers fresh Matrix member avatar',
       (tester) async {
     final client = Client('PortalIMConversationAsAvatarTest')
       ..setUserId('@owner:p2p-im.com');
@@ -2228,7 +2256,8 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider
+              .overrideWithValue(_StaticBootstrapAsClient(bootstrap)),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -2243,7 +2272,92 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 42 &&
-            widget.imageUrl == 'https://as-cache.example.com/yanan.png',
+            widget.imageUrl == 'https://matrix.example.com/yanan.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('messages update contact avatar after Matrix member sync',
+      (tester) async {
+    final client = Client('PortalIMConversationAvatarSyncTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!owner:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan',
+      peerAvatarUrl: 'https://matrix.example.com/old.png',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 3, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'Yanan',
+          avatarUrl: 'https://as-cache.example.com/yanan.png',
+          roomId: '!owner:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider
+              .overrideWithValue(_StaticBootstrapAsClient(bootstrap)),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 42 &&
+            widget.imageUrl == 'https://matrix.example.com/old.png',
+      ),
+      findsOneWidget,
+    );
+
+    client.getRoomById('!owner:p2p-im.com')!.setState(
+          StrippedStateEvent(
+            type: EventTypes.RoomMember,
+            senderId: '@owner:p2p-liyanan.com',
+            stateKey: '@owner:p2p-liyanan.com',
+            content: const {
+              'membership': 'join',
+              'displayname': 'Yanan',
+              'avatar_url': 'https://matrix.example.com/new.png',
+            },
+          ),
+        );
+    await client.handleSync(SyncUpdate(nextBatch: 'after-avatar-change'));
+    await tester.pump();
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 42 &&
+            widget.imageUrl == 'https://matrix.example.com/new.png',
       ),
       findsOneWidget,
     );
@@ -2299,6 +2413,64 @@ void main() {
 
     expect(find.text('Yanan'), findsOneWidget);
     expect(find.byType(OnlineDot), findsNothing);
+  });
+
+  testWidgets('messages preview hides last event after room chat clear',
+      (tester) async {
+    const roomId = '!owner:p2p-im.com';
+    const peerMxid = '@owner:p2p-liyanan.com';
+    final client = Client('PortalIMConversationClearPreviewTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: peerMxid,
+      peerName: 'Yanan',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 3, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Yanan',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final clearAfterLastEvent =
+        room.lastEvent!.originServerTs.millisecondsSinceEpoch + 1;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(
+              bootstrap: bootstrap,
+              localRoomClearedBeforeTs: {roomId: clearAfterLastEvent},
+            ),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yanan'), findsOneWidget);
+    expect(find.text('friend flow accepted message'), findsNothing);
   });
 
   testWidgets('messages conversation avatar falls back to Matrix peer avatar',
@@ -2379,7 +2551,7 @@ void main() {
         AsSyncContact(
           userId: '@owner:p2p-liyanan.com',
           displayName: 'owner',
-          avatarUrl: '',
+          avatarUrl: 'https://cdn.example.com/pending-owner.png',
           roomId: '!pending:p2p-im.com',
           domain: 'p2p-liyanan.com',
           status: 'pending_outbound',
@@ -2432,7 +2604,7 @@ void main() {
         AsSyncContact(
           userId: '@owner:p2p-liyanan.com',
           displayName: 'owner',
-          avatarUrl: '',
+          avatarUrl: 'https://cdn.example.com/pending-owner.png',
           roomId: '!pending:p2p-im.com',
           domain: 'p2p-liyanan.com',
           status: 'pending_outbound',
@@ -3173,6 +3345,65 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
   });
 
+  testWidgets('chat info clear room history writes room clear boundary',
+      (tester) async {
+    const roomId = '!owner:p2p-im.com';
+    final client = Client('PortalIMChatInfoClearHistoryTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'owner',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 26, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final clearStore = _MemoryChatClearStateStore();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          chatClearStateStoreProvider.overrideWith((ref) async => clearStore),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatInfoPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('清空聊天记录'));
+    await tester.tap(find.text('清空聊天记录'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '清空'));
+    await tester.pumpAndSettle();
+
+    expect(clearStore.roomClearedBeforeTs[roomId], greaterThan(0));
+  });
+
   testWidgets('home starts app warmup on launch', (tester) async {
     const mockAuthEnabled = bool.fromEnvironment(
       'P2P_MATRIX_MOCK_AUTH',
@@ -3667,6 +3898,68 @@ void main() {
     expect(find.text('Jack'), findsNothing);
   });
 
+  testWidgets('contacts use Matrix member avatar when AS avatar is empty',
+      (tester) async {
+    final client = Client('PortalIMContactsMatrixAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-liyanan.com',
+      peerName: 'Alice',
+      peerAvatarUrl: 'https://matrix.example.com/alice.png',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 16, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('通讯录').last);
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 28 &&
+            widget.imageUrl == 'https://matrix.example.com/alice.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('contact action shortcuts match contact design', (tester) async {
     final client = Client('PortalIMTest');
 
@@ -3892,7 +4185,7 @@ void main() {
         AsSyncContact(
           userId: '@owner:p2p-liyanan.com',
           displayName: 'owner',
-          avatarUrl: '',
+          avatarUrl: 'https://cdn.example.com/pending-owner.png',
           roomId: '!pending:p2p-im.com',
           domain: 'p2p-liyanan.com',
           status: 'pending_outbound',
@@ -3909,6 +4202,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -3921,6 +4215,15 @@ void main() {
     expect(find.text('等待对方接受'), findsWidgets);
     expect(find.text('owner'), findsOneWidget);
     expect(find.textContaining('Group with'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 28 &&
+            widget.imageUrl == 'https://cdn.example.com/pending-owner.png',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('new friends search matches add friend Figma list style',
@@ -3952,6 +4255,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -3967,7 +4271,7 @@ void main() {
 
     expect(find.text('添加好友'), findsOneWidget);
     expect(find.text('owner', findRichText: true), findsOneWidget);
-    final requestsSearchRect = tester.getRect(find.byType(TextField));
+    final requestsSearchRect = tester.getRect(find.byType(M3SearchField));
     final requestsResultRect = tester
         .getRect(find.byKey(const ValueKey('requests_search_result_row')));
     expect(requestsResultRect.top - requestsSearchRect.bottom, 12);
@@ -4371,10 +4675,8 @@ void main() {
     final client = Client(
       'PortalIMAddContactTest',
       httpClient: MockClient((request) async {
-        expect(request.url.toString(),
-            'https://alice.portal.local/.well-known/portal/owner.json');
         return http.Response(
-          '{"matrix_user_id":"@alice:portal.local","display_name":"Alice Chen"}',
+          '{"matrix_user_id":"@alice:portal.local","display_name":"Alice Chen","avatar_url":"https://cdn.example.com/alice-search.png"}',
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
@@ -4423,12 +4725,25 @@ void main() {
     expect(find.text('添加好友'), findsOneWidget);
     expect(find.text('搜索'), findsOneWidget);
 
+    await tester.tap(find.byType(TextField));
     await tester.enterText(find.byType(TextField), 'Alice');
     await tester.pumpAndSettle();
 
-    expect(find.text('Alice Chen', findRichText: true), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is RichText && widget.text.toPlainText() == 'Alice Chen',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('@alice:portal.local'), findsOneWidget);
+    final searchAvatar = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 28)
+        .single;
+    expect(searchAvatar.imageUrl?.trim().isNotEmpty, isTrue);
     expect(find.text('添加'), findsNothing);
-    final addContactSearchRect = tester.getRect(find.byType(TextField));
+    final addContactSearchRect = tester.getRect(find.byType(M3SearchField));
     final addContactResultRect =
         tester.getRect(find.byKey(const ValueKey('add_contact_result_row')));
     expect(addContactResultRect.top - addContactSearchRect.bottom, 12);
@@ -4441,8 +4756,37 @@ void main() {
     expect(find.text('音频通话'), findsOneWidget);
     expect(find.text('视频通话'), findsOneWidget);
     expect(find.text('消息免打扰'), findsOneWidget);
-    expect(find.text('拉黑用户'), findsOneWidget);
+    expect(find.text('屏蔽用户'), findsOneWidget);
     expect(find.text('举报用户'), findsOneWidget);
+  });
+
+  testWidgets('add contact uses contacts-style background and search field',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final scaffold = tester.widget<Scaffold>(
+      find.byKey(const ValueKey('add_contact_scaffold')),
+    );
+    expect(scaffold.backgroundColor, PortalTokens.light.bg);
+
+    final searchMaterial = tester.widget<Material>(
+      find.descendant(
+        of: find.byType(M3SearchField),
+        matching: find.byType(Material),
+      ),
+    );
+    expect(searchMaterial.color, PortalTokens.light.surfaceHover);
   });
 
   testWidgets('add contact detail opens chat for accepted contact',
@@ -7422,6 +7766,162 @@ void main() {
     expect(copied?.text, 'portal.local');
   });
 
+  testWidgets('contact detail persists message mute toggle after re-entry',
+      (tester) async {
+    const roomId = '!contact-mute:p2p-im.com';
+    const peerMxid = '@alice:p2p-im.com';
+    final client = Client('PortalIMContactMuteTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: peerMxid,
+      peerName: 'Alice',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 16, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final store = _MemoryConversationPreferencesStore(
+      const ConversationPreferencesData(mutedConversationIds: {roomId}),
+    );
+
+    Future<void> pumpContactDetail() async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            matrixClientProvider.overrideWithValue(client),
+            authStateNotifierProvider
+                .overrideWith(_LoggedInAuthStateNotifier.new),
+            asSyncCacheProvider.overrideWith(
+              (ref) => AsSyncCacheState(bootstrap: bootstrap),
+            ),
+            conversationPreferencesStoreProvider.overrideWith(
+              (ref) async => store,
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: const ContactDetailPage(userId: peerMxid),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pumpContactDetail();
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    expect(store.data.mutedConversationIds, isNot(contains(roomId)));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await pumpContactDetail();
+
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+  });
+
+  testWidgets(
+      'contact detail uses Matrix member nickname when AS name is empty',
+      (tester) async {
+    final client = Client('PortalIMContactDetailMatrixNameTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-liyanan.com',
+      peerName: 'Alice 昵称',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 16, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: '',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactDetailPage(userId: '@alice:p2p-liyanan.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Alice 昵称'), findsOneWidget);
+    expect(find.text('alice'), findsNothing);
+  });
+
+  testWidgets('contact detail hides delete friend action for self',
+      (tester) async {
+    final client = Client('PortalIMContactDetailSelfTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith(
+            (ref) async => Profile(
+              userId: '@owner:p2p-im.com',
+              displayName: 'Owner',
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactDetailPage(userId: '@owner:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Owner'), findsOneWidget);
+    expect(find.text('删除好友'), findsNothing);
+  });
+
   testWidgets('contact detail updates remark without dialog disposal crash',
       (tester) async {
     final client = Client('PortalIMContactDetailRemarkTest')
@@ -8345,6 +8845,29 @@ void main() {
     expect(find.textContaining('评论了'), findsOneWidget);
   });
 
+  testWidgets('me comments page uses unified dark background', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_ChannelActivityAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const MeCommentsPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final scaffold = tester.widget<Scaffold>(
+      find.byKey(const ValueKey('me_comments_scaffold')),
+    );
+
+    expect(scaffold.backgroundColor, PortalTokens.dark.bg);
+    expect(find.text('我的评论'), findsOneWidget);
+  });
+
   testWidgets('me favorites treats text as chat record category',
       (tester) async {
     await tester.pumpWidget(
@@ -9041,6 +9564,111 @@ void main() {
     expect(find.text('Agent'), findsOneWidget);
     expect(find.text('离线'), findsOneWidget);
     expect(find.text('在线'), findsNothing);
+  });
+
+  testWidgets('private chat header shows peer offline and typing status',
+      (tester) async {
+    const roomId = '!peer-status:p2p-im.com';
+    const peerMxid = '@alice:p2p-im.com';
+    final client = Client('PortalIMPeerStatusTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: peerMxid,
+      peerName: 'Alice',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 16, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('离线'), findsNothing);
+    expect(find.text('在线'), findsNothing);
+
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-peer-online',
+        presence: [
+          Presence.fromJson(
+            const {
+              'type': 'm.presence',
+              'sender': peerMxid,
+              'content': {
+                'presence': 'online',
+                'currently_active': true,
+              },
+            },
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('在线'), findsOneWidget);
+    expect(find.text('离线'), findsNothing);
+
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-peer-typing',
+        rooms: RoomsUpdate(
+          join: {
+            roomId: JoinedRoomUpdate(
+              ephemeral: [
+                BasicRoomEvent(
+                  type: 'm.typing',
+                  content: const {
+                    'user_ids': [peerMxid],
+                  },
+                ),
+              ],
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('在想'), findsOneWidget);
+    expect(find.text('离线'), findsNothing);
+    await tester.pump(const Duration(seconds: 31));
   });
 
   testWidgets('private chat can forward a peer message from long press',

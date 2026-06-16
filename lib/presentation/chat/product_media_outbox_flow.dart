@@ -60,6 +60,8 @@ LocalOutboxDraft mediaOutboxDraftForAttachment(
             attachment.mimeType.isEmpty ? 'image/jpeg' : attachment.mimeType,
         bytes: attachment.bytes,
         thumbnailBytes: imageThumbnailBytes,
+        width: attachment.width,
+        height: attachment.height,
       ),
     ChatMediaKind.video => LocalOutboxDraft.media(
         messageKind: LocalOutboxMessageKind.video,

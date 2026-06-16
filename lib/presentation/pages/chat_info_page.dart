@@ -181,7 +181,22 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
         ],
       ),
     );
-    if (ok == true && context.mounted) Navigator.of(context).maybePop();
+    if (ok != true) return;
+    try {
+      await ref
+          .read(authStateNotifierProvider.notifier)
+          .clearRoomChatHistory(widget.roomId);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('聊天记录已清空')),
+      );
+      Navigator.of(context).maybePop();
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('清空聊天记录失败: $e')),
+      );
+    }
   }
 }
 

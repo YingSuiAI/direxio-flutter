@@ -10,10 +10,10 @@ import 'package:portal_app/data/p2p_api_client.dart';
 void main() {
   test('listChannels calls configured P2P channel endpoint', () async {
     final client = P2pApiClient(
-      baseUri: Uri.parse('http://192.168.1.104:8888'),
+      baseUri: Uri.parse('http://imadmin.direxio.ai/api'),
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/im/channel/list');
+        expect(request.url.path, '/api/im/channel/list');
         expect(request.url.queryParameters['page'], '1');
         expect(request.url.queryParameters['pageSize'], '20');
         expect(request.url.queryParameters['status'], '1');
@@ -297,7 +297,7 @@ void main() {
     const secret = 'secret';
     late http.Request seen;
     final client = P2pApiClient(
-      baseUri: Uri.parse('http://192.168.1.104:8888'),
+      baseUri: Uri.parse('http://imadmin.direxio.ai/api'),
       biSecret: secret,
       httpClient: MockClient((request) async {
         seen = request;
@@ -314,7 +314,7 @@ void main() {
     );
 
     expect(seen.method, 'POST');
-    expect(seen.url.path, '/bi/events/report');
+    expect(seen.url.path, '/api/bi/events/report');
     final nonce = seen.headers['X-BI-Nonce'];
     expect(nonce, isNotEmpty);
     final expected = md5.convert(
@@ -369,7 +369,7 @@ void main() {
 
   test('disabled BI analytics does not send network requests', () async {
     final client = P2pApiClient(
-      baseUri: Uri.parse('http://192.168.1.104:8888'),
+      baseUri: Uri.parse('http://imadmin.direxio.ai/api'),
       httpClient: MockClient((_) async {
         fail('BI should not send requests when disabled');
       }),

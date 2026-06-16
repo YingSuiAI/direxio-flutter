@@ -76,12 +76,16 @@ class ChatImageAttachmentPicker {
     final attachments = <ChatMediaAttachment>[];
     for (final image in images.take(cappedLimit)) {
       try {
+        final bytes = await image.readAsBytes();
+        final dimensions = await tryReadChatImageDimensions(bytes);
         attachments.add(
           ChatMediaAttachment.image(
             name: image.name,
-            bytes: await image.readAsBytes(),
+            bytes: bytes,
             mimeType: image.mimeType.isEmpty ? 'image/jpeg' : image.mimeType,
             original: original,
+            width: dimensions?.width ?? 0,
+            height: dimensions?.height ?? 0,
           ),
         );
       } on Object catch (error, stackTrace) {

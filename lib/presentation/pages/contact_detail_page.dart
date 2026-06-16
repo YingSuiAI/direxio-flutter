@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -15,6 +16,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/conversation_preferences_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/p2p_api_provider.dart';
 import '../utils/avatar_url.dart';
@@ -37,8 +39,23 @@ class ContactDetailPage extends ConsumerStatefulWidget {
 }
 
 class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
-  bool _muted = true;
   bool _blocking = false;
+  StreamSubscription<SyncUpdate>? _syncSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSub = ref.read(matrixClientProvider).onSync.stream.listen((_) {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,25 +96,30 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final domain = userId.contains(':') ? userId.split(':').last : userId;
     final uidDomain = _contactDomain(userId, acceptedContact?.domain);
     final currentProfileName = currentUserProfile?.displayName?.trim();
+    final peerMember = room?.unsafeGetUserFromMemoryOrFallback(userId);
     final displayName = contactDisplayNameFromIdentity(
       mxid: userId,
       displayName: isSelf && currentProfileName?.isNotEmpty == true
           ? currentProfileName!
-          : acceptedContact?.displayName ??
-              room?.getLocalizedDisplayname() ??
-              mock?.name ??
-              '',
+          : _firstNonEmpty([
+              acceptedContact?.displayName,
+              peerMember?.calcDisplayname(),
+              room?.getLocalizedDisplayname(),
+              mock?.name,
+            ]),
       domain: acceptedContact?.domain ?? domain,
       fallback: mock?.name ?? userId,
     );
-    final peerMember = room?.unsafeGetUserFromMemoryOrFallback(userId);
     final avatarUrl = isSelf
         ? profileAvatarHttpUrl(currentUserProfile, client) ?? MockAvatars.me
-        : avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
-            (room == null
+        : (room == null
                 ? mock?.avatarUrl
-                : matrixContentHttpUrl(client, peerMember?.avatarUrl));
+                : matrixContentHttpUrl(client, peerMember?.avatarUrl)) ??
+            avatarHttpUrl(client, acceptedContact?.avatarUrl);
     final roomId = room?.id ?? mock?.id;
+    final preferenceKey = roomId ?? userId;
+    final mutedConversationIds = ref.watch(mutedConversationIdsProvider);
+    final muted = mutedConversationIds.contains(preferenceKey);
     final hideChatAvatarEntries = widget.fromChatAvatar;
 
     return Scaffold(
@@ -183,8 +205,12 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                       const SizedBox(height: 16),
                       _ContactSwitchRow(
                         label: '消息免打扰',
-                        value: _muted,
-                        onChanged: (value) => setState(() => _muted = value),
+                        value: muted,
+                        onChanged: (value) => setConversationMuted(
+                          ref,
+                          preferenceKey,
+                          value,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       _ContactSettingRow(
@@ -206,11 +232,12 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                 ),
               ),
             ),
-            _DeleteFriendButton(
-              onTap: room == null
-                  ? () => _toast(context, '删除好友失败: 缺少联系人房间信息')
-                  : () => _confirmDeleteContact(context, room.id),
-            ),
+            if (!isSelf)
+              _DeleteFriendButton(
+                onTap: room == null
+                    ? () => _toast(context, '删除好友失败: 缺少联系人房间信息')
+                    : () => _confirmDeleteContact(context, room.id),
+              ),
           ],
         ),
       ),
@@ -1167,6 +1194,14 @@ String _contactDomain(String userId, String? domain) {
     return userId.substring(idx + 1);
   }
   return userId;
+}
+
+String _firstNonEmpty(Iterable<String?> values) {
+  for (final value in values) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isNotEmpty) return trimmed;
+  }
+  return '';
 }
 
 String _roleBadge(String? domain) {

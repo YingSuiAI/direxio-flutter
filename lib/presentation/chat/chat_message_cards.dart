@@ -13,7 +13,87 @@ const chatMessageCardMaxWidthFactor = 0.77;
 const chatMessageBubbleRadius = BorderRadius.all(Radius.circular(24));
 const chatMessageMediaWidth = 220.0;
 const chatMessageMediaHeight = 160.0;
+const chatMessageImageMediaWidth = 200.0;
+const chatMessageImageMediaHeight = 145.0;
+const chatMessageMediaMaxWidth = 200.0;
+const chatMessageMediaMaxHeight = 250.0;
+const chatMessageMediaMinSide = 110.0;
 const chatMessageCompactCardWidth = chatMessageCardWidth;
+
+class ChatMediaBubbleSize {
+  const ChatMediaBubbleSize({
+    required this.width,
+    required this.height,
+  });
+
+  final double width;
+  final double height;
+}
+
+const chatMessageDefaultMediaSize = ChatMediaBubbleSize(
+  width: chatMessageMediaWidth,
+  height: chatMessageMediaHeight,
+);
+
+const chatMessageDefaultImageMediaSize = ChatMediaBubbleSize(
+  width: chatMessageImageMediaWidth,
+  height: chatMessageImageMediaHeight,
+);
+
+ChatMediaBubbleSize chatMediaBubbleSizeFor({
+  required int width,
+  required int height,
+}) {
+  if (width <= 0 || height <= 0) return chatMessageDefaultImageMediaSize;
+  final aspect = width / height;
+  if (!aspect.isFinite || aspect <= 0) return chatMessageDefaultImageMediaSize;
+  if (aspect >= 1) {
+    return ChatMediaBubbleSize(
+      width: chatMessageMediaMaxWidth,
+      height: (chatMessageMediaMaxWidth / aspect).clamp(
+        chatMessageMediaMinSide,
+        chatMessageMediaMaxWidth,
+      ),
+    );
+  }
+  return ChatMediaBubbleSize(
+    width: (chatMessageMediaMaxHeight * aspect).clamp(
+      chatMessageMediaMinSide,
+      chatMessageMediaMaxWidth,
+    ),
+    height: chatMessageMediaMaxHeight,
+  );
+}
+
+ChatMediaBubbleSize chatMediaBubbleSizeForEvent(Event event) {
+  final info = event.infoMap;
+  final width = _intValue(info['w'] ?? info['width']);
+  final height = _intValue(info['h'] ?? info['height']);
+  if (width > 0 && height > 0) {
+    return chatMediaBubbleSizeFor(width: width, height: height);
+  }
+  final thumbnailInfo = info['thumbnail_info'];
+  if (thumbnailInfo is Map) {
+    final thumbnailWidth =
+        _intValue(thumbnailInfo['w'] ?? thumbnailInfo['width']);
+    final thumbnailHeight =
+        _intValue(thumbnailInfo['h'] ?? thumbnailInfo['height']);
+    if (thumbnailWidth > 0 && thumbnailHeight > 0) {
+      return chatMediaBubbleSizeFor(
+        width: thumbnailWidth,
+        height: thumbnailHeight,
+      );
+    }
+  }
+  return chatMessageDefaultImageMediaSize;
+}
+
+int _intValue(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
+}
 
 BorderRadius chatDirectionalBubbleRadius(bool isMe) {
   return isMe
@@ -64,7 +144,10 @@ class ChatMediaBubbleFrame extends StatelessWidget {
       height: height,
       child: ClipRRect(
         borderRadius: chatMessageBubbleRadius,
-        child: SizedBox.expand(child: child),
+        child: ColoredBox(
+          color: context.tk.surfaceHigh,
+          child: SizedBox.expand(child: child),
+        ),
       ),
     );
   }

@@ -29,6 +29,8 @@ final messageSoundControllerProvider = Provider<void>((ref) {
       (!preferences.messageSound && !preferences.messageVibration)) {
     return;
   }
+  final auth = ref.watch(authStateNotifierProvider).valueOrNull;
+  if (auth?.isLoggedIn != true) return;
   final client = ref.watch(matrixClientProvider);
   if (!client.isLogged()) return;
 

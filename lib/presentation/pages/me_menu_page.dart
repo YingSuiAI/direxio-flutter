@@ -336,7 +336,7 @@ class _MeLikesPageState extends ConsumerState<MeLikesPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: t.bg,
       body: Column(
         children: [
           GlassHeader.detail(title: '我的点赞'),
@@ -415,7 +415,8 @@ class _MeCommentsPageState extends ConsumerState<MeCommentsPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      key: const ValueKey('me_comments_scaffold'),
+      backgroundColor: t.bg,
       body: Column(
         children: [
           GlassHeader.detail(title: '我的评论'),

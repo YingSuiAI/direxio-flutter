@@ -60,7 +60,7 @@ const double _chatBottomChromeClearance = 76;
 const double _chatReplyBarClearance = 54;
 const double _chatSelectionBarClearance = 64;
 const double _chatBottomPanelClearance = 268;
-const double chatEmojiPanelDefaultHeight = 268;
+const double chatEmojiPanelDefaultHeight = 320;
 
 const double _composerButtonSize = 40;
 const double _composerFieldHeight = 40;
@@ -1171,12 +1171,12 @@ class ChatEmojiPanel extends StatelessWidget {
     final t = context.tk;
     return SizedBox(
       height: height,
-      child: _BlurSurface(
-        color: t.surface.withValues(alpha: 0.62),
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: t.surface),
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
             child: GridView.count(
               physics: const BouncingScrollPhysics(),
               crossAxisCount: 8,

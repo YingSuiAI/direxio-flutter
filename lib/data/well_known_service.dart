@@ -25,12 +25,34 @@ class PortalOwner {
   final String avatarUrl;
 
   factory PortalOwner.fromJson(Map<String, dynamic> json) => PortalOwner(
-        matrixUserId: json['matrix_user_id'] as String,
-        displayName: (json['display_name'] as String?) ?? '',
-        avatarUrl: (json['avatar_url'] as String?) ??
-            (json['avatarUrl'] as String?) ??
-            '',
+        matrixUserId: _firstString(json, const [
+          'matrix_user_id',
+          'mxid',
+          'user_id',
+          'userId',
+        ]),
+        displayName: _firstString(json, const [
+          'display_name',
+          'displayName',
+          'name',
+          'nickname',
+          'nick_name',
+        ]),
+        avatarUrl: _firstString(json, const [
+          'avatar_url',
+          'avatarUrl',
+          'avatar',
+          'avatar_mxc',
+        ]),
       );
+}
+
+String _firstString(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is String && value.trim().isNotEmpty) return value.trim();
+  }
+  return '';
 }
 
 //// Portal 部署状态

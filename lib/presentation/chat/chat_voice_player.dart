@@ -37,27 +37,31 @@ class ChatVoicePlaybackState {
 
 class ChatVoicePlayer {
   ChatVoicePlayer() {
-    _player.onLog.listen((message) {
+    _logSub = _player.onLog.listen((message) {
       debugPrint('chat voice player log: $message');
     });
-    _player.onPlayerStateChanged.listen((state) {
+    _stateSub = _player.onPlayerStateChanged.listen((state) {
+      if (_disposed) return;
       debugPrint('chat voice player state: $state');
       final playing = state == PlayerState.playing;
       if (state == PlayerState.stopped || state == PlayerState.completed) {
-        playback.value = const ChatVoicePlaybackState();
+        _setPlayback(const ChatVoicePlaybackState());
         return;
       }
-      playback.value = playback.value.copyWith(playing: playing);
+      _setPlayback(playback.value.copyWith(playing: playing));
     });
-    _player.onPlayerComplete.listen((_) {
+    _completeSub = _player.onPlayerComplete.listen((_) {
+      if (_disposed) return;
       debugPrint('chat voice player complete');
-      playback.value = const ChatVoicePlaybackState();
+      _setPlayback(const ChatVoicePlaybackState());
     });
-    _player.onDurationChanged.listen((duration) {
-      playback.value = playback.value.copyWith(duration: duration);
+    _durationSub = _player.onDurationChanged.listen((duration) {
+      if (_disposed) return;
+      _setPlayback(playback.value.copyWith(duration: duration));
     });
-    _player.onPositionChanged.listen((position) {
-      playback.value = playback.value.copyWith(position: position);
+    _positionSub = _player.onPositionChanged.listen((position) {
+      if (_disposed) return;
+      _setPlayback(playback.value.copyWith(position: position));
     });
   }
 
@@ -65,6 +69,12 @@ class ChatVoicePlayer {
   final ValueNotifier<ChatVoicePlaybackState> playback =
       ValueNotifier<ChatVoicePlaybackState>(const ChatVoicePlaybackState());
   Timer? _lowLatencyStopTimer;
+  late final StreamSubscription<String> _logSub;
+  late final StreamSubscription<PlayerState> _stateSub;
+  late final StreamSubscription<void> _completeSub;
+  late final StreamSubscription<Duration> _durationSub;
+  late final StreamSubscription<Duration> _positionSub;
+  bool _disposed = false;
 
   Future<void> play(
     File file, {
@@ -88,6 +98,7 @@ class ChatVoicePlayer {
     required PlayerMode mode,
     String? messageId,
   }) async {
+    if (_disposed) return;
     if (messageId != null &&
         playback.value.messageId == messageId &&
         playback.value.playing) {
@@ -96,19 +107,23 @@ class ChatVoicePlayer {
     }
     _lowLatencyStopTimer?.cancel();
     await _player.stop();
-    playback.value = ChatVoicePlaybackState(messageId: messageId);
+    if (_disposed) return;
+    _setPlayback(ChatVoicePlaybackState(messageId: messageId));
     await _player.setReleaseMode(ReleaseMode.stop);
+    if (_disposed) return;
     await _player.setVolume(1);
+    if (_disposed) return;
     await _player.play(
       source,
       mode: mode,
       ctx: _voiceAudioContext,
     );
+    if (_disposed) return;
     try {
       final duration = await _player.getDuration();
       debugPrint('chat voice player duration: ${duration?.inMilliseconds}ms');
-      if (duration != null) {
-        playback.value = playback.value.copyWith(duration: duration);
+      if (!_disposed && duration != null) {
+        _setPlayback(playback.value.copyWith(duration: duration));
       }
     } on Object catch (err) {
       debugPrint('chat voice duration unavailable: $err');
@@ -138,22 +153,39 @@ class ChatVoicePlayer {
   }
 
   Future<void> seek(Duration position) async {
+    if (_disposed) return;
     final target = position < Duration.zero ? Duration.zero : position;
     await _player.seek(target);
+    if (_disposed) return;
     await _player.resume();
-    playback.value = playback.value.copyWith(position: target, playing: true);
+    if (_disposed) return;
+    _setPlayback(playback.value.copyWith(position: target, playing: true));
   }
 
   Future<void> stop() async {
     _lowLatencyStopTimer?.cancel();
+    if (_disposed) return;
     await _player.stop();
-    playback.value = const ChatVoicePlaybackState();
+    if (_disposed) return;
+    _setPlayback(const ChatVoicePlaybackState());
   }
 
   Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
     _lowLatencyStopTimer?.cancel();
-    playback.dispose();
+    await _logSub.cancel();
+    await _stateSub.cancel();
+    await _completeSub.cancel();
+    await _durationSub.cancel();
+    await _positionSub.cancel();
     await _player.dispose();
+    playback.dispose();
+  }
+
+  void _setPlayback(ChatVoicePlaybackState state) {
+    if (_disposed) return;
+    playback.value = state;
   }
 }
 

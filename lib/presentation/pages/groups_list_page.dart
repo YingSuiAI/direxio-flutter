@@ -8,10 +8,12 @@ import '../../core/theme/design_tokens.dart';
 import '../mock/mock_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/conversation_preferences_provider.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
-import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_search_field.dart';
+
+const _groupsToolbarHeight = 62.0;
 
 const _mockAuthEnabled = bool.fromEnvironment(
   'P2P_MATRIX_MOCK_AUTH',
@@ -39,6 +41,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
         ref.watch(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
     final useMockGroups = _mockAuthEnabled || !isLoggedIn;
     final syncCache = ref.watch(asSyncCacheProvider);
+    final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
 
     final items = <_GroupItem>[];
     if (!useMockGroups) {
@@ -57,9 +60,11 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
         items.add(
           _GroupItem(
             id: roomId,
-            name: group.name.trim().isNotEmpty
-                ? group.name.trim()
-                : room?.getLocalizedDisplayname() ?? '群聊',
+            name: (groupRemarkNames[roomId]?.trim().isNotEmpty ?? false)
+                ? groupRemarkNames[roomId]!.trim()
+                : group.name.trim().isNotEmpty
+                    ? group.name.trim()
+                    : room?.getLocalizedDisplayname() ?? '群聊',
             preview: lastEvent == null
                 ? _previewText(group.topic)
                 : roomEventPreviewText(lastEvent, isAgent: false),
@@ -99,21 +104,16 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
             .toList();
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: t.bg,
       body: Column(
         children: [
-          GlassHeader.detail(
+          _GroupsToolbar(
             title: '群聊',
-            actions: [
-              GlassHeaderButton(
-                icon: Symbols.group_add,
-                color: t.accent,
-                onTap: () => showCreateGroupFlow(context, ref),
-              ),
-            ],
+            onBack: () => Navigator.of(context).maybePop(),
+            onCreate: () => showCreateGroupFlow(context, ref),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: _SearchBar(onChanged: (v) => setState(() => _query = v)),
           ),
           Expanded(
@@ -143,6 +143,101 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return M3SearchField(hint: '搜索群聊', onChanged: onChanged);
+  }
+}
+
+class _GroupsToolbar extends StatelessWidget {
+  const _GroupsToolbar({
+    required this.title,
+    required this.onBack,
+    required this.onCreate,
+  });
+
+  final String title;
+  final VoidCallback onBack;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: _groupsToolbarHeight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _GroupsHeaderButton(
+                  icon: Symbols.arrow_back,
+                  onTap: onBack,
+                ),
+              ),
+              Text(
+                title,
+                style: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ).copyWith(letterSpacing: 0),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _GroupsHeaderButton(
+                  icon: Symbols.group_add,
+                  color: t.accent,
+                  onTap: onCreate,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupsHeaderButton extends StatelessWidget {
+  const _GroupsHeaderButton({
+    required this.icon,
+    required this.onTap,
+    this.color,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: t.text.withValues(alpha: 0.08),
+            blurRadius: 36,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: Material(
+          color: t.surface.withValues(alpha: 0.72),
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox.square(
+              dimension: 40,
+              child: Icon(icon, size: 24, color: color ?? t.text),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -319,20 +414,11 @@ class _GroupAvatar extends StatelessWidget {
   const _GroupAvatar({required this.name});
   final String name;
 
-  // 与 group_detail_page 头像 strip 一致的色板。
-  static const _palette = <Color>[
-    Color(0xFF3097CB),
-    Color(0xFFFF9500),
-    Color(0xFFA8DAB5),
-    Color(0xFF5856D6),
-    Color(0xFF5AC8FA),
-    Color(0xFFBA1A1A),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final i = name.hashCode.abs() % _palette.length;
-    final bg = _palette[i];
+    final t = context.tk;
+    final colors = [t.accent, t.primaryContainer, t.accentCool, t.danger];
+    final bg = colors[name.hashCode.abs() % colors.length];
     return Container(
       width: 48,
       height: 48,

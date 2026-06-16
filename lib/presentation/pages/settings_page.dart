@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../../l10n/app_localizations.dart';
 import '../providers/app_locale_provider.dart';
 import '../providers/app_theme_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/message_notification_preferences_provider.dart';
 
 /// Settings page matching the TokLink settings design.
 class SettingsPage extends ConsumerStatefulWidget {
@@ -21,9 +23,53 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  bool _dnd = true;
-  bool _messageSound = true;
-  bool _messageVibration = true;
+  bool _clearingChats = false;
+
+  Future<void> _clearChatHistory() async {
+    if (_clearingChats) return;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n?.settingsClearChats ?? '清空聊天记录'),
+        content: const Text('将清空本机聊天记录、未读恢复和媒体缩略图缓存。服务器上的消息不会被删除。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n?.commonCancel ?? '取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              l10n?.settingsClearChats ?? '清空聊天记录',
+              style: TextStyle(color: context.tk.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _clearingChats = true);
+    try {
+      await ref.read(authStateNotifierProvider.notifier).clearChatHistory();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('聊天记录已清空')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('清空聊天记录失败，请稍后重试')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _clearingChats = false);
+      }
+    }
+  }
 
   Future<void> _logout() async {
     final l10n = Localizations.of<AppLocalizations>(
@@ -156,6 +202,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     final localeMode = ref.watch(appLocaleProvider).mode;
     final themeMode = ref.watch(appThemeProvider);
+    final notificationPrefs = ref.watch(messageNotificationPreferencesProvider);
+    final notificationPrefsNotifier =
+        ref.read(messageNotificationPreferencesProvider.notifier);
     return Scaffold(
       backgroundColor: t.surfaceHover,
       body: SafeArea(
@@ -191,11 +240,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       title: l10n?.settingsPrivacySecurity ?? '隐私与安全',
                       rows: [
                         _SettingsRow(
-                          icon: Symbols.person_remove,
-                          label: l10n?.settingsBlacklist ?? '通讯录黑名单',
-                          onTap: () => context.push('/settings/blacklist'),
-                        ),
-                        _SettingsRow(
                           icon: Symbols.key,
                           label: l10n?.settingsChangePassword ?? '修改密码',
                           onTap: () => context.push('/me/account/password'),
@@ -209,21 +253,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         _SettingsSwitchRow(
                           icon: Symbols.do_not_disturb_on,
                           label: l10n?.settingsDoNotDisturb ?? '勿扰模式',
-                          value: _dnd,
-                          onChanged: (v) => setState(() => _dnd = v),
+                          value: notificationPrefs.doNotDisturb,
+                          onChanged: (v) => unawaited(
+                            notificationPrefsNotifier.setDoNotDisturb(v),
+                          ),
                         ),
                         _SettingsSwitchRow(
                           icon: Symbols.notifications,
                           label: l10n?.settingsMessageSound ?? '新消息提示音',
-                          value: _messageSound,
-                          onChanged: (v) => setState(() => _messageSound = v),
+                          value: notificationPrefs.messageSound,
+                          onChanged: (v) => unawaited(
+                            notificationPrefsNotifier.setMessageSound(v),
+                          ),
                         ),
                         _SettingsSwitchRow(
                           icon: Symbols.vibration,
                           label: l10n?.settingsMessageVibration ?? '新消息震动',
-                          value: _messageVibration,
-                          onChanged: (v) =>
-                              setState(() => _messageVibration = v),
+                          value: notificationPrefs.messageVibration,
+                          onChanged: (v) => unawaited(
+                            notificationPrefsNotifier.setMessageVibration(v),
+                          ),
                         ),
                       ],
                     ),
@@ -238,8 +287,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         ),
                         _SettingsRow(
                           icon: Symbols.delete,
-                          label: l10n?.settingsClearChats ?? '清空聊天记录',
-                          onTap: () {},
+                          label: _clearingChats
+                              ? '正在清空...'
+                              : l10n?.settingsClearChats ?? '清空聊天记录',
+                          onTap: _clearChatHistory,
                         ),
                       ],
                     ),

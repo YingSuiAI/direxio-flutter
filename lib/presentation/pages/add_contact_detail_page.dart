@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
 import '../mock/mock_data.dart';
+import '../providers/as_sync_cache_provider.dart';
 import '../utils/contact_identity_label.dart';
 import '../widgets/portal_avatar.dart';
 
@@ -40,12 +41,24 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
     );
   }
 
+  void _openAcceptedChat(String roomId) {
+    final trimmed = roomId.trim();
+    if (trimmed.isEmpty) {
+      _toast(context, '打开聊天失败: 缺少会话信息');
+      return;
+    }
+    context.go('/chat/${Uri.encodeComponent(trimmed)}');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final acceptedContact =
+        ref.watch(asSyncCacheProvider).acceptedContactForUserId(widget.userId);
+    final isAcceptedContact = acceptedContact != null;
     final profile = _profileForAddContact(
       widget.userId,
-      widget.displayName,
-      avatarUrl: widget.avatarUrl,
+      acceptedContact?.displayName ?? widget.displayName,
+      avatarUrl: acceptedContact?.avatarUrl ?? widget.avatarUrl,
     );
     final t = context.tk;
     final l10n = AppLocalizations.of(context);
@@ -74,8 +87,9 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
                     _ProfileHeader(profile: profile),
                     const SizedBox(height: 24),
                     _DetailActionRow(
-                      onMessage: () =>
-                          _toast(context, l10n.addContactMessageAfterAdding),
+                      onMessage: isAcceptedContact
+                          ? () => _openAcceptedChat(acceptedContact.roomId)
+                          : _openVerification,
                       onVoice: () =>
                           _toast(context, l10n.addContactVoiceAfterAdding),
                       onVideo: () =>
@@ -103,7 +117,12 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
               ),
             ),
             _ApplyFriendButton(
-              onTap: _openVerification,
+              label: !isAcceptedContact
+                  ? l10n.contactApplyFriend
+                  : l10n.contactSendMessage,
+              onTap: !isAcceptedContact
+                  ? _openVerification
+                  : () => _openAcceptedChat(acceptedContact.roomId),
             ),
           ],
         ),
@@ -431,9 +450,11 @@ class _DetailNavigationRow extends StatelessWidget {
 
 class _ApplyFriendButton extends StatelessWidget {
   const _ApplyFriendButton({
+    required this.label,
     required this.onTap,
   });
 
+  final String label;
   final VoidCallback onTap;
 
   @override
@@ -455,7 +476,7 @@ class _ApplyFriendButton extends StatelessWidget {
               ),
             ),
             child: Text(
-              AppLocalizations.of(context).contactApplyFriend,
+              label,
               style: AppTheme.sans(
                 size: 14,
                 weight: FontWeight.w500,

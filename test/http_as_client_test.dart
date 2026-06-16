@@ -66,7 +66,7 @@ void main() {
     expect(results.single.content, 'hello world');
   });
 
-  test('updateOwnerProfile persists display name through AS', () async {
+  test('updateOwnerProfile persists profile fields through AS', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),
       portalToken: 'portal-token',
@@ -74,12 +74,24 @@ void main() {
         expect(request.method, 'PUT');
         expect(request.url.path, '/_as/profile');
         expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(jsonDecode(request.body), {'display_name': '破局'});
+        expect(jsonDecode(request.body), {
+          'display_name': '破局',
+          'avatar_url': 'mxc://p2p-im.com/avatar',
+          'gender': 'female',
+          'birthday': '1990-01-02',
+          'phone': '13800000000',
+          'email': 'alice@example.com',
+        });
         return http.Response(
           jsonEncode({
             'user_id': '@owner:p2p-im.com',
             'display_name': '破局',
             'domain': 'p2p-im.com',
+            'avatar_url': 'mxc://p2p-im.com/avatar',
+            'gender': 'female',
+            'birthday': '1990-01-02',
+            'phone': '13800000000',
+            'email': 'alice@example.com',
           }),
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
@@ -87,11 +99,23 @@ void main() {
       }),
     );
 
-    final profile = await client.updateOwnerProfile(displayName: '  破局  ');
+    final profile = await client.updateOwnerProfile(
+      displayName: '  破局  ',
+      avatarUrl: ' mxc://p2p-im.com/avatar ',
+      gender: ' female ',
+      birthday: ' 1990-01-02 ',
+      phone: ' 13800000000 ',
+      email: ' alice@example.com ',
+    );
 
     expect(profile.userId, '@owner:p2p-im.com');
     expect(profile.displayName, '破局');
     expect(profile.domain, 'p2p-im.com');
+    expect(profile.avatarUrl, 'mxc://p2p-im.com/avatar');
+    expect(profile.gender, 'female');
+    expect(profile.birthday, '1990-01-02');
+    expect(profile.phone, '13800000000');
+    expect(profile.email, 'alice@example.com');
   });
 
   test(
@@ -245,6 +269,41 @@ void main() {
       '!alice:p2p-im.com',
       'hello',
       replyToEventId: r'$quoted',
+    );
+
+    expect(eventId, r'$sent');
+  });
+
+  test('sendRoomMessage posts mention metadata when present', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/rooms/!group%3Ap2p-im.com/send');
+        expect(jsonDecode(request.body), {
+          'content': '@Alice hello',
+          'message_type': 'at_text',
+          'mentions': [
+            {
+              'user_id': '@alice:p2p-im.com',
+              'display_name': 'Alice',
+            },
+          ],
+        });
+        return http.Response(jsonEncode({'event_id': r'$sent'}), 200);
+      }),
+    );
+
+    final eventId = await client.sendRoomMessage(
+      '!group:p2p-im.com',
+      '@Alice hello',
+      mentions: const [
+        {
+          'user_id': '@alice:p2p-im.com',
+          'display_name': 'Alice',
+        },
+      ],
     );
 
     expect(eventId, r'$sent');
@@ -1145,7 +1204,7 @@ void main() {
     expect(status.allHealthy, isTrue);
   });
 
-  test('changePortalPassword posts token payload to AS admin API', () async {
+  test('changePortalPassword posts password payload to AS admin API', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
       portalToken: 'admin-token',
@@ -1155,17 +1214,13 @@ void main() {
         expect(request.url.path, '/_as/portal/password');
         expect(request.headers['Authorization'], 'Bearer admin-token');
         expect(jsonDecode(request.body), {
-          'admin_access_token': 'admin-token',
-          'matrix_access_token': 'matrix-token',
-          'password': '22222222',
+          'old_password': '11111111',
+          'new_password': '22222222',
         });
         return http.Response(
           jsonEncode({
             'matrix_access_token': 'new-matrix-token',
             'admin_access_token': 'new-admin-token',
-            'user_id': '@owner:example.com',
-            'homeserver': 'https://example.com',
-            'device_id': 'DEVICE2',
           }),
           200,
         );
@@ -1179,7 +1234,8 @@ void main() {
 
     expect(session.matrixAccessToken, 'new-matrix-token');
     expect(session.adminAccessToken, 'new-admin-token');
-    expect(session.deviceId, 'DEVICE2');
+    expect(session.userId, isEmpty);
+    expect(session.homeserver, isEmpty);
   });
 
   test('createChannel posts channel metadata to AS admin API', () async {

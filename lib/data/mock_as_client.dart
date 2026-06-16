@@ -41,12 +41,24 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<OwnerProfile> updateOwnerProfile({required String displayName}) async {
+  Future<OwnerProfile> updateOwnerProfile({
+    required String displayName,
+    String avatarUrl = '',
+    String gender = '',
+    String birthday = '',
+    String phone = '',
+    String email = '',
+  }) async {
     await Future.delayed(_latency);
     _ownerProfile = OwnerProfile(
       userId: _ownerProfile.userId,
       displayName: displayName.trim(),
       domain: _ownerProfile.domain,
+      avatarUrl: avatarUrl.trim(),
+      gender: gender.trim(),
+      birthday: birthday.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
     );
     return _ownerProfile;
   }
@@ -290,6 +302,7 @@ class MockAsClient implements AsClient {
     String roomId,
     String content, {
     String? replyToEventId,
+    List<Map<String, String>> mentions = const [],
   }) async {
     await Future.delayed(_latency);
     return 'mock-event';

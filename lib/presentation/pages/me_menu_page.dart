@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -16,60 +15,12 @@ import '../chat/chat_record_forwarding.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
-import '../utils/chat_file_actions.dart';
-import '../widgets/async_image_preview.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_search_field.dart';
 
 const double _favoritePreviewSize = 62;
 const _favoriteConversationFilter = 'conversation';
-const _favoriteFileActionsChannel = MethodChannel('p2p_im/file_actions');
-
-final favoriteNativePreviewerProvider = Provider<FavoriteNativePreviewer>(
-  (ref) => FavoriteNativePreviewer(),
-);
-
-class FavoriteNativePreviewer {
-  final Map<String, Future<File>> _files = {};
-
-  Future<void> open(WidgetRef ref, AsFavoriteMessage favorite) async {
-    final file = await _materializedFile(ref, favorite);
-    await _favoriteFileActionsChannel.invokeMethod<void>(
-      'previewFile',
-      {'path': file.path},
-    );
-  }
-
-  Future<File> _materializedFile(
-    WidgetRef ref,
-    AsFavoriteMessage favorite,
-  ) async {
-    final key = '${favorite.url}|${_favoriteOpenFileName(favorite)}';
-    final cached = _files[key];
-    if (cached != null) {
-      final file = await cached;
-      if (await file.exists()) return file;
-      _files.remove(key);
-    }
-
-    final future = _downloadFavoriteMediaBytes(ref, favorite).then(
-      (bytes) => writeChatActionFile(
-        directory: Directory('${Directory.systemTemp.path}/p2p-im-open'),
-        fileName: _favoriteOpenFileName(favorite),
-        bytes: bytes,
-      ),
-    );
-    _files[key] = future;
-    future.then<void>(
-      (_) {},
-      onError: (_, __) {
-        _files.remove(key);
-      },
-    );
-    return future;
-  }
-}
 
 class MeMenuPage extends StatelessWidget {
   const MeMenuPage({super.key});
@@ -175,20 +126,10 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
   }
 
   Future<void> _handleFavoriteTap(AsFavoriteMessage favorite) async {
-    if (favorite.messageType == 'image') {
-      await _openFavoriteImage(favorite);
-      return;
-    }
-    if (favorite.messageType == 'video' ||
-        favorite.messageType == 'file' ||
-        favorite.messageType == 'audio') {
-      await _openFavoriteNativePreview(favorite);
-      return;
-    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ChatRecordDetailPage(
-          pageTitle: '消息详情',
+          pageTitle: '收藏详情',
           payload: _favoriteMessagePayload(favorite),
         ),
       ),
@@ -293,36 +234,6 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
         SnackBar(content: Text('删除收藏失败：$err')),
       );
       return false;
-    }
-  }
-
-  Future<void> _openFavoriteImage(AsFavoriteMessage favorite) {
-    return showAsyncImagePreview(
-      context,
-      loadPreviewProvider: favorite.thumbnailUrl.trim().isEmpty
-          ? null
-          : () async => MemoryImage(
-                await _downloadFavoriteMediaBytes(
-                  ref,
-                  favorite,
-                  thumbnail: true,
-                ),
-              ),
-      loadProvider: () async => MemoryImage(
-        await _downloadFavoriteMediaBytes(ref, favorite),
-      ),
-      meta: _favoriteSourceLabel(favorite),
-    );
-  }
-
-  Future<void> _openFavoriteNativePreview(AsFavoriteMessage favorite) async {
-    try {
-      await ref.read(favoriteNativePreviewerProvider).open(ref, favorite);
-    } on Object catch (err) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('打开失败：$err')),
-      );
     }
   }
 
@@ -1304,7 +1215,7 @@ ChatRecordPayload _favoriteMessagePayload(AsFavoriteMessage favorite) {
     sourceRoomType:
         favorite.roomType.trim().isEmpty ? 'direct' : favorite.roomType.trim(),
     title: title,
-    body: '消息详情\n$title\n共 1 条消息',
+    body: '收藏详情\n$title\n共 1 条消息',
     itemCount: 1,
     items: [
       {
@@ -1335,19 +1246,6 @@ String _favoriteMessageBody(AsFavoriteMessage favorite) {
   if (favorite.body.trim().isNotEmpty) return favorite.body.trim();
   if (favorite.url.trim().isNotEmpty) return favorite.url.trim();
   return _favoriteTypeLabel(favorite.messageType);
-}
-
-String _favoriteOpenFileName(AsFavoriteMessage favorite) {
-  final filename = favorite.filename.trim();
-  if (filename.isNotEmpty) return filename;
-  final body = favorite.body.trim();
-  if (body.isNotEmpty) return body;
-  return switch (favorite.messageType) {
-    'video' => 'video.mov',
-    'image' => 'image.jpg',
-    'audio' => 'audio',
-    _ => 'file',
-  };
 }
 
 String _favoriteMatrixMessageType(String type) {

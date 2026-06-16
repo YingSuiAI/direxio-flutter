@@ -1,5 +1,6 @@
 import Flutter
 import AVFoundation
+import Photos
 import PhotosUI
 import QuickLook
 import UIKit
@@ -10,9 +11,13 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
   private static let maxSelectionLimit = 9
   private static let compressedMaxDimension: CGFloat = 1600
   private static let compressedQuality: CGFloat = 0.78
+  private static let pickerActionMinWidth: CGFloat = 176
+  private static let pickerActionMinHeight: CGFloat = 56
+  private static let pickerActionInsets = UIEdgeInsets(top: 12, left: 24, bottom: 12, right: 24)
 
   private var pendingResult: FlutterResult?
   private var pendingOriginal = false
+  private var sendTitleTimer: Timer?
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
@@ -77,10 +82,14 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
     picker.delegate = self
     pendingResult = result
     pendingOriginal = original
-    presenter.present(picker, animated: true)
+    presenter.present(picker, animated: true) { [weak self, weak picker] in
+      guard let picker else { return }
+      self?.startSendTitleOverride(for: picker)
+    }
   }
 
   func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+    stopSendTitleOverride()
     picker.dismiss(animated: true)
     guard let result = pendingResult else { return }
     let original = pendingOriginal
@@ -94,6 +103,173 @@ final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewContr
       }
       result(images ?? [])
     }
+  }
+
+  private func startSendTitleOverride(for picker: PHPickerViewController) {
+    stopSendTitleOverride()
+    applySendTitleOverride(in: picker)
+    sendTitleTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self, weak picker] _ in
+      guard let self, let picker, picker.presentingViewController != nil else {
+        self?.stopSendTitleOverride()
+        return
+      }
+      self.applySendTitleOverride(in: picker)
+    }
+  }
+
+  private func stopSendTitleOverride() {
+    sendTitleTimer?.invalidate()
+    sendTitleTimer = nil
+  }
+
+  private func applySendTitleOverride(in picker: PHPickerViewController) {
+    overrideSendTitle(in: picker)
+    overrideSendTitle(in: picker.view)
+  }
+
+  private func overrideSendTitle(in viewController: UIViewController) {
+    updateBarButtonTitle(viewController.navigationItem.rightBarButtonItem)
+    updateBarButtonTitle(viewController.navigationItem.leftBarButtonItem)
+    for child in viewController.children {
+      overrideSendTitle(in: child)
+    }
+  }
+
+  private func updateBarButtonTitle(_ item: UIBarButtonItem?) {
+    guard let item, shouldOverridePickerActionTitle(item.title) else { return }
+    item.title = "发送"
+    item.width = max(item.width, Self.pickerActionMinWidth)
+  }
+
+  private func overrideSendTitle(in view: UIView) {
+    if let button = view as? UIButton {
+      var matched = updateButtonTitle(button, for: .normal)
+      matched = updateButtonTitle(button, for: .highlighted) || matched
+      matched = updateButtonTitle(button, for: .selected) || matched
+      matched = updateButtonTitle(button, for: .disabled) || matched
+      matched = updateButtonConfigurationTitle(button) || matched
+      if matched {
+        applyPickerActionButtonStyle(button)
+      }
+    }
+    if let label = view as? UILabel, shouldOverridePickerActionTitle(label.text) {
+      label.text = "发送"
+      label.textAlignment = .center
+      label.lineBreakMode = .byClipping
+      label.minimumScaleFactor = 0.7
+      label.adjustsFontSizeToFitWidth = true
+      label.setContentCompressionResistancePriority(.required, for: .horizontal)
+      label.setContentHuggingPriority(.required, for: .horizontal)
+      label.sizeToFit()
+      if let actionView = pickerActionContainer(for: label) {
+        applyPickerActionContainerStyle(actionView)
+        if let outerActionView = actionView.superview {
+          applyPickerActionContainerStyle(outerActionView)
+        }
+      }
+    }
+    for subview in view.subviews {
+      overrideSendTitle(in: subview)
+    }
+  }
+
+  private func updateButtonTitle(_ button: UIButton, for state: UIControl.State) -> Bool {
+    guard shouldOverridePickerActionTitle(button.title(for: state)) else { return false }
+    button.setTitle("发送", for: state)
+    return true
+  }
+
+  private func updateButtonConfigurationTitle(_ button: UIButton) -> Bool {
+    guard #available(iOS 15, *), var configuration = button.configuration else {
+      return false
+    }
+    let title: String?
+    if let configurationTitle = configuration.title {
+      title = configurationTitle
+    } else if let attributedTitle = configuration.attributedTitle {
+      title = String(attributedTitle.characters)
+    } else {
+      title = nil
+    }
+    guard shouldOverridePickerActionTitle(title) else { return false }
+    configuration.title = "发送"
+    configuration.attributedTitle = nil
+    configuration.contentInsets = NSDirectionalEdgeInsets(
+      top: Self.pickerActionInsets.top,
+      leading: Self.pickerActionInsets.left,
+      bottom: Self.pickerActionInsets.bottom,
+      trailing: Self.pickerActionInsets.right
+    )
+    button.configuration = configuration
+    return true
+  }
+
+  private func applyPickerActionButtonStyle(_ button: UIButton) {
+    button.contentEdgeInsets = Self.pickerActionInsets
+    button.titleLabel?.lineBreakMode = .byClipping
+    button.titleLabel?.minimumScaleFactor = 0.7
+    button.titleLabel?.adjustsFontSizeToFitWidth = true
+    button.titleLabel?.textAlignment = .center
+    button.titleLabel?.setContentCompressionResistancePriority(.required, for: .horizontal)
+    button.titleLabel?.setContentHuggingPriority(.required, for: .horizontal)
+    button.setContentCompressionResistancePriority(.required, for: .horizontal)
+    button.setContentHuggingPriority(.required, for: .horizontal)
+    applyPickerActionContainerStyle(button)
+    if let container = button.superview {
+      applyPickerActionContainerStyle(container)
+    }
+    button.sizeToFit()
+  }
+
+  private func pickerActionContainer(for view: UIView) -> UIView? {
+    var current: UIView? = view
+    while let candidate = current {
+      if candidate is UIControl || candidate is UIButton {
+        return candidate
+      }
+      current = candidate.superview
+    }
+    return view.superview
+  }
+
+  private func applyPickerActionContainerStyle(_ view: UIView) {
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.setContentCompressionResistancePriority(.required, for: .horizontal)
+    view.setContentHuggingPriority(.required, for: .horizontal)
+    let minWidth = view.widthAnchor.constraint(greaterThanOrEqualToConstant: Self.pickerActionMinWidth)
+    minWidth.priority = .defaultHigh
+    minWidth.identifier = "p2p_im_picker_action_min_width"
+    let minHeight = view.heightAnchor.constraint(greaterThanOrEqualToConstant: Self.pickerActionMinHeight)
+    minHeight.priority = .defaultHigh
+    minHeight.identifier = "p2p_im_picker_action_min_height"
+    for constraint in view.constraints {
+      if constraint.identifier == minWidth.identifier ||
+        constraint.identifier == minHeight.identifier {
+        constraint.isActive = false
+      }
+    }
+    NSLayoutConstraint.activate([minWidth, minHeight])
+  }
+
+  private func shouldOverridePickerActionTitle(_ title: String?) -> Bool {
+    guard let title else { return false }
+    let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if normalized.isEmpty { return false }
+    return normalized == "add" ||
+      normalized == "done" ||
+      normalized == "send" ||
+      normalized == "完成" ||
+      normalized == "添加" ||
+      normalized == "选择" ||
+      normalized.hasPrefix("add ") ||
+      normalized.hasPrefix("done ") ||
+      normalized.hasPrefix("send ") ||
+      normalized.hasPrefix("添加") ||
+      normalized.hasPrefix("选择") ||
+      normalized.contains(" item") ||
+      normalized.contains(" items") ||
+      normalized.contains("项目") ||
+      normalized.contains("项")
   }
 
   private func loadImages(
@@ -589,5 +765,97 @@ final class FileActionsPlugin: NSObject, FlutterPlugin, QLPreviewControllerDataS
       return topViewController(from: presented)
     }
     return root
+  }
+}
+
+final class SaveImagePlugin: NSObject, FlutterPlugin {
+  static func register(with registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(
+      name: "p2p_im/save_image",
+      binaryMessenger: registrar.messenger()
+    )
+    registrar.addMethodCallDelegate(SaveImagePlugin(), channel: channel)
+  }
+
+  func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "savePng":
+      savePng(call, result: result)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func savePng(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard
+      let arguments = call.arguments as? [String: Any],
+      let typedData = arguments["bytes"] as? FlutterStandardTypedData,
+      !typedData.data.isEmpty
+    else {
+      result(
+        FlutterError(
+          code: "invalid_args",
+          message: "Image bytes are required.",
+          details: nil
+        )
+      )
+      return
+    }
+
+    guard let image = UIImage(data: typedData.data) else {
+      result(
+        FlutterError(
+          code: "decode_failed",
+          message: "Failed to decode PNG image.",
+          details: nil
+        )
+      )
+      return
+    }
+
+    Self.requestPhotoAddAuthorization { granted in
+      guard granted else {
+        DispatchQueue.main.async {
+          result(
+            FlutterError(
+              code: "permission_denied",
+              message: "Photo library add permission was denied.",
+              details: nil
+            )
+          )
+        }
+        return
+      }
+
+      PHPhotoLibrary.shared().performChanges({
+        PHAssetChangeRequest.creationRequestForAsset(from: image)
+      }) { success, error in
+        DispatchQueue.main.async {
+          if success {
+            result(nil)
+          } else {
+            result(
+              FlutterError(
+                code: "save_failed",
+                message: error?.localizedDescription ?? "Failed to save image.",
+                details: nil
+              )
+            )
+          }
+        }
+      }
+    }
+  }
+
+  private static func requestPhotoAddAuthorization(_ completion: @escaping (Bool) -> Void) {
+    if #available(iOS 14, *) {
+      PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+        completion(status == .authorized || status == .limited)
+      }
+    } else {
+      PHPhotoLibrary.requestAuthorization { status in
+        completion(status == .authorized)
+      }
+    }
   }
 }

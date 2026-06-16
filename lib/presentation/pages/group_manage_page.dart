@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../chat/chat_glass_background.dart';
 import '../groups/group_leave_flow.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -27,65 +28,67 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
     final currentInvitePolicy = _currentInvitePolicy();
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          GlassHeader.detail(title: '群管理'),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _GroupedCard(
-                    children: [
-                      const _SectionHeader(label: '添加成员权限'),
-                      _PolicyRow(
-                        label: '群主/管理员可添加',
-                        selected:
-                            currentInvitePolicy == groupInvitePolicyOwnerAdmin,
-                        enabled: !_updatingInvitePolicy,
-                        onTap: () => _updateInvitePolicy(
-                          groupInvitePolicyOwnerAdmin,
+      backgroundColor: chatPageBackgroundColor(context),
+      body: ChatGlassBackground(
+        child: Column(
+          children: [
+            GlassHeader.detail(title: '群管理'),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _GroupedCard(
+                      children: [
+                        const _SectionHeader(label: '添加成员权限'),
+                        _PolicyRow(
+                          label: '群主/管理员可添加',
+                          selected: currentInvitePolicy ==
+                              groupInvitePolicyOwnerAdmin,
+                          enabled: !_updatingInvitePolicy,
+                          onTap: () => _updateInvitePolicy(
+                            groupInvitePolicyOwnerAdmin,
+                          ),
                         ),
-                      ),
-                      const _DividerInset(),
-                      _PolicyRow(
-                        label: '所有成员可添加',
-                        selected:
-                            currentInvitePolicy == groupInvitePolicyAllMembers,
-                        enabled: !_updatingInvitePolicy,
-                        onTap: () => _updateInvitePolicy(
-                          groupInvitePolicyAllMembers,
+                        const _DividerInset(),
+                        _PolicyRow(
+                          label: '所有成员可添加',
+                          selected: currentInvitePolicy ==
+                              groupInvitePolicyAllMembers,
+                          enabled: !_updatingInvitePolicy,
+                          onTap: () => _updateInvitePolicy(
+                            groupInvitePolicyAllMembers,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _GroupedCard(
-                    children: [
-                      _RowDanger(
-                        label: '退出群聊',
-                        onTap: () => _confirmDismiss(context, () async {
-                          if (_leaving) return;
-                          setState(() => _leaving = true);
-                          if (!context.mounted) return;
-                          try {
-                            await leaveGroupThroughAs(ref, widget.roomId);
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _GroupedCard(
+                      children: [
+                        _RowDanger(
+                          label: '退出群聊',
+                          onTap: () => _confirmDismiss(context, () async {
+                            if (_leaving) return;
+                            setState(() => _leaving = true);
                             if (!context.mounted) return;
-                            context.go('/home');
-                          } finally {
-                            if (mounted) setState(() => _leaving = false);
-                          }
-                        }),
-                      ),
-                    ],
-                  ),
-                ],
+                            try {
+                              await leaveGroupThroughAs(ref, widget.roomId);
+                              if (!context.mounted) return;
+                              context.go('/home');
+                            } finally {
+                              if (mounted) setState(() => _leaving = false);
+                            }
+                          }),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

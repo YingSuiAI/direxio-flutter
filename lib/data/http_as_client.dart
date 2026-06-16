@@ -96,11 +96,23 @@ class HttpAsClient implements AsClient {
   @override
   Future<OwnerProfile> updateOwnerProfile({
     required String displayName,
+    String avatarUrl = '',
+    String gender = '',
+    String birthday = '',
+    String phone = '',
+    String email = '',
   }) async {
     final body = await _requestJson(
       'PUT',
       'profile',
-      body: {'display_name': displayName.trim()},
+      body: {
+        'display_name': displayName.trim(),
+        'avatar_url': avatarUrl.trim(),
+        'gender': gender.trim(),
+        'birthday': birthday.trim(),
+        'phone': phone.trim(),
+        'email': email.trim(),
+      },
       allowedStatusCodes: const {200},
     );
     return OwnerProfile.fromJson(body);
@@ -395,14 +407,28 @@ class HttpAsClient implements AsClient {
     String roomId,
     String content, {
     String? replyToEventId,
+    List<Map<String, String>> mentions = const [],
   }) async {
     final replyTo = replyToEventId?.trim();
+    final normalizedMentions = [
+      for (final mention in mentions)
+        if ((mention['user_id'] ?? '').trim().isNotEmpty)
+          {
+            'user_id': (mention['user_id'] ?? '').trim(),
+            if ((mention['display_name'] ?? '').trim().isNotEmpty)
+              'display_name': (mention['display_name'] ?? '').trim(),
+          },
+    ];
     final body = await _requestJson(
       'POST',
       'rooms/${Uri.encodeComponent(roomId)}/send',
       body: {
         'content': content,
         if (replyTo != null && replyTo.isNotEmpty) 'reply_to': replyTo,
+        if (normalizedMentions.isNotEmpty) ...{
+          'message_type': 'at_text',
+          'mentions': normalizedMentions,
+        },
       },
       allowedStatusCodes: const {200},
     );
@@ -612,32 +638,49 @@ class HttpAsClient implements AsClient {
     required String oldPassword,
     required String newPassword,
   }) async {
-    final matrixAccessToken = _matrixAccessTokenForDebug?.trim() ?? '';
-    if (matrixAccessToken.isEmpty) {
-      throw AsClientException(
-        'AS password request is missing matrix_access_token',
-      );
-    }
-    final response = await _requestJson(
-      'PUT',
-      'portal/password',
-      body: {
-        'admin_access_token': _portalToken.trim(),
-        'matrix_access_token': matrixAccessToken,
-        'password': newPassword.trim(),
-      },
-      allowedStatusCodes: const {200},
+    final requestBody = {
+      'old_password': oldPassword.trim(),
+      'new_password': newPassword.trim(),
+    };
+    ApiLogger.info(
+      '[AS admin] portal password params '
+      'auth_source=$_authSourceLabel '
+      'authorization_present=${_portalToken.trim().isNotEmpty} '
+      'bearer=true '
+      'admin_access_token_length=${_portalToken.trim().length} '
+      'old_password_length=${oldPassword.trim().length} '
+      'new_password_length=${newPassword.trim().length} '
+      'params=${jsonEncode(_passwordChangeLogJson(requestBody))}',
     );
+    final Map<String, dynamic> response;
+    try {
+      response = await _requestJson(
+        'PUT',
+        'portal/password',
+        body: requestBody,
+        allowedStatusCodes: const {200},
+      );
+    } catch (error) {
+      ApiLogger.info(
+        '[AS admin] portal password result '
+        'status=error '
+        'params=${jsonEncode(_passwordChangeLogJson(requestBody))} '
+        'error=$error',
+      );
+      rethrow;
+    }
     final session = AsPortalSession.fromJson(response);
-    if (session.matrixAccessToken.isEmpty ||
-        session.adminAccessToken.isEmpty ||
-        session.userId.isEmpty ||
-        session.homeserver.isEmpty) {
+    if (session.matrixAccessToken.isEmpty || session.adminAccessToken.isEmpty) {
       throw AsClientException(
         'AS password response is missing matrix_access_token, '
-        'admin_access_token, user_id, or homeserver',
+        'or admin_access_token',
       );
     }
+    ApiLogger.info(
+      '[AS admin] portal password result '
+      'status=ok '
+      'result=${jsonEncode(_portalSessionLogJson(session))}',
+    );
     return session;
   }
 
@@ -1490,6 +1533,27 @@ Map<String, dynamic> _contactEntryLogJson(ContactEntry contact) {
     'domain': contact.domain,
     'room_id': contact.roomId,
     'status': contact.status,
+  };
+}
+
+Map<String, dynamic> _passwordChangeLogJson(Map<String, String> body) {
+  return {
+    'old_password': '<redacted>',
+    'new_password': '<redacted>',
+    'old_password_length': body['old_password']?.length ?? 0,
+    'new_password_length': body['new_password']?.length ?? 0,
+  };
+}
+
+Map<String, dynamic> _portalSessionLogJson(AsPortalSession session) {
+  return {
+    'matrix_access_token_present': session.matrixAccessToken.isNotEmpty,
+    'matrix_access_token_length': session.matrixAccessToken.length,
+    'admin_access_token_present': session.adminAccessToken.isNotEmpty,
+    'admin_access_token_length': session.adminAccessToken.length,
+    'user_id': session.userId,
+    'homeserver': session.homeserver,
+    'device_id': session.deviceId,
   };
 }
 

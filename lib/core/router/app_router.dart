@@ -294,7 +294,10 @@ GoRouter appRouter(Ref ref) {
         path: '/chat/:roomId',
         pageBuilder: (_, state) => _pageForLocation(
           state.matchedLocation,
-          ChatPage(roomId: state.pathParameters['roomId']!),
+          ChatPage(
+            roomId: state.pathParameters['roomId']!,
+            targetEventId: state.uri.queryParameters['event'],
+          ),
         ),
       ),
       GoRoute(
@@ -317,7 +320,10 @@ GoRouter appRouter(Ref ref) {
         path: '/group/:roomId',
         pageBuilder: (_, state) => _pageForLocation(
           state.matchedLocation,
-          GroupChatPage(roomId: state.pathParameters['roomId']!),
+          GroupChatPage(
+            roomId: state.pathParameters['roomId']!,
+            targetEventId: state.uri.queryParameters['event'],
+          ),
         ),
       ),
       GoRoute(
@@ -439,6 +445,7 @@ GoRouter appRouter(Ref ref) {
             callId: state.uri.queryParameters['call_id'],
             peerUserId: state.uri.queryParameters['peer'],
             peerDisplayName: state.uri.queryParameters['name'],
+            peerAvatarUrl: state.uri.queryParameters['avatar'],
             incoming: state.uri.queryParameters['incoming'] == '1',
           ),
         ),
@@ -452,6 +459,7 @@ GoRouter appRouter(Ref ref) {
             callId: state.uri.queryParameters['call_id'],
             peerUserId: state.uri.queryParameters['peer'],
             peerDisplayName: state.uri.queryParameters['name'],
+            peerAvatarUrl: state.uri.queryParameters['avatar'],
             incoming: state.uri.queryParameters['incoming'] == '1',
           ),
         ),

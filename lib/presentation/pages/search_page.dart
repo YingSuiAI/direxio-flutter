@@ -16,6 +16,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../mock/mock_channels.dart';
 import '../mock/mock_data.dart';
+import '../groups/group_invite_content.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../widgets/m3/m3_search_field.dart';
@@ -78,7 +79,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     setState(() {
       _results = _dedupeResults([
         ...localResults,
-        ...remoteMessageResults.map(_GlobalSearchResult.remoteMessage),
+        ...remoteMessageResults
+            .where((result) => !_isGroupInviteSearchContent(result.content))
+            .map((result) => _GlobalSearchResult.remoteMessage(result, client)),
       ]);
     });
   }
@@ -327,7 +330,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     for (final result in results) {
       final eventId = result.eventId;
       if (eventId != null && eventId.isNotEmpty) {
-        if (!seenMessageEvents.add('${result.route}:$eventId')) continue;
+        if (!seenMessageEvents.add(eventId)) continue;
       } else {
         final key = '${result.type}:${result.route}:${result.title}';
         if (!seenLocalKeys.add(key)) continue;
@@ -363,15 +366,23 @@ class _GlobalSearchResult {
     this.timestamp,
   });
 
-  factory _GlobalSearchResult.remoteMessage(AsSearchResult result) =>
-      _GlobalSearchResult(
-        type: _SearchResultType.message,
-        title: result.senderName.isEmpty ? '消息' : result.senderName,
-        subtitle: result.content,
-        route: '/chat/${Uri.encodeComponent(result.roomId)}',
-        eventId: result.eventId,
-        timestamp: result.timestamp,
-      );
+  factory _GlobalSearchResult.remoteMessage(
+    AsSearchResult result,
+    Client client,
+  ) {
+    final room = client.getRoomById(result.roomId);
+    final encodedRoomId = Uri.encodeComponent(result.roomId);
+    return _GlobalSearchResult(
+      type: _SearchResultType.message,
+      title: result.senderName.isEmpty ? '消息' : result.senderName,
+      subtitle: result.content,
+      route: room == null || room.isDirectChat
+          ? '/chat/$encodedRoomId'
+          : '/group/$encodedRoomId',
+      eventId: result.eventId,
+      timestamp: result.timestamp,
+    );
+  }
 
   factory _GlobalSearchResult.cachedMessage(Event event) {
     final room = event.room;
@@ -431,14 +442,15 @@ class _SearchResultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final targetRoute = _targetRouteForResult(result);
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: result.route == null
+        onTap: targetRoute == null
             ? () => ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('频道详情功能待接入')),
                 )
-            : () => context.push(result.route!),
+            : () => context.push(targetRoute),
         child: SizedBox(
           height: 52,
           child: DecoratedBox(
@@ -487,6 +499,14 @@ class _SearchResultTile extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _targetRouteForResult(_GlobalSearchResult result) {
+  final route = result.route;
+  if (route == null) return null;
+  final eventId = result.eventId?.trim() ?? '';
+  if (eventId.isEmpty) return route;
+  return '$route?event=${Uri.encodeComponent(eventId)}';
 }
 
 class _SearchToolbar extends StatelessWidget {
@@ -669,7 +689,23 @@ List<TextSpan> _highlightSpans(String text, String query, Color highlight) {
 bool _isSearchableMessage(Event event) {
   if (event.type != EventTypes.Message) return false;
   if (event.redacted) return false;
+  if (GroupInviteContent.tryParse(event.content, eventId: event.eventId) !=
+      null) {
+    return false;
+  }
+  if (_isGroupInviteSearchContent(event.plaintextBody)) return false;
   return event.plaintextBody.trim().isNotEmpty;
+}
+
+bool _isGroupInviteSearchContent(String content) {
+  final text = content.trim();
+  if (text.isEmpty) return false;
+  final lower = text.toLowerCase();
+  return lower.contains(GroupInviteContent.msgTypeV1) ||
+      lower.contains(GroupInviteContent.legacyMsgType) ||
+      text.contains('邀请加入群聊') ||
+      text.contains('邀请进群') ||
+      text.contains('群邀请');
 }
 
 String _senderDisplayName(Event event) {

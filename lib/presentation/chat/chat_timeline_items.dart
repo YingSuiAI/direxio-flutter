@@ -86,3 +86,50 @@ List<ChatTimelineItem<TEvent, TOutbox>>
   });
   return items;
 }
+
+List<TOutbox> filterOutboxItemsShadowedByEvents<TEvent, TOutbox>({
+  required List<TEvent> events,
+  required List<TOutbox> outboxItems,
+  required String? Function(TEvent event) eventSignature,
+  required DateTime Function(TEvent event) eventTimestamp,
+  required String? Function(TOutbox outbox) outboxSignature,
+  required DateTime Function(TOutbox outbox) outboxTimestamp,
+  Duration maxTimeDifference = const Duration(minutes: 5),
+}) {
+  final eventBuckets = <String, List<DateTime>>{};
+  for (final event in events) {
+    final signature = eventSignature(event);
+    if (signature == null || signature.isEmpty) continue;
+    eventBuckets.putIfAbsent(signature, () => []).add(eventTimestamp(event));
+  }
+  if (eventBuckets.isEmpty) return outboxItems;
+
+  for (final bucket in eventBuckets.values) {
+    bucket.sort();
+  }
+
+  final filtered = <TOutbox>[];
+  for (final outbox in outboxItems) {
+    final signature = outboxSignature(outbox);
+    if (signature == null || signature.isEmpty) {
+      filtered.add(outbox);
+      continue;
+    }
+    final bucket = eventBuckets[signature];
+    if (bucket == null || bucket.isEmpty) {
+      filtered.add(outbox);
+      continue;
+    }
+    final outboxTime = outboxTimestamp(outbox);
+    final matchIndex = bucket.indexWhere(
+      (eventTime) =>
+          eventTime.difference(outboxTime).abs() <= maxTimeDifference,
+    );
+    if (matchIndex == -1) {
+      filtered.add(outbox);
+      continue;
+    }
+    bucket.removeAt(matchIndex);
+  }
+  return filtered;
+}

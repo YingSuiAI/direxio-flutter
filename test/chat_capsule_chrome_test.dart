@@ -424,6 +424,46 @@ void main() {
     expect(emojiCenter.dy, input.center.dy);
   });
 
+  testWidgets('chat capsule input switches emoji panel back to keyboard',
+      (tester) async {
+    final ctrl = TextEditingController();
+    addTearDown(ctrl.dispose);
+    var emojiToggles = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ChatCapsuleInputBar(
+              ctrl: ctrl,
+              onSend: () {},
+              onPlus: () {},
+              onEmoji: () => emojiToggles++,
+              emojiActive: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('键盘'), findsOneWidget);
+    expect(find.byIcon(Symbols.keyboard), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat_input_emoji_circle')));
+    await tester.pump();
+
+    expect(emojiToggles, 1);
+    expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText))
+            .focusNode
+            .hasFocus,
+        isTrue);
+  });
+
   testWidgets('chat capsule input shows iOS send button when text exists',
       (tester) async {
     final ctrl = TextEditingController();

@@ -403,20 +403,16 @@ class ChatRecordSelectionBar extends StatelessWidget {
     required this.count,
     required this.onExit,
     required this.onForward,
-    this.onCopy,
     this.onDelete,
     this.onFavorite,
-    this.onQuote,
     this.compact = false,
   });
 
   final int count;
   final VoidCallback onExit;
   final VoidCallback onForward;
-  final VoidCallback? onCopy;
   final VoidCallback? onDelete;
   final VoidCallback? onFavorite;
-  final VoidCallback? onQuote;
   final bool compact;
 
   @override
@@ -424,12 +420,6 @@ class ChatRecordSelectionBar extends StatelessWidget {
     final t = context.tk;
     if (compact) {
       final actions = <Widget>[
-        if (onCopy != null)
-          _CompactSelectionAction(
-            tooltip: '复制',
-            icon: Symbols.content_copy,
-            onTap: count > 0 ? onCopy : null,
-          ),
         if (onDelete != null)
           _CompactSelectionAction(
             tooltip: '删除',
@@ -441,12 +431,6 @@ class ChatRecordSelectionBar extends StatelessWidget {
             tooltip: '收藏',
             icon: Symbols.bookmark,
             onTap: count > 0 ? onFavorite : null,
-          ),
-        if (onQuote != null)
-          _CompactSelectionAction(
-            tooltip: '引用',
-            icon: Symbols.format_quote,
-            onTap: count > 0 ? onQuote : null,
           ),
         _CompactSelectionAction(
           tooltip: '转发',
@@ -503,31 +487,11 @@ class ChatRecordSelectionBar extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (onCopy != null)
-                    IconButton(
-                      tooltip: '复制',
-                      icon: Icon(
-                        Symbols.content_copy,
-                        color: t.accent,
-                        size: 22,
-                      ),
-                      onPressed: count > 0 ? onCopy : null,
-                    ),
                   IconButton(
                     tooltip: '转发',
                     icon: Icon(Symbols.forward, color: t.accent, size: 22),
                     onPressed: count > 0 ? onForward : null,
                   ),
-                  if (onQuote != null)
-                    IconButton(
-                      tooltip: '引用',
-                      icon: Icon(
-                        Symbols.format_quote,
-                        color: t.accent,
-                        size: 22,
-                      ),
-                      onPressed: count > 0 ? onQuote : null,
-                    ),
                   if (onFavorite != null)
                     IconButton(
                       tooltip: '收藏',

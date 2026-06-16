@@ -18,9 +18,11 @@ import '../../data/well_known_service.dart';
 import '../../data/bi_analytics_service.dart';
 import 'as_sync_cache_provider.dart';
 import 'as_call_session_store_provider.dart';
+import 'chat_clear_state_provider.dart';
 import 'friend_request_read_provider.dart';
 import 'local_message_order_provider.dart';
 import 'local_outbox_provider.dart';
+import 'media_thumbnail_cache_provider.dart';
 import 'p2p_api_provider.dart';
 import 'recovered_unread_store_provider.dart';
 
@@ -269,33 +271,24 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   @override
   Future<AuthState> build() async {
     final client = ref.watch(matrixClientProvider);
-    final token = await _storage.read(key: 'matrix_token');
-    final homeserver = await _storage.read(key: 'matrix_homeserver');
-    final userId = await _storage.read(key: 'matrix_user_id');
-    final portalToken =
-        await _storage.read(key: AuthStateNotifier.adminAccessTokenKey);
-    final lastLoginHomeserver =
-        await _storage.read(key: lastLoginHomeserverKey);
-    final lastLoginPortalToken =
-        await _storage.read(key: lastLoginPortalTokenKey);
+    final storedValues = await Future.wait<String?>([
+      _storage.read(key: 'matrix_token'),
+      _storage.read(key: 'matrix_homeserver'),
+      _storage.read(key: 'matrix_user_id'),
+      _storage.read(key: AuthStateNotifier.adminAccessTokenKey),
+      _storage.read(key: lastLoginHomeserverKey),
+      _storage.read(key: lastLoginPortalTokenKey),
+    ]);
+    final token = storedValues[0];
+    final homeserver = storedValues[1];
+    final userId = storedValues[2];
+    final portalToken = storedValues[3];
+    final lastLoginHomeserver = storedValues[4];
+    final lastLoginPortalToken = storedValues[5];
     final storedPortalToken = (portalToken?.trim().isNotEmpty ?? false)
         ? portalToken
         : lastLoginPortalToken;
     final storedHomeserver = homeserver ?? lastLoginHomeserver;
-
-    if ((storedPortalToken?.trim().isNotEmpty ?? false) &&
-        (storedHomeserver?.trim().isNotEmpty ?? false)) {
-      try {
-        final portalRestored = await _restorePortalSession(
-          client,
-          homeserver: storedHomeserver,
-          portalToken: storedPortalToken,
-        ).timeout(const Duration(milliseconds: 800));
-        if (portalRestored != null) return portalRestored;
-      } on TimeoutException {
-        // Do not block local session restore on a slow AS auth request.
-      }
-    }
 
     if (token != null && homeserver != null && userId != null) {
       try {
@@ -312,19 +305,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           waitForFirstSync: false,
           waitUntilLoadCompletedLoaded: true,
         );
-        try {
-          await _ensureCurrentSessionValid(
-            client,
-            homeserverUri,
-            userId,
-            storedPortalToken,
-            deviceId,
-          ).timeout(const Duration(milliseconds: 800));
-        } on TimeoutException {
-          // Do not block local session restore on a slow Matrix preflight.
-        } on MatrixException catch (e) {
-          if (_isTokenFailure(e)) rethrow;
-        }
+        _refreshStoredMatrixSessionInBackground(
+          client,
+          homeserverUri,
+          userId,
+          storedPortalToken,
+          deviceId,
+        );
+        await _loadChatClearState();
         return AuthState(
           isLoggedIn: true,
           userId: client.userID ?? userId,
@@ -337,13 +325,33 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
     final restored = await _restoreMatrixSdkSession(client, storedPortalToken);
     if (restored != null) return restored;
-    final portalRestored = await _restorePortalSession(
-      client,
-      homeserver: storedHomeserver,
-      portalToken: storedPortalToken,
-    );
-    if (portalRestored != null) return portalRestored;
+    if ((storedPortalToken?.trim().isNotEmpty ?? false) &&
+        (storedHomeserver?.trim().isNotEmpty ?? false)) {
+      final portalRestored = await _restorePortalSession(
+        client,
+        homeserver: storedHomeserver,
+        portalToken: storedPortalToken,
+      );
+      if (portalRestored != null) return portalRestored;
+    }
     return const AuthState(isLoggedIn: false);
+  }
+
+  Future<void> _loadChatClearState() async {
+    try {
+      final store = await ref.read(chatClearStateStoreProvider.future);
+      final clearedBeforeTs = await store.readClearedBeforeTs();
+      final roomClearedBeforeTs = await store.readRoomClearedBeforeTs();
+      if (clearedBeforeTs <= 0 && roomClearedBeforeTs.isEmpty) return;
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.copyWith(
+              localClearedBeforeTs: clearedBeforeTs,
+              localRoomClearedBeforeTs: roomClearedBeforeTs,
+            ),
+          );
+    } catch (e) {
+      debugPrint('load chat clear state failed: $e');
+    }
   }
 
   Future<void> login(String homeserverUrl, String portalToken) async {
@@ -616,7 +624,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       loginPortalToken: cleanToken,
     );
     final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
-    final userId = session.userId;
+    final userId = session.userId.trim().isNotEmpty
+        ? session.userId
+        : auth?.userId ?? client.userID ?? '';
     if (userId.isNotEmpty) {
       await client.setDisplayName(userId, cleanDisplayName);
     }
@@ -716,7 +726,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     state = AsyncData(
       AuthState(
         isLoggedIn: true,
-        userId: session.userId,
+        userId: session.userId.trim().isNotEmpty
+            ? session.userId
+            : auth?.userId ?? client.userID ?? '',
         homeserver: matrixUri.toString(),
         portalToken: session.adminAccessToken,
       ),
@@ -766,7 +778,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     state = AsyncData(
       AuthState(
         isLoggedIn: true,
-        userId: session.userId,
+        userId:
+            session.userId.trim().isNotEmpty ? session.userId : result.userId,
         homeserver: matrixUri.toString(),
         portalToken: session.adminAccessToken,
       ),
@@ -835,6 +848,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             key: AuthStateNotifier.adminAccessTokenKey, value: portalToken);
       }
 
+      await _loadChatClearState();
       return AuthState(
         isLoggedIn: true,
         userId: userId,
@@ -844,6 +858,26 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  void _refreshStoredMatrixSessionInBackground(
+    Client client,
+    Uri homeserver,
+    String userId,
+    String? portalToken,
+    String deviceId,
+  ) {
+    unawaited(
+      _ensureCurrentSessionValid(
+        client,
+        homeserver,
+        userId,
+        portalToken,
+        deviceId,
+      ).timeout(const Duration(seconds: 10)).catchError((Object e) {
+        debugPrint('background Matrix session refresh skipped: $e');
+      }),
+    );
   }
 
   Future<AuthState?> _restorePortalSession(
@@ -907,6 +941,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           loginPortalToken: authPortalToken,
         );
       }
+      await _loadChatClearState();
       return AuthState(
         isLoggedIn: true,
         userId: client.userID ?? session.userId,
@@ -986,6 +1021,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       currentHomeserver,
       session.homeserver,
     );
+    final effectiveUserId = session.userId.trim().isNotEmpty
+        ? session.userId
+        : client.userID ?? await _storage.read(key: 'matrix_user_id') ?? '';
     client.homeserver = matrixUri;
     client.accessToken = session.matrixAccessToken;
     final effectiveDeviceId = client.deviceID ?? session.deviceId ?? deviceId;
@@ -994,7 +1032,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       session.matrixAccessToken,
       null,
       null,
-      session.userId,
+      effectiveUserId,
       effectiveDeviceId,
       client.deviceName ?? 'PortalIM',
       client.prevBatch,
@@ -1005,7 +1043,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       matrixUri,
       portalToken: portalToken,
       deviceId: effectiveDeviceId,
-      userId: session.userId,
+      userId: effectiveUserId,
       loginPortalToken: loginPortalToken,
     );
   }
@@ -1128,6 +1166,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     ref.invalidate(localOutboxStoreProvider);
     ref.invalidate(localMessageOrderProvider);
     ref.invalidate(localMessageOrderStoreProvider);
+    ref.invalidate(mediaThumbnailCacheProvider);
+    ref.invalidate(chatClearStateStoreProvider);
     ref.invalidate(friendRequestReadProvider);
     ref.invalidate(friendRequestReadStoreProvider);
     ref.invalidate(recoveredUnreadStoreProvider);
@@ -1136,14 +1176,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   }
 
   Future<void> _deleteUserScopedSupportFiles() async {
-    final Directory dir;
-    try {
-      dir = await getApplicationSupportDirectory();
-    } catch (e) {
-      debugPrint('clear user cache skipped: $e');
-      return;
-    }
-    const filenames = [
+    await _deleteSupportFiles(const [
       'portal_im_as_bootstrap.json',
       'portal_im_recovered_unread.json',
       'portal_im_pending_media_uploads.json',
@@ -1151,7 +1184,18 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       'portal_im_call_sessions.json',
       'portal_im_friend_request_read.json',
       'portal_im_channel_posts.json',
-    ];
+      'portal_im_chat_clear_state.json',
+    ]);
+  }
+
+  Future<void> _deleteSupportFiles(List<String> filenames) async {
+    final Directory dir;
+    try {
+      dir = await getApplicationSupportDirectory();
+    } catch (e) {
+      debugPrint('clear user cache skipped: $e');
+      return;
+    }
     for (final filename in filenames) {
       final file = File('${dir.path}/$filename');
       try {
@@ -1164,18 +1208,73 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
   }
 
+  Future<void> clearChatHistory() async {
+    final clearedBeforeTs = DateTime.now().toUtc().millisecondsSinceEpoch + 1;
+    final store = await ref.read(chatClearStateStoreProvider.future);
+    await store.writeClearedBeforeTs(clearedBeforeTs);
+    ref.read(asSyncCacheProvider.notifier).update(
+          (state) => state.withAllChatsClearedBefore(clearedBeforeTs),
+        );
+
+    try {
+      final unreadStore = await ref.read(recoveredUnreadStoreProvider.future);
+      final unread = await unreadStore.read();
+      for (final room in unread?.rooms ?? const <AsUnreadRoom>[]) {
+        await unreadStore.removeRoom(room.roomId);
+      }
+    } catch (e) {
+      debugPrint('clear recovered unread cache failed: $e');
+    }
+
+    await _deleteSupportFiles(const [
+      'portal_im_recovered_unread.json',
+      'portal_im_pending_media_uploads.json',
+      'portal_im_local_message_order.json',
+    ]);
+
+    final Directory dir;
+    try {
+      dir = await getApplicationSupportDirectory();
+      final thumbnails = Directory('${dir.path}/portal_im_media_thumbnails');
+      if (await thumbnails.exists()) {
+        await thumbnails.delete(recursive: true);
+      }
+    } catch (e) {
+      debugPrint('clear media thumbnail cache failed: $e');
+    }
+
+    ref.invalidate(localOutboxProvider);
+    ref.invalidate(localOutboxStoreProvider);
+    ref.invalidate(localMessageOrderProvider);
+    ref.invalidate(localMessageOrderStoreProvider);
+    ref.invalidate(mediaThumbnailCacheProvider);
+    ref.invalidate(recoveredUnreadStoreProvider);
+  }
+
+  Future<void> clearRoomChatHistory(String roomId) async {
+    final trimmed = roomId.trim();
+    if (trimmed.isEmpty) return;
+    final clearedBeforeTs = DateTime.now().toUtc().millisecondsSinceEpoch + 1;
+    final store = await ref.read(chatClearStateStoreProvider.future);
+    await store.writeRoomClearedBeforeTs(trimmed, clearedBeforeTs);
+    ref.read(asSyncCacheProvider.notifier).update(
+          (state) => state.withRoomClearedBefore(trimmed, clearedBeforeTs),
+        );
+    try {
+      final unreadStore = await ref.read(recoveredUnreadStoreProvider.future);
+      await unreadStore.removeRoom(trimmed);
+    } catch (e) {
+      debugPrint('clear room recovered unread cache failed: $e');
+    }
+  }
+
   Future<void> logout() async {
     final client = ref.read(matrixClientProvider);
     final lastHomeserver = await _storage.read(key: lastLoginHomeserverKey) ??
         await _storage.read(key: 'matrix_homeserver');
     final lastPortalToken = await _storage.read(key: lastLoginPortalTokenKey) ??
         await _storage.read(key: AuthStateNotifier.adminAccessTokenKey);
-    try {
-      await client.logout();
-    } catch (e) {
-      debugPrint('matrix logout failed: $e');
-      await client.clear();
-    }
+    await _logoutMatrixSessionPreservingStore(client);
     await _clearUserScopedLocalState(client, clearMatrix: false);
     await _storage.deleteAll();
     if (lastHomeserver != null && lastHomeserver.trim().isNotEmpty) {
@@ -1191,6 +1290,38 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       );
     }
     state = const AsyncData(AuthState(isLoggedIn: false));
+  }
+
+  Future<void> _logoutMatrixSessionPreservingStore(Client client) async {
+    final homeserver = client.homeserver;
+    final accessToken = client.accessToken?.trim();
+    try {
+      client.backgroundSync = false;
+      await client.abortSync();
+    } catch (e) {
+      debugPrint('stop Matrix sync during logout failed: $e');
+    }
+    if (homeserver == null || accessToken == null || accessToken.isEmpty) {
+      return;
+    }
+    final uri = homeserver.resolveUri(
+      Uri(path: '_matrix/client/v3/logout'),
+    );
+    try {
+      final response = await _rawHttpClient(client).post(
+        uri,
+        headers: {'authorization': 'Bearer $accessToken'},
+      ).timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200 &&
+          response.statusCode != 401 &&
+          response.statusCode != 403) {
+        debugPrint(
+          'matrix logout returned ${response.statusCode}: ${response.body}',
+        );
+      }
+    } catch (e) {
+      debugPrint('matrix logout request failed: $e');
+    }
   }
 
   Future<void> expireSessionDueInvalidToken() async {

@@ -5,10 +5,7 @@ String contactDisplayNameFromIdentity({
   String fallback = '',
 }) {
   final trimmedName = displayName.trim();
-  if (trimmedName.isNotEmpty &&
-      !_isPortalDomainLabel(trimmedName, mxid: mxid, domain: domain)) {
-    return trimmedName;
-  }
+  if (trimmedName.isNotEmpty) return trimmedName;
 
   final localpart = localpartFromMxid(mxid);
   if (localpart.isNotEmpty) return localpart;
@@ -40,29 +37,4 @@ String domainFromMxid(String mxid) {
     return trimmed.substring(separator + 1);
   }
   return '';
-}
-
-bool _isPortalDomainLabel(
-  String value, {
-  required String mxid,
-  required String domain,
-}) {
-  final normalizedValue = _normalizeIdentityToken(value);
-  if (normalizedValue.isEmpty) return false;
-
-  final normalizedDomain = _normalizeIdentityToken(domain);
-  if (normalizedDomain.isNotEmpty && normalizedValue == normalizedDomain) {
-    return true;
-  }
-
-  final mxidDomain = _normalizeIdentityToken(domainFromMxid(mxid));
-  return mxidDomain.isNotEmpty && normalizedValue == mxidDomain;
-}
-
-String _normalizeIdentityToken(String value) {
-  return value
-      .trim()
-      .toLowerCase()
-      .replaceFirst(RegExp(r'^https?://'), '')
-      .replaceAll(RegExp(r'/+$'), '');
 }

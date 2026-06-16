@@ -9,6 +9,7 @@ import '../mock/mock_data.dart';
 import '../groups/group_leave_flow.dart';
 import '../groups/group_member_invite_flow.dart';
 import '../providers/auth_provider.dart';
+import '../providers/conversation_preferences_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
@@ -25,15 +26,18 @@ class GroupDetailPage extends ConsumerStatefulWidget {
 
 class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
   bool _mute = false;
-  bool _pinned = false;
   bool _showNicknames = true;
   bool _leaving = false;
+  bool _clearing = false;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     final client = ref.read(matrixClientProvider);
     final room = client.getRoomById(widget.roomId);
+    final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
+    final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
+    final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
+    final currentNickname = _currentUserNickname(room, client.userID);
     // 找不到真房间时回退 mock（产品设计组等以 mock_ 起头）。
     final mock = room == null ? MockData.byId(widget.roomId) : null;
     if (room == null && mock == null) {
@@ -63,15 +67,6 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
         children: [
           GlassHeader.detail(
             title: '聊天信息($memberCount)',
-            actions: [
-              GlassHeaderButton(
-                icon: Symbols.search,
-                color: t.accent,
-                onTap: () => context.push(
-                  '/room-search/${Uri.encodeComponent(widget.roomId)}',
-                ),
-              ),
-            ],
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -100,7 +95,16 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                         ),
                         _Divider(),
                       ],
-                      _RowChevron(label: '备注', onTap: () {}),
+                      _RowChevron(
+                        label: '设置备注',
+                        trailingText: groupRemark.isEmpty ? null : groupRemark,
+                        onTap: () => _showGroupRemarkDialog(
+                          context,
+                          currentName: groupRemark.isNotEmpty
+                              ? groupRemark
+                              : room?.getLocalizedDisplayname() ?? '',
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -125,14 +129,22 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                       _Divider(),
                       _RowSwitch(
                         label: '置顶聊天',
-                        value: _pinned,
-                        onChanged: (v) => setState(() => _pinned = v),
+                        value: pinnedConversationIds.contains(widget.roomId),
+                        onChanged: (_) =>
+                            toggleConversationPin(ref, widget.roomId),
                       ),
                       _Divider(),
                       _RowChevron(
-                        label: '我在群里的昵称',
-                        trailingText: 'Alex',
-                        onTap: () {},
+                        label: '我在本群昵称',
+                        trailingText:
+                            currentNickname.isEmpty ? null : currentNickname,
+                        onTap: room == null
+                            ? () {}
+                            : () => _showMyGroupNicknameDialog(
+                                  context,
+                                  room: room,
+                                  currentName: currentNickname,
+                                ),
                       ),
                       _Divider(),
                       _RowSwitch(
@@ -145,7 +157,12 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                   const SizedBox(height: 16),
                   _GroupedCard(
                     children: [
-                      _RowChevron(label: '清空聊天记录', onTap: () {}),
+                      _RowChevron(
+                        label: '清空聊天记录',
+                        onTap: _clearing
+                            ? () {}
+                            : () => _confirmClearChatHistory(context),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -217,6 +234,112 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     return room.getPowerLevelByUserId(self) >= 50;
   }
 
+  Future<void> _showGroupRemarkDialog(
+    BuildContext context, {
+    required String currentName,
+  }) async {
+    final next = await _showTextEditDialog(
+      context,
+      title: '备注',
+      initialValue: currentName,
+      hintText: '输入群聊备注',
+    );
+    if (!context.mounted || next == null) return;
+    setGroupRemarkName(ref, widget.roomId, next);
+    _toast(context, next.trim().isEmpty ? '已清除群聊备注' : '群聊备注已更新');
+  }
+
+  Future<void> _showMyGroupNicknameDialog(
+    BuildContext context, {
+    required Room room,
+    required String currentName,
+  }) async {
+    final next = await _showTextEditDialog(
+      context,
+      title: '我在本群昵称',
+      initialValue: currentName,
+      hintText: '输入群昵称',
+    );
+    if (!context.mounted || next == null) return;
+    final nickname = next.trim();
+    if (nickname.isEmpty) {
+      _toast(context, '群昵称不能为空');
+      return;
+    }
+    try {
+      final userId = room.client.userID;
+      if (userId == null || userId.isEmpty) {
+        throw StateError('缺少当前用户信息');
+      }
+      final content =
+          room.getState(EventTypes.RoomMember, userId)?.content.copy() ?? {};
+      content['membership'] = Membership.join.name;
+      content['displayname'] = nickname;
+      await room.client.setRoomStateWithKey(
+        room.id,
+        EventTypes.RoomMember,
+        userId,
+        content,
+      );
+      if (!mounted) return;
+      setState(() {});
+      _toast(this.context, '群昵称已更新');
+    } on Object catch (e) {
+      if (!context.mounted) return;
+      _toast(context, '设置群昵称失败: $e');
+    }
+  }
+
+  Future<void> _confirmClearChatHistory(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(
+          '清空聊天记录',
+          style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+        ),
+        content: Text(
+          '仅清空本机当前群聊的历史记录，新消息仍会正常接收。',
+          style: AppTheme.sans(size: 15, color: context.tk.textMute),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(false),
+            child: Text(
+              '取消',
+              style: AppTheme.sans(size: 15, color: context.tk.textMute),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(true),
+            child: Text(
+              '清空',
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: context.tk.danger,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted || _clearing) return;
+    setState(() => _clearing = true);
+    try {
+      await ref
+          .read(authStateNotifierProvider.notifier)
+          .clearRoomChatHistory(widget.roomId);
+      if (!context.mounted) return;
+      _toast(context, '聊天记录已清空');
+    } on Object catch (e) {
+      if (!context.mounted) return;
+      _toast(context, '清空聊天记录失败: $e');
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
   Future<void> _confirmLeave(BuildContext context) async {
     if (_leaving) return;
     final t = context.tk;
@@ -267,6 +390,106 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     } finally {
       if (mounted) setState(() => _leaving = false);
     }
+  }
+}
+
+Future<String?> _showTextEditDialog(
+  BuildContext context, {
+  required String title,
+  required String initialValue,
+  required String hintText,
+}) {
+  return showDialog<String>(
+    context: context,
+    builder: (_) => _GroupTextEditDialog(
+      title: title,
+      initialValue: initialValue,
+      hintText: hintText,
+    ),
+  );
+}
+
+String _currentUserNickname(Room? room, String? userId) {
+  final trimmedUserId = userId?.trim() ?? '';
+  if (room == null || trimmedUserId.isEmpty) return '';
+  final member = room.getState(EventTypes.RoomMember, trimmedUserId);
+  final stateName = member?.content.tryGet<String>('displayname')?.trim() ?? '';
+  if (stateName.isNotEmpty) return stateName;
+  return room
+      .unsafeGetUserFromMemoryOrFallback(trimmedUserId)
+      .calcDisplayname();
+}
+
+void _toast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message)),
+  );
+}
+
+class _GroupTextEditDialog extends StatefulWidget {
+  const _GroupTextEditDialog({
+    required this.title,
+    required this.initialValue,
+    required this.hintText,
+  });
+
+  final String title;
+  final String initialValue;
+  final String hintText;
+
+  @override
+  State<_GroupTextEditDialog> createState() => _GroupTextEditDialogState();
+}
+
+class _GroupTextEditDialogState extends State<_GroupTextEditDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialValue);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return AlertDialog(
+      title: Text(
+        widget.title,
+        style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 32,
+        decoration: InputDecoration(
+          hintText: widget.hintText,
+          hintStyle: AppTheme.sans(size: 15, color: t.textMute),
+        ),
+        style: AppTheme.sans(size: 15, color: t.text),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            '取消',
+            style: AppTheme.sans(size: 15, color: t.textMute),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: Text(
+            '保存',
+            style: AppTheme.sans(
+              size: 15,
+              weight: FontWeight.w600,
+              color: t.accent,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

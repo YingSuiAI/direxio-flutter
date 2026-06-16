@@ -15,6 +15,7 @@ import '../providers/auth_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/voice_call_provider.dart';
+import '../utils/avatar_url.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/read_marker_sync.dart';
 import '../utils/room_read_state.dart';
@@ -59,7 +60,7 @@ LocalVideoControlState localVideoControlState({
 
 String localVideoControlLabel(LocalVideoControlState state) {
   return switch (state) {
-    LocalVideoControlState.inactive => '键盘',
+    LocalVideoControlState.inactive => '',
     LocalVideoControlState.unavailable => '开摄像头',
     LocalVideoControlState.active => '关摄像头',
     LocalVideoControlState.muted => '开摄像头',
@@ -150,6 +151,7 @@ class CallPage extends ConsumerStatefulWidget {
     this.callId,
     this.peerUserId,
     this.peerDisplayName,
+    this.peerAvatarUrl,
     this.incoming = false,
   });
 
@@ -158,6 +160,7 @@ class CallPage extends ConsumerStatefulWidget {
   final String? callId;
   final String? peerUserId;
   final String? peerDisplayName;
+  final String? peerAvatarUrl;
   final bool incoming;
 
   @override
@@ -375,6 +378,14 @@ class _CallPageState extends ConsumerState<CallPage> {
             ? syncCache.contactForRoom(widget.roomId)
             : syncCache.contactForUserId(peerMxid) ??
                 syncCache.contactForRoom(widget.roomId);
+        final peerMember = peerMxid == null
+            ? null
+            : room?.unsafeGetUserFromMemoryOrFallback(peerMxid);
+        final peerAvatarUrl = _firstNonEmpty([
+          widget.peerAvatarUrl,
+          avatarHttpUrl(client, contact?.avatarUrl),
+          matrixContentHttpUrl(client, peerMember?.avatarUrl),
+        ]);
         final displayName = voiceCallPeerDisplayName(
           peerMxid: peerMxid,
           contactDisplayName: contact?.displayName ?? '',
@@ -400,6 +411,7 @@ class _CallPageState extends ConsumerState<CallPage> {
               controller: controller,
               state: state.copyWith(callType: ProductCallType.video),
               displayName: displayName,
+              avatarUrl: peerAvatarUrl,
               overrideText: _localError,
               isError: isError,
               onClose: _hangupAndClose,
@@ -454,13 +466,17 @@ class _CallPageState extends ConsumerState<CallPage> {
                               callType: ProductCallType.video,
                             ),
                             displayName: displayName,
+                            avatarUrl: peerAvatarUrl,
                             overrideText: _localError,
                             isError: isError,
                           )
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _CallAvatar(name: displayName),
+                              _CallAvatar(
+                                name: displayName,
+                                imageUrl: peerAvatarUrl,
+                              ),
                               const SizedBox(height: 20),
                               Padding(
                                 padding:
@@ -523,6 +539,7 @@ class _ConnectedVideoCallScreen extends StatefulWidget {
     required this.controller,
     required this.state,
     required this.displayName,
+    required this.avatarUrl,
     required this.isError,
     required this.onClose,
     required this.onToggleMute,
@@ -535,6 +552,7 @@ class _ConnectedVideoCallScreen extends StatefulWidget {
   final VoiceCallController controller;
   final VoiceCallUiState state;
   final String displayName;
+  final String? avatarUrl;
   final String? overrideText;
   final bool isError;
   final VoidCallback onClose;
@@ -582,6 +600,7 @@ class _ConnectedVideoCallScreenState extends State<_ConnectedVideoCallScreen> {
                 stream: remoteStream,
                 hasVideo: hasRemoteVideo,
                 displayName: widget.displayName,
+                avatarUrl: widget.avatarUrl,
                 state: widget.state,
                 overrideText: widget.overrideText,
                 isError: widget.isError,
@@ -721,6 +740,7 @@ class _ConnectedRemoteVideoSurface extends StatelessWidget {
     required this.stream,
     required this.hasVideo,
     required this.displayName,
+    required this.avatarUrl,
     required this.state,
     required this.isError,
     this.overrideText,
@@ -729,6 +749,7 @@ class _ConnectedRemoteVideoSurface extends StatelessWidget {
   final webrtc.MediaStream? stream;
   final bool hasVideo;
   final String displayName;
+  final String? avatarUrl;
   final VoiceCallUiState state;
   final String? overrideText;
   final bool isError;
@@ -758,23 +779,7 @@ class _ConnectedRemoteVideoSurface extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 92,
-                height: 92,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _callText.withValues(alpha: 0.10),
-                  border: Border.all(
-                    color: _callText.withValues(alpha: 0.14),
-                    width: 1,
-                  ),
-                ),
-                child: Icon(
-                  Symbols.videocam,
-                  size: 42,
-                  color: _callText.withValues(alpha: 0.72),
-                ),
-              ),
+              _CallAvatar(name: displayName, imageUrl: avatarUrl, size: 92),
               const SizedBox(height: 20),
               Text(
                 remoteVideoPlaceholderTitle(state),
@@ -876,6 +881,7 @@ class _VideoCallStage extends StatelessWidget {
     required this.controller,
     required this.state,
     required this.displayName,
+    required this.avatarUrl,
     required this.isError,
     this.overrideText,
   });
@@ -883,6 +889,7 @@ class _VideoCallStage extends StatelessWidget {
   final VoiceCallController controller;
   final VoiceCallUiState state;
   final String displayName;
+  final String? avatarUrl;
   final String? overrideText;
   final bool isError;
 
@@ -904,7 +911,7 @@ class _VideoCallStage extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _CallAvatar(name: displayName),
+                _CallAvatar(name: displayName, imageUrl: avatarUrl),
                 const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -1156,16 +1163,31 @@ String _formatCallElapsed(Duration elapsed) {
   return '$minutes:${remainder.toString().padLeft(2, '0')}';
 }
 
+String? _firstNonEmpty(Iterable<String?> values) {
+  for (final value in values) {
+    final trimmed = value?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) return trimmed;
+  }
+  return null;
+}
+
 class _CallAvatar extends StatelessWidget {
-  const _CallAvatar({required this.name});
+  const _CallAvatar({
+    required this.name,
+    this.imageUrl,
+    this.size = 112,
+  });
 
   final String name;
+  final String? imageUrl;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
+    final url = imageUrl?.trim();
     return Container(
-      width: 112,
-      height: 112,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: _callText.withValues(alpha: 0.1),
@@ -1175,10 +1197,34 @@ class _CallAvatar extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
+      clipBehavior: Clip.antiAlias,
+      child: url == null || url.isEmpty
+          ? _CallAvatarFallback(name: name, size: size)
+          : Image.network(
+              url,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  _CallAvatarFallback(name: name, size: size),
+            ),
+    );
+  }
+}
+
+class _CallAvatarFallback extends StatelessWidget {
+  const _CallAvatarFallback({required this.name, required this.size});
+
+  final String name;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
       child: Text(
         name.trim().isEmpty ? '?' : name.trim().characters.first.toUpperCase(),
         style: AppTheme.sans(
-          size: 44,
+          size: size * 0.39,
           weight: FontWeight.w700,
           color: _callText.withValues(alpha: 0.72),
         ),
@@ -1294,20 +1340,21 @@ class _ActiveControls extends StatelessWidget {
               selected: state.isMuted,
               onTap: onToggleMute,
             ),
-            _ControlButton(
-              icon: switch (videoState) {
-                LocalVideoControlState.inactive => Symbols.dialpad,
-                LocalVideoControlState.active => Symbols.videocam,
-                LocalVideoControlState.muted ||
-                LocalVideoControlState.unavailable =>
-                  Symbols.videocam_off,
-              },
-              label: localVideoControlLabel(videoState),
-              selected: videoState == LocalVideoControlState.muted ||
-                  videoState == LocalVideoControlState.unavailable,
-              enabled: !isVideo || canToggleVideo,
-              onTap: isVideo && canToggleVideo ? onToggleCamera : null,
-            ),
+            if (isVideo)
+              _ControlButton(
+                icon: switch (videoState) {
+                  LocalVideoControlState.inactive => Symbols.videocam_off,
+                  LocalVideoControlState.active => Symbols.videocam,
+                  LocalVideoControlState.muted ||
+                  LocalVideoControlState.unavailable =>
+                    Symbols.videocam_off,
+                },
+                label: localVideoControlLabel(videoState),
+                selected: videoState == LocalVideoControlState.muted ||
+                    videoState == LocalVideoControlState.unavailable,
+                enabled: canToggleVideo,
+                onTap: canToggleVideo ? onToggleCamera : null,
+              ),
             _ControlButton(
               icon: state.isSpeakerOn ? Symbols.volume_up : Symbols.volume_off,
               label: speakerControlLabel(state.isSpeakerOn),

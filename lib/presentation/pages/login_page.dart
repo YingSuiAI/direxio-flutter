@@ -87,7 +87,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       AppLocalizations,
     );
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: t.bg,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +15,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/conversation_preferences_provider.dart';
 import '../providers/friend_request_read_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
@@ -74,6 +76,10 @@ const _meIconBlue = Color(0xFF3097CB);
 const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
 const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
+
+final _homeHiddenConversationIdsProvider = StateProvider<Set<String>>(
+  (ref) => const <String>{},
+);
 
 bool _homeDark(BuildContext context) {
   return Theme.of(context).brightness == Brightness.dark;
@@ -1335,6 +1341,9 @@ class _ChatList extends ConsumerWidget {
     final pendingFriendRequests = friendRequestReadState.unreadCountForRoomIds(
       _pendingFriendRequestRoomIds(client: client, syncCache: syncCache),
     );
+    final hiddenConversationIds = ref.watch(_homeHiddenConversationIdsProvider);
+    final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
+    final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final outbox = ref.watch(localOutboxProvider);
     final messageOrder = ref.watch(localMessageOrderProvider);
     final asGroupRoomIds = (syncCache.bootstrap?.groups ?? const [])
@@ -1357,7 +1366,15 @@ class _ChatList extends ConsumerWidget {
     // 未登录时展示 mock 会话用于演示；已登录则始终走真数据，
     // rooms 为空也显示真实空态，不回退 mock。
     if (_mockAuthEnabled || !isLoggedIn) {
-      final convs = MockData.conversations.toList();
+      final convs = MockData.conversations.where((conversation) {
+        return !hiddenConversationIds.contains(conversation.id);
+      }).toList()
+        ..sort((a, b) {
+          final aPinned = pinnedConversationIds.contains(a.id);
+          final bPinned = pinnedConversationIds.contains(b.id);
+          if (aPinned != bPinned) return aPinned ? -1 : 1;
+          return 0;
+        });
       return ListView.builder(
         padding: const EdgeInsets.only(top: 4, bottom: 96),
         itemCount: convs.length + 1,
@@ -1383,7 +1400,10 @@ class _ChatList extends ConsumerWidget {
             isAgent: isAgent,
             isGroup: c.isGroup,
             avatarUrl: c.avatarUrl,
+            isPinned: pinnedConversationIds.contains(c.id),
             onTap: () => context.push('/chat/${c.id}'),
+            onTogglePin: () => _toggleHomeConversationPin(ref, c.id),
+            onDelete: () => _hideHomeConversation(ref, c.id),
           );
         },
       );
@@ -1434,6 +1454,9 @@ class _ChatList extends ConsumerWidget {
     }
 
     final sortedConversations = [...visibleConversations]..sort((a, b) {
+        final aPinned = pinnedConversationIds.contains(a.roomId);
+        final bPinned = pinnedConversationIds.contains(b.roomId);
+        if (aPinned != bPinned) return aPinned ? -1 : 1;
         if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
         return _conversationSortTime(
           b,
@@ -1447,18 +1470,22 @@ class _ChatList extends ConsumerWidget {
           ),
         );
       });
+    final filteredConversations = [
+      for (final conversation in sortedConversations)
+        if (!hiddenConversationIds.contains(conversation.roomId)) conversation,
+    ];
     _debugPrintConversationList(
       client: client,
       auth: authState.valueOrNull,
       syncCache: syncCache,
       rooms: rooms,
-      conversations: sortedConversations,
+      conversations: filteredConversations,
       outbox: outbox,
     );
 
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
-      itemCount: sortedConversations.length + 1,
+      itemCount: filteredConversations.length + 1,
       itemBuilder: (context, i) {
         if (i == 0) {
           return _ChatShortcutRow(
@@ -1469,7 +1496,7 @@ class _ChatList extends ConsumerWidget {
             onTap: () => context.push('/requests'),
           );
         }
-        final conversation = sortedConversations[i - 1];
+        final conversation = filteredConversations[i - 1];
         final room = conversation.room;
         final lastEvent = room?.lastEvent;
         final failedOutbox =
@@ -1492,7 +1519,10 @@ class _ChatList extends ConsumerWidget {
         return _ConvRow(
           name: conversation.isAgent
               ? 'Agent'
-              : _conversationDisplayName(conversation),
+              : _conversationDisplayName(
+                  conversation,
+                  groupRemarkNames: groupRemarkNames,
+                ),
           lastMessage: lastMessage,
           time: previewTime == null
               ? ''
@@ -1501,15 +1531,36 @@ class _ChatList extends ConsumerWidget {
           isAgent: conversation.isAgent,
           isGroup: conversation.isGroup,
           avatarUrl: _conversationAvatarUrl(client, conversation, room),
+          isPinned: pinnedConversationIds.contains(conversation.roomId),
           onTap: () => conversation.isGroup
               ? context
                   .push('/group/${Uri.encodeComponent(conversation.roomId)}')
               : context
                   .push('/chat/${Uri.encodeComponent(conversation.roomId)}'),
+          onTogglePin: () => _toggleHomeConversationPin(
+            ref,
+            conversation.roomId,
+          ),
+          onDelete: () => _hideHomeConversation(ref, conversation.roomId),
         );
       },
     );
   }
+}
+
+void _hideHomeConversation(WidgetRef ref, String roomId) {
+  final trimmed = roomId.trim();
+  if (trimmed.isEmpty) return;
+  unpinConversation(ref, trimmed);
+  ref.read(_homeHiddenConversationIdsProvider.notifier).update(
+        (ids) => {...ids, trimmed},
+      );
+}
+
+void _toggleHomeConversationPin(WidgetRef ref, String roomId) {
+  final trimmed = roomId.trim();
+  if (trimmed.isEmpty) return;
+  toggleConversationPin(ref, trimmed);
 }
 
 void _debugPrintConversationList({
@@ -1707,8 +1758,15 @@ LocalOutboxItem? _latestFailedMediaOutboxForConversation(
   return items.first;
 }
 
-String _conversationDisplayName(_VisibleConversation conversation) {
+String _conversationDisplayName(
+  _VisibleConversation conversation, {
+  Map<String, String> groupRemarkNames = const {},
+}) {
   final group = conversation.group;
+  if (conversation.isGroup) {
+    final remark = groupRemarkNames[conversation.roomId]?.trim() ?? '';
+    if (remark.isNotEmpty) return remark;
+  }
   if (group != null) {
     final name = group.name.trim();
     if (name.isNotEmpty) return name;
@@ -1936,8 +1994,11 @@ class _ConvRow extends StatelessWidget {
     required this.time,
     required this.unread,
     required this.onTap,
+    required this.onTogglePin,
+    required this.onDelete,
     this.isAgent = false,
     this.isGroup = false,
+    this.isPinned = false,
     this.avatarUrl,
   });
   final String name;
@@ -1945,8 +2006,11 @@ class _ConvRow extends StatelessWidget {
   final String time;
   final int unread;
   final VoidCallback onTap;
+  final VoidCallback onTogglePin;
+  final VoidCallback onDelete;
   final bool isAgent;
   final bool isGroup;
+  final bool isPinned;
   final String? avatarUrl;
 
   @override
@@ -1984,10 +2048,24 @@ class _ConvRow extends StatelessWidget {
 
     return GestureDetector(
       onSecondaryTapDown: (d) => rcPos = d.globalPosition,
-      onSecondaryTap: () => _showChatCtxMenu(context, rcPos, name),
+      onSecondaryTap: () => _showChatCtxMenu(
+        context,
+        rcPos,
+        name,
+        isPinned: isPinned,
+        onTogglePin: onTogglePin,
+        onDelete: onDelete,
+      ),
       onLongPressStart: (d) {
         rcPos = d.globalPosition;
-        _showChatCtxMenu(context, rcPos, name);
+        _showChatCtxMenu(
+          context,
+          rcPos,
+          name,
+          isPinned: isPinned,
+          onTogglePin: onTogglePin,
+          onDelete: onDelete,
+        );
       },
       child: Material(
         color: Colors.transparent,
@@ -2034,6 +2112,14 @@ class _ConvRow extends StatelessWidget {
                                       const SizedBox(width: 4),
                                       Icon(
                                         Symbols.smart_toy,
+                                        size: 14,
+                                        color: mutedColor,
+                                      ),
+                                    ],
+                                    if (isPinned) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Symbols.push_pin,
                                         size: 14,
                                         color: mutedColor,
                                       ),
@@ -2127,7 +2213,14 @@ class _ConversationUnreadBadge extends StatelessWidget {
   }
 }
 
-void _showChatCtxMenu(BuildContext context, Offset pos, String name) {
+void _showChatCtxMenu(
+  BuildContext context,
+  Offset pos,
+  String name, {
+  required bool isPinned,
+  required VoidCallback onTogglePin,
+  required VoidCallback onDelete,
+}) {
   final size = MediaQuery.of(context).size;
   const menuW = 176.0;
   const menuH = 148.0;
@@ -2150,7 +2243,12 @@ void _showChatCtxMenu(BuildContext context, Offset pos, String name) {
           left: left,
           top: top,
           width: menuW,
-          child: _ChatCtxMenuCard(name: name),
+          child: _ChatCtxMenuCard(
+            name: name,
+            isPinned: isPinned,
+            onTogglePin: onTogglePin,
+            onDelete: onDelete,
+          ),
         ),
       ],
     ),
@@ -2160,8 +2258,16 @@ void _showChatCtxMenu(BuildContext context, Offset pos, String name) {
 }
 
 class _ChatCtxMenuCard extends StatelessWidget {
-  const _ChatCtxMenuCard({required this.name});
+  const _ChatCtxMenuCard({
+    required this.name,
+    required this.isPinned,
+    required this.onTogglePin,
+    required this.onDelete,
+  });
   final String name;
+  final bool isPinned;
+  final VoidCallback onTogglePin;
+  final VoidCallback onDelete;
 
   // chat-ctx-menu 用固定深色，与 light/dark 主题无关（对齐 index.html#chat-ctx-menu）。
   static const _dark = Color(0xFF1E2026);
@@ -2190,9 +2296,11 @@ class _ChatCtxMenuCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _row(context, Symbols.push_pin, '置顶', () {
+            _row(context, isPinned ? Symbols.keep_off : Symbols.push_pin,
+                isPinned ? '取消置顶' : '置顶', () {
               Navigator.of(context).pop();
-              _toast(context, '已置顶「$name」');
+              onTogglePin();
+              _toast(context, isPinned ? '已取消置顶「$name」' : '已置顶「$name」');
             }),
             const Divider(
               height: 1,
@@ -2202,6 +2310,7 @@ class _ChatCtxMenuCard extends StatelessWidget {
             ),
             _row(context, Symbols.visibility_off, '不显示', () {
               Navigator.of(context).pop();
+              onDelete();
               _toast(context, '已隐藏「$name」');
             }),
             const Divider(
@@ -2212,6 +2321,7 @@ class _ChatCtxMenuCard extends StatelessWidget {
             ),
             _row(context, Symbols.delete, '删除聊天', () {
               Navigator.of(context).pop();
+              onDelete();
               _toast(context, '已删除「$name」');
             }, danger: true),
           ],
@@ -2281,6 +2391,7 @@ Future<void> _showCreateChannelDialog(
   try {
     await ref.read(asClientProvider).createChannel(
       name: name,
+      avatarUrl: draft.avatarUrl,
       visibility: draft.isPublic
           ? asChannelVisibilityPublic
           : asChannelVisibilityPrivate,
@@ -2306,26 +2417,32 @@ class _CreateChannelDraft {
   const _CreateChannelDraft({
     required this.name,
     required this.type,
+    this.avatarUrl = '',
     required this.isPublic,
     required this.needsApproval,
   });
 
   final String name;
   final String type;
+  final String avatarUrl;
   final bool isPublic;
   final bool needsApproval;
 }
 
-class _CreateChannelSheet extends StatefulWidget {
+class _CreateChannelSheet extends ConsumerStatefulWidget {
   const _CreateChannelSheet();
 
   @override
-  State<_CreateChannelSheet> createState() => _CreateChannelSheetState();
+  ConsumerState<_CreateChannelSheet> createState() =>
+      _CreateChannelSheetState();
 }
 
-class _CreateChannelSheetState extends State<_CreateChannelSheet> {
+class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
   final _nameCtrl = TextEditingController();
   String _type = '文字';
+  String _avatarUrl = '';
+  Uint8List? _avatarPreviewBytes;
+  bool _avatarUploading = false;
   bool _isPublic = true;
   bool _needsApproval = false;
 
@@ -2333,6 +2450,43 @@ class _CreateChannelSheetState extends State<_CreateChannelSheet> {
   void dispose() {
     _nameCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickAvatar() async {
+    if (_avatarUploading) return;
+    setState(() => _avatarUploading = true);
+    try {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 88,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        requestFullMetadata: false,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        throw StateError('empty channel avatar bytes');
+      }
+      if (mounted) {
+        setState(() => _avatarPreviewBytes = bytes);
+      }
+      final uploaded = await ref.read(matrixClientProvider).uploadContent(
+            bytes,
+            filename:
+                file.name.trim().isEmpty ? 'channel-avatar.jpg' : file.name,
+            contentType: file.mimeType ?? _imageMimeTypeForName(file.name),
+          );
+      if (!mounted) return;
+      setState(() => _avatarUrl = uploaded.toString());
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('频道头像上传失败：$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _avatarUploading = false);
+    }
   }
 
   @override
@@ -2383,9 +2537,9 @@ class _CreateChannelSheetState extends State<_CreateChannelSheet> {
                       ),
                       const SizedBox(height: 16),
                       _CreateChannelAvatarPicker(
-                        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('头像上传功能待接入')),
-                        ),
+                        previewBytes: _avatarPreviewBytes,
+                        uploading: _avatarUploading,
+                        onTap: _pickAvatar,
                       ),
                     ],
                   ),
@@ -2397,7 +2551,6 @@ class _CreateChannelSheetState extends State<_CreateChannelSheet> {
                     children: [
                       const _CreateChannelSectionHeader(
                         title: '选择频道类型',
-                        meta: 'P0',
                       ),
                       const SizedBox(height: 16),
                       Row(
@@ -2434,8 +2587,8 @@ class _CreateChannelSheetState extends State<_CreateChannelSheet> {
                       Text(
                         '频道权限',
                         style: AppTheme.sans(
-                          size: 18,
-                          weight: FontWeight.w800,
+                          size: 16,
+                          weight: FontWeight.w700,
                           color: t.text,
                         ),
                       ),
@@ -2467,14 +2620,23 @@ class _CreateChannelSheetState extends State<_CreateChannelSheet> {
             child: SafeArea(
               top: false,
               child: _CreateChannelSubmitButton(
-                onTap: () => Navigator.of(context).pop(
-                  _CreateChannelDraft(
-                    name: _nameCtrl.text,
-                    type: _type,
-                    isPublic: _isPublic,
-                    needsApproval: _needsApproval,
-                  ),
-                ),
+                onTap: () {
+                  if (_avatarUploading) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('频道头像上传中，请稍候')),
+                    );
+                    return;
+                  }
+                  Navigator.of(context).pop(
+                    _CreateChannelDraft(
+                      name: _nameCtrl.text,
+                      type: _type,
+                      avatarUrl: _avatarUrl,
+                      isPublic: _isPublic,
+                      needsApproval: _needsApproval,
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -2513,11 +2675,11 @@ class _CreateChannelCard extends StatelessWidget {
 class _CreateChannelSectionHeader extends StatelessWidget {
   const _CreateChannelSectionHeader({
     required this.title,
-    required this.meta,
+    this.meta,
   });
 
   final String title;
-  final String meta;
+  final String? meta;
 
   @override
   Widget build(BuildContext context) {
@@ -2528,20 +2690,21 @@ class _CreateChannelSectionHeader extends StatelessWidget {
           child: Text(
             title,
             style: AppTheme.sans(
-              size: 18,
-              weight: FontWeight.w800,
+              size: 16,
+              weight: FontWeight.w700,
               color: t.text,
             ),
           ),
         ),
-        Text(
-          meta,
-          style: AppTheme.sans(
-            size: 13,
-            weight: FontWeight.w800,
-            color: t.textMute,
+        if (meta != null && meta!.trim().isNotEmpty)
+          Text(
+            meta!,
+            style: AppTheme.sans(
+              size: 12,
+              weight: FontWeight.w600,
+              color: t.textMute,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -2582,14 +2745,14 @@ class _CreateChannelNameField extends StatelessWidget {
                 border: InputBorder.none,
                 hintText: '输入频道名称',
                 hintStyle: AppTheme.sans(
-                  size: 16,
-                  weight: FontWeight.w800,
+                  size: 15,
+                  weight: FontWeight.w400,
                   color: t.textMute,
                 ),
               ),
               style: AppTheme.sans(
-                size: 16,
-                weight: FontWeight.w800,
+                size: 15,
+                weight: FontWeight.w400,
                 color: t.text,
               ),
             ),
@@ -2601,8 +2764,14 @@ class _CreateChannelNameField extends StatelessWidget {
 }
 
 class _CreateChannelAvatarPicker extends StatelessWidget {
-  const _CreateChannelAvatarPicker({required this.onTap});
+  const _CreateChannelAvatarPicker({
+    required this.previewBytes,
+    required this.uploading,
+    required this.onTap,
+  });
 
+  final Uint8List? previewBytes;
+  final bool uploading;
   final VoidCallback onTap;
 
   @override
@@ -2626,11 +2795,33 @@ class _CreateChannelAvatarPicker extends StatelessWidget {
                   color: t.accent.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(
-                  Symbols.add_photo_alternate,
-                  color: t.accent,
-                  size: 31,
-                  fill: 1,
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (previewBytes == null)
+                      Icon(
+                        Symbols.add_photo_alternate,
+                        color: t.accent,
+                        size: 31,
+                        fill: 1,
+                      )
+                    else
+                      Image.memory(previewBytes!, fit: BoxFit.cover),
+                    if (uploading)
+                      ColoredBox(
+                        color: t.text.withValues(alpha: 0.24),
+                        child: Center(
+                          child: SizedBox.square(
+                            dimension: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: t.onAccent,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
@@ -2640,23 +2831,23 @@ class _CreateChannelAvatarPicker extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '选择头像',
+                      previewBytes == null ? '选择头像' : '更换头像',
                       style: AppTheme.sans(
-                        size: 16,
-                        weight: FontWeight.w800,
+                        size: 15,
+                        weight: FontWeight.w600,
                         color: t.text,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '支持图片上传，作为频道展示头像',
+                      uploading ? '头像上传中...' : '支持图片上传，作为频道展示头像',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
-                        size: 13,
-                        weight: FontWeight.w700,
+                        size: 12,
+                        weight: FontWeight.w400,
                         color: t.textMute,
-                      ).copyWith(height: 18 / 13),
+                      ).copyWith(height: 17 / 12),
                     ),
                   ],
                 ),
@@ -2673,6 +2864,16 @@ class _CreateChannelAvatarPicker extends StatelessWidget {
       ),
     );
   }
+}
+
+String _imageMimeTypeForName(String name) {
+  final lower = name.toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.heic')) return 'image/heic';
+  if (lower.endsWith('.heif')) return 'image/heif';
+  return 'image/jpeg';
 }
 
 class _CreateChannelTypeTile extends StatelessWidget {
@@ -2731,8 +2932,8 @@ class _CreateChannelTypeTile extends StatelessWidget {
               Text(
                 title,
                 style: AppTheme.sans(
-                  size: 17,
-                  weight: FontWeight.w800,
+                  size: 15,
+                  weight: FontWeight.w600,
                   color: t.text,
                 ),
               ),
@@ -2741,7 +2942,7 @@ class _CreateChannelTypeTile extends StatelessWidget {
                 subtitle,
                 style: AppTheme.sans(
                   size: 12,
-                  weight: FontWeight.w800,
+                  weight: FontWeight.w400,
                   color: t.textMute,
                 ),
               ),
@@ -2778,8 +2979,8 @@ class _CreateChannelSwitchRow extends StatelessWidget {
               Text(
                 title,
                 style: AppTheme.sans(
-                  size: 16,
-                  weight: FontWeight.w800,
+                  size: 15,
+                  weight: FontWeight.w500,
                   color: t.text,
                 ),
               ),
@@ -2787,8 +2988,8 @@ class _CreateChannelSwitchRow extends StatelessWidget {
               Text(
                 subtitle,
                 style: AppTheme.sans(
-                  size: 13,
-                  weight: FontWeight.w700,
+                  size: 12,
+                  weight: FontWeight.w400,
                   color: t.textMute,
                 ),
               ),
@@ -2828,8 +3029,8 @@ class _CreateChannelSubmitButton extends StatelessWidget {
             child: Text(
               '创建频道',
               style: AppTheme.sans(
-                size: 16,
-                weight: FontWeight.w800,
+                size: 15,
+                weight: FontWeight.w600,
                 color: t.onAccent,
               ),
             ),
@@ -3390,7 +3591,6 @@ class _ChannelExplorePageState extends ConsumerState<_ChannelExplorePage> {
                 _ChannelTopCircleButton(
                   key: const ValueKey('channel_post_button'),
                   icon: Symbols.add,
-                  iconSize: 31,
                   onTap: () => _showCreateChannelDialog(context, ref),
                 ),
               ],
@@ -3520,7 +3720,7 @@ class _ChannelSectionSegment extends StatelessWidget {
               textAlign: TextAlign.center,
               style: AppTheme.sans(
                 size: 15,
-                weight: FontWeight.w800,
+                weight: FontWeight.w500,
                 color: selected ? t.text : t.textMute,
               ).copyWith(height: 22 / 15),
             ),
@@ -3587,7 +3787,7 @@ class _ChannelTypePill extends StatelessWidget {
               label,
               style: AppTheme.sans(
                 size: 13,
-                weight: FontWeight.w800,
+                weight: FontWeight.w500,
                 color: fg,
               ).copyWith(height: 18 / 13),
             ),
@@ -3618,13 +3818,11 @@ class _ChannelTopCircleButton extends StatelessWidget {
     super.key,
     required this.icon,
     required this.onTap,
-    this.iconSize = 28,
     this.badgeCount = 0,
   });
 
   final IconData icon;
   final VoidCallback onTap;
-  final double iconSize;
   final int badgeCount;
 
   @override
@@ -3646,9 +3844,8 @@ class _ChannelTopCircleButton extends StatelessWidget {
               Center(
                 child: Icon(
                   icon,
-                  size: iconSize,
+                  size: 25,
                   color: t.text,
-                  weight: 700,
                 ),
               ),
               if (badgeCount > 0)
@@ -3837,10 +4034,10 @@ class _ChannelInboxTile extends StatelessWidget {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppTheme.sans(
-                                      size: 16,
-                                      weight: FontWeight.w800,
+                                      size: 14,
+                                      weight: FontWeight.w500,
                                       color: textColor,
-                                    ).copyWith(height: 22 / 16),
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -3858,10 +4055,10 @@ class _ChannelInboxTile extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTheme.sans(
-                                  size: 13,
+                                  size: 12,
                                   weight: FontWeight.w400,
-                                  color: const Color(0xFF6D7B91),
-                                ).copyWith(height: 20 / 13),
+                                  color: mutedColor,
+                                ),
                               ),
                             ),
                           ],
@@ -3884,9 +4081,9 @@ class _ChannelInboxTile extends StatelessWidget {
                               textAlign: TextAlign.right,
                               style: AppTheme.sans(
                                 size: 12,
-                                weight: FontWeight.w500,
+                                weight: FontWeight.w400,
                                 color: mutedColor,
-                              ).copyWith(height: 18 / 12),
+                              ),
                             ),
                           ),
                         ),

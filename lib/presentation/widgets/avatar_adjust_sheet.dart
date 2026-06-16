@@ -84,7 +84,6 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
   double _scale = _minAvatarScale;
   double _startScale = _minAvatarScale;
   bool _exporting = false;
-  bool _completed = false;
   String? _errorText;
 
   @override
@@ -114,7 +113,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
   }
 
   void _onScaleStart(ScaleStartDetails details) {
-    if (_completed || _exporting) return;
+    if (_exporting) return;
     _startScale = _scale;
     _startOffset = _offset;
     _startFocal = details.localFocalPoint;
@@ -125,7 +124,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
     Size baseSize,
     double cropSize,
   ) {
-    if (_completed || _exporting) return;
+    if (_exporting) return;
     final nextScale =
         (_startScale * details.scale).clamp(_minAvatarScale, _maxAvatarScale);
     final nextOffset = _startOffset + details.localFocalPoint - _startFocal;
@@ -141,7 +140,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
   }
 
   void _setScale(double value, Size baseSize, double cropSize) {
-    if (_completed || _exporting) return;
+    if (_exporting) return;
     setState(() {
       _scale = value;
       _offset = clampAvatarOffset(
@@ -154,7 +153,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
   }
 
   void _reset(Size baseSize, double cropSize) {
-    if (_completed || _exporting) return;
+    if (_exporting) return;
     setState(() {
       _scale = _minAvatarScale;
       _offset = clampAvatarOffset(
@@ -167,10 +166,6 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
   }
 
   Future<void> _finish() async {
-    if (_completed) {
-      Navigator.of(context).pop();
-      return;
-    }
     if (_exporting) return;
     setState(() {
       _exporting = true;
@@ -186,10 +181,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
         if (onConfirm == null) {
           Navigator.of(context).pop(bytes);
         } else {
-          setState(() {
-            _completed = true;
-            _exporting = false;
-          });
+          Navigator.of(context).pop();
         }
       }
     } catch (e) {
@@ -259,7 +251,6 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
                     children: [
                       _Header(
                         exporting: _exporting,
-                        completed: _completed,
                         onCancel: () => Navigator.of(context).pop(),
                         onDone: _finish,
                       ),
@@ -268,11 +259,10 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
                         '双指缩放或拖动图片',
                         style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
-                      if (_completed || _errorText != null) ...[
+                      if (_errorText != null) ...[
                         const SizedBox(height: 12),
                         _StatusBanner(
-                          success: _completed,
-                          text: _completed ? '头像已更新' : _errorText!,
+                          text: _errorText!,
                         ),
                       ],
                       const SizedBox(height: 16),
@@ -332,7 +322,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
                               min: _minAvatarScale,
                               max: _maxAvatarScale,
                               value: _scale,
-                              onChanged: _exporting || _completed
+                              onChanged: _exporting
                                   ? null
                                   : (v) => _setScale(v, baseSize, cropSize),
                             ),
@@ -341,7 +331,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
                         ],
                       ),
                       TextButton.icon(
-                        onPressed: _exporting || _completed
+                        onPressed: _exporting
                             ? null
                             : () => _reset(baseSize, cropSize),
                         icon: const Icon(Symbols.refresh, size: 18),
@@ -359,13 +349,11 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
 class _Header extends StatelessWidget {
   const _Header({
     required this.exporting,
-    required this.completed,
     required this.onCancel,
     required this.onDone,
   });
 
   final bool exporting;
-  final bool completed;
   final VoidCallback onCancel;
   final VoidCallback onDone;
 
@@ -376,12 +364,10 @@ class _Header extends StatelessWidget {
       children: [
         SizedBox(
           width: 64,
-          child: completed
-              ? const SizedBox.shrink()
-              : TextButton(
-                  onPressed: exporting ? null : onCancel,
-                  child: const Text('取消'),
-                ),
+          child: TextButton(
+            onPressed: exporting ? null : onCancel,
+            child: const Text('取消'),
+          ),
         ),
         Expanded(
           child: Text(
@@ -402,7 +388,7 @@ class _Header extends StatelessWidget {
                     color: t.accent,
                   ),
                 )
-              : Text(completed ? '关闭' : '完成'),
+              : const Text('完成'),
         ),
       ],
     );
@@ -410,15 +396,14 @@ class _Header extends StatelessWidget {
 }
 
 class _StatusBanner extends StatelessWidget {
-  const _StatusBanner({required this.success, required this.text});
+  const _StatusBanner({required this.text});
 
-  final bool success;
   final String text;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final color = success ? t.tertiaryFixed : t.danger;
+    final color = t.danger;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -430,7 +415,7 @@ class _StatusBanner extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            success ? Symbols.check_circle : Symbols.error,
+            Symbols.error,
             size: 20,
             color: color,
           ),
@@ -438,7 +423,7 @@ class _StatusBanner extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: AppTheme.sans(size: 13, color: success ? t.text : color),
+              style: AppTheme.sans(size: 13, color: color),
             ),
           ),
         ],

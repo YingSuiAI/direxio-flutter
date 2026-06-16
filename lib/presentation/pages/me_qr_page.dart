@@ -15,6 +15,7 @@ import '../providers/auth_provider.dart';
 import '../providers/personal_space_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/save_image_to_gallery.dart';
 import '../widgets/portal_avatar.dart';
 
 class MeQrPage extends ConsumerWidget {
@@ -161,7 +162,7 @@ class _QrGlassButton extends StatelessWidget {
   }
 }
 
-class _QrCard extends StatelessWidget {
+class _QrCard extends StatefulWidget {
   const _QrCard({
     required this.displayName,
     required this.uid,
@@ -175,6 +176,55 @@ class _QrCard extends StatelessWidget {
   final String userId;
   final String avatarUrl;
   final String payload;
+
+  @override
+  State<_QrCard> createState() => _QrCardState();
+}
+
+class _QrCardState extends State<_QrCard> {
+  bool _saving = false;
+
+  Future<void> _saveToAlbum() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final l10n = AppLocalizations.of(context);
+    try {
+      final imageData = await QrPainter(
+        data: widget.payload,
+        version: QrVersions.auto,
+        gapless: true,
+        // ignore: deprecated_member_use
+        emptyColor: Colors.white,
+        eyeStyle: const QrEyeStyle(
+          eyeShape: QrEyeShape.square,
+          color: Colors.black,
+        ),
+        dataModuleStyle: const QrDataModuleStyle(
+          dataModuleShape: QrDataModuleShape.square,
+          color: Colors.black,
+        ),
+      ).toImageData(1024);
+      final bytes = imageData?.buffer.asUint8List();
+      if (bytes == null || bytes.isEmpty) {
+        throw const SaveImageToGalleryException('Failed to render QR image.');
+      }
+      await savePngImageToGallery(
+        bytes: bytes,
+        fileName: 'p2p_im_qr_${_safeFileName(widget.uid)}.png',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.meQrSaveSuccess)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.meQrSaveFailed)),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -193,9 +243,9 @@ class _QrCard extends StatelessWidget {
             Row(
               children: [
                 PortalAvatar(
-                  seed: userId,
+                  seed: widget.userId,
                   size: 60,
-                  imageUrl: avatarUrl,
+                  imageUrl: widget.avatarUrl,
                   shape: AvatarShape.squircle,
                 ),
                 const SizedBox(width: 8),
@@ -204,7 +254,7 @@ class _QrCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        displayName,
+                        widget.displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(
@@ -215,7 +265,7 @@ class _QrCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'UID $uid',
+                        'UID ${widget.uid}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(size: 14, color: t.textMute),
@@ -225,7 +275,7 @@ class _QrCard extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: AppLocalizations.of(context).commonShare,
-                  onPressed: () => Share.share(payload),
+                  onPressed: () => Share.share(widget.payload),
                   icon: Icon(Symbols.ios_share, size: 24, color: t.text),
                 ),
               ],
@@ -240,7 +290,7 @@ class _QrCard extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: QrImageView(
-                    data: payload,
+                    data: widget.payload,
                     version: QrVersions.auto,
                     size: 150,
                     backgroundColor: Colors.white,
@@ -266,11 +316,7 @@ class _QrCard extends StatelessWidget {
             SizedBox(
               height: 44,
               child: FilledButton(
-                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(AppLocalizations.of(context).meQrSaveTodo),
-                  ),
-                ),
+                onPressed: _saving ? null : _saveToAlbum,
                 style: FilledButton.styleFrom(
                   backgroundColor: t.accent,
                   foregroundColor: t.onAccent,
@@ -279,7 +325,9 @@ class _QrCard extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  AppLocalizations.of(context).meQrSaveToAlbum,
+                  _saving
+                      ? AppLocalizations.of(context).meQrSaving
+                      : AppLocalizations.of(context).meQrSaveToAlbum,
                   style: AppTheme.sans(
                     size: 14,
                     weight: FontWeight.w500,
@@ -311,4 +359,9 @@ String _domainFromMxid(String mxid, AppLocalizations l10n) {
     return l10n.meQrUnconnectedDomain;
   }
   return mxid.substring(colon + 1);
+}
+
+String _safeFileName(String value) {
+  final sanitized = value.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+  return sanitized.isEmpty ? 'me' : sanitized;
 }

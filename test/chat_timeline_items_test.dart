@@ -71,11 +71,61 @@ void main() {
       const ['sent-3', 'sent-2', 'sent-1'],
     );
   });
+
+  test('filters local outbox text shadowed by a nearby event echo', () {
+    final outboxTime = DateTime.parse('2026-05-28T14:17:00Z');
+    final items = filterOutboxItemsShadowedByEvents<_EchoEvent, _OutboxItem>(
+      events: [
+        _EchoEvent('text:hello', outboxTime.add(const Duration(seconds: 8))),
+      ],
+      outboxItems: [
+        _OutboxItem('failed-text', outboxTime, signature: 'text:hello'),
+        _OutboxItem('real-failed', outboxTime, signature: 'text:still-failed'),
+      ],
+      eventSignature: (event) => event.signature,
+      eventTimestamp: (event) => event.createdAt,
+      outboxSignature: (item) => item.signature,
+      outboxTimestamp: (item) => item.createdAt,
+    );
+
+    expect(items.map((item) => item.id), const ['real-failed']);
+  });
+
+  test('filters shadowed outbox text by matching event count only', () {
+    final outboxTime = DateTime.parse('2026-05-28T14:17:00Z');
+    final items = filterOutboxItemsShadowedByEvents<_EchoEvent, _OutboxItem>(
+      events: [
+        _EchoEvent('text:hello', outboxTime.add(const Duration(seconds: 8))),
+      ],
+      outboxItems: [
+        _OutboxItem('first', outboxTime, signature: 'text:hello'),
+        _OutboxItem(
+          'second',
+          outboxTime.add(const Duration(seconds: 1)),
+          signature: 'text:hello',
+        ),
+      ],
+      eventSignature: (event) => event.signature,
+      eventTimestamp: (event) => event.createdAt,
+      outboxSignature: (item) => item.signature,
+      outboxTimestamp: (item) => item.createdAt,
+    );
+
+    expect(items.map((item) => item.id), const ['second']);
+  });
 }
 
 class _OutboxItem {
-  const _OutboxItem(this.id, this.createdAt);
+  const _OutboxItem(this.id, this.createdAt, {this.signature});
 
   final String id;
+  final DateTime createdAt;
+  final String? signature;
+}
+
+class _EchoEvent {
+  const _EchoEvent(this.signature, this.createdAt);
+
+  final String signature;
   final DateTime createdAt;
 }

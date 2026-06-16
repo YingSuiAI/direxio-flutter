@@ -971,6 +971,24 @@ abstract class AppLocalizations {
   /// **'保存到相册'**
   String get meQrSaveToAlbum;
 
+  /// No description provided for @meQrSaving.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存中...'**
+  String get meQrSaving;
+
+  /// No description provided for @meQrSaveSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存到相册'**
+  String get meQrSaveSuccess;
+
+  /// No description provided for @meQrSaveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存失败，请检查相册权限'**
+  String get meQrSaveFailed;
+
   /// No description provided for @meQrSaveTodo.
   ///
   /// In zh, this message translates to:

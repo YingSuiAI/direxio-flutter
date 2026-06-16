@@ -1,23 +1,30 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/design_tokens.dart';
+import '../providers/message_notification_preferences_provider.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 
 /// `s-me-notifications` — 通知设置 (index.html L1227-1280)
-class MeNotificationsPage extends StatefulWidget {
+class MeNotificationsPage extends ConsumerStatefulWidget {
   const MeNotificationsPage({super.key});
 
   @override
-  State<MeNotificationsPage> createState() => _MeNotificationsPageState();
+  ConsumerState<MeNotificationsPage> createState() =>
+      _MeNotificationsPageState();
 }
 
-class _MeNotificationsPageState extends State<MeNotificationsPage> {
+class _MeNotificationsPageState extends ConsumerState<MeNotificationsPage> {
   bool _msgPush = true;
-  bool _dnd = false;
 
   @override
   Widget build(BuildContext context) {
+    final notificationPrefs = ref.watch(messageNotificationPreferencesProvider);
+    final notificationPrefsNotifier =
+        ref.read(messageNotificationPreferencesProvider.notifier);
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
@@ -38,14 +45,28 @@ class _MeNotificationsPageState extends State<MeNotificationsPage> {
                   _IconSwitchRow(
                     icon: Symbols.do_not_disturb_on,
                     label: '勿扰模式',
-                    value: _dnd,
-                    onChanged: (v) => setState(() => _dnd = v),
+                    value: notificationPrefs.doNotDisturb,
+                    onChanged: (v) => unawaited(
+                      notificationPrefsNotifier.setDoNotDisturb(v),
+                    ),
                   ),
                   _Divider(),
-                  _IconChevronRow(
+                  _IconSwitchRow(
+                    icon: Symbols.notifications,
+                    label: '新消息提示音',
+                    value: notificationPrefs.messageSound,
+                    onChanged: (v) => unawaited(
+                      notificationPrefsNotifier.setMessageSound(v),
+                    ),
+                  ),
+                  _Divider(),
+                  _IconSwitchRow(
                     icon: Symbols.vibration,
-                    label: '声音与震动',
-                    onTap: () {},
+                    label: '新消息震动',
+                    value: notificationPrefs.messageVibration,
+                    onChanged: (v) => unawaited(
+                      notificationPrefsNotifier.setMessageVibration(v),
+                    ),
                   ),
                   _Divider(),
                   _IconChevronRow(

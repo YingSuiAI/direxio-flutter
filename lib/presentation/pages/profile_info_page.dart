@@ -11,6 +11,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
 import '../mock/mock_data.dart';
 import '../providers/app_warmup_provider.dart';
 import '../providers/as_client_provider.dart';
@@ -33,7 +34,11 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
   bool _avatarBusy = false;
   bool _profileBusy = false;
 
-  Future<void> _pickAvatar() async {
+  Future<void> _pickAvatar(
+    PersonalProfileData data,
+    String userId,
+    String displayName,
+  ) async {
     if (_avatarBusy) return;
     setState(() => _avatarBusy = true);
     try {
@@ -51,12 +56,23 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         context,
         imageBytes: bytes,
         onConfirm: (adjustedBytes) async {
-          final matrixFile = MatrixFile(
-            bytes: adjustedBytes,
-            name: 'avatar.png',
-            mimeType: 'image/png',
+          final client = ref.read(matrixClientProvider);
+          final matrixUserId = client.userID;
+          if (matrixUserId == null || matrixUserId.isEmpty) {
+            throw StateError('当前 Matrix 登录态缺失');
+          }
+          final avatarMxc = await client.uploadContent(
+            adjustedBytes,
+            filename: 'avatar.png',
+            contentType: 'image/png',
           );
-          await ref.read(matrixClientProvider).setAvatar(matrixFile);
+          await client.setAvatarUrl(matrixUserId, avatarMxc);
+          await _saveOwnerProfile(
+            data,
+            userId: userId,
+            displayName: displayName,
+            avatarUrl: avatarMxc.toString(),
+          );
           ref.invalidate(currentUserProfileProvider);
           await ref.read(currentUserProfileProvider.future);
           ref.invalidate(appWarmupProvider);
@@ -109,20 +125,56 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     ref.read(personalProfileProvider.notifier).state = data;
   }
 
-  Future<void> _updateDisplayName(
-    PersonalProfileData data,
-    String userId,
-    String value,
-  ) async {
+  Future<OwnerProfile> _saveOwnerProfile(
+    PersonalProfileData data, {
+    required String userId,
+    String? displayName,
+    String? avatarUrl,
+    String? gender,
+    String? birthday,
+    String? phone,
+    String? email,
+  }) {
+    final profile = ref.read(currentUserProfileProvider).valueOrNull;
+    final resolvedDisplayName = (displayName ??
+            data.displayName ??
+            profile?.displayName ??
+            _localpartFromMxid(userId))
+        .trim();
+    final resolvedAvatarUrl =
+        avatarUrl ?? profile?.avatarUrl?.toString().trim() ?? '';
+    return ref.read(asClientProvider).updateOwnerProfile(
+          displayName: resolvedDisplayName,
+          avatarUrl: resolvedAvatarUrl,
+          gender: _asProfileValue(gender ?? data.gender),
+          birthday: _asProfileValue(birthday ?? data.birthday),
+          phone: (phone ?? data.phone).trim(),
+          email: (email ?? data.email).trim(),
+        );
+  }
+
+  Future<void> _updateProfileField(
+    PersonalProfileData data, {
+    required String userId,
+    required String successMessage,
+    required String failureLabel,
+    String? displayName,
+    String? gender,
+    String? birthday,
+    String? phone,
+    String? email,
+  }) async {
     if (_profileBusy) return;
-    final displayName = value.trim();
-    if (displayName.isEmpty) {
+    final cleanDisplayName = displayName?.trim();
+    if (displayName != null && cleanDisplayName!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('用户名不能为空')),
       );
       return;
     }
-    if (displayName.toLowerCase() == _localpartFromMxid(userId).toLowerCase()) {
+    if (cleanDisplayName != null &&
+        cleanDisplayName.toLowerCase() ==
+            _localpartFromMxid(userId).toLowerCase()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请设置一个不同于系统账号的用户名')),
       );
@@ -131,26 +183,29 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
 
     setState(() => _profileBusy = true);
     try {
-      final ownerProfile = await ref
-          .read(asClientProvider)
-          .updateOwnerProfile(displayName: displayName);
-      final savedName = ownerProfile.displayName.trim().isNotEmpty
-          ? ownerProfile.displayName.trim()
-          : displayName;
-      _updateProfile(data.copyWith(displayName: savedName));
+      final ownerProfile = await _saveOwnerProfile(
+        data,
+        userId: userId,
+        displayName: cleanDisplayName,
+        gender: gender,
+        birthday: birthday,
+        phone: phone,
+        email: email,
+      );
+      _updateProfile(_personalProfileFromOwner(data, ownerProfile));
       ref.invalidate(currentUserProfileProvider);
       await ref.read(currentUserProfileProvider.future);
       ref.invalidate(appWarmupProvider);
       unawaited(ref.read(appWarmupProvider.future));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('用户名已更新')),
+          SnackBar(content: Text(successMessage)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('用户名更新失败: $e')),
+          SnackBar(content: Text('$failureLabel更新失败: $e')),
         );
       }
     } finally {
@@ -193,7 +248,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                       avatarBusy: _avatarBusy,
                       avatarUrl: avatarUrl,
                       seed: userId,
-                      onTap: _pickAvatar,
+                      onTap: () => _pickAvatar(data, userId, displayName),
                     ),
                     const SizedBox(height: 22),
                     _ProfileInfoCard(
@@ -203,8 +258,13 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                       onTap: () => _editField(
                         title: '名字',
                         initialValue: displayName,
-                        onSave: (value) =>
-                            _updateDisplayName(data, userId, value),
+                        onSave: (value) => _updateProfileField(
+                          data,
+                          userId: userId,
+                          displayName: value,
+                          successMessage: '用户名已更新',
+                          failureLabel: '用户名',
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -219,8 +279,12 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                       onTap: () => _editField(
                         title: '性别',
                         initialValue: _emptyIfUnset(data.gender),
-                        onSave: (value) => _updateProfile(
-                          data.copyWith(gender: value.isEmpty ? '未设置' : value),
+                        onSave: (value) => _updateProfileField(
+                          data,
+                          userId: userId,
+                          gender: value,
+                          successMessage: '性别已更新',
+                          failureLabel: '性别',
                         ),
                       ),
                     ),
@@ -231,10 +295,12 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                       onTap: () => _editField(
                         title: '生日',
                         initialValue: _emptyIfUnset(data.birthday),
-                        onSave: (value) => _updateProfile(
-                          data.copyWith(
-                            birthday: value.isEmpty ? '未设置' : value,
-                          ),
+                        onSave: (value) => _updateProfileField(
+                          data,
+                          userId: userId,
+                          birthday: value,
+                          successMessage: '生日已更新',
+                          failureLabel: '生日',
                         ),
                       ),
                     ),
@@ -245,8 +311,13 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                       onTap: () => _editField(
                         title: '手机号码',
                         initialValue: data.phone,
-                        onSave: (value) =>
-                            _updateProfile(data.copyWith(phone: value)),
+                        onSave: (value) => _updateProfileField(
+                          data,
+                          userId: userId,
+                          phone: value,
+                          successMessage: '手机号码已更新',
+                          failureLabel: '手机号码',
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -256,8 +327,13 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                       onTap: () => _editField(
                         title: '邮箱',
                         initialValue: data.email,
-                        onSave: (value) =>
-                            _updateProfile(data.copyWith(email: value)),
+                        onSave: (value) => _updateProfileField(
+                          data,
+                          userId: userId,
+                          email: value,
+                          successMessage: '邮箱已更新',
+                          failureLabel: '邮箱',
+                        ),
                       ),
                     ),
                   ],
@@ -273,6 +349,28 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
 
 String _emptyIfUnset(String value) =>
     value == '未设置' || value == '不展示' ? '' : value;
+
+String _asProfileValue(String value) => _emptyIfUnset(value).trim();
+
+String _profileDisplayValue(String value) {
+  final clean = value.trim();
+  return clean.isEmpty ? '未设置' : clean;
+}
+
+PersonalProfileData _personalProfileFromOwner(
+  PersonalProfileData current,
+  OwnerProfile owner,
+) {
+  return current.copyWith(
+    displayName: owner.displayName.trim().isEmpty
+        ? current.displayName
+        : owner.displayName.trim(),
+    gender: _profileDisplayValue(owner.gender),
+    birthday: _profileDisplayValue(owner.birthday),
+    phone: owner.phone.trim(),
+    email: owner.email.trim(),
+  );
+}
 
 String _profileUidUrl(Client client, String userId) {
   final domain = serverNameFromMxid(userId) ?? _clientServerName(client);

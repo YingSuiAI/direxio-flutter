@@ -133,7 +133,7 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('密码已修改')),
       );
-      context.pop();
+      context.go('/settings');
     } catch (e) {
       if (mounted) {
         setState(
@@ -148,7 +148,7 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: t.surfaceHover,
       body: Column(
         children: [
           GlassHeader.detail(title: '修改密码'),

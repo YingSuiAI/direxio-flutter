@@ -473,6 +473,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get meQrSaveToAlbum => 'Save to Photos';
 
   @override
+  String get meQrSaving => 'Saving...';
+
+  @override
+  String get meQrSaveSuccess => 'Saved to Photos';
+
+  @override
+  String get meQrSaveFailed => 'Failed to save. Check Photos permission.';
+
+  @override
   String get meQrSaveTodo => 'Save to Photos is not connected yet';
 
   @override

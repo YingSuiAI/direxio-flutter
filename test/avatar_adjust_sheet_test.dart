@@ -55,35 +55,50 @@ void main() {
     expect(find.text('双指缩放或拖动图片'), findsOneWidget);
   });
 
-  testWidgets('avatar adjust sheet stays open after successful upload',
+  testWidgets('avatar adjust sheet closes after successful upload',
       (tester) async {
     var uploaded = false;
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
         home: Scaffold(
-          body: AvatarAdjustSheet(
-            imageBytes: Uint8List.fromList(_png1x1),
-            initialImageSize: const Size(1, 1),
-            exportForTesting: () async => Uint8List.fromList([1, 2, 3]),
-            onConfirm: (_) async {
-              uploaded = true;
-            },
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      body: AvatarAdjustSheet(
+                        imageBytes: Uint8List.fromList(_png1x1),
+                        initialImageSize: const Size(1, 1),
+                        exportForTesting: () async =>
+                            Uint8List.fromList([1, 2, 3]),
+                        onConfirm: (_) async {
+                          uploaded = true;
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+              child: const Text('打开头像编辑'),
+            ),
           ),
         ),
       ),
     );
     await tester.pump();
+    await tester.tap(find.text('打开头像编辑'));
+    await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 100));
 
     await tester.tap(find.text('完成'));
     for (var i = 0; i < 10 && !uploaded; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(uploaded, isTrue);
-    expect(find.text('头像已更新'), findsOneWidget);
-    expect(find.text('关闭'), findsOneWidget);
+    expect(find.byType(AvatarAdjustSheet), findsNothing);
   });
 }

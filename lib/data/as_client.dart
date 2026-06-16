@@ -338,17 +338,32 @@ class OwnerProfile {
     required this.userId,
     required this.displayName,
     required this.domain,
+    this.avatarUrl = '',
+    this.gender = '',
+    this.birthday = '',
+    this.phone = '',
+    this.email = '',
   });
 
   final String userId;
   final String displayName;
   final String domain;
+  final String avatarUrl;
+  final String gender;
+  final String birthday;
+  final String phone;
+  final String email;
 
   factory OwnerProfile.fromJson(Map<String, dynamic> json) {
     return OwnerProfile(
       userId: json['user_id'] as String? ?? '',
       displayName: json['display_name'] as String? ?? '',
       domain: json['domain'] as String? ?? '',
+      avatarUrl: json['avatar_url'] as String? ?? '',
+      gender: json['gender'] as String? ?? '',
+      birthday: json['birthday'] as String? ?? '',
+      phone: json['phone'] as String? ?? '',
+      email: json['email'] as String? ?? '',
     );
   }
 }
@@ -1319,7 +1334,14 @@ abstract class AsClient {
   Future<OwnerProfile> getOwnerProfile();
 
   /// PUT /_as/profile
-  Future<OwnerProfile> updateOwnerProfile({required String displayName});
+  Future<OwnerProfile> updateOwnerProfile({
+    required String displayName,
+    String avatarUrl = '',
+    String gender = '',
+    String birthday = '',
+    String phone = '',
+    String email = '',
+  });
 
   /// GET /_as/sync/bootstrap
   Future<AsSyncBootstrap> syncBootstrap();
@@ -1404,6 +1426,7 @@ abstract class AsClient {
     String roomId,
     String content, {
     String? replyToEventId,
+    List<Map<String, String>> mentions = const [],
   });
 
   /// POST /_as/rooms/{roomId}/send with message_type=chat_record
@@ -1481,7 +1504,7 @@ abstract class AsClient {
   /// §5.5 GET /_as/portal/status
   Future<PortalStatus> getPortalStatus();
 
-  /// Updates the Portal password and returns fresh service-specific tokens.
+  /// Updates the Portal password through AS admin auth.
   Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,

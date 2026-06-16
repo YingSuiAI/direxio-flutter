@@ -129,6 +129,66 @@ class ChatAttachmentPanel extends ConsumerWidget {
   }
 
   Future<void> _pickImage(BuildContext context, WidgetRef ref) async {
+    await _pickAndSendImages(
+      context,
+      ref,
+      pickAttachments: () => ChatImageAttachmentPicker.platform().pickImages(
+        original: false,
+        limit: chatImagePickerMaxSelection,
+      ),
+      emptySelectionMessage: '未选择图片',
+      debugLabel: 'chat image pick/send',
+    );
+  }
+
+  Future<void> _takePhoto(BuildContext context, WidgetRef ref) async {
+    await _pickAndSendImages(
+      context,
+      ref,
+      pickAttachments: () async {
+        final file = await ImagePicker().pickImage(
+          source: ImageSource.camera,
+          maxWidth: chatImagePickerCompressedMaxDimension,
+          maxHeight: chatImagePickerCompressedMaxDimension,
+          imageQuality: chatImagePickerCompressedQuality,
+        );
+        if (file == null) return const <ChatMediaAttachment>[];
+        try {
+          final bytes = await file.readAsBytes();
+          if (bytes.isEmpty) {
+            throw StateError('camera image bytes missing');
+          }
+          final name = file.name.trim().isEmpty
+              ? 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg'
+              : file.name;
+          return [
+            ChatMediaAttachment.image(
+              name: name,
+              bytes: bytes,
+              mimeType: file.mimeType ?? _imageMimeTypeForName(name),
+            ),
+          ];
+        } on Object catch (error, stackTrace) {
+          throw ChatMediaSendException(
+            ChatMediaSendStage.read,
+            error,
+            stackTrace,
+            label: '照片',
+          );
+        }
+      },
+      emptySelectionMessage: '未拍摄照片',
+      debugLabel: 'chat camera pick/send',
+    );
+  }
+
+  Future<void> _pickAndSendImages(
+    BuildContext context,
+    WidgetRef ref, {
+    required Future<List<ChatMediaAttachment>> Function() pickAttachments,
+    required String emptySelectionMessage,
+    required String debugLabel,
+  }) async {
     if (!canSend || room == null) {
       onCannotSend(context);
       return;
@@ -146,10 +206,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
     try {
       await pickAndSendChatMediaAttachments(
         closePanel: onClose,
-        pickAttachments: () => ChatImageAttachmentPicker.platform().pickImages(
-          original: false,
-          limit: chatImagePickerMaxSelection,
-        ),
+        pickAttachments: pickAttachments,
         prepareAttachments: useAsProductMedia
             ? (attachments) async {
                 final ids =
@@ -189,17 +246,17 @@ class ChatAttachmentPanel extends ConsumerWidget {
         }) {
           _showMediaSnack(messenger, message, duration: duration);
         },
-        emptySelectionMessage: '未选择图片',
+        emptySelectionMessage: emptySelectionMessage,
       );
     } on ChatMediaSendException catch (e) {
-      debugPrint('chat image pick/send failed at ${e.stage.name}: ${e.cause}');
+      debugPrint('$debugLabel failed at ${e.stage.name}: ${e.cause}');
       _showMediaSnack(
         messenger,
         e.userMessage,
         duration: const Duration(seconds: 3),
       );
     } catch (e) {
-      debugPrint('chat image pick/send failed: $e');
+      debugPrint('$debugLabel failed: $e');
       _showMediaSnack(
         messenger,
         productSendFailureMessage(e),
@@ -379,7 +436,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
       (
         Symbols.photo_camera,
         '拍摄',
-        canSend ? () => _pickImage(context, ref) : null,
+        canSend ? () => _takePhoto(context, ref) : null,
       ),
       (Symbols.call, '语音通话', onVoiceCall),
       (Symbols.videocam, '视频通话', onVideoCall),
@@ -479,4 +536,14 @@ class ChatAttachmentPanelButton extends StatelessWidget {
       ),
     );
   }
+}
+
+String _imageMimeTypeForName(String name) {
+  final lower = name.toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.heic')) return 'image/heic';
+  if (lower.endsWith('.heif')) return 'image/heif';
+  return 'image/jpeg';
 }

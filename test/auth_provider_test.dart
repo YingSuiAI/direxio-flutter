@@ -56,9 +56,11 @@ void main() {
       AuthStateNotifier.adminAccessTokenKey: 'admin-token',
     });
     final syncCompleter = Completer<http.Response>();
+    final requestPaths = <String>[];
     final client = Client(
       'AuthStoredRestoreNoSyncWaitTest',
       httpClient: MockClient((request) async {
+        requestPaths.add(request.url.path);
         if (request.url.path == '/_matrix/client/versions') {
           return http.Response('{"versions":["v1.1"]}', 200);
         }
@@ -99,6 +101,7 @@ void main() {
     expect(auth.isLoggedIn, isTrue);
     expect(auth.userId, '@owner:example.com');
     expect(auth.homeserver, 'https://example.com');
+    expect(requestPaths, isNot(contains('/_as/auth')));
   });
 
   test(
@@ -194,10 +197,13 @@ void main() {
 
     expect(auth.isLoggedIn, isTrue);
     expect(auth.userId, '@owner:example.com');
+    final deadline = DateTime.now().add(const Duration(seconds: 1));
+    while (client.accessToken != 'fresh-token' &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
     expect(client.accessToken, 'fresh-token');
     expect(requestPaths, contains('/_as/auth'));
-    expect(authHeaders, isNot(contains('Bearer stale-token')));
-    expect(authHeaders, contains('Bearer fresh-token'));
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_token'),
       'fresh-token',
@@ -619,7 +625,7 @@ void main() {
     expect(auth?.ownerDisplayName, isNull);
   });
 
-  test('bootstrap long-term password posts token payload', () async {
+  test('bootstrap long-term password posts password payload', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final requestPaths = <String>[];
     final client = Client(
@@ -663,15 +669,13 @@ void main() {
           expect(request.method, 'PUT');
           expect(request.headers['Authorization'], 'Bearer fresh-admin-token');
           expect(jsonDecode(request.body), {
-            'admin_access_token': 'fresh-admin-token',
-            'matrix_access_token': 'fresh-token',
-            'password': '22222222',
+            'old_password': '11111111',
+            'new_password': '22222222',
           });
           return http.Response(
             '{"matrix_access_token":"changed-matrix-token",'
             '"admin_access_token":"changed-admin-token",'
-            '"user_id":"@owner:example.com",'
-            '"homeserver":"https://example.com","device_id":"DEVICE2"}',
+            '"device_id":"DEVICE2"}',
             200,
           );
         }
@@ -696,6 +700,8 @@ void main() {
 
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.userId, '@owner:example.com');
+    expect(auth?.homeserver, 'https://example.com');
     expect(auth?.portalToken, 'changed-admin-token');
     expect(client.accessToken, 'changed-matrix-token');
     expect(

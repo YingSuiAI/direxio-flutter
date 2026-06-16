@@ -15,6 +15,8 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/profile_provider.dart';
+import '../providers/p2p_api_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
@@ -36,14 +38,17 @@ class ContactDetailPage extends ConsumerStatefulWidget {
 
 class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
   bool _muted = true;
-  bool _blocked = false;
+  bool _blocking = false;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
+    final currentUserProfile =
+        ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = widget.userId;
+    final isSelf = userId == client.userID;
     final acceptedContactForUser = syncCache.acceptedContactForUserId(userId);
     final acceptedRoom = acceptedContactForUser == null
         ? null
@@ -73,20 +78,25 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         (room == null ? null : syncCache.acceptedContactForRoom(room.id));
     final domain = userId.contains(':') ? userId.split(':').last : userId;
     final uidDomain = _contactDomain(userId, acceptedContact?.domain);
+    final currentProfileName = currentUserProfile?.displayName?.trim();
     final displayName = contactDisplayNameFromIdentity(
       mxid: userId,
-      displayName: acceptedContact?.displayName ??
-          room?.getLocalizedDisplayname() ??
-          mock?.name ??
-          '',
+      displayName: isSelf && currentProfileName?.isNotEmpty == true
+          ? currentProfileName!
+          : acceptedContact?.displayName ??
+              room?.getLocalizedDisplayname() ??
+              mock?.name ??
+              '',
       domain: acceptedContact?.domain ?? domain,
       fallback: mock?.name ?? userId,
     );
     final peerMember = room?.unsafeGetUserFromMemoryOrFallback(userId);
-    final avatarUrl = avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
-        (room == null
-            ? mock?.avatarUrl
-            : matrixContentHttpUrl(client, peerMember?.avatarUrl));
+    final avatarUrl = isSelf
+        ? profileAvatarHttpUrl(currentUserProfile, client) ?? MockAvatars.me
+        : avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
+            (room == null
+                ? mock?.avatarUrl
+                : matrixContentHttpUrl(client, peerMember?.avatarUrl));
     final roomId = room?.id ?? mock?.id;
     final hideChatAvatarEntries = widget.fromChatAvatar;
 
@@ -124,6 +134,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                                 '/chat/${Uri.encodeComponent(roomId)}',
                               )
                           : null,
+                      showCallActions: true,
                       onVoice: room != null
                           ? () => context.push(
                                 _callRoute(
@@ -131,6 +142,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                                   room.id,
                                   userId,
                                   displayName,
+                                  avatarUrl,
                                 ),
                               )
                           : null,
@@ -141,6 +153,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                                   room.id,
                                   userId,
                                   displayName,
+                                  avatarUrl,
                                 ),
                               )
                           : null,
@@ -174,16 +187,19 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                         onChanged: (value) => setState(() => _muted = value),
                       ),
                       const SizedBox(height: 16),
-                      _ContactSwitchRow(
-                        label: '屏蔽用户',
-                        value: _blocked,
-                        onChanged: (value) => setState(() => _blocked = value),
-                        activeColor: t.surfaceHigh,
+                      _ContactSettingRow(
+                        label: '拉黑用户',
+                        onTap: room == null
+                            ? () => _toast(context, '拉黑用户失败: 缺少联系人房间信息')
+                            : () => _confirmBlockContact(context, room.id),
                       ),
                       const SizedBox(height: 16),
                       _ContactSettingRow(
                         label: '举报用户',
-                        onTap: () => _showReportDialog(context),
+                        onTap: () => _showReportDialog(
+                          context,
+                          reportedDomain: uidDomain,
+                        ),
                       ),
                     ],
                   ],
@@ -234,18 +250,93 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       ),
     );
     if (ok != true || !context.mounted) return;
-    await _deleteContact(context, roomId);
+    await _removeContact(
+      context,
+      roomId,
+      successMessage: '已删除好友',
+      failurePrefix: '删除好友失败',
+    );
   }
 
-  Future<void> _showReportDialog(BuildContext context) async {
-    final submitted = await showDialog<bool>(
+  Future<void> _confirmBlockContact(
+    BuildContext context,
+    String roomId,
+  ) async {
+    if (_blocking) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          '拉黑用户',
+          style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+        ),
+        content: Text(
+          '拉黑后将移除该联系人和会话关系。',
+          style: AppTheme.sans(size: 15, color: context.tk.textMute),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              '拉黑',
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: context.tk.danger,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    setState(() => _blocking = true);
+    try {
+      await _removeContact(
+        context,
+        roomId,
+        successMessage: '已拉黑用户',
+        failurePrefix: '拉黑用户失败',
+      );
+    } finally {
+      if (mounted) setState(() => _blocking = false);
+    }
+  }
+
+  Future<void> _showReportDialog(
+    BuildContext context, {
+    required String reportedDomain,
+  }) async {
+    final reason = await showDialog<String>(
       context: context,
       barrierColor: context.tk.text.withValues(alpha: 0.7),
       builder: (_) => const _ReportReasonDialog(),
     );
-    if (submitted == true && context.mounted) {
+    if (reason == null || reason.trim().isEmpty || !context.mounted) return;
+
+    final reporterDomain = _contactDomain(
+      ref.read(matrixClientProvider).userID ?? '',
+      null,
+    );
+    try {
+      await ref.read(p2pApiClientProvider).submitReport(
+            reporterDomain: reporterDomain,
+            reportedDomain: reportedDomain,
+            targetType: 1,
+            reason: reason.trim(),
+          );
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('举报已提交')),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('举报提交失败: $error')),
       );
     }
   }
@@ -255,51 +346,10 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     required String userId,
     required String currentName,
   }) async {
-    final controller = TextEditingController(text: currentName);
     final next = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        final t = dialogContext.tk;
-        return AlertDialog(
-          title: Text(
-            '设置备注',
-            style: AppTheme.sans(size: 17, weight: FontWeight.w600),
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            maxLength: 32,
-            decoration: InputDecoration(
-              hintText: '输入备注名',
-              hintStyle: AppTheme.sans(size: 15, color: t.textMute),
-            ),
-            style: AppTheme.sans(size: 15, color: t.text),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                '取消',
-                style: AppTheme.sans(size: 15, color: t.textMute),
-              ),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: Text(
-                '保存',
-                style: AppTheme.sans(
-                  size: 15,
-                  weight: FontWeight.w600,
-                  color: t.accent,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+      builder: (_) => _ContactRemarkDialog(initialValue: currentName),
     );
-    controller.dispose();
     if (!context.mounted || next == null) return;
     if (next.trim().isEmpty) {
       _toast(context, '备注不能为空');
@@ -336,7 +386,12 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     _toast(context, '已复制 UID');
   }
 
-  Future<void> _deleteContact(BuildContext context, String roomId) async {
+  Future<void> _removeContact(
+    BuildContext context,
+    String roomId, {
+    required String successMessage,
+    required String failurePrefix,
+  }) async {
     final client = ref.read(matrixClientProvider);
     try {
       final contact = await ref.read(asClientProvider).deleteContact(roomId);
@@ -356,13 +411,13 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       if (room != null) client.rooms.remove(room);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已删除好友')),
+        SnackBar(content: Text(successMessage)),
       );
       context.go('/home');
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('删除好友失败: $e')),
+        SnackBar(content: Text('$failurePrefix: $e')),
       );
     }
   }
@@ -460,8 +515,10 @@ class _UserHeader extends StatelessWidget {
                       ).copyWith(letterSpacing: -0.4),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  _RoleBadge(text: badge),
+                  if (badge.isNotEmpty) ...[
+                    const SizedBox(width: 4),
+                    _RoleBadge(text: badge),
+                  ],
                 ],
               ),
               const SizedBox(height: 8),
@@ -511,12 +568,14 @@ class _RoleBadge extends StatelessWidget {
 class _QuickActionGrid extends StatelessWidget {
   const _QuickActionGrid({
     required this.onMessage,
+    required this.showCallActions,
     required this.onVoice,
     required this.onVideo,
     required this.onSearch,
   });
 
   final VoidCallback? onMessage;
+  final bool showCallActions;
   final VoidCallback? onVoice;
   final VoidCallback? onVideo;
   final VoidCallback? onSearch;
@@ -532,22 +591,24 @@ class _QuickActionGrid extends StatelessWidget {
             onTap: onMessage,
           ),
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _ContactQuickAction(
-            icon: Symbols.call,
-            label: '音频通话',
-            onTap: onVoice,
+        if (showCallActions) ...[
+          const SizedBox(width: 16),
+          Expanded(
+            child: _ContactQuickAction(
+              icon: Symbols.call,
+              label: '语音通话',
+              onTap: onVoice,
+            ),
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _ContactQuickAction(
-            icon: Symbols.videocam,
-            label: '视频通话',
-            onTap: onVideo,
+          const SizedBox(width: 16),
+          Expanded(
+            child: _ContactQuickAction(
+              icon: Symbols.videocam,
+              label: '视频通话',
+              onTap: onVideo,
+            ),
           ),
-        ),
+        ],
         if (onSearch != null) ...[
           const SizedBox(width: 16),
           Expanded(
@@ -665,13 +726,11 @@ class _ContactSwitchRow extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onChanged,
-    this.activeColor,
   });
 
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
-  final Color? activeColor;
 
   @override
   Widget build(BuildContext context) {
@@ -703,7 +762,7 @@ class _ContactSwitchRow extends StatelessWidget {
               value: value,
               onChanged: onChanged,
               activeThumbColor: t.surface,
-              activeTrackColor: activeColor ?? t.accent,
+              activeTrackColor: t.accent,
               inactiveThumbColor: t.surface,
               inactiveTrackColor: t.surfaceHigh,
               trackOutlineColor: WidgetStateProperty.all(
@@ -758,6 +817,67 @@ class _DeleteFriendButton extends StatelessWidget {
   }
 }
 
+class _ContactRemarkDialog extends StatefulWidget {
+  const _ContactRemarkDialog({required this.initialValue});
+
+  final String initialValue;
+
+  @override
+  State<_ContactRemarkDialog> createState() => _ContactRemarkDialogState();
+}
+
+class _ContactRemarkDialogState extends State<_ContactRemarkDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialValue);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return AlertDialog(
+      title: Text(
+        '设置备注',
+        style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 32,
+        decoration: InputDecoration(
+          hintText: '输入备注名',
+          hintStyle: AppTheme.sans(size: 15, color: t.textMute),
+        ),
+        style: AppTheme.sans(size: 15, color: t.text),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(
+            '取消',
+            style: AppTheme.sans(size: 15, color: t.textMute),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: Text(
+            '保存',
+            style: AppTheme.sans(
+              size: 15,
+              weight: FontWeight.w600,
+              color: t.accent,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ReportReasonDialog extends StatefulWidget {
   const _ReportReasonDialog();
 
@@ -782,6 +902,12 @@ class _ReportReasonDialogState extends State<_ReportReasonDialog> {
   void dispose() {
     _otherController.dispose();
     super.dispose();
+  }
+
+  String get _reason {
+    if (_selected != '其他') return _selected;
+    final other = _otherController.text.trim();
+    return other.isEmpty ? '其他' : other;
   }
 
   @override
@@ -850,7 +976,7 @@ class _ReportReasonDialogState extends State<_ReportReasonDialog> {
             SizedBox(
               height: 44,
               child: FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
+                onPressed: () => Navigator.of(context).pop(_reason),
                 style: FilledButton.styleFrom(
                   backgroundColor: t.accent,
                   shape: RoundedRectangleBorder(
@@ -1044,16 +1170,26 @@ String _contactDomain(String userId, String? domain) {
 }
 
 String _roleBadge(String? domain) {
-  final value = domain?.trim() ?? '';
+  final value = domain?.trim().toLowerCase() ?? '';
   if (value.contains('agent') || value.contains('support')) return '客服经理';
-  return '客服经理';
+  return '';
 }
 
-String _callRoute(String path, String roomId, String peerUserId, String name) {
+String _callRoute(
+  String path,
+  String roomId,
+  String peerUserId,
+  String name,
+  String? avatarUrl,
+) {
   final room = Uri.encodeComponent(roomId);
   final peer = Uri.encodeQueryComponent(peerUserId);
   final displayName = Uri.encodeQueryComponent(name);
-  return '/$path/$room?peer=$peer&name=$displayName';
+  final avatar = avatarUrl?.trim();
+  final avatarQuery = avatar == null || avatar.isEmpty
+      ? ''
+      : '&avatar=${Uri.encodeQueryComponent(avatar)}';
+  return '/$path/$room?peer=$peer&name=$displayName$avatarQuery';
 }
 
 void _toast(BuildContext context, String message) {

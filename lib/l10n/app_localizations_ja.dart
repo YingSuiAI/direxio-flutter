@@ -460,6 +460,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get meQrSaveToAlbum => '写真に保存';
 
   @override
+  String get meQrSaving => '保存中...';
+
+  @override
+  String get meQrSaveSuccess => '写真に保存しました';
+
+  @override
+  String get meQrSaveFailed => '保存に失敗しました。写真の権限を確認してください。';
+
+  @override
   String get meQrSaveTodo => '写真への保存機能はまだ接続されていません';
 
   @override

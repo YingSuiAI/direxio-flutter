@@ -22,5 +22,8 @@ import UIKit
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VideoToolsPlugin") {
       VideoToolsPlugin.register(with: registrar)
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "SaveImagePlugin") {
+      SaveImagePlugin.register(with: registrar)
+    }
   }
 }

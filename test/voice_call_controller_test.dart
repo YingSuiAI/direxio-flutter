@@ -801,7 +801,10 @@ void main() {
 
   test('speaker route toggle applies native route and updates state', () async {
     final audioRoute = _FakeCallAudioRoute();
-    final controller = MatrixVoiceCallController(audioRoute: audioRoute);
+    final controller = MatrixVoiceCallController(
+      audioRoute: audioRoute,
+      ringtonePlayer: _FakeCallRingtonePlayer(),
+    );
     addTearDown(controller.dispose);
 
     expect(controller.currentState.isSpeakerOn, isTrue);
@@ -946,6 +949,27 @@ class _FakeCallAudioRoute implements CallAudioRoute {
   @override
   Future<void> setSpeakerOn(bool enabled) async {
     values.add(enabled);
+  }
+}
+
+class _FakeCallRingtonePlayer implements CallRingtonePlayer {
+  int playLoopCalls = 0;
+  int stopCalls = 0;
+  int disposeCalls = 0;
+
+  @override
+  Future<void> playLoop() async {
+    playLoopCalls += 1;
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalls += 1;
+  }
+
+  @override
+  Future<void> dispose() async {
+    disposeCalls += 1;
   }
 }
 

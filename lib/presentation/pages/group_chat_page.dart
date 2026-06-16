@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,7 @@ import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
@@ -29,11 +31,13 @@ import '../chat/call_timeline_events.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
 import '../chat/chat_glass_background.dart';
+import '../chat/chat_history_backfill_policy.dart';
 import '../chat/chat_media_warmup.dart';
 import '../chat/chat_message_cards.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_media_send_flow.dart';
+import '../chat/chat_timeline_items.dart';
 import '../chat/chat_video_preview_page.dart';
 import '../chat/chat_voice_player.dart';
 import '../chat/chat_voice_recorder.dart';
@@ -248,8 +252,9 @@ String _fallbackDisplayNameForMxid(String mxid) {
 }
 
 class GroupChatPage extends ConsumerStatefulWidget {
-  const GroupChatPage({super.key, required this.roomId});
+  const GroupChatPage({super.key, required this.roomId, this.targetEventId});
   final String roomId;
+  final String? targetEventId;
 
   @override
   ConsumerState<GroupChatPage> createState() => _GroupChatPageState();
@@ -262,6 +267,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   bool _readMarkerInFlight = false;
   bool _readMarkerQueued = false;
   bool _thumbnailWarmupInFlight = false;
+  bool _historyRequestInFlight = false;
   bool _roomRecoveryInFlight = false;
   bool _roomRecoveryAttempted = false;
   final Set<String> _warmedThumbnailEventIds = {};
@@ -278,12 +284,24 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   bool _multiSelect = false;
   bool _showPlusPanel = false;
   bool _showEmojiPanel = false;
+  bool _mentionSheetOpen = false;
+  bool _suppressMentionTrigger = false;
   final Set<String> _selected = {};
+  final Map<String, String> _atUserMap = {};
   Event? _replyTo;
   final Map<String, _GroupQuotedMessagePreview> _localReplyPreviews = {};
   final Map<String, GlobalKey> _messageAnchorKeys = {};
   final Map<String, int> _messageListIndexes = {};
   final ScrollController _messageScrollCtrl = ScrollController();
+  Object? _lastAutoScrolledTimelineItemKey;
+  Object? _pendingAutoScrollTimelineItemKey;
+  bool _pendingViewportScrollToBottom = false;
+  double _lastKeyboardInsetBottom = 0;
+  double _emojiPanelHeight = chatEmojiPanelDefaultHeight;
+  bool _lastBottomPanelVisible = false;
+  String? _pendingTargetEventId;
+  int _targetEventScrollAttempts = 0;
+  Timer? _targetEventScrollTimer;
   String? _flashingMessageEventId;
   Timer? _flashingMessageTimer;
   final ChatVoicePlayer _voicePlayer = ChatVoicePlayer();
@@ -294,15 +312,29 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (mounted) setState(() {});
   }
 
-  void _togglePlus() => setState(() {
-        _showPlusPanel = !_showPlusPanel;
-        if (_showPlusPanel) _showEmojiPanel = false;
-      });
+  void _togglePlus() {
+    final nextVisible = !_showPlusPanel;
+    if (nextVisible) FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _showPlusPanel = nextVisible;
+      if (_showPlusPanel) _showEmojiPanel = false;
+    });
+  }
 
-  void _toggleEmoji() => setState(() {
-        _showEmojiPanel = !_showEmojiPanel;
-        if (_showEmojiPanel) _showPlusPanel = false;
-      });
+  void _toggleEmoji() {
+    final nextVisible = !_showEmojiPanel;
+    if (nextVisible) {
+      final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
+      if (keyboardBottom > 1) {
+        _emojiPanelHeight = keyboardBottom.clamp(240.0, 420.0).toDouble();
+      }
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
+    setState(() {
+      _showEmojiPanel = nextVisible;
+      if (_showEmojiPanel) _showPlusPanel = false;
+    });
+  }
 
   void _closePanels() {
     FocusManager.instance.primaryFocus?.unfocus();
@@ -453,7 +485,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     return true;
   }
 
-  Future<void> _scrollToQuotedEventIndex(String eventId, int index) async {
+  Future<void> _scrollToQuotedEventIndex(
+    String eventId,
+    int index, {
+    bool showUnavailable = true,
+  }) async {
     final position = _messageScrollCtrl.position;
     final estimate = (index * 88.0).clamp(
       position.minScrollExtent,
@@ -466,10 +502,52 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     );
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_ensureQuotedEventVisible(eventId)) {
+      if (!mounted) return;
+      if (!_ensureQuotedEventVisible(eventId) && showUnavailable) {
         _showQuotedMessageUnavailable();
       }
     });
+  }
+
+  void _scheduleTargetEventScroll() {
+    final eventId = _pendingTargetEventId?.trim() ?? '';
+    if (eventId.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _tryScrollToTargetEvent();
+    });
+  }
+
+  void _tryScrollToTargetEvent() {
+    final eventId = _pendingTargetEventId?.trim() ?? '';
+    if (eventId.isEmpty) return;
+    if (_ensureQuotedEventVisible(eventId)) {
+      _pendingTargetEventId = null;
+      _targetEventScrollTimer?.cancel();
+      return;
+    }
+    final index = _messageListIndexes[eventId];
+    if (index != null && _messageScrollCtrl.hasClients) {
+      _pendingTargetEventId = null;
+      _targetEventScrollTimer?.cancel();
+      unawaited(
+        _scrollToQuotedEventIndex(
+          eventId,
+          index,
+          showUnavailable: false,
+        ),
+      );
+      return;
+    }
+    _targetEventScrollAttempts++;
+    if (_targetEventScrollAttempts >= 12) {
+      _pendingTargetEventId = null;
+      return;
+    }
+    _targetEventScrollTimer?.cancel();
+    _targetEventScrollTimer = Timer(
+      const Duration(milliseconds: 120),
+      _scheduleTargetEventScroll,
+    );
   }
 
   void _showQuotedMessageUnavailable() {
@@ -519,6 +597,53 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         if (mounted) setState(() {});
       },
     );
+  }
+
+  void _scheduleScrollToLatest(Object? newestItemKey) {
+    if ((_pendingTargetEventId?.trim() ?? '').isNotEmpty) return;
+    if (newestItemKey == null) return;
+    if (_lastAutoScrolledTimelineItemKey == newestItemKey ||
+        _pendingAutoScrollTimelineItemKey == newestItemKey) {
+      return;
+    }
+    _pendingAutoScrollTimelineItemKey = newestItemKey;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_pendingAutoScrollTimelineItemKey != newestItemKey) return;
+      _pendingAutoScrollTimelineItemKey = null;
+      if (!_messageScrollCtrl.hasClients) return;
+      final position = _messageScrollCtrl.position;
+      final target = position.maxScrollExtent;
+      _lastAutoScrolledTimelineItemKey = newestItemKey;
+      if ((position.pixels - target).abs() < 1) return;
+      unawaited(
+        _messageScrollCtrl.animateTo(
+          target,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    });
+  }
+
+  void _scheduleViewportScrollToBottom() {
+    if (_pendingViewportScrollToBottom) return;
+    _pendingViewportScrollToBottom = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _pendingViewportScrollToBottom = false;
+      if (!_messageScrollCtrl.hasClients) return;
+      final position = _messageScrollCtrl.position;
+      final target = position.maxScrollExtent;
+      if ((position.pixels - target).abs() < 1) return;
+      unawaited(
+        _messageScrollCtrl.animateTo(
+          target,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    });
   }
 
   Future<void> _openImageEvent(Event event, String meta) {
@@ -664,9 +789,30 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   @override
   void initState() {
     super.initState();
+    _pendingTargetEventId = widget.targetEventId?.trim();
+    _msgCtrl.addListener(_onComposerTextChanged);
     _voicePlayer.playback.addListener(_onVoicePlaybackChanged);
+    _messageScrollCtrl.addListener(_onMessageScroll);
     unawaited(_loadLocalAsCallHistory());
     _initTimeline();
+  }
+
+  @override
+  void didUpdateWidget(covariant GroupChatPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.targetEventId == widget.targetEventId) return;
+    final eventId = widget.targetEventId?.trim() ?? '';
+    if (eventId.isEmpty) return;
+    _pendingTargetEventId = eventId;
+    _targetEventScrollAttempts = 0;
+    _scheduleTargetEventScroll();
+  }
+
+  void _onMessageScroll() {
+    if (!_messageScrollCtrl.hasClients) return;
+    final position = _messageScrollCtrl.position;
+    if (position.pixels > position.minScrollExtent + 96) return;
+    unawaited(_requestOlderMessages());
   }
 
   Future<void> _initTimeline() async {
@@ -698,6 +844,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
     final tl = _timeline;
+    if (tl != null) unawaited(_backfillLocalStoredHistory(tl));
     if (tl != null &&
         shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen)) {
       unawaited(() async {
@@ -716,6 +863,75 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         if (mounted) setState(() {});
         _scheduleTimelineThumbnailWarmup();
       }());
+    }
+  }
+
+  Future<void> _backfillLocalStoredHistory(Timeline timeline) async {
+    var attempts = 0;
+    while (attempts < chatOpenLocalHistoryMaxAttempts) {
+      if (!shouldBackfillLocalChatOpenHistory(
+        timelineEvents: timeline.events,
+        hasStoredOlderEvents: true,
+      )) {
+        break;
+      }
+
+      try {
+        final database = timeline.room.client.database;
+        if (database == null) break;
+        final storedEvents = await database.getEventList(
+          timeline.room,
+          start: timeline.events.length,
+          limit: chatOpenLocalHistoryPageSize,
+        );
+        if (storedEvents.isEmpty) break;
+        await _hydrateStoredEventSenders(timeline.room, storedEvents);
+        timeline.events.addAll(storedEvents);
+      } on Object catch (e) {
+        debugPrint('group local timeline backfill failed: $e');
+        break;
+      }
+      attempts++;
+    }
+    if (mounted) setState(() {});
+    _scheduleTimelineThumbnailWarmup();
+    unawaited(_markCurrentTimelineRead());
+  }
+
+  Future<void> _hydrateStoredEventSenders(
+    Room room,
+    Iterable<Event> events,
+  ) async {
+    final database = room.client.database;
+    if (database == null) return;
+    for (final event in events) {
+      if (room.getState(EventTypes.RoomMember, event.senderId) != null) {
+        continue;
+      }
+      final user = await database.getUser(event.senderId, room);
+      if (user != null) room.setState(user);
+    }
+  }
+
+  Future<void> _requestOlderMessages() async {
+    if (_historyRequestInFlight) return;
+    if (!shouldRequestHistoricalMessages(
+      MessageHistoryLoadTrigger.userLoadOlder,
+    )) {
+      return;
+    }
+    final timeline = _timeline;
+    if (timeline == null || !timeline.canRequestHistory) return;
+    _historyRequestInFlight = true;
+    try {
+      await timeline.requestHistory(historyCount: chatOpenLocalHistoryPageSize);
+      if (mounted) setState(() {});
+      _scheduleTimelineThumbnailWarmup();
+      unawaited(_markCurrentTimelineRead());
+    } on Object catch (e) {
+      debugPrint('group timeline.requestHistory failed: $e');
+    } finally {
+      _historyRequestInFlight = false;
     }
   }
 
@@ -1081,14 +1297,76 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   void dispose() {
     _timeline?.cancelSubscriptions();
     _initialTimelineEntranceTimer?.cancel();
+    _targetEventScrollTimer?.cancel();
     _asCallHistoryReloadTimer?.cancel();
     _flashingMessageTimer?.cancel();
     _voicePlayer.playback.removeListener(_onVoicePlaybackChanged);
     unawaited(_voicePlayer.dispose());
     unawaited(_voiceRecorder.dispose());
     _messageScrollCtrl.dispose();
+    _msgCtrl.removeListener(_onComposerTextChanged);
     _msgCtrl.dispose();
     super.dispose();
+  }
+
+  void _onComposerTextChanged() {
+    if (_suppressMentionTrigger || _mentionSheetOpen || !mounted) return;
+    final value = _msgCtrl.value;
+    final selection = value.selection;
+    if (selection.isValid && !selection.isCollapsed) return;
+    final cursor =
+        selection.isValid ? selection.extentOffset : value.text.length;
+    if (cursor <= 0 || cursor > value.text.length) return;
+    if (value.text.substring(cursor - 1, cursor) != '@') return;
+    final room = _room;
+    if (room == null) return;
+    unawaited(_showMentionMemberPicker(room));
+  }
+
+  Future<void> _showMentionMemberPicker(Room room) async {
+    if (_mentionSheetOpen) return;
+    _mentionSheetOpen = true;
+    try {
+      if (!mounted) return;
+      final members = groupCallInviteMembersFromRoom(
+        room,
+        currentUserId: ref.read(matrixClientProvider).userID,
+      );
+      final selected = await showModalBottomSheet<GroupCallInviteMember>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _GroupMentionMemberSheet(members: members),
+      );
+      if (selected == null || !mounted) return;
+      _insertMention(selected);
+    } finally {
+      _mentionSheetOpen = false;
+    }
+  }
+
+  void _insertMention(GroupCallInviteMember member) {
+    final nickname = member.displayName.trim().isEmpty
+        ? _fallbackDisplayNameForMxid(member.userId)
+        : member.displayName.trim();
+    final mentionText = '@$nickname ';
+    final value = _msgCtrl.value;
+    final text = value.text;
+    final selection = value.selection;
+    final cursor = selection.isValid ? selection.extentOffset : text.length;
+    final safeCursor = cursor.clamp(0, text.length);
+    final replaceAt =
+        safeCursor > 0 && text.substring(safeCursor - 1, safeCursor) == '@';
+    final start = replaceAt ? safeCursor - 1 : safeCursor;
+    final nextText = text.replaceRange(start, safeCursor, mentionText);
+    final nextCursor = start + mentionText.length;
+    _suppressMentionTrigger = true;
+    _msgCtrl.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextCursor),
+    );
+    _suppressMentionTrigger = false;
+    _atUserMap[member.userId] = nickname;
   }
 
   Future<void> _send() async {
@@ -1097,23 +1375,78 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final room = _room;
     if (room == null) return;
     final replyTo = _replyTo;
+    final mentions = _mentionsForText(text);
     _msgCtrl.clear();
+    _atUserMap.clear();
     setState(() => _replyTo = null);
+    String? pendingId;
+    try {
+      pendingId = await ref.read(localOutboxProvider.notifier).startItem(
+            conversationId: widget.roomId,
+            conversationType: LocalOutboxConversationType.group,
+            draft: LocalOutboxDraft.text(text: text),
+          );
+    } on Object catch (e) {
+      debugPrint('start group local text outbox failed: $e');
+    }
     try {
       final eventId = await ref.read(asClientProvider).sendRoomMessage(
             room.id,
             text,
             replyToEventId: replyTo?.eventId,
+            mentions: mentions,
           );
       _rememberLocalReplyPreview(eventId, replyTo);
-      await ref.read(matrixClientProvider).oneShotSync();
+      try {
+        await ref.read(matrixClientProvider).oneShotSync();
+      } on Object catch (e) {
+        debugPrint('post-send group Matrix sync failed: $e');
+      }
+      if (pendingId != null) {
+        await ref.read(localOutboxProvider.notifier).completeItem(pendingId);
+      }
     } on Object catch (e) {
+      if (pendingId != null) {
+        await ref.read(localOutboxProvider.notifier).failItem(pendingId);
+      }
       if (!mounted) return;
-      _msgCtrl.text = text;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('发送失败：$e')),
       );
     }
+  }
+
+  List<Map<String, String>> _mentionsForText(String text) {
+    final result = <Map<String, String>>[];
+    for (final entry in _atUserMap.entries) {
+      final userId = entry.key.trim();
+      final name = entry.value.trim();
+      if (userId.isEmpty || name.isEmpty) continue;
+      if (!text.contains('@$name')) continue;
+      result.add({
+        'user_id': userId,
+        'display_name': name,
+      });
+    }
+    return result;
+  }
+
+  String? _deliveredTextSignature(Event event) {
+    if (event.senderId != event.room.client.userID ||
+        event.hasAttachment ||
+        event.messageType != MessageTypes.Text) {
+      return null;
+    }
+    final text = event.body.trim();
+    if (text.isEmpty) return null;
+    return 'text:$text';
+  }
+
+  String? _outboxTextSignature(LocalOutboxItem item) {
+    if (item.messageKind != LocalOutboxMessageKind.text) return null;
+    final text = item.text.trim();
+    if (text.isEmpty) return null;
+    return 'text:$text';
   }
 
   bool _canSendGroupMessage(Room room, AsSyncCacheState syncCache) {
@@ -1281,14 +1614,52 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     }
   }
 
+  Future<void> _retryFailedTextMessage(LocalOutboxItem item) async {
+    if (_retryingOutboxIds.contains(item.id)) return;
+    final room = _room;
+    if (room == null) return;
+    if (!_canSendGroupMessage(room, ref.read(asSyncCacheProvider))) {
+      _showGroupCannotSendToast(context);
+      return;
+    }
+    if (item.messageKind != LocalOutboxMessageKind.text) return;
+    final text = item.text.trim();
+    if (text.isEmpty) return;
+    final retried = await ref.read(localOutboxProvider.notifier).retryItem(
+          item.id,
+        );
+    if (!retried || !mounted) return;
+
+    _retryingOutboxIds.add(item.id);
+    try {
+      await ref.read(asClientProvider).sendRoomMessage(room.id, text);
+      try {
+        await ref.read(matrixClientProvider).oneShotSync();
+      } on Object catch (e) {
+        debugPrint('post-retry group Matrix sync failed: $e');
+      }
+      await ref.read(localOutboxProvider.notifier).completeItem(item.id);
+    } on Object catch (e) {
+      await ref.read(localOutboxProvider.notifier).failItem(item.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('发送失败：$e')),
+      );
+    } finally {
+      _retryingOutboxIds.remove(item.id);
+    }
+  }
+
   Future<void> _onLongPressEvent(
     Event event,
     Offset position, {
     required String roomName,
+    required _MessageContextMenuPlacement placement,
   }) async {
     final action = await _showGroupMessageContextMenu(
       context,
       position,
+      placement: placement,
       canRecall: event.canRedact,
     );
     if (!mounted || action == null) return;
@@ -1472,43 +1843,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     });
   }
 
-  Future<void> _copySelectedEvents(List<Event> events) async {
-    final selectedEvents = events
-        .where((event) => _selected.contains(event.eventId))
-        .toList(growable: false)
-      ..sort((a, b) => a.originServerTs.compareTo(b.originServerTs));
-    final text = selectedEvents
-        .map((event) => event.body.trim())
-        .where((body) => body.isNotEmpty)
-        .join('\n');
-    if (text.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) return;
-    setState(() {
-      _multiSelect = false;
-      _selected.clear();
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('已复制'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
-  void _quoteFirstSelectedEvent(List<Event> events) {
-    final selectedEvents = events
-        .where((event) => _selected.contains(event.eventId))
-        .toList(growable: false)
-      ..sort((a, b) => a.originServerTs.compareTo(b.originServerTs));
-    if (selectedEvents.isEmpty) return;
-    setState(() {
-      _replyTo = selectedEvents.first;
-      _multiSelect = false;
-      _selected.clear();
-    });
-  }
-
   Future<AsFavoriteMessageDraft> _favoriteDraftForEvent(Event event) async {
     final ownerUserId = ref.read(matrixClientProvider).userID ?? '';
     final baseDraft = favoriteDraftFromMatrixMessage(
@@ -1674,7 +2008,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       );
     }
     final t = context.tk;
-    final name = room.getLocalizedDisplayname();
+    final remarkName =
+        ref.watch(groupRemarkNamesProvider)[widget.roomId]?.trim() ?? '';
+    final name =
+        remarkName.isNotEmpty ? remarkName : room.getLocalizedDisplayname();
     final memberCount = room.summary.mJoinedMemberCount ?? 0;
     final syncCache = ref.watch(asSyncCacheProvider);
     final rawTimelineEvents = _timeline?.events ?? const <Event>[];
@@ -1694,17 +2031,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
               event.originServerTs.millisecondsSinceEpoch,
           redacted: (event) => event.redacted,
         );
-    final pendingMedia = ref
+    final pendingOutbox = ref
         .watch(localOutboxProvider)
         .itemsForConversation(
           widget.roomId,
           type: LocalOutboxConversationType.group,
-        )
-        .where(
-          (item) =>
-              item.messageKind == LocalOutboxMessageKind.image ||
-              item.messageKind == LocalOutboxMessageKind.video ||
-              item.messageKind == LocalOutboxMessageKind.file,
         )
         .toList()
         .reversed
@@ -1722,12 +2053,21 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       callRecordContextEvents: callRecordContextEvents,
       asCallSessions: asCallRecords,
     );
+    final filteredPendingOutbox =
+        filterOutboxItemsShadowedByEvents<Event, LocalOutboxItem>(
+      events: visibleEvents,
+      outboxItems: pendingOutbox,
+      eventSignature: _deliveredTextSignature,
+      eventTimestamp: (event) => event.originServerTs,
+      outboxSignature: _outboxTextSignature,
+      outboxTimestamp: (item) => item.createdAt,
+    );
     final timelineItems = _mergeGroupTimelineItems(
       events: visibleEvents,
       eventTimestamp: (event) => event.originServerTs,
       eventSortTimestamp: (event) =>
           messageOrder.entryForEvent(event.eventId)?.createdAt,
-      outboxItems: pendingMedia,
+      outboxItems: filteredPendingOutbox,
       outboxTimestamp: (item) => item.createdAt,
       asCallSessions: asCallRecords,
     );
@@ -1741,13 +2081,30 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _syncMessageListIndexes(displayTimelineItems);
     _pruneMessageAnchors();
     _seedInitialTimelineEntrances(timelineItemKeys);
+    _scheduleTargetEventScroll();
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
+    _scheduleScrollToLatest(newestTimelineItemKey);
     final canSendMessages = _canSendGroupMessage(room, syncCache);
     final myId = ref.read(matrixClientProvider).userID;
     final replyBarVisible = _replyTo != null;
     final selectionBarVisible = _multiSelect;
-    final bottomPanelVisible = _showPlusPanel || _showEmojiPanel;
+    final keyboardInsetBottom = MediaQuery.viewInsetsOf(context).bottom;
+    if (keyboardInsetBottom > 1) {
+      _emojiPanelHeight = keyboardInsetBottom.clamp(240.0, 420.0).toDouble();
+    }
+    final bottomPanelVisible =
+        keyboardInsetBottom <= 1 && (_showPlusPanel || _showEmojiPanel);
+    final showEmojiPanelContent = _showEmojiPanel && keyboardInsetBottom <= 1;
+    final bottomViewportChanged =
+        keyboardInsetBottom != _lastKeyboardInsetBottom ||
+            bottomPanelVisible != _lastBottomPanelVisible;
+    if (bottomViewportChanged &&
+        (keyboardInsetBottom > 0 || bottomPanelVisible)) {
+      _scheduleViewportScrollToBottom();
+    }
+    _lastKeyboardInsetBottom = keyboardInsetBottom;
+    _lastBottomPanelVisible = bottomPanelVisible;
     final messageTopInset = chatMessageTopOverlayClearance(context);
     final messageBottomInset = chatMessageBottomOverlayClearance(
       context,
@@ -1788,55 +2145,52 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                       timelineEntry: activeTimelineGroupCall,
                       roomId: widget.roomId,
                     );
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: ChatCapsuleHeader(
-                        title: name,
-                        subtitle: activeGroupCall == null
-                            ? '$memberCount 名成员'
-                            : '正在群通话',
-                        onTitleTap: activeGroupCall == null
-                            ? null
-                            : () => context.push(
-                                  groupCallJoinRoute(
-                                    roomId: widget.roomId,
-                                    roomName: name,
-                                    callType: activeGroupCall.callType,
-                                    callId: activeGroupCall.callId,
-                                    incoming: activeGroupCall.requiresJoin,
-                                  ),
+                    return ChatCapsuleHeader(
+                      title: name,
+                      subtitle: activeGroupCall == null
+                          ? '$memberCount 名成员'
+                          : '正在群通话',
+                      onTitleTap: activeGroupCall == null
+                          ? null
+                          : () => context.push(
+                                groupCallJoinRoute(
+                                  roomId: widget.roomId,
+                                  roomName: name,
+                                  callType: activeGroupCall.callType,
+                                  callId: activeGroupCall.callId,
+                                  incoming: activeGroupCall.requiresJoin,
                                 ),
-                        onBack: () => unawaited(_popGroupChatOrHome(context)),
-                        showEncryptionIcon: true,
-                        actions: [
-                          ChatCapsuleAction(
-                            icon: Symbols.call,
-                            tooltip: '语音通话',
-                            color: t.accent,
-                            onTap: () => context.push(
-                              groupCallInviteRoute(
-                                roomId: widget.roomId,
-                                roomName: name,
-                                callType: ProductCallType.voice,
                               ),
+                      onBack: () => unawaited(_popGroupChatOrHome(context)),
+                      showEncryptionIcon: true,
+                      actions: [
+                        ChatCapsuleAction(
+                          icon: Symbols.call,
+                          tooltip: '语音通话',
+                          color: t.accent,
+                          onTap: () => context.push(
+                            groupCallInviteRoute(
+                              roomId: widget.roomId,
+                              roomName: name,
+                              callType: ProductCallType.voice,
                             ),
                           ),
-                          ChatCapsuleAction(
-                            icon: Symbols.more_vert,
-                            tooltip: '详情',
-                            color: t.accent,
-                            onTap: () => context.push(
-                              '/group-info/${Uri.encodeComponent(widget.roomId)}',
-                            ),
+                        ),
+                        ChatCapsuleAction(
+                          icon: Symbols.more_vert,
+                          tooltip: '详情',
+                          color: t.accent,
+                          onTap: () => context.push(
+                            '/group-info/${Uri.encodeComponent(widget.roomId)}',
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     );
                   },
                 ),
-          messageLayer: GestureDetector(
+          messageLayer: Listener(
             behavior: HitTestBehavior.translucent,
-            onTap: _closePanels,
+            onPointerDown: (_) => _closePanels(),
             child: _loading
                 ? Center(
                     child: SizedBox(
@@ -1858,352 +2212,430 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     : ChatTimelineListMotion(
                         itemCount: timelineItems.length,
                         newestItemKey: newestTimelineItemKey,
-                        child: ListView.builder(
-                          controller: _messageScrollCtrl,
-                          padding: messagePadding,
-                          itemCount: timelineItems.length,
-                          itemBuilder: (context, i) {
-                            final itemKey = displayTimelineItemKeys[i];
-                            Widget enter(
-                              Widget child, {
-                              required bool isMe,
-                              required Object id,
-                              GlobalKey? anchorKey,
-                              bool flashing = false,
-                            }) {
-                              return chatMessageEntrance(
-                                key: ValueKey('group_message_enter_$id'),
-                                isMe: isMe,
-                                index: i,
-                                enabled:
-                                    _initialTimelineEntrances.contains(itemKey),
-                                child: anchorKey == null
-                                    ? _MessageJumpFlash(
-                                        flashing: flashing,
-                                        child: child,
-                                      )
-                                    : KeyedSubtree(
-                                        key: anchorKey,
-                                        child: _MessageJumpFlash(
+                        child: RefreshIndicator(
+                          color: t.accent,
+                          onRefresh: _requestOlderMessages,
+                          child: ListView.builder(
+                            controller: _messageScrollCtrl,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: messagePadding,
+                            itemCount: timelineItems.length,
+                            itemBuilder: (context, i) {
+                              final itemKey = displayTimelineItemKeys[i];
+                              final contextMenuPlacement =
+                                  _messageContextMenuPlacement(
+                                i,
+                                displayTimelineItems.length,
+                              );
+                              Widget enter(
+                                Widget child, {
+                                required bool isMe,
+                                required Object id,
+                                GlobalKey? anchorKey,
+                                bool flashing = false,
+                              }) {
+                                return chatMessageEntrance(
+                                  key: ValueKey('group_message_enter_$id'),
+                                  isMe: isMe,
+                                  index: i,
+                                  enabled: _initialTimelineEntrances
+                                      .contains(itemKey),
+                                  child: anchorKey == null
+                                      ? _MessageJumpFlash(
                                           flashing: flashing,
                                           child: child,
-                                        ),
-                                      ),
-                              );
-                            }
-
-                            return displayTimelineItems[i].when(
-                              outbox: (pending) {
-                                final playback = _voicePlayer.playback.value;
-                                final isPlaying =
-                                    playback.messageId == pending.id &&
-                                        playback.playing;
-                                return enter(
-                                  _isGroupVoiceOutboxItem(pending)
-                                      ? _GroupVoiceMessageBubble(
-                                          isMe: true,
-                                          time: DateFormat('HH:mm').format(
-                                            pending.createdAt.toLocal(),
-                                          ),
-                                          durationSeconds:
-                                              _groupVoiceDurationSecondsFromMs(
-                                            pending.durationMs,
-                                          ),
-                                          selected: false,
-                                          multiSelect: false,
-                                          isPlaying: isPlaying,
-                                          currentPlaySeconds:
-                                              playback.position.inSeconds,
                                         )
-                                      : _GroupPendingMediaBubble(
-                                          item: pending,
-                                          onRetry: () => unawaited(
-                                            _retryFailedMediaUpload(pending),
+                                      : KeyedSubtree(
+                                          key: anchorKey,
+                                          child: _MessageJumpFlash(
+                                            flashing: flashing,
+                                            child: child,
                                           ),
                                         ),
-                                  isMe: true,
-                                  id: pending.id,
                                 );
-                              },
-                              asCall: (session) {
-                                final callerId = session.createdByMxid.trim();
-                                final callerIsMe = callerId == myId;
-                                final senderName = _displayNameForMxid(
-                                  room,
-                                  syncCache,
-                                  callerId,
-                                );
-                                final senderAvatarUrl = _avatarUrlForMxid(
-                                  room,
-                                  syncCache,
-                                  callerId,
-                                );
-                                return enter(
-                                  _GroupAsCallRecordMessageBubble(
-                                    isMe: callerIsMe,
-                                    senderId: callerId,
-                                    senderName: senderName,
-                                    senderAvatarUrl: senderAvatarUrl,
-                                    isVideo:
-                                        asCallSessionRecordIsVideo(session),
-                                    text: asCallSessionRecordText(session),
-                                    time: DateFormat('HH:mm').format(
-                                      asCallSessionStableTimestamp(session)
-                                          .toLocal(),
-                                    ),
-                                  ),
-                                  isMe: callerIsMe,
-                                  id: session.callId,
-                                );
-                              },
-                              event: (e) {
-                                final selected = _selected.contains(e.eventId);
-                                final chatRecordPayload =
-                                    chatRecordPayloadFromContent(
-                                  Map<String, Object?>.from(e.content),
-                                );
-                                final channelSharePayload =
-                                    channelSharePayloadFromContent(
-                                  Map<String, Object?>.from(e.content),
-                                );
-                                final isMe = e.senderId == myId;
-                                final anchorKey = _messageAnchorKey(e.eventId);
-                                final flashing =
-                                    _flashingMessageEventId == e.eventId.trim();
-                                final senderAvatarUrl = _avatarUrlForMxid(
-                                  room,
-                                  syncCache,
-                                  e.senderId,
-                                );
-                                void toggle() => setState(() {
-                                      if (selected) {
-                                        _selected.remove(e.eventId);
-                                      } else {
-                                        _selected.add(e.eventId);
-                                      }
-                                    });
-                                if (isCallRecordEvent(e)) {
-                                  final callId = asCallIdForCallRecord(
-                                    e,
-                                    callRecordContextEvents,
-                                  );
-                                  final pendingAsGroupCall =
-                                      isProductGroupCallEvent(e) &&
-                                          callId != null &&
-                                          !_roomAsCallHistory.containsKey(
-                                            callId.trim(),
-                                          );
-                                  final callerEvent = callRecordSenderEvent(
-                                    e,
-                                    callRecordContextEvents,
-                                  );
-                                  final callerId = callRecordSenderId(
-                                    e,
-                                    callRecordContextEvents,
-                                  );
-                                  final callerIsMe = callerId == myId;
-                                  final callerName = callerEvent
-                                          ?.senderFromMemoryOrFallback
-                                          .calcDisplayname() ??
-                                      e.senderFromMemoryOrFallback
-                                          .calcDisplayname();
-                                  return enter(
-                                    _GroupCallRecordMessageBubble(
-                                      event: callerEvent ?? e,
-                                      isMe: callerIsMe,
-                                      isVideo: callRecordIsVideo(
-                                        e,
-                                        callRecordContextEvents,
-                                      ),
-                                      text: callRecordText(
-                                        e,
-                                        callRecordContextEvents,
-                                        asCallSessionPending:
-                                            pendingAsGroupCall,
-                                      ),
-                                      senderName: callerName,
-                                      senderAvatarUrl: _avatarUrlForMxid(
-                                        room,
-                                        syncCache,
-                                        callerId,
-                                      ),
-                                      time: DateFormat('HH:mm').format(
-                                        e.originServerTs.toLocal(),
-                                      ),
-                                      selected: selected,
-                                      multiSelect: _multiSelect,
-                                      onTap: _multiSelect ? toggle : null,
-                                      onLongPressAt: (position) =>
-                                          _onLongPressEvent(
-                                        e,
-                                        position,
-                                        roomName: name,
-                                      ),
-                                    ),
-                                    isMe: callerIsMe,
-                                    id: e.eventId,
-                                    anchorKey: anchorKey,
-                                    flashing: flashing,
-                                  );
-                                }
-                                if (e.messageType == MessageTypes.Image &&
-                                    e.hasAttachment) {
-                                  final senderName = e
-                                      .senderFromMemoryOrFallback
-                                      .calcDisplayname();
-                                  final localOrder =
-                                      messageOrder.entryForEvent(e.eventId);
-                                  final time = DateFormat('HH:mm').format(
-                                    (localOrder?.createdAt ?? e.originServerTs)
-                                        .toLocal(),
-                                  );
-                                  return enter(
-                                    _GroupImageMessageBubble(
-                                      event: e,
-                                      isMe: isMe,
-                                      senderAvatarUrl: senderAvatarUrl,
-                                      selected: selected,
-                                      multiSelect: _multiSelect,
-                                      onTap: _multiSelect
-                                          ? toggle
-                                          : () => unawaited(
-                                                _openImageEvent(
-                                                  e,
-                                                  '${isMe ? '我' : senderName} · $time',
-                                                ),
-                                              ),
-                                      onLongPressAt: (position) =>
-                                          _onLongPressEvent(
-                                        e,
-                                        position,
-                                        roomName: name,
-                                      ),
-                                    ),
-                                    isMe: isMe,
-                                    id: e.eventId,
-                                    anchorKey: anchorKey,
-                                    flashing: flashing,
-                                  );
-                                }
-                                if (e.messageType == MessageTypes.Video &&
-                                    e.hasAttachment) {
-                                  return enter(
-                                    _GroupImageMessageBubble(
-                                      event: e,
-                                      isMe: isMe,
-                                      senderAvatarUrl: senderAvatarUrl,
-                                      selected: selected,
-                                      multiSelect: _multiSelect,
-                                      fallbackIcon: Symbols.movie,
-                                      centerOverlay:
-                                          const _GroupVideoPlayOverlay(),
-                                      onTap: _multiSelect
-                                          ? toggle
-                                          : () => unawaited(_openVideoEvent(e)),
-                                      onLongPressAt: (position) =>
-                                          _onLongPressEvent(
-                                        e,
-                                        position,
-                                        roomName: name,
-                                      ),
-                                    ),
-                                    isMe: isMe,
-                                    id: e.eventId,
-                                    anchorKey: anchorKey,
-                                    flashing: flashing,
-                                  );
-                                }
-                                if (_isGroupVoiceEvent(e)) {
-                                  final playback = _voicePlayer.playback.value;
-                                  final eventId = e.eventId.trim();
-                                  final isPlaying =
-                                      playback.messageId == eventId &&
-                                          playback.playing;
-                                  final localOrder =
-                                      messageOrder.entryForEvent(e.eventId);
-                                  final time = DateFormat('HH:mm').format(
-                                    (localOrder?.createdAt ?? e.originServerTs)
-                                        .toLocal(),
-                                  );
-                                  return enter(
-                                    _GroupVoiceMessageBubble(
-                                      event: e,
-                                      isMe: isMe,
-                                      senderAvatarUrl: senderAvatarUrl,
-                                      time: time,
-                                      durationSeconds:
-                                          _groupVoiceDurationSecondsForEvent(e),
-                                      selected: selected,
-                                      multiSelect: _multiSelect,
-                                      isPlaying: isPlaying,
-                                      currentPlaySeconds:
-                                          playback.position.inSeconds,
-                                      onSeek: isPlaying
-                                          ? (seconds) =>
-                                              _seekVoiceEvent(e, seconds)
-                                          : null,
-                                      onTap: _multiSelect
-                                          ? toggle
-                                          : () => unawaited(_openFileEvent(e)),
-                                      onLongPressAt: (position) =>
-                                          _onLongPressEvent(
-                                        e,
-                                        position,
-                                        roomName: name,
-                                      ),
-                                    ),
-                                    isMe: isMe,
-                                    id: e.eventId,
-                                    anchorKey: anchorKey,
-                                    flashing: flashing,
-                                  );
-                                }
-                                if (e.messageType == MessageTypes.File &&
-                                    !_isGroupVoiceEvent(e) &&
-                                    e.hasAttachment) {
-                                  final localOrder =
-                                      messageOrder.entryForEvent(e.eventId);
-                                  final time = DateFormat('HH:mm').format(
-                                    (localOrder?.createdAt ?? e.originServerTs)
-                                        .toLocal(),
-                                  );
-                                  final size = e.infoMap['size'];
-                                  final sizeBytes = size is int ? size : 0;
-                                  final kind = fileKindLabel(
-                                    e.attachmentMimetype,
-                                    e.body,
-                                  );
-                                  final sizeLabel = sizeBytes > 0
-                                      ? '$kind · ${formatByteSize(sizeBytes)}'
-                                      : kind;
-                                  final eventId = e.eventId.trim();
-                                  return enter(
-                                    _GroupFileMessageBubble(
-                                      event: e,
-                                      isMe: isMe,
-                                      senderAvatarUrl: senderAvatarUrl,
-                                      time: time,
-                                      fileName: e.body,
-                                      sizeLabel: sizeLabel,
-                                      selected: selected,
-                                      multiSelect: _multiSelect,
-                                      trailing: _GroupFileDownloadStatusIcon(
-                                        downloading: _downloadingFileEventIds
-                                            .contains(eventId),
-                                        downloaded: _downloadedFileEventIds
-                                            .contains(eventId),
-                                        onDownload: () => unawaited(
-                                          _downloadFileEvent(e),
+                              }
+
+                              return displayTimelineItems[i].when(
+                                outbox: (pending) {
+                                  if (pending.messageKind ==
+                                      LocalOutboxMessageKind.text) {
+                                    return enter(
+                                      _GroupPendingTextBubble(
+                                        text: pending.text,
+                                        time: DateFormat('HH:mm').format(
+                                          pending.createdAt.toLocal(),
+                                        ),
+                                        status: pending.status,
+                                        onRetry: () => unawaited(
+                                          _retryFailedTextMessage(pending),
                                         ),
                                       ),
+                                      isMe: true,
+                                      id: pending.id,
+                                    );
+                                  }
+                                  final playback = _voicePlayer.playback.value;
+                                  final isPlaying =
+                                      playback.messageId == pending.id &&
+                                          playback.playing;
+                                  return enter(
+                                    _isGroupVoiceOutboxItem(pending)
+                                        ? _GroupVoiceMessageBubble(
+                                            isMe: true,
+                                            time: DateFormat('HH:mm').format(
+                                              pending.createdAt.toLocal(),
+                                            ),
+                                            durationSeconds:
+                                                _groupVoiceDurationSecondsFromMs(
+                                              pending.durationMs,
+                                            ),
+                                            selected: false,
+                                            multiSelect: false,
+                                            isPlaying: isPlaying,
+                                            currentPlaySeconds:
+                                                playback.position.inSeconds,
+                                          )
+                                        : _GroupPendingMediaBubble(
+                                            item: pending,
+                                            onRetry: () => unawaited(
+                                              _retryFailedMediaUpload(pending),
+                                            ),
+                                          ),
+                                    isMe: true,
+                                    id: pending.id,
+                                  );
+                                },
+                                asCall: (session) {
+                                  final callerId = session.createdByMxid.trim();
+                                  final callerIsMe = callerId == myId;
+                                  final senderName = _displayNameForMxid(
+                                    room,
+                                    syncCache,
+                                    callerId,
+                                  );
+                                  final senderAvatarUrl = _avatarUrlForMxid(
+                                    room,
+                                    syncCache,
+                                    callerId,
+                                  );
+                                  return enter(
+                                    _GroupAsCallRecordMessageBubble(
+                                      isMe: callerIsMe,
+                                      senderId: callerId,
+                                      senderName: senderName,
+                                      senderAvatarUrl: senderAvatarUrl,
+                                      isVideo:
+                                          asCallSessionRecordIsVideo(session),
+                                      text: asCallSessionRecordText(session),
+                                      time: DateFormat('HH:mm').format(
+                                        asCallSessionStableTimestamp(session)
+                                            .toLocal(),
+                                      ),
+                                    ),
+                                    isMe: callerIsMe,
+                                    id: session.callId,
+                                  );
+                                },
+                                event: (e) {
+                                  final selected =
+                                      _selected.contains(e.eventId);
+                                  final chatRecordPayload =
+                                      chatRecordPayloadFromContent(
+                                    Map<String, Object?>.from(e.content),
+                                  );
+                                  final channelSharePayload =
+                                      channelSharePayloadFromContent(
+                                    Map<String, Object?>.from(e.content),
+                                  );
+                                  final isMe = e.senderId == myId;
+                                  final anchorKey =
+                                      _messageAnchorKey(e.eventId);
+                                  final flashing = _flashingMessageEventId ==
+                                      e.eventId.trim();
+                                  final senderAvatarUrl = _avatarUrlForMxid(
+                                    room,
+                                    syncCache,
+                                    e.senderId,
+                                  );
+                                  void toggle() => setState(() {
+                                        if (selected) {
+                                          _selected.remove(e.eventId);
+                                        } else {
+                                          _selected.add(e.eventId);
+                                        }
+                                      });
+                                  if (isCallRecordEvent(e)) {
+                                    final callId = asCallIdForCallRecord(
+                                      e,
+                                      callRecordContextEvents,
+                                    );
+                                    final pendingAsGroupCall =
+                                        isProductGroupCallEvent(e) &&
+                                            callId != null &&
+                                            !_roomAsCallHistory.containsKey(
+                                              callId.trim(),
+                                            );
+                                    final callerEvent = callRecordSenderEvent(
+                                      e,
+                                      callRecordContextEvents,
+                                    );
+                                    final callerId = callRecordSenderId(
+                                      e,
+                                      callRecordContextEvents,
+                                    );
+                                    final callerIsMe = callerId == myId;
+                                    final callerName = callerEvent
+                                            ?.senderFromMemoryOrFallback
+                                            .calcDisplayname() ??
+                                        e.senderFromMemoryOrFallback
+                                            .calcDisplayname();
+                                    return enter(
+                                      _GroupCallRecordMessageBubble(
+                                        event: callerEvent ?? e,
+                                        isMe: callerIsMe,
+                                        isVideo: callRecordIsVideo(
+                                          e,
+                                          callRecordContextEvents,
+                                        ),
+                                        text: callRecordText(
+                                          e,
+                                          callRecordContextEvents,
+                                          asCallSessionPending:
+                                              pendingAsGroupCall,
+                                        ),
+                                        senderName: callerName,
+                                        senderAvatarUrl: _avatarUrlForMxid(
+                                          room,
+                                          syncCache,
+                                          callerId,
+                                        ),
+                                        time: DateFormat('HH:mm').format(
+                                          e.originServerTs.toLocal(),
+                                        ),
+                                        selected: selected,
+                                        multiSelect: _multiSelect,
+                                        onTap: _multiSelect ? toggle : null,
+                                        onLongPressAt: (position) =>
+                                            _onLongPressEvent(
+                                          e,
+                                          position,
+                                          roomName: name,
+                                          placement: contextMenuPlacement,
+                                        ),
+                                      ),
+                                      isMe: callerIsMe,
+                                      id: e.eventId,
+                                      anchorKey: anchorKey,
+                                      flashing: flashing,
+                                    );
+                                  }
+                                  if (e.messageType == MessageTypes.Image &&
+                                      e.hasAttachment) {
+                                    final senderName = e
+                                        .senderFromMemoryOrFallback
+                                        .calcDisplayname();
+                                    final localOrder =
+                                        messageOrder.entryForEvent(e.eventId);
+                                    final time = DateFormat('HH:mm').format(
+                                      (localOrder?.createdAt ??
+                                              e.originServerTs)
+                                          .toLocal(),
+                                    );
+                                    return enter(
+                                      _GroupImageMessageBubble(
+                                        event: e,
+                                        isMe: isMe,
+                                        senderAvatarUrl: senderAvatarUrl,
+                                        selected: selected,
+                                        multiSelect: _multiSelect,
+                                        onTap: _multiSelect
+                                            ? toggle
+                                            : () => unawaited(
+                                                  _openImageEvent(
+                                                    e,
+                                                    '${isMe ? '我' : senderName} · $time',
+                                                  ),
+                                                ),
+                                        onLongPressAt: (position) =>
+                                            _onLongPressEvent(
+                                          e,
+                                          position,
+                                          roomName: name,
+                                          placement: contextMenuPlacement,
+                                        ),
+                                      ),
+                                      isMe: isMe,
+                                      id: e.eventId,
+                                      anchorKey: anchorKey,
+                                      flashing: flashing,
+                                    );
+                                  }
+                                  if (e.messageType == MessageTypes.Video &&
+                                      e.hasAttachment) {
+                                    return enter(
+                                      _GroupImageMessageBubble(
+                                        event: e,
+                                        isMe: isMe,
+                                        senderAvatarUrl: senderAvatarUrl,
+                                        selected: selected,
+                                        multiSelect: _multiSelect,
+                                        fallbackIcon: Symbols.movie,
+                                        centerOverlay:
+                                            const _GroupVideoPlayOverlay(),
+                                        onTap: _multiSelect
+                                            ? toggle
+                                            : () =>
+                                                unawaited(_openVideoEvent(e)),
+                                        onLongPressAt: (position) =>
+                                            _onLongPressEvent(
+                                          e,
+                                          position,
+                                          roomName: name,
+                                          placement: contextMenuPlacement,
+                                        ),
+                                      ),
+                                      isMe: isMe,
+                                      id: e.eventId,
+                                      anchorKey: anchorKey,
+                                      flashing: flashing,
+                                    );
+                                  }
+                                  if (_isGroupVoiceEvent(e)) {
+                                    final playback =
+                                        _voicePlayer.playback.value;
+                                    final eventId = e.eventId.trim();
+                                    final isPlaying =
+                                        playback.messageId == eventId &&
+                                            playback.playing;
+                                    final localOrder =
+                                        messageOrder.entryForEvent(e.eventId);
+                                    final time = DateFormat('HH:mm').format(
+                                      (localOrder?.createdAt ??
+                                              e.originServerTs)
+                                          .toLocal(),
+                                    );
+                                    return enter(
+                                      _GroupVoiceMessageBubble(
+                                        event: e,
+                                        isMe: isMe,
+                                        senderAvatarUrl: senderAvatarUrl,
+                                        time: time,
+                                        durationSeconds:
+                                            _groupVoiceDurationSecondsForEvent(
+                                                e),
+                                        selected: selected,
+                                        multiSelect: _multiSelect,
+                                        isPlaying: isPlaying,
+                                        currentPlaySeconds:
+                                            playback.position.inSeconds,
+                                        onSeek: isPlaying
+                                            ? (seconds) =>
+                                                _seekVoiceEvent(e, seconds)
+                                            : null,
+                                        onTap: _multiSelect
+                                            ? toggle
+                                            : () =>
+                                                unawaited(_openFileEvent(e)),
+                                        onLongPressAt: (position) =>
+                                            _onLongPressEvent(
+                                          e,
+                                          position,
+                                          roomName: name,
+                                          placement: contextMenuPlacement,
+                                        ),
+                                      ),
+                                      isMe: isMe,
+                                      id: e.eventId,
+                                      anchorKey: anchorKey,
+                                      flashing: flashing,
+                                    );
+                                  }
+                                  if (e.messageType == MessageTypes.File &&
+                                      !_isGroupVoiceEvent(e) &&
+                                      e.hasAttachment) {
+                                    final localOrder =
+                                        messageOrder.entryForEvent(e.eventId);
+                                    final time = DateFormat('HH:mm').format(
+                                      (localOrder?.createdAt ??
+                                              e.originServerTs)
+                                          .toLocal(),
+                                    );
+                                    final size = e.infoMap['size'];
+                                    final sizeBytes = size is int ? size : 0;
+                                    final kind = fileKindLabel(
+                                      e.attachmentMimetype,
+                                      e.body,
+                                    );
+                                    final sizeLabel = sizeBytes > 0
+                                        ? '$kind · ${formatByteSize(sizeBytes)}'
+                                        : kind;
+                                    final eventId = e.eventId.trim();
+                                    return enter(
+                                      _GroupFileMessageBubble(
+                                        event: e,
+                                        isMe: isMe,
+                                        senderAvatarUrl: senderAvatarUrl,
+                                        time: time,
+                                        fileName: e.body,
+                                        sizeLabel: sizeLabel,
+                                        selected: selected,
+                                        multiSelect: _multiSelect,
+                                        trailing: _GroupFileDownloadStatusIcon(
+                                          downloading: _downloadingFileEventIds
+                                              .contains(eventId),
+                                          downloaded: _downloadedFileEventIds
+                                              .contains(eventId),
+                                          onDownload: () => unawaited(
+                                            _downloadFileEvent(e),
+                                          ),
+                                        ),
+                                        onTap: _multiSelect
+                                            ? toggle
+                                            : () =>
+                                                unawaited(_openFileEvent(e)),
+                                        onLongPressAt: (position) =>
+                                            _onLongPressEvent(
+                                          e,
+                                          position,
+                                          roomName: name,
+                                          placement: contextMenuPlacement,
+                                        ),
+                                      ),
+                                      isMe: isMe,
+                                      id: e.eventId,
+                                      anchorKey: anchorKey,
+                                      flashing: flashing,
+                                    );
+                                  }
+                                  return enter(
+                                    _GroupMessageBubble(
+                                      event: e,
+                                      quote: _replyPreviewForEvent(
+                                        e,
+                                        visibleEvents,
+                                      ),
+                                      onTapQuote: _scrollToQuotedEvent,
+                                      isMe: isMe,
+                                      senderAvatarUrl: senderAvatarUrl,
+                                      selected: selected,
+                                      multiSelect: _multiSelect,
                                       onTap: _multiSelect
                                           ? toggle
-                                          : () => unawaited(_openFileEvent(e)),
+                                          : channelSharePayload != null
+                                              ? () => context.push(
+                                                    '/channel/${Uri.encodeComponent(channelSharePayload.channelId)}',
+                                                  )
+                                              : chatRecordPayload == null
+                                                  ? null
+                                                  : () => _openChatRecordDetail(
+                                                        chatRecordPayload,
+                                                      ),
                                       onLongPressAt: (position) =>
                                           _onLongPressEvent(
                                         e,
                                         position,
                                         roomName: name,
+                                        placement: contextMenuPlacement,
                                       ),
                                     ),
                                     isMe: isMe,
@@ -2211,45 +2643,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     anchorKey: anchorKey,
                                     flashing: flashing,
                                   );
-                                }
-                                return enter(
-                                  _GroupMessageBubble(
-                                    event: e,
-                                    quote: _replyPreviewForEvent(
-                                      e,
-                                      visibleEvents,
-                                    ),
-                                    onTapQuote: _scrollToQuotedEvent,
-                                    isMe: isMe,
-                                    senderAvatarUrl: senderAvatarUrl,
-                                    selected: selected,
-                                    multiSelect: _multiSelect,
-                                    onTap: _multiSelect
-                                        ? toggle
-                                        : channelSharePayload != null
-                                            ? () => context.push(
-                                                  '/channel/${Uri.encodeComponent(channelSharePayload.channelId)}',
-                                                )
-                                            : chatRecordPayload == null
-                                                ? null
-                                                : () => _openChatRecordDetail(
-                                                      chatRecordPayload,
-                                                    ),
-                                    onLongPressAt: (position) =>
-                                        _onLongPressEvent(
-                                      e,
-                                      position,
-                                      roomName: name,
-                                    ),
-                                  ),
-                                  isMe: isMe,
-                                  id: e.eventId,
-                                  anchorKey: anchorKey,
-                                  flashing: flashing,
-                                );
-                              },
-                            );
-                          },
+                                },
+                              );
+                            },
+                          ),
                         ),
                       ),
           ),
@@ -2271,9 +2668,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     _multiSelect = false;
                     _selected.clear();
                   }),
-                  onCopy: () => unawaited(_copySelectedEvents(events)),
                   onFavorite: () => unawaited(_favoriteSelectedEvents(events)),
-                  onQuote: () => _quoteFirstSelectedEvent(events),
                   onForward: () =>
                       unawaited(_forwardSelectedEvents(events, name)),
                   onDelete: () async {
@@ -2334,27 +2729,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                   onVideoUploadDelivered: _recordDeliveredMediaUpload,
                   onVideoUploadFinished: _removePendingMediaUpload,
                   onVideoUploadFailed: _failPendingMediaUpload,
-                  onVoiceCall: () {
-                    context.push(
-                      groupCallInviteRoute(
-                        roomId: widget.roomId,
-                        roomName: name,
-                        callType: ProductCallType.voice,
-                      ),
-                    );
-                  },
-                  onVideoCall: () {
-                    context.push(
-                      groupCallInviteRoute(
-                        roomId: widget.roomId,
-                        roomName: name,
-                        callType: ProductCallType.video,
-                      ),
-                    );
-                  },
+                  onVoiceCall: null,
+                  onVideoCall: null,
                 ),
-              if (_showEmojiPanel)
+              if (showEmojiPanelContent)
                 ChatEmojiPanel(
+                  height: _emojiPanelHeight,
                   onPick: (emoji) {
                     final text = _msgCtrl.text;
                     _msgCtrl.text = text + emoji;
@@ -2488,6 +2868,176 @@ class _GroupImageMessageBubble extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: row,
+    );
+  }
+}
+
+class _GroupMentionMemberSheet extends StatefulWidget {
+  const _GroupMentionMemberSheet({required this.members});
+
+  final List<GroupCallInviteMember> members;
+
+  @override
+  State<_GroupMentionMemberSheet> createState() =>
+      _GroupMentionMemberSheetState();
+}
+
+class _GroupMentionMemberSheetState extends State<_GroupMentionMemberSheet> {
+  final _searchCtrl = TextEditingController();
+  String _keyword = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final keyword = _keyword.trim().toLowerCase();
+    final members = keyword.isEmpty
+        ? widget.members
+        : widget.members
+            .where((member) =>
+                member.displayName.toLowerCase().contains(keyword) ||
+                member.userId.toLowerCase().contains(keyword))
+            .toList(growable: false);
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 12,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: t.surface.withValues(alpha: 0.94),
+                border: Border.all(color: t.border.withValues(alpha: 0.7)),
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.68,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+                      child: Row(
+                        children: [
+                          Text(
+                            '选择提醒的人',
+                            style: AppTheme.sans(
+                              size: 17,
+                              weight: FontWeight.w700,
+                              color: t.text,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: '关闭',
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: Icon(Symbols.close, color: t.textMute),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: TextField(
+                        key: const ValueKey('group_mention_search_field'),
+                        controller: _searchCtrl,
+                        onChanged: (value) => setState(() => _keyword = value),
+                        style: AppTheme.sans(size: 15, color: t.text),
+                        decoration: InputDecoration(
+                          hintText: '搜索群成员',
+                          prefixIcon: Icon(Symbols.search, color: t.textMute),
+                          isDense: true,
+                          filled: true,
+                          fillColor: t.surfaceHigh.withValues(alpha: 0.72),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Flexible(
+                      child: members.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(28),
+                                child: Text(
+                                  widget.members.isEmpty ? '暂无可提醒成员' : '未找到成员',
+                                  style: AppTheme.sans(
+                                    size: 15,
+                                    color: t.textMute,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              padding: const EdgeInsets.only(bottom: 10),
+                              itemCount: members.length,
+                              separatorBuilder: (_, __) => Divider(
+                                height: 1,
+                                indent: 72,
+                                color: t.border.withValues(alpha: 0.58),
+                              ),
+                              itemBuilder: (context, index) {
+                                final member = members[index];
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: ListTile(
+                                    key: ValueKey(
+                                      'group_mention_member_${member.userId}',
+                                    ),
+                                    leading: PortalAvatar(
+                                      seed: member.userId,
+                                      imageUrl: member.avatarUrl,
+                                      size: 42,
+                                    ),
+                                    title: Text(
+                                      member.displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTheme.sans(
+                                        size: 16,
+                                        weight: FontWeight.w600,
+                                        color: t.text,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      member.userId,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTheme.sans(
+                                        size: 12,
+                                        color: t.textMute,
+                                      ),
+                                    ),
+                                    onTap: () =>
+                                        Navigator.of(context).pop(member),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -3225,6 +3775,87 @@ class _GroupMessageBubble extends StatelessWidget {
   }
 }
 
+class _GroupPendingTextBubble extends StatelessWidget {
+  const _GroupPendingTextBubble({
+    required this.text,
+    required this.time,
+    required this.status,
+    required this.onRetry,
+  });
+
+  final String text;
+  final String time;
+  final LocalOutboxItemStatus status;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Flexible(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.72,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  ChatBubbleFrame(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _groupBubbleColor(t, isMe: true),
+                        borderRadius: chatDirectionalBubbleRadius(true),
+                        border: _groupPeerBubbleBorder(t, isMe: true),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _groupBubbleShadowColor(t),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      child: Text(
+                        text,
+                        style: AppTheme.sans(size: 17, color: t.onAccent),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, right: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          time,
+                          style: AppTheme.sans(size: 11, color: t.textMute),
+                        ),
+                        const SizedBox(width: 4),
+                        _GroupInlineOutboxStatusIcon(
+                          status: status,
+                          onRetry: onRetry,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _GroupQuotedMessageBlock extends StatelessWidget {
   const _GroupQuotedMessageBlock({
     required this.quote,
@@ -3477,6 +4108,14 @@ class _GroupCallRecordMessageBubble extends StatelessWidget {
               ),
             ),
           ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            _MemberAvatar(
+              seed: event.senderId,
+              name: senderName,
+              imageUrl: senderAvatarUrl,
+            ),
+          ],
         ],
       ),
     );
@@ -3721,6 +4360,42 @@ class _GroupFileOutboxStatusIcon extends StatelessWidget {
   }
 }
 
+class _GroupInlineOutboxStatusIcon extends StatelessWidget {
+  const _GroupInlineOutboxStatusIcon({
+    required this.status,
+    required this.onRetry,
+  });
+
+  final LocalOutboxItemStatus status;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    if (status == LocalOutboxItemStatus.sending) {
+      return SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(strokeWidth: 2, color: t.textMute),
+      );
+    }
+    return Semantics(
+      button: true,
+      label: '重新发送消息',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onRetry,
+        child: SizedBox.square(
+          dimension: 28,
+          child: Center(
+            child: Icon(Symbols.refresh, size: 16, color: t.danger),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GroupFileDownloadStatusIcon extends StatelessWidget {
   const _GroupFileDownloadStatusIcon({
     required this.downloading,
@@ -3808,6 +4483,7 @@ class _GroupVideoPlayOverlay extends StatelessWidget {
 Future<String?> _showGroupMessageContextMenu(
   BuildContext context,
   Offset position, {
+  required _MessageContextMenuPlacement placement,
   bool canRecall = false,
 }) {
   final size = MediaQuery.of(context).size;
@@ -3822,16 +4498,13 @@ Future<String?> _showGroupMessageContextMenu(
       final menuW = math.min(343.0, size.width - horizontalMargin * 2);
       const menuH = 168.0;
       var left = position.dx - menuW / 2;
-      var top = position.dy - menuH - 12;
-      var pointerOnTop = false;
+      final pointerOnTop = placement == _MessageContextMenuPlacement.below;
+      var top = pointerOnTop ? position.dy + 12 : position.dy - menuH - 12;
       if (left < horizontalMargin) left = horizontalMargin;
       if (left + menuW > size.width - horizontalMargin) {
         left = size.width - menuW - horizontalMargin;
       }
-      if (top < 60) {
-        top = position.dy + 12;
-        pointerOnTop = true;
-      }
+      top = top.clamp(12.0, math.max(12.0, size.height - menuH - 12));
       final pointerX = (position.dx - left - 10).clamp(18.0, menuW - 38.0);
       return Stack(
         children: [
@@ -3852,6 +4525,19 @@ Future<String?> _showGroupMessageContextMenu(
     transitionBuilder: (ctx, animation, _, child) =>
         FadeTransition(opacity: animation, child: child),
   );
+}
+
+enum _MessageContextMenuPlacement { above, below }
+
+_MessageContextMenuPlacement _messageContextMenuPlacement(
+  int visualIndex,
+  int messageCount,
+) {
+  if (visualIndex <= 0) return _MessageContextMenuPlacement.below;
+  if (messageCount > 0 && visualIndex == messageCount - 1) {
+    return _MessageContextMenuPlacement.above;
+  }
+  return _MessageContextMenuPlacement.below;
 }
 
 class _GroupMsgCtxMenuCard extends StatelessWidget {

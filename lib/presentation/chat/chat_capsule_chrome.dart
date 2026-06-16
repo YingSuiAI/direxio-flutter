@@ -60,6 +60,7 @@ const double _chatBottomChromeClearance = 76;
 const double _chatReplyBarClearance = 54;
 const double _chatSelectionBarClearance = 64;
 const double _chatBottomPanelClearance = 268;
+const double chatEmojiPanelDefaultHeight = 268;
 
 const double _composerButtonSize = 40;
 const double _composerFieldHeight = 40;
@@ -723,6 +724,46 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
   Duration _voiceElapsed = Duration.zero;
   Timer? _voiceElapsedTimer;
   OverlayEntry? _voiceOverlayEntry;
+  final FocusNode _textFocusNode = FocusNode();
+
+  void _focusTextInput() {
+    if (!widget.enabled) return;
+    if (widget.emojiActive) {
+      widget.onEmoji();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !widget.enabled) return;
+        _textFocusNode.requestFocus();
+      });
+      return;
+    }
+    if (widget.plusActive) {
+      widget.onPlus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !widget.enabled) return;
+        _textFocusNode.requestFocus();
+      });
+    }
+  }
+
+  void _toggleEmojiPanel() {
+    if (!widget.enabled) return;
+    if (widget.emojiActive) {
+      _focusTextInput();
+      return;
+    }
+    _textFocusNode.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+    widget.onEmoji();
+  }
+
+  void _togglePlusPanel() {
+    if (!widget.enabled) return;
+    if (!widget.plusActive) {
+      _textFocusNode.unfocus();
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
+    widget.onPlus();
+  }
 
   void _startVoicePress(Offset globalPosition) {
     if (!widget.enabled) return;
@@ -815,6 +856,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
   @override
   void dispose() {
     _clearVoiceOverlay();
+    _textFocusNode.dispose();
     super.dispose();
   }
 
@@ -977,7 +1019,9 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                       Expanded(
                                         child: TextField(
                                           controller: widget.ctrl,
+                                          focusNode: _textFocusNode,
                                           enabled: widget.enabled,
+                                          onTap: _focusTextInput,
                                           textInputAction:
                                               TextInputAction.newline,
                                           maxLines: 5,
@@ -1023,11 +1067,12 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                       width: _composerButtonSize,
                       height: _composerButtonSize,
                       child: _AssetCircleCapsuleButton(
-                        assetName: _assetChatEmoji,
-                        tooltip: '表情',
+                        assetName: widget.emojiActive ? null : _assetChatEmoji,
+                        icon: widget.emojiActive ? Symbols.keyboard : null,
+                        tooltip: widget.emojiActive ? '键盘' : '表情',
                         active: widget.emojiActive,
                         enabled: widget.enabled,
-                        onTap: widget.onEmoji,
+                        onTap: _toggleEmojiPanel,
                       ),
                     ),
                   ),
@@ -1054,7 +1099,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                   tooltip: '更多',
                                   active: widget.plusActive,
                                   enabled: widget.enabled,
-                                  onTap: widget.onPlus,
+                                  onTap: _togglePlusPanel,
                                 ),
                               ),
                       );
@@ -1077,9 +1122,14 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
 }
 
 class ChatEmojiPanel extends StatelessWidget {
-  const ChatEmojiPanel({super.key, required this.onPick});
+  const ChatEmojiPanel({
+    super.key,
+    required this.onPick,
+    this.height = chatEmojiPanelDefaultHeight,
+  });
 
   final ValueChanged<String> onPick;
+  final double height;
 
   static const _emojis = [
     '😀',
@@ -1119,33 +1169,35 @@ class ChatEmojiPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return _BlurSurface(
-      color: t.surface.withValues(alpha: 0.62),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-          child: GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 8,
-            mainAxisSpacing: 4,
-            crossAxisSpacing: 4,
-            children: _emojis
-                .map(
-                  (emoji) => Material(
-                    color: t.surface.withValues(alpha: 0),
-                    borderRadius: BorderRadius.circular(8),
-                    child: InkWell(
+    return SizedBox(
+      height: height,
+      child: _BlurSurface(
+        color: t.surface.withValues(alpha: 0.62),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
+            child: GridView.count(
+              physics: const BouncingScrollPhysics(),
+              crossAxisCount: 8,
+              mainAxisSpacing: 4,
+              crossAxisSpacing: 4,
+              children: _emojis
+                  .map(
+                    (emoji) => Material(
+                      color: t.surface.withValues(alpha: 0),
                       borderRadius: BorderRadius.circular(8),
-                      onTap: () => onPick(emoji),
-                      child: Center(
-                        child: Text(emoji, style: AppTheme.sans(size: 24)),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => onPick(emoji),
+                        child: Center(
+                          child: Text(emoji, style: AppTheme.sans(size: 24)),
+                        ),
                       ),
                     ),
-                  ),
-                )
-                .toList(),
+                  )
+                  .toList(),
+            ),
           ),
         ),
       ),

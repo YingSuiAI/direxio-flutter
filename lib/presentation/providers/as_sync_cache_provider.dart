@@ -12,6 +12,8 @@ class AsSyncCacheState {
     this.localContactEntriesByRoomId = const {},
     this.localDeletedEventIdsByRoomId = const {},
     this.localReadMarkersByRoomId = const {},
+    this.localClearedBeforeTs = 0,
+    this.localRoomClearedBeforeTs = const {},
   });
 
   final AsSyncBootstrap? bootstrap;
@@ -20,6 +22,8 @@ class AsSyncCacheState {
   final Map<String, ContactEntry> localContactEntriesByRoomId;
   final Map<String, Set<String>> localDeletedEventIdsByRoomId;
   final Map<String, DateTime> localReadMarkersByRoomId;
+  final int localClearedBeforeTs;
+  final Map<String, int> localRoomClearedBeforeTs;
 
   Set<String> get _localContactPeerIds {
     return localContactEntriesByRoomId.values
@@ -192,6 +196,8 @@ class AsSyncCacheState {
     Map<String, ContactEntry>? localContactEntriesByRoomId,
     Map<String, Set<String>>? localDeletedEventIdsByRoomId,
     Map<String, DateTime>? localReadMarkersByRoomId,
+    int? localClearedBeforeTs,
+    Map<String, int>? localRoomClearedBeforeTs,
   }) {
     final nextReadMarkers =
         localReadMarkersByRoomId ?? this.localReadMarkersByRoomId;
@@ -251,6 +257,9 @@ class AsSyncCacheState {
         localDeletedEventIdsByRoomId ?? this.localDeletedEventIdsByRoomId,
       ),
       localReadMarkersByRoomId: Map.unmodifiable(nextReadMarkers),
+      localClearedBeforeTs: localClearedBeforeTs ?? this.localClearedBeforeTs,
+      localRoomClearedBeforeTs: Map.unmodifiable(
+          localRoomClearedBeforeTs ?? this.localRoomClearedBeforeTs),
     );
   }
 
@@ -350,7 +359,29 @@ class AsSyncCacheState {
     };
     return ChatVisibilityPolicy(
       visibleAfterTs: contact?.visibleAfterTs ?? 0,
+      clearedBeforeTs: _maxInt(
+        localClearedBeforeTs,
+        localRoomClearedBeforeTs[roomId] ?? 0,
+      ),
       deletedEventIds: deletedEventIds,
+    );
+  }
+
+  AsSyncCacheState withAllChatsClearedBefore(int timestamp) {
+    if (timestamp <= localClearedBeforeTs) return this;
+    return copyWith(localClearedBeforeTs: timestamp, unread: _emptyUnread());
+  }
+
+  AsSyncCacheState withRoomClearedBefore(String roomId, int timestamp) {
+    final trimmed = roomId.trim();
+    if (trimmed.isEmpty || timestamp <= 0) return this;
+    final current = localRoomClearedBeforeTs[trimmed] ?? 0;
+    if (timestamp <= current) return this;
+    final next = Map<String, int>.from(localRoomClearedBeforeTs)
+      ..[trimmed] = timestamp;
+    return copyWith(
+      localRoomClearedBeforeTs: next,
+      unread: _unreadWithoutRoom(unread, trimmed),
     );
   }
 
@@ -462,6 +493,22 @@ class AsSyncCacheState {
     );
   }
 }
+
+AsSyncUnread _emptyUnread() {
+  return AsSyncUnread(syncedAt: DateTime.now().toUtc(), rooms: const []);
+}
+
+AsSyncUnread? _unreadWithoutRoom(AsSyncUnread? unread, String roomId) {
+  if (unread == null) return null;
+  return AsSyncUnread(
+    syncedAt: unread.syncedAt,
+    rooms: unread.rooms
+        .where((room) => room.roomId.trim() != roomId)
+        .toList(growable: false),
+  );
+}
+
+int _maxInt(int a, int b) => a >= b ? a : b;
 
 final asSyncCacheProvider = StateProvider<AsSyncCacheState>((ref) {
   return const AsSyncCacheState();

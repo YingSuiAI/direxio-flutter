@@ -12,9 +12,11 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../widgets/m3/m3_search_field.dart';
 import '../widgets/portal_avatar.dart';
 
 final groupCreationSyncAfterCreateProvider = Provider<bool>((ref) => true);
@@ -25,7 +27,6 @@ const _createGroupHint = Color(0xFF999999);
 const _createGroupMuted = Color(0xFFA3A3A4);
 const _createGroupBorder = Color(0xFFE6E6E6);
 const _createGroupAccent = Color(0xFF34C759);
-const _createGroupSearchFill = Color(0x1F767680);
 
 Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
   final client = ref.read(matrixClientProvider);
@@ -52,6 +53,7 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
   if (result == null || !context.mounted) return;
 
   try {
+    final ownerAvatarUrl = await _currentUserAvatarUrl(ref);
     final group = await ref.read(asClientProvider).createGroup(
           name: result.name,
           invite: result.inviteMxids,
@@ -62,8 +64,14 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
       roomId: roomId,
       name: group.name.trim().isEmpty ? result.name : group.name,
       inviteMxids: result.inviteMxids,
+      avatarUrl: ownerAvatarUrl,
     );
-    _cacheCreatedGroup(ref, group, fallbackName: result.name);
+    _cacheCreatedGroup(
+      ref,
+      group,
+      fallbackName: result.name,
+      avatarUrl: ownerAvatarUrl,
+    );
     unawaited(_refreshCreatedGroupBootstrap(ref));
     if (ref.read(groupCreationSyncAfterCreateProvider)) {
       unawaited(client.oneShotSync().catchError((Object e) {
@@ -81,6 +89,14 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
   }
 }
 
+Future<String> _currentUserAvatarUrl(WidgetRef ref) async {
+  final cached = ref.read(currentUserProfileProvider).valueOrNull;
+  final cachedAvatar = cached?.avatarUrl?.toString().trim() ?? '';
+  if (cachedAvatar.isNotEmpty) return cachedAvatar;
+  final profile = await ref.read(currentUserProfileProvider.future);
+  return profile?.avatarUrl?.toString().trim() ?? '';
+}
+
 Future<void> _refreshCreatedGroupBootstrap(WidgetRef ref) async {
   try {
     final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
@@ -96,6 +112,7 @@ void _cacheCreatedGroup(
   WidgetRef ref,
   AsGroupResult group, {
   required String fallbackName,
+  required String avatarUrl,
 }) {
   final roomId = group.roomId.trim();
   if (roomId.isEmpty) return;
@@ -108,7 +125,7 @@ void _cacheCreatedGroup(
       AsSyncRoomSummary(
         roomId: roomId,
         name: group.name.trim().isEmpty ? fallbackName : group.name,
-        avatarUrl: '',
+        avatarUrl: avatarUrl,
         unreadCount: 0,
         lastActivityAt: DateTime.now().toUtc(),
         isOwned: group.role.trim().isEmpty || group.role == 'owner',
@@ -142,6 +159,7 @@ void _ensureOptimisticGroupRoom(
   required String roomId,
   required String name,
   required List<String> inviteMxids,
+  required String avatarUrl,
 }) {
   final existing = client.getRoomById(roomId);
   final room =
@@ -181,6 +199,16 @@ void _ensureOptimisticGroupRoom(
       content: {'name': name},
     ),
   );
+  if (avatarUrl.trim().isNotEmpty) {
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomAvatar,
+        senderId: sender,
+        stateKey: '',
+        content: {'url': avatarUrl.trim()},
+      ),
+    );
+  }
   room.setState(
     StrippedStateEvent(
       type: productRoomKindEventType,
@@ -534,50 +562,10 @@ class _CreateGroupSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return M3SearchField(
       key: const ValueKey('create_group_search_field'),
-      height: 36,
-      decoration: BoxDecoration(
-        color: _createGroupSearchFill,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 16),
-          const Icon(
-            Symbols.search,
-            size: 16,
-            color: _createGroupHint,
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              textInputAction: TextInputAction.search,
-              cursorColor: _createGroupAccent,
-              style: AppTheme.sans(
-                size: 16,
-                weight: FontWeight.w400,
-                color: _createGroupText,
-              ),
-              decoration: InputDecoration(
-                isCollapsed: true,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                disabledBorder: InputBorder.none,
-                hintText: 'ID/昵称/邮箱',
-                hintStyle: AppTheme.sans(
-                  size: 16,
-                  weight: FontWeight.w400,
-                  color: _createGroupHint,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-        ],
-      ),
+      controller: controller,
+      hint: 'ID/昵称/邮箱',
     );
   }
 }

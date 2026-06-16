@@ -459,6 +459,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get meQrSaveToAlbum => '保存到相册';
 
   @override
+  String get meQrSaving => '保存中...';
+
+  @override
+  String get meQrSaveSuccess => '已保存到相册';
+
+  @override
+  String get meQrSaveFailed => '保存失败，请检查相册权限';
+
+  @override
   String get meQrSaveTodo => '保存到相册功能待接入';
 
   @override

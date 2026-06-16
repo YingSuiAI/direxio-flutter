@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../providers/auth_provider.dart';
@@ -17,7 +18,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/m3/m3_search_field.dart';
 
-const _requestsToolbarHeight = 48.0;
+const _requestsToolbarHeight = 62.0;
 const _requestsSearchGap = 12.0;
 
 /// `s-new-friends` — 新朋友 (index.html L1494-1564)
@@ -399,7 +400,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final isSearching = _query.trim().isNotEmpty;
 
     return Scaffold(
-      backgroundColor: context.tk.surfaceHover,
+      backgroundColor: context.tk.bg,
       body: Column(
         children: [
           _RequestsHeader(title: isSearching ? '添加好友' : '新的好友'),
@@ -455,6 +456,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       invites: invites,
                       contacts: pendingInboundContacts,
                       busy: _busy,
+                      onOpenProfile: _openAddContactProfile,
                       onAccept: _accept,
                       onReject: _reject,
                       onAcceptContact: _acceptContact,
@@ -464,18 +466,21 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       const _HiddenText('等待对方接受'),
                       _OutgoingSection(
                         contacts: pendingOutboundContacts,
+                        onOpenProfile: _openAddContactProfile,
                       ),
                     ],
                     if (rejectedOutboundContacts.isNotEmpty) ...[
                       const _HiddenText('已拒绝'),
                       _OutgoingSection(
                         contacts: rejectedOutboundContacts,
+                        onOpenProfile: _openAddContactProfile,
                       ),
                     ],
                     const _HiddenText('已添加'),
                     if (acceptedContacts.isNotEmpty)
                       _AcceptedSection(
                         contacts: acceptedContacts,
+                        onOpenProfile: _openContactProfile,
                       ),
                   ],
                 ],
@@ -486,6 +491,21 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       ),
     );
   }
+
+  void _openAddContactProfile(String mxid, String displayName) {
+    final id = mxid.trim();
+    if (id.isEmpty) return;
+    final query = displayName.trim().isEmpty
+        ? ''
+        : '?name=${Uri.encodeQueryComponent(displayName.trim())}';
+    context.push('/add-contact/detail/${Uri.encodeComponent(id)}$query');
+  }
+
+  void _openContactProfile(String mxid) {
+    final id = mxid.trim();
+    if (id.isEmpty) return;
+    context.push('/contact/${Uri.encodeComponent(id)}');
+  }
 }
 
 class _RequestsHeader extends StatelessWidget {
@@ -495,30 +515,32 @@ class _RequestsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final topInset = MediaQuery.paddingOf(context).top;
     final t = context.tk;
-    return SizedBox(
-      height: topInset + _requestsToolbarHeight,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 0),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _HeaderGlassBackButton(
-                onTap: () => Navigator.of(context).maybePop(),
+    return SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: _requestsToolbarHeight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _HeaderGlassBackButton(
+                  onTap: () => Navigator.of(context).maybePop(),
+                ),
               ),
-            ),
-            Text(
-              title,
-              style: AppTheme.sans(
-                size: 16,
-                weight: FontWeight.w600,
-                color: t.text,
+              Text(
+                title,
+                style: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ).copyWith(letterSpacing: 0),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -538,7 +560,7 @@ class _HeaderGlassBackButton extends StatelessWidget {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: t.text.withValues(alpha: 0.12),
+            color: t.text.withValues(alpha: 0.08),
             blurRadius: 36,
             offset: const Offset(0, 7),
           ),
@@ -546,7 +568,7 @@ class _HeaderGlassBackButton extends StatelessWidget {
       ),
       child: ClipOval(
         child: Material(
-          color: t.surface.withValues(alpha: 0.65),
+          color: t.surface.withValues(alpha: 0.72),
           shape: const CircleBorder(),
           child: InkWell(
             customBorder: const CircleBorder(),
@@ -790,7 +812,7 @@ class _SearchResultRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Material(
-      color: t.surfaceHover,
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
@@ -843,7 +865,7 @@ TextSpan _highlightSearchNameSpan(
     size: 16,
     weight: FontWeight.w500,
     color: t.text,
-  ).copyWith(letterSpacing: -0.4);
+  ).copyWith(letterSpacing: 0);
   final accent = base.copyWith(color: t.accent);
   final needle = query.trim();
   final index =
@@ -906,6 +928,7 @@ class _PendingSection extends StatelessWidget {
     required this.invites,
     required this.contacts,
     required this.busy,
+    required this.onOpenProfile,
     required this.onAccept,
     required this.onReject,
     required this.onAcceptContact,
@@ -914,6 +937,7 @@ class _PendingSection extends StatelessWidget {
   final List<Room> invites;
   final List<AsSyncContact> contacts;
   final bool busy;
+  final void Function(String mxid, String displayName) onOpenProfile;
   final void Function(Room) onAccept;
   final void Function(Room) onReject;
   final void Function(AsSyncContact) onAcceptContact;
@@ -937,6 +961,7 @@ class _PendingSection extends StatelessWidget {
           name: name,
           message: mxid.isEmpty ? '请求加为好友' : mxid,
           seed: mxid.isEmpty ? name : mxid,
+          onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
           onAccept: busy ? null : () => onAcceptContact(contact),
           onReject: busy ? null : () => onRejectContact(contact),
         ),
@@ -958,6 +983,8 @@ class _PendingSection extends StatelessWidget {
           name: name,
           message: inviterId.isEmpty ? '请求加为好友' : inviterId,
           seed: inviterId.isEmpty ? name : inviterId,
+          onTap:
+              inviterId.isEmpty ? null : () => onOpenProfile(inviterId, name),
           onAccept: busy ? null : () => onAccept(room),
           onReject: busy ? null : () => onReject(room),
         ),
@@ -982,12 +1009,14 @@ class _PendingRow extends StatelessWidget {
     required this.name,
     required this.message,
     required this.seed,
+    required this.onTap,
     required this.onAccept,
     required this.onReject,
   });
   final String name;
   final String message;
   final String seed;
+  final VoidCallback? onTap;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
 
@@ -997,6 +1026,7 @@ class _PendingRow extends StatelessWidget {
       seed: seed,
       name: name,
       message: message,
+      onTap: onTap,
       trailing: _ViewRequestButton(
         enabled: onAccept != null || onReject != null,
         onTap: () => _showRequestActions(context),
@@ -1172,22 +1202,26 @@ class _AcceptButton extends StatelessWidget {
 class _OutgoingSection extends StatelessWidget {
   const _OutgoingSection({
     required this.contacts,
+    required this.onOpenProfile,
   });
   final List<AsSyncContact> contacts;
+  final void Function(String mxid, String displayName) onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        for (final contact in contacts) _OutgoingRow(contact: contact),
+        for (final contact in contacts)
+          _OutgoingRow(contact: contact, onOpenProfile: onOpenProfile),
       ],
     );
   }
 }
 
 class _OutgoingRow extends StatelessWidget {
-  const _OutgoingRow({required this.contact});
+  const _OutgoingRow({required this.contact, required this.onOpenProfile});
   final AsSyncContact contact;
+  final void Function(String mxid, String displayName) onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -1202,6 +1236,7 @@ class _OutgoingRow extends StatelessWidget {
       seed: mxid.isEmpty ? name : mxid,
       name: name,
       message: isRejected ? '我:请求添加你为朋友' : '请求添加你为朋友',
+      onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
       trailing: _RequestStatusText(
         text: isRejected ? '已过期' : '等待接受',
         hiddenText: isRejected ? '对方已拒绝' : null,
@@ -1213,8 +1248,10 @@ class _OutgoingRow extends StatelessWidget {
 class _AcceptedSection extends StatelessWidget {
   const _AcceptedSection({
     required this.contacts,
+    required this.onOpenProfile,
   });
   final List<AsSyncContact> contacts;
+  final ValueChanged<String> onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -1233,15 +1270,17 @@ class _AcceptedSection extends StatelessWidget {
 
     return Column(
       children: [
-        for (final contact in contacts) _AcceptedRow(contact: contact),
+        for (final contact in contacts)
+          _AcceptedRow(contact: contact, onOpenProfile: onOpenProfile),
       ],
     );
   }
 }
 
 class _AcceptedRow extends StatelessWidget {
-  const _AcceptedRow({required this.contact});
+  const _AcceptedRow({required this.contact, required this.onOpenProfile});
   final AsSyncContact contact;
+  final ValueChanged<String> onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -1255,6 +1294,7 @@ class _AcceptedRow extends StatelessWidget {
       seed: mxid.isEmpty ? name : mxid,
       name: name,
       message: '请求添加你为朋友',
+      onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid),
       trailing: const _RequestStatusText(text: '已添加'),
     );
   }
@@ -1292,72 +1332,79 @@ class _FriendRequestRowShell extends StatelessWidget {
     required this.name,
     required this.message,
     required this.trailing,
+    this.onTap,
   });
 
   final String seed;
   final String name;
   final String message;
   final Widget trailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final profileArea = Row(
+      children: [
+        PortalAvatar(
+          seed: seed,
+          size: 28,
+          shape: AvatarShape.squircle,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Container(
+            height: 52,
+            padding: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: t.surfaceHigh,
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 14,
+                    weight: FontWeight.w500,
+                    color: t.text,
+                  ),
+                ),
+                Text(
+                  message,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(size: 10, color: t.textMute),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+    final tappableProfileArea = onTap == null
+        ? profileArea
+        : Material(
+            color: Colors.transparent,
+            child: InkWell(onTap: onTap, child: profileArea),
+          );
     return SizedBox(
       height: 52,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            PortalAvatar(
-              seed: seed,
-              size: 28,
-              shape: AvatarShape.squircle,
-            ),
+            Expanded(child: tappableProfileArea),
             const SizedBox(width: 8),
-            Expanded(
-              child: Container(
-                height: 52,
-                padding: const EdgeInsets.only(right: 16),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: t.surfaceHigh,
-                      width: 0.5,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTheme.sans(
-                              size: 14,
-                              weight: FontWeight.w500,
-                              color: t.text,
-                            ),
-                          ),
-                          Text(
-                            message,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTheme.sans(size: 10, color: t.textMute),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    trailing,
-                  ],
-                ),
-              ),
-            ),
+            trailing,
           ],
         ),
       ),

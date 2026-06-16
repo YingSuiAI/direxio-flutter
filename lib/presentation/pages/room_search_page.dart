@@ -13,9 +13,9 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
-import '../widgets/m3/glass_header.dart';
-import '../widgets/m3/m3_card.dart';
 import '../widgets/m3/m3_search_field.dart';
+
+const double _roomSearchToolbarHeight = 62;
 
 class RoomSearchPage extends ConsumerStatefulWidget {
   const RoomSearchPage({super.key, required this.roomId});
@@ -158,10 +158,10 @@ class _RoomSearchPageState extends ConsumerState<RoomSearchPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: t.bg,
       body: Column(
         children: [
-          GlassHeader.detail(title: '查找聊天记录'),
+          _RoomSearchToolbar(onBack: () => context.pop()),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: M3SearchField(
@@ -198,15 +198,36 @@ class _RoomSearchPageState extends ConsumerState<RoomSearchPage> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemCount: _results.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, __) => const SizedBox.shrink(),
       itemBuilder: (context, index) {
         final result = _results[index];
         return _RoomSearchTile(
           result: result,
-          onTap: () => context.pop(result.eventId),
+          query: _lastQuery,
+          onTap: () => _openResult(result),
         );
       },
     );
+  }
+
+  void _openResult(_RoomSearchResult result) {
+    final route = _conversationRouteForResult(result);
+    if (route == null) {
+      context.pop(result.eventId);
+      return;
+    }
+    context.go(route);
+  }
+
+  String? _conversationRouteForResult(_RoomSearchResult result) {
+    final roomId = widget.roomId.trim();
+    if (roomId.isEmpty) return null;
+    final room = ref.read(matrixClientProvider).getRoomById(roomId);
+    final base = room?.isDirectChat == false ? '/group' : '/chat';
+    final eventId = result.eventId.trim();
+    final encodedRoomId = Uri.encodeComponent(roomId);
+    if (eventId.isEmpty) return '$base/$encodedRoomId';
+    return '$base/$encodedRoomId?event=${Uri.encodeComponent(eventId)}';
   }
 }
 
@@ -243,43 +264,215 @@ class _RoomSearchResult {
 }
 
 class _RoomSearchTile extends StatelessWidget {
-  const _RoomSearchTile({required this.result, required this.onTap});
+  const _RoomSearchTile({
+    required this.result,
+    required this.query,
+    required this.onTap,
+  });
 
   final _RoomSearchResult result;
+  final String query;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return M3Card(
-      padding: EdgeInsets.zero,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: t.surfaceHover,
-          child: Icon(Symbols.chat_bubble, size: 18, color: t.textMute),
-        ),
-        title: Text(
-          result.senderName,
-          style: AppTheme.sans(
-            size: 15,
-            weight: FontWeight.w600,
-            color: t.text,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 52,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: t.border, width: 0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                const _RoomSearchThumbnail(),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _RoomSearchHighlightedText(
+                        text: result.senderName,
+                        query: query,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        result.content,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 12, color: t.textMute)
+                            .copyWith(letterSpacing: 0),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  DateFormat('MM-dd HH:mm').format(result.timestamp),
+                  style: AppTheme.sans(size: 11, color: t.textMute),
+                ),
+              ],
+            ),
           ),
         ),
-        subtitle: Text(
-          result.content,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: AppTheme.sans(size: 13, color: t.textMute),
-        ),
-        trailing: Text(
-          DateFormat('MM-dd HH:mm').format(result.timestamp),
-          style: AppTheme.sans(size: 11, color: t.textMute),
-        ),
-        onTap: onTap,
       ),
     );
   }
+}
+
+class _RoomSearchToolbar extends StatelessWidget {
+  const _RoomSearchToolbar({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: _roomSearchToolbarHeight,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _RoomSearchBackButton(onTap: onBack),
+              ),
+              Text(
+                '查找聊天记录',
+                style: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ).copyWith(letterSpacing: 0),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomSearchBackButton extends StatelessWidget {
+  const _RoomSearchBackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: t.text.withValues(alpha: 0.08),
+            blurRadius: 36,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: Material(
+          color: t.surface.withValues(alpha: 0.72),
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox.square(
+              dimension: 40,
+              child: Icon(Symbols.arrow_back, size: 24, color: t.text),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomSearchThumbnail extends StatelessWidget {
+  const _RoomSearchThumbnail();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: t.primaryContainer,
+        borderRadius: BorderRadius.circular(5.6),
+      ),
+      alignment: Alignment.center,
+      child: Icon(Symbols.chat_bubble, size: 17, color: t.onPrimaryContainer),
+    );
+  }
+}
+
+class _RoomSearchHighlightedText extends StatelessWidget {
+  const _RoomSearchHighlightedText({
+    required this.text,
+    required this.query,
+  });
+
+  final String text;
+  final String query;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Text.rich(
+      TextSpan(children: _roomSearchHighlightSpans(text, query, t.accent)),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppTheme.sans(
+        size: 16,
+        weight: FontWeight.w500,
+        color: t.text,
+      ).copyWith(letterSpacing: 0),
+    );
+  }
+}
+
+List<TextSpan> _roomSearchHighlightSpans(
+  String text,
+  String query,
+  Color highlight,
+) {
+  final q = query.trim();
+  if (q.isEmpty) return [TextSpan(text: text)];
+  final lowerText = text.toLowerCase();
+  final lowerQuery = q.toLowerCase();
+  final spans = <TextSpan>[];
+  var start = 0;
+  while (start < text.length) {
+    final index = lowerText.indexOf(lowerQuery, start);
+    if (index < 0) {
+      spans.add(TextSpan(text: text.substring(start)));
+      break;
+    }
+    if (index > start) {
+      spans.add(TextSpan(text: text.substring(start, index)));
+    }
+    final end = index + q.length;
+    spans.add(
+      TextSpan(
+        text: text.substring(index, end),
+        style: TextStyle(color: highlight, fontWeight: FontWeight.w700),
+      ),
+    );
+    start = end;
+  }
+  return spans;
 }
 
 String _senderDisplayName(Event event) {

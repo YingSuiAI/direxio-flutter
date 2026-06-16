@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
 import 'package:matrix/matrix.dart';
@@ -407,6 +408,9 @@ const connectedCallUnstableMessage = '网络不稳定';
 const connectedCallInterruptedMessage = '通话中断';
 const groupCallMediaRecoveryDelay = Duration(seconds: 12);
 const connectedGroupCallMediaRecoveryDelay = Duration(seconds: 3);
+const _callRingtoneAsset = 'live_ring.wav';
+const _callRingtoneRestartInterval = Duration(milliseconds: 3950);
+const _callRingtoneOverlap = Duration(milliseconds: 350);
 
 enum ConnectedCallNetworkState {
   stable,
@@ -760,6 +764,18 @@ bool p2pIncomingCallCanOpenRoute(
     return false;
   }
   return currentRouteRoomId != roomId;
+}
+
+@visibleForTesting
+bool shouldPlayCallRingtone({
+  required VoiceCallStatus voiceStatus,
+  required bool voiceIsIncoming,
+  required GroupCallStatus groupStatus,
+}) {
+  return voiceStatus == VoiceCallStatus.calling ||
+      voiceStatus == VoiceCallStatus.ringing ||
+      (voiceStatus == VoiceCallStatus.connecting && !voiceIsIncoming) ||
+      groupStatus == GroupCallStatus.ringing;
 }
 
 bool p2pIncomingGroupCallCanOpenRoute(
@@ -1241,6 +1257,125 @@ abstract class CallAudioRoute {
   Future<void> setSpeakerOn(bool enabled);
 }
 
+abstract class CallRingtonePlayer {
+  Future<void> playLoop();
+  Future<void> stop();
+  Future<void> dispose();
+}
+
+class AssetCallRingtonePlayer implements CallRingtonePlayer {
+  AssetCallRingtonePlayer({AudioPlayer? player})
+      : _players = [player ?? AudioPlayer(), AudioPlayer()];
+
+  final List<AudioPlayer> _players;
+  final List<StreamSubscription<void>> _completeSubs = [];
+  Timer? _loopTimer;
+  bool _looping = false;
+  bool _restarting = false;
+  int _activePlayerIndex = 0;
+
+  @override
+  Future<void> playLoop() async {
+    if (_looping) return;
+    _looping = true;
+    _loopTimer?.cancel();
+    await _cancelCompleteSubscriptions();
+    for (var index = 0; index < _players.length; index += 1) {
+      final playerIndex = index;
+      _completeSubs.add(_players[playerIndex].onPlayerComplete.listen((_) {
+        if (!_looping || _restarting || playerIndex != _activePlayerIndex) {
+          return;
+        }
+        unawaited(_startNextPlayback('complete'));
+      }));
+      await _players[index].stop();
+      await _players[index].setReleaseMode(ReleaseMode.stop);
+      await _players[index].setVolume(1);
+    }
+    _activePlayerIndex = 0;
+    await _startPlayback(_activePlayerIndex);
+    _loopTimer = Timer.periodic(_callRingtoneRestartInterval, (_) {
+      unawaited(_startNextPlayback('timer').catchError((Object error) {
+        debugPrint('call ringtone timed replay failed: $error');
+      }));
+    });
+  }
+
+  Future<void> _startPlayback(int playerIndex) async {
+    final player = _players[playerIndex];
+    await player.stop();
+    await player.play(
+      AssetSource(_callRingtoneAsset),
+      mode: PlayerMode.mediaPlayer,
+      ctx: _callRingtoneAudioContext,
+    );
+  }
+
+  Future<void> _startNextPlayback(String source) async {
+    if (!_looping || _restarting) return;
+    _restarting = true;
+    final previousIndex = _activePlayerIndex;
+    final nextIndex = (_activePlayerIndex + 1) % _players.length;
+    try {
+      await _startPlayback(nextIndex);
+      if (!_looping) return;
+      _activePlayerIndex = nextIndex;
+      unawaited(
+        Future<void>.delayed(_callRingtoneOverlap, () async {
+          if (!_looping || _activePlayerIndex == previousIndex) return;
+          await _players[previousIndex].stop();
+        }).catchError((Object error) {
+          debugPrint('call ringtone overlap stop failed: $error');
+        }),
+      );
+    } catch (error) {
+      debugPrint('call ringtone $source replay failed: $error');
+    } finally {
+      _restarting = false;
+    }
+  }
+
+  @override
+  Future<void> stop() async {
+    _looping = false;
+    _restarting = false;
+    _loopTimer?.cancel();
+    _loopTimer = null;
+    await _cancelCompleteSubscriptions();
+    for (final player in _players) {
+      await player.stop();
+    }
+  }
+
+  @override
+  Future<void> dispose() async {
+    _looping = false;
+    _loopTimer?.cancel();
+    _loopTimer = null;
+    await _cancelCompleteSubscriptions();
+    for (final player in _players) {
+      await player.dispose();
+    }
+  }
+
+  Future<void> _cancelCompleteSubscriptions() async {
+    for (final subscription in _completeSubs) {
+      await subscription.cancel();
+    }
+    _completeSubs.clear();
+  }
+}
+
+final AudioContext _callRingtoneAudioContext = AudioContext(
+  android: const AudioContextAndroid(
+    isSpeakerphoneOn: true,
+    audioMode: AndroidAudioMode.normal,
+    contentType: AndroidContentType.sonification,
+    usageType: AndroidUsageType.notificationRingtone,
+    audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+  ),
+);
+
 class WebRtcCallAudioRoute implements CallAudioRoute {
   const WebRtcCallAudioRoute();
 
@@ -1261,9 +1396,11 @@ class WebRtcCallAudioRoute implements CallAudioRoute {
 class MatrixVoiceCallController implements VoiceCallController {
   MatrixVoiceCallController({
     CallAudioRoute? audioRoute,
+    CallRingtonePlayer? ringtonePlayer,
     AsClient? asClient,
     AsCallSessionStore? asCallSessionStore,
   })  : _audioRoute = audioRoute ?? const WebRtcCallAudioRoute(),
+        _ringtonePlayer = ringtonePlayer ?? AssetCallRingtonePlayer(),
         _asCallReporter = asClient == null
             ? null
             : AsCallStateReporter(asClient, store: asCallSessionStore);
@@ -1272,6 +1409,7 @@ class MatrixVoiceCallController implements VoiceCallController {
   final _groupStateController = StreamController<GroupCallUiState>.broadcast();
   late final _delegate = _MatrixWebRtcDelegate(this);
   final CallAudioRoute _audioRoute;
+  final CallRingtonePlayer _ringtonePlayer;
   final AsCallStateReporter? _asCallReporter;
 
   Client? _client;
@@ -1308,6 +1446,7 @@ class MatrixVoiceCallController implements VoiceCallController {
   bool _autoLeavingLastGroupMember = false;
   int _maxGroupParticipantsSeen = 0;
   bool _groupMediaRecoveryAttempted = false;
+  bool _callRingtonePlaying = false;
 
   @override
   VoiceCallUiState get currentState => _state;
@@ -2833,6 +2972,9 @@ class MatrixVoiceCallController implements VoiceCallController {
 
   Future<void> _resetActiveSession({bool emitIdle = true}) async {
     _outgoingAttemptId++;
+    if (!emitIdle) {
+      _stopCallRingtone();
+    }
     await _callStateSub?.cancel();
     await _callEventSub?.cancel();
     await _streamAddSub?.cancel();
@@ -3467,6 +3609,7 @@ class MatrixVoiceCallController implements VoiceCallController {
   void _emit(VoiceCallUiState state) {
     if (_disposed) return;
     _state = state;
+    _syncCallRingtone();
     _stateController.add(state);
   }
 
@@ -3696,7 +3839,54 @@ class MatrixVoiceCallController implements VoiceCallController {
   void _emitGroup(GroupCallUiState state) {
     if (_disposed) return;
     _groupState = state;
+    _syncCallRingtone();
     _groupStateController.add(state);
+  }
+
+  void _syncCallRingtone() {
+    final shouldPlay = shouldPlayCallRingtone(
+      voiceStatus: _state.status,
+      voiceIsIncoming: _state.isIncoming,
+      groupStatus: _groupState.status,
+    );
+    if (shouldPlay == _callRingtonePlaying) return;
+    _callRingtonePlaying = shouldPlay;
+    if (shouldPlay) {
+      unawaited(
+        _ringtonePlayer.playLoop().catchError((Object error) {
+          debugPrint('call ringtone play failed: $error');
+        }),
+      );
+    } else {
+      unawaited(
+        _ringtonePlayer.stop().catchError((Object error) {
+          debugPrint('call ringtone stop failed: $error');
+        }),
+      );
+    }
+  }
+
+  void _stopCallRingtone() {
+    if (!_callRingtonePlaying) return;
+    _callRingtonePlaying = false;
+    unawaited(
+      _ringtonePlayer.stop().catchError((Object error) {
+        debugPrint('call ringtone stop failed: $error');
+      }),
+    );
+  }
+
+  Future<void> _disposeCallRingtone() async {
+    try {
+      if (_callRingtonePlaying) {
+        _callRingtonePlaying = false;
+        await _ringtonePlayer.stop();
+      }
+    } catch (error) {
+      debugPrint('call ringtone stop failed: $error');
+    } finally {
+      await _ringtonePlayer.dispose();
+    }
   }
 
   String _callErrorText(Object? error) {
@@ -3752,6 +3942,7 @@ class MatrixVoiceCallController implements VoiceCallController {
   @override
   void dispose() {
     _disposed = true;
+    unawaited(_disposeCallRingtone());
     unawaited(_callStateSub?.cancel());
     unawaited(_callEventSub?.cancel());
     unawaited(_streamAddSub?.cancel());

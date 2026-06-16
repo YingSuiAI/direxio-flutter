@@ -110,9 +110,80 @@ void main() {
     expect(localVideoControlLabel(LocalVideoControlState.muted), '开摄像头');
   });
 
+  test('voice calls do not expose keypad camera placeholder', () {
+    expect(
+      localVideoControlState(
+        isVideoCall: false,
+        hasLocalVideoTrack: false,
+        isCameraMuted: false,
+      ),
+      LocalVideoControlState.inactive,
+    );
+    expect(localVideoControlLabel(LocalVideoControlState.inactive), isEmpty);
+  });
+
   test('speaker control label reflects output route state', () {
     expect(speakerControlLabel(true), '扬声器');
     expect(speakerControlLabel(false), '听筒');
+  });
+
+  test('call ringtone plays only while waiting for an answer', () {
+    expect(
+      shouldPlayCallRingtone(
+        voiceStatus: VoiceCallStatus.calling,
+        voiceIsIncoming: false,
+        groupStatus: GroupCallStatus.idle,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldPlayCallRingtone(
+        voiceStatus: VoiceCallStatus.ringing,
+        voiceIsIncoming: true,
+        groupStatus: GroupCallStatus.idle,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldPlayCallRingtone(
+        voiceStatus: VoiceCallStatus.connecting,
+        voiceIsIncoming: false,
+        groupStatus: GroupCallStatus.idle,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldPlayCallRingtone(
+        voiceStatus: VoiceCallStatus.connecting,
+        voiceIsIncoming: true,
+        groupStatus: GroupCallStatus.idle,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldPlayCallRingtone(
+        voiceStatus: VoiceCallStatus.connected,
+        voiceIsIncoming: false,
+        groupStatus: GroupCallStatus.idle,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldPlayCallRingtone(
+        voiceStatus: VoiceCallStatus.idle,
+        voiceIsIncoming: false,
+        groupStatus: GroupCallStatus.ringing,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldPlayCallRingtone(
+        voiceStatus: VoiceCallStatus.idle,
+        voiceIsIncoming: false,
+        groupStatus: GroupCallStatus.joining,
+      ),
+      isFalse,
+    );
   });
 
   test('connected video call without remote video shows peer unavailable', () {

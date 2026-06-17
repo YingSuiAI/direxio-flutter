@@ -1111,6 +1111,11 @@ class _FavoritesAsClient extends _EmptyAsClient {
 }
 
 class _ChannelActivityAsClient extends _EmptyAsClient {
+  int reactionsCallCount = 0;
+  int? lastReactionsLimit;
+  int commentsCallCount = 0;
+  int? lastCommentsLimit;
+
   static const _channel = AsChannel(
     channelId: 'ch_product',
     roomId: '!ch_product:p2p-im.com',
@@ -1138,6 +1143,8 @@ class _ChannelActivityAsClient extends _EmptyAsClient {
   Future<List<AsChannelReactionHistory>> getMyChannelReactions({
     int limit = 50,
   }) async {
+    reactionsCallCount += 1;
+    lastReactionsLimit = limit;
     return const [
       AsChannelReactionHistory(
         postId: 'post1',
@@ -1154,6 +1161,8 @@ class _ChannelActivityAsClient extends _EmptyAsClient {
   Future<List<AsChannelCommentHistory>> getMyChannelComments({
     int limit = 50,
   }) async {
+    commentsCallCount += 1;
+    lastCommentsLimit = limit;
     return const [
       AsChannelCommentHistory(
         comment: AsChannelComment(
@@ -1736,6 +1745,8 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   String roomName = '真实群',
   String eventId = r'$group-text',
   String body = '群聊长按消息',
+  List<LocalOutboxItem> initialOutboxItems = const [],
+  bool sendTextEvent = true,
   GoRouter? router,
 }) async {
   final client = Client(
@@ -1792,7 +1803,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
           (ref) => AsSyncCacheState(bootstrap: bootstrap),
         ),
         localOutboxStoreProvider.overrideWith(
-          (ref) async => _MemoryLocalOutboxStore(),
+          (ref) async => _MemoryLocalOutboxStore(initialOutboxItems),
         ),
       ],
       child: router == null
@@ -1807,6 +1818,14 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
     ),
   );
   await tester.pumpAndSettle();
+
+  if (!sendTextEvent) {
+    return _GroupChatHarness(
+      client: client,
+      asClient: asClient,
+      bootstrapStore: bootstrapStore,
+    );
+  }
 
   await client.handleSync(
     SyncUpdate(
@@ -1851,6 +1870,8 @@ Future<void> _pumpDirectChatWithPeerTextEvent(
   String peerName = 'Alice',
   String eventId = r'$direct-text',
   String body = '别人发来的消息',
+  List<LocalOutboxItem> initialOutboxItems = const [],
+  bool sendPeerEvent = true,
 }) async {
   final client = Client(
     'PortalIMDirectActionTest',
@@ -1893,12 +1914,13 @@ Future<void> _pumpDirectChatWithPeerTextEvent(
     ProviderScope(
       overrides: [
         matrixClientProvider.overrideWithValue(client),
+        authStateNotifierProvider.overrideWith(_LoggedInAuthStateNotifier.new),
         asClientProvider.overrideWithValue(_TrackingAsClient()),
         asSyncCacheProvider.overrideWith(
           (ref) => AsSyncCacheState(bootstrap: bootstrap),
         ),
         localOutboxStoreProvider.overrideWith(
-          (ref) async => _MemoryLocalOutboxStore(),
+          (ref) async => _MemoryLocalOutboxStore(initialOutboxItems),
         ),
       ],
       child: MaterialApp(
@@ -1908,6 +1930,10 @@ Future<void> _pumpDirectChatWithPeerTextEvent(
     ),
   );
   await tester.pumpAndSettle();
+
+  if (!sendPeerEvent) {
+    return;
+  }
 
   await client.handleSync(
     SyncUpdate(
@@ -7407,6 +7433,39 @@ void main() {
     expect(find.text('引用'), findsOneWidget);
   });
 
+  testWidgets('group chat long press exposes local outbox actions',
+      (tester) async {
+    await _pumpGroupChatWithTextEvent(
+      tester,
+      sendTextEvent: false,
+      initialOutboxItems: [
+        LocalOutboxItem(
+          id: 'group-text-pending-1',
+          conversationId: '!group:p2p-im.com',
+          conversationType: LocalOutboxConversationType.group,
+          messageKind: LocalOutboxMessageKind.text,
+          text: '群聊本地待发送消息',
+          filename: '',
+          mimeType: 'text/plain',
+          createdAt: DateTime.utc(2026, 5, 30, 9),
+          status: LocalOutboxItemStatus.failed,
+          runtimeId: '',
+          batchId: 'group-text-batch-1',
+          batchIndex: 0,
+        ),
+      ],
+    );
+
+    await tester.longPress(find.text('群聊本地待发送消息'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('复制'), findsOneWidget);
+    expect(find.text('转发'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
+    expect(find.text('删除'), findsOneWidget);
+    expect(find.text('多选'), findsOneWidget);
+  });
+
   testWidgets('group chat member avatar opens contact detail like direct chat',
       (tester) async {
     const roomId = '!group:p2p-im.com';
@@ -9576,10 +9635,11 @@ void main() {
 
   testWidgets('me likes page renders AS channel reaction history',
       (tester) async {
+    final asClient = _ChannelActivityAsClient();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          asClientProvider.overrideWithValue(_ChannelActivityAsClient()),
+          asClientProvider.overrideWithValue(asClient),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -9590,6 +9650,8 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    expect(asClient.reactionsCallCount, 1);
+    expect(asClient.lastReactionsLimit, 50);
     expect(find.text('赞'), findsOneWidget);
     expect(find.text('Yanan'), findsOneWidget);
     expect(find.text('频道发帖已打通'), findsAtLeastNWidgets(1));
@@ -9618,8 +9680,7 @@ void main() {
     expect(find.textContaining('产品公告'), findsNothing);
   });
 
-  testWidgets('me comments page matches figma light background',
-      (tester) async {
+  testWidgets('me comments page follows dark mode tokens', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -9638,8 +9699,53 @@ void main() {
       find.byKey(const ValueKey('me_comments_scaffold')),
     );
 
-    expect(scaffold.backgroundColor, const Color(0xFFFAFAFA));
+    expect(scaffold.backgroundColor, PortalTokens.dark.bg);
     expect(find.text('评论'), findsOneWidget);
+  });
+
+  testWidgets('me comments page loads API data and opens related post',
+      (tester) async {
+    final asClient = _ChannelActivityAsClient();
+    final router = GoRouter(
+      initialLocation: '/me/comments',
+      routes: [
+        GoRoute(
+          path: '/me/comments',
+          builder: (_, __) => const MeCommentsPage(),
+        ),
+        GoRoute(
+          path: '/channel/:channelId/post/:postId',
+          builder: (_, state) => Text(
+            'post:${state.pathParameters['channelId']}:'
+            '${state.pathParameters['postId']}',
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(asClient.commentsCallCount, 1);
+    expect(asClient.lastCommentsLimit, 50);
+    expect(find.text('这条评论来自真实用户名'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('my-comment-comment1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('post:ch_product:post1'), findsOneWidget);
   });
 
   testWidgets('me favorites page shows mixed favorite types as cards',
@@ -10478,6 +10584,54 @@ void main() {
 
     expect(find.text('转发聊天记录'), findsOneWidget);
     expect(find.text('Alice'), findsWidgets);
+  });
+
+  testWidgets('private chat long press exposes message actions',
+      (tester) async {
+    await _pumpDirectChatWithPeerTextEvent(tester);
+
+    await tester.longPress(find.text('别人发来的消息'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('复制'), findsOneWidget);
+    expect(find.text('转发'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
+    expect(find.text('删除'), findsOneWidget);
+    expect(find.text('多选'), findsOneWidget);
+    expect(find.text('引用'), findsOneWidget);
+  });
+
+  testWidgets('private chat long press exposes local outbox actions',
+      (tester) async {
+    await _pumpDirectChatWithPeerTextEvent(
+      tester,
+      sendPeerEvent: false,
+      initialOutboxItems: [
+        LocalOutboxItem(
+          id: 'direct-text-pending-1',
+          conversationId: '!direct:p2p-im.com',
+          conversationType: LocalOutboxConversationType.direct,
+          messageKind: LocalOutboxMessageKind.text,
+          text: '单聊本地待发送消息',
+          filename: '',
+          mimeType: 'text/plain',
+          createdAt: DateTime.utc(2026, 5, 30, 12),
+          status: LocalOutboxItemStatus.failed,
+          runtimeId: '',
+          batchId: 'direct-text-batch-1',
+          batchIndex: 0,
+        ),
+      ],
+    );
+
+    await tester.longPress(find.text('单聊本地待发送消息'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('复制'), findsOneWidget);
+    expect(find.text('转发'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
+    expect(find.text('删除'), findsOneWidget);
+    expect(find.text('多选'), findsOneWidget);
   });
 
   testWidgets('private chat uses current profile avatar for own messages',

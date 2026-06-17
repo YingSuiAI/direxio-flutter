@@ -81,16 +81,19 @@ String channelShareOpenRoute(
   ChannelSharePayload payload,
 ) {
   final channelId = payload.channelId.trim();
+  final roomId = payload.roomId.trim();
+  final routeId = channelId.isEmpty ? roomId : channelId;
+  final encodedRouteId = Uri.encodeComponent(routeId);
   if (_channelShareIsJoined(syncCache, payload)) {
     final nameQuery = payload.displayName.trim().isEmpty
         ? ''
         : '?name=${Uri.encodeQueryComponent(payload.displayName)}';
     final path = _channelShareIsPostType(payload)
-        ? '/channel/${Uri.encodeComponent(channelId)}'
-        : '/channel/${Uri.encodeComponent(channelId)}/conversation$nameQuery';
+        ? '/channel/$encodedRouteId'
+        : '/channel/$encodedRouteId/conversation$nameQuery';
     return path;
   }
-  return '/channel/${Uri.encodeComponent(channelId)}/detail';
+  return '/channel/$encodedRouteId/detail';
 }
 
 bool channelShareIsJoined(
@@ -297,6 +300,11 @@ class ChannelSharePreviewCard extends StatelessWidget {
     final subtitle = payload.description.trim().isEmpty
         ? payload.homeDomain.trim()
         : payload.description.trim();
+    final buttonTap = joining
+        ? null
+        : alreadyJoined
+            ? onTap
+            : onJoin;
     return ChatCardBubbleFrame(
       onTap: onTap,
       onLongPressAt: onLongPressAt,
@@ -346,7 +354,7 @@ class ChannelSharePreviewCard extends StatelessWidget {
                   : t.accent,
               borderRadius: BorderRadius.circular(8),
               child: InkWell(
-                onTap: joining || alreadyJoined ? null : onJoin,
+                onTap: buttonTap,
                 borderRadius: BorderRadius.circular(8),
                 child: Center(
                   child: Text(

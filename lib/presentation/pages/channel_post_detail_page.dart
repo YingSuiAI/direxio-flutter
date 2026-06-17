@@ -129,7 +129,7 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
               right: 0,
               top: 0,
               child: _PostDetailTopBar(
-                title: '#${detail.channelName}',
+                title: detail.channelName,
                 onBack: () => context.pop(),
               ),
             ),
@@ -403,7 +403,6 @@ class _PostDetailCard extends StatelessWidget {
           _CommentInputRow(
             controller: commentController,
             sending: sending,
-            fullWidth: showComments,
             onSend: onSend,
           ),
         ],
@@ -681,58 +680,80 @@ class _CommentInputRow extends StatelessWidget {
   const _CommentInputRow({
     required this.controller,
     required this.sending,
-    required this.fullWidth,
     required this.onSend,
   });
 
   final TextEditingController controller;
   final bool sending;
-  final bool fullWidth;
   final VoidCallback onSend;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          flex: fullWidth ? 1 : 0,
-          child: SizedBox(
-            width: fullWidth ? null : 174,
-            height: 32,
-            child: TextField(
-              controller: controller,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => onSend(),
-              decoration: InputDecoration(
-                hintText: '输入评论...',
-                hintStyle: AppTheme.sans(
-                  size: 13,
-                  weight: FontWeight.w500,
-                  color: _detailCommentMetaColor(context),
-                ),
-                filled: true,
-                fillColor: _detailInputFillColor(context),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide.none,
-                  borderRadius: BorderRadius.circular(8),
+    return SizedBox(
+      height: 32,
+      width: double.infinity,
+      child: ValueListenableBuilder<TextEditingValue>(
+        valueListenable: controller,
+        builder: (context, value, _) {
+          final showSend = value.text.trim().isNotEmpty || sending;
+          return TextField(
+            controller: controller,
+            textInputAction: TextInputAction.send,
+            textAlignVertical: TextAlignVertical.center,
+            onSubmitted: (_) => onSend(),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: '输入评论...',
+              hintStyle: AppTheme.sans(
+                size: 13,
+                weight: FontWeight.w500,
+                color: _detailCommentMetaColor(context),
+              ),
+              filled: true,
+              fillColor: _detailInputFillColor(context),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+              suffixIcon: Opacity(
+                opacity: showSend ? 1 : 0,
+                child: IconButton(
+                  onPressed: sending ? null : onSend,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 32,
+                    height: 32,
+                  ),
+                  icon: sending
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          Symbols.send,
+                          size: 18,
+                          color: context.tk.accent,
+                        ),
                 ),
               ),
-              style: AppTheme.sans(size: 13, color: _detailTextColor(context)),
+              suffixIconConstraints: const BoxConstraints.tightFor(
+                width: 32,
+                height: 32,
+              ),
+              border: OutlineInputBorder(
+                borderSide: BorderSide.none,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide.none,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide.none,
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          onPressed: sending ? null : onSend,
-          icon: sending
-              ? const SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Icon(Symbols.send, size: 18, color: context.tk.accent),
-        ),
-      ],
+            style: AppTheme.sans(size: 13, color: _detailTextColor(context)),
+          );
+        },
+      ),
     );
   }
 }

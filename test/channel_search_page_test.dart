@@ -69,6 +69,32 @@ void main() {
     expect(asClient.p2pApiClient.lastOwnerDomain, 'p2p-liyanan.com');
   });
 
+  testWidgets('channel search loads public detail directly for room id',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          p2pApiClientProvider.overrideWithValue(asClient.p2pApiClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '!ch_product:p2p-im.com');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.requestedPublicRoomId, '!ch_product:p2p-im.com');
+    expect(asClient.p2pApiClient.listCallCount, 0);
+    expect(find.text('接口返回频道'), findsOneWidget);
+    expect(find.text('申请加入'), findsOneWidget);
+  });
+
   testWidgets('channel search opens public detail by room id', (tester) async {
     final asClient = _ChannelSearchAsClient();
     final router = GoRouter(
@@ -165,6 +191,7 @@ class _ChannelSearchP2pApiClient extends P2pApiClient {
 
   String? lastKeyword;
   String? lastOwnerDomain;
+  int listCallCount = 0;
 
   @override
   Future<List<AsChannel>> listChannels({
@@ -175,6 +202,7 @@ class _ChannelSearchP2pApiClient extends P2pApiClient {
     String sortBy = 'createdAt',
     bool desc = true,
   }) async {
+    listCallCount += 1;
     lastKeyword = keyword;
     lastOwnerDomain = ownerDomain;
     return const [

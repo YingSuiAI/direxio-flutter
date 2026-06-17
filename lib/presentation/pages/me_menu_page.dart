@@ -293,7 +293,7 @@ class _MeLikesPageState extends ConsumerState<MeLikesPage> {
   late final Future<List<AsChannelReactionHistory>> _future = _load();
 
   Future<List<AsChannelReactionHistory>> _load() {
-    return ref.read(asClientProvider).getMyChannelReactions();
+    return ref.read(asClientProvider).getMyChannelReactions(limit: 50);
   }
 
   @override
@@ -552,9 +552,10 @@ class _MeCommentsPageState extends ConsumerState<MeCommentsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Scaffold(
       key: const ValueKey('me_comments_scaffold'),
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: t.bg,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -615,6 +616,7 @@ class _MeCommentsTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return SizedBox(
       height: 48,
       child: Stack(
@@ -626,7 +628,7 @@ class _MeCommentsTopBar extends StatelessWidget {
             child: GlassHeaderButton(
               icon: Symbols.arrow_back,
               iconSize: 24,
-              color: const Color(0xFF262628),
+              color: t.text,
               onTap: () => context.pop(),
             ),
           ),
@@ -635,7 +637,7 @@ class _MeCommentsTopBar extends StatelessWidget {
             style: AppTheme.sans(
               size: 20,
               weight: FontWeight.w600,
-              color: const Color(0xFF262628),
+              color: t.text,
             ).copyWith(height: 33 / 20),
           ),
         ],
@@ -654,13 +656,16 @@ class _MeCommentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     final comment = item.comment;
     final author = _commentAuthorLabel(comment);
     final body = comment.body.trim().isEmpty ? '评论' : comment.body.trim();
     return Material(
-      color: Colors.white,
+      color: t.surface,
       borderRadius: BorderRadius.circular(20),
-      shadowColor: const Color(0xFFBFBFBF).withValues(alpha: 0.25),
+      shadowColor: t.border.withValues(
+        alpha: Theme.of(context).brightness == Brightness.dark ? 0.14 : 0.25,
+      ),
       elevation: 10,
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -695,7 +700,7 @@ class _MeCommentCard extends StatelessWidget {
                             style: AppTheme.sans(
                               size: 16,
                               weight: FontWeight.w600,
-                              color: const Color(0xFF262628),
+                              color: t.text,
                             ).copyWith(height: 33 / 16),
                           ),
                         ),
@@ -708,7 +713,7 @@ class _MeCommentCard extends StatelessWidget {
                         style: AppTheme.sans(
                           size: 13,
                           weight: FontWeight.w500,
-                          color: const Color(0xFF333333),
+                          color: t.text,
                         ).copyWith(height: 20 / 13),
                       ),
                       const Spacer(),
@@ -719,7 +724,7 @@ class _MeCommentCard extends StatelessWidget {
                         style: AppTheme.sans(
                           size: 10,
                           weight: FontWeight.w400,
-                          color: const Color(0xFFA3A3A4),
+                          color: t.textMute,
                         ),
                       ),
                     ],
@@ -747,20 +752,21 @@ class _MeCommentsEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 36, color: const Color(0xFFA3A3A4)),
+            Icon(icon, size: 36, color: t.textMute),
             const SizedBox(height: 14),
             Text(
               title,
               style: AppTheme.sans(
                 size: 17,
                 weight: FontWeight.w600,
-                color: const Color(0xFF262628),
+                color: t.text,
               ),
             ),
             const SizedBox(height: 8),
@@ -770,7 +776,7 @@ class _MeCommentsEmpty extends StatelessWidget {
               style: AppTheme.sans(
                 size: 13,
                 weight: FontWeight.w400,
-                color: const Color(0xFFA3A3A4),
+                color: t.textMute,
               ),
             ),
           ],

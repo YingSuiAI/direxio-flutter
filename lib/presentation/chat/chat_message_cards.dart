@@ -20,6 +20,10 @@ const chatMessageMediaMaxHeight = 250.0;
 const chatMessageMediaMinSide = 110.0;
 const chatMessageCompactCardWidth = chatMessageCardWidth;
 
+void _chatCardGestureLog(String message) {
+  debugPrint('[chat gesture] $message');
+}
+
 class ChatMediaBubbleSize {
   const ChatMediaBubbleSize({
     required this.width,
@@ -172,11 +176,34 @@ class ChatCardBubbleFrame extends StatelessWidget {
     var pressPosition = Offset.zero;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (details) => pressPosition = details.globalPosition,
-      onTap: onTap,
-      onLongPress: () => onLongPressAt?.call(pressPosition),
-      onSecondaryTapDown: (details) => pressPosition = details.globalPosition,
-      onSecondaryTap: () => onLongPressAt?.call(pressPosition),
+      onTapDown: (details) {
+        pressPosition = details.globalPosition;
+        _chatCardGestureLog(
+          'card tapDown pos=$pressPosition hasTap=${onTap != null} hasLong=${onLongPressAt != null}',
+        );
+      },
+      onTap: () {
+        _chatCardGestureLog('card tap fire hasTap=${onTap != null}');
+        onTap?.call();
+      },
+      onLongPress: () {
+        _chatCardGestureLog(
+          'card longPress fire pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(pressPosition);
+      },
+      onSecondaryTapDown: (details) {
+        pressPosition = details.globalPosition;
+        _chatCardGestureLog(
+          'card secondaryTapDown pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+      },
+      onSecondaryTap: () {
+        _chatCardGestureLog(
+          'card secondaryTap fire pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(pressPosition);
+      },
       child: SizedBox(
         width: chatMessageCompactCardWidth,
         height: chatMessageCardHeight,
@@ -375,11 +402,34 @@ class ChatCallRecordBubble extends StatelessWidget {
     var pressPosition = Offset.zero;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (details) => pressPosition = details.globalPosition,
-      onTap: onTap,
-      onLongPress: () => onLongPressAt?.call(pressPosition),
-      onSecondaryTapDown: (details) => pressPosition = details.globalPosition,
-      onSecondaryTap: () => onLongPressAt?.call(pressPosition),
+      onTapDown: (details) {
+        pressPosition = details.globalPosition;
+        _chatCardGestureLog(
+          'callRecord tapDown pos=$pressPosition hasTap=${onTap != null} hasLong=${onLongPressAt != null}',
+        );
+      },
+      onTap: () {
+        _chatCardGestureLog('callRecord tap fire hasTap=${onTap != null}');
+        onTap?.call();
+      },
+      onLongPress: () {
+        _chatCardGestureLog(
+          'callRecord longPress fire pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(pressPosition);
+      },
+      onSecondaryTapDown: (details) {
+        pressPosition = details.globalPosition;
+        _chatCardGestureLog(
+          'callRecord secondaryTapDown pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+      },
+      onSecondaryTap: () {
+        _chatCardGestureLog(
+          'callRecord secondaryTap fire pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(pressPosition);
+      },
       child: ChatBubbleFrame(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

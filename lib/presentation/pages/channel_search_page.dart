@@ -61,6 +61,17 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       _error = '';
     });
     try {
+      if (_looksLikeMatrixRoomId(query)) {
+        final channel = await ref
+            .read(asClientProvider)
+            .getPublicChannelByRoomId(query.trim());
+        if (!mounted || serial != _serial) return;
+        setState(() {
+          _results = [channel];
+          _loading = false;
+        });
+        return;
+      }
       final target = _channelSearchTarget(query);
       final results = await ref.read(p2pApiClientProvider).listChannels(
             page: 1,
@@ -215,6 +226,11 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       },
     );
   }
+}
+
+bool _looksLikeMatrixRoomId(String value) {
+  final trimmed = value.trim();
+  return trimmed.startsWith('!') && trimmed.contains(':');
 }
 
 class _ChannelSearchTarget {

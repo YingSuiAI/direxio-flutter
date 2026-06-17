@@ -109,6 +109,41 @@ void main() {
     expect(opens, 0);
   });
 
+  testWidgets('channel share preview card joined button opens channel',
+      (tester) async {
+    var joins = 0;
+    var opens = 0;
+    const payload = ChannelSharePayload(
+      channelId: 'ch_product',
+      roomId: '!channel:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '产品公告',
+      description: '只发布重要产品更新',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Center(
+            child: ChannelSharePreviewCard(
+              payload: payload,
+              alreadyJoined: true,
+              onJoin: () => joins++,
+              onTap: () => opens++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('已加入'));
+    await tester.pump();
+
+    expect(joins, 0);
+    expect(opens, 1);
+  });
+
   test('channel share route opens detail until channel is joined', () {
     const payload = ChannelSharePayload(
       channelId: 'ch_product',
@@ -185,6 +220,21 @@ void main() {
     expect(
       channelShareOpenRoute(discoveredOnly, payload),
       '/channel/ch_product/detail',
+    );
+  });
+
+  test('channel share route falls back to room id when channel id is missing',
+      () {
+    const payload = ChannelSharePayload(
+      channelId: '',
+      roomId: '!channel:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '产品公告',
+    );
+
+    expect(
+      channelShareOpenRoute(const AsSyncCacheState(), payload),
+      '/channel/!channel%3Ap2p-im.com/detail',
     );
   });
 

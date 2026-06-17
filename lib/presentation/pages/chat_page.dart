@@ -74,6 +74,10 @@ const _mockAuthEnabled = bool.fromEnvironment(
   defaultValue: false,
 );
 
+void _chatGestureLog(String message) {
+  debugPrint('[chat gesture] $message');
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAT PAGE — index.html `s-chat` 1:1 复刻
 //
@@ -975,6 +979,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _closePanels() {
+    final hadFocus = FocusManager.instance.primaryFocus != null;
+    final hadPanels = _showPlusPanel || _showEmojiPanel;
+    _chatGestureLog(
+      'messageLayer pointer closePanels hadFocus=$hadFocus hadPanels=$hadPanels plus=$_showPlusPanel emoji=$_showEmojiPanel',
+    );
+    if (!hadPanels) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _showPlusPanel = false;
@@ -1097,15 +1107,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _MessageContextAnchor anchor, {
     required _MessageContextMenuPlacement placement,
   }) async {
+    final isOwnEvent = e.senderId == e.room.client.userID;
     final supportsTextActions = !isCallRecordEvent(e);
+    final canRecall = supportsTextActions && isOwnEvent && e.canRedact;
+    _chatGestureLog(
+      'event longPress handler eventId=${e.eventId} type=${e.type} msgtype=${e.messageType} sender=${e.senderId} me=${e.room.client.userID} isOwn=$isOwnEvent pos=${anchor.position} rect=${anchor.bubbleRect} placement=$placement canRedact=${e.canRedact} canRecall=$canRecall',
+    );
     final action = await _showMsgContextMenu(
       ctx,
       anchor,
       placement: placement,
       canCopy: supportsTextActions,
       canQuote: supportsTextActions,
-      canRecall: supportsTextActions && e.canRedact,
+      canRecall: canRecall,
     );
+    _chatGestureLog(
+        'event context menu result eventId=${e.eventId} action=$action');
     if (!mounted || action == null) return;
     switch (action) {
       case 'copy':
@@ -1143,6 +1160,74 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         break;
       case 'fav':
         await _favoriteEvent(e);
+        break;
+    }
+  }
+
+  Future<void> _onLongPressOutboxItem(
+    BuildContext ctx,
+    LocalOutboxItem item,
+    _MessageContextAnchor anchor, {
+    required _MessageContextMenuPlacement placement,
+  }) async {
+    _chatGestureLog(
+      'outbox longPress handler id=${item.id} kind=${item.messageKind} pos=${anchor.position} rect=${anchor.bubbleRect} placement=$placement',
+    );
+    final action = await _showMsgContextMenu(
+      ctx,
+      anchor,
+      placement: placement,
+      canCopy: true,
+      canQuote: false,
+      canRecall: false,
+    );
+    _chatGestureLog('outbox context menu result id=${item.id} action=$action');
+    if (!mounted || action == null) return;
+    switch (action) {
+      case 'copy':
+        await Clipboard.setData(ClipboardData(text: _outboxCopyText(item)));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('已复制'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+        break;
+      case 'delete':
+        await ref.read(localOutboxProvider.notifier).completeItem(item.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('已删除'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+        break;
+      case 'fav':
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('发送中的消息暂不能收藏'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+        break;
+      case 'forward':
+      case 'multi':
+      case 'quote':
+      case 'recall':
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('消息发送完成后可使用该操作'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
         break;
     }
   }
@@ -1526,7 +1611,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
         return;
       }
-      context.push(channelShareJoinedRoute(payload, joined));
+      context.go(channelShareJoinedRoute(payload, joined));
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2434,6 +2519,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                             _retryFailedTextMessage(pending),
                                           ),
                                         ),
+                                        onLongPressAt: (pos) =>
+                                            _onLongPressOutboxItem(
+                                          context,
+                                          pending,
+                                          pos,
+                                          placement: contextMenuPlacement,
+                                        ),
                                       ),
                                       isMe: true,
                                       id: pending.id,
@@ -2462,6 +2554,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         currentPlaySeconds:
                                             playback.position.inSeconds,
                                         onTap: null,
+                                        onLongPressAt: (pos) =>
+                                            _onLongPressOutboxItem(
+                                          context,
+                                          pending,
+                                          pos,
+                                          placement: contextMenuPlacement,
+                                        ),
                                       ),
                                       isMe: true,
                                       id: pending.id,
@@ -2489,6 +2588,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         selected: false,
                                         multiSelect: false,
                                         onTap: null,
+                                        onLongPressAt: (pos) =>
+                                            _onLongPressOutboxItem(
+                                          context,
+                                          pending,
+                                          pos,
+                                          placement: contextMenuPlacement,
+                                        ),
                                       ),
                                       isMe: true,
                                       id: pending.id,
@@ -2546,6 +2652,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                               '我 · ${_formatMsgTime(pending.createdAt)}',
                                         );
                                       },
+                                      onLongPressAt: (pos) =>
+                                          _onLongPressOutboxItem(
+                                        context,
+                                        pending,
+                                        pos,
+                                        placement: contextMenuPlacement,
+                                      ),
                                     ),
                                     isMe: true,
                                     id: pending.id,
@@ -3620,13 +3733,18 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     if (m.kind != MockMsgKind.text &&
         m.kind != MockMsgKind.image &&
         m.kind != MockMsgKind.file) {
+      _chatGestureLog('mock longPress ignored kind=${m.kind}');
       return;
     }
+    _chatGestureLog(
+      'mock longPress handler kind=${m.kind} pos=${anchor.position} rect=${anchor.bubbleRect} placement=$placement',
+    );
     final action = await _showMsgContextMenu(
       context,
       anchor,
       placement: placement,
     );
+    _chatGestureLog('mock context menu result kind=${m.kind} action=$action');
     if (!mounted || action == null) return;
     switch (action) {
       case 'copy':
@@ -3830,6 +3948,12 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   }
 
   void _closePanels() {
+    final hadFocus = FocusManager.instance.primaryFocus != null;
+    final hadPanels = _showPlusPanel || _showEmojiPanel;
+    _chatGestureLog(
+      'mock messageLayer pointer closePanels hadFocus=$hadFocus hadPanels=$hadPanels plus=$_showPlusPanel emoji=$_showEmojiPanel',
+    );
+    if (!hadPanels) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _showPlusPanel = false;
@@ -4286,6 +4410,19 @@ bool _isVoiceOutboxItem(LocalOutboxItem item) {
       item.mimeType.toLowerCase().startsWith('audio/');
 }
 
+String _outboxCopyText(LocalOutboxItem item) {
+  final text = item.text.trim();
+  if (text.isNotEmpty) return text;
+  final filename = item.filename.trim();
+  if (filename.isNotEmpty) return filename;
+  return switch (item.messageKind) {
+    LocalOutboxMessageKind.image => '图片',
+    LocalOutboxMessageKind.video => '视频',
+    LocalOutboxMessageKind.file => '文件',
+    LocalOutboxMessageKind.text => '',
+  };
+}
+
 bool _isVoiceEvent(Event event) {
   if (!event.hasAttachment) return false;
   if (event.messageType == MessageTypes.Audio) return true;
@@ -4519,14 +4656,45 @@ class _SChatBubble extends StatelessWidget {
     final bubble = GestureDetector(
       key: bubbleKey,
       behavior: HitTestBehavior.opaque,
-      onTapDown: (d) => pos = d.globalPosition,
-      onTap: onTap,
-      onLongPress: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
-      // 桌面端右键：记录位置 + 触发同一菜单。
-      onSecondaryTapDown: (d) => pos = d.globalPosition,
-      onSecondaryTap: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
+      onTapDown: (d) {
+        pos = d.globalPosition;
+        _chatGestureLog(
+          'text bubble tapDown isMe=$isMe selected=$selected multi=$multiSelect pos=$pos hasTap=${onTap != null} hasLong=${onLongPressAt != null}',
+        );
+      },
+      onTap: () {
+        _chatGestureLog(
+          'text bubble tap fire isMe=$isMe hasTap=${onTap != null}',
+        );
+        onTap?.call();
+      },
+      onTapCancel: () {
+        _chatGestureLog('text bubble tapCancel isMe=$isMe pos=$pos');
+      },
+      onLongPressStart: (details) {
+        pos = details.globalPosition;
+        final anchor = _messageContextAnchorFor(bubbleKey, pos);
+        _chatGestureLog(
+          'text bubble longPressStart fire isMe=$isMe pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
+      onLongPressCancel: () {
+        _chatGestureLog('text bubble longPressCancel isMe=$isMe pos=$pos');
+      },
+      onSecondaryTapDown: (d) {
+        pos = d.globalPosition;
+        _chatGestureLog(
+          'text bubble secondaryTapDown isMe=$isMe pos=$pos hasLong=${onLongPressAt != null}',
+        );
+      },
+      onSecondaryTap: () {
+        final anchor = _messageContextAnchorFor(bubbleKey, pos);
+        _chatGestureLog(
+          'text bubble secondaryTap fire isMe=$isMe pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
       child: ChatBubbleFrame(
         child: Container(
           decoration: BoxDecoration(
@@ -4810,7 +4978,7 @@ class _SBusinessCardBubble extends StatelessWidget {
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
       onAvatarTap: onAvatarTap,
-      onSelectTap: onTap,
+      onSelectTap: multiSelect ? onTap : null,
       child: Column(
         crossAxisAlignment:
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -5145,13 +5313,45 @@ class _SChatImageBubble extends StatelessWidget {
     final image = GestureDetector(
       key: imageKey,
       behavior: HitTestBehavior.opaque,
-      onTapDown: (d) => pos = d.globalPosition,
-      onTap: onTap,
-      onLongPress: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(imageKey, pos)),
-      onSecondaryTapDown: (d) => pos = d.globalPosition,
-      onSecondaryTap: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(imageKey, pos)),
+      onTapDown: (d) {
+        pos = d.globalPosition;
+        _chatGestureLog(
+          'image bubble tapDown isMe=$isMe selected=$selected multi=$multiSelect pos=$pos hasTap=${onTap != null} hasLong=${onLongPressAt != null}',
+        );
+      },
+      onTap: () {
+        _chatGestureLog(
+          'image bubble tap fire isMe=$isMe hasTap=${onTap != null}',
+        );
+        onTap?.call();
+      },
+      onTapCancel: () {
+        _chatGestureLog('image bubble tapCancel isMe=$isMe pos=$pos');
+      },
+      onLongPressStart: (details) {
+        pos = details.globalPosition;
+        final anchor = _messageContextAnchorFor(imageKey, pos);
+        _chatGestureLog(
+          'image bubble longPressStart fire isMe=$isMe pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
+      onLongPressCancel: () {
+        _chatGestureLog('image bubble longPressCancel isMe=$isMe pos=$pos');
+      },
+      onSecondaryTapDown: (d) {
+        pos = d.globalPosition;
+        _chatGestureLog(
+          'image bubble secondaryTapDown isMe=$isMe pos=$pos hasLong=${onLongPressAt != null}',
+        );
+      },
+      onSecondaryTap: () {
+        final anchor = _messageContextAnchorFor(imageKey, pos);
+        _chatGestureLog(
+          'image bubble secondaryTap fire isMe=$isMe pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
       child: ChatMediaBubbleFrame(
         width: mediaSize.width,
         height: mediaSize.height,
@@ -5231,13 +5431,45 @@ class _SChatVoiceBubble extends StatelessWidget {
     final bubble = GestureDetector(
       key: bubbleKey,
       behavior: HitTestBehavior.opaque,
-      onTapDown: (d) => pos = d.globalPosition,
-      onTap: onTap,
-      onLongPress: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
-      onSecondaryTapDown: (d) => pos = d.globalPosition,
-      onSecondaryTap: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
+      onTapDown: (d) {
+        pos = d.globalPosition;
+        _chatGestureLog(
+          'voice bubble tapDown isMe=$isMe selected=$selected multi=$multiSelect pos=$pos hasTap=${onTap != null} hasLong=${onLongPressAt != null}',
+        );
+      },
+      onTap: () {
+        _chatGestureLog(
+          'voice bubble tap fire isMe=$isMe hasTap=${onTap != null}',
+        );
+        onTap?.call();
+      },
+      onTapCancel: () {
+        _chatGestureLog('voice bubble tapCancel isMe=$isMe pos=$pos');
+      },
+      onLongPressStart: (details) {
+        pos = details.globalPosition;
+        final anchor = _messageContextAnchorFor(bubbleKey, pos);
+        _chatGestureLog(
+          'voice bubble longPressStart fire isMe=$isMe pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
+      onLongPressCancel: () {
+        _chatGestureLog('voice bubble longPressCancel isMe=$isMe pos=$pos');
+      },
+      onSecondaryTapDown: (d) {
+        pos = d.globalPosition;
+        _chatGestureLog(
+          'voice bubble secondaryTapDown isMe=$isMe pos=$pos hasLong=${onLongPressAt != null}',
+        );
+      },
+      onSecondaryTap: () {
+        final anchor = _messageContextAnchorFor(bubbleKey, pos);
+        _chatGestureLog(
+          'voice bubble secondaryTap fire isMe=$isMe pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
       child: ChatBubbleFrame(
         child: Container(
           constraints: const BoxConstraints(minWidth: 116, maxWidth: 220),
@@ -5335,13 +5567,45 @@ class _SChatFileBubble extends StatelessWidget {
     final card = GestureDetector(
       key: cardKey,
       behavior: HitTestBehavior.opaque,
-      onTapDown: (d) => pos = d.globalPosition,
-      onTap: onTap,
-      onLongPress: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(cardKey, pos)),
-      onSecondaryTapDown: (d) => pos = d.globalPosition,
-      onSecondaryTap: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(cardKey, pos)),
+      onTapDown: (d) {
+        pos = d.globalPosition;
+        _chatGestureLog(
+          'file bubble tapDown isMe=$isMe selected=$selected multi=$multiSelect pos=$pos hasTap=${onTap != null} hasLong=${onLongPressAt != null}',
+        );
+      },
+      onTap: () {
+        _chatGestureLog(
+          'file bubble tap fire isMe=$isMe hasTap=${onTap != null}',
+        );
+        onTap?.call();
+      },
+      onTapCancel: () {
+        _chatGestureLog('file bubble tapCancel isMe=$isMe pos=$pos');
+      },
+      onLongPressStart: (details) {
+        pos = details.globalPosition;
+        final anchor = _messageContextAnchorFor(cardKey, pos);
+        _chatGestureLog(
+          'file bubble longPressStart fire isMe=$isMe pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
+      onLongPressCancel: () {
+        _chatGestureLog('file bubble longPressCancel isMe=$isMe pos=$pos');
+      },
+      onSecondaryTapDown: (d) {
+        pos = d.globalPosition;
+        _chatGestureLog(
+          'file bubble secondaryTapDown isMe=$isMe pos=$pos hasLong=${onLongPressAt != null}',
+        );
+      },
+      onSecondaryTap: () {
+        final anchor = _messageContextAnchorFor(cardKey, pos);
+        _chatGestureLog(
+          'file bubble secondaryTap fire isMe=$isMe pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
       child: ChatBubbleFrame(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 260),
@@ -5956,6 +6220,9 @@ Future<String?> _showMsgContextMenu(
   final size = MediaQuery.of(context).size;
   final pos = anchor.position;
   final bubbleRect = anchor.bubbleRect;
+  _chatGestureLog(
+    'show menu request pos=$pos rect=$bubbleRect placement=$placement size=$size canCopy=$canCopy canQuote=$canQuote canRecall=$canRecall',
+  );
   return showGeneralDialog<String>(
     context: context,
     barrierDismissible: true,
@@ -5982,6 +6249,9 @@ Future<String?> _showMsgContextMenu(
       }
       top = top.clamp(12.0, math.max(12.0, size.height - menuH - 12));
       final pointerX = (pos.dx - left - 10).clamp(18.0, menuW - 38.0);
+      _chatGestureLog(
+        'show menu layout left=$left top=$top width=$menuW pointerX=$pointerX pointerOnTop=$pointerOnTop',
+      );
       return SizedBox.expand(
         child: Stack(
           children: [

@@ -60,6 +60,10 @@ import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
 
+void _groupChatGestureLog(String message) {
+  debugPrint('[group chat gesture] $message');
+}
+
 Future<void> _popGroupChatOrHome(BuildContext context) async {
   final didPop = await Navigator.of(context).maybePop();
   if (!context.mounted || didPop) return;
@@ -360,6 +364,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   void _closePanels() {
+    final hadFocus = FocusManager.instance.primaryFocus != null;
+    final hadPanels = _showPlusPanel || _showEmojiPanel;
+    _groupChatGestureLog(
+      'messageLayer pointer closePanels hadFocus=$hadFocus hadPanels=$hadPanels plus=$_showPlusPanel emoji=$_showEmojiPanel',
+    );
+    if (!hadPanels) return;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _showPlusPanel = false;
@@ -1871,14 +1881,22 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     required String roomName,
     required _MessageContextMenuPlacement placement,
   }) async {
+    final isOwnEvent = event.senderId == event.room.client.userID;
     final supportsTextActions = !isCallRecordEvent(event);
+    final canRecall = supportsTextActions && isOwnEvent && event.canRedact;
+    _groupChatGestureLog(
+      'event longPress handler eventId=${event.eventId} type=${event.type} msgtype=${event.messageType} sender=${event.senderId} me=${event.room.client.userID} isOwn=$isOwnEvent pos=${anchor.position} rect=${anchor.bubbleRect} placement=$placement canRedact=${event.canRedact} canRecall=$canRecall',
+    );
     final action = await _showGroupMessageContextMenu(
       context,
       anchor,
       placement: placement,
       canCopy: supportsTextActions,
       canQuote: supportsTextActions,
-      canRecall: supportsTextActions && event.canRedact,
+      canRecall: canRecall,
+    );
+    _groupChatGestureLog(
+      'event context menu result eventId=${event.eventId} action=$action',
     );
     if (!mounted || action == null) return;
     switch (action) {
@@ -1913,6 +1931,75 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
           _multiSelect = true;
           _selected.add(event.eventId);
         });
+        break;
+    }
+  }
+
+  Future<void> _onLongPressOutboxItem(
+    LocalOutboxItem item,
+    _MessageContextAnchor anchor, {
+    required _MessageContextMenuPlacement placement,
+  }) async {
+    _groupChatGestureLog(
+      'outbox longPress handler id=${item.id} kind=${item.messageKind} pos=${anchor.position} rect=${anchor.bubbleRect} placement=$placement',
+    );
+    final action = await _showGroupMessageContextMenu(
+      context,
+      anchor,
+      placement: placement,
+      canCopy: true,
+      canQuote: false,
+      canRecall: false,
+    );
+    _groupChatGestureLog(
+        'outbox context menu result id=${item.id} action=$action');
+    if (!mounted || action == null) return;
+    switch (action) {
+      case 'copy':
+        await Clipboard.setData(
+            ClipboardData(text: _groupOutboxCopyText(item)));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('已复制'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+        break;
+      case 'delete':
+        await ref.read(localOutboxProvider.notifier).completeItem(item.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('已删除'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+        break;
+      case 'fav':
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('发送中的消息暂不能收藏'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+        break;
+      case 'forward':
+      case 'multi':
+      case 'quote':
+      case 'recall':
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('消息发送完成后可使用该操作'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
         break;
     }
   }
@@ -2506,6 +2593,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                         onRetry: () => unawaited(
                                           _retryFailedTextMessage(pending),
                                         ),
+                                        onLongPressAt: (position) =>
+                                            _onLongPressOutboxItem(
+                                          pending,
+                                          position,
+                                          placement: contextMenuPlacement,
+                                        ),
                                       ),
                                       isMe: true,
                                       id: pending.id,
@@ -2531,11 +2624,23 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                             isPlaying: isPlaying,
                                             currentPlaySeconds:
                                                 playback.position.inSeconds,
+                                            onLongPressAt: (position) =>
+                                                _onLongPressOutboxItem(
+                                              pending,
+                                              position,
+                                              placement: contextMenuPlacement,
+                                            ),
                                           )
                                         : _GroupPendingMediaBubble(
                                             item: pending,
                                             onRetry: () => unawaited(
                                               _retryFailedMediaUpload(pending),
+                                            ),
+                                            onLongPressAt: (position) =>
+                                                _onLongPressOutboxItem(
+                                              pending,
+                                              position,
+                                              placement: contextMenuPlacement,
                                             ),
                                           ),
                                     isMe: true,
@@ -3084,12 +3189,41 @@ class _GroupImageMessageBubble extends StatelessWidget {
     final t = context.tk;
     final senderName = event.senderFromMemoryOrFallback.calcDisplayname();
     final imageKey = GlobalKey();
+    var pressPosition = Offset.zero;
     final image = GestureDetector(
       key: imageKey,
-      onTap: onTap,
-      onLongPressStart: (details) => onLongPressAt(
-        _messageContextAnchorFor(imageKey, details.globalPosition),
-      ),
+      onTap: () {
+        _groupChatGestureLog(
+          'image bubble tap fire eventId=${event.eventId} isMe=$isMe hasTap=${onTap != null}',
+        );
+        onTap?.call();
+      },
+      onTapDown: (details) {
+        pressPosition = details.globalPosition;
+        _groupChatGestureLog(
+          'image bubble tapDown eventId=${event.eventId} isMe=$isMe selected=$selected multi=$multiSelect pos=$pressPosition hasTap=${onTap != null}',
+        );
+      },
+      onLongPress: () {
+        final anchor = _messageContextAnchorFor(imageKey, pressPosition);
+        _groupChatGestureLog(
+          'image bubble longPress fire eventId=${event.eventId} isMe=$isMe pos=$pressPosition rect=${anchor.bubbleRect}',
+        );
+        onLongPressAt(anchor);
+      },
+      onSecondaryTapDown: (details) {
+        pressPosition = details.globalPosition;
+        _groupChatGestureLog(
+          'image bubble secondaryTapDown eventId=${event.eventId} pos=$pressPosition',
+        );
+      },
+      onSecondaryTap: () {
+        final anchor = _messageContextAnchorFor(imageKey, pressPosition);
+        _groupChatGestureLog(
+          'image bubble secondaryTap fire eventId=${event.eventId} pos=$pressPosition rect=${anchor.bubbleRect}',
+        );
+        onLongPressAt(anchor);
+      },
       child: ChatMediaBubbleFrame(
         width: mediaSize.width,
         height: mediaSize.height,
@@ -3119,7 +3253,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment:
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
@@ -3450,7 +3584,7 @@ class _GroupFileMessageBubble extends StatelessWidget {
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment:
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
@@ -3556,13 +3690,38 @@ class _GroupVoiceMessageBubble extends StatelessWidget {
     final bubble = GestureDetector(
       key: bubbleKey,
       behavior: HitTestBehavior.opaque,
-      onTapDown: (d) => pos = d.globalPosition,
-      onTap: onTap,
-      onLongPress: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
-      onSecondaryTapDown: (d) => pos = d.globalPosition,
-      onSecondaryTap: () =>
-          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
+      onTapDown: (d) {
+        pos = d.globalPosition;
+        _groupChatGestureLog(
+          'voice bubble tapDown eventId=${event?.eventId} isMe=$isMe selected=$selected multi=$multiSelect pos=$pos hasTap=${onTap != null} hasLong=${onLongPressAt != null}',
+        );
+      },
+      onTap: () {
+        _groupChatGestureLog(
+          'voice bubble tap fire eventId=${event?.eventId} isMe=$isMe hasTap=${onTap != null}',
+        );
+        onTap?.call();
+      },
+      onLongPress: () {
+        final anchor = _messageContextAnchorFor(bubbleKey, pos);
+        _groupChatGestureLog(
+          'voice bubble longPress fire eventId=${event?.eventId} isMe=$isMe pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
+      onSecondaryTapDown: (d) {
+        pos = d.globalPosition;
+        _groupChatGestureLog(
+          'voice bubble secondaryTapDown eventId=${event?.eventId} pos=$pos hasLong=${onLongPressAt != null}',
+        );
+      },
+      onSecondaryTap: () {
+        final anchor = _messageContextAnchorFor(bubbleKey, pos);
+        _groupChatGestureLog(
+          'voice bubble secondaryTap fire eventId=${event?.eventId} pos=$pos rect=${anchor.bubbleRect} hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(anchor);
+      },
       child: Container(
         constraints: const BoxConstraints(minWidth: 116, maxWidth: 220),
         decoration: BoxDecoration(
@@ -3598,7 +3757,7 @@ class _GroupVoiceMessageBubble extends StatelessWidget {
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment:
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
@@ -3692,19 +3851,40 @@ class _GroupFileCardSurface extends StatelessWidget {
     return GestureDetector(
       key: cardKey,
       behavior: HitTestBehavior.opaque,
-      onTapDown: (details) => pressPosition = details.globalPosition,
-      onTap: onTap,
+      onTapDown: (details) {
+        pressPosition = details.globalPosition;
+        _groupChatGestureLog(
+          'file bubble tapDown isMe=$isMe selected=$selected pos=$pressPosition hasTap=${onTap != null} hasLong=${onLongPressAt != null}',
+        );
+      },
+      onTap: () {
+        _groupChatGestureLog('file bubble tap fire hasTap=${onTap != null}');
+        onTap?.call();
+      },
       onLongPress: onLongPressAt == null
           ? null
-          : () => onLongPressAt!(
-                _messageContextAnchorFor(cardKey, pressPosition),
-              ),
-      onSecondaryTapDown: (details) => pressPosition = details.globalPosition,
+          : () {
+              final anchor = _messageContextAnchorFor(cardKey, pressPosition);
+              _groupChatGestureLog(
+                'file bubble longPress fire pos=$pressPosition rect=${anchor.bubbleRect}',
+              );
+              onLongPressAt!(anchor);
+            },
+      onSecondaryTapDown: (details) {
+        pressPosition = details.globalPosition;
+        _groupChatGestureLog(
+          'file bubble secondaryTapDown pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+      },
       onSecondaryTap: onLongPressAt == null
           ? null
-          : () => onLongPressAt!(
-                _messageContextAnchorFor(cardKey, pressPosition),
-              ),
+          : () {
+              final anchor = _messageContextAnchorFor(cardKey, pressPosition);
+              _groupChatGestureLog(
+                'file bubble secondaryTap fire pos=$pressPosition rect=${anchor.bubbleRect}',
+              );
+              onLongPressAt!(anchor);
+            },
       child: ChatBubbleFrame(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 260),
@@ -3858,6 +4038,19 @@ bool _isGroupVoiceOutboxItem(LocalOutboxItem item) {
       item.mimeType.toLowerCase().startsWith('audio/');
 }
 
+String _groupOutboxCopyText(LocalOutboxItem item) {
+  final text = item.text.trim();
+  if (text.isNotEmpty) return text;
+  final filename = item.filename.trim();
+  if (filename.isNotEmpty) return filename;
+  return switch (item.messageKind) {
+    LocalOutboxMessageKind.image => '图片',
+    LocalOutboxMessageKind.video => '视频',
+    LocalOutboxMessageKind.file => '文件',
+    LocalOutboxMessageKind.text => '',
+  };
+}
+
 bool _isGroupVoiceEvent(Event event) {
   if (!event.hasAttachment) return false;
   if (event.messageType == MessageTypes.Audio) return true;
@@ -3995,6 +4188,7 @@ class _GroupMessageBubble extends StatelessWidget {
     final bubbleColor = _groupBubbleColor(t, isMe: isMe, selected: selected);
     final textBubbleKey = GlobalKey();
     final chatRecordKey = GlobalKey();
+    var pressPosition = Offset.zero;
 
     final bubble = redPacketPayload != null
         ? RedPacketMessageCard(
@@ -4020,13 +4214,40 @@ class _GroupMessageBubble extends StatelessWidget {
             : chatRecordPayload == null
                 ? GestureDetector(
                     key: textBubbleKey,
-                    onTap: onTap,
-                    onLongPressStart: (details) => onLongPressAt(
-                      _messageContextAnchorFor(
-                        textBubbleKey,
-                        details.globalPosition,
-                      ),
-                    ),
+                    onTap: () {
+                      _groupChatGestureLog(
+                        'text bubble tap fire eventId=${event.eventId} isMe=$isMe hasTap=${onTap != null}',
+                      );
+                      onTap?.call();
+                    },
+                    onTapDown: (details) {
+                      pressPosition = details.globalPosition;
+                      _groupChatGestureLog(
+                        'text bubble tapDown eventId=${event.eventId} isMe=$isMe selected=$selected multi=$multiSelect pos=$pressPosition hasTap=${onTap != null}',
+                      );
+                    },
+                    onLongPress: () {
+                      final anchor = _messageContextAnchorFor(
+                          textBubbleKey, pressPosition);
+                      _groupChatGestureLog(
+                        'text bubble longPress fire eventId=${event.eventId} isMe=$isMe pos=$pressPosition rect=${anchor.bubbleRect}',
+                      );
+                      onLongPressAt(anchor);
+                    },
+                    onSecondaryTapDown: (details) {
+                      pressPosition = details.globalPosition;
+                      _groupChatGestureLog(
+                        'text bubble secondaryTapDown eventId=${event.eventId} pos=$pressPosition',
+                      );
+                    },
+                    onSecondaryTap: () {
+                      final anchor = _messageContextAnchorFor(
+                          textBubbleKey, pressPosition);
+                      _groupChatGestureLog(
+                        'text bubble secondaryTap fire eventId=${event.eventId} pos=$pressPosition rect=${anchor.bubbleRect}',
+                      );
+                      onLongPressAt(anchor);
+                    },
                     child: ChatBubbleFrame(
                       child: Container(
                         decoration: BoxDecoration(
@@ -4085,7 +4306,7 @@ class _GroupMessageBubble extends StatelessWidget {
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment:
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
@@ -4155,20 +4376,24 @@ class _GroupPendingTextBubble extends StatelessWidget {
     required this.time,
     required this.status,
     required this.onRetry,
+    required this.onLongPressAt,
   });
 
   final String text;
   final String time;
   final LocalOutboxItemStatus status;
   final VoidCallback onRetry;
+  final _MessageContextAnchorCallback onLongPressAt;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final bubbleKey = GlobalKey();
+    var pressPosition = Offset.zero;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           Flexible(
@@ -4179,27 +4404,59 @@ class _GroupPendingTextBubble extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  ChatBubbleFrame(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: _groupBubbleColor(t, isMe: true),
-                        borderRadius: chatDirectionalBubbleRadius(true),
-                        border: _groupPeerBubbleBorder(t, isMe: true),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _groupBubbleShadowColor(t),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      child: Text(
-                        text,
-                        style: AppTheme.sans(size: 17, color: t.onAccent),
+                  GestureDetector(
+                    key: bubbleKey,
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (details) {
+                      pressPosition = details.globalPosition;
+                      _groupChatGestureLog(
+                        'pending text tapDown pos=$pressPosition status=$status',
+                      );
+                    },
+                    onLongPress: () {
+                      final anchor =
+                          _messageContextAnchorFor(bubbleKey, pressPosition);
+                      _groupChatGestureLog(
+                        'pending text longPress fire pos=$pressPosition rect=${anchor.bubbleRect}',
+                      );
+                      onLongPressAt(anchor);
+                    },
+                    onSecondaryTapDown: (details) {
+                      pressPosition = details.globalPosition;
+                      _groupChatGestureLog(
+                        'pending text secondaryTapDown pos=$pressPosition status=$status',
+                      );
+                    },
+                    onSecondaryTap: () {
+                      final anchor =
+                          _messageContextAnchorFor(bubbleKey, pressPosition);
+                      _groupChatGestureLog(
+                        'pending text secondaryTap fire pos=$pressPosition rect=${anchor.bubbleRect}',
+                      );
+                      onLongPressAt(anchor);
+                    },
+                    child: ChatBubbleFrame(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _groupBubbleColor(t, isMe: true),
+                          borderRadius: chatDirectionalBubbleRadius(true),
+                          border: _groupPeerBubbleBorder(t, isMe: true),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _groupBubbleShadowColor(t),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        child: Text(
+                          text,
+                          style: AppTheme.sans(size: 17, color: t.onAccent),
+                        ),
                       ),
                     ),
                   ),
@@ -4429,7 +4686,7 @@ class _GroupCallRecordMessageBubble extends StatelessWidget {
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment:
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
@@ -4598,15 +4855,19 @@ class _GroupPendingMediaBubble extends StatelessWidget {
   const _GroupPendingMediaBubble({
     required this.item,
     required this.onRetry,
+    required this.onLongPressAt,
   });
 
   final LocalOutboxItem item;
   final VoidCallback onRetry;
+  final _MessageContextAnchorCallback onLongPressAt;
 
   @override
   Widget build(BuildContext context) {
     final isFile = item.messageKind == LocalOutboxMessageKind.file;
     final isVideo = item.messageKind == LocalOutboxMessageKind.video;
+    final contentKey = GlobalKey();
+    var pressPosition = Offset.zero;
     final time = DateFormat('HH:mm').format(item.createdAt.toLocal());
     final content = isFile
         ? _GroupPendingFileCard(item: item, onRetry: onRetry)
@@ -4629,7 +4890,39 @@ class _GroupPendingMediaBubble extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  content,
+                  GestureDetector(
+                    key: contentKey,
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (details) {
+                      pressPosition = details.globalPosition;
+                      _groupChatGestureLog(
+                        'pending media tapDown id=${item.id} kind=${item.messageKind} pos=$pressPosition',
+                      );
+                    },
+                    onLongPress: () {
+                      final anchor =
+                          _messageContextAnchorFor(contentKey, pressPosition);
+                      _groupChatGestureLog(
+                        'pending media longPress fire id=${item.id} kind=${item.messageKind} pos=$pressPosition rect=${anchor.bubbleRect}',
+                      );
+                      onLongPressAt(anchor);
+                    },
+                    onSecondaryTapDown: (details) {
+                      pressPosition = details.globalPosition;
+                      _groupChatGestureLog(
+                        'pending media secondaryTapDown id=${item.id} kind=${item.messageKind} pos=$pressPosition',
+                      );
+                    },
+                    onSecondaryTap: () {
+                      final anchor =
+                          _messageContextAnchorFor(contentKey, pressPosition);
+                      _groupChatGestureLog(
+                        'pending media secondaryTap fire id=${item.id} kind=${item.messageKind} pos=$pressPosition rect=${anchor.bubbleRect}',
+                      );
+                      onLongPressAt(anchor);
+                    },
+                    child: content,
+                  ),
                   Padding(
                     padding: const EdgeInsets.only(top: 4, right: 4),
                     child: Text(
@@ -4886,6 +5179,9 @@ Future<String?> _showGroupMessageContextMenu(
   final size = MediaQuery.of(context).size;
   final position = anchor.position;
   final bubbleRect = anchor.bubbleRect;
+  _groupChatGestureLog(
+    'show menu request pos=$position rect=$bubbleRect placement=$placement size=$size canCopy=$canCopy canQuote=$canQuote canRecall=$canRecall',
+  );
   return showGeneralDialog<String>(
     context: context,
     barrierDismissible: true,
@@ -4912,6 +5208,9 @@ Future<String?> _showGroupMessageContextMenu(
       }
       top = top.clamp(12.0, math.max(12.0, size.height - menuH - 12));
       final pointerX = (position.dx - left - 10).clamp(18.0, menuW - 38.0);
+      _groupChatGestureLog(
+        'show menu layout left=$left top=$top width=$menuW pointerX=$pointerX pointerOnTop=$pointerOnTop',
+      );
       return Stack(
         children: [
           Positioned(
@@ -5263,13 +5562,14 @@ class _MemberAvatar extends StatelessWidget {
     final avatar = PortalAvatar(
       key: ValueKey('group_member_avatar_$seed'),
       seed: name.isNotEmpty ? name : seed,
-      size: 32,
+      size: 40,
       imageUrl: imageUrl,
+      shape: AvatarShape.squircle,
     );
     if (onTap == null) return avatar;
-    return InkWell(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(9999),
       child: avatar,
     );
   }

@@ -890,6 +890,68 @@ void main() {
     expect(find.byIcon(Symbols.lock), findsNothing);
   });
 
+  testWidgets('channel conversation long press opens message actions',
+      (tester) async {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '综合讨论',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 32,
+          tags: const ['文字'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelConversationPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('我正在考虑接受它！！'), findsNWidgets(2));
+
+    await tester.longPress(find.text('我正在考虑接受它！！').first);
+    await tester.pumpAndSettle();
+    expect(find.text('复制'), findsOneWidget);
+    expect(find.text('删除'), findsOneWidget);
+
+    await tester.tap(find.text('复制'));
+    await tester.pumpAndSettle();
+    expect(find.text('复制'), findsNothing);
+
+    await tester.longPress(find.text('我正在考虑接受它！！').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('我正在考虑接受它！！'), findsOneWidget);
+  });
+
   testWidgets('post list more button opens channel info page', (tester) async {
     final asClient = _PostingChannelAsClient();
     final bootstrap = AsSyncBootstrap(
@@ -934,7 +996,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Symbols.more_horiz).first);
+    await tester.tap(find.byIcon(Symbols.more_vert).first);
     await tester.pumpAndSettle();
 
     expect(find.byType(ChannelInfoPage), findsOneWidget);

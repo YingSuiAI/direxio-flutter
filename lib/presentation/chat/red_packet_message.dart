@@ -134,18 +134,41 @@ class RedPacketMessageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    var pressPosition = Offset.zero;
     final title = payload.isMine ? '扫雷红包' : '红包';
     final subtitle = payload.blessing.isEmpty ? '恭喜发财，大吉大利' : payload.blessing;
     final background =
         selected ? t.accent.withValues(alpha: 0.18) : const Color(0xFFE95445);
+    var pressPosition = Offset.zero;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (details) => pressPosition = details.globalPosition,
-      onTap: onTap,
-      onLongPress: () => onLongPressAt?.call(pressPosition),
-      onSecondaryTapDown: (details) => pressPosition = details.globalPosition,
-      onSecondaryTap: () => onLongPressAt?.call(pressPosition),
+      onTap: () {
+        debugPrint('[chat gesture] redPacket tap fire hasTap=${onTap != null}');
+        onTap?.call();
+      },
+      onTapDown: (details) {
+        pressPosition = details.globalPosition;
+        debugPrint(
+          '[chat gesture] redPacket tapDown pos=$pressPosition hasTap=${onTap != null} hasLong=${onLongPressAt != null}',
+        );
+      },
+      onLongPress: () {
+        debugPrint(
+          '[chat gesture] redPacket longPress fire pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(pressPosition);
+      },
+      onSecondaryTapDown: (details) {
+        pressPosition = details.globalPosition;
+        debugPrint(
+          '[chat gesture] redPacket secondaryTapDown pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+      },
+      onSecondaryTap: () {
+        debugPrint(
+          '[chat gesture] redPacket secondaryTap fire pos=$pressPosition hasLong=${onLongPressAt != null}',
+        );
+        onLongPressAt?.call(pressPosition);
+      },
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 236),
         child: DecoratedBox(

@@ -70,7 +70,7 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
             title: channel.name,
             actions: [
               GlassHeaderButton(
-                icon: Symbols.more_horiz,
+                icon: Symbols.more_vert,
                 onTap: () => _showChannelMenu(context, channel),
               ),
             ],
@@ -353,7 +353,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
             title: channel.name,
             actions: [
               GlassHeaderButton(
-                icon: Symbols.more_horiz,
+                icon: Symbols.more_vert,
                 onTap: () => _openRealChannelInfo(context, channel),
               ),
             ],

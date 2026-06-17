@@ -1424,7 +1424,7 @@ Future<void> _confirmDissolveChannel(
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('已解散频道')),
     );
-    _popAfterDissolve(context);
+    _returnToChannelList(context);
   } catch (err) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1433,7 +1433,13 @@ Future<void> _confirmDissolveChannel(
   }
 }
 
-void _popAfterDissolve(BuildContext context) {
+void _returnToChannelList(BuildContext context) {
+  try {
+    context.go('/me/channels');
+    return;
+  } catch (_) {
+    // Tests may mount this page without GoRouter.
+  }
   final navigator = Navigator.of(context);
   if (navigator.canPop()) {
     navigator.pop();

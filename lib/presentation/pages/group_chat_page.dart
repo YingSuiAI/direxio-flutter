@@ -51,6 +51,7 @@ import '../call/voice_call_controller.dart';
 import '../utils/message_history_policy.dart';
 import '../utils/avatar_url.dart';
 import '../utils/chat_event_attachment.dart';
+import '../utils/direct_contact_status.dart';
 import 'group_call_member_select_page.dart';
 import '../utils/read_marker_sync.dart';
 import '../utils/recovered_unread_events.dart';
@@ -1427,9 +1428,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _mentionSheetOpen = true;
     try {
       if (!mounted) return;
-      final members = groupCallInviteMembersFromRoom(
+      final members = mentionMembersForRoom(
         room,
         currentUserId: ref.read(matrixClientProvider).userID,
+        isChannelConversation: _isChannelConversation,
       );
       final selected = await showModalBottomSheet<GroupCallInviteMember>(
         context: context,
@@ -3315,6 +3317,23 @@ class _GroupImageMessageBubble extends StatelessWidget {
       child: row,
     );
   }
+}
+
+List<GroupCallInviteMember> mentionMembersForRoom(
+  Room room, {
+  required String? currentUserId,
+  required bool isChannelConversation,
+}) {
+  final members = groupCallInviteMembersFromRoom(
+    room,
+    currentUserId: currentUserId,
+  );
+  if (!isChannelConversation) return members;
+  final agentMxid = portalAgentMxidForClient(room.client);
+  if (agentMxid == null || agentMxid.isEmpty) return members;
+  return members
+      .where((member) => member.userId.trim() != agentMxid)
+      .toList(growable: false);
 }
 
 class _GroupMentionMemberSheet extends StatefulWidget {

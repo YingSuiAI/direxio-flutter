@@ -903,6 +903,70 @@ void main() {
     );
   });
 
+  test('group mute APIs post expected AS endpoints', () async {
+    final expectedPaths = [
+      '/_as/groups/!group%3Ap2p-im.com/mute',
+      '/_as/groups/!group%3Ap2p-im.com/unmute',
+      '/_as/groups/!group%3Ap2p-im.com/members/'
+          '%40carol%3Ap2p-carol.com/mute',
+      '/_as/groups/!group%3Ap2p-im.com/members/'
+          '%40carol%3Ap2p-carol.com/unmute',
+    ];
+    var index = 0;
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, expectedPaths[index++]);
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(request.body, isEmpty);
+        return _jsonResponse({'ok': true}, 200);
+      }),
+    );
+
+    await client.muteGroup('!group:p2p-im.com');
+    await client.unmuteGroup('!group:p2p-im.com');
+    await client.muteGroupMember(
+      roomId: '!group:p2p-im.com',
+      userId: ' @carol:p2p-carol.com ',
+    );
+    await client.unmuteGroupMember(
+      roomId: '!group:p2p-im.com',
+      userId: ' @carol:p2p-carol.com ',
+    );
+
+    expect(index, expectedPaths.length);
+  });
+
+  test('channel mute APIs post expected AS endpoints', () async {
+    final expectedPaths = [
+      '/_as/channels/ch1/mute',
+      '/_as/channels/ch1/unmute',
+      '/_as/channels/ch1/members/%40carol%3Ap2p-carol.com/mute',
+      '/_as/channels/ch1/members/%40carol%3Ap2p-carol.com/unmute',
+    ];
+    var index = 0;
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, expectedPaths[index++]);
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(request.body, isEmpty);
+        return _jsonResponse({'ok': true}, 200);
+      }),
+    );
+
+    await client.muteChannel(' ch1 ');
+    await client.unmuteChannel(' ch1 ');
+    await client.muteChannelMember(' ch1 ', ' @carol:p2p-carol.com ');
+    await client.unmuteChannelMember(' ch1 ', ' @carol:p2p-carol.com ');
+
+    expect(index, expectedPaths.length);
+  });
+
   test('updateGroupInvitePolicy puts selected policy through AS', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),
@@ -1821,6 +1885,48 @@ void main() {
     expect(comment.postId, 'post1');
     expect(comment.reactionCount, 5);
     expect(comment.reactedByMe, isTrue);
+  });
+
+  test('getChannelComments uses page query parameters', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/_as/channels/ch1/posts/post1/comments');
+        expect(request.url.queryParameters, {
+          'page': '1',
+          'page_size': '5',
+        });
+        return _jsonResponse(
+          {
+            'comments': [
+              {
+                'comment_id': 'comment1',
+                'post_id': 'post1',
+                'channel_id': 'ch1',
+                'event_id': r'$comment1',
+                'author_mxid': '@owner:example.com',
+                'body': '收到',
+                'message_type': 'text',
+                'origin_server_ts': 1780730000000,
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final comments = await client.getChannelComments(
+      'ch1',
+      'post1',
+      page: 1,
+      pageSize: 5,
+    );
+
+    expect(comments, hasLength(1));
+    expect(comments.single.commentId, 'comment1');
   });
 
   test('toggleChannelPostReaction posts current reaction state', () async {

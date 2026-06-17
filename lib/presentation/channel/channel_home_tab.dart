@@ -11,6 +11,7 @@ import '../../l10n/app_localizations.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/local_created_channels_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
@@ -70,27 +71,37 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     final useRealChannels = !_mockAuthEnabled && isLoggedIn;
     final listedChannels =
         useRealChannels ? ref.watch(_channelListProvider).valueOrNull : null;
+    final localCreatedChannels = useRealChannels
+        ? ref.watch(localCreatedChannelsProvider)
+        : const <ChannelCreatedCacheEntry>[];
     final fallbackDomain = _clientServerName(client);
     final sourceChannels = useRealChannels
-        ? listedChannels == null
-            ? bootstrap == null
-                ? const <ChannelInboxItem>[]
-                : ChannelInboxData.fromBootstrap(
-                    bootstrap,
+        ? ChannelInboxData.mergeCreatedCache(
+            listedChannels == null
+                ? bootstrap == null
+                    ? const <ChannelInboxItem>[]
+                    : ChannelInboxData.fromBootstrap(
+                        bootstrap,
+                        fallbackDomain: fallbackDomain,
+                        roomNameForRoomId: (roomId) =>
+                            _matrixRoomName(client, roomId),
+                        roomAvatarForRoomId: (roomId) =>
+                            _matrixRoomAvatar(client, roomId),
+                      )
+                : ChannelInboxData.fromChannels(
+                    listedChannels,
                     fallbackDomain: fallbackDomain,
+                    bootstrap: bootstrap,
                     roomNameForRoomId: (roomId) =>
                         _matrixRoomName(client, roomId),
                     roomAvatarForRoomId: (roomId) =>
                         _matrixRoomAvatar(client, roomId),
-                  )
-            : ChannelInboxData.fromChannels(
-                listedChannels,
-                fallbackDomain: fallbackDomain,
-                bootstrap: bootstrap,
-                roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
-                roomAvatarForRoomId: (roomId) =>
-                    _matrixRoomAvatar(client, roomId),
-              )
+                  ),
+            localCreatedChannels,
+            fallbackDomain: fallbackDomain,
+            roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
+            roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+          )
         : _mockChannelItems();
     final joinedChannels = _channelFilteredItems(
       sourceChannels.where((channel) => !channel.isOwned).toList(),
@@ -235,10 +246,24 @@ class MeChannelsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final client = ref.watch(matrixClientProvider);
     final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
+    final localCreatedChannels = ref.watch(localCreatedChannelsProvider);
     final channels = bootstrap == null
-        ? const <ChannelInboxItem>[]
-        : ChannelInboxData.fromBootstrap(
-            bootstrap,
+        ? ChannelInboxData.mergeCreatedCache(
+            const <ChannelInboxItem>[],
+            localCreatedChannels,
+            fallbackDomain: _clientServerName(client),
+            roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
+            roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+          ).where((channel) => channel.isOwned).toList(growable: false)
+        : ChannelInboxData.mergeCreatedCache(
+            ChannelInboxData.fromBootstrap(
+              bootstrap,
+              fallbackDomain: _clientServerName(client),
+              roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
+              roomAvatarForRoomId: (roomId) =>
+                  _matrixRoomAvatar(client, roomId),
+            ),
+            localCreatedChannels,
             fallbackDomain: _clientServerName(client),
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
@@ -1378,43 +1403,43 @@ List<ChannelInboxItem> _mockChannelItems() {
       pendingJoinCount: 1,
     ),
     ChannelInboxItem(
-      id: 'product',
-      roomId: 'product',
-      name: '产品频道',
+      id: 'p2p-im',
+      roomId: 'p2p-im',
+      name: 'P2P IM 官方',
       domain: 'p2p-im.com',
       avatarUrl: '',
-      latestPreview: '频道页会先按用户自己的频道和已加入频道展示',
-      latestAt: _todayAt(16, 10),
-      unreadCount: 4,
+      latestPreview: '后端部署清单已更新：个人资料、二维码加好友...',
+      latestAt: _todayAt(18, 40),
+      unreadCount: 3,
       isOwned: true,
       channelType: asChannelTypePost,
-      tags: const ['帖子'],
+      tags: const ['帖子', '产品'],
     ),
     ChannelInboxItem(
-      id: 'design',
-      roomId: 'design',
-      name: '设计频道',
+      id: 'ai-studio',
+      roomId: 'ai-studio',
+      name: 'AI 创作实验室',
       domain: 'p2p-im.com',
       avatarUrl: '',
-      latestPreview: '频道帖子支持图片、视频、链接、表情和转发',
-      latestAt: DateTime.now().subtract(const Duration(days: 1)),
-      unreadCount: 0,
-      isOwned: true,
-      channelType: asChannelTypePost,
-      tags: const ['帖子'],
-    ),
-    ChannelInboxItem(
-      id: 'agent',
-      roomId: 'agent',
-      name: 'Agent 通知',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: 'OpenClaw、Helm、Hermes Agent 通道状态更新',
-      latestAt: DateTime.now().subtract(const Duration(days: 3)),
+      latestPreview: '短视频脚本生成流程已整理',
+      latestAt: _todayAt(13, 20),
       unreadCount: 1,
       isOwned: true,
       channelType: asChannelTypePost,
-      tags: const ['帖子'],
+      tags: const ['帖子', 'AI'],
+    ),
+    ChannelInboxItem(
+      id: 'agent-workflows',
+      roomId: 'agent-workflows',
+      name: 'Agent 工作流',
+      domain: 'agent-workflows.p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '有人分享了群聊总结模板',
+      latestAt: _todayAt(18, 12),
+      unreadCount: 8,
+      isOwned: false,
+      channelType: asChannelTypePost,
+      tags: const ['帖子', 'AI'],
     ),
     ChannelInboxItem(
       id: 'drafts',

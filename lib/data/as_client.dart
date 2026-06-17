@@ -1605,6 +1605,18 @@ abstract class AsClient {
   /// POST /_as/channels/{channelId}/members/{userMxid}/remove
   Future<void> removeChannelMember(String channelId, String userMxid);
 
+  /// POST /_as/channels/{channelId}/mute
+  Future<void> muteChannel(String channelId);
+
+  /// POST /_as/channels/{channelId}/unmute
+  Future<void> unmuteChannel(String channelId);
+
+  /// POST /_as/channels/{channelId}/members/{userId}/mute
+  Future<void> muteChannelMember(String channelId, String userId);
+
+  /// POST /_as/channels/{channelId}/members/{userId}/unmute
+  Future<void> unmuteChannelMember(String channelId, String userId);
+
   /// GET /_as/channels/{channelId}/posts
   Future<List<AsChannelPost>> getChannelPosts(
     String channelId, {
@@ -1624,8 +1636,8 @@ abstract class AsClient {
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
     String postId, {
-    int limit = 50,
-    int beforeTs = 0,
+    int page = 1,
+    int pageSize = 50,
   });
 
   /// POST /_as/channels/{channelId}/posts/{postId}/comments
@@ -1685,6 +1697,24 @@ abstract class AsClient {
   Future<void> removeGroupMember({
     required String roomId,
     required String peerMxid,
+  });
+
+  /// POST /_as/groups/{roomId}/mute
+  Future<void> muteGroup(String roomId);
+
+  /// POST /_as/groups/{roomId}/unmute
+  Future<void> unmuteGroup(String roomId);
+
+  /// POST /_as/groups/{roomId}/members/{userId}/mute
+  Future<void> muteGroupMember({
+    required String roomId,
+    required String userId,
+  });
+
+  /// POST /_as/groups/{roomId}/members/{userId}/unmute
+  Future<void> unmuteGroupMember({
+    required String roomId,
+    required String userId,
   });
 
   /// PUT /_as/groups/{roomId}/invite-policy

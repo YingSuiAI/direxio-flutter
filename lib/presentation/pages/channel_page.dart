@@ -67,7 +67,7 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
       body: Column(
         children: [
           GlassHeader.detail(
-            title: channel.name,
+            title: _postChannelTitle(channel.name),
             actions: [
               GlassHeaderButton(
                 icon: Symbols.more_vert,
@@ -77,7 +77,7 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
           ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
               children: [
                 const _ChannelIntroPill(),
                 const SizedBox(height: 20),
@@ -105,9 +105,7 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
               count: _selected.length,
               onExit: _cancelSelection,
               onForward: () => _forwardMockChannelSelection(channel),
-            )
-          else if (!channel.isOwned)
-            const _JoinedChannelStatusBar(),
+            ),
         ],
       ),
     );
@@ -350,7 +348,8 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
       body: Column(
         children: [
           GlassHeader.detail(
-            title: channel.name,
+            title: _postChannelTitle(channel.name),
+            titleTrailing: _channelTitleLock(context, channel.visibility),
             actions: [
               GlassHeaderButton(
                 icon: Symbols.more_vert,
@@ -360,7 +359,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
           ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
               children: [
                 const _ChannelIntroPill(),
                 const SizedBox(height: 20),
@@ -385,7 +384,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
                               .read(asClientProvider)
                               .toggleChannelPostReaction(
                                 channel.id,
-                                post.postId,
+                                _realPostKey(post),
                               );
                           await ref
                               .read(channelPostsProvider(channel.id).notifier)
@@ -421,9 +420,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
               count: widget.selected.length,
               onExit: widget.onCancelSelection,
               onForward: widget.onForward,
-            )
-          else if (!channel.isOwned)
-            const _JoinedChannelStatusBar(),
+            ),
         ],
       ),
     );
@@ -536,8 +533,10 @@ class _PublicChannelScaffoldState
           body: Column(
             children: [
               GlassHeader.detail(
-                title: channel?.name ?? '频道',
+                title: channel == null ? '频道' : _postChannelTitle(channel.name),
                 subtitle: channel?.homeDomain,
+                titleTrailing:
+                    _channelTitleLock(context, channel?.visibility ?? ''),
               ),
               Expanded(
                 child: _buildBody(snapshot),
@@ -602,19 +601,19 @@ class _PublicChannelScaffoldState
         _joining = false;
         _future = Future.value(joined);
       });
-      if (joined.memberStatus == asChannelMemberStatusJoined) {
-        final bootstrap =
-            await ref.read(asBootstrapRepositoryProvider).refresh();
-        ref.read(asSyncCacheProvider.notifier).update(
-              (state) => state.copyWith(bootstrap: bootstrap),
-            );
-      }
       if (!mounted) return;
-      final message = joined.memberStatus == asChannelMemberStatusPending
-          ? '已提交加入申请'
-          : '已加入频道';
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+      if (joined.memberStatus == asChannelMemberStatusPending) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已提交加入申请')),
+        );
+        return;
+      }
+      final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.copyWith(bootstrap: bootstrap),
+          );
+      if (!mounted) return;
+      _openJoinedPublicChannel(context, joined, fallback: channel);
     } catch (err) {
       if (!mounted) return;
       setState(() => _joining = false);
@@ -627,6 +626,43 @@ class _PublicChannelScaffoldState
 
 bool _looksLikeMatrixRoomId(String value) {
   return value.startsWith('!') && value.contains(':');
+}
+
+Widget? _channelTitleLock(BuildContext context, String visibility) {
+  if (visibility != asChannelVisibilityPrivate) return null;
+  return Icon(
+    Symbols.lock,
+    size: 15,
+    color: context.tk.accent,
+    fill: 1,
+  );
+}
+
+String _postChannelTitle(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '#频道';
+  if (trimmed.startsWith('#')) return trimmed;
+  return '#$trimmed';
+}
+
+void _openJoinedPublicChannel(
+  BuildContext context,
+  AsChannel joined, {
+  required AsChannel fallback,
+}) {
+  final channelId = joined.channelId.trim().isEmpty
+      ? fallback.channelId.trim()
+      : joined.channelId.trim();
+  if (channelId.isEmpty) return;
+  final encodedChannelId = Uri.encodeComponent(channelId);
+  if (normalizeAsChannelType(joined.channelType) == asChannelTypePost) {
+    context.go('/channel/$encodedChannelId');
+    return;
+  }
+  final name =
+      joined.name.trim().isEmpty ? fallback.name.trim() : joined.name.trim();
+  final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
+  context.go('/channel/$encodedChannelId/conversation$query');
 }
 
 ChannelInboxItem _channelItemFromPublicChannel(AsChannel channel) {
@@ -923,9 +959,7 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
                 const Spacer(),
                 _PostStatButton(
                   key: ValueKey('channel_post_like_${_realPostKey(post)}'),
-                  icon: post.reactedByMe
-                      ? Symbols.favorite
-                      : Symbols.favorite_border,
+                  icon: Symbols.favorite,
                   active: post.reactedByMe,
                   count: post.reactionCount,
                   onTap: widget.onReaction == null
@@ -1171,7 +1205,12 @@ class _PostStatButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 21, color: active ? t.danger : t.textMute),
+            Icon(
+              icon,
+              size: 21,
+              color: active ? t.danger : t.textMute,
+              fill: active ? 1 : 0,
+            ),
             const SizedBox(width: 5),
             Text(
               '$count',
@@ -1237,7 +1276,19 @@ String _formatPostTime(int originServerTs) {
   return '${dt.month}.${dt.day}';
 }
 
-class _ChannelTopicCard extends StatelessWidget {
+String _formatTopicTime(DateTime? latestAt) {
+  if (latestAt == null) return '';
+  final dt = latestAt.toLocal();
+  final now = DateTime.now();
+  final sameDay =
+      dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  if (sameDay) {
+    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+  return '${dt.month}.${dt.day}';
+}
+
+class _ChannelTopicCard extends StatefulWidget {
   const _ChannelTopicCard({
     required this.channel,
     this.selected = false,
@@ -1253,36 +1304,124 @@ class _ChannelTopicCard extends StatelessWidget {
   final VoidCallback? onLongPress;
 
   @override
+  State<_ChannelTopicCard> createState() => _ChannelTopicCardState();
+}
+
+class _ChannelTopicCardState extends State<_ChannelTopicCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final title = _postTitle(widget.channel.latestPreview);
+    final excerpt = _postExcerpt(widget.channel.latestPreview, title);
+    final author =
+        widget.channel.name.trim().isEmpty ? '频道主' : widget.channel.name.trim();
+    final time = _formatTopicTime(widget.channel.latestAt);
     return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Container(
-        padding: const EdgeInsets.all(14),
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
         decoration: BoxDecoration(
-          color: selected ? t.accent.withValues(alpha: 0.12) : t.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? t.accent : t.border.withValues(alpha: 0.18),
-          ),
+          color: widget.selected ? t.accent.withValues(alpha: 0.12) : t.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: widget.selected ? Border.all(color: t.accent) : null,
+          boxShadow: [
+            BoxShadow(
+              color: t.text.withValues(alpha: 0.07),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (multiSelect) ...[
-              _ChannelSelectCheckmark(
-                selected: selected,
-                onTap: onTap,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.multiSelect) ...[
+                  _ChannelSelectCheckmark(
+                    selected: widget.selected,
+                    onTap: widget.onTap,
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                _PostListAvatar(label: author),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              author,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.sans(
+                                size: 16,
+                                weight: FontWeight.w600,
+                                color: t.text,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const _PostTypeBadge(),
+                        ],
+                      ),
+                      const SizedBox(height: 1),
+                      if (time.isNotEmpty)
+                        Text(
+                          time,
+                          style: AppTheme.sans(size: 12, color: t.textMute),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 18,
+                weight: FontWeight.w600,
+                color: t.text,
+              ).copyWith(height: 26 / 18),
+            ),
+            if (excerpt.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              _ExpandablePostExcerpt(
+                excerpt,
+                expanded: _expanded,
+                onToggle: () => setState(() => _expanded = !_expanded),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(height: 10),
+            ] else ...[
+              const SizedBox(height: 10),
             ],
-            Expanded(
-              child: Text(
-                channel.latestPreview,
-                style: AppTheme.sans(size: 15, color: t.text)
-                    .copyWith(height: 1.45),
-              ),
+            Row(
+              children: [
+                _PostCommentInput(onTap: widget.onTap),
+                const Spacer(),
+                _PostStatButton(
+                  icon: Symbols.favorite,
+                  count: 0,
+                  onTap: widget.onTap,
+                ),
+                const SizedBox(width: 16),
+                _PostStatButton(
+                  icon: Symbols.chat_bubble,
+                  count: 0,
+                  onTap: widget.onTap,
+                ),
+              ],
             ),
           ],
         ),
@@ -1412,7 +1551,7 @@ class _ChannelPostCardState extends State<_ChannelPostCard> {
                 _PostCommentInput(onTap: widget.onTap),
                 const Spacer(),
                 _PostStatButton(
-                  icon: Symbols.favorite_border,
+                  icon: Symbols.favorite,
                   count: _countFromLabel(widget.post.reactionLabel),
                 ),
                 const SizedBox(width: 16),

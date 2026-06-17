@@ -15,6 +15,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/local_created_channels_provider.dart';
 import '../widgets/m3/glass_header.dart';
 
 Future<void> showCreateChannelDialog(
@@ -41,6 +42,10 @@ String _channelTypeForDraft(String type) {
   return type.trim() == '帖子' ? 'post' : 'chat';
 }
 
+String createChannelJoinPolicyForVisibility(bool isPublic) {
+  return isPublic ? asChannelJoinPolicyOpen : asChannelJoinPolicyApproval;
+}
+
 class _CreateChannelDraft {
   const _CreateChannelDraft({
     required this.name,
@@ -48,7 +53,6 @@ class _CreateChannelDraft {
     required this.description,
     this.avatarUrl = '',
     required this.isPublic,
-    required this.needsApproval,
   });
 
   final String name;
@@ -56,7 +60,6 @@ class _CreateChannelDraft {
   final String description;
   final String avatarUrl;
   final bool isPublic;
-  final bool needsApproval;
 }
 
 class _CreateChannelSheet extends ConsumerStatefulWidget {
@@ -123,28 +126,20 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
   Future<void> _submit() async {
     if (_creating) return;
     if (_avatarUploading) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('频道头像上传中，请稍候')),
-      );
+      _showCenterWeakHint(context, '频道头像上传中，请稍候');
       return;
     }
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('频道名称不能为空')),
-      );
+      _showCenterWeakHint(context, '频道名称不能为空');
       return;
     }
     if (_avatarUrl.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请上传频道头像')),
-      );
+      _showCenterWeakHint(context, '请上传频道头像');
       return;
     }
     if (_introCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('频道介绍不能为空')),
-      );
+      _showCenterWeakHint(context, '频道介绍不能为空');
       return;
     }
 
@@ -156,7 +151,6 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
         description: _introCtrl.text,
         avatarUrl: _avatarUrl,
         isPublic: _isPublic,
-        needsApproval: _needsApproval,
       );
       final channel = await ref.read(asClientProvider).createChannel(
         name: name,
@@ -165,20 +159,22 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
         visibility: draft.isPublic
             ? asChannelVisibilityPublic
             : asChannelVisibilityPrivate,
-        joinPolicy: draft.needsApproval
-            ? asChannelJoinPolicyApproval
-            : asChannelJoinPolicyOpen,
+        joinPolicy: createChannelJoinPolicyForVisibility(draft.isPublic),
         channelType: _channelTypeForDraft(draft.type),
         tags: [draft.type],
       );
       ApiLogger.info(
         '[AS admin] create channel result ${jsonEncode(channel.toJson())}',
       );
+      final createdAt = DateTime.now().toUtc();
+      await ref
+          .read(localCreatedChannelsProvider.notifier)
+          .cacheCreatedChannel(channel, createdAt);
       final bootstrap = _bootstrapWithCreatedChannel(
         await ref.read(asBootstrapRepositoryProvider).refresh(),
         channel,
         draft,
-        DateTime.now().toUtc(),
+        createdAt,
       );
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
@@ -306,6 +302,7 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
                   child: SizedBox(
                     width: 156,
                     child: _CreateChannelSubmitButton(
+                      creating: _creating,
                       onTap: _submit,
                     ),
                   ),
@@ -865,8 +862,12 @@ class _CreateChannelIntroField extends StatelessWidget {
 }
 
 class _CreateChannelSubmitButton extends StatelessWidget {
-  const _CreateChannelSubmitButton({required this.onTap});
+  const _CreateChannelSubmitButton({
+    required this.creating,
+    required this.onTap,
+  });
 
+  final bool creating;
   final VoidCallback onTap;
 
   @override
@@ -875,24 +876,77 @@ class _CreateChannelSubmitButton extends StatelessWidget {
       color: context.tk.accent,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: onTap,
+        onTap: creating ? null : onTap,
         borderRadius: BorderRadius.circular(12),
         child: SizedBox(
           height: 43,
           child: Center(
-            child: Text(
-              '创建频道',
-              style: AppTheme.sans(
-                size: 18,
-                weight: FontWeight.w600,
-                color: context.tk.onAccent,
-              ).copyWith(height: 26 / 18),
-            ),
+            child: creating
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: context.tk.onAccent,
+                    ),
+                  )
+                : Text(
+                    '创建频道',
+                    style: AppTheme.sans(
+                      size: 18,
+                      weight: FontWeight.w600,
+                      color: context.tk.onAccent,
+                    ).copyWith(height: 26 / 18),
+                  ),
           ),
         ),
       ),
     );
   }
+}
+
+void _showCenterWeakHint(BuildContext context, String message) {
+  final overlay = Overlay.maybeOf(context);
+  if (overlay == null) return;
+  final t = context.tk;
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => IgnorePointer(
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 260),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: BoxDecoration(
+              color: t.text.withValues(alpha: 0.86),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(
+                size: 14,
+                weight: FontWeight.w500,
+                color: t.bg,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  overlay.insert(entry);
+  Future<void>.delayed(const Duration(milliseconds: 1200), () {
+    if (entry.mounted) entry.remove();
+  });
 }
 
 String _imageMimeTypeForName(String name) {

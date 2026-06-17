@@ -21,6 +21,7 @@ import 'package:portal_app/data/chat_clear_state_store.dart';
 import 'package:portal_app/data/conversation_preferences_store.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
+import 'package:portal_app/presentation/channel/create_channel_sheet.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
 import 'package:portal_app/presentation/channel/channel_home_tab.dart';
@@ -407,6 +408,18 @@ class _EmptyAsClient implements AsClient {
   Future<void> removeChannelMember(String channelId, String userMxid) async {}
 
   @override
+  Future<void> muteChannel(String channelId) async {}
+
+  @override
+  Future<void> unmuteChannel(String channelId) async {}
+
+  @override
+  Future<void> muteChannelMember(String channelId, String userId) async {}
+
+  @override
+  Future<void> unmuteChannelMember(String channelId, String userId) async {}
+
+  @override
   Future<void> leaveChannel(String channelId) async {}
 
   @override
@@ -440,8 +453,8 @@ class _EmptyAsClient implements AsClient {
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
     String postId, {
-    int limit = 50,
-    int beforeTs = 0,
+    int page = 1,
+    int pageSize = 50,
   }) async =>
       const [];
 
@@ -700,6 +713,24 @@ class _EmptyAsClient implements AsClient {
   Future<void> removeGroupMember({
     required String roomId,
     required String peerMxid,
+  }) async {}
+
+  @override
+  Future<void> muteGroup(String roomId) async {}
+
+  @override
+  Future<void> unmuteGroup(String roomId) async {}
+
+  @override
+  Future<void> muteGroupMember({
+    required String roomId,
+    required String userId,
+  }) async {}
+
+  @override
+  Future<void> unmuteGroupMember({
+    required String roomId,
+    required String userId,
   }) async {}
 
   @override
@@ -3853,6 +3884,17 @@ void main() {
     expect(find.text('加入是否需要审核'), findsOneWidget);
   });
 
+  test('create channel join policy follows public visibility', () {
+    expect(
+      createChannelJoinPolicyForVisibility(false),
+      asChannelJoinPolicyApproval,
+    );
+    expect(
+      createChannelJoinPolicyForVisibility(true),
+      asChannelJoinPolicyOpen,
+    );
+  });
+
   testWidgets('create channel empty name stays on form with prompt',
       (tester) async {
     final client = Client('PortalIMCreateChannelEmptyNameTest');
@@ -3879,6 +3921,7 @@ void main() {
     expect(find.text('频道名称不能为空'), findsAtLeastNWidgets(1));
     expect(find.text('频道名称'), findsOneWidget);
     expect(find.text('上传频道头像'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1200));
   });
 
   testWidgets('channel review entry opens figma review page', (tester) async {
@@ -6899,6 +6942,88 @@ void main() {
     ]);
   });
 
+  testWidgets('channel chat @ mention picker excludes portal agent',
+      (tester) async {
+    final client = Client(
+      'PortalIMChannelMentionAgentFilterTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!channel:p2p-im.com',
+      name: '频道会话',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {
+        '@alice:p2p-im.com': 'Alice',
+        '@agent:p2p-im.com': 'Agent',
+      },
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 30, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_mention',
+          roomId: '!channel:p2p-im.com',
+          name: '频道会话',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(
+            roomId: '!channel:p2p-im.com',
+            channelId: 'ch_mention',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '@');
+    await tester.pumpAndSettle();
+
+    expect(find.text('选择提醒的人'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('group_mention_member_@alice:p2p-im.com')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('group_mention_member_@agent:p2p-im.com')),
+      findsNothing,
+    );
+    expect(find.text('@agent:p2p-im.com'), findsNothing);
+  });
+
   testWidgets('group chat recovers when Matrix room cache is missing',
       (tester) async {
     final client = Client('PortalIMGroupChatMissingRoomRecoveryTest')
@@ -8220,14 +8345,15 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('综合讨论').last);
+    await tester.tap(find.byKey(const ValueKey('channel_inbox_tile_p2p-im')));
     await tester.pumpAndSettle();
 
     expect(find.text('p2p-im.com · 我的频道'), findsNothing);
+    expect(find.text('#P2P IM 官方'), findsOneWidget);
     expect(
         find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);
     expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
-    expect(find.textContaining('后端部署清单已更新'), findsOneWidget);
+    expect(find.textContaining('后端部署清单已更新'), findsWidgets);
   });
 
   testWidgets('empty real channel inbox does not show mock sample channels',
@@ -8326,8 +8452,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('agent-workflows.p2p-im.com · 已关注'), findsOneWidget);
-    expect(find.text('已关注'), findsAtLeastNWidgets(1));
+    expect(find.text('已关注'), findsNothing);
+    expect(find.text('接收通知'), findsNothing);
     expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
     expect(find.text('36'), findsOneWidget);
     expect(find.text('12'), findsOneWidget);
@@ -8336,9 +8462,11 @@ void main() {
     await tester.tap(find.text('12'));
     await tester.pumpAndSettle();
 
-    expect(find.text('#Agent 工作流'), findsOneWidget);
+    expect(find.text('帖子详情'), findsOneWidget);
     expect(find.text('输入评论...'), findsOneWidget);
     expect(find.textContaining('有人分享了群聊总结模板'), findsWidgets);
+    expect(find.text('已关注'), findsNothing);
+    expect(find.text('接收通知'), findsNothing);
   });
 
   testWidgets('channel detail and post route use dark tokens and app font',
@@ -8384,7 +8512,7 @@ void main() {
     await tester.tap(find.text('12'));
     await tester.pumpAndSettle();
 
-    final detailTitle = tester.widget<Text>(find.text('#Agent 工作流'));
+    final detailTitle = tester.widget<Text>(find.text('帖子详情'));
     expect(detailTitle.style?.color, PortalTokens.dark.text);
     expect(detailTitle.style?.fontSize, 20);
     expect(detailTitle.style?.letterSpacing, 0);

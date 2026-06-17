@@ -46,6 +46,60 @@ class ChannelInboxItem {
   final String memberStatus;
   final int memberCount;
   final int pendingJoinCount;
+
+  ChannelInboxItem copyWith({
+    String? id,
+    String? roomId,
+    String? name,
+    String? domain,
+    String? avatarUrl,
+    String? latestPreview,
+    DateTime? latestAt,
+    int? unreadCount,
+    bool? isOwned,
+    List<String>? tags,
+    String? description,
+    String? visibility,
+    String? joinPolicy,
+    bool? commentsEnabled,
+    String? channelType,
+    String? role,
+    String? memberStatus,
+    int? memberCount,
+    int? pendingJoinCount,
+  }) {
+    return ChannelInboxItem(
+      id: id ?? this.id,
+      roomId: roomId ?? this.roomId,
+      name: name ?? this.name,
+      domain: domain ?? this.domain,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      latestPreview: latestPreview ?? this.latestPreview,
+      latestAt: latestAt ?? this.latestAt,
+      unreadCount: unreadCount ?? this.unreadCount,
+      isOwned: isOwned ?? this.isOwned,
+      tags: tags ?? this.tags,
+      description: description ?? this.description,
+      visibility: visibility ?? this.visibility,
+      joinPolicy: joinPolicy ?? this.joinPolicy,
+      commentsEnabled: commentsEnabled ?? this.commentsEnabled,
+      channelType: channelType ?? this.channelType,
+      role: role ?? this.role,
+      memberStatus: memberStatus ?? this.memberStatus,
+      memberCount: memberCount ?? this.memberCount,
+      pendingJoinCount: pendingJoinCount ?? this.pendingJoinCount,
+    );
+  }
+}
+
+class ChannelCreatedCacheEntry {
+  const ChannelCreatedCacheEntry({
+    required this.channel,
+    required this.createdAt,
+  });
+
+  final AsChannel channel;
+  final DateTime createdAt;
 }
 
 class ChannelInboxData {
@@ -86,7 +140,7 @@ class ChannelInboxData {
                   : topic,
           latestAt: channel.lastActivityAt,
           unreadCount: channel.unreadCount,
-          isOwned: channel.isOwned,
+          isOwned: _isChannelOwnerRole(channel.role) || channel.isOwned,
           tags: channel.tags,
           description: description,
           visibility: channel.visibility,
@@ -165,8 +219,8 @@ class ChannelInboxData {
                 : topic,
         latestAt: channel.latestActivityAt ?? bootstrapChannel?.lastActivityAt,
         unreadCount: bootstrapChannel?.unreadCount ?? 0,
-        isOwned: channel.role == asChannelRoleOwner ||
-            channel.role == asChannelRoleAdmin ||
+        isOwned: _isChannelOwnerRole(channel.role) ||
+            _isChannelOwnerRole(bootstrapChannel?.role ?? '') ||
             (bootstrapChannel?.isOwned ?? false),
         tags: channel.tags.isEmpty
             ? bootstrapChannel?.tags ?? const []
@@ -193,6 +247,58 @@ class ChannelInboxData {
       );
     }).toList();
     return _sortByLatest(items);
+  }
+
+  static List<ChannelInboxItem> mergeCreatedCache(
+    List<ChannelInboxItem> items,
+    List<ChannelCreatedCacheEntry> cached, {
+    required String fallbackDomain,
+    String Function(String roomId)? roomNameForRoomId,
+    String Function(String roomId)? roomAvatarForRoomId,
+  }) {
+    if (cached.isEmpty) return _sortByLatest([...items]);
+    final merged = [...items];
+    for (final entry in cached) {
+      final cachedItems = fromChannels(
+        [entry.channel],
+        fallbackDomain: fallbackDomain,
+        roomNameForRoomId: roomNameForRoomId,
+        roomAvatarForRoomId: roomAvatarForRoomId,
+      );
+      if (cachedItems.isEmpty) continue;
+      final cachedItem = cachedItems.single.copyWith(
+        latestAt: _latestOf(cachedItems.single.latestAt, entry.createdAt),
+        isOwned: true,
+        role: cachedItems.single.role.trim().isEmpty
+            ? asChannelRoleOwner
+            : cachedItems.single.role,
+        memberStatus: cachedItems.single.memberStatus.trim().isEmpty
+            ? asChannelMemberStatusJoined
+            : cachedItems.single.memberStatus,
+      );
+      final index = merged.indexWhere((item) {
+        if (cachedItem.id.isNotEmpty && item.id == cachedItem.id) return true;
+        if (cachedItem.roomId.isNotEmpty && item.roomId == cachedItem.roomId) {
+          return true;
+        }
+        return false;
+      });
+      if (index < 0) {
+        merged.add(cachedItem);
+      } else {
+        merged[index] = merged[index].copyWith(
+          latestAt: _latestOf(merged[index].latestAt, entry.createdAt),
+          isOwned: true,
+          role: merged[index].role.trim().isEmpty
+              ? asChannelRoleOwner
+              : merged[index].role,
+          memberStatus: merged[index].memberStatus.trim().isEmpty
+              ? asChannelMemberStatusJoined
+              : merged[index].memberStatus,
+        );
+      }
+    }
+    return _sortByLatest(merged);
   }
 
   static List<String> categories(List<ChannelInboxItem> items) {
@@ -230,11 +336,21 @@ class ChannelInboxData {
     return items;
   }
 
+  static DateTime _latestOf(DateTime? a, DateTime b) {
+    if (a == null) return b;
+    return a.isAfter(b) ? a : b;
+  }
+
   static String? _domainFromRoomId(String roomId) {
     final idx = roomId.lastIndexOf(':');
     if (idx < 0 || idx == roomId.length - 1) return null;
     return roomId.substring(idx + 1);
   }
+}
+
+bool _isChannelOwnerRole(String role) {
+  final normalized = role.trim();
+  return normalized == asChannelRoleOwner || normalized == asChannelRoleAdmin;
 }
 
 String _channelPreviewText(String value) {

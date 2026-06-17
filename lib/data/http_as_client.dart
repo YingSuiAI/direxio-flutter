@@ -921,6 +921,36 @@ class HttpAsClient implements AsClient {
     );
   }
 
+  @override
+  Future<void> muteChannel(String channelId) {
+    return _postEmpty(
+      'channels/${Uri.encodeComponent(channelId.trim())}/mute',
+    );
+  }
+
+  @override
+  Future<void> unmuteChannel(String channelId) {
+    return _postEmpty(
+      'channels/${Uri.encodeComponent(channelId.trim())}/unmute',
+    );
+  }
+
+  @override
+  Future<void> muteChannelMember(String channelId, String userId) {
+    return _postEmpty(
+      'channels/${Uri.encodeComponent(channelId.trim())}/members/'
+      '${Uri.encodeComponent(userId.trim())}/mute',
+    );
+  }
+
+  @override
+  Future<void> unmuteChannelMember(String channelId, String userId) {
+    return _postEmpty(
+      'channels/${Uri.encodeComponent(channelId.trim())}/members/'
+      '${Uri.encodeComponent(userId.trim())}/unmute',
+    );
+  }
+
   Future<AsChannel> _resolveChannelJoinRequest(
     String channelId,
     String userMxid,
@@ -981,14 +1011,14 @@ class HttpAsClient implements AsClient {
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
     String postId, {
-    int limit = 50,
-    int beforeTs = 0,
+    int page = 1,
+    int pageSize = 50,
   }) async {
     final response = await _getJson(
       'channels/${Uri.encodeComponent(channelId)}/posts/${Uri.encodeComponent(postId)}/comments',
       queryParameters: {
-        'limit': limit.toString(),
-        if (beforeTs > 0) 'before_ts': beforeTs.toString(),
+        'page': page.toString(),
+        'page_size': pageSize.toString(),
       },
     );
     final raw = response['comments'] as List? ?? const [];
@@ -1165,6 +1195,42 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<void> muteGroup(String roomId) {
+    return _postEmpty(
+      'groups/${Uri.encodeComponent(roomId.trim())}/mute',
+    );
+  }
+
+  @override
+  Future<void> unmuteGroup(String roomId) {
+    return _postEmpty(
+      'groups/${Uri.encodeComponent(roomId.trim())}/unmute',
+    );
+  }
+
+  @override
+  Future<void> muteGroupMember({
+    required String roomId,
+    required String userId,
+  }) {
+    return _postEmpty(
+      'groups/${Uri.encodeComponent(roomId.trim())}/members/'
+      '${Uri.encodeComponent(userId.trim())}/mute',
+    );
+  }
+
+  @override
+  Future<void> unmuteGroupMember({
+    required String roomId,
+    required String userId,
+  }) {
+    return _postEmpty(
+      'groups/${Uri.encodeComponent(roomId.trim())}/members/'
+      '${Uri.encodeComponent(userId.trim())}/unmute',
+    );
+  }
+
+  @override
   Future<AsGroupResult> updateGroupInvitePolicy({
     required String roomId,
     required String invitePolicy,
@@ -1247,6 +1313,14 @@ class HttpAsClient implements AsClient {
       'GET',
       path,
       queryParameters: queryParameters,
+    );
+  }
+
+  Future<void> _postEmpty(String path) async {
+    await _requestJson(
+      'POST',
+      path,
+      allowedStatusCodes: const {200},
     );
   }
 

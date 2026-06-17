@@ -200,7 +200,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
           joined.channelId.trim().isEmpty ? channelId : joined.channelId.trim();
       final encodedChannelId = Uri.encodeComponent(joinedChannelId);
       if (_channelInfoIsPostType(channel)) {
-        context.go('/channel/$encodedChannelId');
+        context.replace('/channel/$encodedChannelId');
         return;
       }
       final joinedName = _readableChannelName(
@@ -212,7 +212,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       final query = joinedName.isEmpty
           ? ''
           : '?name=${Uri.encodeQueryComponent(joinedName)}';
-      context.go(
+      context.replace(
         '/channel/$encodedChannelId/conversation$query',
       );
     } catch (err) {

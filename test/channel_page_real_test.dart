@@ -73,6 +73,55 @@ void main() {
     expect(find.text('频道不存在'), findsNothing);
   });
 
+  testWidgets('private channel post list title shows lock', (tester) async {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-05-26T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_private',
+          roomId: '!private:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '私密帖子',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-05-26T10:20:00Z'),
+          description: '只给成员看',
+          isOwned: true,
+          visibility: asChannelVisibilityPrivate,
+          channelType: asChannelTypePost,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: const ['帖子'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(_NoPostChannelAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPage(channelId: 'ch_private'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('#私密帖子'), findsOneWidget);
+    expect(find.byIcon(Symbols.lock), findsOneWidget);
+  });
+
   testWidgets('channel detail loads public AS channel when not in bootstrap',
       (tester) async {
     await tester.pumpWidget(
@@ -196,6 +245,58 @@ void main() {
     expect(find.text('新帖子'), findsOneWidget);
   });
 
+  testWidgets('post channel owner role sees create button on post list',
+      (tester) async {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '综合讨论',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-17T10:20:00Z'),
+          description: '频道主Diana发布帖子，成员可评论和恢复',
+          isOwned: false,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypePost,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(_PostingChannelAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
+    expect(find.text('第一条帖子'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);
+    expect(find.text('输入评论...'), findsOneWidget);
+  });
+
   testWidgets('channel post list hides expand control when body fits',
       (tester) async {
     final asClient = _PostingChannelAsClient(postBody: '短帖子正文');
@@ -272,6 +373,122 @@ void main() {
     expect(asClient.toggledPostId, 'post1');
   });
 
+  testWidgets('channel post detail uses red heart for reacted post',
+      (tester) async {
+    final asClient = _PostingChannelAsClient(reactedByMe: true);
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPostDetailPage(
+            channelId: 'ch_real',
+            postId: 'post1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final heart = tester.widget<Icon>(find.byIcon(Symbols.favorite));
+    expect(heart.color, PortalTokens.light.danger);
+    expect(heart.fill, 1);
+
+    await tester.tap(find.byIcon(Symbols.favorite));
+    await tester.pumpAndSettle();
+
+    expect(asClient.toggledPostId, 'post1');
+  });
+
+  testWidgets('channel post detail title and id align channel detail',
+      (tester) async {
+    final asClient = _PostingChannelAsClient();
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPostDetailPage(
+            channelId: 'ch_real',
+            postId: 'post1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('帖子详情'), findsOneWidget);
+    expect(find.text('产品公告'), findsNothing);
+    expect(find.text('ID:post1'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Symbols.content_copy));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('已复制帖子 ID'), findsOneWidget);
+  });
+
   testWidgets('channel post list input opens detail for commenting',
       (tester) async {
     final asClient = _PostingChannelAsClient();
@@ -338,10 +555,20 @@ void main() {
 
     expect(find.text('输入评论...'), findsOneWidget);
 
+    await tester.tap(find.text('第一条帖子').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('帖子详情'), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+
+    expect(find.text('输入评论...'), findsOneWidget);
+
     await tester.tap(find.text('输入评论...'));
     await tester.pumpAndSettle();
 
-    expect(find.text('#产品公告'), findsOneWidget);
+    expect(find.text('帖子详情'), findsOneWidget);
     expect(find.text('输入评论...'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), '这条更新很有用');
@@ -350,6 +577,58 @@ void main() {
 
     expect(asClient.createdCommentBody, '这条更新很有用');
     expect(find.text('这条更新很有用'), findsOneWidget);
+  });
+
+  testWidgets('joined post channel can like posts with event id fallback',
+      (tester) async {
+    final asClient = _PostingChannelAsClient(postId: '');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '对方的帖子频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypePost,
+          tags: const ['帖子'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey(r'channel_post_like_$post1')));
+    await tester.pumpAndSettle();
+
+    expect(asClient.toggledPostId, r'$post1');
   });
 
   testWidgets('channel post detail sends comment and renders thread',
@@ -400,7 +679,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('#产品公告'), findsOneWidget);
+    expect(find.text('帖子详情'), findsOneWidget);
     expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
     expect(find.text('输入评论...'), findsOneWidget);
 
@@ -411,6 +690,94 @@ void main() {
     expect(asClient.createdCommentBody, '这条更新很有用');
     expect(find.text('这条更新很有用'), findsOneWidget);
     expect(find.text('我'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('channel post detail lazily loads collapsed comments',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 480);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final comments = List.generate(12, (index) {
+      final number = index + 1;
+      return AsChannelComment(
+        commentId: 'comment$number',
+        postId: 'post1',
+        channelId: 'ch_real',
+        eventId: r'$comment' '$number',
+        authorId: '@user$number:p2p-im.com',
+        authorName: 'User$number',
+        messageType: 'text',
+        body: '评论 $number ${List.filled(30, '内容').join()}',
+        originServerTs: 1000 - index,
+      );
+    });
+    final asClient = _PostingChannelAsClient(comments: comments);
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPostDetailPage(
+            channelId: 'ch_real',
+            postId: 'post1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('评论 1'), findsNothing);
+    expect(asClient.requestedCommentPages, isEmpty);
+
+    await tester.tap(find.text('查看评论(12)'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedCommentPages, [1]);
+    expect(asClient.requestedCommentPageSizes, [5]);
+    expect(find.textContaining('评论 1'), findsOneWidget);
+    expect(find.textContaining('评论 5'), findsOneWidget);
+    expect(find.textContaining('评论 6'), findsNothing);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -900));
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedCommentPages.length, greaterThanOrEqualTo(2));
+    expect(asClient.requestedCommentPages[1], 2);
+    expect(asClient.requestedCommentPageSizes[1], 5);
+    expect(find.textContaining('评论 6'), findsOneWidget);
   });
 
   testWidgets('channel info page renders figma actions', (tester) async {
@@ -512,6 +879,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.requestedChannelId, 'ch_real');
+    expect(asClient.requestedStatus, asChannelMemberStatusJoined);
     expect(find.text('产品公告（2）'), findsOneWidget);
     expect(find.text('2 名成员'), findsNothing);
 
@@ -520,6 +888,66 @@ void main() {
 
     expect(find.text('移除频道成员'), findsOneWidget);
     expect(find.text('Alex Chen'), findsOneWidget);
+  });
+
+  testWidgets('owned channel info mute switch calls AS APIs', (tester) async {
+    final asClient = _ChannelInfoMembersAsClient();
+    final matrixClient = Client('ChannelInfoMuteTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 1,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(_ownerSwitchFinder());
+    await tester.pumpAndSettle();
+
+    expect(asClient.mutedChannelId, 'ch_real');
+    expect(find.text('已开启全员禁言'), findsOneWidget);
+
+    await tester.tap(_ownerSwitchFinder());
+    await tester.pumpAndSettle();
+
+    expect(asClient.unmutedChannelId, 'ch_real');
+    expect(find.text('已解除全员禁言'), findsOneWidget);
   });
 
   testWidgets('channel owner does not see report action from role',
@@ -1179,6 +1607,9 @@ class _PublicChannelAsClient extends MockAsClient {
 
 class _ChannelInfoMembersAsClient extends MockAsClient {
   String? requestedChannelId;
+  String? requestedStatus;
+  String? mutedChannelId;
+  String? unmutedChannelId;
 
   @override
   Future<List<AsChannelMember>> getChannelMembers(
@@ -1186,6 +1617,7 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
     String status = '',
   }) async {
     requestedChannelId = channelId;
+    requestedStatus = status;
     return const [
       AsChannelMember(
         channelId: 'ch_real',
@@ -1207,6 +1639,22 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
       ),
     ];
   }
+
+  @override
+  Future<void> muteChannel(String channelId) async {
+    mutedChannelId = channelId;
+  }
+
+  @override
+  Future<void> unmuteChannel(String channelId) async {
+    unmutedChannelId = channelId;
+  }
+}
+
+Finder _ownerSwitchFinder() {
+  return find.byWidgetPredicate(
+    (widget) => widget.runtimeType.toString() == '_OwnerSwitch',
+  );
 }
 
 class _NoPostChannelAsClient extends MockAsClient {
@@ -1268,10 +1716,19 @@ Future<void> _pumpRealChannelPage(
 }
 
 class _PostingChannelAsClient extends MockAsClient {
-  _PostingChannelAsClient({this.postBody, this.reactedByMe = false});
+  _PostingChannelAsClient({
+    this.postBody,
+    this.reactedByMe = false,
+    this.postId = 'post1',
+    this.comments = const [],
+  });
 
   final String? postBody;
   final bool reactedByMe;
+  final String postId;
+  final List<AsChannelComment> comments;
+  final List<int> requestedCommentPages = [];
+  final List<int> requestedCommentPageSizes = [];
   String? createdBody;
   String? createdCommentBody;
   AsChannel? updatedChannel;
@@ -1289,7 +1746,7 @@ class _PostingChannelAsClient extends MockAsClient {
   }) async {
     return [
       AsChannelPost(
-        postId: 'post1',
+        postId: postId,
         channelId: channelId,
         roomId: '!real:p2p-im.com',
         eventId: r'$post1',
@@ -1299,6 +1756,7 @@ class _PostingChannelAsClient extends MockAsClient {
         body: createdBody ?? postBody ?? '第一条帖子',
         originServerTs:
             DateTime.parse('2026-06-06T10:20:00Z').millisecondsSinceEpoch,
+        commentCount: comments.length,
         reactionCount: 2,
         reactedByMe: reactedByMe,
       ),
@@ -1332,10 +1790,15 @@ class _PostingChannelAsClient extends MockAsClient {
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
     String postId, {
-    int limit = 50,
-    int beforeTs = 0,
+    int page = 1,
+    int pageSize = 50,
   }) async {
-    return const [];
+    requestedCommentPages.add(page);
+    requestedCommentPageSizes.add(pageSize);
+    final sorted = comments.toList()
+      ..sort((a, b) => b.originServerTs.compareTo(a.originServerTs));
+    final start = (page <= 1 ? 0 : page - 1) * pageSize;
+    return sorted.skip(start).take(pageSize).toList(growable: false);
   }
 
   @override

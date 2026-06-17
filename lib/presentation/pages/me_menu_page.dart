@@ -556,89 +556,51 @@ class _MeCommentsPageState extends ConsumerState<MeCommentsPage> {
     return Scaffold(
       key: const ValueKey('me_comments_scaffold'),
       backgroundColor: t.bg,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            const _MeCommentsTopBar(),
-            Expanded(
-              child: FutureBuilder<List<AsChannelCommentHistory>>(
-                future: _future,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    );
-                  }
-                  if (snapshot.hasError) {
-                    return _MeCommentsEmpty(
-                      icon: Symbols.error,
-                      title: '评论加载失败',
-                      subtitle: '${snapshot.error}',
-                    );
-                  }
-                  final comments = snapshot.data ?? const [];
-                  if (comments.isEmpty) {
-                    return const _MeCommentsEmpty(
-                      icon: Symbols.comment,
-                      title: '暂无评论',
-                      subtitle: '你在频道帖子下发表过的评论会显示在这里',
-                    );
-                  }
-                  return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-                    itemCount: comments.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 14),
-                    itemBuilder: (context, index) {
-                      final item = comments[index];
-                      return _MeCommentCard(
-                        key: ValueKey('my-comment-${item.comment.commentId}'),
-                        item: item,
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MeCommentsTopBar extends StatelessWidget {
-  const _MeCommentsTopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return SizedBox(
-      height: 48,
-      child: Stack(
-        alignment: Alignment.center,
+      body: Column(
         children: [
-          Positioned(
-            left: 16,
-            top: 4,
-            child: GlassHeaderButton(
-              icon: Symbols.arrow_back,
-              iconSize: 24,
-              color: t.text,
-              onTap: () => context.pop(),
+          GlassHeader.detail(title: '评论'),
+          Expanded(
+            child: FutureBuilder<List<AsChannelCommentHistory>>(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return _MeCommentsEmpty(
+                    icon: Symbols.error,
+                    title: '评论加载失败',
+                    subtitle: '${snapshot.error}',
+                  );
+                }
+                final comments = snapshot.data ?? const [];
+                if (comments.isEmpty) {
+                  return const _MeCommentsEmpty(
+                    icon: Symbols.comment,
+                    title: '暂无评论',
+                    subtitle: '你在频道帖子下发表过的评论会显示在这里',
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                  itemCount: comments.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    final item = comments[index];
+                    return _MeCommentCard(
+                      key: ValueKey('my-comment-${item.comment.commentId}'),
+                      item: item,
+                    );
+                  },
+                );
+              },
             ),
-          ),
-          Text(
-            '评论',
-            style: AppTheme.sans(
-              size: 20,
-              weight: FontWeight.w600,
-              color: t.text,
-            ).copyWith(height: 33 / 20),
           ),
         ],
       ),

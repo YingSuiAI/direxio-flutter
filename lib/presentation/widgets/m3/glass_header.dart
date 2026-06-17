@@ -42,6 +42,7 @@ class GlassHeader extends StatelessWidget {
     VoidCallback? onBack,
     List<Widget> actions = const [],
     Widget? centerLeading,
+    Widget? titleTrailing,
   }) {
     return GlassHeader._(
       contentHeight: 60,
@@ -52,6 +53,7 @@ class GlassHeader extends StatelessWidget {
         onBack: onBack,
         actions: actions,
         centerLeading: centerLeading,
+        titleTrailing: titleTrailing,
       ),
     );
   }
@@ -126,6 +128,7 @@ class _DetailContent extends StatelessWidget {
     this.onBack,
     this.actions = const [],
     this.centerLeading,
+    this.titleTrailing,
   });
   final String title;
   final String? subtitle;
@@ -133,6 +136,7 @@ class _DetailContent extends StatelessWidget {
   final VoidCallback? onBack;
   final List<Widget> actions;
   final Widget? centerLeading;
+  final Widget? titleTrailing;
 
   @override
   Widget build(BuildContext context) {
@@ -169,16 +173,27 @@ class _DetailContent extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: AppTheme.sans(
-                    size: 20,
-                    weight: FontWeight.w600,
-                    color: t.text,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: AppTheme.sans(
+                          size: 20,
+                          weight: FontWeight.w600,
+                          color: t.text,
+                        ),
+                      ),
+                    ),
+                    if (titleTrailing != null) ...[
+                      const SizedBox(width: 6),
+                      titleTrailing!,
+                    ],
+                  ],
                 ),
                 if (subtitle != null)
                   Row(

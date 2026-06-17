@@ -570,13 +570,11 @@ class MockAsClient implements AsClient {
     return _channels.values
         .where((channel) => channel.visibility == asChannelVisibilityPublic)
         .where((channel) {
-          if (q.isEmpty) return true;
-          return channel.name.toLowerCase().contains(q) ||
-              channel.description.toLowerCase().contains(q) ||
-              channel.tags.any((tag) => tag.toLowerCase().contains(q));
-        })
-        .take(limit)
-        .toList(growable: false);
+      if (q.isEmpty) return true;
+      return channel.name.toLowerCase().contains(q) ||
+          channel.description.toLowerCase().contains(q) ||
+          channel.tags.any((tag) => tag.toLowerCase().contains(q));
+    }).toList(growable: false);
   }
 
   @override
@@ -781,6 +779,26 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<void> muteChannel(String channelId) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
+  Future<void> unmuteChannel(String channelId) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
+  Future<void> muteChannelMember(String channelId, String userId) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
+  Future<void> unmuteChannelMember(String channelId, String userId) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
   Future<void> leaveChannel(String channelId) async {
     await Future.delayed(_latency);
     final key = channelId.trim();
@@ -850,28 +868,25 @@ class MockAsClient implements AsClient {
     final filtered = beforeTs > 0
         ? posts.where((post) => post.originServerTs < beforeTs)
         : posts;
-    return filtered
-        .map((post) {
-          final key = _channelReactionKey(channelId, post.postId);
-          final reacted = _channelReactions.contains(key);
-          return AsChannelPost(
-            postId: post.postId,
-            channelId: post.channelId,
-            roomId: post.roomId,
-            eventId: post.eventId,
-            authorId: post.authorId,
-            authorName: post.authorName,
-            messageType: post.messageType,
-            body: post.body,
-            media: post.media,
-            originServerTs: post.originServerTs,
-            commentCount: post.commentCount,
-            reactionCount: reacted ? 1 : post.reactionCount,
-            reactedByMe: reacted,
-          );
-        })
-        .take(limit)
-        .toList(growable: false);
+    return filtered.map((post) {
+      final key = _channelReactionKey(channelId, post.postId);
+      final reacted = _channelReactions.contains(key);
+      return AsChannelPost(
+        postId: post.postId,
+        channelId: post.channelId,
+        roomId: post.roomId,
+        eventId: post.eventId,
+        authorId: post.authorId,
+        authorName: post.authorName,
+        messageType: post.messageType,
+        body: post.body,
+        media: post.media,
+        originServerTs: post.originServerTs,
+        commentCount: post.commentCount,
+        reactionCount: reacted ? 1 : post.reactionCount,
+        reactedByMe: reacted,
+      );
+    }).toList(growable: false);
   }
 
   @override
@@ -905,38 +920,33 @@ class MockAsClient implements AsClient {
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
     String postId, {
-    int limit = 50,
-    int beforeTs = 0,
+    int page = 1,
+    int pageSize = 50,
   }) async {
     await Future.delayed(_latency);
     final comments =
         List<AsChannelComment>.from(_channelComments[postId] ?? const []);
-    final filtered = beforeTs > 0
-        ? comments.where((comment) => comment.originServerTs < beforeTs)
-        : comments;
-    return filtered
-        .map((comment) {
-          final reacted = _channelCommentReactions.contains(
-            _channelCommentReactionKey(channelId, postId, comment.commentId),
-          );
-          return AsChannelComment(
-            commentId: comment.commentId,
-            postId: comment.postId,
-            channelId: comment.channelId,
-            eventId: comment.eventId,
-            authorId: comment.authorId,
-            authorName: comment.authorName,
-            authorDomain: comment.authorDomain,
-            messageType: comment.messageType,
-            body: comment.body,
-            media: comment.media,
-            originServerTs: comment.originServerTs,
-            reactionCount: reacted ? 1 : comment.reactionCount,
-            reactedByMe: reacted,
-          );
-        })
-        .take(limit)
-        .toList(growable: false);
+    final start = (page <= 1 ? 0 : page - 1) * pageSize;
+    return comments.skip(start).take(pageSize).map((comment) {
+      final reacted = _channelCommentReactions.contains(
+        _channelCommentReactionKey(channelId, postId, comment.commentId),
+      );
+      return AsChannelComment(
+        commentId: comment.commentId,
+        postId: comment.postId,
+        channelId: comment.channelId,
+        eventId: comment.eventId,
+        authorId: comment.authorId,
+        authorName: comment.authorName,
+        authorDomain: comment.authorDomain,
+        messageType: comment.messageType,
+        body: comment.body,
+        media: comment.media,
+        originServerTs: comment.originServerTs,
+        reactionCount: reacted ? 1 : comment.reactionCount,
+        reactedByMe: reacted,
+      );
+    }).toList(growable: false);
   }
 
   @override
@@ -1117,6 +1127,32 @@ class MockAsClient implements AsClient {
   Future<void> removeGroupMember({
     required String roomId,
     required String peerMxid,
+  }) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
+  Future<void> muteGroup(String roomId) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
+  Future<void> unmuteGroup(String roomId) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
+  Future<void> muteGroupMember({
+    required String roomId,
+    required String userId,
+  }) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
+  Future<void> unmuteGroupMember({
+    required String roomId,
+    required String userId,
   }) async {
     await Future.delayed(_latency);
   }

@@ -33,6 +33,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   Future<List<AsChannelMember>>? _membersFuture;
   List<AsChannelMember> _members = const [];
   bool _removingMember = false;
+  bool _muteChanging = false;
 
   @override
   void initState() {
@@ -79,6 +80,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     try {
       final members = await ref.read(asClientProvider).getChannelMembers(
             widget.channelId,
+            status: asChannelMemberStatusJoined,
           );
       if (mounted) {
         setState(() => _members = members);
@@ -219,7 +221,8 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       const SizedBox(height: 14),
       _MuteRow(
         value: _muted,
-        onChanged: (value) => setState(() => _muted = value),
+        busy: _muteChanging,
+        onChanged: (value) => _setChannelMuted(channel, value),
       ),
       const SizedBox(height: 26),
       _DangerCenterRow(
@@ -371,6 +374,34 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       if (mounted) {
         setState(() => _removingMember = false);
       }
+    }
+  }
+
+  Future<void> _setChannelMuted(
+    ChannelInfoData channel,
+    bool muted,
+  ) async {
+    if (_muteChanging) return;
+    final previous = _muted;
+    setState(() {
+      _muted = muted;
+      _muteChanging = true;
+    });
+    try {
+      final asClient = ref.read(asClientProvider);
+      if (muted) {
+        await asClient.muteChannel(channel.id);
+      } else {
+        await asClient.unmuteChannel(channel.id);
+      }
+      if (!mounted) return;
+      _showSnack(context, muted ? '已开启全员禁言' : '已解除全员禁言');
+    } catch (err) {
+      if (!mounted) return;
+      setState(() => _muted = previous);
+      _showSnack(context, muted ? '开启全员禁言失败：$err' : '解除全员禁言失败：$err');
+    } finally {
+      if (mounted) setState(() => _muteChanging = false);
     }
   }
 
@@ -656,9 +687,14 @@ String _memberName(AsChannelMember member) {
 }
 
 class _MuteRow extends StatelessWidget {
-  const _MuteRow({required this.value, required this.onChanged});
+  const _MuteRow({
+    required this.value,
+    required this.busy,
+    required this.onChanged,
+  });
 
   final bool value;
+  final bool busy;
   final ValueChanged<bool> onChanged;
 
   @override
@@ -682,7 +718,16 @@ class _MuteRow extends StatelessWidget {
                   ).copyWith(height: 33 / 16),
                 ),
               ),
-              _OwnerSwitch(value: value, onChanged: onChanged),
+              busy
+                  ? SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: context.tk.accent,
+                      ),
+                    )
+                  : _OwnerSwitch(value: value, onChanged: onChanged),
             ],
           ),
         ),
@@ -770,7 +815,9 @@ Future<void> _shareChannel(
 }
 
 void _showSnack(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(SnackBar(content: Text(message)));
 }
 
 Future<void> _confirmLeaveChannel(
@@ -808,17 +855,10 @@ Future<void> _confirmDissolveChannel(
     await leaveChannelThroughAs(ref, channel.id);
     if (!context.mounted) return;
     _showSnack(context, '已解散频道');
-    _popAfterDissolve(context);
+    _returnToChannelList(context);
   } catch (err) {
     if (!context.mounted) return;
     _showSnack(context, '解散频道失败：$err');
-  }
-}
-
-void _popAfterDissolve(BuildContext context) {
-  final navigator = Navigator.of(context);
-  if (navigator.canPop()) {
-    navigator.pop();
   }
 }
 

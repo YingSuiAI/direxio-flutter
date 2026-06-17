@@ -96,6 +96,39 @@ void main() {
     );
   });
 
+  test('treats bootstrap owner role as owned channel', () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_owner_role',
+          roomId: '!owner-role:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '综合讨论',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-17T10:20:00Z'),
+          isOwned: false,
+          role: asChannelRoleOwner,
+          channelType: asChannelTypePost,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    expect(items.single.isOwned, isTrue);
+    expect(items.single.channelType, asChannelTypePost);
+  });
+
   test('ignores non-channel rooms from AS channel list results', () {
     final items = ChannelInboxData.fromChannels(
       [
@@ -231,6 +264,110 @@ void main() {
     );
 
     expect(items.map((item) => item.id), ['ch_new', 'ch_old']);
+  });
+
+  test('local created channel cache keeps newly created channel on top', () {
+    final items = ChannelInboxData.fromBootstrap(
+      AsSyncBootstrap(
+        syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),
+        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: [
+          AsSyncRoomSummary(
+            channelId: 'ch_existing',
+            roomId: '!existing:p2p-im.com',
+            homeDomain: 'p2p-im.com',
+            name: '已有频道',
+            avatarUrl: '',
+            unreadCount: 0,
+            lastActivityAt: DateTime.parse('2026-06-17T10:00:00Z'),
+          ),
+        ],
+        pending: const AsSyncPending.empty(),
+      ),
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    final merged = ChannelInboxData.mergeCreatedCache(
+      items,
+      [
+        ChannelCreatedCacheEntry(
+          channel: AsChannel.fromJson({
+            'channel_id': 'ch_created',
+            'room_id': '!created:p2p-im.com',
+            'name': '刚创建的帖子',
+            'description': '新建频道介绍',
+            'channel_type': 'post',
+            'role': asChannelRoleOwner,
+            'member_status': asChannelMemberStatusJoined,
+            'tags': ['帖子'],
+          }),
+          createdAt: DateTime.parse('2026-06-17T10:20:00Z'),
+        ),
+      ],
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    expect(merged.map((item) => item.id), ['ch_created', 'ch_existing']);
+    expect(merged.first.isOwned, isTrue);
+    expect(merged.first.channelType, asChannelTypePost);
+    expect(merged.first.latestAt, DateTime.parse('2026-06-17T10:20:00Z'));
+  });
+
+  test('local created channel cache updates existing channel sort time', () {
+    final items = ChannelInboxData.fromBootstrap(
+      AsSyncBootstrap(
+        syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),
+        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: [
+          AsSyncRoomSummary(
+            channelId: 'ch_other',
+            roomId: '!other:p2p-im.com',
+            homeDomain: 'p2p-im.com',
+            name: '其他频道',
+            avatarUrl: '',
+            unreadCount: 0,
+            lastActivityAt: DateTime.parse('2026-06-17T10:05:00Z'),
+          ),
+          AsSyncRoomSummary(
+            channelId: 'ch_created',
+            roomId: '!created:p2p-im.com',
+            homeDomain: 'p2p-im.com',
+            name: '刚创建的文字',
+            avatarUrl: '',
+            unreadCount: 0,
+            lastActivityAt: DateTime.parse('2026-06-17T09:00:00Z'),
+            channelType: asChannelTypeChat,
+          ),
+        ],
+        pending: const AsSyncPending.empty(),
+      ),
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    final merged = ChannelInboxData.mergeCreatedCache(
+      items,
+      [
+        ChannelCreatedCacheEntry(
+          channel: AsChannel.fromJson({
+            'channel_id': 'ch_created',
+            'room_id': '!created:p2p-im.com',
+            'name': '刚创建的文字',
+            'channel_type': 'chat',
+          }),
+          createdAt: DateTime.parse('2026-06-17T10:20:00Z'),
+        ),
+      ],
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    expect(merged.map((item) => item.id), ['ch_created', 'ch_other']);
+    expect(merged.first.latestAt, DateTime.parse('2026-06-17T10:20:00Z'));
   });
 
   test('does not expose matrix room id as bootstrap channel name', () {

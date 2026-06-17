@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
@@ -41,61 +42,82 @@ class ChannelPostDetailPage extends ConsumerStatefulWidget {
 
 class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
   final _commentCtrl = TextEditingController();
-  bool _submittedComment = false;
+  final _scrollCtrl = ScrollController();
   String? _submittedCommentBody;
   String? _submittedCommentTimeLabel;
-  bool _expanded = false;
+  int? _submittedCommentTs;
+  _PostDetailData? _activeDetail;
+  bool _bodyExpanded = false;
+  bool _commentsExpanded = false;
+  bool _commentsLoading = false;
+  bool _commentsLoadingMore = false;
+  bool _commentsHasMore = true;
+  int _commentsPage = 0;
+  String _commentsError = '';
+  String _commentsKey = '';
+  List<_PostComment> _comments = const [];
   bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl.addListener(_onScroll);
+  }
 
   @override
   void dispose() {
     _commentCtrl.dispose();
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_commentsExpanded || _commentsLoading || _commentsLoadingMore) return;
+    if (!_commentsHasMore || !_scrollCtrl.hasClients) return;
+    final position = _scrollCtrl.position;
+    if (position.extentAfter > 160) return;
+    final detail = _activeDetail;
+    if (detail == null) return;
+    unawaited(_loadMoreComments(detail));
+  }
+
+  _PostDetailData _currentDetail() {
+    return _resolvePostDetail(ref, widget.channelId, widget.postId);
+  }
+
+  void _ensureCommentsKey(_PostDetailData detail) {
+    final key = _commentsKeyFor(detail);
+    if (_commentsKey == key) return;
+    _commentsKey = key;
+    _commentsExpanded = false;
+    _commentsLoading = false;
+    _commentsLoadingMore = false;
+    _commentsHasMore = true;
+    _commentsPage = 0;
+    _commentsError = '';
+    _comments = const [];
+  }
+
+  String _commentsKeyFor(_PostDetailData detail) {
+    return '${detail.channelId}:${detail.postId}:${detail.realPost != null}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final detail = _resolvePostDetail(ref, widget.channelId, widget.postId);
+    final detail = _currentDetail();
+    _activeDetail = detail;
+    _ensureCommentsKey(detail);
     final optimisticComment = _submittedCommentBody == null
         ? null
         : _PostComment(
             authorName: '我',
             body: _submittedCommentBody!,
             timeLabel: _submittedCommentTimeLabel ?? '刚刚',
+            originServerTs: _submittedCommentTs ?? 0,
           );
-    final AsyncValue<List<_PostComment>> comments = detail.realPost == null
-        ? AsyncValue.data(_mockComments(detail, _submittedComment))
-        : _withOptimisticComment(
-            ref
-                .watch(
-                  channelCommentsProvider(
-                    ChannelCommentsKey(
-                      channelId: detail.channelId,
-                      postId: detail.postId,
-                    ),
-                  ),
-                )
-                .whenData(
-                  (items) => [
-                    for (final item in items)
-                      _PostComment(
-                        commentId: item.commentId,
-                        channelId: item.channelId,
-                        postId: item.postId,
-                        authorName: item.authorName.trim().isEmpty
-                            ? _localpartFromMxid(item.authorId)
-                            : item.authorName.trim(),
-                        body: item.body,
-                        timeLabel: _formatTime(item.originServerTs),
-                        likeCount: item.reactionCount,
-                        reactedByMe: item.reactedByMe,
-                      ),
-                  ],
-                ),
-            optimisticComment,
-          );
-    final loadedComments = comments.valueOrNull ?? const <_PostComment>[];
-    final showComments = _submittedComment || loadedComments.isNotEmpty;
+    final commentItems = _withOptimisticComments(_comments, optimisticComment);
+    final showComments = _commentsExpanded;
 
     return Scaffold(
       backgroundColor: _detailBgColor(context),
@@ -105,20 +127,27 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
           children: [
             Positioned.fill(
               child: ListView(
+                controller: _scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(16, 106, 16, 28),
                 children: [
                   _PostIntroPill(channelName: detail.channelName),
                   const SizedBox(height: 20),
                   _PostDetailCard(
                     detail: detail,
-                    comments: comments,
+                    comments: commentItems,
                     showComments: showComments,
-                    expanded: _expanded,
-                    onToggleExpanded: () =>
-                        setState(() => _expanded = !_expanded),
+                    bodyExpanded: _bodyExpanded,
+                    commentsLoading: _commentsLoading,
+                    commentsLoadingMore: _commentsLoadingMore,
+                    commentsHasMore: _commentsHasMore,
+                    commentsError: _commentsError,
+                    onToggleBodyExpanded: () =>
+                        setState(() => _bodyExpanded = !_bodyExpanded),
+                    onToggleCommentsExpanded: () => _toggleComments(detail),
                     commentController: _commentCtrl,
                     sending: _sending,
                     onSend: () => _sendComment(detail),
+                    onPostReaction: () => _togglePostReaction(detail),
                     onCommentReaction: _toggleCommentReaction,
                   ),
                 ],
@@ -129,7 +158,6 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
               right: 0,
               top: 0,
               child: _PostDetailTopBar(
-                title: detail.channelName,
                 onBack: () => context.pop(),
               ),
             ),
@@ -137,6 +165,88 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _toggleComments(_PostDetailData detail) async {
+    if (_commentsExpanded) {
+      setState(() => _commentsExpanded = false);
+      return;
+    }
+    setState(() => _commentsExpanded = true);
+    if (_comments.isEmpty && !_commentsLoading) {
+      await _loadInitialComments(detail);
+    }
+  }
+
+  Future<void> _loadInitialComments(_PostDetailData detail) async {
+    final expectedKey = _commentsKeyFor(detail);
+    setState(() {
+      _commentsLoading = true;
+      _commentsError = '';
+    });
+    try {
+      final loaded = await _fetchComments(detail, page: 1, pageSize: 5);
+      if (!mounted || expectedKey != _commentsKey) return;
+      setState(() {
+        _comments = loaded;
+        _commentsHasMore = loaded.length >= 5;
+        _commentsPage = 1;
+        _commentsLoading = false;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _comments = const [];
+        _commentsHasMore = false;
+        _commentsLoading = false;
+        _commentsError = '评论加载失败';
+      });
+    }
+  }
+
+  Future<void> _loadMoreComments(_PostDetailData detail) async {
+    if (!_commentsHasMore || _comments.isEmpty) return;
+    final expectedKey = _commentsKeyFor(detail);
+    final nextPage = _commentsPage + 1;
+    setState(() => _commentsLoadingMore = true);
+    try {
+      final loaded = await _fetchComments(
+        detail,
+        page: nextPage,
+        pageSize: 5,
+      );
+      if (!mounted || expectedKey != _commentsKey) return;
+      setState(() {
+        _comments = _dedupeComments([..._comments, ...loaded]);
+        _commentsHasMore = loaded.length >= 5;
+        if (loaded.isNotEmpty) _commentsPage = nextPage;
+        _commentsLoadingMore = false;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() => _commentsLoadingMore = false);
+    }
+  }
+
+  Future<List<_PostComment>> _fetchComments(
+    _PostDetailData detail, {
+    required int page,
+    required int pageSize,
+  }) async {
+    if (detail.realPost == null) {
+      final all = _mockComments(detail, true);
+      final start = (page <= 1 ? 0 : page - 1) * pageSize;
+      return all.skip(start).take(pageSize).toList(growable: false);
+    }
+    final items = await ref.read(asClientProvider).getChannelComments(
+          detail.channelId,
+          detail.postId,
+          page: page,
+          pageSize: pageSize,
+        );
+    return [
+      for (final item in items) _commentFromAs(item),
+    ];
   }
 
   Future<void> _sendComment(_PostDetailData detail) async {
@@ -168,12 +278,12 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
       _commentCtrl.clear();
       if (mounted) {
         setState(() {
-          _submittedComment = true;
           _submittedCommentBody = body;
           _submittedCommentTimeLabel = _formatTime(
             DateTime.now().millisecondsSinceEpoch,
           );
-          _expanded = true;
+          _submittedCommentTs = DateTime.now().millisecondsSinceEpoch;
+          _commentsExpanded = true;
         });
       }
     } finally {
@@ -197,15 +307,27 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
       ),
     );
   }
+
+  Future<void> _togglePostReaction(_PostDetailData detail) async {
+    if (detail.realPost == null) return;
+    final channelId = detail.channelId.trim();
+    final postId = detail.postId.trim();
+    if (channelId.isEmpty || postId.isEmpty) return;
+    await ref.read(asClientProvider).toggleChannelPostReaction(
+          channelId,
+          postId,
+        );
+    unawaited(
+      ref.read(channelPostsProvider(channelId).notifier).refresh(silent: true),
+    );
+  }
 }
 
 class _PostDetailTopBar extends StatelessWidget {
   const _PostDetailTopBar({
-    required this.title,
     required this.onBack,
   });
 
-  final String title;
   final VoidCallback onBack;
 
   @override
@@ -228,19 +350,12 @@ class _PostDetailTopBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  title,
+                  '帖子详情',
                   style: AppTheme.sans(
                     size: 20,
                     weight: FontWeight.w600,
                     color: _detailTextColor(context),
                   ).copyWith(height: 26 / 20),
-                ),
-                const SizedBox(width: 6),
-                Icon(
-                  Symbols.lock,
-                  size: 15,
-                  color: context.tk.accent,
-                  fill: 1,
                 ),
               ],
             ),
@@ -296,28 +411,38 @@ class _PostDetailCard extends StatelessWidget {
     required this.detail,
     required this.comments,
     required this.showComments,
-    required this.expanded,
-    required this.onToggleExpanded,
+    required this.bodyExpanded,
+    required this.commentsLoading,
+    required this.commentsLoadingMore,
+    required this.commentsHasMore,
+    required this.commentsError,
+    required this.onToggleBodyExpanded,
+    required this.onToggleCommentsExpanded,
     required this.commentController,
     required this.sending,
     required this.onSend,
+    required this.onPostReaction,
     required this.onCommentReaction,
   });
 
   final _PostDetailData detail;
-  final AsyncValue<List<_PostComment>> comments;
+  final List<_PostComment> comments;
   final bool showComments;
-  final bool expanded;
-  final VoidCallback onToggleExpanded;
+  final bool bodyExpanded;
+  final bool commentsLoading;
+  final bool commentsLoadingMore;
+  final bool commentsHasMore;
+  final String commentsError;
+  final VoidCallback onToggleBodyExpanded;
+  final VoidCallback onToggleCommentsExpanded;
   final TextEditingController commentController;
   final bool sending;
   final VoidCallback onSend;
+  final VoidCallback onPostReaction;
   final Future<void> Function(_PostComment comment) onCommentReaction;
 
   @override
   Widget build(BuildContext context) {
-    final commentItems = comments.valueOrNull ?? const <_PostComment>[];
-    final visibleComments = expanded ? commentItems : commentItems.take(1);
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
       decoration: BoxDecoration(
@@ -335,6 +460,8 @@ class _PostDetailCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _PostAuthorHeader(detail: detail),
+          const SizedBox(height: 8),
+          _PostIdRow(postId: detail.displayPostId),
           const SizedBox(height: 18),
           Text(
             detail.title,
@@ -347,13 +474,13 @@ class _PostDetailCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             detail.body,
-            maxLines: showComments ? null : 4,
+            maxLines: bodyExpanded ? null : 4,
             overflow:
-                showComments ? TextOverflow.visible : TextOverflow.ellipsis,
+                bodyExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
             style: AppTheme.sans(
               size: 13,
               weight: FontWeight.w500,
-              color: showComments
+              color: bodyExpanded
                   ? _detailTextColor(context)
                   : _detailBodyColor(context),
             ).copyWith(height: 20 / 13),
@@ -361,44 +488,66 @@ class _PostDetailCard extends StatelessWidget {
           const SizedBox(height: 14),
           _PostStatsRow(
             likeCount: detail.reactionCount,
+            reactedByMe: detail.reactedByMe,
             commentCount: detail.commentCount,
             alignEnd: true,
+            onLike: detail.realPost == null ? null : onPostReaction,
           ),
           if (showComments) ...[
             const SizedBox(height: 18),
-            comments.when(
-              data: (_) => Column(
-                children: [
-                  for (final comment in visibleComments)
-                    _CommentThreadRow(
-                      comment: comment,
-                      onReaction: () => onCommentReaction(comment),
-                    ),
-                ],
-              ),
-              loading: () => const Padding(
+            if (commentsLoading)
+              const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (_, __) => Padding(
+              )
+            else if (commentsError.isNotEmpty)
+              Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Text(
-                  '评论加载失败',
+                  commentsError,
                   style: AppTheme.sans(
                     size: 13,
                     color: _detailMutedColor(context),
                   ),
                 ),
+              )
+            else
+              Column(
+                children: [
+                  for (final comment in comments)
+                    _CommentThreadRow(
+                      comment: comment,
+                      onReaction: () => onCommentReaction(comment),
+                    ),
+                  if (commentsLoadingMore)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (!commentsHasMore && comments.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        '没有更多评论',
+                        style: AppTheme.sans(
+                          size: 12,
+                          color: _detailMutedColor(context),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-            ),
           ],
           const SizedBox(height: 10),
-          if (!showComments || commentItems.length > 1)
-            _PostExpandRow(
-              expanded: expanded,
-              canCollapse: showComments,
-              onTap: onToggleExpanded,
+          if (!bodyExpanded) _PostBodyExpandRow(onTap: onToggleBodyExpanded),
+          if (detail.commentCount > 0 || showComments) ...[
+            if (!bodyExpanded) const SizedBox(height: 8),
+            _PostCommentsToggleRow(
+              expanded: showComments,
+              count: detail.commentCount,
+              onTap: onToggleCommentsExpanded,
             ),
+          ],
           const SizedBox(height: 12),
           _CommentInputRow(
             controller: commentController,
@@ -409,6 +558,53 @@ class _PostDetailCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PostIdRow extends StatelessWidget {
+  const _PostIdRow({required this.postId});
+
+  final String postId;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = postId.trim();
+    if (id.isEmpty) return const SizedBox.shrink();
+    return InkWell(
+      key: const ValueKey('channel_post_detail_id_row'),
+      onTap: () => _copyPostId(context, id),
+      borderRadius: BorderRadius.circular(6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              'ID:$id',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 13,
+                color: context.tk.textMute,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(
+            Symbols.content_copy,
+            size: 14,
+            color: context.tk.textMute,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _copyPostId(BuildContext context, String postId) async {
+  unawaited(Clipboard.setData(ClipboardData(text: postId)));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('已复制帖子 ID')),
+  );
 }
 
 class _PostAuthorHeader extends StatelessWidget {
@@ -454,26 +650,38 @@ class _PostAuthorHeader extends StatelessWidget {
 class _PostStatsRow extends StatelessWidget {
   const _PostStatsRow({
     required this.likeCount,
+    required this.reactedByMe,
     required this.commentCount,
     this.alignEnd = false,
+    this.onLike,
   });
 
   final int likeCount;
+  final bool reactedByMe;
   final int commentCount;
   final bool alignEnd;
+  final VoidCallback? onLike;
 
   @override
   Widget build(BuildContext context) {
     final row = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          Symbols.favorite,
-          size: 22,
-          color: _detailIconColor(context),
-          fill: 0,
+        InkWell(
+          onTap: onLike,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+            child: Icon(
+              Symbols.favorite,
+              size: 22,
+              color:
+                  reactedByMe ? context.tk.danger : _detailIconColor(context),
+              fill: reactedByMe ? 1 : 0,
+            ),
+          ),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 4),
         Text('$likeCount', style: _statStyle(context)),
         const SizedBox(width: 18),
         Icon(Symbols.chat_bubble, size: 21, color: _detailIconColor(context)),
@@ -612,15 +820,9 @@ class _CommentThreadRow extends StatelessWidget {
   }
 }
 
-class _PostExpandRow extends StatelessWidget {
-  const _PostExpandRow({
-    required this.expanded,
-    required this.canCollapse,
-    required this.onTap,
-  });
+class _PostBodyExpandRow extends StatelessWidget {
+  const _PostBodyExpandRow({required this.onTap});
 
-  final bool expanded;
-  final bool canCollapse;
   final VoidCallback onTap;
 
   @override
@@ -634,7 +836,7 @@ class _PostExpandRow extends StatelessWidget {
           child: Row(
             children: [
               Text(
-                expanded ? '展开更多' : '展开更多',
+                '展开更多',
                 style: _expandTextStyle(context),
               ),
               const SizedBox(width: 3),
@@ -646,23 +848,6 @@ class _PostExpandRow extends StatelessWidget {
             ],
           ),
         ),
-        if (canCollapse) ...[
-          const SizedBox(width: 34),
-          InkWell(
-            onTap: onTap,
-            child: Row(
-              children: [
-                Text('收起', style: _expandTextStyle(context)),
-                const SizedBox(width: 3),
-                Icon(
-                  Symbols.keyboard_arrow_up,
-                  size: 12,
-                  color: _detailActionColor(context),
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -673,6 +858,53 @@ class _PostExpandRow extends StatelessWidget {
       weight: FontWeight.w500,
       color: _detailActionColor(context),
     ).copyWith(height: 20 / 13);
+  }
+}
+
+class _PostCommentsToggleRow extends StatelessWidget {
+  const _PostCommentsToggleRow({
+    required this.expanded,
+    required this.count,
+    required this.onTap,
+  });
+
+  final bool expanded;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+                width: 24, height: 1, color: _detailDividerColor(context)),
+            const SizedBox(width: 6),
+            Text(
+              expanded ? '收起评论' : '查看评论${count > 0 ? '($count)' : ''}',
+              style: AppTheme.sans(
+                size: 13,
+                weight: FontWeight.w500,
+                color: _detailActionColor(context),
+              ).copyWith(height: 20 / 13),
+            ),
+            const SizedBox(width: 3),
+            Icon(
+              expanded
+                  ? Symbols.keyboard_arrow_up
+                  : Symbols.keyboard_arrow_down,
+              size: 12,
+              color: _detailActionColor(context),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -852,6 +1084,7 @@ class _PostDetailData {
     required this.title,
     required this.body,
     required this.reactionCount,
+    required this.reactedByMe,
     required this.commentCount,
     this.realPost,
   });
@@ -864,8 +1097,17 @@ class _PostDetailData {
   final String title;
   final String body;
   final int reactionCount;
+  final bool reactedByMe;
   final int commentCount;
   final AsChannelPost? realPost;
+
+  String get displayPostId {
+    final realPostId = realPost?.postId.trim() ?? '';
+    if (realPostId.isNotEmpty) return realPostId;
+    final eventId = realPost?.eventId.trim() ?? '';
+    if (eventId.isNotEmpty) return eventId;
+    return postId.trim();
+  }
 }
 
 class _PostComment {
@@ -879,6 +1121,7 @@ class _PostComment {
     this.replyToName,
     this.likeCount = 6,
     this.reactedByMe = false,
+    this.originServerTs = 0,
   });
 
   final String commentId;
@@ -890,6 +1133,7 @@ class _PostComment {
   final String timeLabel;
   final int likeCount;
   final bool reactedByMe;
+  final int originServerTs;
 }
 
 _PostDetailData _resolvePostDetail(
@@ -917,6 +1161,7 @@ _PostDetailData _resolvePostDetail(
           ? '[${realPost.messageType}]'
           : realPost.body,
       reactionCount: realPost.reactionCount,
+      reactedByMe: realPost.reactedByMe,
       commentCount: realPost.commentCount,
       realPost: realPost,
     );
@@ -935,6 +1180,7 @@ _PostDetailData _resolvePostDetail(
           title: '我发布的帖子',
           body: post.body,
           reactionCount: _countFromLabel(post.reactionLabel, fallback: 6),
+          reactedByMe: false,
           commentCount: post.commentCount,
         );
       }
@@ -950,6 +1196,7 @@ _PostDetailData _resolvePostDetail(
     title: '我发布的帖子',
     body: '我发布的帖子我发布的帖子我发布的帖子我发布的帖子，我发布的帖子我发布的帖子我发布的帖子我发布的帖子。',
     reactionCount: 6,
+    reactedByMe: false,
     commentCount: 8,
   );
 }
@@ -969,35 +1216,66 @@ List<_PostComment> _mockComments(_PostDetailData detail, bool submitted) {
       authorName: 'Alice',
       body: '我发布的帖子我发布的帖子我发布的帖子我发布的帖子。',
       timeLabel: '10:55',
+      originServerTs: 4,
     ),
     _PostComment(
       authorName: 'Mrra',
       replyToName: 'Alice',
       body: '我发布的帖子我发布的帖子。',
       timeLabel: '10:55',
+      originServerTs: 3,
     ),
     _PostComment(
       authorName: 'Dridder',
       body: '我发布的帖子我发布的帖子。',
       timeLabel: '10:55',
+      originServerTs: 2,
     ),
     _PostComment(
       authorName: 'Dridder',
       body: '我发布的帖子我发布的帖子。',
       timeLabel: '10:55',
+      originServerTs: 1,
     ),
   ];
 }
 
-AsyncValue<List<_PostComment>> _withOptimisticComment(
-  AsyncValue<List<_PostComment>> comments,
+_PostComment _commentFromAs(AsChannelComment item) {
+  return _PostComment(
+    commentId: item.commentId,
+    channelId: item.channelId,
+    postId: item.postId,
+    authorName: item.authorName.trim().isEmpty
+        ? _localpartFromMxid(item.authorId)
+        : item.authorName.trim(),
+    body: item.body.trim().isEmpty ? '[${item.messageType}]' : item.body,
+    timeLabel: _formatTime(item.originServerTs),
+    likeCount: item.reactionCount,
+    reactedByMe: item.reactedByMe,
+    originServerTs: item.originServerTs,
+  );
+}
+
+List<_PostComment> _withOptimisticComments(
+  List<_PostComment> comments,
   _PostComment? optimistic,
 ) {
   if (optimistic == null) return comments;
-  final items = comments.valueOrNull;
-  if (items == null) return AsyncValue.data([optimistic]);
-  if (items.any((item) => item.body == optimistic.body)) return comments;
-  return AsyncValue.data([...items, optimistic]);
+  if (comments.any((item) => item.body == optimistic.body)) return comments;
+  return [optimistic, ...comments];
+}
+
+List<_PostComment> _dedupeComments(List<_PostComment> comments) {
+  final seen = <String>{};
+  final result = <_PostComment>[];
+  for (final comment in comments) {
+    final key = comment.commentId.trim().isNotEmpty
+        ? comment.commentId.trim()
+        : '${comment.authorName}|${comment.originServerTs}|${comment.body}';
+    if (!seen.add(key)) continue;
+    result.add(comment);
+  }
+  return result;
 }
 
 ChannelInboxItem? _findRealChannel(WidgetRef ref, String channelId) {

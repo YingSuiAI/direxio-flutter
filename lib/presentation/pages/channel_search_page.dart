@@ -111,15 +111,16 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
             if (item.channelId == id) joined else item,
         ];
       });
-      if (joined.memberStatus == asChannelMemberStatusJoined) {
-        await _refreshBootstrap();
-      }
       if (!mounted) return;
-      final message = joined.memberStatus == asChannelMemberStatusPending
-          ? '已提交加入申请'
-          : '已加入频道';
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+      if (joined.memberStatus == asChannelMemberStatusPending) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已提交加入申请')),
+        );
+        return;
+      }
+      await _refreshBootstrap();
+      if (!mounted) return;
+      _openJoinedChannel(joined, fallback: channel);
     } catch (err) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -133,6 +134,22 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
     ref.read(asSyncCacheProvider.notifier).update(
           (state) => state.copyWith(bootstrap: bootstrap),
         );
+  }
+
+  void _openJoinedChannel(AsChannel joined, {required AsChannel fallback}) {
+    final channelId = joined.channelId.trim().isEmpty
+        ? fallback.channelId.trim()
+        : joined.channelId.trim();
+    if (channelId.isEmpty) return;
+    final encodedChannelId = Uri.encodeComponent(channelId);
+    if (normalizeAsChannelType(joined.channelType) == asChannelTypePost) {
+      context.go('/channel/$encodedChannelId');
+      return;
+    }
+    final name =
+        joined.name.trim().isEmpty ? fallback.name.trim() : joined.name.trim();
+    final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
+    context.go('/channel/$encodedChannelId/conversation$query');
   }
 
   @override

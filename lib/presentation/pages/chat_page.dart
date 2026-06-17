@@ -41,6 +41,7 @@ import '../chat/favorite_message_mapper.dart';
 import '../chat/local_outbox_image_thumb.dart';
 import '../chat/product_media_outbox_flow.dart';
 import '../chat/product_room_media_send_flow.dart';
+import '../chat/red_packet_message.dart';
 import '../groups/group_invite_card.dart';
 import '../groups/group_invite_content.dart';
 import '../groups/group_invite_join_flow.dart';
@@ -170,12 +171,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Set<String> _downloadedImageEventIds = {};
   final Set<String> _favoritingEventIds = {};
   final Set<String> _joiningGroupInviteEventIds = {};
+  final Set<String> _joiningChannelShareIds = {};
   final Map<String, AsCallSession> _asCallSessionCache = {};
   final Set<String> _loadingAsCallIds = {};
-  final ChatInitialEntranceRegistry _initialTimelineEntrances =
-      ChatInitialEntranceRegistry();
-  Timer? _initialTimelineEntranceTimer;
-
   // s-chat 视觉状态
   bool _showPlusPanel = false;
   bool _showEmojiPanel = false;
@@ -366,18 +364,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  void _seedInitialTimelineEntrances(List<Object> keys) {
-    if (!_initialTimelineEntrances.seed(keys)) return;
-    _initialTimelineEntranceTimer?.cancel();
-    _initialTimelineEntranceTimer = Timer(
-      ChatInitialEntranceRegistry.closeDelay,
-      () {
-        _initialTimelineEntrances.close();
-        if (mounted) setState(() {});
-      },
-    );
-  }
-
   void _scheduleScrollToLatest(Object? newestItemKey) {
     if ((_pendingTargetEventId?.trim() ?? '').isNotEmpty) return;
     if (newestItemKey == null) return;
@@ -486,11 +472,22 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (e) {
       debugPrint('getTimeline failed: $e');
     }
+    final tl = _timeline;
+    if (tl != null &&
+        tl.canRequestHistory &&
+        shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen) &&
+        visibleMessageCountForChatOpenHistory(tl.events) <
+            chatOpenLocalHistoryPageSize) {
+      try {
+        await tl.requestHistory(historyCount: chatOpenLocalHistoryPageSize);
+      } on Object catch (e) {
+        debugPrint('private initial timeline.requestHistory failed: $e');
+      }
+    }
     if (mounted) setState(() => _loading = false);
     _removeRecoveredUnreadTimelineDuplicates();
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
-    final tl = _timeline;
     if (tl != null) unawaited(_backfillLocalStoredHistory(tl));
   }
 
@@ -887,7 +884,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _roomSyncSub?.cancel();
     _targetEventScrollTimer?.cancel();
     _timeline?.cancelSubscriptions();
-    _initialTimelineEntranceTimer?.cancel();
     _flashingMessageTimer?.cancel();
     _voicePlayer.playback.removeListener(_onVoicePlaybackChanged);
     unawaited(_voicePlayer.dispose());
@@ -1098,13 +1094,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _onLongPressEvent(
     BuildContext ctx,
     Event e,
-    Offset pos, {
+    _MessageContextAnchor anchor, {
     required _MessageContextMenuPlacement placement,
   }) async {
     final supportsTextActions = !isCallRecordEvent(e);
     final action = await _showMsgContextMenu(
       ctx,
-      pos,
+      anchor,
       placement: placement,
       canCopy: supportsTextActions,
       canQuote: supportsTextActions,
@@ -1509,6 +1505,38 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  Future<void> _joinChannelShare(ChannelSharePayload payload) async {
+    final key = channelShareJoinKey(payload);
+    if (key.isEmpty || _joiningChannelShareIds.contains(key)) return;
+    if (mounted) setState(() => _joiningChannelShareIds.add(key));
+    try {
+      final roomId = payload.roomId.trim();
+      if (roomId.isEmpty) throw StateError('频道 room_id 为空');
+      final joined = await ref.read(asClientProvider).joinChannelByRoomId(
+            roomId,
+            discoveredChannel: payload.asDiscoveredChannel,
+          );
+      if (joined.memberStatus == asChannelMemberStatusJoined) {
+        await _refreshBootstrapAfterVisibilityMutation();
+      }
+      if (!mounted) return;
+      if (joined.memberStatus == asChannelMemberStatusPending) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已提交加入申请')),
+        );
+        return;
+      }
+      context.push(channelShareJoinedRoute(payload, joined));
+    } on Object catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加入频道失败：$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _joiningChannelShareIds.remove(key));
+    }
+  }
+
   /// 点击图片进入临时预览；长期保存由预览页底部下载按钮触发。
   Future<void> _openImageEvent(Event e, String meta) async {
     final cacheKey = e.eventId.trim();
@@ -1716,7 +1744,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _openContactInfo(String userId) {
     final id = userId.trim();
     if (id.isEmpty) return;
-    context.push('/contact/${Uri.encodeComponent(id)}');
+    context.push('/contact/${Uri.encodeComponent(id)}?source=chat_info');
   }
 
   void _openMyProfileFromChat() {
@@ -2073,6 +2101,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
+  Future<void> _openRedPacketDetail(RedPacketPayload payload) {
+    return Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RedPacketDetailPage(payload: payload),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_useMock) {
@@ -2164,12 +2200,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       for (final item in timelineItems) _timelineItemKey(item),
     ];
     final displayTimelineItems = timelineItems.reversed.toList(growable: false);
-    final displayTimelineItemKeys = timelineItemKeys.reversed.toList(
-      growable: false,
-    );
     _syncMessageListIndexes(displayTimelineItems, leadingItems: 1);
     _pruneMessageAnchors();
-    _seedInitialTimelineEntrances(timelineItemKeys);
     _scheduleTargetEventScroll();
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
@@ -2206,12 +2238,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       peerMxid: mxid,
       events: messageEvents,
     );
-    final agentConnected = isAgent
-        ? ref.watch(agentStatusProvider).maybeWhen(
-              data: (status) => status.connected,
-              orElse: () => false,
-            )
-        : false;
     final peerIsTyping = !isAgent && _isPeerTyping(room, mxid);
     final peerPresence = isAgent ? null : _peerPresence(room.client, mxid);
     final peerIsOnline =
@@ -2220,7 +2246,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final headerSubtitle = isWaitingForAccept
         ? '等待对方接受'
         : isAgent
-            ? (agentConnected ? '在线' : '离线')
+            ? null
             : peerIsTyping
                 ? '在想'
                 : peerIsOnline
@@ -2229,9 +2255,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ? '离线'
                         : null;
     final headerSubtitleStatus = isAgent
-        ? (agentConnected
-            ? ChatCapsuleSubtitleStatus.online
-            : ChatCapsuleSubtitleStatus.offline)
+        ? null
         : (peerIsTyping || peerIsOnline
             ? ChatCapsuleSubtitleStatus.online
             : peerIsOffline
@@ -2290,29 +2314,31 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   subtitleStatus: headerSubtitleStatus,
                   onBack: () => unawaited(_popChatOrHome(context)),
                   showEncryptionIcon: true,
-                  actions: [
-                    ChatCapsuleAction(
-                      icon: Symbols.call,
-                      tooltip: '语音通话',
-                      color: t.accent,
-                      onTap: canSendMessages
-                          ? () => context.push(
-                                _privateVoiceCallRoute(
-                                  widget.roomId,
-                                  mxid,
-                                  name,
-                                  peerAvatarUrl,
-                                ),
-                              )
-                          : () => _showPendingContactToast(context),
-                    ),
-                    ChatCapsuleAction(
-                      icon: Symbols.more_vert,
-                      tooltip: '详情',
-                      color: t.accent,
-                      onTap: () => _openContactInfo(mxid),
-                    ),
-                  ],
+                  actions: isAgent
+                      ? const []
+                      : [
+                          ChatCapsuleAction(
+                            icon: Symbols.call,
+                            tooltip: '语音通话',
+                            color: t.accent,
+                            onTap: canSendMessages
+                                ? () => context.push(
+                                      _privateVoiceCallRoute(
+                                        widget.roomId,
+                                        mxid,
+                                        name,
+                                        peerAvatarUrl,
+                                      ),
+                                    )
+                                : () => _showPendingContactToast(context),
+                          ),
+                          ChatCapsuleAction(
+                            icon: Symbols.more_vert,
+                            tooltip: '详情',
+                            color: t.accent,
+                            onTap: () => _openContactInfo(mxid),
+                          ),
+                        ],
                 ),
           messageLayer: Listener(
             behavior: HitTestBehavior.translucent,
@@ -2357,8 +2383,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 return const _E2eFooter();
                               }
                               final itemIndex = i - 1;
-                              final itemKey =
-                                  displayTimelineItemKeys[itemIndex];
                               final contextMenuPlacement =
                                   _messageContextMenuPlacement(
                                 itemIndex,
@@ -2375,8 +2399,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   key: ValueKey('private_message_enter_$id'),
                                   isMe: isMe,
                                   index: itemIndex,
-                                  enabled: _initialTimelineEntrances
-                                      .contains(itemKey),
+                                  enabled: false,
                                   child: anchorKey == null
                                       ? _MessageJumpFlash(
                                           flashing: flashing,
@@ -2691,7 +2714,52 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       channelSharePayloadFromContent(
                                     Map<String, Object?>.from(e.content),
                                   );
+                                  final redPacketPayload =
+                                      redPacketPayloadFromContent(
+                                    Map<String, Object?>.from(e.content),
+                                    body: e.body,
+                                  );
+                                  if (redPacketPayload != null) {
+                                    return enter(
+                                      _SBusinessCardBubble(
+                                        isMe: isMe,
+                                        time: time,
+                                        showRead: isMe &&
+                                            peerReadEventIds.contains(
+                                              e.eventId,
+                                            ),
+                                        avatarSeed: senderName,
+                                        avatarUrl: senderAvatarUrl,
+                                        onAvatarTap: avatarTap,
+                                        selected: selected,
+                                        multiSelect: _multiSelect,
+                                        onTap: _multiSelect
+                                            ? toggle
+                                            : () => _openRedPacketDetail(
+                                                  redPacketPayload,
+                                                ),
+                                        onLongPressAt: (pos) =>
+                                            _onLongPressEvent(
+                                          context,
+                                          e,
+                                          pos,
+                                          placement: contextMenuPlacement,
+                                        ),
+                                        child: RedPacketMessageCard(
+                                          payload: redPacketPayload,
+                                          isMe: isMe,
+                                          selected: selected,
+                                        ),
+                                      ),
+                                      isMe: isMe,
+                                      id: e.eventId,
+                                      anchorKey: anchorKey,
+                                      flashing: flashing,
+                                    );
+                                  }
                                   if (channelSharePayload != null) {
+                                    final shareKey = channelShareJoinKey(
+                                        channelSharePayload);
                                     return enter(
                                       _SChannelShareBubble(
                                         isMe: isMe,
@@ -2706,10 +2774,27 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         onAvatarTap: avatarTap,
                                         selected: selected,
                                         multiSelect: _multiSelect,
+                                        joining: _joiningChannelShareIds
+                                            .contains(shareKey),
+                                        alreadyJoined: channelShareIsJoined(
+                                          ref.read(asSyncCacheProvider),
+                                          channelSharePayload,
+                                        ),
+                                        onJoin: () => unawaited(
+                                          _joinChannelShare(
+                                            channelSharePayload,
+                                          ),
+                                        ),
                                         onTap: _multiSelect
                                             ? toggle
                                             : () => context.push(
-                                                  '/channel/${Uri.encodeComponent(channelSharePayload.channelId)}',
+                                                  channelShareOpenRoute(
+                                                    ref.read(
+                                                      asSyncCacheProvider,
+                                                    ),
+                                                    channelSharePayload,
+                                                  ),
+                                                  extra: channelSharePayload,
                                                 ),
                                         onLongPressAt: (pos) =>
                                             _onLongPressEvent(
@@ -3451,79 +3536,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     }
   }
 
-  Future<void> _onTestAsConnector() async {
-    setState(() => _addUserAction('/测试 AS Connector'));
-    final gateway = ref.read(asGatewayClientProvider);
-
-    try {
-      final auth = await _callAsGatewayWithBubble(
-          'p2p_auth_status',
-          {
-            'as_url': gateway.asUrl,
-            'auth_mode': 'bearer_agent_token',
-          },
-          gateway.authProbe);
-      final roomsData = await _callAsGatewayWithBubble(
-        'p2p_rooms_list',
-        {},
-        gateway.listRooms,
-      );
-      final contactsData = await _callAsGatewayWithBubble(
-        'p2p_contacts_list',
-        {},
-        gateway.listContacts,
-      );
-
-      final rooms = (roomsData['rooms'] as List? ?? const []);
-      final contacts = (contactsData['contacts'] as List? ?? const []);
-      Map<String, dynamic>? firstRoom;
-      if (rooms.isNotEmpty && rooms.first is Map) {
-        firstRoom = Map<String, dynamic>.from(rooms.first as Map);
-      }
-
-      Map<String, dynamic>? messagesData;
-      if (firstRoom != null) {
-        final roomId = firstRoom['room_id'] as String;
-        messagesData = await _callAsGatewayWithBubble(
-          'p2p_room_messages_read',
-          {'room_id': roomId, 'limit': 5},
-          () => gateway.readRoomMessages(roomId, limit: 5),
-        );
-        await _callAsGatewayWithBubble(
-            'p2p_room_members_list',
-            {
-              'room_id': roomId,
-            },
-            () => gateway.listRoomMembers(roomId));
-        await _callAsGatewayWithBubble(
-          'p2p_messages_search',
-          {'query': '评审', 'room_id': roomId, 'limit': 5},
-          () => gateway.searchMessages('评审', roomId: roomId, limit: 5),
-        );
-      }
-
-      final messages = (messagesData?['messages'] as List? ?? const []);
-      _streamAgentReply(
-        '## AS Connector 已接通\n\n'
-        '- AS：`${auth['as_url']}`\n'
-        '- 鉴权：`${auth['auth_mode']}`，token 已加载：`${auth['token_loaded']}`\n'
-        '- 房间：**${rooms.length}** 个\n'
-        '- 联系人：**${contacts.length}** 个\n'
-        '- 首个房间：${firstRoom?['name'] ?? '无'}\n'
-        '- 读取消息：**${messages.length}** 条\n\n'
-        '这次测试走的是 `client -> p2p-matrix-as Gateway /api/*`。'
-        '如果 Matrix homeserver 未启动，房间、联系人或发送步骤会返回 AS 后端错误。',
-      );
-    } on AsGatewayException catch (e) {
-      _streamAgentReply(
-        '## AS Connector 连接失败\n\n'
-        '- AS：`${gateway.asUrl}`\n'
-        '- 错误：`${e.toString()}`\n\n'
-        '请确认 p2p-matrix-as Gateway 已启动，并且 `P2P_MATRIX_AGENT_TOKEN` 与 AS gateway token 一致。',
-      );
-    }
-  }
-
   // ignore: unused_element
   Future<void> _onSummarizeRecent() async {
     setState(() => _addUserAction('/总结最近谁和我聊了什么'));
@@ -3575,97 +3587,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     }
   }
 
-  void _onNewSession() {
-    _streamTimer?.cancel();
-    setState(() {
-      _messages.clear();
-      _agentBusy = false;
-    });
-  }
-
-  /// AI Bot 头部右上角角标菜单：快捷指令两项（测试 AS 连接 / 新建会话）+ 管理。
-  /// 原先在输入框上方的 `_AgentFloatingBar` 已收进此菜单。
-  void _showAgentMenu(BuildContext anchorCtx, Offset offset) {
-    final t = anchorCtx.tk;
-    PopupMenuItem<void> item(
-      IconData icon,
-      String title,
-      String subtitle,
-      VoidCallback onTap,
-    ) {
-      return PopupMenuItem<void>(
-        onTap: onTap,
-        padding: EdgeInsets.zero,
-        child: Container(
-          width: 240,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Icon(icon, size: 16, color: t.accent),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: AppTheme.sans(
-                        size: 13,
-                        color: t.text,
-                        weight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: AppTheme.sans(size: 11, color: t.textMute),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    showMenu<void>(
-      context: anchorCtx,
-      color: t.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: t.border),
-      ),
-      position: RelativeRect.fromLTRB(
-        offset.dx,
-        offset.dy,
-        offset.dx + 1,
-        offset.dy + 1,
-      ),
-      items: [
-        item(
-          Symbols.api,
-          'AS 测试',
-          '检查 Agent 与后端连接',
-          _onTestAsConnector,
-        ),
-        item(
-          Symbols.add_comment,
-          '新建会话',
-          '清空当前演示上下文',
-          _onNewSession,
-        ),
-        item(
-          Symbols.tune,
-          '管理',
-          'MCP 权限与策略',
-          () => context.push('/mcp-permission/local-aibot'),
-        ),
-      ],
-    );
-  }
-
   // ignore: unused_element
   void _onAgentDraftReply() {
     setState(() {
@@ -3693,7 +3614,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
 
   Future<void> _onLongPressMsg(
     MockMessage m,
-    Offset pos, {
+    _MessageContextAnchor anchor, {
     required _MessageContextMenuPlacement placement,
   }) async {
     if (m.kind != MockMsgKind.text &&
@@ -3703,7 +3624,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     }
     final action = await _showMsgContextMenu(
       context,
-      pos,
+      anchor,
       placement: placement,
     );
     if (!mounted || action == null) return;
@@ -3884,55 +3805,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     }
   }
 
-  Future<Map<String, dynamic>> _callAsGatewayWithBubble(
-    String tool,
-    Map<String, dynamic> args,
-    Future<Map<String, dynamic>> Function() call,
-  ) async {
-    final sw = Stopwatch()..start();
-    try {
-      final data = await call();
-      sw.stop();
-      _addToolBubble(
-        tool: tool,
-        args: args,
-        summary: _asGatewaySummary(tool, data),
-        latencyMs: sw.elapsedMilliseconds,
-      );
-      return data;
-    } on AsGatewayException catch (e) {
-      sw.stop();
-      _addToolBubble(
-        tool: tool,
-        args: args,
-        summary: '',
-        latencyMs: sw.elapsedMilliseconds,
-        denied: true,
-        deniedReason: e.toString(),
-      );
-      rethrow;
-    }
-  }
-
-  String _asGatewaySummary(String tool, Map<String, dynamic> data) {
-    final key = switch (tool) {
-      'p2p_rooms_list' => 'rooms',
-      'p2p_contacts_list' => 'contacts',
-      'p2p_room_messages_read' => 'messages',
-      'p2p_room_members_list' => 'members',
-      'p2p_messages_search' => 'results',
-      _ => null,
-    };
-    if (key != null) {
-      final count = (data[key] as List?)?.length ?? 0;
-      return '$key: $count';
-    }
-    if (tool == 'p2p_auth_status') {
-      return 'agent token loaded: ${data['token_loaded']}';
-    }
-    return 'ok';
-  }
-
   void _togglePlus() {
     final nextVisible = !_showPlusPanel;
     if (nextVisible) FocusManager.instance.primaryFocus?.unfocus();
@@ -4045,32 +3917,26 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                   subtitle: c.isGroup ? '6 名成员' : null,
                   onBack: () => unawaited(_popChatOrHome(context)),
                   showEncryptionIcon: true,
-                  actions: [
-                    ChatCapsuleAction(
-                      icon: Symbols.call,
-                      tooltip: '语音通话',
-                      color: t.accent,
-                      onTap: () {},
-                    ),
-                    ChatCapsuleAction(
-                      icon: Symbols.more_vert,
-                      tooltip: '详情',
-                      color: t.accent,
-                      onTap: _isAiBot
-                          ? () => _showAgentMenu(
-                                context,
-                                Offset(
-                                  MediaQuery.of(context).size.width - 64,
-                                  88,
-                                ),
-                              )
-                          : () => context.push(
-                                c.isGroup
-                                    ? '/group-detail/${Uri.encodeComponent(c.id)}'
-                                    : '/contact/${Uri.encodeComponent(c.mxid)}',
-                              ),
-                    ),
-                  ],
+                  actions: _isAiBot
+                      ? const []
+                      : [
+                          ChatCapsuleAction(
+                            icon: Symbols.call,
+                            tooltip: '语音通话',
+                            color: t.accent,
+                            onTap: () {},
+                          ),
+                          ChatCapsuleAction(
+                            icon: Symbols.more_vert,
+                            tooltip: '详情',
+                            color: t.accent,
+                            onTap: () => context.push(
+                              c.isGroup
+                                  ? '/group-detail/${Uri.encodeComponent(c.id)}'
+                                  : '/contact/${Uri.encodeComponent(c.mxid)}?source=chat_info',
+                            ),
+                          ),
+                        ],
                 ),
           messageLayer: Listener(
             behavior: HitTestBehavior.translucent,
@@ -4640,7 +4506,7 @@ class _SChatBubble extends StatelessWidget {
   final bool multiSelect;
   final VoidCallback? onTap;
   final ValueChanged<String?>? onTapQuote;
-  final void Function(Offset globalPos)? onLongPressAt;
+  final _MessageContextAnchorCallback? onLongPressAt;
   final Widget? outboxStatus;
 
   @override
@@ -4649,14 +4515,18 @@ class _SChatBubble extends StatelessWidget {
     final bubbleColor = isMe ? t.accent : t.surfaceHigh;
     final textColor = isMe ? t.onAccent : t.text;
     Offset pos = Offset.zero;
+    final bubbleKey = GlobalKey();
     final bubble = GestureDetector(
+      key: bubbleKey,
       behavior: HitTestBehavior.opaque,
       onTapDown: (d) => pos = d.globalPosition,
       onTap: onTap,
-      onLongPress: () => onLongPressAt?.call(pos),
+      onLongPress: () =>
+          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
       // 桌面端右键：记录位置 + 触发同一菜单。
       onSecondaryTapDown: (d) => pos = d.globalPosition,
-      onSecondaryTap: () => onLongPressAt?.call(pos),
+      onSecondaryTap: () =>
+          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
       child: ChatBubbleFrame(
         child: Container(
           decoration: BoxDecoration(
@@ -4869,10 +4739,11 @@ class _SChatRecordBubble extends StatelessWidget {
   final bool selected;
   final bool multiSelect;
   final VoidCallback? onTap;
-  final void Function(Offset globalPos)? onLongPressAt;
+  final _MessageContextAnchorCallback? onLongPressAt;
 
   @override
   Widget build(BuildContext context) {
+    final cardKey = GlobalKey();
     return _bubbleRow(
       context: context,
       isMe: isMe,
@@ -4888,10 +4759,63 @@ class _SChatRecordBubble extends StatelessWidget {
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           ChatRecordPreviewCard(
+            key: cardKey,
             payload: payload,
             onTap: onTap,
-            onLongPressAt: onLongPressAt,
+            onLongPressAt: (position) => onLongPressAt?.call(
+              _messageContextAnchorFor(cardKey, position),
+            ),
           ),
+          _bubbleTimeRow(context, time, showRead),
+        ],
+      ),
+    );
+  }
+}
+
+class _SBusinessCardBubble extends StatelessWidget {
+  const _SBusinessCardBubble({
+    required this.isMe,
+    required this.child,
+    required this.time,
+    required this.showRead,
+    required this.avatarSeed,
+    this.avatarUrl,
+    this.onAvatarTap,
+    this.selected = false,
+    this.multiSelect = false,
+    this.onTap,
+    this.onLongPressAt,
+  });
+
+  final bool isMe;
+  final Widget child;
+  final String time;
+  final bool showRead;
+  final String avatarSeed;
+  final String? avatarUrl;
+  final VoidCallback? onAvatarTap;
+  final bool selected;
+  final bool multiSelect;
+  final VoidCallback? onTap;
+  final _MessageContextAnchorCallback? onLongPressAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return _bubbleRow(
+      context: context,
+      isMe: isMe,
+      multiSelect: multiSelect,
+      selected: selected,
+      avatarSeed: avatarSeed,
+      avatarUrl: avatarUrl,
+      onAvatarTap: onAvatarTap,
+      onSelectTap: onTap,
+      child: Column(
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          child,
           _bubbleTimeRow(context, time, showRead),
         ],
       ),
@@ -4910,6 +4834,9 @@ class _SChannelShareBubble extends StatelessWidget {
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
+    this.joining = false,
+    this.alreadyJoined = false,
+    this.onJoin,
     this.onTap,
     this.onLongPressAt,
   });
@@ -4923,11 +4850,15 @@ class _SChannelShareBubble extends StatelessWidget {
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
+  final bool joining;
+  final bool alreadyJoined;
+  final VoidCallback? onJoin;
   final VoidCallback? onTap;
-  final void Function(Offset globalPos)? onLongPressAt;
+  final _MessageContextAnchorCallback? onLongPressAt;
 
   @override
   Widget build(BuildContext context) {
+    final cardKey = GlobalKey();
     return _bubbleRow(
       context: context,
       isMe: isMe,
@@ -4942,9 +4873,15 @@ class _SChannelShareBubble extends StatelessWidget {
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           ChannelSharePreviewCard(
+            key: cardKey,
             payload: payload,
+            joining: joining,
+            alreadyJoined: alreadyJoined,
+            onJoin: onJoin,
             onTap: onTap,
-            onLongPressAt: onLongPressAt,
+            onLongPressAt: (position) => onLongPressAt?.call(
+              _messageContextAnchorFor(cardKey, position),
+            ),
           ),
           _bubbleTimeRow(context, time, showRead),
         ],
@@ -4980,10 +4917,11 @@ class _SChatCallRecordBubble extends StatelessWidget {
   final bool selected;
   final bool multiSelect;
   final VoidCallback? onTap;
-  final void Function(Offset globalPos)? onLongPressAt;
+  final _MessageContextAnchorCallback? onLongPressAt;
 
   @override
   Widget build(BuildContext context) {
+    final cardKey = GlobalKey();
     return _bubbleRow(
       context: context,
       isMe: isMe,
@@ -4998,12 +4936,15 @@ class _SChatCallRecordBubble extends StatelessWidget {
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           ChatCallRecordBubble(
+            key: cardKey,
             isMe: isMe,
             isVideo: isVideo,
             text: text,
             selected: selected,
             onTap: multiSelect ? onTap : null,
-            onLongPressAt: onLongPressAt,
+            onLongPressAt: (position) => onLongPressAt?.call(
+              _messageContextAnchorFor(cardKey, position),
+            ),
           ),
           _bubbleTimeRow(context, time, showRead),
         ],
@@ -5195,18 +5136,22 @@ class _SChatImageBubble extends StatelessWidget {
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
-  final void Function(Offset globalPos)? onLongPressAt;
+  final _MessageContextAnchorCallback? onLongPressAt;
 
   @override
   Widget build(BuildContext context) {
     Offset pos = Offset.zero;
+    final imageKey = GlobalKey();
     final image = GestureDetector(
+      key: imageKey,
       behavior: HitTestBehavior.opaque,
       onTapDown: (d) => pos = d.globalPosition,
       onTap: onTap,
-      onLongPress: () => onLongPressAt?.call(pos),
+      onLongPress: () =>
+          onLongPressAt?.call(_messageContextAnchorFor(imageKey, pos)),
       onSecondaryTapDown: (d) => pos = d.globalPosition,
-      onSecondaryTap: () => onLongPressAt?.call(pos),
+      onSecondaryTap: () =>
+          onLongPressAt?.call(_messageContextAnchorFor(imageKey, pos)),
       child: ChatMediaBubbleFrame(
         width: mediaSize.width,
         height: mediaSize.height,
@@ -5276,19 +5221,23 @@ class _SChatVoiceBubble extends StatelessWidget {
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
-  final void Function(Offset globalPos)? onLongPressAt;
+  final _MessageContextAnchorCallback? onLongPressAt;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     Offset pos = Offset.zero;
+    final bubbleKey = GlobalKey();
     final bubble = GestureDetector(
+      key: bubbleKey,
       behavior: HitTestBehavior.opaque,
       onTapDown: (d) => pos = d.globalPosition,
       onTap: onTap,
-      onLongPress: () => onLongPressAt?.call(pos),
+      onLongPress: () =>
+          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
       onSecondaryTapDown: (d) => pos = d.globalPosition,
-      onSecondaryTap: () => onLongPressAt?.call(pos),
+      onSecondaryTap: () =>
+          onLongPressAt?.call(_messageContextAnchorFor(bubbleKey, pos)),
       child: ChatBubbleFrame(
         child: Container(
           constraints: const BoxConstraints(minWidth: 116, maxWidth: 220),
@@ -5376,19 +5325,23 @@ class _SChatFileBubble extends StatelessWidget {
   final Widget? trailing;
   final bool selected;
   final bool multiSelect;
-  final void Function(Offset globalPos)? onLongPressAt;
+  final _MessageContextAnchorCallback? onLongPressAt;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     Offset pos = Offset.zero;
+    final cardKey = GlobalKey();
     final card = GestureDetector(
+      key: cardKey,
       behavior: HitTestBehavior.opaque,
       onTapDown: (d) => pos = d.globalPosition,
       onTap: onTap,
-      onLongPress: () => onLongPressAt?.call(pos),
+      onLongPress: () =>
+          onLongPressAt?.call(_messageContextAnchorFor(cardKey, pos)),
       onSecondaryTapDown: (d) => pos = d.globalPosition,
-      onSecondaryTap: () => onLongPressAt?.call(pos),
+      onSecondaryTap: () =>
+          onLongPressAt?.call(_messageContextAnchorFor(cardKey, pos)),
       child: ChatBubbleFrame(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 260),
@@ -5812,9 +5765,7 @@ class _MatrixThumb extends ConsumerWidget {
           ? null
           : ref.read(mediaThumbnailCacheProvider.future),
       loadBytes: () async {
-        final file = await event.downloadAndDecryptAttachment(
-          getThumbnail: true,
-        );
+        final file = await downloadChatEventThumbnail(event);
         return file.bytes;
       },
       fit: fit,
@@ -5966,15 +5917,45 @@ class _ReplyBar extends StatelessWidget {
 }
 
 /// `msg-ctx-menu`：WeChat-style long-press popup from Figma node 73:3243.
+class _MessageContextAnchor {
+  const _MessageContextAnchor({
+    required this.position,
+    this.bubbleRect,
+  });
+
+  final Offset position;
+  final Rect? bubbleRect;
+}
+
+typedef _MessageContextAnchorCallback = void Function(
+  _MessageContextAnchor anchor,
+);
+
+_MessageContextAnchor _messageContextAnchorFor(
+  GlobalKey key,
+  Offset position,
+) {
+  final renderObject = key.currentContext?.findRenderObject();
+  if (renderObject is RenderBox && renderObject.hasSize) {
+    return _MessageContextAnchor(
+      position: position,
+      bubbleRect: renderObject.localToGlobal(Offset.zero) & renderObject.size,
+    );
+  }
+  return _MessageContextAnchor(position: position);
+}
+
 Future<String?> _showMsgContextMenu(
   BuildContext context,
-  Offset pos, {
+  _MessageContextAnchor anchor, {
   required _MessageContextMenuPlacement placement,
   bool canCopy = true,
   bool canQuote = true,
   bool canRecall = false,
 }) {
   final size = MediaQuery.of(context).size;
+  final pos = anchor.position;
+  final bubbleRect = anchor.bubbleRect;
   return showGeneralDialog<String>(
     context: context,
     barrierDismissible: true,
@@ -5985,10 +5966,16 @@ Future<String?> _showMsgContextMenu(
       const horizontalMargin = 16.0;
       final menuW = math.min(343.0, size.width - horizontalMargin * 2);
       const menuH = 168.0;
-      const bubbleGap = 22.0;
+      const menuVisibleH = 169.0;
+      const bubbleGap = 10.0;
       var left = pos.dx - menuW / 2;
       final pointerOnTop = placement == _MessageContextMenuPlacement.below;
-      var top = pointerOnTop ? pos.dy + bubbleGap : pos.dy - menuH - bubbleGap;
+      final bubbleEdge = pointerOnTop
+          ? bubbleRect?.bottom ?? pos.dy
+          : bubbleRect?.top ?? pos.dy;
+      var top = pointerOnTop
+          ? bubbleEdge + bubbleGap
+          : bubbleEdge - menuVisibleH - bubbleGap;
       if (left < horizontalMargin) left = horizontalMargin;
       if (left + menuW > size.width - horizontalMargin) {
         left = size.width - menuW - horizontalMargin;
@@ -6108,7 +6095,7 @@ class _MsgCtxMenuCard extends StatelessWidget {
                           ),
                           const _MsgCtxMenuItem(
                             width: itemW,
-                            icon: Symbols.deployed_code,
+                            icon: Symbols.bookmark,
                             label: '收藏',
                             value: 'fav',
                           ),

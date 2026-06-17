@@ -10,10 +10,10 @@ import 'package:portal_app/data/p2p_api_client.dart';
 void main() {
   test('listChannels calls configured P2P channel endpoint', () async {
     final client = P2pApiClient(
-      baseUri: Uri.parse('http://imadmin.direxio.ai/api'),
+      baseUri: Uri.parse('http://localhost:8888'),
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/api/im/channel/list');
+        expect(request.url.path, '/im/channel/list');
         expect(request.url.queryParameters['page'], '1');
         expect(request.url.queryParameters['pageSize'], '20');
         expect(request.url.queryParameters['status'], '1');
@@ -89,8 +89,23 @@ void main() {
             {
               'ID': 1,
               'channelDomain': 'channel.example.com',
+              'room_id': '!room:owner.example.com',
               'ownerDomain': 'owner.example.com',
               'intro': '频道简介',
+              'channelDetail': {
+                'channel_id': 'ch_public',
+                'room_id': '!room:owner.example.com',
+                'home_domain': 'owner.example.com',
+                'name': '产品公告',
+                'description': '只发布重要产品更新',
+                'avatar_url': 'mxc://example.com/avatar',
+                'visibility': 'public',
+                'join_policy': 'open',
+                'comments_enabled': true,
+                'tags': ['技术', '美术'],
+                'member_count': 1,
+                'status': 'active',
+              },
               'tag': {'ID': 1, 'name': '技术', 'color': '#67C23A'},
               'status': 1,
               'reportCount': 0,
@@ -113,14 +128,17 @@ void main() {
     expect(page.total, 1);
     expect(page.page, 1);
     expect(page.pageSize, 10);
-    expect(page.channels.single.channelId, 'channel.example.com');
+    expect(page.channels.single.channelId, 'ch_public');
+    expect(page.channels.single.roomId, '!room:owner.example.com');
     expect(page.channels.single.homeDomain, 'owner.example.com');
-    expect(page.channels.single.description, '频道简介');
-    expect(page.channels.single.memberCount, 2);
-    expect(page.channels.single.tags, ['技术']);
+    expect(page.channels.single.name, '产品公告');
+    expect(page.channels.single.description, '只发布重要产品更新');
+    expect(page.channels.single.avatarUrl, 'mxc://example.com/avatar');
+    expect(page.channels.single.memberCount, 1);
+    expect(page.channels.single.tags, ['技术', '美术']);
   });
 
-  test('joinChannel posts public channel metadata', () async {
+  test('joinChannel posts public channel domain and room id', () async {
     final client = P2pApiClient(
       baseUri: Uri.parse('http://localhost:8888'),
       httpClient: MockClient((request) async {
@@ -128,27 +146,18 @@ void main() {
         expect(request.url.path, '/im/channel/join');
         expect(jsonDecode(request.body), {
           'channelDomain': 'channel.example.com',
-          'ownerDomain': 'owner.example.com',
-          'intro': '频道简介',
+          'room_id': '!room:owner.example.com',
           'tagId': 1,
         });
-        return _apiResponse({
-          'channelDomain': 'channel.example.com',
-          'ownerDomain': 'owner.example.com',
-          'intro': '频道简介',
-        });
+        return _apiResponse({});
       }),
     );
 
-    final joined = await client.joinChannel(
+    await client.joinChannel(
       channelDomain: ' channel.example.com ',
-      ownerDomain: ' owner.example.com ',
-      intro: ' 频道简介 ',
+      roomId: ' !room:owner.example.com ',
       tagId: 1,
     );
-
-    expect(joined.channel.channelId, 'channel.example.com');
-    expect(joined.channel.homeDomain, 'owner.example.com');
   });
 
   test('getReportCount calls public report count endpoint', () async {
@@ -297,7 +306,7 @@ void main() {
     const secret = 'secret';
     late http.Request seen;
     final client = P2pApiClient(
-      baseUri: Uri.parse('http://imadmin.direxio.ai/api'),
+      baseUri: Uri.parse('http://localhost:8888'),
       biSecret: secret,
       httpClient: MockClient((request) async {
         seen = request;
@@ -314,7 +323,7 @@ void main() {
     );
 
     expect(seen.method, 'POST');
-    expect(seen.url.path, '/api/bi/events/report');
+    expect(seen.url.path, '/bi/events/report');
     final nonce = seen.headers['X-BI-Nonce'];
     expect(nonce, isNotEmpty);
     final expected = md5.convert(
@@ -369,7 +378,7 @@ void main() {
 
   test('disabled BI analytics does not send network requests', () async {
     final client = P2pApiClient(
-      baseUri: Uri.parse('http://imadmin.direxio.ai/api'),
+      baseUri: Uri.parse('http://localhost:8888'),
       httpClient: MockClient((_) async {
         fail('BI should not send requests when disabled');
       }),

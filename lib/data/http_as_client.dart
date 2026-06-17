@@ -20,17 +20,20 @@ class HttpAsClient implements AsClient {
     String? accessToken,
     String authSource = 'portal_token',
     String? matrixAccessTokenForDebug,
+    FutureOr<void> Function()? onAuthenticationFailed,
     http.Client? httpClient,
   })  : _baseUri = _normalizeBaseUri(baseUri),
         _portalToken = _requireToken(portalToken ?? accessToken),
         _authSource = authSource,
         _matrixAccessTokenForDebug = matrixAccessTokenForDebug,
+        _onAuthenticationFailed = onAuthenticationFailed,
         _http = httpClient ?? http.Client();
 
   factory HttpAsClient.fromPortalSession(
     Client client, {
     required String portalToken,
     Uri? baseUri,
+    FutureOr<void> Function()? onAuthenticationFailed,
   }) {
     final homeserver = client.homeserver;
     if (homeserver == null) {
@@ -41,13 +44,18 @@ class HttpAsClient implements AsClient {
       portalToken: portalToken,
       authSource: 'portal_token',
       matrixAccessTokenForDebug: client.accessToken,
+      onAuthenticationFailed: onAuthenticationFailed,
       httpClient: client.httpClient,
     );
   }
 
   /// Backward-compatible constructor for sessions created before AS v2 auth.
   /// New p2p-matrix-as deployments expect [fromPortalSession] instead.
-  factory HttpAsClient.fromMatrixClient(Client client, {Uri? baseUri}) {
+  factory HttpAsClient.fromMatrixClient(
+    Client client, {
+    Uri? baseUri,
+    FutureOr<void> Function()? onAuthenticationFailed,
+  }) {
     final token = client.accessToken;
     final homeserver = client.homeserver;
     if (token == null || token.isEmpty || homeserver == null) {
@@ -58,6 +66,7 @@ class HttpAsClient implements AsClient {
       accessToken: token,
       authSource: 'matrix_access_token',
       matrixAccessTokenForDebug: token,
+      onAuthenticationFailed: onAuthenticationFailed,
       httpClient: client.httpClient,
     );
   }
@@ -66,6 +75,7 @@ class HttpAsClient implements AsClient {
   final String _portalToken;
   final String? _authSource;
   final String? _matrixAccessTokenForDebug;
+  final FutureOr<void> Function()? _onAuthenticationFailed;
   final http.Client _http;
 
   static const _timeout = Duration(seconds: 10);
@@ -692,30 +702,36 @@ class HttpAsClient implements AsClient {
     String avatarUrl = '',
     String visibility = asChannelVisibilityPublic,
     String joinPolicy = asChannelJoinPolicyOpen,
+    String channelType = 'chat',
     bool commentsEnabled = true,
     List<String> tags = const [],
   }) async {
     final trimmedName = name.trim();
     final trimmedDescription =
         description.trim().isNotEmpty ? description.trim() : topic.trim();
+    final requestBody = {
+      'name': trimmedName,
+      if (trimmedDescription.isNotEmpty) 'description': trimmedDescription,
+      if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
+      'visibility': visibility.trim().isEmpty
+          ? asChannelVisibilityPublic
+          : visibility.trim(),
+      'join_policy': joinPolicy.trim().isEmpty
+          ? asChannelJoinPolicyOpen
+          : joinPolicy.trim(),
+      'channel_type': _normalizedChannelType(channelType),
+      'comments_enabled': commentsEnabled,
+      'tags': tags.map((tag) => tag.trim()).where((tag) {
+        return tag.isNotEmpty;
+      }).toList(growable: false),
+    };
+    ApiLogger.info(
+      '[AS admin] create channel request ${jsonEncode(requestBody)}',
+    );
     final body = await _requestJson(
       'POST',
       'channels',
-      body: {
-        'name': trimmedName,
-        if (trimmedDescription.isNotEmpty) 'description': trimmedDescription,
-        if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
-        'visibility': visibility.trim().isEmpty
-            ? asChannelVisibilityPublic
-            : visibility.trim(),
-        'join_policy': joinPolicy.trim().isEmpty
-            ? asChannelJoinPolicyOpen
-            : joinPolicy.trim(),
-        'comments_enabled': commentsEnabled,
-        'tags': tags.map((tag) => tag.trim()).where((tag) {
-          return tag.isNotEmpty;
-        }).toList(growable: false),
-      },
+      body: requestBody,
       allowedStatusCodes: const {200},
     );
     final channel = AsChannel.fromJson(body);
@@ -723,6 +739,12 @@ class HttpAsClient implements AsClient {
       throw AsClientException('AS create channel response is missing room_id');
     }
     return channel;
+  }
+
+  @override
+  Future<List<AsChannel>> listChannels() async {
+    final body = await _getJson('channels');
+    return _parseChannels(body['channels'] ?? body['results'] ?? body);
   }
 
   @override
@@ -752,6 +774,18 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<AsChannel> getPublicChannelByRoomId(
+    String roomId, {
+    Uri? baseUri,
+  }) async {
+    final body = await _getPublicJson(
+      'public/channels/${_encodeStrictPathComponent(roomId.trim())}',
+      baseUri: baseUri,
+    );
+    return AsChannel.fromJson(body);
+  }
+
+  @override
   Future<AsChannel> updateChannel(AsChannel draft) async {
     final body = await _requestJson(
       'PUT',
@@ -772,6 +806,28 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<AsChannel> joinChannelByRoomId(
+    String roomId, {
+    String shareToken = '',
+    AsChannel? discoveredChannel,
+  }) async {
+    final trimmedRoomId = roomId.trim();
+    final requestBody = <String, Object?>{
+      'room_id': trimmedRoomId,
+      if (shareToken.trim().isNotEmpty) 'share_token': shareToken.trim(),
+    };
+    final body = await _requestJson(
+      'POST',
+      'channels/join',
+      body: requestBody,
+      allowedStatusCodes: const {200},
+    );
+    return AsChannel.fromJson(
+      (body['channel'] as Map?)?.cast<String, dynamic>() ?? body,
+    );
+  }
+
+  @override
   Future<AsChannel> joinChannel(
     String channelId, {
     String shareToken = '',
@@ -789,6 +845,15 @@ class HttpAsClient implements AsClient {
     );
     return AsChannel.fromJson(
       (body['channel'] as Map?)?.cast<String, dynamic>() ?? body,
+    );
+  }
+
+  @override
+  Future<void> leaveChannel(String channelId) async {
+    await _requestJson(
+      'POST',
+      'channels/${Uri.encodeComponent(channelId.trim())}/leave',
+      allowedStatusCodes: const {200},
     );
   }
 
@@ -844,6 +909,16 @@ class HttpAsClient implements AsClient {
     String userMxid,
   ) {
     return _resolveChannelJoinRequest(channelId, userMxid, 'reject');
+  }
+
+  @override
+  Future<void> removeChannelMember(String channelId, String userMxid) async {
+    await _requestJson(
+      'POST',
+      'channels/${Uri.encodeComponent(channelId)}/members/'
+          '${Uri.encodeComponent(userMxid.trim())}/remove',
+      allowedStatusCodes: const {200},
+    );
   }
 
   Future<AsChannel> _resolveChannelJoinRequest(
@@ -990,6 +1065,24 @@ class HttpAsClient implements AsClient {
     final response = await _requestJson(
       'POST',
       'channels/${Uri.encodeComponent(channelId)}/posts/${Uri.encodeComponent(postId)}/reactions',
+      body: {'reaction': reaction.trim().isEmpty ? 'like' : reaction.trim()},
+      allowedStatusCodes: const {200},
+    );
+    return AsChannelReaction.fromJson(response);
+  }
+
+  @override
+  Future<AsChannelReaction> toggleChannelCommentReaction(
+    String channelId,
+    String postId,
+    String commentId, {
+    String reaction = 'like',
+  }) async {
+    final response = await _requestJson(
+      'POST',
+      'channels/${Uri.encodeComponent(channelId)}/posts/'
+          '${Uri.encodeComponent(postId)}/comments/'
+          '${Uri.encodeComponent(commentId)}/reactions',
       body: {'reaction': reaction.trim().isEmpty ? 'like' : reaction.trim()},
       allowedStatusCodes: const {200},
     );
@@ -1299,6 +1392,9 @@ class HttpAsClient implements AsClient {
       responseBody: response.body,
     );
     if (!allowedStatusCodes.contains(response.statusCode)) {
+      if (_isAuthenticationFailureResponse(response)) {
+        await _onAuthenticationFailed?.call();
+      }
       throw AsClientException(
         _extractErrorMessage(response),
         statusCode: response.statusCode,
@@ -1392,6 +1488,19 @@ class HttpAsClient implements AsClient {
       // Fall through to a generic HTTP error message.
     }
     return response.reasonPhrase ?? 'AS request failed';
+  }
+
+  static bool _isAuthenticationFailureResponse(http.Response response) {
+    if (response.statusCode != 401) return false;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded['error'] == 'M_UNKNOWN_TOKEN';
+      }
+    } catch (_) {
+      // Non-JSON 401 responses are not treated as session expiry.
+    }
+    return false;
   }
 
   static String _requireToken(String? token) {
@@ -1519,6 +1628,9 @@ class HttpAsClient implements AsClient {
   }
 }
 
+String _encodeStrictPathComponent(String value) =>
+    Uri.encodeComponent(value).replaceAll('!', '%21');
+
 String _friendRequestTarget(Object? body) {
   if (body is! Map) return '<unknown>';
   final mxid = body['mxid'];
@@ -1567,4 +1679,12 @@ List<String> _normalizedStringList(Iterable<String> values) {
     result.add(trimmed);
   }
   return result;
+}
+
+String _normalizedChannelType(String value) {
+  final trimmed = value.trim().toLowerCase();
+  return switch (trimmed) {
+    'post' || '帖子' => 'post',
+    _ => 'chat',
+  };
 }

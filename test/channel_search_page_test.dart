@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/mock_as_client.dart';
 import 'package:portal_app/data/p2p_api_client.dart';
+import 'package:portal_app/presentation/channel/channel_share.dart';
+import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
 import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/p2p_api_provider.dart';
@@ -39,8 +42,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(asClient.joinedChannelId, 'ch_product');
-    expect(asClient.joinedDiscoveredRoomId, '!ch_product:p2p-im.com');
+    expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
     expect(find.text('待审核'), findsOneWidget);
   });
 
@@ -66,21 +68,65 @@ void main() {
     expect(asClient.p2pApiClient.lastKeyword, '');
     expect(asClient.p2pApiClient.lastOwnerDomain, 'p2p-liyanan.com');
   });
+
+  testWidgets('channel search opens public detail by room id', (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    final router = GoRouter(
+      initialLocation: '/search',
+      routes: [
+        GoRoute(path: '/search', builder: (_, __) => const ChannelSearchPage()),
+        GoRoute(
+          path: '/channel/:channelId/detail',
+          builder: (_, state) => ChannelDetailInfoPage(
+            channelId: state.pathParameters['channelId']!,
+            sharePayload: state.extra is ChannelSharePayload
+                ? state.extra! as ChannelSharePayload
+                : null,
+            showJoinButton: state.extra is ChannelSharePayload,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          p2pApiClientProvider.overrideWithValue(asClient.p2pApiClient),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '产品');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    await tester.tap(find.text('产品公告'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedPublicRoomId, '!ch_product:p2p-im.com');
+    expect(find.text('接口返回频道'), findsOneWidget);
+    expect(find.text('#接口返回频道'), findsNothing);
+    expect(find.text('ID:!ch_product:p2p-im.com'), findsOneWidget);
+    expect(find.text('接口返回频道说明'), findsOneWidget);
+  });
 }
 
 class _ChannelSearchAsClient extends MockAsClient {
   final p2pApiClient = _ChannelSearchP2pApiClient();
-  String? joinedChannelId;
-  String? joinedDiscoveredRoomId;
+  String? joinedRoomId;
+  String? requestedPublicRoomId;
 
   @override
-  Future<AsChannel> joinChannel(
-    String channelId, {
+  Future<AsChannel> joinChannelByRoomId(
+    String roomId, {
     String shareToken = '',
     AsChannel? discoveredChannel,
   }) async {
-    joinedChannelId = channelId;
-    joinedDiscoveredRoomId = discoveredChannel?.roomId;
+    joinedRoomId = roomId;
     return const AsChannel(
       channelId: 'ch_product',
       roomId: '!ch_product:p2p-im.com',
@@ -91,6 +137,24 @@ class _ChannelSearchAsClient extends MockAsClient {
       joinPolicy: asChannelJoinPolicyApproval,
       commentsEnabled: true,
       memberStatus: asChannelMemberStatusPending,
+    );
+  }
+
+  @override
+  Future<AsChannel> getPublicChannelByRoomId(
+    String roomId, {
+    Uri? baseUri,
+  }) async {
+    requestedPublicRoomId = roomId;
+    return const AsChannel(
+      channelId: 'ch_product',
+      roomId: '!ch_product:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '接口返回频道',
+      description: '接口返回频道说明',
+      visibility: asChannelVisibilityPublic,
+      joinPolicy: asChannelJoinPolicyApproval,
+      commentsEnabled: true,
     );
   }
 }

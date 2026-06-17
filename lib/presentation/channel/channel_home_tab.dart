@@ -1,0 +1,1665 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
+
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
+import '../providers/as_client_provider.dart';
+import '../providers/as_sync_cache_provider.dart';
+import '../providers/auth_provider.dart';
+import '../utils/avatar_url.dart';
+import '../widgets/m3/glass_header.dart';
+import '../widgets/portal_avatar.dart';
+import 'channel_inbox_data.dart';
+import 'create_channel_sheet.dart';
+
+const _mockAuthEnabled = bool.fromEnvironment(
+  'P2P_MATRIX_MOCK_AUTH',
+  defaultValue: false,
+);
+const _channelBg = Color(0xFFFAFAFA);
+const _channelText = Color(0xFF262628);
+const _channelMuted = Color(0xFFA3A3A4);
+const _channelBorder = Color(0xFFE6E6E6);
+
+final _channelListProvider = FutureProvider.autoDispose<List<AsChannel>>((ref) {
+  return ref.read(asClientProvider).listChannels();
+});
+
+final _channelPendingReviewCountProvider = FutureProvider.autoDispose<int>((
+  ref,
+) async {
+  final channels = await ref.watch(_channelListProvider.future);
+  var count = 0;
+  for (final channel in channels.where(_canReviewChannel)) {
+    final channelId = channel.channelId.trim().isEmpty
+        ? channel.roomId.trim()
+        : channel.channelId.trim();
+    if (channelId.isEmpty) continue;
+    final members = await ref.read(asClientProvider).getChannelMembers(
+          channelId,
+          status: asChannelMemberStatusPending,
+        );
+    count += members
+        .where((member) => member.status == asChannelMemberStatusPending)
+        .length;
+  }
+  return count;
+});
+
+class ChannelExplorePage extends ConsumerStatefulWidget {
+  const ChannelExplorePage({super.key});
+
+  @override
+  ConsumerState<ChannelExplorePage> createState() => _ChannelExplorePageState();
+}
+
+class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
+  String _section = '我创建';
+  String _contentType = '全部';
+
+  @override
+  Widget build(BuildContext context) {
+    final client = ref.watch(matrixClientProvider);
+    final isLoggedIn = client.isLogged();
+    final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
+    final useRealChannels = !_mockAuthEnabled && isLoggedIn;
+    final listedChannels =
+        useRealChannels ? ref.watch(_channelListProvider).valueOrNull : null;
+    final fallbackDomain = _clientServerName(client);
+    final sourceChannels = useRealChannels
+        ? listedChannels == null
+            ? bootstrap == null
+                ? const <ChannelInboxItem>[]
+                : ChannelInboxData.fromBootstrap(
+                    bootstrap,
+                    fallbackDomain: fallbackDomain,
+                    roomNameForRoomId: (roomId) =>
+                        _matrixRoomName(client, roomId),
+                    roomAvatarForRoomId: (roomId) =>
+                        _matrixRoomAvatar(client, roomId),
+                  )
+            : ChannelInboxData.fromChannels(
+                listedChannels,
+                fallbackDomain: fallbackDomain,
+                bootstrap: bootstrap,
+                roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
+                roomAvatarForRoomId: (roomId) =>
+                    _matrixRoomAvatar(client, roomId),
+              )
+        : _mockChannelItems();
+    final joinedChannels = _channelFilteredItems(
+      sourceChannels.where((channel) => !channel.isOwned).toList(),
+      _contentType,
+    );
+    final ownedChannels = _channelFilteredItems(
+      sourceChannels.where((channel) => channel.isOwned).toList(),
+      _contentType,
+    );
+    final visibleChannels = _section == '已加入' ? joinedChannels : ownedChannels;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final pendingReviewCount = useRealChannels
+        ? ref.watch(_channelPendingReviewCountProvider).valueOrNull ??
+            _channelPendingCount(sourceChannels)
+        : _channelPendingCount(sourceChannels);
+
+    if (useRealChannels && bootstrap == null && listedChannels == null) {
+      return const _ChannelFrame(
+        child: Center(
+          child: _ChannelEmpty(
+            icon: Symbols.sync,
+            title: '正在同步频道',
+            subtitle: '请稍候',
+          ),
+        ),
+      );
+    }
+
+    final topInset = MediaQuery.of(context).padding.top;
+    return _ChannelFrame(
+      child: Stack(
+        children: [
+          Positioned(
+            left: 24,
+            top: topInset + 22,
+            width: 140,
+            height: 34,
+            child: Text(
+              key: const ValueKey('channel_tab_title'),
+              l10n?.tabChannels ?? '频道',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 20,
+                weight: FontWeight.w600,
+                color: _channelTextColor(context),
+              ).copyWith(height: 25 / 20),
+            ),
+          ),
+          Positioned(
+            right: 16,
+            top: topInset + 20,
+            child: Row(
+              children: [
+                _ChannelIconButton(
+                  key: const ValueKey('channel_review_button'),
+                  assetName: 'assets/images/channel_review_button.png',
+                  badgeCount: pendingReviewCount,
+                  onTap: () async {
+                    await context.push('/channels/review');
+                    if (!context.mounted) return;
+                    ref.invalidate(_channelPendingReviewCountProvider);
+                    ref.invalidate(_channelListProvider);
+                  },
+                ),
+                const SizedBox(width: 8),
+                _ChannelIconButton(
+                  key: const ValueKey('channel_search_button'),
+                  assetName: 'assets/images/search_icon.png',
+                  iconSize: 20,
+                  onTap: () => context.push('/channels/search'),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            top: topInset + 76,
+            height: 42,
+            child: _ChannelSectionSwitch(
+              key: const ValueKey('channel_filter_bar'),
+              value: _section,
+              onChanged: (value) => setState(() => _section = value),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            top: topInset + 128,
+            height: 29,
+            child: _ChannelTypeFilter(
+              value: _contentType,
+              onChanged: (value) => setState(() => _contentType = value),
+            ),
+          ),
+          Positioned.fill(
+            top: topInset + 171,
+            child: visibleChannels.isEmpty
+                ? _ChannelEmptyArea(selectedSection: _section)
+                : ChannelInboxList(
+                    key: ValueKey(
+                      'channel_inbox_${_section}_$_contentType',
+                    ),
+                    storageKey: PageStorageKey(
+                      'channel_inbox_scroll_${_section}_$_contentType',
+                    ),
+                    channels: visibleChannels,
+                  ),
+          ),
+          Positioned(
+            right: 24,
+            bottom: 96,
+            child: _ChannelCreateButton(
+              key: const ValueKey('channel_post_button'),
+              onTap: () => showCreateChannelDialog(
+                context,
+                ref,
+                onCreated: () => ref.invalidate(_channelListProvider),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ChannelReviewPage extends ConsumerStatefulWidget {
+  const ChannelReviewPage({super.key});
+
+  @override
+  ConsumerState<ChannelReviewPage> createState() => _ChannelReviewPageState();
+}
+
+class MeChannelsPage extends ConsumerWidget {
+  const MeChannelsPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final client = ref.watch(matrixClientProvider);
+    final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
+    final channels = bootstrap == null
+        ? const <ChannelInboxItem>[]
+        : ChannelInboxData.fromBootstrap(
+            bootstrap,
+            fallbackDomain: _clientServerName(client),
+            roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
+            roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+          ).where((channel) => channel.isOwned).toList(growable: false);
+
+    return Scaffold(
+      backgroundColor: _channelBgColor(context),
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '我的频道'),
+          Expanded(
+            child: bootstrap == null
+                ? const _ChannelEmpty(
+                    icon: Symbols.sync,
+                    title: '正在同步频道',
+                    subtitle: '请稍候',
+                  )
+                : channels.isEmpty
+                    ? const _ChannelEmpty(
+                        icon: Symbols.forum,
+                        title: '暂无我创建的频道',
+                        subtitle: '创建的频道会显示在这里',
+                      )
+                    : ChannelInboxList(
+                        storageKey: const PageStorageKey('me_channels'),
+                        channels: channels,
+                        bottomPadding: 24,
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
+  late Future<List<_ReviewItem>> _future;
+  List<_ReviewItem> _items = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _loadAndSetReviewItems();
+  }
+
+  Future<List<_ReviewItem>> _loadAndSetReviewItems() async {
+    final items = await _loadReviewItems();
+    if (mounted) {
+      setState(() => _items = items);
+    }
+    return items;
+  }
+
+  Future<List<_ReviewItem>> _loadReviewItems() async {
+    final listedChannels = await ref.read(asClientProvider).listChannels();
+    final ownedChannels = listedChannels.where(_canReviewChannel).toList(
+          growable: false,
+        );
+    final items = <_ReviewItem>[];
+    for (final channel in ownedChannels) {
+      final channelId = channel.channelId.trim().isEmpty
+          ? channel.roomId.trim()
+          : channel.channelId.trim();
+      if (channelId.isEmpty) continue;
+      final members = await ref
+          .read(asClientProvider)
+          .getChannelMembers(channelId, status: asChannelMemberStatusPending);
+      for (final member in members) {
+        if (member.status != asChannelMemberStatusPending) continue;
+        items.add(
+          _ReviewItem(
+            channelId: channelId,
+            channelName: channel.name.trim().isEmpty ? '未命名频道' : channel.name,
+            userMxid: member.userMxid,
+            name: member.displayName.trim().isEmpty
+                ? _localpartFromMxid(member.userMxid)
+                : member.displayName.trim(),
+            time: _formatReviewTime(member.joinedAtMs),
+            status: _ReviewStatus.pending,
+          ),
+        );
+      }
+    }
+    return items;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.of(context).padding.top;
+    return Scaffold(
+      backgroundColor: _channelBgColor(context),
+      body: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: _ReviewTopBar(
+              topInset: topInset,
+              pendingCount: _items
+                  .where((item) => item.status == _ReviewStatus.pending)
+                  .length,
+              onBack: () => context.pop(),
+            ),
+          ),
+          Positioned.fill(
+            top: topInset + 83,
+            child: FutureBuilder<List<_ReviewItem>>(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return const _ChannelEmpty(
+                    icon: Symbols.error,
+                    title: '审核加载失败',
+                    subtitle: '请稍后重试',
+                  );
+                }
+                if (_items.isEmpty) {
+                  return const _ChannelEmpty(
+                    icon: Symbols.check_circle,
+                    title: '暂无加入申请',
+                    subtitle: '新的频道加入申请会显示在这里',
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: _items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    final item = _items[index];
+                    return _ReviewCard(
+                      item: item,
+                      onApprove: () => _resolve(index, _ReviewStatus.approved),
+                      onReject: () => _resolve(index, _ReviewStatus.rejected),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _resolve(int index, _ReviewStatus status) async {
+    final item = _items[index];
+    try {
+      if (status == _ReviewStatus.approved) {
+        await ref
+            .read(asClientProvider)
+            .approveChannelJoin(item.channelId, item.userMxid);
+      } else if (status == _ReviewStatus.rejected) {
+        await ref
+            .read(asClientProvider)
+            .rejectChannelJoin(item.channelId, item.userMxid);
+      }
+      setState(() {
+        _items[index] = item.copyWith(status: status);
+      });
+      ref.invalidate(_channelPendingReviewCountProvider);
+      ref.invalidate(_channelListProvider);
+    } catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                status == _ReviewStatus.approved ? '同意失败：$err' : '拒绝失败：$err')),
+      );
+    }
+  }
+}
+
+bool _canReviewChannel(AsChannel channel) {
+  return channel.role == asChannelRoleOwner ||
+      channel.role == asChannelRoleAdmin ||
+      channel.pendingJoinCount > 0;
+}
+
+class _ReviewTopBar extends StatelessWidget {
+  const _ReviewTopBar({
+    required this.topInset,
+    required this.pendingCount,
+    required this.onBack,
+  });
+
+  final double topInset;
+  final int pendingCount;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: topInset + 70,
+      child: Padding(
+        padding: EdgeInsets.only(top: topInset),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned(
+              left: 16,
+              top: 6,
+              child: _GlassRoundButton(
+                icon: Symbols.arrow_back,
+                onTap: onBack,
+              ),
+            ),
+            Text(
+              '频道审核',
+              style: AppTheme.sans(
+                size: 20,
+                weight: FontWeight.w600,
+                color: _channelTextColor(context),
+              ).copyWith(height: 25 / 20),
+            ),
+            Positioned(
+              right: 30,
+              top: 12,
+              child: _ReviewCounter(count: pendingCount),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewCard extends StatelessWidget {
+  const _ReviewCard({
+    required this.item,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  final _ReviewItem item;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = item.status == _ReviewStatus.pending;
+    return Container(
+      height: pending ? 118 : 64,
+      decoration: BoxDecoration(
+        color: _channelSurfaceColor(context),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: _channelCardShadowColor(context),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          const Positioned(
+            left: 14,
+            top: 14,
+            child: _ReviewAvatar(size: 44),
+          ),
+          Positioned(
+            left: 64,
+            top: 17,
+            right: 96,
+            child: Text(
+              '#${item.name}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 14,
+                weight: FontWeight.w500,
+                color: _channelTextColor(context),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 64,
+            top: 39,
+            right: 96,
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    item.channelName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 12,
+                      weight: FontWeight.w500,
+                      color: _channelMutedColor(context),
+                    ).copyWith(height: 16 / 12),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  item.time,
+                  style: AppTheme.sans(
+                    size: 12,
+                    weight: FontWeight.w500,
+                    color: pending
+                        ? _channelPendingTimeColor(context)
+                        : _channelMutedColor(context),
+                  ).copyWith(height: 16 / 12),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            right: 14,
+            top: 14,
+            child: _ReviewStatusPill(status: item.status),
+          ),
+          if (pending) ...[
+            Positioned(
+              left: 18,
+              right: 184,
+              bottom: 14,
+              height: 34,
+              child: _ReviewActionButton(
+                label: '通过',
+                foreground: context.tk.onAccent,
+                background: context.tk.accent,
+                onTap: onApprove,
+              ),
+            ),
+            Positioned(
+              left: 184,
+              right: 18,
+              bottom: 14,
+              height: 34,
+              child: _ReviewActionButton(
+                label: '拒绝',
+                foreground: _channelMutedColor(context),
+                background: _channelSoftFillColor(context),
+                onTap: onReject,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelFrame extends StatelessWidget {
+  const _ChannelFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(color: _channelBgColor(context), child: child);
+  }
+}
+
+class _ChannelSectionSwitch extends StatelessWidget {
+  const _ChannelSectionSwitch({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: _channelSegmentBgColor(context),
+        borderRadius: BorderRadius.circular(21),
+      ),
+      child: Row(
+        children: [
+          for (final label in _channelSections)
+            Expanded(
+              child: _ChannelSectionSegment(
+                label: label,
+                selected: label == value,
+                onTap: () {
+                  if (label == value) return;
+                  onChanged(label);
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelSectionSegment extends StatelessWidget {
+  const _ChannelSectionSegment({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color:
+          selected ? _channelSelectedSegmentColor(context) : Colors.transparent,
+      borderRadius: BorderRadius.circular(30),
+      child: InkWell(
+        onTap: onTap,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: Colors.transparent,
+        borderRadius: BorderRadius.circular(30),
+        child: Center(
+          child: Text(
+            label,
+            style: AppTheme.sans(
+              size: 13,
+              weight: FontWeight.w500,
+              color: selected
+                  ? _channelSelectedSegmentTextColor(context)
+                  : _channelMutedColor(context),
+            ).copyWith(height: 16 / 13),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelTypeFilter extends StatelessWidget {
+  const _ChannelTypeFilter({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final label in _channelTypeFilters) ...[
+          _ChannelTypePill(
+            label: label,
+            selected: label == value,
+            onTap: () => onChanged(label),
+          ),
+          if (label != _channelTypeFilters.last) const SizedBox(width: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _ChannelTypePill extends StatelessWidget {
+  const _ChannelTypePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = selected
+        ? _channelSelectedFilterBgColor(context)
+        : _channelFilterBgColor(context);
+    final fg = selected ? context.tk.accent : _channelMutedColor(context);
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(30),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(30),
+        child: SizedBox(
+          width: 57,
+          height: 29,
+          child: Center(
+            child: Text(
+              label,
+              style: AppTheme.sans(
+                size: 12,
+                weight: FontWeight.w500,
+                color: fg,
+              ).copyWith(height: 16 / 12),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelIconButton extends StatelessWidget {
+  const _ChannelIconButton({
+    super.key,
+    required this.onTap,
+    required this.assetName,
+    this.badgeCount = 0,
+    this.iconSize = 24,
+  });
+
+  final String assetName;
+  final VoidCallback onTap;
+  final int badgeCount;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox.square(
+          dimension: 40,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Center(
+                child: Image.asset(
+                  assetName,
+                  width: iconSize,
+                  height: iconSize,
+                  fit: BoxFit.contain,
+                  color: _channelTextColor(context),
+                ),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: _ChannelActionBadge(count: badgeCount),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelActionBadge extends StatelessWidget {
+  const _ChannelActionBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: context.tk.danger,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        _formatBadgeCount(count),
+        style: AppTheme.sans(
+          size: 10,
+          weight: FontWeight.w700,
+          color: context.tk.onAccent,
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelCreateButton extends StatelessWidget {
+  const _ChannelCreateButton({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.tk.accent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox.square(
+          dimension: 56,
+          child: Icon(
+            Symbols.add,
+            size: 30,
+            color: context.tk.onAccent,
+            weight: 700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ChannelInboxList extends StatelessWidget {
+  const ChannelInboxList({
+    super.key,
+    required this.storageKey,
+    required this.channels,
+    this.bottomPadding = 104,
+  });
+
+  final PageStorageKey<String> storageKey;
+  final List<ChannelInboxItem> channels;
+  final double bottomPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      key: storageKey,
+      padding: EdgeInsets.only(bottom: bottomPadding),
+      itemCount: channels.length,
+      itemBuilder: (context, index) => ChannelInboxTile(
+        key: ValueKey('channel_inbox_tile_${channels[index].id}'),
+        channel: channels[index],
+        showDivider: index != channels.length - 1,
+      ),
+    );
+  }
+}
+
+class ChannelInboxTile extends StatelessWidget {
+  const ChannelInboxTile({
+    super.key,
+    required this.channel,
+    required this.showDivider,
+  });
+
+  final ChannelInboxItem channel;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    final channelId = channel.id.trim();
+    return InkWell(
+      onTap: channelId.isEmpty
+          ? null
+          : () => context.push(
+                _channelRoute(channel),
+              ),
+      child: SizedBox(
+        height: 64,
+        child: Row(
+          children: [
+            const SizedBox(width: 16),
+            _ChannelAvatar(channel: channel, size: 42),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: showDivider
+                      ? Border(
+                          bottom: BorderSide(
+                            color: _channelBorderColor(context),
+                            width: 0.5,
+                          ),
+                        )
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 21),
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                channel.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 14,
+                                  weight: FontWeight.w500,
+                                  color: _channelTextColor(context),
+                                ).copyWith(height: 18 / 14),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            _ChannelKindBadge(
+                              label: _channelIsTextType(channel) ? '文字' : '帖子',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 50,
+                      height: 64,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 12, bottom: 11),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              _formatChannelTime(channel.latestAt),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: AppTheme.sans(
+                                size: 12,
+                                weight: FontWeight.w500,
+                                color: _channelMutedColor(context),
+                              ).copyWith(height: 15 / 12),
+                            ),
+                            const Spacer(),
+                            if (_channelIsTextType(channel) &&
+                                channel.unreadCount > 0)
+                              _UnreadBadge(
+                                key: ValueKey(
+                                  'channel_unread_count_${channel.id}',
+                                ),
+                                count: channel.unreadCount,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelKindBadge extends StatelessWidget {
+  const _ChannelKindBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 12,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: _channelKindBadgeBgColor(context),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: AppTheme.sans(
+          size: 8,
+          weight: FontWeight.w500,
+          color: _channelKindBadgeTextColor(context),
+        ).copyWith(height: 10 / 8),
+      ),
+    );
+  }
+}
+
+class _ChannelAvatar extends ConsumerWidget {
+  const _ChannelAvatar({required this.channel, required this.size});
+
+  final ChannelInboxItem channel;
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final imageUrl = avatarHttpUrl(
+      ref.watch(matrixClientProvider),
+      channel.avatarUrl,
+    );
+    if (imageUrl != null) {
+      return PortalAvatar(
+        seed: channel.name,
+        size: size,
+        imageUrl: imageUrl,
+        shape: AvatarShape.squircle,
+      );
+    }
+    final label = _avatarLabel(channel.name);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: _channelAvatarColor(context, channel),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: AppTheme.sans(
+          size: 15,
+          weight: FontWeight.w600,
+          color: context.tk.accent,
+        ).copyWith(height: 19 / 15),
+      ),
+    );
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({super.key, required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _formatBadgeCount(count);
+    return Container(
+      width: 20,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: context.tk.danger,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        textHeightBehavior: const TextHeightBehavior(
+          applyHeightToFirstAscent: false,
+          applyHeightToLastDescent: false,
+        ),
+        style: AppTheme.sans(
+          size: label.length > 2 ? 8 : 11,
+          weight: FontWeight.w700,
+          color: context.tk.onAccent,
+        ).copyWith(height: 1),
+      ),
+    );
+  }
+}
+
+class _ChannelEmptyArea extends StatelessWidget {
+  const _ChannelEmptyArea({required this.selectedSection});
+
+  final String selectedSection;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: _ChannelEmpty(
+        icon: Symbols.campaign,
+        title: '还没有频道',
+        subtitle: selectedSection == '我创建' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
+      ),
+    );
+  }
+}
+
+class _ChannelEmpty extends StatelessWidget {
+  const _ChannelEmpty({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 42, color: t.textMute),
+        const SizedBox(height: 10),
+        Text(title, style: AppTheme.sans(size: 15, color: t.text)),
+        const SizedBox(height: 4),
+        Text(subtitle, style: AppTheme.sans(size: 12, color: t.textMute)),
+      ],
+    );
+  }
+}
+
+class _ReviewAvatar extends StatelessWidget {
+  const _ReviewAvatar({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: dark
+              ? [
+                  context.tk.secondaryContainer,
+                  context.tk.accent.withValues(alpha: 0.72),
+                ]
+              : const [Color(0xFFE7F0FF), Color(0xFF76A7FF)],
+        ),
+      ),
+      child: Icon(
+        Symbols.person,
+        color: dark ? context.tk.onPrimaryContainer : const Color(0xFF5C8CFF),
+        size: 28,
+        fill: 1,
+      ),
+    );
+  }
+}
+
+class _ReviewStatusPill extends StatelessWidget {
+  const _ReviewStatusPill({required this.status});
+
+  final _ReviewStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, bg, fg) = switch (status) {
+      _ReviewStatus.pending => (
+          '待审核',
+          _channelStatusBgColor(context, _ReviewStatus.pending),
+          _channelStatusTextColor(context, _ReviewStatus.pending),
+        ),
+      _ReviewStatus.approved => (
+          '已通过',
+          _channelStatusBgColor(context, _ReviewStatus.approved),
+          _channelStatusTextColor(context, _ReviewStatus.approved),
+        ),
+      _ReviewStatus.rejected => (
+          '已拒绝',
+          _channelStatusBgColor(context, _ReviewStatus.rejected),
+          _channelStatusTextColor(context, _ReviewStatus.rejected),
+        ),
+    };
+    return Container(
+      width: 56,
+      height: 25,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(40),
+      ),
+      child: Text(
+        label,
+        style: AppTheme.sans(size: 12, weight: FontWeight.w500, color: fg)
+            .copyWith(height: 16 / 12),
+      ),
+    );
+  }
+}
+
+class _ReviewActionButton extends StatelessWidget {
+  const _ReviewActionButton({
+    required this.label,
+    required this.foreground,
+    required this.background,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color foreground;
+  final Color background;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Center(
+          child: Text(
+            label,
+            style: AppTheme.sans(
+              size: 15,
+              weight: FontWeight.w500,
+              color: foreground,
+            ).copyWith(height: 20 / 15),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewCounter extends StatelessWidget {
+  const _ReviewCounter({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 28,
+      height: 28,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: _channelSelectedFilterBgColor(context),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        '$count',
+        style: AppTheme.sans(
+          size: 15,
+          weight: FontWeight.w600,
+          color: context.tk.accent,
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassRoundButton extends StatelessWidget {
+  const _GlassRoundButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _channelGlassColor(context),
+      shape: const CircleBorder(),
+      elevation: 12,
+      shadowColor: _channelGlassShadowColor(context),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox.square(
+          dimension: 40,
+          child: Icon(icon, size: 24, color: _channelTextColor(context)),
+        ),
+      ),
+    );
+  }
+}
+
+enum _ReviewStatus { pending, approved, rejected }
+
+class _ReviewItem {
+  const _ReviewItem({
+    required this.channelId,
+    required this.channelName,
+    required this.userMxid,
+    required this.name,
+    required this.time,
+    required this.status,
+  });
+
+  final String channelId;
+  final String channelName;
+  final String userMxid;
+  final String name;
+  final String time;
+  final _ReviewStatus status;
+
+  _ReviewItem copyWith({_ReviewStatus? status}) {
+    return _ReviewItem(
+      channelId: channelId,
+      channelName: channelName,
+      userMxid: userMxid,
+      name: name,
+      time: time,
+      status: status ?? this.status,
+    );
+  }
+}
+
+const _channelSections = ['已加入', '我创建'];
+const _channelTypeFilters = ['全部', '文字', '帖子'];
+
+List<ChannelInboxItem> _channelFilteredItems(
+  List<ChannelInboxItem> channels,
+  String category,
+) {
+  final sorted = switch (category) {
+    '文字' => channels.where(_channelIsTextType).toList(),
+    '帖子' => channels.where((channel) => !_channelIsTextType(channel)).toList(),
+    _ => [...channels],
+  };
+  sorted.sort((a, b) {
+    final aMs = a.latestAt?.millisecondsSinceEpoch ?? 0;
+    final bMs = b.latestAt?.millisecondsSinceEpoch ?? 0;
+    return bMs.compareTo(aMs);
+  });
+  return sorted;
+}
+
+bool _channelIsTextType(ChannelInboxItem channel) {
+  return normalizeAsChannelType(channel.channelType) == asChannelTypeChat;
+}
+
+String _channelRoute(ChannelInboxItem channel) {
+  final channelId = Uri.encodeComponent(channel.id.trim());
+  if (!_channelIsTextType(channel)) return '/channel/$channelId';
+  final name = channel.name.trim();
+  final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
+  return '/channel/$channelId/conversation$query';
+}
+
+int _channelPendingCount(List<ChannelInboxItem> channels) {
+  return channels.fold<int>(
+    0,
+    (sum, channel) => sum + channel.pendingJoinCount,
+  );
+}
+
+List<ChannelInboxItem> _mockChannelItems() {
+  return [
+    ChannelInboxItem(
+      id: 'owner',
+      roomId: 'owner',
+      name: 'owner',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '后端部署清单已更新：个人资料、二维码加好友...',
+      latestAt: _todayAt(18, 40),
+      unreadCount: 7,
+      isOwned: true,
+      channelType: asChannelTypeChat,
+      tags: const ['文字'],
+      pendingJoinCount: 1,
+    ),
+    ChannelInboxItem(
+      id: 'product',
+      roomId: 'product',
+      name: '产品频道',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '频道页会先按用户自己的频道和已加入频道展示',
+      latestAt: _todayAt(16, 10),
+      unreadCount: 4,
+      isOwned: true,
+      channelType: asChannelTypePost,
+      tags: const ['帖子'],
+    ),
+    ChannelInboxItem(
+      id: 'design',
+      roomId: 'design',
+      name: '设计频道',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '频道帖子支持图片、视频、链接、表情和转发',
+      latestAt: DateTime.now().subtract(const Duration(days: 1)),
+      unreadCount: 0,
+      isOwned: true,
+      channelType: asChannelTypePost,
+      tags: const ['帖子'],
+    ),
+    ChannelInboxItem(
+      id: 'agent',
+      roomId: 'agent',
+      name: 'Agent 通知',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: 'OpenClaw、Helm、Hermes Agent 通道状态更新',
+      latestAt: DateTime.now().subtract(const Duration(days: 3)),
+      unreadCount: 1,
+      isOwned: true,
+      channelType: asChannelTypePost,
+      tags: const ['帖子'],
+    ),
+    ChannelInboxItem(
+      id: 'drafts',
+      roomId: 'drafts',
+      name: '草稿箱',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '2 条帖子待发布',
+      latestAt: DateTime.now().subtract(const Duration(days: 5)),
+      unreadCount: 0,
+      isOwned: true,
+      channelType: asChannelTypeChat,
+      tags: const ['文字'],
+    ),
+    ChannelInboxItem(
+      id: 'joined-general',
+      roomId: 'joined-general',
+      name: '综合讨论',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '自由讨论、技术交流与闲聊',
+      latestAt: _todayAt(9, 15),
+      unreadCount: 0,
+      isOwned: false,
+      channelType: asChannelTypeChat,
+      tags: const ['文字'],
+    ),
+  ];
+}
+
+String _avatarLabel(String name) {
+  if (name.toLowerCase().contains('agent')) return 'AI';
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '频';
+  return trimmed.characters.first;
+}
+
+Color _channelAvatarColor(BuildContext context, ChannelInboxItem channel) {
+  if (Theme.of(context).brightness == Brightness.dark) {
+    return context.tk.secondaryContainer;
+  }
+  final name = channel.name;
+  if (name.contains('设计')) return const Color(0xFFF0EBFF);
+  if (name.toLowerCase().contains('agent')) return const Color(0xFFE5F5FA);
+  if (name.contains('草稿')) return const Color(0xFFF5F2E5);
+  if (name.contains('产品')) return const Color(0xFFE5F0FF);
+  return const Color(0xFFDDF0FA);
+}
+
+DateTime _todayAt(int hour, int minute) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day, hour, minute);
+}
+
+String _formatChannelTime(DateTime? value) {
+  if (value == null) return '';
+  final now = DateTime.now();
+  final local = value.toLocal();
+  final today = DateTime(now.year, now.month, now.day);
+  final date = DateTime(local.year, local.month, local.day);
+  if (date == today) {
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+  if (date == today.subtract(const Duration(days: 1))) return '昨天';
+  if (now.difference(local).inDays < 7) {
+    return const ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][local.weekday - 1];
+  }
+  return '${local.month}/${local.day}';
+}
+
+String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';
+
+String _formatReviewTime(int millis) {
+  if (millis <= 0) return '刚刚';
+  final local = DateTime.fromMillisecondsSinceEpoch(millis).toLocal();
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final date = DateTime(local.year, local.month, local.day);
+  if (date == today) {
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+  if (date == today.subtract(const Duration(days: 1))) return '昨天';
+  return '${local.month}/${local.day}';
+}
+
+String _localpartFromMxid(String mxid) {
+  final trimmed = mxid.trim();
+  final match = RegExp(r'^@([^:]+):').firstMatch(trimmed);
+  return match?.group(1) ?? trimmed;
+}
+
+String _clientServerName(Client client) {
+  final userId = client.userID ?? '';
+  final mxidDomain = RegExp(r':([^:]+)$').firstMatch(userId)?.group(1);
+  if (mxidDomain != null && mxidDomain.isNotEmpty) return mxidDomain;
+  final homeserver = client.homeserver;
+  if (homeserver != null && homeserver.host.isNotEmpty) return homeserver.host;
+  return 'p2p-im.com';
+}
+
+String _matrixRoomName(Client client, String roomId) {
+  final room = client.getRoomById(roomId.trim());
+  if (room == null) return '';
+  final name = room.getLocalizedDisplayname().trim();
+  return _looksLikeMatrixRoomId(name) ? '' : name;
+}
+
+String _matrixRoomAvatar(Client client, String roomId) {
+  return client.getRoomById(roomId.trim())?.avatar?.toString() ?? '';
+}
+
+bool _looksLikeMatrixRoomId(String text) {
+  return text.startsWith('!') && text.contains(':');
+}
+
+Color _channelBgColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.bg
+      : _channelBg;
+}
+
+Color _channelSurfaceColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.surface
+      : Colors.white;
+}
+
+Color _channelTextColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.text
+      : _channelText;
+}
+
+Color _channelMutedColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.textMute
+      : _channelMuted;
+}
+
+Color _channelBorderColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.border
+      : _channelBorder;
+}
+
+Color _channelCardShadowColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? Colors.black.withValues(alpha: 0.28)
+      : const Color(0xFFBFBFBF).withValues(alpha: 0.25);
+}
+
+Color _channelPendingTimeColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.textMute.withValues(alpha: 0.72)
+      : const Color(0xFFCACACA);
+}
+
+Color _channelSoftFillColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.surfaceHigh
+      : const Color(0xFFEEF1F6);
+}
+
+Color _channelSegmentBgColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.surfaceHover
+      : const Color(0xFFE9EAED);
+}
+
+Color _channelSelectedSegmentColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.surface
+      : Colors.white;
+}
+
+Color _channelSelectedSegmentTextColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.text
+      : Colors.black;
+}
+
+Color _channelFilterBgColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.surfaceHover
+      : const Color(0xFFEDF0F4);
+}
+
+Color _channelSelectedFilterBgColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.secondaryContainer
+      : const Color(0xFFDDF0FA);
+}
+
+Color _channelKindBadgeBgColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.secondaryContainer
+      : const Color(0xFFE9F2FF);
+}
+
+Color _channelKindBadgeTextColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.onPrimaryContainer
+      : const Color(0xFF66707F);
+}
+
+Color _channelStatusBgColor(BuildContext context, _ReviewStatus status) {
+  if (Theme.of(context).brightness == Brightness.dark) {
+    return switch (status) {
+      _ReviewStatus.pending => context.tk.surfaceHigh,
+      _ReviewStatus.approved => context.tk.secondaryContainer,
+      _ReviewStatus.rejected => context.tk.danger.withValues(alpha: 0.18),
+    };
+  }
+  return switch (status) {
+    _ReviewStatus.pending => const Color(0xFFFFF2DF),
+    _ReviewStatus.approved => const Color(0xFFE4F8ED),
+    _ReviewStatus.rejected => const Color(0xFFFFE4E4),
+  };
+}
+
+Color _channelStatusTextColor(BuildContext context, _ReviewStatus status) {
+  if (Theme.of(context).brightness == Brightness.dark) {
+    return switch (status) {
+      _ReviewStatus.pending => context.tk.textMute,
+      _ReviewStatus.approved => context.tk.tertiaryFixed,
+      _ReviewStatus.rejected => context.tk.danger,
+    };
+  }
+  return switch (status) {
+    _ReviewStatus.pending => const Color(0xFFF69A18),
+    _ReviewStatus.approved => const Color(0xFF00A954),
+    _ReviewStatus.rejected => const Color(0xFFCF0404),
+  };
+}
+
+Color _channelGlassColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? context.tk.surface.withValues(alpha: 0.82)
+      : Colors.white.withValues(alpha: 0.65);
+}
+
+Color _channelGlassShadowColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? Colors.black.withValues(alpha: 0.34)
+      : Colors.black.withValues(alpha: 0.12);
+}

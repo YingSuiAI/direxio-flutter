@@ -29,6 +29,8 @@ const asChannelMemberStatusRejected = 'rejected';
 const asChannelRoleOwner = 'owner';
 const asChannelRoleAdmin = 'admin';
 const asChannelRoleMember = 'member';
+const asChannelTypeChat = 'chat';
+const asChannelTypePost = 'post';
 
 // ─────────────────────────── 数据模型 ───────────────────────────
 
@@ -532,6 +534,7 @@ class AsSyncRoomSummary {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
+    this.channelType = asChannelTypeChat,
     this.role = '',
     this.memberStatus = '',
     this.memberCount = 0,
@@ -553,6 +556,7 @@ class AsSyncRoomSummary {
   final String visibility;
   final String joinPolicy;
   final bool commentsEnabled;
+  final String channelType;
   final String role;
   final String memberStatus;
   final int memberCount;
@@ -564,11 +568,13 @@ class AsSyncRoomSummary {
       channelId: json['channel_id'] as String? ?? '',
       roomId: json['room_id'] as String? ?? '',
       homeDomain: json['home_domain'] as String? ?? '',
-      name: json['name'] as String? ?? '',
+      name: _parseChannelDisplayName(json),
       avatarUrl: json['avatar_url'] as String? ?? '',
       unreadCount: _parseInt(json['unread_count']),
-      lastActivityAt: _parseDateTime(json['last_activity_at']),
-      description: json['description'] as String? ?? '',
+      lastActivityAt:
+          _parseDateTime(json['last_activity_at'] ?? json['created_at']),
+      description:
+          json['description'] as String? ?? json['intro'] as String? ?? '',
       topic: json['topic'] as String? ?? '',
       isOwned: json['is_owned'] as bool? ??
           role == asChannelRoleOwner || role == asChannelRoleAdmin,
@@ -585,6 +591,8 @@ class AsSyncRoomSummary {
       joinPolicy:
           _normalizeChannelJoinPolicy(json['join_policy'] as String? ?? ''),
       commentsEnabled: json['comments_enabled'] as bool? ?? true,
+      channelType:
+          normalizeAsChannelType(json['channel_type'] as String? ?? ''),
       role: role,
       memberStatus: json['member_status'] as String? ?? '',
       memberCount: _parseInt(json['member_count']),
@@ -609,6 +617,7 @@ class AsSyncRoomSummary {
       visibility: visibility,
       joinPolicy: joinPolicy,
       commentsEnabled: commentsEnabled,
+      channelType: channelType,
       role: role,
       memberStatus: memberStatus,
       memberCount: memberCount,
@@ -633,6 +642,7 @@ class AsSyncRoomSummary {
       visibility: visibility,
       joinPolicy: joinPolicy,
       commentsEnabled: commentsEnabled,
+      channelType: channelType,
       role: role,
       memberStatus: memberStatus,
       memberCount: memberCount,
@@ -657,6 +667,7 @@ class AsSyncRoomSummary {
       'visibility': visibility,
       'join_policy': joinPolicy,
       'comments_enabled': commentsEnabled,
+      'channel_type': channelType,
       if (role.trim().isNotEmpty) 'role': role,
       if (memberStatus.trim().isNotEmpty) 'member_status': memberStatus,
       if (memberCount > 0) 'member_count': memberCount,
@@ -676,6 +687,7 @@ class AsChannel {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
+    this.channelType = asChannelTypeChat,
     this.role = '',
     this.memberStatus = '',
     this.memberCount = 0,
@@ -693,6 +705,7 @@ class AsChannel {
   final String visibility;
   final String joinPolicy;
   final bool commentsEnabled;
+  final String channelType;
   final String role;
   final String memberStatus;
   final int memberCount;
@@ -704,22 +717,27 @@ class AsChannel {
     return AsChannel(
       channelId: json['channel_id'] as String? ?? '',
       roomId: json['room_id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
+      name: _parseChannelDisplayName(json),
       homeDomain: json['home_domain'] as String? ?? '',
-      description:
-          json['description'] as String? ?? json['topic'] as String? ?? '',
+      description: json['description'] as String? ??
+          json['intro'] as String? ??
+          json['topic'] as String? ??
+          '',
       avatarUrl: json['avatar_url'] as String? ?? '',
       visibility:
           _normalizeChannelVisibility(json['visibility'] as String? ?? ''),
       joinPolicy:
           _normalizeChannelJoinPolicy(json['join_policy'] as String? ?? ''),
       commentsEnabled: json['comments_enabled'] as bool? ?? true,
+      channelType:
+          normalizeAsChannelType(json['channel_type'] as String? ?? ''),
       role: json['role'] as String? ?? '',
       memberStatus: json['member_status'] as String? ?? '',
       memberCount: _parseInt(json['member_count']),
       pendingJoinCount: _parseInt(json['pending_join_count']),
       tags: _parseStringList(json['tags']),
-      latestActivityAt: _parseDateTime(json['last_activity_at']),
+      latestActivityAt:
+          _parseDateTime(json['last_activity_at'] ?? json['created_at']),
     );
   }
 
@@ -734,6 +752,7 @@ class AsChannel {
       'visibility': visibility,
       'join_policy': joinPolicy,
       'comments_enabled': commentsEnabled,
+      'channel_type': channelType,
       if (role.trim().isNotEmpty) 'role': role,
       if (memberStatus.trim().isNotEmpty) 'member_status': memberStatus,
       if (memberCount > 0) 'member_count': memberCount,
@@ -756,6 +775,7 @@ class AsChannelShareDraft {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
+    this.channelType = asChannelTypeChat,
     this.tags = const [],
   });
 
@@ -768,6 +788,7 @@ class AsChannelShareDraft {
   final String visibility;
   final String joinPolicy;
   final bool commentsEnabled;
+  final String channelType;
   final List<String> tags;
 
   Map<String, dynamic> toJson() {
@@ -781,6 +802,7 @@ class AsChannelShareDraft {
       'visibility': _normalizeChannelVisibility(visibility),
       'join_policy': _normalizeChannelJoinPolicy(joinPolicy),
       'comments_enabled': commentsEnabled,
+      'channel_type': normalizeAsChannelType(channelType),
       'tags':
           tags.map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toList(),
     };
@@ -924,6 +946,8 @@ class AsChannelComment {
     this.authorName = '',
     this.authorDomain = '',
     this.media = const {},
+    this.reactionCount = 0,
+    this.reactedByMe = false,
   });
 
   final String commentId;
@@ -937,6 +961,8 @@ class AsChannelComment {
   final String body;
   final Map<String, Object?> media;
   final int originServerTs;
+  final int reactionCount;
+  final bool reactedByMe;
 
   factory AsChannelComment.fromJson(Map<String, dynamic> json) {
     return AsChannelComment(
@@ -951,6 +977,8 @@ class AsChannelComment {
       body: json['body'] as String? ?? '',
       media: _objectMapOrJson(json['media_json'] ?? json['media']),
       originServerTs: _parseInt(json['origin_server_ts']),
+      reactionCount: _parseInt(json['reaction_count']),
+      reactedByMe: json['reacted_by_me'] as bool? ?? false,
     );
   }
 }
@@ -1521,9 +1549,13 @@ abstract class AsClient {
     String avatarUrl = '',
     String visibility = asChannelVisibilityPublic,
     String joinPolicy = asChannelJoinPolicyOpen,
+    String channelType = 'chat',
     bool commentsEnabled = true,
     List<String> tags = const [],
   });
+
+  /// GET /_as/channels
+  Future<List<AsChannel>> listChannels();
 
   /// GET /_as/public/channels/search
   Future<List<AsChannel>> searchPublicChannels(
@@ -1535,8 +1567,18 @@ abstract class AsClient {
   /// GET /_as/public/channels/{channelId}
   Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri});
 
+  /// GET /_as/public/channels/{roomId}
+  Future<AsChannel> getPublicChannelByRoomId(String roomId, {Uri? baseUri});
+
   /// PUT /_as/channels/{channelId}
   Future<AsChannel> updateChannel(AsChannel draft);
+
+  /// POST /_as/channels/join
+  Future<AsChannel> joinChannelByRoomId(
+    String roomId, {
+    String shareToken = '',
+    AsChannel? discoveredChannel,
+  });
 
   /// POST /_as/channels/{channelId}/join
   Future<AsChannel> joinChannel(
@@ -1544,6 +1586,9 @@ abstract class AsClient {
     String shareToken = '',
     AsChannel? discoveredChannel,
   });
+
+  /// POST /_as/channels/{channelId}/leave
+  Future<void> leaveChannel(String channelId);
 
   /// GET /_as/channels/{channelId}/members
   Future<List<AsChannelMember>> getChannelMembers(
@@ -1556,6 +1601,9 @@ abstract class AsClient {
 
   /// POST /_as/channels/{channelId}/join-requests/{userMxid}/reject
   Future<AsChannel> rejectChannelJoin(String channelId, String userMxid);
+
+  /// POST /_as/channels/{channelId}/members/{userMxid}/remove
+  Future<void> removeChannelMember(String channelId, String userMxid);
 
   /// GET /_as/channels/{channelId}/posts
   Future<List<AsChannelPost>> getChannelPosts(
@@ -1603,6 +1651,14 @@ abstract class AsClient {
   Future<AsChannelReaction> toggleChannelPostReaction(
     String channelId,
     String postId, {
+    String reaction = 'like',
+  });
+
+  /// POST /_as/channels/{channelId}/posts/{postId}/comments/{commentId}/reactions
+  Future<AsChannelReaction> toggleChannelCommentReaction(
+    String channelId,
+    String postId,
+    String commentId, {
     String reaction = 'like',
   });
 
@@ -1672,6 +1728,24 @@ int _parseInt(Object? value) {
   return 0;
 }
 
+String _parseChannelDisplayName(Map<String, dynamic> json) {
+  return _firstString(json, const [
+    'name',
+    'channel_name',
+    'room_name',
+    'display_name',
+    'displayName',
+  ]);
+}
+
+String _firstString(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is String && value.trim().isNotEmpty) return value;
+  }
+  return '';
+}
+
 String _normalizeChannelVisibility(String visibility) {
   return visibility.trim() == asChannelVisibilityPrivate
       ? asChannelVisibilityPrivate
@@ -1687,6 +1761,14 @@ String _normalizeChannelJoinPolicy(String policy) {
     default:
       return asChannelJoinPolicyOpen;
   }
+}
+
+String normalizeAsChannelType(String value) {
+  final trimmed = value.trim().toLowerCase();
+  return switch (trimmed) {
+    asChannelTypePost || '帖子' => asChannelTypePost,
+    _ => asChannelTypeChat,
+  };
 }
 
 Map<String, Object?> _objectMap(Object? value) {

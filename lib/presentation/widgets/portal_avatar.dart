@@ -56,6 +56,8 @@ class PortalAvatar extends StatelessWidget {
       child: imageBytes != null
           ? Image.memory(
               imageBytes!,
+              width: size,
+              height: size,
               fit: BoxFit.cover,
               gaplessPlayback: true,
               errorBuilder: (_, __, ___) => _letter(letter, fg),
@@ -64,6 +66,8 @@ class PortalAvatar extends StatelessWidget {
               ? Image.network(
                   key: ValueKey(imageUrl),
                   imageUrl!,
+                  width: size,
+                  height: size,
                   fit: BoxFit.cover,
                   gaplessPlayback: true,
                   errorBuilder: (_, __, ___) => _letter(letter, fg),

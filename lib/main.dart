@@ -10,6 +10,7 @@ import 'core/theme/app_theme.dart';
 import 'l10n/app_localizations.dart';
 import 'presentation/providers/app_locale_provider.dart';
 import 'presentation/providers/app_theme_provider.dart';
+import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
 import 'presentation/providers/p2p_api_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
@@ -45,6 +46,20 @@ class PortalApp extends ConsumerWidget {
     final localeState = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeProvider);
     ref.watch(messageSoundControllerProvider);
+    ref.listen<int>(sessionExpiredNoticeProvider, (previous, next) {
+      if (previous == null || next <= previous) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('登录已失效，请重新登录'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+      });
+    });
     return MaterialApp.router(
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       theme: AppTheme.light,

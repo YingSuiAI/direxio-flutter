@@ -28,6 +28,8 @@ import 'recovered_unread_store_provider.dart';
 
 part 'auth_provider.g.dart';
 
+final sessionExpiredNoticeProvider = StateProvider<int>((ref) => 0);
+
 /// Portal 未在该域名部署（owner.json 返回 404）。
 /// 对应 INTERFACE_SPEC.md §3.1：区分"未部署" vs "已初始化"。
 class PortalNotDeployedException implements Exception {
@@ -264,12 +266,23 @@ Future<String?> _fetchTokenDeviceId({
 @riverpod
 class AuthStateNotifier extends _$AuthStateNotifier {
   static const _storage = FlutterSecureStorage();
+  static const _startupRestoreTimeout = Duration(seconds: 12);
   static const adminAccessTokenKey = 'admin_access_token';
   static const lastLoginHomeserverKey = 'last_login_homeserver';
   static const lastLoginPortalTokenKey = 'last_login_portal_token';
 
   @override
   Future<AuthState> build() async {
+    try {
+      return await _buildRestoredAuthState().timeout(_startupRestoreTimeout);
+    } catch (e) {
+      debugPrint('startup auth restore failed, returning to login: $e');
+      await _clearAutoRestoreCredentials();
+      return const AuthState(isLoggedIn: false);
+    }
+  }
+
+  Future<AuthState> _buildRestoredAuthState() async {
     final client = ref.watch(matrixClientProvider);
     final storedValues = await Future.wait<String?>([
       _storage.read(key: 'matrix_token'),
@@ -303,7 +316,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           newDeviceID: deviceId,
           newDeviceName: 'PortalIM',
           waitForFirstSync: false,
-          waitUntilLoadCompletedLoaded: true,
+          waitUntilLoadCompletedLoaded: false,
         );
         _refreshStoredMatrixSessionInBackground(
           client,
@@ -335,6 +348,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       if (portalRestored != null) return portalRestored;
     }
     return const AuthState(isLoggedIn: false);
+  }
+
+  Future<void> _clearAutoRestoreCredentials() async {
+    await Future.wait<void>([
+      _storage.delete(key: 'matrix_token'),
+      _storage.delete(key: 'matrix_homeserver'),
+      _storage.delete(key: 'matrix_user_id'),
+      _storage.delete(key: 'matrix_device_id'),
+      _storage.delete(key: adminAccessTokenKey),
+    ]);
   }
 
   Future<void> _loadChatClearState() async {
@@ -794,7 +817,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       if (client.onLoginStateChanged.value != LoginState.loggedIn) {
         await client.init(
           waitForFirstSync: false,
-          waitUntilLoadCompletedLoaded: true,
+          waitUntilLoadCompletedLoaded: false,
         );
       }
       if (!client.isLogged()) return null;
@@ -930,7 +953,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           newDeviceID: deviceId,
           newDeviceName: 'PortalIM',
           waitForFirstSync: false,
-          waitUntilLoadCompletedLoaded: true,
+          waitUntilLoadCompletedLoaded: false,
         );
         await _persistSession(
           client,
@@ -1068,10 +1091,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   }
 
   bool _isTokenFailure(Object error) {
-    return error is MatrixException &&
-        (error.errcode == 'M_UNKNOWN_TOKEN' ||
-            error.errcode == 'M_MISSING_TOKEN' ||
-            error.response?.statusCode == 401);
+    return error is MatrixException && error.errcode == 'M_UNKNOWN_TOKEN';
   }
 
   /// §3.1 / §7 步骤 3：调 owner.json，确认 Portal 在该域名部署。
@@ -1326,13 +1346,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<void> expireSessionDueInvalidToken() async {
     final client = ref.read(matrixClientProvider);
-    debugPrint('matrix access token rejected; expiring local session');
+    debugPrint('access token rejected; expiring local session');
     await _clearUserScopedLocalState(client);
     await _storage.delete(key: 'matrix_token');
     await _storage.delete(key: 'matrix_homeserver');
     await _storage.delete(key: 'matrix_user_id');
     await _storage.delete(key: 'matrix_device_id');
     await _storage.delete(key: AuthStateNotifier.adminAccessTokenKey);
+    ref.read(sessionExpiredNoticeProvider.notifier).state++;
     state = const AsyncData(AuthState(isLoggedIn: false));
   }
 }

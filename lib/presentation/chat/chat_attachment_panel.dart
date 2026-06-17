@@ -19,6 +19,17 @@ import 'product_media_outbox_flow.dart';
 import 'product_room_media_send_flow.dart';
 import 'video_thumbnailer.dart';
 
+enum ChatAttachmentAction {
+  album,
+  camera,
+  voiceCall,
+  videoCall,
+  video,
+  location,
+  contact,
+  file,
+}
+
 class ChatAttachmentPanel extends ConsumerWidget {
   const ChatAttachmentPanel({
     super.key,
@@ -43,6 +54,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
     this.onVideoUploadFailed,
     this.onVoiceCall,
     this.onVideoCall,
+    this.visibleActions,
   });
 
   final Room? room;
@@ -73,6 +85,7 @@ class ChatAttachmentPanel extends ConsumerWidget {
   final FutureOr<void> Function(String pendingUploadId)? onVideoUploadFailed;
   final VoidCallback? onVoiceCall;
   final VoidCallback? onVideoCall;
+  final Set<ChatAttachmentAction>? visibleActions;
 
   void _showMediaSnack(
     ScaffoldMessengerState messenger,
@@ -430,32 +443,37 @@ class ChatAttachmentPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
-    final items = <(IconData, String, VoidCallback?)>[
+    final visible = visibleActions;
+    final items = <(ChatAttachmentAction, IconData, String, VoidCallback?)>[
       (
+        ChatAttachmentAction.album,
         Symbols.photo_library,
         '相册',
         canSend ? () => _pickImage(context, ref) : null,
       ),
       (
+        ChatAttachmentAction.camera,
         Symbols.photo_camera,
         '拍摄',
         canSend ? () => _takePhoto(context, ref) : null,
       ),
-      (Symbols.call, '语音通话', onVoiceCall),
-      (Symbols.videocam, '视频通话', onVideoCall),
+      (ChatAttachmentAction.voiceCall, Symbols.call, '语音通话', onVoiceCall),
+      (ChatAttachmentAction.videoCall, Symbols.videocam, '视频通话', onVideoCall),
       (
+        ChatAttachmentAction.video,
         Symbols.movie,
         '视频',
         canSend ? () => _pickVideo(context, ref) : null,
       ),
-      (Symbols.location_on, '位置', null),
-      (Symbols.contact_page, '个人名片', null),
+      (ChatAttachmentAction.location, Symbols.location_on, '位置', null),
+      (ChatAttachmentAction.contact, Symbols.contact_page, '个人名片', null),
       (
+        ChatAttachmentAction.file,
         Symbols.folder_open,
         '文件',
         canSend ? () => _pickFile(context, ref) : null,
       ),
-    ];
+    ].where((item) => visible == null || visible.contains(item.$1)).toList();
     return Container(
       color: t.surfaceHover,
       child: SafeArea(
@@ -472,9 +490,9 @@ class ChatAttachmentPanel extends ConsumerWidget {
             children: items
                 .map(
                   (it) => ChatAttachmentPanelButton(
-                    icon: it.$1,
-                    label: it.$2,
-                    onTap: it.$3,
+                    icon: it.$2,
+                    label: it.$3,
+                    onTap: it.$4,
                   ),
                 )
                 .toList(),

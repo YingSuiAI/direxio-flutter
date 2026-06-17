@@ -17,10 +17,9 @@ import '../providers/auth_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
-import '../widgets/m3/m3_search_field.dart';
+import '../widgets/portal_avatar.dart';
 
-const double _favoritePreviewSize = 62;
-const _favoriteConversationFilter = 'conversation';
+const double _favoriteMediaPreviewSize = 109;
 
 class MeMenuPage extends StatelessWidget {
   const MeMenuPage({super.key});
@@ -96,33 +95,11 @@ class MeFavoritesPage extends ConsumerStatefulWidget {
 }
 
 class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
-  String _messageType = '';
-  String _searchText = '';
-  final TextEditingController _searchController = TextEditingController();
   final Set<int> _removedFavoriteIds = {};
   late Future<List<AsFavoriteMessage>> _future = _load();
 
   Future<List<AsFavoriteMessage>> _load() async {
-    final remoteFilter =
-        _messageType == _favoriteConversationFilter ? '' : _messageType;
-    final favorites = await ref
-        .read(asClientProvider)
-        .getFavorites(messageType: remoteFilter);
-    return _filterFavorites(favorites, _messageType);
-  }
-
-  void _setFilter(String messageType) {
-    if (_messageType == messageType) return;
-    setState(() {
-      _messageType = messageType;
-      _future = _load();
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+    return ref.read(asClientProvider).getFavorites();
   }
 
   Future<void> _handleFavoriteTap(AsFavoriteMessage favorite) async {
@@ -245,16 +222,7 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
       backgroundColor: t.bg,
       body: Column(
         children: [
-          GlassHeader.detail(title: '我的收藏'),
-          _FavoriteSearchBar(
-            controller: _searchController,
-            onChanged: (value) => setState(() => _searchText = value),
-            onClear: () {
-              _searchController.clear();
-              setState(() => _searchText = '');
-            },
-          ),
-          _FavoriteFilters(selected: _messageType, onSelected: _setFilter),
+          GlassHeader.detail(title: '收藏'),
           Expanded(
             child: FutureBuilder<List<AsFavoriteMessage>>(
               future: _future,
@@ -278,28 +246,24 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
                     emptySubtitle: '${snapshot.error}',
                   );
                 }
-                final favorites = _searchFavorites(
-                  (snapshot.data ?? const [])
-                      .where(
-                        (favorite) =>
-                            !_removedFavoriteIds.contains(favorite.id),
-                      )
-                      .toList(growable: false),
-                  _searchText,
-                );
+                final favorites = (snapshot.data ?? const [])
+                    .where(
+                      (favorite) => !_removedFavoriteIds.contains(favorite.id),
+                    )
+                    .toList(growable: false);
                 if (favorites.isEmpty) {
-                  final searching = _searchText.trim().isNotEmpty;
-                  return _MeEmptyUtilityContent(
+                  return const _MeEmptyUtilityContent(
                     icon: Symbols.bookmarks,
-                    emptyTitle: searching ? '未找到相关收藏' : '暂无收藏',
-                    emptySubtitle: searching ? '换个关键词试试' : '长按聊天消息收藏后会显示在这里',
+                    emptyTitle: '暂无收藏',
+                    emptySubtitle: '长按聊天消息收藏后会显示在这里',
                   );
                 }
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                  separatorBuilder: (_, __) => const SizedBox(height: 14),
                   itemBuilder: (context, index) {
                     final favorite = favorites[index];
-                    return _FavoriteTile(
+                    return _FavoriteCard(
                       favorite: favorite,
                       onTap: () => unawaited(_handleFavoriteTap(favorite)),
                       onLongPress: () =>
@@ -339,7 +303,7 @@ class _MeLikesPageState extends ConsumerState<MeLikesPage> {
       backgroundColor: t.bg,
       body: Column(
         children: [
-          GlassHeader.detail(title: '我的点赞'),
+          GlassHeader.detail(title: '赞'),
           Expanded(
             child: FutureBuilder<List<AsChannelReactionHistory>>(
               future: _future,
@@ -371,20 +335,17 @@ class _MeLikesPageState extends ConsumerState<MeLikesPage> {
                     emptySubtitle: '你点过赞的频道帖子会显示在这里',
                   );
                 }
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
                   itemCount: reactions.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 14),
                   itemBuilder: (context, index) {
                     final item = reactions[index];
-                    return _ChannelActivityTile(
+                    return _MeLikePostCard(
                       key: ValueKey(
                         'my-like-${item.channelId}-${item.postId}',
                       ),
-                      icon: Symbols.thumb_up,
-                      channel: item.channel,
-                      title: _channelActivityPostPreview(item.post),
-                      subtitle: _channelActivityChannelLabel(item.channel),
-                      meta: _channelActivityDateLabel(item.originServerTs),
+                      item: item,
                     );
                   },
                 );
@@ -393,6 +354,184 @@ class _MeLikesPageState extends ConsumerState<MeLikesPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MeLikePostCard extends StatelessWidget {
+  const _MeLikePostCard({
+    super.key,
+    required this.item,
+  });
+
+  final AsChannelReactionHistory item;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final post = item.post;
+    final author = _postAuthorLabel(post, item.channel);
+    final title = _channelActivityPostPreview(post);
+    final body = post.body.trim().isEmpty ? title : post.body.trim();
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(20),
+      shadowColor: t.border.withValues(alpha: 0.25),
+      elevation: 10,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _openReactionTarget(context, item),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  PortalAvatar(
+                    seed: post.authorId.trim().isEmpty
+                        ? author
+                        : post.authorId.trim(),
+                    size: 40,
+                    shape: AvatarShape.squircle,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                author,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 17,
+                                  weight: FontWeight.w600,
+                                  color: t.text,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            _PostTypeBadge(type: post.messageType),
+                          ],
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          _commentTimeLabel(post.originServerTs),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(size: 13, color: t.textMute),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(
+                  size: 17,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ).copyWith(height: 1.28),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                body,
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(
+                  size: 13,
+                  weight: FontWeight.w500,
+                  color: t.textMute,
+                ).copyWith(height: 20 / 13),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Text(
+                    '收起',
+                    style: AppTheme.sans(size: 13, color: t.textMute),
+                  ),
+                  Icon(Symbols.expand_less, size: 16, color: t.textMute),
+                  const Spacer(),
+                  _PostStat(
+                    icon: Symbols.favorite,
+                    count: post.reactionCount,
+                    color: t.danger,
+                    fill: 1,
+                  ),
+                  const SizedBox(width: 16),
+                  _PostStat(
+                    icon: Symbols.chat_bubble,
+                    count: post.commentCount,
+                    color: t.textMute,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PostTypeBadge extends StatelessWidget {
+  const _PostTypeBadge({required this.type});
+
+  final String type;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: t.surfaceHigh,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        _favoriteTypeLabel(type),
+        style: AppTheme.sans(size: 11, color: t.textMute),
+      ),
+    );
+  }
+}
+
+class _PostStat extends StatelessWidget {
+  const _PostStat({
+    required this.icon,
+    required this.count,
+    required this.color,
+    this.fill = 0,
+  });
+
+  final IconData icon;
+  final int count;
+  final Color color;
+  final double fill;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 20, color: color, fill: fill),
+        const SizedBox(width: 4),
+        Text(
+          '$count',
+          style: AppTheme.sans(size: 13, color: t.textMute),
+        ),
+      ],
     );
   }
 }
@@ -413,68 +552,91 @@ class _MeCommentsPageState extends ConsumerState<MeCommentsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     return Scaffold(
       key: const ValueKey('me_comments_scaffold'),
-      backgroundColor: t.bg,
-      body: Column(
-        children: [
-          GlassHeader.detail(title: '我的评论'),
-          Expanded(
-            child: FutureBuilder<List<AsChannelCommentHistory>>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: t.accent,
-                      ),
-                    ),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return _MeEmptyUtilityContent(
-                    icon: Symbols.error,
-                    emptyTitle: '评论加载失败',
-                    emptySubtitle: '${snapshot.error}',
-                  );
-                }
-                final comments = snapshot.data ?? const [];
-                if (comments.isEmpty) {
-                  return const _MeEmptyUtilityContent(
-                    icon: Symbols.comment,
-                    emptyTitle: '暂无评论',
-                    emptySubtitle: '你在频道帖子下发表过的评论会显示在这里',
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(0, 12, 0, 32),
-                  itemCount: comments.length,
-                  itemBuilder: (context, index) {
-                    final item = comments[index];
-                    return _ChannelActivityTile(
-                      key: ValueKey(
-                        'my-comment-${item.comment.commentId}',
-                      ),
-                      icon: Symbols.comment,
-                      channel: item.channel,
-                      title: item.comment.body.trim().isEmpty
-                          ? '评论'
-                          : item.comment.body.trim(),
-                      subtitle: '${_channelActivityChannelLabel(item.channel)}'
-                          ' · 评论了 ${_channelActivityPostPreview(item.post)}',
-                      meta: _channelActivityDateLabel(
-                        item.comment.originServerTs,
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const _MeCommentsTopBar(),
+            Expanded(
+              child: FutureBuilder<List<AsChannelCommentHistory>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     );
-                  },
-                );
-              },
+                  }
+                  if (snapshot.hasError) {
+                    return _MeCommentsEmpty(
+                      icon: Symbols.error,
+                      title: '评论加载失败',
+                      subtitle: '${snapshot.error}',
+                    );
+                  }
+                  final comments = snapshot.data ?? const [];
+                  if (comments.isEmpty) {
+                    return const _MeCommentsEmpty(
+                      icon: Symbols.comment,
+                      title: '暂无评论',
+                      subtitle: '你在频道帖子下发表过的评论会显示在这里',
+                    );
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                    itemCount: comments.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final item = comments[index];
+                      return _MeCommentCard(
+                        key: ValueKey('my-comment-${item.comment.commentId}'),
+                        item: item,
+                      );
+                    },
+                  );
+                },
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MeCommentsTopBar extends StatelessWidget {
+  const _MeCommentsTopBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            left: 16,
+            top: 4,
+            child: GlassHeaderButton(
+              icon: Symbols.arrow_back,
+              iconSize: 24,
+              color: const Color(0xFF262628),
+              onTap: () => context.pop(),
+            ),
+          ),
+          Text(
+            '评论',
+            style: AppTheme.sans(
+              size: 20,
+              weight: FontWeight.w600,
+              color: const Color(0xFF262628),
+            ).copyWith(height: 33 / 20),
           ),
         ],
       ),
@@ -482,44 +644,138 @@ class _MeCommentsPageState extends ConsumerState<MeCommentsPage> {
   }
 }
 
-class _ChannelActivityTile extends StatelessWidget {
-  const _ChannelActivityTile({
+class _MeCommentCard extends StatelessWidget {
+  const _MeCommentCard({
     super.key,
-    required this.icon,
-    required this.channel,
-    required this.title,
-    required this.subtitle,
-    required this.meta,
+    required this.item,
   });
 
-  final IconData icon;
-  final AsChannel channel;
-  final String title;
-  final String subtitle;
-  final String meta;
+  final AsChannelCommentHistory item;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    final channelName =
-        channel.name.trim().isEmpty ? '频道' : channel.name.trim();
-    return GlassListTile(
-      leading:
-          GlassListIcon(icon: icon, fill: icon == Symbols.thumb_up ? 1 : 0),
-      title: title.trim().isEmpty ? channelName : title.trim(),
-      subtitle: subtitle.trim().isEmpty ? channelName : subtitle.trim(),
-      trailingText: meta,
-      onTap: channel.channelId.trim().isEmpty
-          ? null
-          : () => context.push(
-                '/channel/${Uri.encodeComponent(channel.channelId.trim())}',
-              ),
-      titleStyle: AppTheme.sans(
-        size: 17,
-        weight: FontWeight.w600,
-        color: t.text,
+    final comment = item.comment;
+    final author = _commentAuthorLabel(comment);
+    final body = comment.body.trim().isEmpty ? '评论' : comment.body.trim();
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      shadowColor: const Color(0xFFBFBFBF).withValues(alpha: 0.25),
+      elevation: 10,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _openCommentTarget(context, item),
+        child: SizedBox(
+          height: 102,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 15, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                PortalAvatar(
+                  seed: comment.authorId.trim().isEmpty
+                      ? author
+                      : comment.authorId.trim(),
+                  size: 40,
+                  shape: AvatarShape.squircle,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: 20,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            author,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.sans(
+                              size: 16,
+                              weight: FontWeight.w600,
+                              color: const Color(0xFF262628),
+                            ).copyWith(height: 33 / 16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        body,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(
+                          size: 13,
+                          weight: FontWeight.w500,
+                          color: const Color(0xFF333333),
+                        ).copyWith(height: 20 / 13),
+                      ),
+                      const Spacer(),
+                      Text(
+                        _commentTimeLabel(comment.originServerTs),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(
+                          size: 10,
+                          weight: FontWeight.w400,
+                          color: const Color(0xFFA3A3A4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      subtitleStyle: AppTheme.sans(size: 13, color: t.textMute),
+    );
+  }
+}
+
+class _MeCommentsEmpty extends StatelessWidget {
+  const _MeCommentsEmpty({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 36, color: const Color(0xFFA3A3A4)),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: AppTheme.sans(
+                size: 17,
+                weight: FontWeight.w600,
+                color: const Color(0xFF262628),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(
+                size: 13,
+                weight: FontWeight.w400,
+                color: const Color(0xFFA3A3A4),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -654,133 +910,8 @@ class _MeEmptyUtilityContent extends StatelessWidget {
   }
 }
 
-class _FavoriteSearchBar extends StatelessWidget {
-  const _FavoriteSearchBar({
-    required this.controller,
-    required this.onChanged,
-    required this.onClear,
-  });
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      color: t.bg,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-      child: ValueListenableBuilder<TextEditingValue>(
-        valueListenable: controller,
-        builder: (context, value, _) {
-          final hasText = value.text.trim().isNotEmpty;
-          return M3SearchField(
-            controller: controller,
-            hint: '搜索收藏内容',
-            onChanged: onChanged,
-            trailing: hasText
-                ? IconButton(
-                    tooltip: '清除',
-                    onPressed: onClear,
-                    icon: Icon(
-                      Symbols.cancel,
-                      size: 18,
-                      color: t.textMute,
-                    ),
-                  )
-                : null,
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _FavoriteFilters extends StatelessWidget {
-  const _FavoriteFilters({
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final String selected;
-  final ValueChanged<String> onSelected;
-
-  static const _filters = <(String value, String label)>[
-    ('', '全部'),
-    (_favoriteConversationFilter, '聊天记录'),
-    ('image', '图片'),
-    ('video', '视频'),
-    ('file', '文件'),
-    ('link', '链接'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        color: t.bg,
-        border:
-            Border(bottom: BorderSide(color: t.border.withValues(alpha: 0.35))),
-      ),
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        scrollDirection: Axis.horizontal,
-        itemBuilder: (context, index) {
-          final item = _filters[index];
-          return _FavoriteFilterChip(
-            label: item.$2,
-            selected: selected == item.$1,
-            onTap: () => onSelected(item.$1),
-          );
-        },
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemCount: _filters.length,
-      ),
-    );
-  }
-}
-
-class _FavoriteFilterChip extends StatelessWidget {
-  const _FavoriteFilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Material(
-      color: selected ? t.text : t.surfaceHigh,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          child: Text(
-            label,
-            style: AppTheme.sans(
-              size: 14,
-              weight: FontWeight.w600,
-              color: selected ? t.bg : t.textMute,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FavoriteTile extends StatelessWidget {
-  const _FavoriteTile({
+class _FavoriteCard extends StatelessWidget {
+  const _FavoriteCard({
     required this.favorite,
     required this.onTap,
     required this.onLongPress,
@@ -819,91 +950,353 @@ class _FavoriteTile extends StatelessWidget {
           ),
         ),
       ),
-      child: GlassListPanel(
+      child: Material(
         key: ValueKey('favorite-card-${favorite.id}'),
-        onTap: onTap,
-        onLongPress: onLongPress,
-        contentPadding: const EdgeInsets.all(14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _FavoritePreview(favorite: favorite),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _favoriteListTitle(favorite),
-                    maxLines: favorite.messageType == 'file' ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(
-                      size: 16,
-                      weight: FontWeight.w600,
-                      color: t.text,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _favoriteSourceLabel(favorite),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(size: 12, color: t.textMute),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _favoriteListMeta(favorite),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(size: 12, color: t.textMute),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        color: t.surface,
+        borderRadius: BorderRadius.circular(20),
+        shadowColor: t.border.withValues(alpha: 0.25),
+        elevation: 10,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+            child: _FavoriteCardBody(favorite: favorite),
+          ),
         ),
       ),
     );
   }
 }
 
-List<AsFavoriteMessage> _searchFavorites(
-  List<AsFavoriteMessage> favorites,
-  String query,
-) {
-  final keyword = query.trim().toLowerCase();
-  if (keyword.isEmpty) return favorites;
-  return favorites
-      .where((favorite) => _favoriteSearchText(favorite).contains(keyword))
-      .toList(growable: false);
+class _FavoriteCardBody extends StatelessWidget {
+  const _FavoriteCardBody({required this.favorite});
+
+  final AsFavoriteMessage favorite;
+
+  @override
+  Widget build(BuildContext context) {
+    if (favorite.messageType == chatRecordMessageType) {
+      return _FavoriteChatRecordBody(favorite: favorite);
+    }
+    if (favorite.messageType == 'file') {
+      return _FavoriteFileBody(favorite: favorite);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FavoriteAuthorHeader(favorite: favorite),
+        const SizedBox(height: 14),
+        switch (favorite.messageType) {
+          'audio' => _FavoriteAudioContent(favorite: favorite),
+          'image' || 'video' => _FavoriteMediaContent(favorite: favorite),
+          _ => _FavoriteTextContent(favorite: favorite),
+        },
+      ],
+    );
+  }
 }
 
-String _favoriteSearchText(AsFavoriteMessage favorite) {
-  final values = <String>[
-    _favoriteListTitle(favorite),
-    _favoriteSourceLabel(favorite),
-    _favoriteMessageBody(favorite),
-    _favoriteTypeLabel(favorite.messageType),
-    favorite.body,
-    favorite.filename,
-    favorite.url,
-    favorite.mimeType,
-    favorite.senderId,
-    favorite.senderName,
-    favorite.roomId,
-    favorite.eventId,
-    favorite.roomType,
-  ];
-  return values
-      .where((value) => value.trim().isNotEmpty)
-      .join('\n')
-      .toLowerCase();
+class _FavoriteAuthorHeader extends StatelessWidget {
+  const _FavoriteAuthorHeader({required this.favorite});
+
+  final AsFavoriteMessage favorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final author = _favoriteSenderLabel(favorite);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        PortalAvatar(
+          seed: favorite.senderId.trim().isEmpty
+              ? author
+              : favorite.senderId.trim(),
+          size: 40,
+          shape: AvatarShape.squircle,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      author,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 17,
+                        weight: FontWeight.w600,
+                        color: t.text,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _PostTypeBadge(type: favorite.messageType),
+                ],
+              ),
+              const SizedBox(height: 1),
+              Text(
+                _favoriteTimeLabel(favorite),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(size: 13, color: t.textMute),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FavoriteTextContent extends StatelessWidget {
+  const _FavoriteTextContent({required this.favorite});
+
+  final AsFavoriteMessage favorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final title = _favoriteTitle(favorite);
+    final body = favorite.body.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTheme.sans(
+            size: 17,
+            weight: FontWeight.w600,
+            color: t.text,
+          ).copyWith(height: 1.28),
+        ),
+        if (body.isNotEmpty && body != title) ...[
+          const SizedBox(height: 8),
+          Text(
+            body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.sans(
+              size: 13,
+              weight: FontWeight.w500,
+              color: t.textMute,
+            ).copyWith(height: 20 / 13),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FavoriteAudioContent extends StatelessWidget {
+  const _FavoriteAudioContent({required this.favorite});
+
+  final AsFavoriteMessage favorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      width: 120,
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: t.surfaceHigh,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+          bottomLeft: Radius.circular(2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Symbols.graphic_eq, size: 22, color: t.text),
+          const SizedBox(width: 6),
+          Text(
+            _favoriteAudioDuration(favorite),
+            style: AppTheme.sans(
+              size: 15,
+              weight: FontWeight.w600,
+              color: t.text,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FavoriteMediaContent extends StatelessWidget {
+  const _FavoriteMediaContent({required this.favorite});
+
+  final AsFavoriteMessage favorite;
+
+  @override
+  Widget build(BuildContext context) {
+    return _FavoritePreview(
+      favorite: favorite,
+      size: _favoriteMediaPreviewSize,
+      borderRadius: 4,
+    );
+  }
+}
+
+class _FavoriteChatRecordBody extends StatelessWidget {
+  const _FavoriteChatRecordBody({required this.favorite});
+
+  final AsFavoriteMessage favorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final lines = _favoriteChatRecordPreviewLines(favorite);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _favoriteChatRecordDescription(favorite),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTheme.sans(
+            size: 17,
+            weight: FontWeight.w600,
+            color: t.text,
+          ),
+        ),
+        const SizedBox(height: 1),
+        Text(
+          _favoriteTimeLabel(favorite),
+          style: AppTheme.sans(size: 13, color: t.textMute),
+        ),
+        const SizedBox(height: 12),
+        for (final line in lines.take(2))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              line,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(size: 13, color: t.textMute),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _FavoriteFileBody extends StatelessWidget {
+  const _FavoriteFileBody({required this.favorite});
+
+  final AsFavoriteMessage favorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _favoriteTitle(favorite),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(
+                  size: 17,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                _favoriteTimeLabel(favorite),
+                style: AppTheme.sans(size: 13, color: t.textMute),
+              ),
+              const SizedBox(height: 42),
+              Text(
+                _favoriteSenderLabel(favorite),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(size: 13, color: t.textMute),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
+        _FavoriteIconBox(
+          key: ValueKey('favorite-preview-${favorite.id}'),
+          type: favorite.messageType,
+          size: 70,
+        ),
+      ],
+    );
+  }
+}
+
+List<String> _favoriteChatRecordPreviewLines(AsFavoriteMessage favorite) {
+  final items = favorite.chatRecord['items'];
+  if (items is Iterable) {
+    return items
+        .whereType<Map>()
+        .map((item) {
+          final sender = (item['sender_name'] as String? ?? '').trim();
+          final body = (item['body'] as String? ?? '').trim();
+          if (body.isEmpty) return '';
+          return sender.isEmpty ? body : '$sender：$body';
+        })
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+  }
+  final body = favorite.body.trim();
+  return body.isEmpty ? const <String>[] : <String>[body];
+}
+
+String _favoriteAudioDuration(AsFavoriteMessage favorite) {
+  final seconds = (favorite.durationMs / 1000).round();
+  if (seconds > 0) return '${seconds}s';
+  final body = favorite.body.trim();
+  return body.isEmpty ? '60s' : body;
+}
+
+String _favoriteSenderLabel(AsFavoriteMessage favorite) {
+  final name = favorite.senderName.trim();
+  if (name.isNotEmpty) return name;
+  final senderId = favorite.senderId.trim();
+  if (senderId.startsWith('@')) {
+    final colon = senderId.indexOf(':');
+    if (colon > 1) return senderId.substring(1, colon);
+  }
+  return senderId.isEmpty ? '未知' : senderId;
+}
+
+String _favoriteTimeLabel(AsFavoriteMessage favorite) {
+  final value = _favoriteTimestamp(favorite);
+  if (value == null) return '';
+  final local = value.toLocal();
+  return '${_two(local.hour)}:${_two(local.minute)}';
 }
 
 class _FavoritePreview extends ConsumerStatefulWidget {
-  const _FavoritePreview({required this.favorite});
+  const _FavoritePreview({
+    required this.favorite,
+    required this.size,
+    required this.borderRadius,
+  });
 
   final AsFavoriteMessage favorite;
+  final double size;
+  final double borderRadius;
 
   @override
   ConsumerState<_FavoritePreview> createState() => _FavoritePreviewState();
@@ -939,7 +1332,7 @@ class _FavoritePreviewState extends ConsumerState<_FavoritePreview> {
       return _FavoriteIconBox(
         key: ValueKey('favorite-preview-${favorite.id}'),
         type: favorite.messageType,
-        size: _favoritePreviewSize,
+        size: widget.size,
       );
     }
 
@@ -954,11 +1347,11 @@ class _FavoritePreviewState extends ConsumerState<_FavoritePreview> {
     );
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(widget.borderRadius),
       child: SizedBox(
         key: ValueKey('favorite-preview-${favorite.id}'),
-        width: _favoritePreviewSize,
-        height: _favoritePreviewSize,
+        width: widget.size,
+        height: widget.size,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -979,12 +1372,12 @@ class _FavoritePreviewState extends ConsumerState<_FavoritePreview> {
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.42),
+                    color: t.text.withValues(alpha: 0.42),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Symbols.play_arrow,
-                    color: Colors.white,
+                    color: t.surface,
                     size: 21,
                   ),
                 ),
@@ -1000,7 +1393,7 @@ class _FavoriteIconBox extends StatelessWidget {
   const _FavoriteIconBox({
     super.key,
     required this.type,
-    this.size = _favoritePreviewSize,
+    required this.size,
   });
 
   final String type;
@@ -1029,7 +1422,7 @@ IconData _favoriteIcon(String type) {
   return switch (type) {
     'image' => Symbols.image,
     'video' => Symbols.play_circle,
-    'file' => Symbols.description,
+    'file' => Symbols.folder,
     'chat_record' => Symbols.forum,
     'audio' => Symbols.graphic_eq,
     'link' => Symbols.link,
@@ -1052,44 +1445,6 @@ String _favoriteTitle(AsFavoriteMessage favorite) {
   return '收藏消息';
 }
 
-List<AsFavoriteMessage> _filterFavorites(
-  List<AsFavoriteMessage> favorites,
-  String messageType,
-) {
-  final type = messageType.trim();
-  if (type.isEmpty) return favorites;
-  if (type == _favoriteConversationFilter) {
-    return favorites
-        .where((favorite) =>
-            favorite.messageType == 'text' ||
-            favorite.messageType == chatRecordMessageType)
-        .toList(growable: false);
-  }
-  return favorites
-      .where((favorite) => favorite.messageType == type)
-      .toList(growable: false);
-}
-
-String _favoriteListTitle(AsFavoriteMessage favorite) {
-  return switch (favorite.messageType) {
-    'image' => '图片',
-    'video' => '视频',
-    'audio' => '语音',
-    'chat_record' => '聊天记录',
-    'file' => _favoriteTitle(favorite),
-    'link' => favorite.body.trim().isNotEmpty ? favorite.body.trim() : '链接',
-    _ => _favoriteTitle(favorite),
-  };
-}
-
-String _favoriteListMeta(AsFavoriteMessage favorite) {
-  final parts = <String>[
-    _favoriteDateLabel(favorite),
-    if (favorite.size > 0) _favoriteSize(favorite.size),
-  ];
-  return parts.where((part) => part.trim().isNotEmpty).join(' · ');
-}
-
 String _favoriteSourceLabel(AsFavoriteMessage favorite) {
   if (favorite.messageType == 'chat_record') {
     return _favoriteChatRecordDescription(favorite);
@@ -1104,14 +1459,6 @@ String _favoriteSourceLabel(AsFavoriteMessage favorite) {
     'agent' => '来自 Agent',
     _ => sender.isEmpty ? '来自聊天' : '来自聊天 · $sender',
   };
-}
-
-String _favoriteDateLabel(AsFavoriteMessage favorite) {
-  final value = _favoriteTimestamp(favorite);
-  if (value == null) return '';
-  final local = value.toLocal();
-  final prefix = '${local.year}年${local.month}月${local.day}日';
-  return '$prefix ${_two(local.hour)}:${_two(local.minute)}';
 }
 
 DateTime? _favoriteTimestamp(AsFavoriteMessage favorite) {
@@ -1141,14 +1488,70 @@ String _channelActivityChannelLabel(AsChannel channel) {
   return '频道';
 }
 
-String _channelActivityDateLabel(int originServerTs) {
+String _commentTimeLabel(int originServerTs) {
   if (originServerTs <= 0) return '';
   final local = DateTime.fromMillisecondsSinceEpoch(
     originServerTs,
     isUtc: true,
   ).toLocal();
-  return '${local.year}年${local.month}月${local.day}日 '
-      '${_two(local.hour)}:${_two(local.minute)}';
+  return '${_two(local.hour)}:${_two(local.minute)}';
+}
+
+String _commentAuthorLabel(AsChannelComment comment) {
+  final authorName = comment.authorName.trim();
+  if (authorName.isNotEmpty) return authorName;
+  final authorId = comment.authorId.trim();
+  if (authorId.startsWith('@')) {
+    final colon = authorId.indexOf(':');
+    if (colon > 1) return authorId.substring(1, colon);
+  }
+  return authorId.isEmpty ? '我' : authorId;
+}
+
+String _postAuthorLabel(AsChannelPost post, AsChannel channel) {
+  final authorName = post.authorName.trim();
+  if (authorName.isNotEmpty) return authorName;
+  final authorId = post.authorId.trim();
+  if (authorId.startsWith('@')) {
+    final colon = authorId.indexOf(':');
+    if (colon > 1) return authorId.substring(1, colon);
+  }
+  if (authorId.isNotEmpty) return authorId;
+  return _channelActivityChannelLabel(channel);
+}
+
+void _openReactionTarget(
+  BuildContext context,
+  AsChannelReactionHistory item,
+) {
+  final channelId = item.channel.channelId.trim().isNotEmpty
+      ? item.channel.channelId.trim()
+      : item.channelId.trim();
+  final postId = item.post.postId.trim().isNotEmpty
+      ? item.post.postId.trim()
+      : item.postId.trim();
+  if (channelId.isEmpty || postId.isEmpty) return;
+  context.push(
+    '/channel/${Uri.encodeComponent(channelId)}/post/'
+    '${Uri.encodeComponent(postId)}',
+  );
+}
+
+void _openCommentTarget(
+  BuildContext context,
+  AsChannelCommentHistory item,
+) {
+  final channelId = item.channel.channelId.trim().isNotEmpty
+      ? item.channel.channelId.trim()
+      : item.comment.channelId.trim();
+  final postId = item.post.postId.trim().isNotEmpty
+      ? item.post.postId.trim()
+      : item.comment.postId.trim();
+  if (channelId.isEmpty || postId.isEmpty) return;
+  context.push(
+    '/channel/${Uri.encodeComponent(channelId)}/post/'
+    '${Uri.encodeComponent(postId)}',
+  );
 }
 
 String _two(int value) => value.toString().padLeft(2, '0');
@@ -1164,19 +1567,6 @@ String _favoriteTypeLabel(String type) {
     'link' => '链接',
     _ => '消息',
   };
-}
-
-String _favoriteSize(int bytes) {
-  if (bytes <= 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  var size = bytes.toDouble();
-  var index = 0;
-  while (size >= 1024 && index < units.length - 1) {
-    size /= 1024;
-    index++;
-  }
-  final digits = index == 0 || size >= 10 ? 0 : 1;
-  return '${size.toStringAsFixed(digits)} ${units[index]}';
 }
 
 String _favoriteChatRecordDescription(AsFavoriteMessage favorite) {

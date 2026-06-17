@@ -2,10 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/presentation/utils/message_history_policy.dart';
 
 void main() {
-  test('new device privacy policy blocks automatic read-history backfill', () {
+  test('message history policy allows concrete chat open first page', () {
     expect(
       shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen),
-      isFalse,
+      isTrue,
     );
     expect(
       shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.userLoadOlder),

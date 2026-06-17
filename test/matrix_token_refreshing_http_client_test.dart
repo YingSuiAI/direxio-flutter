@@ -104,6 +104,42 @@ void main() {
     expect(authFailures, 1);
   });
 
+  test('does not refresh or notify for M_MISSING_TOKEN', () async {
+    var refreshes = 0;
+    var authFailures = 0;
+    final client = MatrixTokenRefreshingHttpClient(
+      inner: MockClient((_) async {
+        return http.Response(
+          jsonEncode({
+            'errcode': 'M_MISSING_TOKEN',
+            'error': 'Missing token',
+          }),
+          401,
+        );
+      }),
+    );
+    client.refreshAccessToken = () async {
+      refreshes += 1;
+      return 'new-token';
+    };
+    client.onAuthenticationFailed = () async {
+      authFailures += 1;
+    };
+
+    final request = http.Request(
+      'GET',
+      Uri.parse('https://example.com/_matrix/client/v3/sync'),
+    )..headers['authorization'] = 'Bearer old-token';
+
+    final response = await client.send(request);
+    final body = await response.stream.bytesToString();
+
+    expect(response.statusCode, 401);
+    expect(jsonDecode(body), containsPair('errcode', 'M_MISSING_TOKEN'));
+    expect(refreshes, 0);
+    expect(authFailures, 0);
+  });
+
   test('retries Matrix media upload after transient header close', () async {
     var calls = 0;
     final client = MatrixTokenRefreshingHttpClient(

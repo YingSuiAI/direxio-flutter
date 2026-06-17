@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../channel/channel_share.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -86,10 +87,11 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
 
   Future<void> _join(AsChannel channel) async {
     final id = channel.channelId.trim();
-    if (id.isEmpty) return;
+    final roomId = channel.roomId.trim();
+    if (roomId.isEmpty) return;
     try {
-      final joined = await ref.read(asClientProvider).joinChannel(
-            id,
+      final joined = await ref.read(asClientProvider).joinChannelByRoomId(
+            roomId,
             discoveredChannel: channel,
           );
       setState(() {
@@ -126,7 +128,7 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: context.tk.bg,
       body: Stack(
         children: [
           Positioned(
@@ -164,7 +166,7 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       return const _ChannelSearchEmpty(
         icon: Symbols.search,
         title: '搜索频道',
-        subtitle: '输入关键词查找感兴趣的频道',
+        subtitle: '输入频道ID查找频道',
       );
     }
     if (_error.isNotEmpty) {
@@ -187,10 +189,26 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final channel = _results[index];
+        final detailId = channel.roomId.trim().isEmpty
+            ? channel.channelId
+            : channel.roomId.trim();
         return _ChannelSearchResultTile(
           channel: channel,
           onTap: () => context.push(
-            '/channel/${Uri.encodeComponent(channel.channelId)}',
+            '/channel/${Uri.encodeComponent(detailId)}/detail',
+            extra: channelSharePayloadFromChannel(
+              channelId: channel.channelId,
+              roomId: channel.roomId,
+              homeDomain: channel.homeDomain,
+              name: channel.name,
+              description: channel.description,
+              avatarUrl: channel.avatarUrl,
+              visibility: channel.visibility,
+              joinPolicy: channel.joinPolicy,
+              commentsEnabled: channel.commentsEnabled,
+              channelType: channel.channelType,
+              tags: channel.tags,
+            ),
           ),
           onJoin: () => _join(channel),
         );
@@ -242,14 +260,14 @@ class _ChannelSearchEmpty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 54, color: const Color(0xFF99A3B1), weight: 500),
+            Icon(icon, size: 54, color: context.tk.textMute, weight: 500),
             const SizedBox(height: 20),
             Text(
               title,
               style: AppTheme.sans(
                 size: 17,
                 weight: FontWeight.w500,
-                color: const Color(0xFF7D8799),
+                color: context.tk.textMute,
               ),
             ),
             const SizedBox(height: 10),
@@ -258,7 +276,7 @@ class _ChannelSearchEmpty extends StatelessWidget {
               textAlign: TextAlign.center,
               style: AppTheme.sans(
                 size: 14,
-                color: const Color(0xFF7D8799),
+                color: context.tk.textMute,
               ).copyWith(
                 height: 20 / 14,
               ),
@@ -282,10 +300,10 @@ class _ChannelSearchCircleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: context.tk.surface,
       shape: const CircleBorder(),
       elevation: 14,
-      shadowColor: Colors.black.withValues(alpha: 0.08),
+      shadowColor: _channelSearchShadowColor(context),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
@@ -296,7 +314,7 @@ class _ChannelSearchCircleButton extends StatelessWidget {
               icon,
               size: 28,
               weight: 700,
-              color: const Color(0xFF141C26),
+              color: context.tk.text,
             ),
           ),
         ),
@@ -439,4 +457,10 @@ class _SearchChannelAvatar extends StatelessWidget {
       child: Icon(Symbols.campaign, color: t.accent, size: 25, fill: 1),
     );
   }
+}
+
+Color _channelSearchShadowColor(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark
+      ? Colors.black.withValues(alpha: 0.34)
+      : Colors.black.withValues(alpha: 0.08);
 }

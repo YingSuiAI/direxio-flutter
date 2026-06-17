@@ -125,6 +125,37 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     ref.read(personalProfileProvider.notifier).state = data;
   }
 
+  Future<void> _syncMatrixDisplayName(String userId, String displayName) async {
+    final client = ref.read(matrixClientProvider);
+    final matrixUserId = client.userID?.trim().isNotEmpty == true
+        ? client.userID!.trim()
+        : userId;
+    if (matrixUserId.trim().isEmpty) return;
+    await client.setDisplayName(matrixUserId, displayName);
+
+    final joinedRooms =
+        client.rooms.where((room) => room.membership == Membership.join);
+    for (final room in joinedRooms) {
+      try {
+        final currentContent =
+            room.getState(EventTypes.RoomMember, matrixUserId)?.content;
+        final nextContent = <String, Object?>{
+          if (currentContent != null) ...currentContent,
+          'membership': Membership.join.name,
+          'displayname': displayName,
+        };
+        await client.setRoomStateWithKey(
+          room.id,
+          EventTypes.RoomMember,
+          matrixUserId,
+          nextContent,
+        );
+      } catch (e) {
+        debugPrint('sync room member display name failed: ${room.id}: $e');
+      }
+    }
+  }
+
   Future<OwnerProfile> _saveOwnerProfile(
     PersonalProfileData data, {
     required String userId,
@@ -192,6 +223,9 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         phone: phone,
         email: email,
       );
+      if (cleanDisplayName != null) {
+        await _syncMatrixDisplayName(userId, cleanDisplayName);
+      }
       _updateProfile(_personalProfileFromOwner(data, ownerProfile));
       ref.invalidate(currentUserProfileProvider);
       await ref.read(currentUserProfileProvider.future);

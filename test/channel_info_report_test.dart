@@ -7,17 +7,17 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
+import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/p2p_api_client.dart';
-import 'package:portal_app/presentation/pages/contact_detail_page.dart';
+import 'package:portal_app/presentation/pages/channel_info_page.dart';
+import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/providers/p2p_api_provider.dart';
-import 'package:portal_app/presentation/providers/profile_provider.dart';
 
 void main() {
-  testWidgets('contact detail submits user report to IM public API',
-      (tester) async {
+  testWidgets('channel info submits report to IM public API', (tester) async {
     late http.Request seen;
-    final matrixClient = Client('ContactDetailReportTest')
+    final matrixClient = Client('ChannelInfoReportTest')
       ..setUserId('@owner:p2p-im.com');
     final p2pClient = P2pApiClient(
       baseUri: Uri.parse('http://localhost:8888'),
@@ -26,7 +26,7 @@ void main() {
         return http.Response(
           jsonEncode({
             'code': 0,
-            'data': {'ID': 7},
+            'data': {'ID': 8},
             'msg': 'success'
           }),
           200,
@@ -34,23 +34,49 @@ void main() {
         );
       }),
     );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:portal.local',
+          homeDomain: 'portal.local',
+          name: '综合讨论',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(matrixClient),
           p2pApiClientProvider.overrideWithValue(p2pClient),
-          currentUserProfileProvider.overrideWith((ref) async => null),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const ContactDetailPage(userId: '@alice:portal.local'),
+          home: const ChannelInfoPage(channelId: 'ch_real'),
         ),
       ),
     );
 
-    await tester.tap(find.text('举报用户'));
+    await tester.tap(find.text('举报频道'));
     await tester.pumpAndSettle();
+    expect(find.text('请选择举报原因'), findsOneWidget);
+
     await tester.tap(find.text('欺诈'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('提交'));

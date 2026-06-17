@@ -16,14 +16,25 @@ final asClientProvider = Provider<AsClient>((ref) {
   final portalToken =
       ref.watch(authStateNotifierProvider).valueOrNull?.portalToken;
   if (portalToken != null && portalToken.isNotEmpty) {
-    return HttpAsClient.fromPortalSession(client, portalToken: portalToken);
+    return HttpAsClient.fromPortalSession(
+      client,
+      portalToken: portalToken,
+      onAuthenticationFailed: () => ref
+          .read(authStateNotifierProvider.notifier)
+          .expireSessionDueInvalidToken(),
+    );
   }
   debugPrint(
     'asClientProvider missing admin_access_token; falling back to Matrix '
     'access token for AS Admin API. This will fail on AS v2 with '
     'M_UNKNOWN_TOKEN.',
   );
-  return HttpAsClient.fromMatrixClient(client);
+  return HttpAsClient.fromMatrixClient(
+    client,
+    onAuthenticationFailed: () => ref
+        .read(authStateNotifierProvider.notifier)
+        .expireSessionDueInvalidToken(),
+  );
 });
 
 final agentStatusProvider = StreamProvider.autoDispose<AgentStatus>((ref) {

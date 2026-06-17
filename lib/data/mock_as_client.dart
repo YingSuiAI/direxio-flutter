@@ -28,6 +28,7 @@ class MockAsClient implements AsClient {
   final Map<String, List<AsChannelPost>> _channelPosts = {};
   final Map<String, List<AsChannelComment>> _channelComments = {};
   final Set<String> _channelReactions = {};
+  final Set<String> _channelCommentReactions = {};
   int _nextFavoriteId = 1;
   int _nextCallId = 1;
   int _nextChannelId = 1;
@@ -512,6 +513,7 @@ class MockAsClient implements AsClient {
     String avatarUrl = '',
     String visibility = asChannelVisibilityPublic,
     String joinPolicy = asChannelJoinPolicyOpen,
+    String channelType = 'chat',
     bool commentsEnabled = true,
     List<String> tags = const [],
   }) async {
@@ -528,6 +530,7 @@ class MockAsClient implements AsClient {
       visibility: visibility,
       joinPolicy: joinPolicy,
       commentsEnabled: commentsEnabled,
+      channelType: normalizeAsChannelType(channelType),
       role: asChannelRoleOwner,
       memberStatus: asChannelMemberStatusJoined,
       memberCount: 1,
@@ -548,6 +551,12 @@ class MockAsClient implements AsClient {
     ];
     _channelPosts[id] = [];
     return channel;
+  }
+
+  @override
+  Future<List<AsChannel>> listChannels() async {
+    await Future.delayed(_latency);
+    return _channels.values.toList(growable: false);
   }
 
   @override
@@ -587,10 +596,66 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<AsChannel> getPublicChannelByRoomId(
+    String roomId, {
+    Uri? baseUri,
+  }) async {
+    await Future.delayed(_latency);
+    final trimmedRoomId = roomId.trim();
+    for (final channel in _channels.values) {
+      if (channel.roomId.trim() == trimmedRoomId) return channel;
+    }
+    final channelId = trimmedRoomId.startsWith('!')
+        ? trimmedRoomId.substring(1).split(':').first
+        : trimmedRoomId;
+    return AsChannel(
+      channelId: channelId,
+      roomId: trimmedRoomId,
+      name: '公开频道',
+      homeDomain: trimmedRoomId.contains(':')
+          ? trimmedRoomId.split(':').last
+          : 'mock.local',
+      visibility: asChannelVisibilityPublic,
+      joinPolicy: asChannelJoinPolicyOpen,
+      commentsEnabled: true,
+      memberStatus: '',
+    );
+  }
+
+  @override
   Future<AsChannel> updateChannel(AsChannel draft) async {
     await Future.delayed(_latency);
     _channels[draft.channelId] = draft;
     return draft;
+  }
+
+  @override
+  Future<AsChannel> joinChannelByRoomId(
+    String roomId, {
+    String shareToken = '',
+    AsChannel? discoveredChannel,
+  }) async {
+    await Future.delayed(_latency);
+    final trimmedRoomId = roomId.trim();
+    final existing = _channels.values.cast<AsChannel?>().firstWhere(
+              (channel) => channel?.roomId.trim() == trimmedRoomId,
+              orElse: () => null,
+            ) ??
+        discoveredChannel ??
+        AsChannel(
+          channelId: trimmedRoomId,
+          roomId: trimmedRoomId,
+          name: '公开频道',
+          homeDomain: 'mock.local',
+          visibility: asChannelVisibilityPublic,
+          joinPolicy: asChannelJoinPolicyOpen,
+          commentsEnabled: true,
+        );
+    return joinChannel(
+      existing.channelId.trim().isEmpty ? existing.roomId : existing.channelId,
+      shareToken: shareToken,
+      discoveredChannel: existing,
+    );
   }
 
   @override
@@ -678,6 +743,51 @@ class MockAsClient implements AsClient {
     String userMxid,
   ) async {
     return _resolveMockChannelJoin(channelId, userMxid, joined: false);
+  }
+
+  @override
+  Future<void> removeChannelMember(String channelId, String userMxid) async {
+    await Future.delayed(_latency);
+    final key = channelId.trim();
+    final user = userMxid.trim();
+    if (key.isEmpty || user.isEmpty) return;
+    final members = _channelMembers[key];
+    if (members == null) return;
+    _channelMembers[key] = members
+        .where((member) => member.userMxid.trim() != user)
+        .toList(growable: false);
+    final channel = _channels[key];
+    if (channel == null) return;
+    final memberCount = _channelMembers[key]!
+        .where((member) => member.status == asChannelMemberStatusJoined)
+        .length;
+    _channels[key] = AsChannel(
+      channelId: channel.channelId,
+      roomId: channel.roomId,
+      name: channel.name,
+      homeDomain: channel.homeDomain,
+      description: channel.description,
+      avatarUrl: channel.avatarUrl,
+      visibility: channel.visibility,
+      joinPolicy: channel.joinPolicy,
+      commentsEnabled: channel.commentsEnabled,
+      role: channel.role,
+      memberStatus: channel.memberStatus,
+      memberCount: memberCount,
+      pendingJoinCount: channel.pendingJoinCount,
+      tags: channel.tags,
+      latestActivityAt: channel.latestActivityAt,
+    );
+  }
+
+  @override
+  Future<void> leaveChannel(String channelId) async {
+    await Future.delayed(_latency);
+    final key = channelId.trim();
+    if (key.isEmpty) return;
+    _channels.remove(key);
+    _channelMembers.remove(key);
+    _channelPosts.remove(key);
   }
 
   Future<AsChannel> _resolveMockChannelJoin(
@@ -804,7 +914,29 @@ class MockAsClient implements AsClient {
     final filtered = beforeTs > 0
         ? comments.where((comment) => comment.originServerTs < beforeTs)
         : comments;
-    return filtered.take(limit).toList(growable: false);
+    return filtered
+        .map((comment) {
+          final reacted = _channelCommentReactions.contains(
+            _channelCommentReactionKey(channelId, postId, comment.commentId),
+          );
+          return AsChannelComment(
+            commentId: comment.commentId,
+            postId: comment.postId,
+            channelId: comment.channelId,
+            eventId: comment.eventId,
+            authorId: comment.authorId,
+            authorName: comment.authorName,
+            authorDomain: comment.authorDomain,
+            messageType: comment.messageType,
+            body: comment.body,
+            media: comment.media,
+            originServerTs: comment.originServerTs,
+            reactionCount: reacted ? 1 : comment.reactionCount,
+            reactedByMe: reacted,
+          );
+        })
+        .take(limit)
+        .toList(growable: false);
   }
 
   @override
@@ -904,6 +1036,27 @@ class MockAsClient implements AsClient {
     final active = _channelReactions.contains(key)
         ? !_channelReactions.remove(key)
         : _channelReactions.add(key);
+    return AsChannelReaction(
+      postId: postId,
+      channelId: channelId,
+      reaction: reaction.trim().isEmpty ? 'like' : reaction.trim(),
+      active: active,
+      reactionCount: active ? 1 : 0,
+    );
+  }
+
+  @override
+  Future<AsChannelReaction> toggleChannelCommentReaction(
+    String channelId,
+    String postId,
+    String commentId, {
+    String reaction = 'like',
+  }) async {
+    await Future.delayed(_latency);
+    final key = _channelCommentReactionKey(channelId, postId, commentId);
+    final active = _channelCommentReactions.contains(key)
+        ? !_channelCommentReactions.remove(key)
+        : _channelCommentReactions.add(key);
     return AsChannelReaction(
       postId: postId,
       channelId: channelId,
@@ -1028,3 +1181,10 @@ List<String> _normalizedMockStringList(Iterable<String> values) {
 
 String _channelReactionKey(String channelId, String postId) =>
     '${channelId.trim()}|${postId.trim()}|like';
+
+String _channelCommentReactionKey(
+  String channelId,
+  String postId,
+  String commentId,
+) =>
+    '${channelId.trim()}|${postId.trim()}|${commentId.trim()}|like';

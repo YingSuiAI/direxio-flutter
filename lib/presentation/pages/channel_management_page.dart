@@ -6,7 +6,9 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
+import '../channel/channel_confirm_dialog.dart';
 import '../channel/channel_inbox_data.dart';
+import '../channel/channel_leave_flow.dart';
 import '../mock/mock_channels.dart';
 import '../providers/as_sync_cache_provider.dart';
 
@@ -98,6 +100,11 @@ class _ChannelManagementPageState extends ConsumerState<ChannelManagementPage> {
                       ),
                     ChannelManagementSection.profile => _ProfileSection(
                         channel: selected,
+                        onDissolve: () => _confirmDissolveChannel(
+                          context,
+                          ref,
+                          selected.id,
+                        ),
                       ),
                     ChannelManagementSection.members => _MembersSection(
                         channel: selected,
@@ -515,9 +522,13 @@ class _OverviewSection extends StatelessWidget {
 }
 
 class _ProfileSection extends StatelessWidget {
-  const _ProfileSection({required this.channel});
+  const _ProfileSection({
+    required this.channel,
+    required this.onDissolve,
+  });
 
   final _ManageChannel channel;
+  final VoidCallback onDissolve;
 
   @override
   Widget build(BuildContext context) {
@@ -582,10 +593,7 @@ class _ProfileSection extends StatelessWidget {
         const SizedBox(height: 26),
         _DangerRow(
           label: l10n.channelManageDisableChannel,
-          onTap: () => _showComingSoon(
-            context,
-            l10n.channelManageDisableChannel,
-          ),
+          onTap: onDissolve,
         ),
       ],
     );
@@ -1398,4 +1406,36 @@ void _showComingSoon(BuildContext context, String label) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(l10n.channelManageComingSoon(label))),
   );
+}
+
+Future<void> _confirmDissolveChannel(
+  BuildContext context,
+  WidgetRef ref,
+  String channelId,
+) async {
+  final confirmed = await showChannelConfirmDialog(
+    context,
+    title: '确定解散？',
+  );
+  if (!context.mounted || !confirmed) return;
+  try {
+    await leaveChannelThroughAs(ref, channelId);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已解散频道')),
+    );
+    _popAfterDissolve(context);
+  } catch (err) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('解散频道失败：$err')),
+    );
+  }
+}
+
+void _popAfterDissolve(BuildContext context) {
+  final navigator = Navigator.of(context);
+  if (navigator.canPop()) {
+    navigator.pop();
+  }
 }

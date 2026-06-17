@@ -5,7 +5,7 @@ import '../../data/p2p_api_client.dart';
 
 const _p2pApiBaseUrl = String.fromEnvironment(
   'P2P_API_BASE_URL',
-  defaultValue: 'http://imadmin.direxio.ai/api',
+  defaultValue: 'http://localhost:8888',
 );
 
 const _p2pBiSecret = String.fromEnvironment(

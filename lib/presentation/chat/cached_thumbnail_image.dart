@@ -145,7 +145,12 @@ class _CachedThumbnailImageState extends State<CachedThumbnailImage> {
     if (bytes != null) {
       final imageBuilder = widget.imageBuilder;
       if (imageBuilder != null) return imageBuilder(context, bytes);
-      return Image.memory(bytes, fit: widget.fit);
+      return Image.memory(
+        bytes,
+        fit: widget.fit,
+        errorBuilder: (_, __, ___) =>
+            widget.failedBuilder?.call(context) ?? const SizedBox.shrink(),
+      );
     }
     if (_failed) {
       return widget.failedBuilder?.call(context) ?? const SizedBox.shrink();

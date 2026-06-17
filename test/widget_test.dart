@@ -23,10 +23,13 @@ import 'package:portal_app/data/friend_request_read_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
+import 'package:portal_app/presentation/channel/channel_home_tab.dart';
+import 'package:portal_app/presentation/channel/channel_inbox_data.dart';
 import 'package:portal_app/presentation/pages/add_contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_verification_page.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
+import 'package:portal_app/presentation/pages/channel_post_detail_page.dart';
 import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/pages/chat_info_page.dart';
 import 'package:portal_app/presentation/pages/chat_page.dart';
@@ -43,6 +46,7 @@ import 'package:portal_app/presentation/pages/group_info_page.dart';
 import 'package:portal_app/presentation/pages/group_manage_page.dart';
 import 'package:portal_app/presentation/pages/groups_list_page.dart';
 import 'package:portal_app/presentation/pages/me_account_page.dart';
+import 'package:portal_app/presentation/pages/me_home_tab.dart';
 import 'package:portal_app/presentation/pages/me_menu_page.dart';
 import 'package:portal_app/presentation/pages/me_notifications_page.dart';
 import 'package:portal_app/presentation/pages/me_qr_page.dart';
@@ -283,6 +287,7 @@ class _EmptyAsClient implements AsClient {
     String avatarUrl = '',
     String visibility = asChannelVisibilityPublic,
     String joinPolicy = asChannelJoinPolicyOpen,
+    String channelType = 'chat',
     bool commentsEnabled = true,
     List<String> tags = const [],
   }) async =>
@@ -303,6 +308,9 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
+  Future<List<AsChannel>> listChannels() async => const [];
+
+  @override
   Future<List<AsChannel>> searchPublicChannels(
     String query, {
     Uri? baseUri,
@@ -320,7 +328,34 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
+  Future<AsChannel> getPublicChannelByRoomId(
+    String roomId, {
+    Uri? baseUri,
+  }) async =>
+      AsChannel(
+        channelId: roomId,
+        roomId: roomId,
+        name: '频道',
+        homeDomain: 'example.com',
+      );
+
+  @override
   Future<AsChannel> updateChannel(AsChannel draft) async => draft;
+
+  @override
+  Future<AsChannel> joinChannelByRoomId(
+    String roomId, {
+    String shareToken = '',
+    AsChannel? discoveredChannel,
+  }) async =>
+      AsChannel(
+        channelId: discoveredChannel?.channelId ?? roomId,
+        roomId: roomId,
+        name: '频道',
+        homeDomain: 'example.com',
+        role: asChannelRoleMember,
+        memberStatus: asChannelMemberStatusJoined,
+      );
 
   @override
   Future<AsChannel> joinChannel(
@@ -367,6 +402,12 @@ class _EmptyAsClient implements AsClient {
         role: asChannelRoleOwner,
         memberStatus: asChannelMemberStatusJoined,
       );
+
+  @override
+  Future<void> removeChannelMember(String channelId, String userMxid) async {}
+
+  @override
+  Future<void> leaveChannel(String channelId) async {}
 
   @override
   Future<List<AsChannelPost>> getChannelPosts(
@@ -428,6 +469,21 @@ class _EmptyAsClient implements AsClient {
   Future<AsChannelReaction> toggleChannelPostReaction(
     String channelId,
     String postId, {
+    String reaction = 'like',
+  }) async =>
+      AsChannelReaction(
+        postId: postId,
+        channelId: channelId,
+        reaction: reaction,
+        active: true,
+        reactionCount: 1,
+      );
+
+  @override
+  Future<AsChannelReaction> toggleChannelCommentReaction(
+    String channelId,
+    String postId,
+    String commentId, {
     String reaction = 'like',
   }) async =>
       AsChannelReaction(
@@ -1015,6 +1071,29 @@ class _FavoritesAsClient extends _EmptyAsClient {
         originServerTs: 1779685700000,
         favoritedAt: DateTime.utc(2026, 5, 29, 15),
       ),
+      AsFavoriteMessage(
+        id: 7,
+        ownerUserId: '@owner:p2p-im.com',
+        roomId: '!dm:p2p-im.com',
+        eventId: r'$audio',
+        roomType: 'direct',
+        messageType: 'audio',
+        senderId: '@alice:p2p-liyanan.com',
+        senderName: 'Alice',
+        body: '',
+        url: 'mxc://p2p-im.com/audio',
+        filename: '',
+        mimeType: 'audio/ogg',
+        size: 2048,
+        thumbnailUrl: '',
+        thumbnailMimeType: '',
+        thumbnailSize: 0,
+        width: 0,
+        height: 0,
+        durationMs: 60000,
+        originServerTs: 1779685800000,
+        favoritedAt: DateTime.utc(2026, 5, 29, 16),
+      ),
     ];
     final visible = favorites
         .where((favorite) => !deletedFavoriteIds.contains(favorite.id))
@@ -1179,6 +1258,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   int updateGroupInvitePolicyCalls = 0;
   String? updatedGroupInvitePolicyRoomId;
   String? updatedGroupInvitePolicy;
+  int listCallsCount = 0;
 
   @override
   Future<ContactEntry> createContactRequest({
@@ -1261,6 +1341,15 @@ class _TrackingAsClient extends _EmptyAsClient {
     sentRoomId = roomId;
     sentContent = body;
     return 'channel-share-event';
+  }
+
+  @override
+  Future<List<AsCallSession>> listCalls({
+    required String roomId,
+    int limit = 50,
+  }) async {
+    listCallsCount++;
+    return const [];
   }
 
   @override
@@ -1647,6 +1736,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   String roomName = '真实群',
   String eventId = r'$group-text',
   String body = '群聊长按消息',
+  GoRouter? router,
 }) async {
   final client = Client(
     'PortalIMGroupActionTest',
@@ -1705,10 +1795,15 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
           (ref) async => _MemoryLocalOutboxStore(),
         ),
       ],
-      child: MaterialApp(
-        theme: AppTheme.light,
-        home: GroupChatPage(roomId: roomId),
-      ),
+      child: router == null
+          ? MaterialApp(
+              theme: AppTheme.light,
+              home: GroupChatPage(roomId: roomId),
+            )
+          : MaterialApp.router(
+              theme: AppTheme.light,
+              routerConfig: router,
+            ),
     ),
   );
   await tester.pumpAndSettle();
@@ -3601,6 +3696,66 @@ void main() {
     expect(find.byKey(const ValueKey('channel_post_button')), findsOneWidget);
   });
 
+  testWidgets('me channels page shows only owned channel inbox items',
+      (tester) async {
+    final client = Client('PortalIMMeChannelsTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 17, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'owned-channel',
+          roomId: '!owned:p2p-im.com',
+          name: '我创建的频道',
+          avatarUrl: '',
+          unreadCount: 2,
+          lastActivityAt: DateTime.utc(2026, 6, 17, 9, 30),
+          description: '频道列表 item 样式',
+          isOwned: true,
+          tags: const ['文字'],
+        ),
+        AsSyncRoomSummary(
+          channelId: 'joined-channel',
+          roomId: '!joined:p2p-im.com',
+          name: '我加入的频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.utc(2026, 6, 17, 9),
+          description: '不应该显示',
+          isOwned: false,
+          tags: const ['帖子'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const MeChannelsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('我的频道'), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_inbox_tile_owned-channel')),
+        findsOneWidget);
+    expect(find.text('我创建的频道'), findsOneWidget);
+    expect(find.text('频道列表 item 样式'), findsNothing);
+    expect(find.text('我加入的频道'), findsNothing);
+    expect(find.byKey(const ValueKey('channel_inbox_tile_joined-channel')),
+        findsNothing);
+  });
+
   testWidgets('channel search page matches figma empty state', (tester) async {
     final client = Client('PortalIMChannelSearchTest');
 
@@ -3619,7 +3774,7 @@ void main() {
 
     expect(find.text('搜索频道...'), findsOneWidget);
     expect(find.text('搜索频道'), findsOneWidget);
-    expect(find.text('输入关键词查找感兴趣的频道'), findsOneWidget);
+    expect(find.text('输入频道ID查找频道'), findsOneWidget);
     expect(find.byIcon(Symbols.arrow_back), findsOneWidget);
     expect(find.byIcon(Symbols.search), findsWidgets);
     for (final label in ['消息', '通讯录', '频道', '我的']) {
@@ -3648,17 +3803,95 @@ void main() {
 
     expect(find.text('创建频道'), findsWidgets);
     expect(find.text('频道名称'), findsOneWidget);
-    expect(find.text('输入频道名称'), findsOneWidget);
+    expect(find.text('请输入'), findsOneWidget);
     expect(find.text('上传频道头像'), findsOneWidget);
-    expect(find.text('选择头像'), findsOneWidget);
+    expect(find.text('支持图片上传，作为频道展示头像'), findsOneWidget);
     expect(find.text('选择频道类型'), findsOneWidget);
     expect(find.text('文字'), findsAtLeastNWidgets(1));
     expect(find.text('帖子'), findsAtLeastNWidgets(1));
+    final accent = AppTheme.light.extension<PortalTokens>()!.accent;
+    final selectedTypeBorder = find.byWidgetPredicate((widget) {
+      if (widget is! Container) return false;
+      final decoration = widget.decoration;
+      if (decoration is! BoxDecoration) return false;
+      final border = decoration.border;
+      return border is Border &&
+          border.top.color == accent &&
+          border.top.width == 1.5;
+    });
+    expect(selectedTypeBorder, findsOneWidget);
     await tester.drag(find.byType(ListView).last, const Offset(0, -260));
     await tester.pump();
     expect(find.text('频道权限'), findsOneWidget);
     expect(find.text('是否公开'), findsOneWidget);
     expect(find.text('加入是否需要审核'), findsOneWidget);
+  });
+
+  testWidgets('create channel empty name stays on form with prompt',
+      (tester) async {
+    final client = Client('PortalIMCreateChannelEmptyNameTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('channel_post_button')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('创建频道').last);
+    await tester.pump();
+
+    expect(find.text('频道名称不能为空'), findsAtLeastNWidgets(1));
+    expect(find.text('频道名称'), findsOneWidget);
+    expect(find.text('上传频道头像'), findsOneWidget);
+  });
+
+  testWidgets('channel review entry opens figma review page', (tester) async {
+    final client = Client('PortalIMChannelReviewTest');
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/channels/review',
+          builder: (_, __) => const ChannelReviewPage(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('channel_review_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('频道审核'), findsOneWidget);
+    expect(find.text('待审核'), findsOneWidget);
+    expect(find.text('已通过'), findsOneWidget);
+    expect(find.text('已拒绝'), findsOneWidget);
+    expect(find.text('通过'), findsOneWidget);
+    expect(find.text('拒绝'), findsOneWidget);
   });
 
   testWidgets('home plus menu has the unified action order', (tester) async {
@@ -3676,7 +3909,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Symbols.add));
+    await tester.tap(find.byKey(const ValueKey('chat_input_plus_circle')));
     await tester.pumpAndSettle();
 
     expect(find.text('文件传输'), findsNothing);
@@ -3706,7 +3939,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byIcon(Symbols.add));
+    await tester.tap(find.byKey(const ValueKey('chat_input_plus_circle')));
     await tester.pumpAndSettle();
 
     final panel = tester.widget<Container>(
@@ -6142,6 +6375,419 @@ void main() {
     expect(asClient.sentContent, '群聊走 AS');
   });
 
+  testWidgets('channel conversation text input is enabled for joined channel',
+      (tester) async {
+    final client = Client(
+      'PortalIMChannelTextSendAsTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          return http.Response(
+            r'{"event_id":"$channel-message"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!channel:p2p-im.com',
+      name: '频道会话',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 17, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_joined',
+          roomId: '!channel:p2p-im.com',
+          name: '频道会话',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: ['文字'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(
+            roomId: '!channel:p2p-im.com',
+            channelId: 'ch_joined',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '频道消息');
+    await tester.pump();
+    await tester.tap(find.text('发送'));
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(asClient.sendRoomMessageCalls, 0);
+  });
+
+  testWidgets('channel conversation title prefers channel name over room id',
+      (tester) async {
+    final client = Client(
+      'PortalIMChannelTitleTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!channel-title:p2p-im.com',
+      name: '!channel-title:p2p-im.com',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith((ref) => const AsSyncCacheState()),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(
+            roomId: '!channel-title:p2p-im.com',
+            channelId: 'ch_title',
+            channelName: '综合讨论',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('!channel-title:p2p-im.com'), findsNothing);
+  });
+
+  testWidgets('joined channel opened as group route uses channel title',
+      (tester) async {
+    final client = Client(
+      'PortalIMChannelGroupRouteTitleTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!joined-channel:p2p-im.com',
+      name: '!joined-channel:p2p-im.com',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 17, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_group_route',
+          roomId: '!joined-channel:p2p-im.com',
+          name: '已加入频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: ['文字'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: '!joined-channel:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('已加入频道'), findsOneWidget);
+    expect(find.text('!joined-channel:p2p-im.com'), findsNothing);
+  });
+
+  testWidgets('channel conversation ignores id-shaped bootstrap title',
+      (tester) async {
+    final client = Client(
+      'PortalIMChannelIdTitleTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!invited-channel:p2p-im.com',
+      name: '真实频道名',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 17, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_invited',
+          roomId: '!invited-channel:p2p-im.com',
+          name: 'ch_invited',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: ['文字'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(
+            roomId: '!invited-channel:p2p-im.com',
+            channelId: 'ch_invited',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('真实频道名'), findsOneWidget);
+    expect(find.text('ch_invited'), findsNothing);
+  });
+
+  testWidgets('channel conversation header hides member count', (tester) async {
+    final client = Client(
+      'PortalIMChannelMemberCountHeaderTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!member-count-channel:p2p-im.com',
+      name: '成员频道',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 17, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_members',
+          roomId: '!member-count-channel:p2p-im.com',
+          name: '成员频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 18,
+          tags: ['文字'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(
+            roomId: '!member-count-channel:p2p-im.com',
+            channelId: 'ch_members',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('成员频道'), findsOneWidget);
+    expect(find.text('18 名成员'), findsNothing);
+  });
+
+  testWidgets('channel conversation skips call API and limits attachment tools',
+      (tester) async {
+    final client = Client(
+      'PortalIMChannelAttachmentToolsTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!channel-tools:p2p-im.com',
+      name: '频道会话',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 17, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_tools',
+          roomId: '!channel-tools:p2p-im.com',
+          name: '频道会话',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: ['文字'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(
+            roomId: '!channel-tools:p2p-im.com',
+            channelId: 'ch_tools',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(asClient.listCallsCount, 0);
+
+    await tester.tap(find.byKey(const ValueKey('chat_input_plus_circle')));
+    await tester.pumpAndSettle();
+
+    for (final label in ['相册', '拍摄', '视频', '文件']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    for (final label in ['语音通话', '视频通话', '位置', '个人名片']) {
+      expect(find.text(label), findsNothing);
+    }
+    expect(asClient.listCallsCount, 0);
+  });
+
   testWidgets('group chat @ mention picker inserts member and sends metadata',
       (tester) async {
     final client = Client(
@@ -6761,6 +7407,41 @@ void main() {
     expect(find.text('引用'), findsOneWidget);
   });
 
+  testWidgets('group chat member avatar opens contact detail like direct chat',
+      (tester) async {
+    const roomId = '!group:p2p-im.com';
+    final router = GoRouter(
+      initialLocation: '/group/${Uri.encodeComponent(roomId)}',
+      routes: [
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) => GroupChatPage(
+            roomId: state.pathParameters['roomId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/contact/:userId',
+          builder: (_, state) => Scaffold(
+            body: Text(
+              'contact:${state.pathParameters['userId']}:'
+              '${state.uri.queryParameters['source']}',
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await _pumpGroupChatWithTextEvent(tester, roomId: roomId, router: router);
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('group_member_avatar_@alice:p2p-im.com')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('contact:@alice:p2p-im.com:chat_avatar'), findsOneWidget);
+  });
+
   testWidgets('group chat quote shows reply bar and clears after send',
       (tester) async {
     final harness = await _pumpGroupChatWithTextEvent(tester);
@@ -7050,6 +7731,7 @@ void main() {
             userId: state.pathParameters['userId']!,
             fromChatAvatar:
                 state.uri.queryParameters['source'] == 'chat_avatar',
+            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
           ),
         ),
       ],
@@ -7326,7 +8008,7 @@ void main() {
     expect(firstTop, lessThan(secondTop));
   });
 
-  testWidgets('channel unread count only appears on channel preview row',
+  testWidgets('channel unread badge appears only for chat channels',
       (tester) async {
     const mockAuthEnabled = bool.fromEnvironment(
       'P2P_MATRIX_MOCK_AUTH',
@@ -7335,50 +8017,56 @@ void main() {
     if (mockAuthEnabled) return;
 
     final client = Client('PortalIMTest');
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.parse('2026-06-07T10:30:00Z'),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      rooms: const [],
-      contacts: const [],
-      groups: const [],
-      channels: [
-        AsSyncRoomSummary(
-          channelId: 'ch_updates',
-          roomId: '!updates:p2p-im.com',
-          homeDomain: 'p2p-im.com',
-          name: '产品更新',
-          avatarUrl: '',
-          unreadCount: 12,
-          lastActivityAt: DateTime.parse('2026-06-07T10:20:00Z'),
-          topic: '今天发布了新版本',
-          isOwned: false,
-          tags: const ['产品'],
-        ),
-      ],
-      pending: const AsSyncPending.empty(),
-    );
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
         ],
-        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: ChannelInboxList(
+              storageKey: const PageStorageKey('channel_unread_test'),
+              channels: [
+                ChannelInboxItem(
+                  id: 'ch_updates',
+                  roomId: '!updates:p2p-im.com',
+                  domain: 'p2p-im.com',
+                  name: '产品更新',
+                  avatarUrl: '',
+                  latestPreview: '今天发布了新版本',
+                  latestAt: DateTime.parse('2026-06-07T10:20:00Z'),
+                  unreadCount: 12,
+                  tags: const ['产品'],
+                  isOwned: true,
+                  channelType: asChannelTypeChat,
+                ),
+                ChannelInboxItem(
+                  id: 'ch_posts',
+                  roomId: '!posts:p2p-im.com',
+                  domain: 'p2p-im.com',
+                  name: '帖子频道',
+                  avatarUrl: '',
+                  latestPreview: '帖子更新',
+                  latestAt: DateTime.parse('2026-06-07T10:15:00Z'),
+                  unreadCount: 8,
+                  tags: const ['帖子'],
+                  isOwned: true,
+                  channelType: asChannelTypePost,
+                ),
+              ],
+              bottomPadding: 0,
+            ),
+          ),
+        ),
       ),
     );
     await tester.pump();
-    await tester.tap(find.text('频道'));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const ValueKey('bottom_nav_badge_频道')), findsNothing);
 
     expect(find.byKey(const ValueKey('channel_unread_count_ch_updates')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_unread_count_ch_posts')),
         findsNothing);
   });
 
@@ -7473,12 +8161,13 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('#综合讨论').last);
+    await tester.tap(find.text('综合讨论').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('p2p-im.com · 我的频道'), findsOneWidget);
-    expect(find.text('发布帖子'), findsOneWidget);
-    expect(find.text('频道帖子'), findsOneWidget);
+    expect(find.text('p2p-im.com · 我的频道'), findsNothing);
+    expect(
+        find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);
+    expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
     expect(find.textContaining('后端部署清单已更新'), findsOneWidget);
   });
 
@@ -7546,11 +8235,33 @@ void main() {
 
   testWidgets('joined channel detail uses read-only joined status bar',
       (tester) async {
+    final router = GoRouter(
+      initialLocation: '/channel/agent-workflows',
+      routes: [
+        GoRoute(
+          path: '/channel/:channelId/post/:postId',
+          builder: (_, state) => ChannelPostDetailPage(
+            channelId: state.pathParameters['channelId']!,
+            postId: state.pathParameters['postId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => ChannelPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+      ],
+    );
+
     await tester.pumpWidget(
       ProviderScope(
-        child: MaterialApp(
+        overrides: [
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+        ],
+        child: MaterialApp.router(
           theme: AppTheme.light,
-          home: const ChannelPage(channelId: 'agent-workflows'),
+          routerConfig: router,
         ),
       ),
     );
@@ -7558,47 +8269,66 @@ void main() {
 
     expect(find.text('agent-workflows.p2p-im.com · 已关注'), findsOneWidget);
     expect(find.text('已关注'), findsAtLeastNWidgets(1));
-    expect(find.text('频道帖子'), findsOneWidget);
-    expect(find.text('2.1k'), findsOneWidget);
-    expect(find.text('👍 36'), findsOneWidget);
-    expect(find.text('评论 12'), findsOneWidget);
+    expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
+    expect(find.text('36'), findsOneWidget);
+    expect(find.text('12'), findsOneWidget);
     expect(find.text('发布帖子'), findsNothing);
 
-    await tester.tap(find.text('评论 12'));
+    await tester.tap(find.text('12'));
     await tester.pumpAndSettle();
 
-    expect(find.text('评论线程'), findsOneWidget);
+    expect(find.text('#Agent 工作流'), findsOneWidget);
+    expect(find.text('输入评论...'), findsOneWidget);
     expect(find.textContaining('有人分享了群聊总结模板'), findsWidgets);
   });
 
-  testWidgets('channel detail and sheets use dark tokens and app font',
+  testWidgets('channel detail and post route use dark tokens and app font',
       (tester) async {
+    final router = GoRouter(
+      initialLocation: '/channel/agent-workflows',
+      routes: [
+        GoRoute(
+          path: '/channel/:channelId/post/:postId',
+          builder: (_, state) => ChannelPostDetailPage(
+            channelId: state.pathParameters['channelId']!,
+            postId: state.pathParameters['postId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => ChannelPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+      ],
+    );
+
     await tester.pumpWidget(
       ProviderScope(
-        child: MaterialApp(
+        overrides: [
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+        ],
+        child: MaterialApp.router(
           theme: AppTheme.dark,
-          home: const ChannelPage(channelId: 'agent-workflows'),
+          routerConfig: router,
         ),
       ),
     );
     await tester.pump();
 
-    final title = tester.widget<Text>(find.text('频道帖子'));
-    expect(title.style?.color, PortalTokens.dark.text);
-    expect(title.style?.fontSize, 15);
-    expect(title.style?.letterSpacing, 0);
+    final intro = tester.widget<Text>(
+      find.text('频道主Diana发布帖子，成员可评论和恢复'),
+    );
+    expect(intro.style?.fontSize, 13);
+    expect(intro.style?.letterSpacing, 0);
 
-    await tester.tap(find.text('评论 12'));
+    await tester.tap(find.text('12'));
     await tester.pumpAndSettle();
 
-    final modal = tester.widget<Material>(
-      find.byKey(const ValueKey('channel_modal_surface')),
-    );
-    final sheetTitle = tester.widget<Text>(find.text('评论线程'));
-    expect(modal.color, PortalTokens.dark.surface);
-    expect(sheetTitle.style?.color, PortalTokens.dark.text);
-    expect(sheetTitle.style?.fontSize, 20);
-    expect(sheetTitle.style?.letterSpacing, 0);
+    final detailTitle = tester.widget<Text>(find.text('#Agent 工作流'));
+    expect(detailTitle.style?.color, PortalTokens.dark.text);
+    expect(detailTitle.style?.fontSize, 20);
+    expect(detailTitle.style?.letterSpacing, 0);
   });
 
   testWidgets('global search includes contacts groups and channels',
@@ -7663,7 +8393,7 @@ void main() {
     await tester.tap(find.text('P2P IM 官方').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('p2p-im.com · 我的频道'), findsOneWidget);
+    expect(find.text('p2p-im.com · 我的频道'), findsNothing);
     expect(find.text('频道详情功能待接入'), findsNothing);
   });
 
@@ -8026,6 +8756,7 @@ void main() {
             userId: state.pathParameters['userId']!,
             fromChatAvatar:
                 state.uri.queryParameters['source'] == 'chat_avatar',
+            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
           ),
         ),
       ],
@@ -8105,6 +8836,7 @@ void main() {
             userId: state.pathParameters['userId']!,
             fromChatAvatar:
                 state.uri.queryParameters['source'] == 'chat_avatar',
+            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
           ),
         ),
       ],
@@ -8247,6 +8979,7 @@ void main() {
             userId: state.pathParameters['userId']!,
             fromChatAvatar:
                 state.uri.queryParameters['source'] == 'chat_avatar',
+            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
           ),
         ),
       ],
@@ -8299,6 +9032,7 @@ void main() {
             userId: state.pathParameters['userId']!,
             fromChatAvatar:
                 state.uri.queryParameters['source'] == 'chat_avatar',
+            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
           ),
         ),
       ],
@@ -8323,6 +9057,8 @@ void main() {
     expect(find.text('Dave Lee'), findsOneWidget);
     expect(find.text('发消息'), findsOneWidget);
     expect(find.text('搜索聊天'), findsOneWidget);
+    expect(find.text('设置备注'), findsOneWidget);
+    expect(find.text('推荐给朋友'), findsNothing);
     expect(find.text('消息免打扰'), findsOneWidget);
     expect(find.text('拉黑用户'), findsOneWidget);
     expect(find.text('举报用户'), findsOneWidget);
@@ -8687,6 +9423,36 @@ void main() {
     expect(find.text('保存到相册'), findsOneWidget);
   });
 
+  testWidgets('me page keeps long uid within profile row height',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+    });
+
+    final client = Client('PortalIMLongUidTest')
+      ..setUserId('@owner:very-long-personal-node-domain.example.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: MePage(client: client),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('owner'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('me menu opens private tools and unified settings page',
       (tester) async {
     final client = Client('PortalIMTest');
@@ -8753,26 +9519,33 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('我的收藏'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
     expect(find.text('明天上午继续测试'), findsOneWidget);
     expect(find.text('report.pdf'), findsOneWidget);
     expect(find.text(_FavoritesAsClient.generatedVideoName), findsNothing);
     expect(find.text(_FavoritesAsClient.generatedImageName), findsNothing);
     expect(find.text('视频'), findsAtLeastNWidgets(1));
     expect(find.text('图片'), findsAtLeastNWidgets(1));
-    expect(find.text('聊天记录'), findsAtLeastNWidgets(1));
-    expect(find.text('与 Alice 的聊天记录'), findsOneWidget);
+    expect(find.byIcon(Symbols.folder), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('群聊「产品测试群」的聊天记录'),
+      find.byKey(const ValueKey('favorite-card-5')),
       120,
       scrollable: find.byType(Scrollable).last,
     );
-    expect(find.text('群聊「产品测试群」的聊天记录'), findsOneWidget);
-    expect(find.textContaining('来自与 Alice 的私聊'), findsAtLeastNWidgets(1));
-    expect(find.textContaining('2026年5月29日'), findsAtLeastNWidgets(1));
-    expect(find.textContaining('146 KB'), findsAtLeastNWidgets(1));
-    expect(find.textContaining('私聊'), findsAtLeastNWidgets(1));
-    expect(find.textContaining('群聊'), findsAtLeastNWidgets(1));
+    expect(find.text('与 Alice 的聊天记录'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('favorite-card-6')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('群聊「产品测试群」的聊天记录'), findsAtLeastNWidgets(1));
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('favorite-card-7')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('60s'), findsOneWidget);
+    expect(find.text('Alice'), findsAtLeastNWidgets(1));
   });
 
   testWidgets('me favorites page uses unified dark background and back button',
@@ -8798,7 +9571,7 @@ void main() {
 
     expect(scaffold.backgroundColor, PortalTokens.dark.bg);
     expect(backIcon.color, PortalTokens.dark.text);
-    expect(find.text('我的收藏'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
   });
 
   testWidgets('me likes page renders AS channel reaction history',
@@ -8817,10 +9590,10 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('我的点赞'), findsOneWidget);
-    expect(find.text('产品公告'), findsOneWidget);
-    expect(find.text('频道发帖已打通'), findsOneWidget);
-    expect(find.textContaining('2026年6月6日'), findsOneWidget);
+    expect(find.text('赞'), findsOneWidget);
+    expect(find.text('Yanan'), findsOneWidget);
+    expect(find.text('频道发帖已打通'), findsAtLeastNWidgets(1));
+    expect(find.text('1'), findsOneWidget);
   });
 
   testWidgets('me comments page renders AS channel comment history',
@@ -8839,13 +9612,14 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('我的评论'), findsOneWidget);
-    expect(find.textContaining('产品公告'), findsOneWidget);
+    expect(find.text('评论'), findsOneWidget);
+    expect(find.text('Yanan'), findsOneWidget);
     expect(find.text('这条评论来自真实用户名'), findsOneWidget);
-    expect(find.textContaining('评论了'), findsOneWidget);
+    expect(find.textContaining('产品公告'), findsNothing);
   });
 
-  testWidgets('me comments page uses unified dark background', (tester) async {
+  testWidgets('me comments page matches figma light background',
+      (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -8864,11 +9638,11 @@ void main() {
       find.byKey(const ValueKey('me_comments_scaffold')),
     );
 
-    expect(scaffold.backgroundColor, PortalTokens.dark.bg);
-    expect(find.text('我的评论'), findsOneWidget);
+    expect(scaffold.backgroundColor, const Color(0xFFFAFAFA));
+    expect(find.text('评论'), findsOneWidget);
   });
 
-  testWidgets('me favorites treats text as chat record category',
+  testWidgets('me favorites page shows mixed favorite types as cards',
       (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -8884,14 +9658,20 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('文字'), findsNothing);
-
-    await tester.tap(find.text('聊天记录').first);
-    await tester.pumpAndSettle();
-
     expect(find.text('明天上午继续测试'), findsOneWidget);
+    expect(find.text('report.pdf'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('favorite-card-5')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('与 Alice 的聊天记录'), findsOneWidget);
-    expect(find.text('report.pdf'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('favorite-card-7')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('60s'), findsOneWidget);
   });
 
   testWidgets('me favorites cards keep only the video preview play badge',
@@ -8914,7 +9694,7 @@ void main() {
     expect(find.byIcon(Symbols.play_arrow), findsOneWidget);
   });
 
-  testWidgets('me favorites preview boxes use one consistent size',
+  testWidgets('me favorites media previews match figma card size',
       (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -8930,7 +9710,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    for (final id in [1, 2, 3, 4, 5, 6]) {
+    for (final id in [3, 4]) {
       await tester.scrollUntilVisible(
         find.byKey(ValueKey('favorite-preview-$id')),
         120,
@@ -8938,9 +9718,13 @@ void main() {
       );
       expect(
         tester.getSize(find.byKey(ValueKey('favorite-preview-$id'))),
-        const Size.square(62),
+        const Size.square(109),
       );
     }
+    expect(
+      tester.getSize(find.byKey(const ValueKey('favorite-preview-2'))),
+      const Size.square(70),
+    );
   });
 
   testWidgets('me favorites image preview falls back to original media',
@@ -8985,6 +9769,11 @@ void main() {
   });
 
   testWidgets('me favorites image card opens favorite detail', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+    });
+
     final client = Client(
       'PortalIMFavoriteImageOpenTest',
       httpClient: MockClient((request) async {
@@ -9036,6 +9825,11 @@ void main() {
     );
 
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('favorite-card-3')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.byKey(const ValueKey('favorite-card-3')));
     await tester.pumpAndSettle();
 
@@ -9071,7 +9865,8 @@ void main() {
     expect(find.text('report.pdf'), findsNothing);
   });
 
-  testWidgets('me favorites page filters items by search text', (tester) async {
+  testWidgets('me favorites page matches figma without search filters',
+      (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -9085,15 +9880,11 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'report');
-    await tester.pumpAndSettle();
 
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('搜索收藏内容'), findsNothing);
+    expect(find.text('全部'), findsNothing);
     expect(find.text('report.pdf'), findsOneWidget);
-    expect(find.text('明天上午继续测试'), findsNothing);
-
-    await tester.tap(find.byTooltip('清除'));
-    await tester.pumpAndSettle();
-
     expect(find.text('明天上午继续测试'), findsOneWidget);
   });
 
@@ -9171,6 +9962,11 @@ void main() {
     );
 
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('favorite-card-3')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.byKey(const ValueKey('favorite-card-3')));
     await tester.pumpAndSettle();
 

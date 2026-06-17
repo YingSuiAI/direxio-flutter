@@ -27,6 +27,7 @@ class ChannelSharePayload {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
+    this.channelType = asChannelTypeChat,
     this.tags = const [],
   });
 
@@ -39,6 +40,7 @@ class ChannelSharePayload {
   final String visibility;
   final String joinPolicy;
   final bool commentsEnabled;
+  final String channelType;
   final List<String> tags;
 
   String get displayName => name.trim().isEmpty ? '未命名频道' : name.trim();
@@ -55,8 +57,121 @@ class ChannelSharePayload {
         visibility: visibility,
         joinPolicy: joinPolicy,
         commentsEnabled: commentsEnabled,
+        channelType: channelType,
         tags: tags,
       );
+
+  AsChannel get asDiscoveredChannel => AsChannel(
+        channelId: channelId,
+        roomId: roomId,
+        homeDomain: homeDomain,
+        name: displayName,
+        description: description,
+        avatarUrl: avatarUrl,
+        visibility: visibility,
+        joinPolicy: joinPolicy,
+        commentsEnabled: commentsEnabled,
+        channelType: channelType,
+        tags: tags,
+      );
+}
+
+String channelShareOpenRoute(
+  AsSyncCacheState syncCache,
+  ChannelSharePayload payload,
+) {
+  final channelId = payload.channelId.trim();
+  if (_channelShareIsJoined(syncCache, payload)) {
+    final nameQuery = payload.displayName.trim().isEmpty
+        ? ''
+        : '?name=${Uri.encodeQueryComponent(payload.displayName)}';
+    final path = _channelShareIsPostType(payload)
+        ? '/channel/${Uri.encodeComponent(channelId)}'
+        : '/channel/${Uri.encodeComponent(channelId)}/conversation$nameQuery';
+    return path;
+  }
+  return '/channel/${Uri.encodeComponent(channelId)}/detail';
+}
+
+bool channelShareIsJoined(
+  AsSyncCacheState syncCache,
+  ChannelSharePayload payload,
+) =>
+    _channelShareIsJoined(syncCache, payload);
+
+String channelShareJoinKey(ChannelSharePayload payload) {
+  final channelId = payload.channelId.trim();
+  if (channelId.isNotEmpty) return channelId;
+  return payload.roomId.trim();
+}
+
+String channelShareJoinedRoute(
+  ChannelSharePayload payload,
+  AsChannel joined,
+) {
+  final channelId = joined.channelId.trim().isEmpty
+      ? payload.channelId.trim()
+      : joined.channelId.trim();
+  final encodedId = Uri.encodeComponent(
+    channelId.isEmpty ? payload.roomId.trim() : channelId,
+  );
+  if (_channelShareIsPostType(payload)) {
+    return '/channel/$encodedId';
+  }
+  final name = _readableChannelShareName(
+    joined.name,
+    fallback: payload.displayName,
+    channelId: channelId,
+    roomId: joined.roomId.trim().isEmpty ? payload.roomId : joined.roomId,
+  );
+  final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
+  return '/channel/$encodedId/conversation$query';
+}
+
+String _readableChannelShareName(
+  String name, {
+  required String fallback,
+  required String channelId,
+  required String roomId,
+}) {
+  bool readable(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return false;
+    if (trimmed == channelId.trim()) return false;
+    if (trimmed == roomId.trim()) return false;
+    return !(trimmed.startsWith('!') && trimmed.contains(':'));
+  }
+
+  final trimmed = name.trim();
+  if (readable(trimmed)) return trimmed;
+  final fallbackName = fallback.trim();
+  if (readable(fallbackName)) return fallbackName;
+  return '';
+}
+
+bool _channelShareIsPostType(ChannelSharePayload payload) {
+  if (normalizeAsChannelType(payload.channelType) == asChannelTypePost) {
+    return true;
+  }
+  return payload.tags
+      .any((tag) => normalizeAsChannelType(tag) == asChannelTypePost);
+}
+
+bool _channelShareIsJoined(
+  AsSyncCacheState syncCache,
+  ChannelSharePayload payload,
+) {
+  final channelId = payload.channelId.trim();
+  final roomId = payload.roomId.trim();
+  for (final channel in syncCache.bootstrap?.channels ?? const []) {
+    final existingChannelId = channel.channelId.trim();
+    final existingRoomId = channel.roomId.trim();
+    if ((channelId.isNotEmpty && existingChannelId == channelId) ||
+        (roomId.isNotEmpty && existingRoomId == roomId)) {
+      return channel.memberStatus == asChannelMemberStatusJoined;
+    }
+  }
+  return false;
 }
 
 ChannelSharePayload channelSharePayloadFromChannel({
@@ -69,6 +184,7 @@ ChannelSharePayload channelSharePayloadFromChannel({
   String visibility = asChannelVisibilityPublic,
   String joinPolicy = asChannelJoinPolicyOpen,
   bool commentsEnabled = true,
+  String channelType = asChannelTypeChat,
   List<String> tags = const [],
 }) {
   return ChannelSharePayload(
@@ -81,6 +197,7 @@ ChannelSharePayload channelSharePayloadFromChannel({
     visibility: visibility,
     joinPolicy: joinPolicy,
     commentsEnabled: commentsEnabled,
+    channelType: channelType,
     tags: tags,
   );
 }
@@ -88,10 +205,15 @@ ChannelSharePayload channelSharePayloadFromChannel({
 ChannelSharePayload? channelSharePayloadFromContent(
   Map<String, Object?> content,
 ) {
-  if (content[chatRecordMatrixMarkerKey] != channelShareMessageType) {
+  final messageType = _stringValue(
+    content[chatRecordMatrixMarkerKey] ?? content['message_type'],
+  ).trim();
+  if (messageType != channelShareMessageType) {
     return null;
   }
-  final raw = _objectMap(content[channelShareMatrixPayloadKey]);
+  final raw = _objectMap(
+    content[channelShareMatrixPayloadKey] ?? content['channel_share'],
+  );
   final channelId = _stringValue(raw['channel_id']).trim();
   final roomId = _stringValue(raw['room_id']).trim();
   final name = _stringValue(raw['name']).trim();
@@ -112,6 +234,7 @@ ChannelSharePayload? channelSharePayloadFromContent(
     commentsEnabled: raw['comments_enabled'] is bool
         ? raw['comments_enabled'] as bool
         : true,
+    channelType: normalizeAsChannelType(_stringValue(raw['channel_type'])),
     tags: _stringList(raw['tags']),
   );
 }
@@ -154,11 +277,17 @@ class ChannelSharePreviewCard extends StatelessWidget {
   const ChannelSharePreviewCard({
     super.key,
     required this.payload,
+    this.joining = false,
+    this.alreadyJoined = false,
+    this.onJoin,
     this.onTap,
     this.onLongPressAt,
   });
 
   final ChannelSharePayload payload;
+  final bool joining;
+  final bool alreadyJoined;
+  final VoidCallback? onJoin;
   final VoidCallback? onTap;
   final ValueChanged<Offset>? onLongPressAt;
 
@@ -171,40 +300,71 @@ class ChannelSharePreviewCard extends StatelessWidget {
     return ChatCardBubbleFrame(
       onTap: onTap,
       onLongPressAt: onLongPressAt,
-      child: Row(
+      child: Column(
         children: [
-          _ChannelShareAvatar(payload: payload),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  payload.displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(
-                    size: 16,
-                    weight: FontWeight.w700,
-                    color: t.text,
+                _ChannelShareAvatar(payload: payload),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        payload.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(
+                          size: 16,
+                          weight: FontWeight.w700,
+                          color: t.text,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        subtitle.isEmpty ? '公开频道' : subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 12, color: t.textMute)
+                            .copyWith(height: 1.18),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  subtitle.isEmpty ? '公开频道' : subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 12, color: t.textMute)
-                      .copyWith(height: 1.18),
-                ),
-                const Spacer(),
-                Container(height: 1, color: t.border.withValues(alpha: 0.45)),
-                const SizedBox(height: 5),
-                Text(
-                  '频道',
-                  style: AppTheme.sans(size: 11, color: t.textMute),
-                ),
               ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 30,
+            child: Material(
+              color: joining || alreadyJoined
+                  ? t.accent.withValues(alpha: 0.48)
+                  : t.accent,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: joining || alreadyJoined ? null : onJoin,
+                borderRadius: BorderRadius.circular(8),
+                child: Center(
+                  child: Text(
+                    joining
+                        ? '加入中…'
+                        : alreadyJoined
+                            ? '已加入'
+                            : '加入频道',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 13,
+                      weight: FontWeight.w600,
+                      color: t.onAccent,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ],

@@ -52,6 +52,31 @@ void main() {
       isFalse,
     );
   });
+
+  test('counts visible messages for initial chat-open page threshold', () {
+    final client = Client('ChatInitialPageCountTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final events = List<Event>.generate(
+      chatOpenLocalHistoryPageSize,
+      (index) => Event(
+        room: room,
+        eventId: '\$text_$index',
+        senderId: '@me:p2p-im.com',
+        type: EventTypes.Message,
+        originServerTs: DateTime.utc(2026, 5, 30, 1, 0, index),
+        content: {
+          'msgtype': MessageTypes.Text,
+          'body': 'hello $index',
+        },
+      ),
+    );
+
+    expect(
+      visibleMessageCountForChatOpenHistory(events),
+      chatOpenLocalHistoryPageSize,
+    );
+  });
 }
 
 Event _event(Room room, String eventId, String type) {

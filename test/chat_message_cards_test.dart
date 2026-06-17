@@ -54,6 +54,12 @@ void main() {
     expect(find.text('Alice: [图片]'), findsOneWidget);
     expect(find.text('Bob: [文件] report.pdf'), findsOneWidget);
     expect(find.text('聊天记录'), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat_record_preview_avatar_0')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('chat_record_preview_avatar_1')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('chat_record_preview_avatar_2')),
+        findsOneWidget);
 
     final size = tester.getSize(find.byType(ChatRecordPreviewCard));
     expect(size.width, chatMessageCompactCardWidth);

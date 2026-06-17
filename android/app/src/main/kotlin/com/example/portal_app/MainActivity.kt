@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -13,7 +14,9 @@ import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private data class PendingSave(
@@ -23,6 +26,7 @@ class MainActivity : FlutterActivity() {
     )
 
     private var pendingSave: PendingSave? = null
+    private val videoToolsExecutor = Executors.newSingleThreadExecutor()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -87,6 +91,26 @@ class MainActivity : FlutterActivity() {
                             path
                         )
                     }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "p2p_im/video_tools"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "createThumbnail" -> {
+                    val path = call.argument<String>("path")
+                    if (path.isNullOrBlank()) {
+                        result.error(
+                            "video_thumbnail_invalid_path",
+                            "A non-empty video path is required.",
+                            null
+                        )
+                        return@setMethodCallHandler
+                    }
+                    createVideoThumbnail(path, result)
                 }
                 else -> result.notImplemented()
             }
@@ -179,6 +203,67 @@ class MainActivity : FlutterActivity() {
         startActivity(Intent.createChooser(intent, file.name))
     }
 
+    private fun createVideoThumbnail(path: String, result: MethodChannel.Result) {
+        val file = File(path)
+        if (!file.exists() || !file.isFile) {
+            result.error("video_thumbnail_not_found", "The video file does not exist.", path)
+            return
+        }
+
+        videoToolsExecutor.execute {
+            try {
+                val thumbnail = readVideoThumbnail(file)
+                runOnUiThread { result.success(thumbnail) }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    result.error("video_thumbnail_failed", error.localizedMessage, null)
+                }
+            }
+        }
+    }
+
+    private fun readVideoThumbnail(file: File): Map<String, Any> {
+        val retriever = android.media.MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+            val durationMs = retriever
+                .extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?.coerceAtLeast(0L)
+                ?: 0L
+            val frame = retriever.getFrameAtTime(
+                0,
+                android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+            )?.let { scaleBitmapToMaxSide(it, videoThumbnailMaxSide) }
+                ?: throw IllegalStateException("Failed to decode video frame.")
+
+            val output = ByteArrayOutputStream()
+            if (!frame.compress(Bitmap.CompressFormat.JPEG, 78, output)) {
+                throw IllegalStateException("Failed to encode video thumbnail.")
+            }
+            return mapOf(
+                "bytes" to output.toByteArray(),
+                "mimeType" to "image/jpeg",
+                "width" to frame.width,
+                "height" to frame.height,
+                "durationMs" to durationMs.toInt()
+            )
+        } finally {
+            retriever.release()
+        }
+    }
+
+    private fun scaleBitmapToMaxSide(bitmap: Bitmap, maxSide: Int): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val longest = maxOf(width, height)
+        if (longest <= maxSide || longest <= 0) return bitmap
+        val scale = maxSide.toFloat() / longest.toFloat()
+        val targetWidth = (width * scale).toInt().coerceAtLeast(1)
+        val targetHeight = (height * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+    }
+
     private fun mimeTypeFor(fileName: String): String {
         val extension = fileName.substringAfterLast('.', "").lowercase()
         if (extension.isBlank()) return "*/*"
@@ -187,5 +272,6 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val saveImagePermissionRequestCode = 9402
+        const val videoThumbnailMaxSide = 720
     }
 }

@@ -470,6 +470,27 @@ class AsSyncCacheState {
     );
   }
 
+  AsSyncCacheState withoutChannel(String channelIdOrRoomId) {
+    final trimmed = channelIdOrRoomId.trim();
+    final current = bootstrap;
+    if (trimmed.isEmpty || current == null) return this;
+    return copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: current.syncedAt,
+        user: current.user,
+        agentRoomId: current.agentRoomId,
+        rooms: current.rooms,
+        contacts: current.contacts,
+        groups: current.groups,
+        channels: current.channels.where((channel) {
+          return channel.channelId.trim() != trimmed &&
+              channel.roomId.trim() != trimmed;
+        }).toList(growable: false),
+        pending: current.pending,
+      ),
+    );
+  }
+
   AsSyncCacheState withGroupInvitePolicy(
     String roomId,
     String invitePolicy,

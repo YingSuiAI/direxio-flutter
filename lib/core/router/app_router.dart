@@ -41,10 +41,17 @@ import '../../presentation/pages/settings_page.dart';
 import '../../presentation/pages/search_page.dart';
 import '../../presentation/pages/channel_search_page.dart';
 import '../../presentation/pages/channel_page.dart';
+import '../../presentation/pages/channel_detail_info_page.dart';
+import '../../presentation/pages/channel_info_page.dart';
+import '../../presentation/pages/channel_post_create_page.dart';
+import '../../presentation/pages/channel_post_detail_page.dart';
 import '../../presentation/pages/channel_management_page.dart';
+import '../../presentation/channel/channel_home_tab.dart';
+import '../../presentation/channel/channel_share.dart';
 import '../../presentation/pages/dynamic_detail_page.dart';
 import '../../presentation/pages/mcp_permission_page.dart';
 import '../../presentation/pages/mcp_policy_edit_page.dart';
+import '../../presentation/providers/as_sync_cache_provider.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../data/setup_payload.dart';
 
@@ -60,6 +67,21 @@ const _callAutotestEnabled = bool.fromEnvironment(
 );
 const _callAutotestInitialRouteFileName = 'p2p_initial_route.txt';
 String? _pendingCallAutotestInitialRoute;
+
+String _channelConversationRoomId(Ref ref, String rawChannelId) {
+  final channelId = rawChannelId.trim();
+  if (channelId.isEmpty) return rawChannelId;
+  final channels =
+      ref.read(asSyncCacheProvider).bootstrap?.channels ?? const [];
+  for (final channel in channels) {
+    final roomId = channel.roomId.trim();
+    if (roomId.isEmpty) continue;
+    if (channel.channelId.trim() == channelId || roomId == channelId) {
+      return roomId;
+    }
+  }
+  return channelId;
+}
 
 enum PortalRouteTransition { slide, chatEntranceOnly }
 
@@ -333,6 +355,7 @@ GoRouter appRouter(Ref ref) {
             userId: state.pathParameters['userId']!,
             fromChatAvatar:
                 state.uri.queryParameters['source'] == 'chat_avatar',
+            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
           ),
         ),
       ),
@@ -408,6 +431,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/me/menu',
         pageBuilder: (_, __) => _slidePage(const MeMenuPage()),
+      ),
+      GoRoute(
+        path: '/me/channels',
+        pageBuilder: (_, __) => _slidePage(const MeChannelsPage()),
       ),
       GoRoute(
         path: '/me/favorites',
@@ -526,6 +553,10 @@ GoRouter appRouter(Ref ref) {
         pageBuilder: (_, __) => _slidePage(const ChannelSearchPage()),
       ),
       GoRoute(
+        path: '/channels/review',
+        pageBuilder: (_, __) => _slidePage(const ChannelReviewPage()),
+      ),
+      GoRoute(
         path: '/channels/manage',
         pageBuilder: (_, state) => _slidePage(
           ChannelManagementPage(
@@ -545,6 +576,57 @@ GoRouter appRouter(Ref ref) {
             ),
           ),
         ),
+      ),
+      GoRoute(
+        path: '/channel/:channelId/post/create',
+        pageBuilder: (_, state) => _slidePage(
+          ChannelPostCreatePage(channelId: state.pathParameters['channelId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/channel/:channelId/post/:postId',
+        pageBuilder: (_, state) => _slidePage(
+          ChannelPostDetailPage(
+            channelId: state.pathParameters['channelId']!,
+            postId: state.pathParameters['postId']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/channel/:channelId/info',
+        pageBuilder: (_, state) => _slidePage(
+          ChannelInfoPage(channelId: state.pathParameters['channelId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/channel/:channelId/detail',
+        pageBuilder: (_, state) => _slidePage(
+          ChannelDetailInfoPage(
+            channelId: state.pathParameters['channelId']!,
+            sharePayload: state.extra is ChannelSharePayload
+                ? state.extra! as ChannelSharePayload
+                : null,
+            showJoinButton: state.extra is ChannelSharePayload,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/channel/:channelId/conversation',
+        pageBuilder: (_, state) {
+          final channelId = state.pathParameters['channelId']!;
+          final roomId = _channelConversationRoomId(
+            ref,
+            channelId,
+          );
+          return _pageForLocation(
+            '/group/${Uri.encodeComponent(roomId)}',
+            GroupChatPage(
+              roomId: roomId,
+              channelId: channelId,
+              channelName: state.uri.queryParameters['name'],
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/channel/:channelId',

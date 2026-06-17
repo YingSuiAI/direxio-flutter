@@ -217,6 +217,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         : ChannelInboxData.fromBootstrap(
             bootstrap,
             fallbackDomain: _fallbackDomain(client),
+            roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
+            roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
           );
     if (realChannels != null) {
       for (final channel in realChannels) {
@@ -352,6 +354,21 @@ String _fallbackDomain(Client client) {
   final homeserver = client.homeserver;
   if (homeserver != null && homeserver.host.isNotEmpty) return homeserver.host;
   return 'p2p-im.com';
+}
+
+String _matrixRoomName(Client client, String roomId) {
+  final room = client.getRoomById(roomId.trim());
+  if (room == null) return '';
+  final name = room.getLocalizedDisplayname().trim();
+  return _looksLikeMatrixRoomId(name) ? '' : name;
+}
+
+String _matrixRoomAvatar(Client client, String roomId) {
+  return client.getRoomById(roomId.trim())?.avatar?.toString() ?? '';
+}
+
+bool _looksLikeMatrixRoomId(String text) {
+  return text.startsWith('!') && text.contains(':');
 }
 
 enum _SearchResultType { message, contact, group, channel }

@@ -172,24 +172,20 @@ class P2pApiClient {
     return channelPage.channels;
   }
 
-  Future<ImPublicChannel> joinChannel({
+  Future<void> joinChannel({
     required String channelDomain,
-    String ownerDomain = '',
-    String intro = '',
+    required String roomId,
     int? tagId,
   }) async {
-    final body = {
-      'channelDomain': channelDomain.trim(),
-      if (ownerDomain.trim().isNotEmpty) 'ownerDomain': ownerDomain.trim(),
-      if (intro.trim().isNotEmpty) 'intro': intro.trim(),
-      if (tagId != null) 'tagId': tagId,
-    };
-    final decoded = await _requestJson(
+    await _requestJson(
       'POST',
       '/im/channel/join',
-      body: body,
+      body: {
+        'channelDomain': channelDomain.trim(),
+        'room_id': roomId.trim(),
+        if (tagId != null) 'tagId': tagId,
+      },
     );
-    return ImPublicChannel.fromJson(decoded);
   }
 
   Future<int> getReportCount({
@@ -595,19 +591,30 @@ List<dynamic> _firstList(Map<String, dynamic> body, List<String> keys) {
 }
 
 AsChannel _channelFromP2pJson(Map<String, dynamic> json) {
+  final detail = _firstMap(json, const [
+    'channelDetail',
+    'channel_detail',
+    'detail',
+  ]);
+  String pick(List<String> keys) {
+    final detailValue = _firstString(detail, keys);
+    if (detailValue.isNotEmpty) return detailValue;
+    return _firstString(json, keys);
+  }
+
   final channelDomain = _firstString(json, const [
     'channelDomain',
     'channel_domain',
     'domain',
     'handle',
   ]);
-  final ownerDomain = _firstString(json, const [
+  final ownerDomain = pick(const [
     'ownerDomain',
     'owner_domain',
     'homeDomain',
     'home_domain',
   ]);
-  final id = _firstString(json, const [
+  final id = pick(const [
     'channelId',
     'channel_id',
     'id',
@@ -615,7 +622,8 @@ AsChannel _channelFromP2pJson(Map<String, dynamic> json) {
     'room_id',
   ]);
   final effectiveId = id.isNotEmpty ? id : channelDomain;
-  final name = _firstString(json, const [
+  final roomId = pick(const ['roomId', 'room_id']);
+  final name = pick(const [
     'name',
     'title',
     'channelName',
@@ -623,35 +631,47 @@ AsChannel _channelFromP2pJson(Map<String, dynamic> json) {
     'displayName',
     'display_name',
   ]);
+  final visibility = pick(const ['visibility']);
+  final joinPolicy = pick(const ['joinPolicy', 'join_policy']);
+  final detailTags = _parseTags(detail['tags']);
+  final tags = detailTags.isNotEmpty
+      ? detailTags
+      : _parseTags(json['tags'] ?? json['tag']);
+  final memberCount = _parseInt(
+    detail['memberCount'] ??
+        detail['member_count'] ??
+        json['memberCount'] ??
+        json['member_count'] ??
+        json['joinCount'],
+  );
   return AsChannel(
     channelId: effectiveId,
-    roomId: _firstString(json, const ['roomId', 'room_id']),
+    roomId: roomId,
     homeDomain: ownerDomain,
     name: name.isNotEmpty
         ? name
         : (channelDomain.isNotEmpty ? channelDomain : effectiveId),
-    description: _firstString(json, const [
+    description: pick(const [
       'intro',
       'description',
       'topic',
       'summary',
     ]),
-    avatarUrl: _firstString(json, const ['avatarUrl', 'avatar_url']),
-    visibility: _firstString(json, const ['visibility']).isEmpty
-        ? asChannelVisibilityPublic
-        : _firstString(json, const ['visibility']),
-    joinPolicy: _firstString(json, const ['joinPolicy', 'join_policy']).isEmpty
-        ? asChannelJoinPolicyOpen
-        : _firstString(json, const ['joinPolicy', 'join_policy']),
-    commentsEnabled: json['commentsEnabled'] as bool? ??
+    avatarUrl: pick(const ['avatarUrl', 'avatar_url']),
+    visibility: visibility.isEmpty ? asChannelVisibilityPublic : visibility,
+    joinPolicy: joinPolicy.isEmpty ? asChannelJoinPolicyOpen : joinPolicy,
+    commentsEnabled: detail['commentsEnabled'] as bool? ??
+        detail['comments_enabled'] as bool? ??
+        json['commentsEnabled'] as bool? ??
         json['comments_enabled'] as bool? ??
         true,
-    role: _firstString(json, const ['role']),
-    memberStatus: _firstString(json, const ['memberStatus', 'member_status']),
-    memberCount: _parseInt(
-      json['memberCount'] ?? json['member_count'] ?? json['joinCount'],
+    channelType: normalizeAsChannelType(
+      pick(const ['channelType', 'channel_type', 'type']),
     ),
-    tags: _parseTags(json['tags'] ?? json['tag']),
+    role: pick(const ['role']),
+    memberStatus: pick(const ['memberStatus', 'member_status']),
+    memberCount: memberCount,
+    tags: tags,
     latestActivityAt: _parseDateTime(
       json['lastActivityAt'] ??
           json['last_activity_at'] ??

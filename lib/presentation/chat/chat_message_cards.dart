@@ -223,9 +223,8 @@ class ChatRecordPreviewCard extends StatelessWidget {
     final secondaryColor = t.textMute;
     final dividerColor = t.border.withValues(alpha: 0.45);
     final previews = chatRecordItems(payload)
+        .where((item) => _chatRecordPreviewLine(item).isNotEmpty)
         .take(3)
-        .map(_chatRecordPreviewLine)
-        .where((line) => line.isNotEmpty)
         .toList(growable: false);
     return ChatCardBubbleFrame(
       onTap: onTap,
@@ -248,17 +247,16 @@ class ChatRecordPreviewCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final line in previews)
+                for (final entry in previews.indexed)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 1),
-                    child: Text(
-                      line,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTheme.sans(
-                        size: 12,
-                        color: secondaryColor,
-                      ).copyWith(height: 1.12),
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: _ChatRecordPreviewRow(
+                      key: ValueKey('chat_record_preview_row_${entry.$1}'),
+                      item: entry.$2,
+                      color: secondaryColor,
+                      avatarKey: ValueKey(
+                        'chat_record_preview_avatar_${entry.$1}',
+                      ),
                     ),
                   ),
               ],
@@ -271,6 +269,73 @@ class ChatRecordPreviewCard extends StatelessWidget {
             style: AppTheme.sans(size: 11, color: secondaryColor),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ChatRecordPreviewRow extends StatelessWidget {
+  const _ChatRecordPreviewRow({
+    super.key,
+    required this.item,
+    required this.color,
+    required this.avatarKey,
+  });
+
+  final ChatRecordItem item;
+  final Color color;
+  final Key avatarKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final line = _chatRecordPreviewLine(item);
+    final seed = item.senderName.trim().isNotEmpty
+        ? item.senderName.trim()
+        : item.senderId.trim();
+    return Row(
+      children: [
+        _ChatRecordPreviewAvatar(key: avatarKey, seed: seed),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            line,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.sans(size: 12, color: color).copyWith(
+              height: 1.12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChatRecordPreviewAvatar extends StatelessWidget {
+  const _ChatRecordPreviewAvatar({super.key, required this.seed});
+
+  final String seed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final letter =
+        seed.trim().isEmpty ? '' : seed.characters.first.toUpperCase();
+    return Container(
+      width: 14,
+      height: 14,
+      decoration: BoxDecoration(
+        color: t.secondaryContainer,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        letter,
+        style: AppTheme.sans(
+          size: 8,
+          weight: FontWeight.w700,
+          color: t.textMute,
+        ),
       ),
     );
   }

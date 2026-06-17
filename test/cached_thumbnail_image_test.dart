@@ -54,6 +54,21 @@ void main() {
     expect(find.text('7'), findsOneWidget);
     expect(find.text('loading'), findsNothing);
   });
+
+  testWidgets('renders failed placeholder when thumbnail bytes are invalid',
+      (tester) async {
+    await tester.pumpWidget(_App(
+      child: CachedThumbnailImage(
+        cacheKey: r'$bad',
+        cacheFuture: null,
+        loadBytes: () async => Uint8List.fromList([1, 2, 3]),
+        failedBuilder: (_) => const Text('bad thumbnail'),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('bad thumbnail'), findsOneWidget);
+  });
 }
 
 class _App extends StatelessWidget {

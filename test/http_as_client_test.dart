@@ -31,6 +31,26 @@ void main() {
     expect(base.toString(), 'https://im.jkmf.top/_as');
   });
 
+  test('maps legacy channel intro field to description', () {
+    final summary = AsSyncRoomSummary.fromJson({
+      'channel_id': 'ch_intro',
+      'room_id': '!intro:p2p-im.com',
+      'name': '产品公告',
+      'avatar_url': '',
+      'unread_count': 0,
+      'intro': '频道介绍字段',
+    });
+    final channel = AsChannel.fromJson({
+      'channel_id': 'ch_intro',
+      'room_id': '!intro:p2p-im.com',
+      'name': '产品公告',
+      'intro': '频道介绍字段',
+    });
+
+    expect(summary.description, '频道介绍字段');
+    expect(channel.description, '频道介绍字段');
+  });
+
   test('search calls AS admin API with portal bearer token', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
@@ -64,6 +84,86 @@ void main() {
     expect(results.single.eventId, r'$event');
     expect(results.single.roomId, '!room:example.com');
     expect(results.single.content, 'hello world');
+  });
+
+  test('AS M_UNKNOWN_TOKEN invokes session expiration callback', () async {
+    var expired = false;
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'bad-token',
+      onAuthenticationFailed: () {
+        expired = true;
+      },
+      httpClient: MockClient((request) async {
+        expect(request.headers['Authorization'], 'Bearer bad-token');
+        return _jsonResponse({'error': 'M_UNKNOWN_TOKEN'}, 401);
+      }),
+    );
+
+    await expectLater(
+      client.getOwnerProfile(),
+      throwsA(
+        isA<AsClientException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          401,
+        ),
+      ),
+    );
+    expect(expired, isTrue);
+  });
+
+  test('AS non-M_UNKNOWN_TOKEN 401 does not expire session', () async {
+    var expired = false;
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'bad-token',
+      onAuthenticationFailed: () {
+        expired = true;
+      },
+      httpClient: MockClient((request) async {
+        expect(request.headers['Authorization'], 'Bearer bad-token');
+        return _jsonResponse({'error': 'invalid token'}, 401);
+      }),
+    );
+
+    await expectLater(
+      client.getOwnerProfile(),
+      throwsA(
+        isA<AsClientException>()
+            .having((error) => error.statusCode, 'statusCode', 401)
+            .having((error) => error.message, 'message', 'invalid token'),
+      ),
+    );
+    expect(expired, isFalse);
+  });
+
+  test('AS business 403 does not expire session', () async {
+    var expired = false;
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      onAuthenticationFailed: () {
+        expired = true;
+      },
+      httpClient: MockClient((request) async {
+        return _jsonResponse({'error': 'room is not callable'}, 403);
+      }),
+    );
+
+    await expectLater(
+      client.getOwnerProfile(),
+      throwsA(
+        isA<AsClientException>()
+            .having((error) => error.statusCode, 'statusCode', 403)
+            .having(
+              (error) => error.message,
+              'message',
+              'room is not callable',
+            ),
+      ),
+    );
+    expect(expired, isFalse);
   });
 
   test('updateOwnerProfile persists profile fields through AS', () async {
@@ -777,6 +877,32 @@ void main() {
     );
   });
 
+  test('removeChannelMember posts member removal through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/_as/channels/ch1/members/%40carol%3Ap2p-carol.com/remove',
+        );
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(request.body, isEmpty);
+        return http.Response(
+          jsonEncode({'channel_id': 'ch1', 'status': 'removed'}),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    await expectLater(
+      client.removeChannelMember('ch1', ' @carol:p2p-carol.com '),
+      completes,
+    );
+  });
+
   test('updateGroupInvitePolicy puts selected policy through AS', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),
@@ -827,6 +953,24 @@ void main() {
     );
 
     await expectLater(client.leaveGroup('!group:p2p-im.com'), completes);
+  });
+
+  test('leaveChannel posts leave through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch1/leave');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        return http.Response(
+          jsonEncode({'channel_id': 'ch1', 'status': 'left'}),
+          200,
+        );
+      }),
+    );
+
+    await expectLater(client.leaveChannel(' ch1 '), completes);
   });
 
   test('favoriteMessage posts a generic favorite snapshot', () async {
@@ -1130,6 +1274,7 @@ void main() {
             'description': '只发布重要产品更新',
             'visibility': 'public',
             'join_policy': 'open',
+            'channel_type': 'post',
             'comments_enabled': true,
             'tags': ['产品'],
           },
@@ -1251,6 +1396,7 @@ void main() {
           'description': '只发布重要产品更新',
           'visibility': 'public',
           'join_policy': 'open',
+          'channel_type': 'post',
           'comments_enabled': true,
           'tags': ['产品', '公告'],
         });
@@ -1263,6 +1409,7 @@ void main() {
             'description': '只发布重要产品更新',
             'visibility': 'public',
             'join_policy': 'open',
+            'channel_type': 'post',
             'comments_enabled': true,
             'role': 'owner',
             'member_status': 'joined',
@@ -1276,12 +1423,54 @@ void main() {
     final channel = await client.createChannel(
       name: '产品公告',
       description: '只发布重要产品更新',
+      channelType: 'post',
       tags: const ['产品', '公告'],
     );
 
     expect(channel.channelId, 'ch1');
     expect(channel.roomId, '!channel:example.com');
+    expect(channel.channelType, 'post');
     expect(channel.role, 'owner');
+  });
+
+  test('listChannels calls AS channel list endpoint', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/_as/channels');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        return _jsonResponse(
+          {
+            'channels': [
+              {
+                'channel_id': 'ch1',
+                'room_id': '!channel:example.com',
+                'home_domain': 'example.com',
+                'name': '产品公告',
+                'description': '重要更新',
+                'visibility': 'public',
+                'join_policy': 'open',
+                'comments_enabled': true,
+                'role': 'owner',
+                'member_status': 'joined',
+                'member_count': 3,
+                'pending_join_count': 1,
+                'tags': ['product'],
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final channels = await client.listChannels();
+
+    expect(channels.single.channelId, 'ch1');
+    expect(channels.single.roomId, '!channel:example.com');
+    expect(channels.single.pendingJoinCount, 1);
   });
 
   test('searchPublicChannels calls public discovery endpoint without auth',
@@ -1321,6 +1510,41 @@ void main() {
     expect(results.single.joinPolicy, 'open');
   });
 
+  test('getPublicChannelByRoomId calls public detail endpoint without auth',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(
+          request.url.toString(),
+          'https://example.com/_as/public/channels/%21channel%3Aexample.com',
+        );
+        expect(request.headers['Authorization'], isNull);
+        return _jsonResponse(
+          {
+            'channel_id': 'ch1',
+            'room_id': '!channel:example.com',
+            'home_domain': 'example.com',
+            'name': '产品公告',
+            'visibility': 'public',
+            'join_policy': 'open',
+            'comments_enabled': true,
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.getPublicChannelByRoomId(
+      '!channel:example.com',
+    );
+
+    expect(channel.channelId, 'ch1');
+    expect(channel.roomId, '!channel:example.com');
+  });
+
   test('joinChannel returns pending for approval channel', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
@@ -1354,23 +1578,16 @@ void main() {
     expect(channel.joinPolicy, 'approval');
   });
 
-  test('joinChannel sends discovered remote channel metadata', () async {
+  test('joinChannelByRoomId posts room_id to channel join endpoint', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/ch_remote/join');
+        expect(request.url.path, '/_as/channels/join');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'room_id': '!remote:p2p-im.com',
-          'home_domain': 'p2p-im.com',
-          'name': '远端公开频道',
-          'description': '跨节点发现',
-          'visibility': 'public',
-          'join_policy': 'open',
-          'comments_enabled': true,
-          'tags': ['产品'],
         });
         return _jsonResponse(
           {
@@ -1392,8 +1609,8 @@ void main() {
       }),
     );
 
-    final channel = await client.joinChannel(
-      'ch_remote',
+    final channel = await client.joinChannelByRoomId(
+      '!remote:p2p-im.com',
       discoveredChannel: const AsChannel(
         channelId: 'ch_remote',
         roomId: '!remote:p2p-im.com',
@@ -1485,6 +1702,44 @@ void main() {
     expect(channel.pendingJoinCount, 0);
   });
 
+  test('rejectChannelJoin posts rejection action to AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/_as/channels/ch1/join-requests/%40alice%3Ap2p-liyanan.com/reject',
+        );
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        return _jsonResponse(
+          {
+            'status': 'rejected',
+            'channel': {
+              'channel_id': 'ch1',
+              'room_id': '!channel:example.com',
+              'name': '审核频道',
+              'visibility': 'public',
+              'join_policy': 'approval',
+              'comments_enabled': true,
+              'pending_join_count': 0,
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.rejectChannelJoin(
+      'ch1',
+      '@alice:p2p-liyanan.com',
+    );
+
+    expect(channel.channelId, 'ch1');
+    expect(channel.pendingJoinCount, 0);
+  });
+
   test('createChannelPost posts text and media metadata', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
@@ -1547,6 +1802,8 @@ void main() {
             'body': '收到',
             'message_type': 'text',
             'origin_server_ts': 1780730000000,
+            'reaction_count': 5,
+            'reacted_by_me': true,
           },
           200,
         );
@@ -1562,6 +1819,8 @@ void main() {
 
     expect(comment.commentId, 'comment1');
     expect(comment.postId, 'post1');
+    expect(comment.reactionCount, 5);
+    expect(comment.reactedByMe, isTrue);
   });
 
   test('toggleChannelPostReaction posts current reaction state', () async {
@@ -1594,6 +1853,42 @@ void main() {
 
     expect(reaction.active, isTrue);
     expect(reaction.reactionCount, 3);
+  });
+
+  test('toggleChannelCommentReaction posts current reaction state', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/_as/channels/ch1/posts/post1/comments/comment1/reactions',
+        );
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {'reaction': 'like'});
+        return _jsonResponse(
+          {
+            'post_id': 'post1',
+            'channel_id': 'ch1',
+            'reaction': 'like',
+            'active': false,
+            'reaction_count': 2,
+          },
+          200,
+        );
+      }),
+    );
+
+    final reaction = await client.toggleChannelCommentReaction(
+      'ch1',
+      'post1',
+      'comment1',
+      reaction: 'like',
+    );
+
+    expect(reaction.active, isFalse);
+    expect(reaction.reactionCount, 2);
   });
 
   test('getMyChannelReactions parses channel reaction history', () async {

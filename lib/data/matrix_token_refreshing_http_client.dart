@@ -255,7 +255,7 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       final decoded = jsonDecode(utf8.decode(body));
       if (decoded is! Map<String, dynamic>) return false;
       final errcode = decoded['errcode'] as String?;
-      return errcode == 'M_UNKNOWN_TOKEN' || errcode == 'M_MISSING_TOKEN';
+      return errcode == 'M_UNKNOWN_TOKEN';
     } catch (_) {
       return false;
     }

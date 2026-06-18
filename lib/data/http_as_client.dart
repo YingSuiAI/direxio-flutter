@@ -2228,7 +2228,10 @@ Map<String, Object?> _actionParams(
   if (segments.length >= 2 && segments[0] == 'rooms') {
     params['room_id'] = Uri.decodeComponent(segments[1]);
   }
-  if (segments.length >= 2 && segments[0] == 'channels') {
+  if (segments.length >= 2 &&
+      segments[0] == 'channels' &&
+      !(segments.length == 2 && segments[1] == 'join') &&
+      segments[1] != 'me') {
     params['channel_id'] = Uri.decodeComponent(segments[1]);
   }
   if (segments.length >= 3 &&

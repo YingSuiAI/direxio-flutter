@@ -2100,7 +2100,7 @@ String _actionFor(String method, String path) {
       return 'channels.${segments[2]}';
     }
     if (segments.length == 3 && segments[2] == 'posts') {
-      return 'channels.posts.list';
+      return method == 'GET' ? 'channels.posts.list' : 'channels.posts.create';
     }
     if (segments.length == 3 && segments[2] == 'read-marker') {
       return 'channels.read_marker';

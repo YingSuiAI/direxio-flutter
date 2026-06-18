@@ -2402,6 +2402,50 @@ void main() {
     expect(post.media['mxc'], 'mxc://image');
   });
 
+  test('createChannelPost uses unified channel post create action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        final envelope = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(envelope['action'], 'channels.posts.create');
+        expect(envelope['params'], {
+          'channel_id': 'ch1',
+          'message_type': 'image',
+          'body': '图片说明',
+          'media_json': '{"mxc":"mxc://image"}',
+        });
+        return _jsonResponse(
+          {
+            'post_id': 'post1',
+            'channel_id': 'ch1',
+            'room_id': '!channel:example.com',
+            'event_id': r'$post1',
+            'author_mxid': '@owner:example.com',
+            'body': '图片说明',
+            'message_type': 'image',
+            'media_json': '{"mxc":"mxc://image"}',
+            'origin_server_ts': 1780730000000,
+            'comment_count': 0,
+          },
+          200,
+        );
+      }),
+    );
+
+    final post = await client.createChannelPost(
+      'ch1',
+      messageType: 'image',
+      body: '图片说明',
+      media: const {'mxc': 'mxc://image'},
+    );
+
+    expect(post.postId, 'post1');
+  });
+
   test('recallChannelPost posts reason to recall endpoint', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),

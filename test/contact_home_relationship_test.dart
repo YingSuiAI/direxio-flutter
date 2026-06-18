@@ -23,10 +23,12 @@ class _RelationshipAsClient extends Fake implements AsClient {
   _RelationshipAsClient({
     this.initialFollows = const [],
     this.bootstrapAfterDelete,
+    this.publicChannels = const [],
   });
 
   final List<FollowEntry> initialFollows;
   final AsSyncBootstrap? bootstrapAfterDelete;
+  final List<AsChannel> publicChannels;
   final removedFollows = <String>[];
   final deletedContacts = <String>[];
 
@@ -34,6 +36,13 @@ class _RelationshipAsClient extends Fake implements AsClient {
   Future<List<FollowEntry>> getFollows() async => initialFollows
       .where((follow) => !removedFollows.contains(follow.domain))
       .toList(growable: false);
+
+  @override
+  Future<List<AsChannel>> getUserPublicChannels(
+    String userId, {
+    Uri? baseUri,
+  }) async =>
+      publicChannels;
 
   @override
   Future<void> addFollow(String domain) async {}
@@ -131,6 +140,60 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('visitor home renders public channels returned by AS',
+      (tester) async {
+    final client = Client('ContactHomePublicChannelsTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = _bootstrap(
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:portal.local',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'alice.portal.local',
+          status: 'pending_outbound',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(
+            _RelationshipAsClient(
+              publicChannels: const [
+                AsChannel(
+                  channelId: 'ch_alice',
+                  roomId: '!alice-channel:portal.local',
+                  name: 'Alice 公开频道',
+                  avatarUrl: 'https://example.com/alice-channel.png',
+                  visibility: asChannelVisibilityPublic,
+                  memberCount: 7,
+                ),
+              ],
+            ),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactHomePage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice 公开频道'), findsOneWidget);
+    expect(find.textContaining('!alice-channel:portal.local'), findsOneWidget);
+    expect(find.text('还没有公开频道'), findsNothing);
   });
 
   testWidgets('accepted visitor home shows delete friend and removes via AS',

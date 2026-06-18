@@ -119,11 +119,17 @@ class MockContactChannel {
     required this.name,
     required this.description,
     required this.memberCount,
+    this.roomId = '',
+    this.channelId = '',
+    this.avatarUrl,
   });
 
   final String name;
   final String description;
   final int memberCount;
+  final String roomId;
+  final String channelId;
+  final String? avatarUrl;
 }
 
 class MockContactDynamic {

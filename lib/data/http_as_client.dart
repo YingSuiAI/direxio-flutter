@@ -819,6 +819,18 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<List<AsChannel>> getUserPublicChannels(
+    String userId, {
+    Uri? baseUri,
+  }) async {
+    final body = await _getPublicJson(
+      'users/${_encodeStrictPathComponent(userId.trim())}/public-channels',
+      baseUri: baseUri,
+    );
+    return _parseChannels(body['channels'] ?? body['results'] ?? body);
+  }
+
+  @override
   Future<AsChannel> updateChannel(AsChannel draft) async {
     final body = await _requestJson(
       'PUT',
@@ -1426,35 +1438,58 @@ class HttpAsClient implements AsClient {
     Uri? baseUri,
     Map<String, String>? queryParameters,
   }) async {
-    final uri = _resolveAgainst(
-      _normalizeBaseUri(baseUri ?? _baseUri),
-      path,
-      queryParameters: queryParameters,
-    );
+    final normalizedBase = _normalizeBaseUri(baseUri ?? _baseUri);
+    final unified = _isUnifiedBase(normalizedBase);
+    final uri = unified
+        ? _resolveAgainst(normalizedBase, 'query')
+        : _resolveAgainst(
+            normalizedBase,
+            path,
+            queryParameters: queryParameters,
+          );
+    final requestBody = unified
+        ? jsonEncode({
+            'action': _actionFor('GET', path),
+            'params': _actionParams(path, queryParameters: queryParameters),
+          })
+        : null;
     final stopwatch = Stopwatch()..start();
     late http.Response response;
     try {
-      response = await _http.get(uri,
-          headers: const {'Accept': 'application/json'}).timeout(_timeout);
+      response = unified
+          ? await _http
+              .post(
+                uri,
+                headers: const {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json; charset=utf-8',
+                },
+                body: requestBody,
+              )
+              .timeout(_timeout)
+          : await _http.get(uri,
+              headers: const {'Accept': 'application/json'}).timeout(_timeout);
     } catch (error, stackTrace) {
       stopwatch.stop();
       ApiLogger.failure(
         service: 'AS public',
-        method: 'GET',
+        method: unified ? 'POST' : 'GET',
         uri: uri,
         elapsed: stopwatch.elapsed,
         error: error,
         stackTrace: stackTrace,
+        requestBody: requestBody,
       );
       rethrow;
     }
     stopwatch.stop();
     ApiLogger.response(
       service: 'AS public',
-      method: 'GET',
+      method: unified ? 'POST' : 'GET',
       uri: uri,
       statusCode: response.statusCode,
       elapsed: stopwatch.elapsed,
+      requestBody: requestBody,
       responseBody: response.body,
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -1978,6 +2013,12 @@ String _actionFor(String method, String path) {
         ? 'channels.public.get'
         : 'channels.public.join_request';
   }
+  if (method == 'GET' &&
+      segments.length == 3 &&
+      segments[0] == 'users' &&
+      segments[2] == 'public-channels') {
+    return 'users.public_channels';
+  }
   if (segments.isNotEmpty && segments[0] == 'channels') {
     if (segments.length == 2 && method == 'PUT') return 'channels.update';
     if (segments.length == 2 && method == 'POST') return 'channels.join';
@@ -2129,6 +2170,20 @@ Map<String, Object?> _actionParams(
   }
   if (segments.length >= 2 && segments[0] == 'channels') {
     params['channel_id'] = Uri.decodeComponent(segments[1]);
+  }
+  if (segments.length >= 3 &&
+      segments[0] == 'public' &&
+      segments[1] == 'channels') {
+    final id = Uri.decodeComponent(segments[2]);
+    params['channel_id'] = id;
+    params['room_id'] = id;
+  }
+  if (segments.length >= 3 &&
+      segments[0] == 'users' &&
+      segments[2] == 'public-channels') {
+    final userID = Uri.decodeComponent(segments[1]);
+    params['user_id'] = userID;
+    params['user_mxid'] = userID;
   }
   if (segments.length >= 4 &&
       segments[0] == 'channels' &&

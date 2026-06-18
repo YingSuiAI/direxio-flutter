@@ -41,6 +41,7 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
   _FriendButtonState _friendState = _FriendButtonState.none;
   String? _acceptedContactRoomId;
   String? _relationshipLoadKey;
+  List<AsChannel>? _publicChannels;
 
   String get _friendButtonText {
     switch (_friendState) {
@@ -62,6 +63,7 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
       _friendState = _FriendButtonState.none;
       _acceptedContactRoomId = null;
       _relationshipLoadKey = null;
+      _publicChannels = null;
     });
   }
 
@@ -81,13 +83,19 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
             (state) => state.copyWith(bootstrap: bootstrap),
           );
       final contact = _contactForHome(bootstrap.contacts, home);
-      final follows = await asClient.getFollows();
+      final results = await Future.wait<Object>([
+        asClient.getFollows(),
+        asClient.getUserPublicChannels(home.userId),
+      ]);
+      final follows = results[0] as List<FollowEntry>;
+      final publicChannels = results[1] as List<AsChannel>;
       if (!mounted) return;
       setState(() {
         _following = _isFollowingHome(follows, home);
         _friendState = _friendStateFromContact(contact);
         _acceptedContactRoomId =
             contact?.status == 'accepted' ? contact?.roomId : null;
+        _publicChannels = publicChannels;
       });
     } catch (e) {
       debugPrint('load contact home relationship failed: $e');
@@ -251,6 +259,10 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
   Widget build(BuildContext context) {
     final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
     final home = _visitorHomeForUserId(widget.userId, bootstrap);
+    final visitorChannels =
+        _publicChannels?.map(_contactChannelFromAs).toList(growable: false) ??
+            home?.channels ??
+            const <MockContactChannel>[];
     final auth = ref.watch(authStateNotifierProvider).valueOrNull;
     if (home != null &&
         !_mockAuthEnabled &&
@@ -291,17 +303,17 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
                         ),
                         child: _VisitorSection(
                           title: '她的频道',
-                          child: home.channels.isEmpty
+                          child: visitorChannels.isEmpty
                               ? const _VisitorEmptyLine(text: '还没有公开频道')
                               : Column(
                                   children: [
                                     for (var i = 0;
-                                        i < home.channels.length;
+                                        i < visitorChannels.length;
                                         i++) ...[
                                       _VisitorChannelTile(
-                                        channel: home.channels[i],
+                                        channel: visitorChannels[i],
                                       ),
-                                      if (i != home.channels.length - 1)
+                                      if (i != visitorChannels.length - 1)
                                         const SizedBox(height: 10),
                                     ],
                                   ],
@@ -364,6 +376,18 @@ MockContactHome? _visitorHomeForUserId(
     avatarUrl: avatarUrl == null || avatarUrl.isEmpty ? null : avatarUrl,
     channels: const [],
     dynamics: const [],
+  );
+}
+
+MockContactChannel _contactChannelFromAs(AsChannel channel) {
+  return MockContactChannel(
+    name: channel.name.trim().isEmpty ? channel.roomId : channel.name.trim(),
+    description: channel.roomId.trim(),
+    memberCount: channel.memberCount,
+    roomId: channel.roomId.trim(),
+    channelId: channel.channelId.trim(),
+    avatarUrl:
+        channel.avatarUrl.trim().isEmpty ? null : channel.avatarUrl.trim(),
   );
 }
 
@@ -657,11 +681,30 @@ class _VisitorChannelTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final target = channel.roomId.trim().isNotEmpty
+        ? channel.roomId.trim()
+        : channel.channelId.trim();
     return GlassListTile(
       margin: const EdgeInsets.only(bottom: glassListTileGap),
-      leading: const GlassListIcon(icon: Symbols.campaign),
+      leading: channel.avatarUrl?.trim().isNotEmpty == true
+          ? PortalAvatar(
+              seed: target.isEmpty ? channel.name : target,
+              size: 40,
+              imageUrl: channel.avatarUrl,
+              shape: AvatarShape.squircle,
+            )
+          : const GlassListIcon(icon: Symbols.campaign),
       title: channel.name,
-      subtitle: '${channel.description} · ${channel.memberCount} 人',
+      subtitle: [
+        if (channel.roomId.trim().isNotEmpty) channel.roomId.trim(),
+        if (channel.description.trim().isNotEmpty &&
+            channel.description.trim() != channel.roomId.trim())
+          channel.description.trim(),
+        '${channel.memberCount} 人',
+      ].join(' · '),
+      onTap: target.isEmpty
+          ? null
+          : () => context.push('/channel/${Uri.encodeComponent(target)}'),
     );
   }
 }

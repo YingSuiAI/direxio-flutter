@@ -351,6 +351,13 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
+  Future<List<AsChannel>> getUserPublicChannels(
+    String userId, {
+    Uri? baseUri,
+  }) async =>
+      const [];
+
+  @override
   Future<AsChannel> updateChannel(AsChannel draft) async => draft;
 
   @override

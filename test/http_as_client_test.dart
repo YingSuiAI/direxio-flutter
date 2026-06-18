@@ -1930,6 +1930,83 @@ void main() {
     expect(channel.roomId, '!channel:example.com');
   });
 
+  test('getUserPublicChannels calls public user endpoint without auth',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(
+          request.url.path,
+          '/_as/users/%40alice%3Aexample.com/public-channels',
+        );
+        expect(request.headers['Authorization'], isNull);
+        return _jsonResponse(
+          {
+            'channels': [
+              {
+                'channel_id': 'ch_alice',
+                'room_id': '!alice-channel:example.com',
+                'home_domain': 'example.com',
+                'name': 'Alice 公开频道',
+                'avatar_url': 'https://example.com/avatar.png',
+                'visibility': 'public',
+                'join_policy': 'open',
+                'comments_enabled': true,
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final channels = await client.getUserPublicChannels('@alice:example.com');
+
+    expect(channels.single.channelId, 'ch_alice');
+    expect(channels.single.roomId, '!alice-channel:example.com');
+  });
+
+  test('getUserPublicChannels uses unified public query without auth',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(request.headers['Authorization'], isNull);
+        expect(jsonDecode(request.body), {
+          'action': 'users.public_channels',
+          'params': {
+            'user_id': '@alice:example.com',
+            'user_mxid': '@alice:example.com',
+          },
+        });
+        return _jsonResponse(
+          {
+            'channels': [
+              {
+                'channel_id': 'ch_alice',
+                'room_id': '!alice-channel:example.com',
+                'name': 'Alice 公开频道',
+                'visibility': 'public',
+                'join_policy': 'open',
+                'comments_enabled': true,
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final channels = await client.getUserPublicChannels('@alice:example.com');
+
+    expect(channels.single.channelId, 'ch_alice');
+  });
+
   test('joinChannel returns pending for approval channel', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),

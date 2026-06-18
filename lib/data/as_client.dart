@@ -1626,6 +1626,9 @@ abstract class AsClient {
   /// GET /_as/public/channels/{roomId}
   Future<AsChannel> getPublicChannelByRoomId(String roomId, {Uri? baseUri});
 
+  /// GET /_as/users/{userId}/public-channels
+  Future<List<AsChannel>> getUserPublicChannels(String userId, {Uri? baseUri});
+
   /// PUT /_as/channels/{channelId}
   Future<AsChannel> updateChannel(AsChannel draft);
 

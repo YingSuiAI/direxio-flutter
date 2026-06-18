@@ -621,6 +621,18 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<List<AsChannel>> getUserPublicChannels(
+    String userId, {
+    Uri? baseUri,
+  }) async {
+    await Future.delayed(_latency);
+    return _channels.values
+        .where((channel) => channel.visibility == asChannelVisibilityPublic)
+        .where((channel) => channel.role == asChannelRoleOwner)
+        .toList(growable: false);
+  }
+
+  @override
   Future<AsChannel> updateChannel(AsChannel draft) async {
     await Future.delayed(_latency);
     _channels[draft.channelId] = draft;

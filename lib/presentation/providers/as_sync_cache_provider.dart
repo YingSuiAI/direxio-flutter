@@ -40,6 +40,7 @@ class AsSyncCacheState {
       roomId: contact.roomId,
       domain: contact.domain,
       status: contact.status,
+      requestMessage: contact.requestMessage,
       visibleAfterTs: contact.visibleAfterTs,
       deletedEventIds: contact.deletedEventIds,
     );
@@ -310,6 +311,7 @@ class AsSyncCacheState {
         domain: contact.domain,
         roomId: contact.roomId,
         status: contact.status,
+        requestMessage: contact.requestMessage,
         visibleAfterTs: contact.visibleAfterTs,
         deletedEventIds: contact.deletedEventIds,
       );
@@ -332,6 +334,7 @@ class AsSyncCacheState {
                 roomId: contact.roomId,
                 domain: contact.domain,
                 status: contact.status,
+                requestMessage: contact.requestMessage,
                 visibleAfterTs: contact.visibleAfterTs,
                 deletedEventIds: contact.deletedEventIds,
               );

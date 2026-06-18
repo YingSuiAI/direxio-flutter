@@ -123,7 +123,7 @@
   },
   "loginTitle": "Portal IM",
   "loginSubtitle": "Use your Portal domain and password to enter decentralized messaging",
-  "loginDomainHint": "https://your-domain",
+  "loginDomainHint": "your-domain",
   "loginPasswordHint": "Password",
   "loginButton": "Log In",
   "loginButtonLoading": "Logging in…",

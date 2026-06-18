@@ -2115,6 +2115,40 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     }
   }
 
+  Future<void> _deleteSelectedEventsForMe(List<Event> events) async {
+    final eventIds = events
+        .where((event) => _selected.contains(event.eventId))
+        .map((event) => event.eventId.trim())
+        .where((eventId) => eventId.isNotEmpty)
+        .toList(growable: false);
+    if (eventIds.isEmpty) return;
+    try {
+      await ref.read(asClientProvider).deleteRoomMessagesBatch(
+            roomId: widget.roomId,
+            eventIds: eventIds,
+          );
+      if (!mounted) return;
+      ref.read(asSyncCacheProvider.notifier).update((state) {
+        var next = state;
+        for (final eventId in eventIds) {
+          next = next.withDeletedMessage(widget.roomId, eventId);
+        }
+        return next;
+      });
+      unawaited(_refreshBootstrapAfterVisibilityMutation());
+      setState(() {
+        _multiSelect = false;
+        _selected.removeWhere(eventIds.contains);
+      });
+    } on Object catch (err) {
+      debugPrint('delete selected group messages for me failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('删除消息失败：$err')),
+      );
+    }
+  }
+
   Future<void> _refreshBootstrapAfterVisibilityMutation() async {
     try {
       final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
@@ -2697,7 +2731,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                       senderId: callerId,
                                       senderName: senderName,
                                       senderAvatarUrl: senderAvatarUrl,
-                                      onAvatarTap: _memberAvatarTap(callerId),
+                                      onAvatarTap: isChannelConversation
+                                          ? null
+                                          : _memberAvatarTap(callerId),
                                       onAvatarLongPress: _memberAvatarMention(
                                         callerId,
                                         senderName,
@@ -2746,8 +2782,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     syncCache,
                                     e.senderId,
                                   );
-                                  final senderAvatarTap =
-                                      _memberAvatarTap(e.senderId);
+                                  final senderAvatarTap = isChannelConversation
+                                      ? null
+                                      : _memberAvatarTap(e.senderId);
                                   final senderAvatarLongPress =
                                       _memberAvatarMention(
                                     e.senderId,
@@ -2806,7 +2843,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                           syncCache,
                                           callerId,
                                         ),
-                                        onAvatarTap: _memberAvatarTap(callerId),
+                                        onAvatarTap: isChannelConversation
+                                            ? null
+                                            : _memberAvatarTap(callerId),
                                         onAvatarLongPress: _memberAvatarMention(
                                           callerId,
                                           callerName,
@@ -3121,25 +3160,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                   onFavorite: () => unawaited(_favoriteSelectedEvents(events)),
                   onForward: () =>
                       unawaited(_forwardSelectedEvents(events, name)),
-                  onDelete: () async {
-                    for (final id in _selected.toList()) {
-                      Event? selectedEvent;
-                      for (final event in events) {
-                        if (event.eventId == id) {
-                          selectedEvent = event;
-                          break;
-                        }
-                      }
-                      if (selectedEvent != null) {
-                        await _deleteEventForMe(selectedEvent);
-                      }
-                    }
-                    if (!mounted) return;
-                    setState(() {
-                      _multiSelect = false;
-                      _selected.clear();
-                    });
-                  },
+                  onDelete: () => unawaited(_deleteSelectedEventsForMe(events)),
                 )
               else
                 ChatCapsuleInputBar(

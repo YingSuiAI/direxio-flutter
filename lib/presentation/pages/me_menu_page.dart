@@ -12,6 +12,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
+import '../chat/chat_voice_player.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
@@ -1064,41 +1065,119 @@ class _FavoriteTextContent extends StatelessWidget {
   }
 }
 
-class _FavoriteAudioContent extends StatelessWidget {
+class _FavoriteAudioContent extends ConsumerStatefulWidget {
   const _FavoriteAudioContent({required this.favorite});
 
   final AsFavoriteMessage favorite;
 
   @override
+  ConsumerState<_FavoriteAudioContent> createState() =>
+      _FavoriteAudioContentState();
+}
+
+class _FavoriteAudioContentState extends ConsumerState<_FavoriteAudioContent> {
+  late final ChatVoicePlayer _player = ChatVoicePlayer();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    unawaited(_player.dispose());
+    super.dispose();
+  }
+
+  Future<void> _togglePlay() async {
+    if (_loading) return;
+    final favorite = widget.favorite;
+    final url = favorite.url.trim();
+    if (url.isEmpty) {
+      _showAudioError('收藏语音地址为空，无法播放');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final bytes = await _downloadFavoriteMediaBytes(ref, favorite);
+      await _player.playBytes(
+        bytes,
+        mimeType: favorite.mimeType,
+        messageId: _favoriteAudioMessageId(favorite),
+      );
+    } catch (err) {
+      _showAudioError('语音播放失败：$err');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showAudioError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final favorite = widget.favorite;
     final t = context.tk;
-    return Container(
-      width: 120,
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: t.surfaceHigh,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-          bottomLeft: Radius.circular(2),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(Symbols.graphic_eq, size: 22, color: t.text),
-          const SizedBox(width: 6),
-          Text(
-            _favoriteAudioDuration(favorite),
-            style: AppTheme.sans(
-              size: 15,
-              weight: FontWeight.w600,
-              color: t.text,
+    return ValueListenableBuilder<ChatVoicePlaybackState>(
+      valueListenable: _player.playback,
+      builder: (context, playback, _) {
+        final playing = playback.playing &&
+            playback.messageId == _favoriteAudioMessageId(favorite);
+        return Material(
+          color: t.surfaceHigh,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+            bottomRight: Radius.circular(24),
+            bottomLeft: Radius.circular(2),
+          ),
+          child: InkWell(
+            key: ValueKey('favorite-audio-${favorite.id}'),
+            onTap: () => unawaited(_togglePlay()),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+              bottomLeft: Radius.circular(2),
+            ),
+            child: Container(
+              width: 128,
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  if (_loading)
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: t.text,
+                      ),
+                    )
+                  else
+                    Icon(
+                      playing ? Symbols.pause : Symbols.graphic_eq,
+                      size: 22,
+                      color: t.text,
+                      fill: playing ? 1 : 0,
+                    ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _favoriteAudioDuration(favorite),
+                    style: AppTheme.sans(
+                      size: 15,
+                      weight: FontWeight.w600,
+                      color: t.text,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1235,6 +1314,12 @@ String _favoriteAudioDuration(AsFavoriteMessage favorite) {
   if (seconds > 0) return '${seconds}s';
   final body = favorite.body.trim();
   return body.isEmpty ? '60s' : body;
+}
+
+String _favoriteAudioMessageId(AsFavoriteMessage favorite) {
+  final eventId = favorite.eventId.trim();
+  if (eventId.isNotEmpty) return eventId;
+  return 'favorite-audio-${favorite.id}';
 }
 
 String _favoriteSenderLabel(AsFavoriteMessage favorite) {

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
@@ -9,7 +11,10 @@ import '../../data/as_client.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/auth_provider.dart';
+import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
+import '../widgets/portal_avatar.dart';
 
 Future<void> showInviteGroupMembersFlow(
   BuildContext context,
@@ -24,9 +29,13 @@ Future<void> showInviteGroupMembersFlow(
     ref.read(asSyncCacheProvider),
     existingMemberMxids,
   );
+  final client = ref.read(matrixClientProvider);
   final selected = await showDialog<List<String>>(
     context: context,
-    builder: (ctx) => _InviteGroupMembersDialog(contacts: candidates),
+    builder: (ctx) => _InviteGroupMembersDialog(
+      contacts: candidates,
+      client: client,
+    ),
   );
   if (selected == null || selected.isEmpty || !context.mounted) return;
 
@@ -93,9 +102,13 @@ Future<void> _refreshBootstrapAfterInvite(WidgetRef ref) async {
 }
 
 class _InviteGroupMembersDialog extends StatefulWidget {
-  const _InviteGroupMembersDialog({required this.contacts});
+  const _InviteGroupMembersDialog({
+    required this.contacts,
+    required this.client,
+  });
 
   final List<AsSyncContact> contacts;
+  final Client client;
 
   @override
   State<_InviteGroupMembersDialog> createState() =>
@@ -141,29 +154,15 @@ class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
                       displayName: contact.displayName,
                       domain: contact.domain,
                     );
-                    return CheckboxListTile(
-                      value: selected,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      activeColor: t.accent,
-                      title: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(size: 15, color: t.text),
+                    return _InviteGroupContactRow(
+                      name: name,
+                      subtitle: contact.domain.trim(),
+                      avatarUrl: avatarHttpUrl(
+                        widget.client,
+                        contact.avatarUrl,
                       ),
-                      subtitle: contact.domain.trim().isEmpty
-                          ? null
-                          : Text(
-                              contact.domain.trim(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.sans(
-                                size: 12,
-                                color: t.textMute,
-                              ),
-                            ),
-                      onChanged: (_) => setState(() {
+                      selected: selected,
+                      onTap: () => setState(() {
                         if (selected) {
                           _selectedMxids.remove(mxid);
                         } else {
@@ -189,6 +188,122 @@ class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
           child: const Text('发送邀请'),
         ),
       ],
+    );
+  }
+}
+
+class _InviteGroupContactRow extends StatelessWidget {
+  const _InviteGroupContactRow({
+    required this.name,
+    required this.selected,
+    required this.onTap,
+    this.subtitle = '',
+    this.avatarUrl,
+  });
+
+  final String name;
+  final String subtitle;
+  final String? avatarUrl;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            children: [
+              PortalAvatar(
+                seed: name,
+                size: 32,
+                imageUrl: avatarUrl,
+                shape: AvatarShape.squircle,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  height: subtitle.isEmpty ? 52 : 58,
+                  padding: const EdgeInsets.only(right: 4),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: t.surfaceHigh,
+                        width: 0.5,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.sans(
+                                size: 15,
+                                weight: FontWeight.w500,
+                                color: t.text,
+                              ),
+                            ),
+                            if (subtitle.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 12,
+                                  color: t.textMute,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _InviteGroupCheck(selected: selected),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InviteGroupCheck extends StatelessWidget {
+  const _InviteGroupCheck({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? t.accent : Colors.transparent,
+        border: Border.all(
+          color: selected ? t.accent : t.border,
+          width: 1,
+        ),
+      ),
+      child: selected ? Icon(Symbols.check, size: 12, color: t.onAccent) : null,
     );
   }
 }

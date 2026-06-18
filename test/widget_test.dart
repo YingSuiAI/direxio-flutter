@@ -36,6 +36,7 @@ import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/pages/chat_info_page.dart';
 import 'package:portal_app/presentation/pages/chat_page.dart';
 import 'package:portal_app/presentation/pages/contact_detail_page.dart';
+import 'package:portal_app/presentation/pages/contact_channels_page.dart';
 import 'package:portal_app/presentation/pages/contact_home_page.dart';
 import 'package:portal_app/presentation/pages/dynamic_detail_page.dart';
 import 'package:portal_app/presentation/pages/follows_list_page.dart';
@@ -82,6 +83,25 @@ final _transparentPng = base64Decode(
 class _FakeAuthStateNotifier extends AuthStateNotifier {
   @override
   Future<AuthState> build() async => const AuthState(isLoggedIn: false);
+}
+
+class _RecordingLoginAuthStateNotifier extends AuthStateNotifier {
+  static String? homeserver;
+  static String? portalToken;
+
+  static void reset() {
+    homeserver = null;
+    portalToken = null;
+  }
+
+  @override
+  Future<AuthState> build() async => const AuthState(isLoggedIn: false);
+
+  @override
+  Future<void> login(String homeserverUrl, String portalToken) async {
+    homeserver = homeserverUrl;
+    _RecordingLoginAuthStateNotifier.portalToken = portalToken;
+  }
 }
 
 class _LoggedInAuthStateNotifier extends AuthStateNotifier {
@@ -606,6 +626,7 @@ class _EmptyAsClient implements AsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String requestMessage = '',
   }) async =>
       ContactEntry(
         peerMxid: mxid,
@@ -613,6 +634,7 @@ class _EmptyAsClient implements AsClient {
         domain: domain,
         roomId: '!contact:example.com',
         status: 'pending_outbound',
+        requestMessage: requestMessage,
       );
 
   @override
@@ -658,6 +680,12 @@ class _EmptyAsClient implements AsClient {
   Future<void> deleteRoomMessage({
     required String roomId,
     required String eventId,
+  }) async {}
+
+  @override
+  Future<void> deleteRoomMessagesBatch({
+    required String roomId,
+    required List<String> eventIds,
   }) async {}
 
   @override
@@ -838,12 +866,16 @@ class _ReadMarkerFailingAsClient extends _EmptyAsClient {
 }
 
 class _StatefulPendingContactAsClient extends _EmptyAsClient {
+  _StatefulPendingContactAsClient({this.requestMessage = ''});
+
+  final String requestMessage;
   var _accepted = false;
 
   @override
   Future<AsSyncBootstrap> syncBootstrap() async =>
       _pendingFriendRequestBootstrap(
         status: _accepted ? 'accepted' : 'pending_inbound',
+        requestMessage: requestMessage,
       );
 
   @override
@@ -1179,6 +1211,40 @@ class _FavoritesAsClient extends _EmptyAsClient {
   }
 }
 
+class _InvalidAudioFavoritesAsClient extends _EmptyAsClient {
+  @override
+  Future<List<AsFavoriteMessage>> getFavorites({
+    String messageType = '',
+    int limit = 100,
+  }) async {
+    return [
+      AsFavoriteMessage(
+        id: 77,
+        ownerUserId: '@owner:p2p-im.com',
+        roomId: '!dm:p2p-im.com',
+        eventId: r'$audio-empty',
+        roomType: 'direct',
+        messageType: 'audio',
+        senderId: '@alice:p2p-liyanan.com',
+        senderName: 'Alice',
+        body: '',
+        url: '',
+        filename: '',
+        mimeType: 'audio/ogg',
+        size: 0,
+        thumbnailUrl: '',
+        thumbnailMimeType: '',
+        thumbnailSize: 0,
+        width: 0,
+        height: 0,
+        durationMs: 3000,
+        originServerTs: 1779685800000,
+        favoritedAt: DateTime.utc(2026, 5, 29, 16),
+      ),
+    ];
+  }
+}
+
 class _ChannelActivityAsClient extends _EmptyAsClient {
   int reactionsCallCount = 0;
   int? lastReactionsLimit;
@@ -1284,6 +1350,7 @@ class _MemoryFriendRequestReadStore implements FriendRequestReadStore {
 
 AsSyncBootstrap _pendingFriendRequestBootstrap({
   String status = 'pending_inbound',
+  String requestMessage = '',
 }) {
   return AsSyncBootstrap(
     syncedAt: DateTime.utc(2026, 5, 28, 12),
@@ -1297,6 +1364,7 @@ AsSyncBootstrap _pendingFriendRequestBootstrap({
         roomId: '!person-invite:p2p-im.com',
         domain: 'portal.local',
         status: status,
+        requestMessage: requestMessage,
       ),
     ],
     groups: const [],
@@ -1313,11 +1381,15 @@ class _NeverListChannelsAsClient extends _EmptyAsClient {
 class _TrackingAsClient extends _EmptyAsClient {
   int createContactRequestCalls = 0;
   String? createdContactMxid;
+  String? createdContactRequestMessage;
   int deleteContactCalls = 0;
   String? deletedContactRoomId;
   int deleteRoomMessageCalls = 0;
   String? deletedRoomMessageRoomId;
   String? deletedRoomMessageEventId;
+  int deleteRoomMessagesBatchCalls = 0;
+  String? deletedRoomMessagesBatchRoomId;
+  List<String> deletedRoomMessagesBatchEventIds = const [];
   int sendRoomMessageCalls = 0;
   String? sentRoomId;
   String? sentContent;
@@ -1358,15 +1430,18 @@ class _TrackingAsClient extends _EmptyAsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String requestMessage = '',
   }) async {
     createContactRequestCalls++;
     createdContactMxid = mxid;
+    createdContactRequestMessage = requestMessage;
     return ContactEntry(
       peerMxid: mxid,
       displayName: displayName,
       domain: domain,
       roomId: '!new-request:example.com',
       status: 'pending_outbound',
+      requestMessage: requestMessage,
     );
   }
 
@@ -1391,6 +1466,16 @@ class _TrackingAsClient extends _EmptyAsClient {
     deleteRoomMessageCalls++;
     deletedRoomMessageRoomId = roomId;
     deletedRoomMessageEventId = eventId;
+  }
+
+  @override
+  Future<void> deleteRoomMessagesBatch({
+    required String roomId,
+    required List<String> eventIds,
+  }) async {
+    deleteRoomMessagesBatchCalls++;
+    deletedRoomMessagesBatchRoomId = roomId;
+    deletedRoomMessagesBatchEventIds = eventIds;
   }
 
   @override
@@ -1598,6 +1683,7 @@ class _PendingInboundAddContactAsClient extends _EmptyAsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String requestMessage = '',
   }) async {
     return ContactEntry(
       peerMxid: mxid,
@@ -1605,6 +1691,7 @@ class _PendingInboundAddContactAsClient extends _EmptyAsClient {
       domain: domain,
       roomId: '!incoming:portal.local',
       status: 'pending_inbound',
+      requestMessage: requestMessage,
     );
   }
 }
@@ -1863,6 +1950,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   String roomName = '真实群',
   String eventId = r'$group-text',
   String body = '群聊长按消息',
+  List<MapEntry<String, String>> extraTextEvents = const [],
   List<LocalOutboxItem> initialOutboxItems = const [],
   bool sendTextEvent = true,
   GoRouter? router,
@@ -1964,6 +2052,18 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
                     'body': body,
                   },
                 ),
+                for (final entry in extraTextEvents)
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: entry.key,
+                    roomId: roomId,
+                    senderId: '@alice:p2p-im.com',
+                    originServerTs: DateTime.utc(2026, 5, 30, 10, 1),
+                    content: {
+                      'msgtype': MessageTypes.Text,
+                      'body': entry.value,
+                    },
+                  ),
               ],
             ),
           ),
@@ -3087,6 +3187,7 @@ void main() {
     await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
+    expect(find.text('Agent'), findsOneWidget);
     expect(find.text('Alice'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
   });
@@ -3529,13 +3630,13 @@ void main() {
 
     expect(find.text('Yanan'), findsNothing);
     expect(find.text('friend flow accepted message'), findsNothing);
-    expect(find.text('还没有会话'), findsOneWidget);
 
     await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
     expect(find.text('ID/昵称/邮箱'), findsOneWidget);
-    expect(find.text('还没有联系人'), findsOneWidget);
+    expect(find.text('Agent'), findsOneWidget);
+    expect(find.text('还没有联系人'), findsNothing);
     expect(find.text('Yanan'), findsNothing);
   });
 
@@ -4319,6 +4420,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('ID/昵称/邮箱'), findsOneWidget);
+    expect(find.text('Agent'), findsOneWidget);
     expect(find.text('A'), findsWidgets);
     expect(find.text('B'), findsWidgets);
     expect(find.text('D'), findsWidgets);
@@ -4327,6 +4429,68 @@ void main() {
     expect(find.text('Dave Lee'), findsOneWidget);
     expect(find.text('Eve Wang'), findsNothing);
     expect(find.text('Jack'), findsNothing);
+  });
+
+  testWidgets('contacts agent opens the real agent room when logged in',
+      (tester) async {
+    final client = Client('PortalIMContactsAgentRouteTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addHeroSummaryRoom(
+      client,
+      roomId: '!agent:p2p-im.com',
+      peerMxid: '@agent:p2p-im.com',
+      peerName: 'Agent',
+    );
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': DateTime.utc(2026, 6, 18, 10).toIso8601String(),
+      'user': {'user_id': '@owner:p2p-im.com'},
+      'rooms': [],
+      'contacts': [],
+      'groups': [],
+      'channels': [],
+      'pending': {},
+    });
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) => Scaffold(
+            body: Text('chat:${state.pathParameters['roomId']}'),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('通讯录').last);
+    await tester.pump();
+    await tester.tap(find.text('Agent'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('chat:!agent:p2p-im.com'), findsOneWidget);
+    expect(find.text('chat:mock_aibot'), findsNothing);
   });
 
   testWidgets('contacts use Matrix member avatar when AS avatar is empty',
@@ -4636,6 +4800,42 @@ void main() {
 
     expect(find.text('待接受'), findsOneWidget);
     expect(find.text('Alice'), findsOneWidget);
+  });
+
+  testWidgets('new friends page shows incoming request message',
+      (tester) async {
+    final client = Client('PortalIMFriendRequestMessageTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(
+            _StatefulPendingContactAsClient(
+              requestMessage: '我是 Alice，请通过一下',
+            ),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(
+              bootstrap: _pendingFriendRequestBootstrap(
+                requestMessage: '我是 Alice，请通过一下',
+              ),
+            ),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('待接受'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('我是 Alice，请通过一下'), findsOneWidget);
   });
 
   testWidgets('new friends page only lists incoming direct contact invites',
@@ -5254,13 +5454,15 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
     await tester.pumpAndSettle();
 
-    expect(find.text('申请好友'), findsOneWidget);
-    expect(find.text('发消息'), findsOneWidget);
-    expect(find.text('音频通话'), findsOneWidget);
-    expect(find.text('视频通话'), findsOneWidget);
-    expect(find.text('消息免打扰'), findsOneWidget);
-    expect(find.text('屏蔽用户'), findsOneWidget);
-    expect(find.text('举报用户'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('他的频道'), findsOneWidget);
+    expect(find.text('添加好友'), findsOneWidget);
+    expect(find.text('发消息'), findsNothing);
+    expect(find.text('音频通话'), findsNothing);
+    expect(find.text('视频通话'), findsNothing);
+    expect(find.text('消息免打扰'), findsNothing);
+    expect(find.text('屏蔽用户'), findsNothing);
+    expect(find.text('举报用户'), findsNothing);
   });
 
   testWidgets('add contact uses contacts-style background and search field',
@@ -5355,10 +5557,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('申请好友'), findsNothing);
-    expect(find.text('发消息'), findsWidgets);
+    expect(find.text('添加好友'), findsNothing);
+    expect(find.text('发消息'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, '发消息'));
+    await tester.tap(find.text('发消息'));
     await tester.pumpAndSettle();
 
     expect(find.text('chat:$roomId'), findsOneWidget);
@@ -5408,8 +5610,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('申请好友'), findsOneWidget);
-    await tester.tap(find.text('发消息'));
+    expect(find.text('添加好友'), findsOneWidget);
+    await tester.tap(find.text('添加好友'));
     await tester.pumpAndSettle();
 
     expect(find.text('发送好友申请'), findsOneWidget);
@@ -5439,6 +5641,83 @@ void main() {
         .where((item) => item.size == 60)
         .single;
     expect(avatar.imageUrl, 'https://cdn.example.com/alice.png');
+    final channelAvatars = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 30);
+    expect(channelAvatars, isEmpty);
+  });
+
+  testWidgets('contact channels page lists user channels', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactChannelsPage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('他的频道'), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_back), findsOneWidget);
+    expect(find.text('设计观察'), findsOneWidget);
+    expect(find.text('产品原型、交互细节和设计记录'), findsOneWidget);
+    expect(find.text('帖子'), findsOneWidget);
+    expect(find.text('暂无频道'), findsNothing);
+  });
+
+  testWidgets('contact channels page shows empty text without channels',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactChannelsPage(userId: '@remote:portal.local'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('他的频道'), findsOneWidget);
+    expect(find.byIcon(Symbols.arrow_back), findsOneWidget);
+    expect(find.text('暂无频道'), findsOneWidget);
+  });
+
+  testWidgets('add contact detail opens contact channels page', (tester) async {
+    final router = GoRouter(
+      initialLocation:
+          '/add-contact/detail/%40alice%3Aportal.local?name=Alice%20Chen',
+      routes: [
+        GoRoute(
+          path: '/add-contact/detail/:userId',
+          builder: (_, state) => AddContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+          ),
+        ),
+        GoRoute(
+          path: '/contact-channels/:userId',
+          builder: (_, state) => ContactChannelsPage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('他的频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('设计观察'), findsOneWidget);
   });
 
   testWidgets('add contact rejects domains without portal owner discovery',
@@ -5528,6 +5807,7 @@ void main() {
 
     expect(asClient.createContactRequestCalls, 1);
     expect(asClient.createdContactMxid, '@alice:portal.local');
+    expect(asClient.createdContactRequestMessage, '我是 Niki');
     expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
     await tester.pumpAndSettle();
     expect(find.text('上一页'), findsOneWidget);
@@ -5576,21 +5856,10 @@ void main() {
   });
 
   testWidgets('add contact search detail can request friend', (tester) async {
-    final client = Client(
-      'PortalIMAddContactInboundRequestTest',
-      httpClient: MockClient((request) async {
-        return http.Response(
-          '{"matrix_user_id":"@alice:portal.local","display_name":"Alice Chen"}',
-          200,
-          headers: {'content-type': 'application/json; charset=utf-8'},
-        );
-      }),
-    );
     final router = GoRouter(
-      initialLocation: '/add-contact',
+      initialLocation:
+          '/add-contact/detail/%40alice%3Aportal.local?name=Alice%20Chen',
       routes: [
-        GoRoute(
-            path: '/add-contact', builder: (_, __) => const AddContactPage()),
         GoRoute(
           path: '/add-contact/detail/:userId',
           builder: (_, state) => AddContactDetailPage(
@@ -5611,7 +5880,6 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           asClientProvider
@@ -5629,14 +5897,9 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'alice.portal.local');
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('申请好友'));
+    await tester.tap(find.text('添加好友'));
     await tester.pumpAndSettle();
     expect(find.text('好友验证'), findsOneWidget);
     expect(find.text('发送好友申请'), findsOneWidget);
@@ -5647,9 +5910,7 @@ void main() {
     expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
     await tester.pumpAndSettle();
     expect(find.text('好友验证'), findsNothing);
-    expect(find.text('申请好友'), findsOneWidget);
-
-    await client.dispose(closeDatabase: false);
+    expect(find.text('添加好友'), findsOneWidget);
   });
 
   testWidgets('mock groups show three groups with one owner badge',
@@ -8373,6 +8634,32 @@ void main() {
     expect(find.text('群聊长按消息'), findsNothing);
   });
 
+  testWidgets('group chat multi-select delete uses AS batch endpoint',
+      (tester) async {
+    final harness = await _pumpGroupChatWithTextEvent(
+      tester,
+      extraTextEvents: const [MapEntry(r'$group-text-2', '第二条群聊消息')],
+    );
+
+    await tester.longPress(find.text('群聊长按消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('多选'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第二条群聊消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('删除'));
+    await tester.pumpAndSettle();
+
+    expect(harness.asClient.deleteRoomMessageCalls, 0);
+    expect(harness.asClient.deleteRoomMessagesBatchCalls, 1);
+    expect(
+        harness.asClient.deletedRoomMessagesBatchRoomId, '!group:p2p-im.com');
+    expect(harness.asClient.deletedRoomMessagesBatchEventIds,
+        unorderedEquals([r'$group-text', r'$group-text-2']));
+    expect(find.text('群聊长按消息'), findsNothing);
+    expect(find.text('第二条群聊消息'), findsNothing);
+  });
+
   testWidgets('mock auth build ignores cached login for contacts',
       (tester) async {
     const mockAuthEnabled = bool.fromEnvironment(
@@ -8512,8 +8799,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('发消息'), findsOneWidget);
-    expect(find.text('语音通话'), findsOneWidget);
-    expect(find.text('删除好友'), findsOneWidget);
+    expect(find.text('音频通话'), findsOneWidget);
+    expect(find.text('他的频道'), findsOneWidget);
+    expect(find.text('删除好友'), findsNothing);
   });
 
   testWidgets('mock auth chat does not poll AS gateway', (tester) async {
@@ -9373,6 +9661,50 @@ void main() {
     expect(copied?.text, 'portal.local');
   });
 
+  testWidgets('contact detail chat avatar shows add friend for non-contact',
+      (tester) async {
+    final client = Client('PortalIMContactDetailAvatarVisitorTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 18, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactDetailPage(
+            userId: '@visitor:portal.local',
+            fromChatAvatar: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('visitor'), findsOneWidget);
+    expect(find.text('他的频道'), findsOneWidget);
+    expect(find.text('添加好友'), findsOneWidget);
+    expect(find.text('发消息'), findsNothing);
+    expect(find.text('音频通话'), findsNothing);
+    expect(find.text('视频通话'), findsNothing);
+  });
+
   testWidgets('contact detail persists message mute toggle after re-entry',
       (tester) async {
     const roomId = '!contact-mute:p2p-im.com';
@@ -9882,15 +10214,16 @@ void main() {
 
     expect(find.text('Dave Lee'), findsOneWidget);
     expect(find.text('发消息'), findsOneWidget);
-    expect(find.text('语音通话'), findsOneWidget);
+    expect(find.text('音频通话'), findsOneWidget);
     expect(find.text('视频通话'), findsOneWidget);
-    expect(find.text('设置备注'), findsOneWidget);
-    expect(find.text('推荐给朋友'), findsOneWidget);
+    expect(find.text('他的频道'), findsOneWidget);
+    expect(find.text('设置备注'), findsNothing);
+    expect(find.text('把他推荐给朋友'), findsOneWidget);
     expect(find.text('搜索聊天'), findsNothing);
     expect(find.text('消息免打扰'), findsNothing);
     expect(find.text('拉黑用户'), findsNothing);
     expect(find.text('举报用户'), findsNothing);
-    expect(find.text('删除好友'), findsOneWidget);
+    expect(find.text('删除好友'), findsNothing);
   });
 
   testWidgets('mock direct chat header detail opens full contact page',
@@ -10275,12 +10608,12 @@ void main() {
 
     expect(_headerTitle('我的'), findsNothing);
     expect(find.text('owner'), findsOneWidget);
-    expect(find.text('UID: https://p2p-im.com'), findsOneWidget);
+    expect(find.text('https://p2p-im.com'), findsOneWidget);
     expect(find.text('我的频道'), findsOneWidget);
     expect(find.text('@me'), findsNothing);
     expect(find.textContaining('Node:'), findsNothing);
 
-    await tester.tap(find.text('UID: https://p2p-im.com'));
+    await tester.tap(find.text('https://p2p-im.com'));
     await tester.pumpAndSettle();
     expect(find.text('已复制 UID'), findsOneWidget);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
@@ -10291,12 +10624,12 @@ void main() {
     final copiedFromIcon = await Clipboard.getData(Clipboard.kTextPlain);
     expect(copiedFromIcon?.text, 'https://p2p-im.com');
 
-    await tester.tap(find.byKey(const ValueKey('me_domain_qr_button')));
+    await tester.tap(find.byIcon(Symbols.qr_code_2));
     await tester.pumpAndSettle();
 
     expect(find.text('我的二维码'), findsOneWidget);
     expect(find.byType(QrImageView), findsOneWidget);
-    expect(find.text('UID owner'), findsOneWidget);
+    expect(find.text('UID https://p2p-im.com'), findsOneWidget);
     expect(find.text('保存到相册'), findsOneWidget);
   });
 
@@ -10868,6 +11201,27 @@ void main() {
     expect(find.text('复制内容'), findsNothing);
     expect(find.text('明天上午继续测试'), findsWidgets);
     expect(find.text('来自与 Alice 的私聊'), findsOneWidget);
+  });
+
+  testWidgets('me favorites audio bubble handles playback tap', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(_InvalidAudioFavoritesAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('favorite-audio-77')));
+    await tester.pump();
+
+    expect(find.text('收藏语音地址为空，无法播放'), findsOneWidget);
+    expect(find.text('收藏详情'), findsNothing);
   });
 
   testWidgets('me favorites media cards do not bypass favorite detail',
@@ -12043,7 +12397,8 @@ void main() {
     await tester.pump();
 
     expect(find.text('https://p2p-im.com'), findsNothing);
-    expect(find.text('https://'), findsOneWidget);
+    expect(find.text('https://'), findsNothing);
+    expect(find.text('你的域名'), findsOneWidget);
   });
 
   testWidgets('login page leaves password empty after session expiration',
@@ -12061,12 +12416,39 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('https://example.com'), findsOneWidget);
+    expect(find.text('https://example.com'), findsNothing);
+    expect(find.text('example.com'), findsOneWidget);
     expect(find.text('old-password'), findsNothing);
     final editableTexts = tester.widgetList<EditableText>(
       find.byType(EditableText),
     );
     expect(editableTexts.last.controller.text, isEmpty);
+  });
+
+  testWidgets('login page prefixes domain before submit', (tester) async {
+    _RecordingLoginAuthStateNotifier.reset();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_RecordingLoginAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final fields = find.byType(EditableText);
+    await tester.enterText(fields.first, 'example.com');
+    await tester.enterText(fields.last, 'portal-token');
+    await tester.tap(find.text('登录'));
+    await tester.pump();
+
+    expect(_RecordingLoginAuthStateNotifier.homeserver, 'https://example.com');
+    expect(_RecordingLoginAuthStateNotifier.portalToken, 'portal-token');
   });
 
   testWidgets('login page follows app locale', (tester) async {

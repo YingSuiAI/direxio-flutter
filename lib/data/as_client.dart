@@ -308,6 +308,7 @@ class ContactEntry {
     required this.domain,
     required this.roomId,
     required this.status,
+    this.requestMessage = '',
     this.visibleAfterTs = 0,
     this.deletedEventIds = const [],
   });
@@ -317,6 +318,7 @@ class ContactEntry {
   final String domain;
   final String roomId;
   final String status;
+  final String requestMessage;
   final int visibleAfterTs;
   final List<String> deletedEventIds;
 
@@ -326,9 +328,18 @@ class ContactEntry {
         domain: j['domain'] as String? ?? '',
         roomId: j['room_id'] as String? ?? '',
         status: j['status'] as String? ?? '',
+        requestMessage: _friendRequestMessageFromJson(j),
         visibleAfterTs: j['visible_after_ts'] as int? ?? 0,
         deletedEventIds: _parseStringList(j['deleted_event_ids']),
       );
+}
+
+String _friendRequestMessageFromJson(Map<String, dynamic> json) {
+  for (final key in ['request_message', 'message', 'remark', 'note']) {
+    final value = json[key];
+    if (value is String && value.trim().isNotEmpty) return value;
+  }
+  return '';
 }
 
 /// Portal owner profile managed by p2p-matrix-as.
@@ -477,6 +488,7 @@ class AsSyncContact {
     this.roomId = '',
     this.domain = '',
     this.status = '',
+    this.requestMessage = '',
     this.visibleAfterTs = 0,
     this.deletedEventIds = const [],
   });
@@ -487,6 +499,7 @@ class AsSyncContact {
   final String roomId;
   final String domain;
   final String status;
+  final String requestMessage;
   final int visibleAfterTs;
   final List<String> deletedEventIds;
 
@@ -498,6 +511,7 @@ class AsSyncContact {
       roomId: json['room_id'] as String? ?? '',
       domain: json['domain'] as String? ?? '',
       status: json['status'] as String? ?? '',
+      requestMessage: _friendRequestMessageFromJson(json),
       visibleAfterTs: json['visible_after_ts'] as int? ?? 0,
       deletedEventIds: _parseStringList(json['deleted_event_ids']),
     );
@@ -511,6 +525,8 @@ class AsSyncContact {
       'room_id': roomId,
       'domain': domain,
       'status': status,
+      if (requestMessage.trim().isNotEmpty)
+        'request_message': requestMessage.trim(),
       'visible_after_ts': visibleAfterTs,
       'deleted_event_ids': deletedEventIds,
     };
@@ -1475,6 +1491,7 @@ abstract class AsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String requestMessage = '',
   });
 
   /// POST /_as/contacts/requests/{roomId}/accept
@@ -1503,6 +1520,14 @@ abstract class AsClient {
   Future<void> deleteRoomMessage({
     required String roomId,
     required String eventId,
+  });
+
+  /// POST /_as/rooms/{roomId}/messages/delete-batch
+  ///
+  /// Hides multiple messages for the current portal owner only.
+  Future<void> deleteRoomMessagesBatch({
+    required String roomId,
+    required List<String> eventIds,
   });
 
   /// POST /_as/rooms/{roomId}/send

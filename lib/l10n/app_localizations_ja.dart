@@ -305,7 +305,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get loginSubtitle => 'Portal ドメインとパスワードで分散型メッセージに入ります';
 
   @override
-  String get loginDomainHint => 'https://あなたのドメイン';
+  String get loginDomainHint => 'あなたのドメイン';
 
   @override
   String get loginPasswordHint => 'パスワード';

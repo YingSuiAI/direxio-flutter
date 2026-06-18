@@ -5,7 +5,6 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
-import '../../l10n/app_localizations.dart';
 import '../mock/mock_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../utils/contact_identity_label.dart';
@@ -29,9 +28,6 @@ class AddContactDetailPage extends ConsumerStatefulWidget {
 }
 
 class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
-  bool _muted = false;
-  bool _blocked = false;
-
   void _openVerification() {
     final query = widget.displayName == null || widget.displayName!.isEmpty
         ? ''
@@ -61,70 +57,38 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
       avatarUrl: acceptedContact?.avatarUrl ?? widget.avatarUrl,
     );
     final t = context.tk;
-    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: t.surfaceHover,
+      backgroundColor: t.bg,
       body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  MediaQuery.paddingOf(context).top + 4,
-                  16,
-                  24,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: _DetailGlassBackButton(onTap: () => context.pop()),
-                    ),
-                    const SizedBox(height: 16),
-                    _ProfileHeader(profile: profile),
-                    const SizedBox(height: 24),
-                    _DetailActionRow(
-                      onMessage: isAcceptedContact
-                          ? () => _openAcceptedChat(acceptedContact.roomId)
-                          : _openVerification,
-                      onVoice: () =>
-                          _toast(context, l10n.addContactVoiceAfterAdding),
-                      onVideo: () =>
-                          _toast(context, l10n.addContactVideoAfterAdding),
-                    ),
-                    const SizedBox(height: 24),
-                    _DetailSwitchRow(
-                      label: l10n.contactMuteMessages,
-                      value: _muted,
-                      onChanged: (value) => setState(() => _muted = value),
-                    ),
-                    const SizedBox(height: 16),
-                    _DetailSwitchRow(
-                      label: l10n.contactBlockUser,
-                      value: _blocked,
-                      onChanged: (value) => setState(() => _blocked = value),
-                    ),
-                    const SizedBox(height: 16),
-                    _DetailNavigationRow(
-                      label: l10n.contactReportUser,
-                      onTap: () => _toast(context, l10n.contactReportTodo),
-                    ),
-                  ],
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _DetailGlassBackButton(onTap: () => context.pop()),
+              ),
+              const SizedBox(height: 24),
+              _ProfileHeader(profile: profile),
+              const SizedBox(height: 24),
+              _DetailNavigationRow(
+                label: '他的频道',
+                previewSeeds: profile.channelPreviewSeeds,
+                onTap: () => context.push(
+                  '/contact-channels/${Uri.encodeComponent(widget.userId)}',
                 ),
               ),
-            ),
-            _ApplyFriendButton(
-              label: !isAcceptedContact
-                  ? l10n.contactApplyFriend
-                  : l10n.contactSendMessage,
-              onTap: !isAcceptedContact
-                  ? _openVerification
-                  : () => _openAcceptedChat(acceptedContact.roomId),
-            ),
-          ],
+              const SizedBox(height: 14),
+              _AddFriendRow(
+                label: isAcceptedContact ? '发消息' : '添加好友',
+                onTap: isAcceptedContact
+                    ? () => _openAcceptedChat(acceptedContact.roomId)
+                    : _openVerification,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -137,12 +101,14 @@ class _AddContactProfile {
     required this.uid,
     required this.domain,
     this.avatarUrl,
+    this.channelPreviewSeeds = const [],
   });
 
   final String name;
   final String uid;
   final String domain;
   final String? avatarUrl;
+  final List<String> channelPreviewSeeds;
 }
 
 _AddContactProfile _profileForAddContact(
@@ -165,6 +131,10 @@ _AddContactProfile _profileForAddContact(
     avatarUrl: avatarUrl?.trim().isNotEmpty == true
         ? avatarUrl!.trim()
         : home?.avatarUrl,
+    channelPreviewSeeds: [
+      for (final channel in home?.channels ?? const <MockContactChannel>[])
+        '${userId.trim()}-${channel.name}',
+    ],
   );
 }
 
@@ -238,27 +208,15 @@ class _ProfileHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                profile.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.sans(
-                  size: 16,
-                  weight: FontWeight.w600,
-                  color: t.text,
-                ).copyWith(letterSpacing: -0.4),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'UID ${profile.uid}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.sans(size: 14, color: t.textMute),
-              ),
-            ],
+          child: Text(
+            profile.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.sans(
+              size: 16,
+              weight: FontWeight.w600,
+              color: t.text,
+            ).copyWith(letterSpacing: -0.4),
           ),
         ),
       ],
@@ -266,87 +224,61 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-class _DetailActionRow extends StatelessWidget {
-  const _DetailActionRow({
-    required this.onMessage,
-    required this.onVoice,
-    required this.onVideo,
-  });
-
-  final VoidCallback onMessage;
-  final VoidCallback onVoice;
-  final VoidCallback onVideo;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _DetailActionButton(
-            icon: Symbols.chat_bubble,
-            label: AppLocalizations.of(context).contactSendMessage,
-            onTap: onMessage,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _DetailActionButton(
-            icon: Symbols.call,
-            label: AppLocalizations.of(context).contactVoiceCall,
-            onTap: onVoice,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _DetailActionButton(
-            icon: Symbols.videocam,
-            label: AppLocalizations.of(context).contactVideoCall,
-            onTap: onVideo,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DetailActionButton extends StatelessWidget {
-  const _DetailActionButton({
-    required this.icon,
+class _DetailNavigationRow extends StatelessWidget {
+  const _DetailNavigationRow({
     required this.label,
     required this.onTap,
+    this.previewSeeds = const [],
   });
 
-  final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final List<String> previewSeeds;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     return Material(
       color: t.surface,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
         child: SizedBox(
-          height: 60,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 28, color: t.accent, fill: 1),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.sans(
-                  size: 12,
-                  weight: FontWeight.w500,
-                  color: t.accent,
+          height: 50,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 12),
+            child: Row(
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 16,
+                    weight: FontWeight.w500,
+                    color: t.text,
+                  ).copyWith(letterSpacing: -0.4),
                 ),
-              ),
-            ],
+                if (previewSeeds.isNotEmpty) ...[
+                  const SizedBox(width: 14),
+                  for (final seed in previewSeeds.take(3)) ...[
+                    PortalAvatar(
+                      seed: seed,
+                      size: 30,
+                      shape: AvatarShape.squircle,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
+                const Spacer(),
+                Icon(
+                  Symbols.chevron_right,
+                  size: 24,
+                  color: t.text,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -354,61 +286,11 @@ class _DetailActionButton extends StatelessWidget {
   }
 }
 
-class _DetailSwitchRow extends StatelessWidget {
-  const _DetailSwitchRow({
+class _AddFriendRow extends StatelessWidget {
+  const _AddFriendRow({
     required this.label,
-    required this.value,
-    required this.onChanged,
+    required this.onTap,
   });
-
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.only(left: 12, right: 10),
-      decoration: BoxDecoration(
-        color: t.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: AppTheme.sans(
-                size: 14,
-                weight: FontWeight.w500,
-                color: t.text,
-              ).copyWith(letterSpacing: -0.4),
-            ),
-          ),
-          Transform.scale(
-            scale: 0.82,
-            child: Switch.adaptive(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: t.surface,
-              activeTrackColor: t.accent,
-              inactiveThumbColor: t.surface,
-              inactiveTrackColor: t.surfaceHigh,
-              trackOutlineColor: WidgetStateProperty.all(
-                t.surface.withValues(alpha: 0),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailNavigationRow extends StatelessWidget {
-  const _DetailNavigationRow({required this.label, required this.onTap});
 
   final String label;
   final VoidCallback onTap;
@@ -423,65 +305,15 @@ class _DetailNavigationRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: SizedBox(
-          height: 44,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    style: AppTheme.sans(
-                      size: 14,
-                      weight: FontWeight.w500,
-                      color: t.text,
-                    ).copyWith(letterSpacing: -0.4),
-                  ),
-                ),
-                Icon(Symbols.chevron_right, size: 24, color: t.text),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ApplyFriendButton extends StatelessWidget {
-  const _ApplyFriendButton({
-    required this.label,
-    required this.onTap,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-        child: SizedBox(
-          height: 44,
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: onTap,
-            style: FilledButton.styleFrom(
-              backgroundColor: t.accent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+          height: 50,
+          child: Center(
             child: Text(
               label,
               style: AppTheme.sans(
-                size: 14,
+                size: 16,
                 weight: FontWeight.w500,
-                color: t.onAccent,
-              ).copyWith(letterSpacing: -0.4),
+                color: t.accent,
+              ),
             ),
           ),
         ),

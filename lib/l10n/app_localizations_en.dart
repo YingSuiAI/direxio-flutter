@@ -310,7 +310,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use your Portal domain and password to enter decentralized messaging';
 
   @override
-  String get loginDomainHint => 'https://your-domain';
+  String get loginDomainHint => 'your-domain';
 
   @override
   String get loginPasswordHint => 'Password';

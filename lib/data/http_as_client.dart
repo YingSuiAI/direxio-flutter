@@ -301,11 +301,14 @@ class HttpAsClient implements AsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String requestMessage = '',
   }) async {
     final requestBody = {
       'mxid': mxid.trim(),
       if (displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
       if (domain.trim().isNotEmpty) 'domain': domain.trim(),
+      if (requestMessage.trim().isNotEmpty)
+        'request_message': requestMessage.trim(),
     };
     ApiLogger.info(
       '[AS admin] friend request params '
@@ -408,6 +411,24 @@ class HttpAsClient implements AsClient {
       'POST',
       'rooms/${Uri.encodeComponent(roomId)}/messages/delete',
       body: {'event_id': eventId.trim()},
+      allowedStatusCodes: const {200, 201, 204},
+    );
+  }
+
+  @override
+  Future<void> deleteRoomMessagesBatch({
+    required String roomId,
+    required List<String> eventIds,
+  }) async {
+    final ids = eventIds
+        .map((eventId) => eventId.trim())
+        .where((eventId) => eventId.isNotEmpty)
+        .toList(growable: false);
+    if (ids.isEmpty) return;
+    await _requestJson(
+      'POST',
+      'rooms/${Uri.encodeComponent(roomId)}/messages/delete-batch',
+      body: {'event_ids': ids},
       allowedStatusCodes: const {200, 201, 204},
     );
   }

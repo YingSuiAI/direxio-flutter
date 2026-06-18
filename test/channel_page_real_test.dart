@@ -902,14 +902,19 @@ void main() {
 
     expect(asClient.requestedChannelId, 'ch_real');
     expect(asClient.requestedStatus, asChannelMemberStatusJoined);
-    expect(find.text('产品公告（2）'), findsOneWidget);
+    expect(find.text('频道信息(2)'), findsOneWidget);
     expect(find.text('2 名成员'), findsNothing);
+    expect(find.text('Agent'), findsNothing);
+    expect(
+        find.byKey(const ValueKey('channel_member_avatar_@agent:p2p-im.com')),
+        findsNothing);
 
     await tester.tap(find.byIcon(Symbols.remove));
     await tester.pumpAndSettle();
 
     expect(find.text('移除频道成员'), findsOneWidget);
     expect(find.text('Alex Chen'), findsOneWidget);
+    expect(find.text('@agent:p2p-im.com'), findsNothing);
   });
 
   testWidgets('owned channel member avatar does not open profile',
@@ -942,9 +947,26 @@ void main() {
       ],
       pending: const AsSyncPending.empty(),
     );
-    final router = GoRouter(
-      initialLocation: '/channel/ch_real/info',
+    late GoRouter router;
+    router = GoRouter(
+      initialLocation: '/channel/ch_real/conversation',
       routes: [
+        GoRoute(
+          path: '/channel/:channelId/conversation',
+          builder: (_, state) => Scaffold(
+            body: Column(
+              children: [
+                const Text('频道会话页'),
+                TextButton(
+                  onPressed: () => router.push(
+                    '/channel/${state.pathParameters['channelId']}/info',
+                  ),
+                  child: const Text('打开频道信息'),
+                ),
+              ],
+            ),
+          ),
+        ),
         GoRoute(
           path: '/channel/:channelId/info',
           builder: (_, state) => ChannelInfoPage(
@@ -1094,7 +1116,7 @@ void main() {
 
     expect(find.text('举报频道'), findsNothing);
     expect(find.text('退出频道'), findsNothing);
-    expect(find.text('产品公告（2）'), findsOneWidget);
+    expect(find.text('频道信息(2)'), findsOneWidget);
     expect(find.text('2 名成员'), findsNothing);
   });
 
@@ -1220,6 +1242,176 @@ void main() {
 
     expect(asClient.leftChannelId, 'ch_real');
     expect(find.text('已解散频道'), findsOneWidget);
+  });
+
+  testWidgets('channel leave returns to channel tab page', (tester) async {
+    final asClient = _PostingChannelAsClient();
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '综合讨论',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 32,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    late GoRouter router;
+    router = GoRouter(
+      initialLocation: '/channel/ch_real/conversation',
+      routes: [
+        GoRoute(
+          path: '/channel/:channelId/conversation',
+          builder: (_, state) => Scaffold(
+            body: Column(
+              children: [
+                const Text('频道会话页'),
+                TextButton(
+                  onPressed: () => router.push(
+                    '/channel/${state.pathParameters['channelId']}/info',
+                  ),
+                  child: const Text('打开频道信息'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId/info',
+          builder: (_, state) => ChannelInfoPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/me/channels',
+          builder: (_, __) => const Scaffold(body: Text('频道列表页')),
+        ),
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('频道Tab页')),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('打开频道信息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('退出频道'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.leftChannelId, 'ch_real');
+    expect(router.routeInformationProvider.value.uri.toString(),
+        '/home?tab=channels');
+    expect(find.text('频道Tab页'), findsOneWidget);
+    expect(find.text('频道列表页'), findsNothing);
+    expect(find.text('频道会话页'), findsNothing);
+  });
+
+  testWidgets('channel dissolve returns to channel tab page', (tester) async {
+    final asClient = _PostingChannelAsClient();
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '综合讨论',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 32,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/channel/ch_real/info',
+      routes: [
+        GoRoute(
+          path: '/channel/:channelId/info',
+          builder: (_, state) => ChannelInfoPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/me/channels',
+          builder: (_, __) => const Scaffold(body: Text('频道列表页')),
+        ),
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('频道Tab页')),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('解散频道'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.leftChannelId, 'ch_real');
+    expect(router.routeInformationProvider.value.uri.toString(),
+        '/home?tab=channels');
+    expect(find.text('频道Tab页'), findsOneWidget);
+    expect(find.text('频道列表页'), findsNothing);
   });
 
   testWidgets('channel detail info page renders figma content', (tester) async {
@@ -1742,6 +1934,15 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
         role: asChannelRoleMember,
         status: 'join',
         joinedAtMs: 1780712460000,
+      ),
+      AsChannelMember(
+        channelId: 'ch_real',
+        userMxid: '@agent:p2p-im.com',
+        displayName: 'Agent',
+        domain: 'p2p-im.com',
+        role: asChannelRoleMember,
+        status: asChannelMemberStatusJoined,
+        joinedAtMs: 1780712520000,
       ),
     ];
   }

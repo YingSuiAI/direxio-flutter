@@ -139,7 +139,7 @@ abstract class AppLocalizations {
   /// No description provided for @tabChats.
   ///
   /// In zh, this message translates to:
-  /// **'Chats'**
+  /// **'聊天'**
   String get tabChats;
 
   /// No description provided for @tabContacts.
@@ -680,7 +680,7 @@ abstract class AppLocalizations {
   /// No description provided for @loginDomainHint.
   ///
   /// In zh, this message translates to:
-  /// **'https://你的域名'**
+  /// **'你的域名'**
   String get loginDomainHint;
 
   /// No description provided for @loginPasswordHint.

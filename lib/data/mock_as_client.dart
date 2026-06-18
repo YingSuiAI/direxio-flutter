@@ -233,6 +233,7 @@ class MockAsClient implements AsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String requestMessage = '',
   }) async {
     await Future.delayed(_latency);
     return ContactEntry(
@@ -241,6 +242,7 @@ class MockAsClient implements AsClient {
       domain: domain,
       roomId: '!mock-contact:portal.local',
       status: 'pending_outbound',
+      requestMessage: requestMessage,
     );
   }
 
@@ -294,6 +296,14 @@ class MockAsClient implements AsClient {
   Future<void> deleteRoomMessage({
     required String roomId,
     required String eventId,
+  }) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
+  Future<void> deleteRoomMessagesBatch({
+    required String roomId,
+    required List<String> eventIds,
   }) async {
     await Future.delayed(_latency);
   }

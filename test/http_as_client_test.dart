@@ -305,15 +305,17 @@ void main() {
           'mxid': '@alice:p2p-liyanan.com',
           'display_name': 'Alice',
           'domain': 'p2p-liyanan.com',
+          'request_message': '我是 Niki',
         });
-        return http.Response(
-          jsonEncode({
+        return _jsonResponse(
+          {
             'peer_mxid': '@alice:p2p-liyanan.com',
             'display_name': 'Alice',
             'domain': 'p2p-liyanan.com',
             'room_id': '!alice:p2p-im.com',
             'status': 'pending_outbound',
-          }),
+            'request_message': '我是 Niki',
+          },
           200,
         );
       }),
@@ -323,11 +325,13 @@ void main() {
       mxid: '@alice:p2p-liyanan.com',
       displayName: 'Alice',
       domain: 'p2p-liyanan.com',
+      requestMessage: '我是 Niki',
     );
 
     expect(seen.url.path, '/_as/contacts/requests');
     expect(contact.roomId, '!alice:p2p-im.com');
     expect(contact.status, 'pending_outbound');
+    expect(contact.requestMessage, '我是 Niki');
   });
 
   test('sendRoomMessage posts content through AS product route', () async {
@@ -2362,6 +2366,34 @@ void main() {
       client.deleteRoomMessage(
         roomId: '!room:example.com',
         eventId: r'$event/with/slash',
+      ),
+      completes,
+    );
+  });
+
+  test('deleteRoomMessagesBatch posts event_ids to AS batch endpoint',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/_as/rooms/!room%3Aexample.com/messages/delete-batch',
+        );
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'event_ids': [r'$event-1', r'$event/with/slash'],
+        });
+        return http.Response('{}', 200);
+      }),
+    );
+
+    await expectLater(
+      client.deleteRoomMessagesBatch(
+        roomId: '!room:example.com',
+        eventIds: const [r'$event-1', r'$event/with/slash'],
       ),
       completes,
     );

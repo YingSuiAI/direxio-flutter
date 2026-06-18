@@ -1544,6 +1544,41 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  Future<void> _deleteSelectedEventsForMe(List<Event> events) async {
+    final eventIds = events
+        .where((event) => _selected.contains(event.eventId))
+        .map((event) => event.eventId.trim())
+        .where((eventId) => eventId.isNotEmpty)
+        .toList(growable: false);
+    if (eventIds.isEmpty) return;
+    try {
+      await ref.read(asClientProvider).deleteRoomMessagesBatch(
+            roomId: widget.roomId,
+            eventIds: eventIds,
+          );
+      if (!mounted) return;
+      ref.read(asSyncCacheProvider.notifier).update((state) {
+        var next = state;
+        for (final eventId in eventIds) {
+          next = next.withDeletedMessage(widget.roomId, eventId);
+        }
+        return next;
+      });
+      unawaited(_refreshBootstrapAfterVisibilityMutation());
+      setState(() {
+        _multiSelect = false;
+        _selected.removeWhere(eventIds.contains);
+      });
+    } on Object catch (err) {
+      debugPrint('delete selected messages for me failed: $err');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除消息失败：$err')),
+        );
+      }
+    }
+  }
+
   Future<void> _refreshBootstrapAfterVisibilityMutation() async {
     try {
       final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
@@ -1829,9 +1864,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _openContactInfo(String userId) {
-    final id = userId.trim();
-    if (id.isEmpty) return;
-    context.push('/contact/${Uri.encodeComponent(id)}?source=chat_info');
+    context.push('/chat-info/${Uri.encodeComponent(widget.roomId)}');
   }
 
   void _openMyProfileFromChat() {
@@ -3235,23 +3268,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       sourceRoomType: _favoriteRoomType(room),
                     ),
                   ),
-                  onDelete: () async {
-                    for (final id in _selected.toList()) {
-                      Event? ev;
-                      for (final e in events) {
-                        if (e.eventId == id) {
-                          ev = e;
-                          break;
-                        }
-                      }
-                      if (ev == null) continue;
-                      await _deleteEventForMe(ev);
-                    }
-                    setState(() {
-                      _multiSelect = false;
-                      _selected.clear();
-                    });
-                  },
+                  onDelete: () => unawaited(_deleteSelectedEventsForMe(events)),
                 )
               else
                 ChatCapsuleInputBar(
@@ -4059,7 +4076,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                             onTap: () => context.push(
                               c.isGroup
                                   ? '/group-detail/${Uri.encodeComponent(c.id)}'
-                                  : '/contact/${Uri.encodeComponent(c.mxid)}?source=chat_info',
+                                  : '/chat-info/${Uri.encodeComponent(c.id)}',
                             ),
                           ),
                         ],

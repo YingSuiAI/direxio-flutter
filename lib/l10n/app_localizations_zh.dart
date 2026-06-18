@@ -27,7 +27,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get languageDialogTitle => '语言';
 
   @override
-  String get tabChats => 'Chats';
+  String get tabChats => '聊天';
 
   @override
   String get tabContacts => '通讯录';
@@ -304,7 +304,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginSubtitle => '使用你的 Portal 域名和密码进入去中心化通讯空间';
 
   @override
-  String get loginDomainHint => 'https://你的域名';
+  String get loginDomainHint => '你的域名';
 
   @override
   String get loginPasswordHint => '登录密码';

@@ -19,6 +19,7 @@ import '../../presentation/pages/group_info_page.dart';
 import '../../presentation/pages/group_chat_page.dart';
 import '../../presentation/pages/contact_detail_page.dart';
 import '../../presentation/pages/contact_home_page.dart';
+import '../../presentation/pages/contact_channels_page.dart';
 import '../../presentation/pages/add_contact_page.dart';
 import '../../presentation/pages/add_contact_detail_page.dart';
 import '../../presentation/pages/add_contact_verification_page.dart';
@@ -256,6 +257,15 @@ String? consumeCallAutotestInitialRouteFile() {
   }
 }
 
+int _homeInitialTabFromQuery(String? tab) {
+  return switch (tab?.trim().toLowerCase()) {
+    'contacts' || 'contact' || '1' => 1,
+    'channels' || 'channel' || '2' => 2,
+    'me' || 'mine' || 'profile' || '3' => 3,
+    _ => 0,
+  };
+}
+
 @riverpod
 GoRouter appRouter(Ref ref) {
   final authRefresh = ValueNotifier<int>(0);
@@ -311,7 +321,13 @@ GoRouter appRouter(Ref ref) {
           return _slidePage(OnboardingPasswordPage(payload: payload));
         },
       ),
-      GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+      GoRoute(
+        path: '/home',
+        builder: (_, state) => HomePage(
+          initialTab:
+              _homeInitialTabFromQuery(state.uri.queryParameters['tab']),
+        ),
+      ),
       GoRoute(
         path: '/chat/:roomId',
         pageBuilder: (_, state) => _pageForLocation(
@@ -363,6 +379,12 @@ GoRouter appRouter(Ref ref) {
         path: '/contact-home/:userId',
         pageBuilder: (_, state) => _slidePage(
           ContactHomePage(userId: state.pathParameters['userId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/contact-channels/:userId',
+        pageBuilder: (_, state) => _slidePage(
+          ContactChannelsPage(userId: state.pathParameters['userId']!),
         ),
       ),
       GoRoute(

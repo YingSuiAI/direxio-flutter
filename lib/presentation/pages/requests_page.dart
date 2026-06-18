@@ -990,7 +990,7 @@ class _PendingSection extends StatelessWidget {
       rows.add(
         _PendingRow(
           name: name,
-          message: mxid.isEmpty ? '请求加为好友' : mxid,
+          message: _contactRequestMessage(contact, fallback: mxid),
           seed: mxid.isEmpty ? name : mxid,
           imageUrl: _avatarUrlForContact(client, contact),
           onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
@@ -1035,6 +1035,16 @@ class _PendingSection extends StatelessWidget {
     }
     return Column(children: rows);
   }
+}
+
+String _contactRequestMessage(
+  AsSyncContact contact, {
+  required String fallback,
+}) {
+  final message = contact.requestMessage.trim();
+  if (message.isNotEmpty) return message;
+  final normalizedFallback = fallback.trim();
+  return normalizedFallback.isEmpty ? '请求加为好友' : normalizedFallback;
 }
 
 class _PendingRow extends StatelessWidget {

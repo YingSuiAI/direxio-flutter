@@ -123,7 +123,7 @@
   },
   "loginTitle": "Portal IM",
   "loginSubtitle": "Portal ドメインとパスワードで分散型メッセージに入ります",
-  "loginDomainHint": "https://あなたのドメイン",
+  "loginDomainHint": "あなたのドメイン",
   "loginPasswordHint": "パスワード",
   "loginButton": "ログイン",
   "loginButtonLoading": "ログイン中…",

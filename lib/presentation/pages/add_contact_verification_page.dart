@@ -56,6 +56,7 @@ class _AddContactVerificationPageState
               mxid: widget.userId,
               displayName: profile.name,
               domain: profile.domain,
+              requestMessage: _messageController.text.trim(),
             );
         ref.read(asSyncCacheProvider.notifier).update(
               (state) => state.withContactEntry(contact),

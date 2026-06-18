@@ -17,7 +17,7 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _domainCtrl = TextEditingController(text: 'https://');
+  final _domainCtrl = TextEditingController();
   final _portalTokenCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
@@ -33,7 +33,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     // ?hs= URL param overrides storage (useful for testing)
     final hsParam = Uri.base.queryParameters['hs'];
     if (hsParam != null && hsParam.isNotEmpty) {
-      if (mounted) setState(() => _domainCtrl.text = _withHttpsPrefix(hsParam));
+      if (mounted) setState(() => _domainCtrl.text = _withoutScheme(hsParam));
       return;
     }
     const storage = FlutterSecureStorage();
@@ -47,8 +47,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final uri = Uri.tryParse(hs);
       final authority = uri?.hasAuthority == true ? uri!.authority : '';
       if (authority.isNotEmpty) {
-        final scheme = uri!.scheme.isNotEmpty ? uri.scheme : 'https';
-        setState(() => _domainCtrl.text = '$scheme://$authority');
+        setState(() => _domainCtrl.text = authority);
       }
     }
     if (portalToken != null && portalToken.trim().isNotEmpty) {
@@ -71,7 +70,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     try {
       await ref
           .read(authStateNotifierProvider.notifier)
-          .login(_domainCtrl.text.trim(), _portalTokenCtrl.text);
+          .login(_withHttpsPrefix(_domainCtrl.text), _portalTokenCtrl.text);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -139,7 +138,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   M3InputField(
                     controller: _domainCtrl,
                     icon: Symbols.link,
-                    hint: l10n?.loginDomainHint ?? 'https://你的域名',
+                    hint: l10n?.loginDomainHint ?? '你的域名',
                     keyboardType: TextInputType.url,
                   ),
                   const SizedBox(height: 12),
@@ -184,9 +183,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
 String _withHttpsPrefix(String value) {
   final trimmed = value.trim();
-  if (trimmed.isEmpty) return 'https://';
+  if (trimmed.isEmpty) return '';
   final hasScheme = RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(trimmed);
   return hasScheme ? trimmed : 'https://$trimmed';
+}
+
+String _withoutScheme(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return '';
+  final uri = Uri.tryParse(trimmed);
+  if (uri != null && uri.hasAuthority) return uri.authority;
+  return trimmed.replaceFirst(RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://'), '');
 }
 
 class _ErrorBanner extends StatelessWidget {

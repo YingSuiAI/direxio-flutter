@@ -19,7 +19,9 @@ import '../../data/bi_analytics_service.dart';
 import 'as_sync_cache_provider.dart';
 import 'as_call_session_store_provider.dart';
 import 'chat_clear_state_provider.dart';
+import 'channel_provider.dart';
 import 'friend_request_read_provider.dart';
+import 'local_created_channels_provider.dart';
 import 'local_message_order_provider.dart';
 import 'local_outbox_provider.dart';
 import 'media_thumbnail_cache_provider.dart';
@@ -418,18 +420,21 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             httpClient: client.httpClient,
           );
     final storedUserId = await _storage.read(key: 'matrix_user_id');
+    final storedHomeserver = await _storage.read(key: 'matrix_homeserver');
     // 认证成功后再读取 owner.json，用于确认 Portal owner 信息。
     await _assertPortalDeployed(inputUri.host);
     final effectivePortalToken = session.adminAccessToken.trim();
+    final matrixUri = _resolveClientHomeserver(inputUri, session.homeserver);
 
-    if (_isDifferentAccountLogin(
+    if (_shouldResetUserScopedLocalStateForLogin(
       client,
       session.userId,
       storedUserId: storedUserId,
+      nextHomeserver: matrixUri,
+      storedHomeserver: storedHomeserver,
     )) {
       await _clearUserScopedLocalState(client);
     }
-    final matrixUri = _resolveClientHomeserver(inputUri, session.homeserver);
     await client.checkHomeserver(matrixUri);
     final checkedHomeserver = client.homeserver ?? matrixUri;
     final storedDeviceId = await _storage.read(key: 'matrix_device_id');
@@ -1092,10 +1097,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         client.userID == userId;
   }
 
-  bool _isDifferentAccountLogin(
+  bool _shouldResetUserScopedLocalStateForLogin(
     Client client,
     String nextUserId, {
     required String? storedUserId,
+    required Uri nextHomeserver,
+    required String? storedHomeserver,
   }) {
     final next = nextUserId.trim();
     if (next.isEmpty) return false;
@@ -1103,7 +1110,28 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (current.isNotEmpty && current != next) return true;
     final stored = storedUserId?.trim() ?? '';
     if (stored.isNotEmpty && stored != next) return true;
+    final nextHost = _normalizedAccountHost(nextHomeserver);
+    final currentHost = client.homeserver == null
+        ? ''
+        : _normalizedAccountHost(client.homeserver!);
+    if (currentHost.isNotEmpty && currentHost != nextHost) return true;
+    final storedHost = _normalizedStoredAccountHost(storedHomeserver);
+    if (storedHost.isNotEmpty && storedHost != nextHost) return true;
     return client.rooms.isNotEmpty && !_isLoggedInAs(client, next);
+  }
+
+  String _normalizedStoredAccountHost(String? homeserver) {
+    final parsed = Uri.tryParse(homeserver?.trim() ?? '');
+    if (parsed == null || parsed.host.isEmpty) return '';
+    return _normalizedAccountHost(parsed);
+  }
+
+  String _normalizedAccountHost(Uri homeserver) {
+    final scheme = homeserver.scheme.toLowerCase();
+    final host = homeserver.host.toLowerCase();
+    if (host.isEmpty) return '';
+    final port = homeserver.hasPort ? ':${homeserver.port}' : '';
+    return '$scheme://$host$port';
   }
 
   bool _isTokenFailure(Object error) {
@@ -1208,6 +1236,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     ref.invalidate(friendRequestReadStoreProvider);
     ref.invalidate(recoveredUnreadStoreProvider);
     ref.invalidate(asCallSessionStoreProvider);
+    ref.invalidate(channelPostStoreProvider);
+    ref.invalidate(localCreatedChannelsProvider);
     await _deleteUserScopedSupportFiles();
   }
 
@@ -1311,7 +1341,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final lastPortalToken = await _storage.read(key: lastLoginPortalTokenKey) ??
         await _storage.read(key: AuthStateNotifier.adminAccessTokenKey);
     await _logoutMatrixSessionPreservingStore(client);
-    await _clearUserScopedLocalState(client, clearMatrix: false);
+    await _clearUserScopedLocalState(client);
     await _storage.deleteAll();
     if (lastHomeserver != null && lastHomeserver.trim().isNotEmpty) {
       await _storage.write(

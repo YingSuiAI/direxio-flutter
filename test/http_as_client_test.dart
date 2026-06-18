@@ -1912,6 +1912,22 @@ void main() {
     expect(post.media['mxc'], 'mxc://image');
   });
 
+  test('recallChannelPost posts reason to recall endpoint', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch1/posts/post1/recall');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {'reason': 'recall post'});
+        return _jsonResponse({}, 200);
+      }),
+    );
+
+    await client.recallChannelPost('ch1', 'post1');
+  });
+
   test('createChannelComment posts to target post id', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),

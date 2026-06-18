@@ -466,6 +466,13 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
+  Future<void> recallChannelPost(
+    String channelId,
+    String postId, {
+    String reason = 'recall post',
+  }) async {}
+
+  @override
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
     String postId, {
@@ -6375,6 +6382,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('群管理'), findsNothing);
+    expect(find.text('移除'), findsNothing);
 
     final ownerClient = Client('PortalIMGroupInfoOwnerManageTest')
       ..setUserId('@owner:p2p-im.com');
@@ -6398,6 +6406,56 @@ void main() {
     await tester.pump();
 
     expect(find.text('群管理'), findsOneWidget);
+    expect(find.text('移除'), findsOneWidget);
+  });
+
+  testWidgets('group owner can remove member from group info', (tester) async {
+    final client = Client('PortalIMGroupInfoRemoveMemberTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('group_info_member_@alice:p2p-im.com')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('移除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey(
+      'group_info_remove_member_@alice:p2p-im.com',
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '移除'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.removeGroupMemberCalls, 1);
+    expect(asClient.removedGroupRoomId, '!group:p2p-im.com');
+    expect(asClient.removedGroupPeerMxid, '@alice:p2p-im.com');
+    expect(
+      find.byKey(const ValueKey('group_info_member_@alice:p2p-im.com')),
+      findsNothing,
+    );
   });
 
   testWidgets(
@@ -6625,10 +6683,13 @@ void main() {
           find.byKey(const ValueKey('group_manage_nav_chevron_群名称')),
         )
         .dx;
+    final screenRight =
+        tester.view.physicalSize.width / tester.view.devicePixelRatio;
 
     expect(find.text('真实群'), findsOneWidget);
     expect(valueRight, greaterThan(labelRight));
     expect(chevronRight, greaterThan(valueRight));
+    expect(chevronRight, greaterThan(screenRight - 60));
   });
 
   testWidgets('group management mute switch calls AS APIs', (tester) async {
@@ -8119,6 +8180,20 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('contact:@alice:p2p-im.com:chat_avatar'), findsOneWidget);
+  });
+
+  testWidgets('group chat long pressing member avatar inserts mention',
+      (tester) async {
+    await _pumpGroupChatWithTextEvent(tester);
+    await tester.pumpAndSettle();
+
+    await tester.longPress(
+      find.byKey(const ValueKey('group_member_avatar_@alice:p2p-im.com')),
+    );
+    await tester.pump();
+
+    final editable = tester.widget<EditableText>(find.byType(EditableText));
+    expect(editable.controller.text, '@Alice ');
   });
 
   testWidgets('group chat quote shows reply bar and clears after send',

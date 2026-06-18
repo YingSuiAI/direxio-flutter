@@ -376,6 +376,25 @@ void main() {
     expect(asClient.toggledPostId, 'post1');
   });
 
+  testWidgets('channel owner can recall a post from post list', (tester) async {
+    final asClient = _PostingChannelAsClient();
+    await _pumpRealChannelPage(tester, asClient);
+
+    expect(find.text('第一条帖子'), findsOneWidget);
+    final recallButton = find.byKey(
+      const ValueKey('channel_post_recall_post1'),
+    );
+    expect(recallButton, findsOneWidget);
+
+    await tester.tap(recallButton);
+    await tester.pumpAndSettle();
+
+    expect(asClient.recalledPostId, 'post1');
+    expect(asClient.recallReason, 'recall post');
+    expect(find.text('帖子已删除'), findsOneWidget);
+    expect(find.text('第一条帖子'), findsNothing);
+  });
+
   testWidgets('channel post detail uses red heart for reacted post',
       (tester) async {
     final asClient = _PostingChannelAsClient(reactedByMe: true);
@@ -893,7 +912,7 @@ void main() {
     expect(find.text('Alex Chen'), findsOneWidget);
   });
 
-  testWidgets('owned channel member avatar opens current user profile',
+  testWidgets('owned channel member avatar does not open profile',
       (tester) async {
     final asClient = _ChannelInfoMembersAsClient();
     final matrixClient = Client('ChannelInfoAvatarProfileTest')
@@ -956,12 +975,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('频道详情'), findsOneWidget);
     await tester.tap(
       find.byKey(const ValueKey('channel_member_avatar_@owner:p2p-im.com')),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('个人信息页面'), findsOneWidget);
+    expect(find.text('个人信息页面'), findsNothing);
+    expect(find.text('频道详情'), findsOneWidget);
   });
 
   testWidgets('owned channel info mute switch calls AS APIs', (tester) async {
@@ -1630,6 +1651,7 @@ class _MemoryChannelPostStore implements ChannelPostStore {
     String channelId,
     Iterable<AsChannelPost> posts,
   ) async {
+    _posts.removeWhere((_, post) => post.channelId.trim() == channelId.trim());
     for (final post in posts) {
       await upsertPost(post);
     }
@@ -1640,6 +1662,16 @@ class _MemoryChannelPostStore implements ChannelPostStore {
     final postId = post.postId.trim();
     final eventId = post.eventId.trim();
     _posts['${post.channelId}:${postId.isNotEmpty ? postId : eventId}'] = post;
+  }
+
+  @override
+  Future<void> removePost(String channelId, String postId) async {
+    _posts.removeWhere((_, post) {
+      if (post.channelId.trim() != channelId.trim()) return false;
+      final id = post.postId.trim();
+      if (id.isNotEmpty) return id == postId.trim();
+      return post.eventId.trim() == postId.trim();
+    });
   }
 }
 
@@ -1811,6 +1843,8 @@ class _PostingChannelAsClient extends MockAsClient {
   String? readMarkerChannelId;
   String? readMarkerEventId;
   String? leftChannelId;
+  String? recalledPostId;
+  String? recallReason;
 
   @override
   Future<List<AsChannelPost>> getChannelPosts(
@@ -1818,6 +1852,7 @@ class _PostingChannelAsClient extends MockAsClient {
     int limit = 50,
     int beforeTs = 0,
   }) async {
+    if (recalledPostId != null) return const [];
     return [
       AsChannelPost(
         postId: postId,
@@ -1835,6 +1870,16 @@ class _PostingChannelAsClient extends MockAsClient {
         reactedByMe: reactedByMe,
       ),
     ];
+  }
+
+  @override
+  Future<void> recallChannelPost(
+    String channelId,
+    String postId, {
+    String reason = 'recall post',
+  }) async {
+    recalledPostId = postId;
+    recallReason = reason;
   }
 
   @override

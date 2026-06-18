@@ -12,6 +12,8 @@ abstract class ChannelPostStore {
   );
 
   Future<void> upsertPost(AsChannelPost post);
+
+  Future<void> removePost(String channelId, String postId);
 }
 
 class DeferredChannelPostStore implements ChannelPostStore {
@@ -38,6 +40,12 @@ class DeferredChannelPostStore implements ChannelPostStore {
   Future<void> upsertPost(AsChannelPost post) async {
     final store = await _loadStore();
     await store.upsertPost(post);
+  }
+
+  @override
+  Future<void> removePost(String channelId, String postId) async {
+    final store = await _loadStore();
+    await store.removePost(channelId, postId);
   }
 }
 
@@ -72,8 +80,7 @@ class FileChannelPostStore implements ChannelPostStore {
       for (final post in posts)
         if (post.channelId.trim() == trimmed) _validOrNull(post),
     ].whereType<AsChannelPost>().toList(growable: false);
-    if (normalized.isEmpty) return;
-    await _upsertAll(normalized);
+    await _replaceChannel(trimmed, normalized);
   }
 
   @override
@@ -81,6 +88,20 @@ class FileChannelPostStore implements ChannelPostStore {
     final valid = _validOrNull(post);
     if (valid == null) return;
     await _upsertAll([valid]);
+  }
+
+  @override
+  Future<void> removePost(String channelId, String postId) async {
+    final trimmedChannelId = channelId.trim();
+    final trimmedPostId = postId.trim();
+    if (trimmedChannelId.isEmpty || trimmedPostId.isEmpty) return;
+    final next = (await _readAll()).where((post) {
+      if (post.channelId.trim() != trimmedChannelId) return true;
+      final id = post.postId.trim();
+      if (id.isNotEmpty) return id != trimmedPostId;
+      return post.eventId.trim() != trimmedPostId;
+    }).toList(growable: false);
+    await _write(next);
   }
 
   Future<List<AsChannelPost>> _readAll() async {
@@ -105,6 +126,25 @@ class FileChannelPostStore implements ChannelPostStore {
   Future<void> _upsertAll(Iterable<AsChannelPost> posts) async {
     final byStableId = <String, AsChannelPost>{
       for (final post in await _readAll()) _stableId(post): post,
+    };
+    for (final post in posts) {
+      byStableId[_stableId(post)] = post;
+    }
+    final next = byStableId.values.toList(growable: false)
+      ..sort((a, b) => a.originServerTs.compareTo(b.originServerTs));
+    final capped = next.length <= maxEntries
+        ? next
+        : next.sublist(next.length - maxEntries);
+    await _write(capped);
+  }
+
+  Future<void> _replaceChannel(
+    String channelId,
+    Iterable<AsChannelPost> posts,
+  ) async {
+    final byStableId = <String, AsChannelPost>{
+      for (final post in await _readAll())
+        if (post.channelId.trim() != channelId) _stableId(post): post,
     };
     for (final post in posts) {
       byStableId[_stableId(post)] = post;

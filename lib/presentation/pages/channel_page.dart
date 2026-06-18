@@ -394,6 +394,9 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
                               .read(channelPostsProvider(channel.id).notifier)
                               .refresh(silent: true);
                         },
+                        onRecall: _canRecallPost(channel, post)
+                            ? () => _recallPost(channel, post)
+                            : null,
                       ),
                     )
                 else
@@ -439,6 +442,39 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
         // Read marker failure should not block the channel reader UI.
       }
     });
+  }
+
+  bool _canRecallPost(ChannelInboxItem channel, AsChannelPost post) {
+    return channel.isOwned && post.postId.trim().isNotEmpty;
+  }
+
+  Future<void> _recallPost(ChannelInboxItem channel, AsChannelPost post) async {
+    final postId = post.postId.trim();
+    if (postId.isEmpty) return;
+    try {
+      await ref.read(asClientProvider).recallChannelPost(
+            channel.id,
+            postId,
+            reason: 'recall post',
+          );
+      await ref.read(channelPostsProvider(channel.id).notifier).removeLocal(
+            postId,
+          );
+      unawaited(
+        ref.read(channelPostsProvider(channel.id).notifier).refresh(
+              silent: true,
+            ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('帖子已删除')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('删除帖子失败：$error')),
+      );
+    }
   }
 
   Future<void> _initChannelTimeline() async {
@@ -806,12 +842,14 @@ class _RealChannelPostCard extends StatefulWidget {
     required this.post,
     this.onOpen,
     this.onReaction,
+    this.onRecall,
   });
 
   final ChannelInboxItem channel;
   final AsChannelPost post;
   final VoidCallback? onOpen;
   final Future<void> Function()? onReaction;
+  final Future<void> Function()? onRecall;
 
   @override
   State<_RealChannelPostCard> createState() => _RealChannelPostCardState();
@@ -819,6 +857,7 @@ class _RealChannelPostCard extends StatefulWidget {
 
 class _RealChannelPostCardState extends State<_RealChannelPostCard> {
   bool _expanded = false;
+  bool _recalling = false;
 
   @override
   Widget build(BuildContext context) {
@@ -883,6 +922,14 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
                     ],
                   ),
                 ),
+                if (widget.onRecall != null) ...[
+                  const SizedBox(width: 8),
+                  _PostRecallButton(
+                    key: ValueKey('channel_post_recall_${_realPostKey(post)}'),
+                    busy: _recalling,
+                    onTap: _recall,
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 14),
@@ -930,6 +977,62 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _recall() async {
+    final onRecall = widget.onRecall;
+    if (onRecall == null || _recalling) return;
+    setState(() => _recalling = true);
+    try {
+      await onRecall();
+    } finally {
+      if (mounted) setState(() => _recalling = false);
+    }
+  }
+}
+
+class _PostRecallButton extends StatelessWidget {
+  const _PostRecallButton({
+    super.key,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Tooltip(
+      message: '删除帖子',
+      child: Material(
+        color: t.surfaceHover,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: busy ? null : onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox.square(
+            dimension: 32,
+            child: Center(
+              child: busy
+                  ? SizedBox.square(
+                      dimension: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: t.danger,
+                      ),
+                    )
+                  : Icon(
+                      Symbols.delete,
+                      size: 18,
+                      color: t.danger,
+                    ),
+            ),
+          ),
         ),
       ),
     );

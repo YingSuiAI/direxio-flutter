@@ -940,6 +940,22 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<void> recallChannelPost(
+    String channelId,
+    String postId, {
+    String reason = 'recall post',
+  }) async {
+    await Future.delayed(_latency);
+    final posts = _channelPosts[channelId];
+    if (posts == null) return;
+    posts.removeWhere((post) {
+      final id = post.postId.trim();
+      if (id.isNotEmpty) return id == postId.trim();
+      return post.eventId.trim() == postId.trim();
+    });
+  }
+
+  @override
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
     String postId, {

@@ -1306,10 +1306,6 @@ class _ChatList extends ConsumerWidget {
       ref.watch(asSyncCacheProvider),
       currentUserId,
     );
-    final friendRequestReadState = ref.watch(friendRequestReadProvider);
-    final pendingFriendRequests = friendRequestReadState.unreadCountForRoomIds(
-      _pendingFriendRequestRoomIds(client: client, syncCache: syncCache),
-    );
     final hiddenConversationIds = ref.watch(_homeHiddenConversationIdsProvider);
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
@@ -1346,19 +1342,9 @@ class _ChatList extends ConsumerWidget {
         });
       return ListView.builder(
         padding: const EdgeInsets.only(top: 4, bottom: 96),
-        itemCount: convs.length + 1,
+        itemCount: convs.length,
         itemBuilder: (context, i) {
-          if (i == 0) {
-            return _ChatShortcutRow(
-              iconAsset: _iconMenuAddFriend,
-              name: '新的好友',
-              lastMessage: '查看好友请求',
-              unread: pendingFriendRequests,
-              onTap: () => context.push('/requests'),
-            );
-          }
-          final conversationIndex = i - 1;
-          final c = convs[conversationIndex];
+          final c = convs[i];
           final last = c.lastMessage;
           final isAgent = c.id == 'mock_aibot';
           return _ConvRow(
@@ -1458,18 +1444,9 @@ class _ChatList extends ConsumerWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
-      itemCount: filteredConversations.length + 1,
+      itemCount: filteredConversations.length,
       itemBuilder: (context, i) {
-        if (i == 0) {
-          return _ChatShortcutRow(
-            iconAsset: _iconMenuAddFriend,
-            name: '新的好友',
-            lastMessage: pendingFriendRequests > 0 ? '有新的好友请求' : '查看好友请求',
-            unread: pendingFriendRequests,
-            onTap: () => context.push('/requests'),
-          );
-        }
-        final conversation = filteredConversations[i - 1];
+        final conversation = filteredConversations[i];
         final room = conversation.room;
         final lastEvent = room?.lastEvent;
         final visibilityPolicy =
@@ -1876,110 +1853,6 @@ String _formatConvTime(int ts) {
     return weekdays[dt.weekday - 1];
   }
   return DateFormat('MM/dd').format(dt);
-}
-
-class _ChatShortcutRow extends StatelessWidget {
-  const _ChatShortcutRow({
-    required this.iconAsset,
-    required this.name,
-    required this.lastMessage,
-    required this.onTap,
-    this.unread = 0,
-  });
-
-  final String iconAsset;
-  final String name;
-  final String lastMessage;
-  final int unread;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = _homeTextColor(context);
-    final mutedColor = _homeMutedColor(context);
-    final borderColor = _homeBorderColor(context);
-    final t = context.tk;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Container(
-                width: _conversationTileAvatarSize,
-                height: _conversationTileAvatarSize,
-                decoration: BoxDecoration(
-                  color: t.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: _DesignAssetIcon(
-                  assetName: iconAsset,
-                  size: 22,
-                  color: t.onPrimaryContainer,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Container(
-                  height: 64,
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: borderColor, width: 0.5),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.sans(
-                                size: 14,
-                                weight: FontWeight.w600,
-                                color: textColor,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              lastMessage,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.sans(
-                                size: 12,
-                                color: mutedColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        width: 36,
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: unread > 0
-                              ? _ConversationUnreadBadge(count: unread)
-                              : const SizedBox(height: 20),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// 会话列表行 —— 对齐 Figma node 53:505。

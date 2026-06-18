@@ -319,7 +319,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addContactTitle => '添加好友';
 
   @override
-  String get addContactEmptyHint => '输入对方昵称或 Portal URL 查找';
+  String get addContactEmptyHint => '输入对方域名查找';
 
   @override
   String get addContactDomainNotProductUser => '该域名不是产品用户';

@@ -73,6 +73,25 @@ class ChannelPostsNotifier
     state = AsyncValue.data(await store.readChannel(channelId));
   }
 
+  Future<void> removeLocal(String postId) async {
+    final trimmed = postId.trim();
+    if (trimmed.isEmpty) return;
+    final store = await _store();
+    await store.removePost(channelId, trimmed);
+    final current = state.valueOrNull;
+    if (current != null) {
+      state = AsyncValue.data(
+        current.where((post) {
+          final id = post.postId.trim();
+          if (id.isNotEmpty) return id != trimmed;
+          return post.eventId.trim() != trimmed;
+        }).toList(growable: false),
+      );
+      return;
+    }
+    state = AsyncValue.data(await store.readChannel(channelId));
+  }
+
   Future<void> _load() async {
     List<AsChannelPost> cached = const [];
     try {

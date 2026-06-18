@@ -1694,6 +1694,13 @@ abstract class AsClient {
     Map<String, Object?> media = const {},
   });
 
+  /// POST /_as/channels/{channelId}/posts/{postId}/recall
+  Future<void> recallChannelPost(
+    String channelId,
+    String postId, {
+    String reason = 'recall post',
+  });
+
   /// GET /_as/channels/{channelId}/posts/{postId}/comments
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
@@ -1764,7 +1771,7 @@ abstract class AsClient {
     required List<String> invite,
   });
 
-  /// POST /_as/groups/{roomId}/members/{peerMxid}/remove
+  /// POST /_as/groups/{roomId}/members/{userId}/remove
   Future<void> removeGroupMember({
     required String roomId,
     required String peerMxid,

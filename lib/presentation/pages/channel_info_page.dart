@@ -196,7 +196,6 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             members: displayMembers.take(visibleMemberCount).toList(),
             placeholderCount: displayMembers.isEmpty ? visibleMemberCount : 0,
             isLoading: isLoading,
-            onMemberTap: _openMemberProfile,
             onRemove: _showRemoveMemberSheet,
           );
         },
@@ -374,19 +373,6 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         setState(() => _removingMember = false);
       }
     }
-  }
-
-  void _openMemberProfile(AsChannelMember member) {
-    final userMxid = member.userMxid.trim();
-    if (userMxid.isEmpty) return;
-    final currentUserId = ref.read(matrixClientProvider).userID?.trim() ?? '';
-    if (currentUserId.isNotEmpty && userMxid == currentUserId) {
-      context.push('/me/profile');
-      return;
-    }
-    context.push(
-      '/contact/${Uri.encodeComponent(userMxid)}?source=channel_info_avatar',
-    );
   }
 
   Future<void> _setChannelMuted(
@@ -575,7 +561,6 @@ class _OwnerMemberGrid extends StatelessWidget {
     required this.members,
     required this.placeholderCount,
     required this.isLoading,
-    required this.onMemberTap,
     required this.onRemove,
   });
 
@@ -583,7 +568,6 @@ class _OwnerMemberGrid extends StatelessWidget {
   final List<AsChannelMember> members;
   final int placeholderCount;
   final bool isLoading;
-  final ValueChanged<AsChannelMember> onMemberTap;
   final VoidCallback onRemove;
 
   @override
@@ -593,15 +577,11 @@ class _OwnerMemberGrid extends StatelessWidget {
       runSpacing: 10,
       children: [
         for (final member in members)
-          InkWell(
+          PortalAvatar(
             key: ValueKey('channel_member_avatar_${member.userMxid}'),
-            borderRadius: BorderRadius.circular(8),
-            onTap: () => onMemberTap(member),
-            child: PortalAvatar(
-              seed: _memberName(member),
-              size: 40,
-              shape: AvatarShape.squircle,
-            ),
+            seed: _memberName(member),
+            size: 40,
+            shape: AvatarShape.squircle,
           ),
         for (var index = 0; index < placeholderCount; index++)
           PortalAvatar(

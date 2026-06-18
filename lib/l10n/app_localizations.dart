@@ -710,7 +710,7 @@ abstract class AppLocalizations {
   /// No description provided for @addContactEmptyHint.
   ///
   /// In zh, this message translates to:
-  /// **'输入对方昵称或 Portal URL 查找'**
+  /// **'输入对方域名查找'**
   String get addContactEmptyHint;
 
   /// No description provided for @addContactDomainNotProductUser.

@@ -466,34 +466,49 @@ class _NavRow extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 15, 12, 15),
           child: Row(
             children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: AppTheme.sans(
-                    size: 16,
-                    weight: FontWeight.w500,
-                    color: enabled ? t.text : t.textMute,
-                  ),
+              Text(
+                label,
+                style: AppTheme.sans(
+                  size: 16,
+                  weight: FontWeight.w500,
+                  color: enabled ? t.text : t.textMute,
                 ),
               ),
-              if (value != null) ...[
-                Flexible(
-                  child: Text(
-                    key: ValueKey('group_manage_nav_value_$label'),
-                    value!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: AppTheme.sans(size: 13, color: t.textMute),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (value != null) ...[
+                        Flexible(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 180),
+                            child: Text(
+                              key: ValueKey('group_manage_nav_value_$label'),
+                              value!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                              style: AppTheme.sans(
+                                size: 13,
+                                color: t.textMute,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Icon(
+                        key: ValueKey('group_manage_nav_chevron_$label'),
+                        Symbols.chevron_right,
+                        size: 20,
+                        color: t.textMute,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 6),
-              ],
-              Icon(
-                key: ValueKey('group_manage_nav_chevron_$label'),
-                Symbols.chevron_right,
-                size: 20,
-                color: t.textMute,
               ),
             ],
           ),

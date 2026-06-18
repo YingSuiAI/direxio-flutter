@@ -1026,6 +1026,21 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<void> recallChannelPost(
+    String channelId,
+    String postId, {
+    String reason = 'recall post',
+  }) async {
+    await _requestJson(
+      'POST',
+      'channels/${Uri.encodeComponent(channelId)}/posts/'
+          '${Uri.encodeComponent(postId)}/recall',
+      body: {'reason': reason.trim().isEmpty ? 'recall post' : reason.trim()},
+      allowedStatusCodes: const {200},
+    );
+  }
+
+  @override
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
     String postId, {
@@ -1237,9 +1252,9 @@ class HttpAsClient implements AsClient {
   }) async {
     await _requestJson(
       'POST',
-      'groups/${Uri.encodeComponent(roomId)}/members/'
+      'groups/${Uri.encodeComponent(roomId.trim())}/members/'
           '${Uri.encodeComponent(peerMxid.trim())}/remove',
-      allowedStatusCodes: const {200},
+      allowedStatusCodes: const {200, 204},
     );
   }
 

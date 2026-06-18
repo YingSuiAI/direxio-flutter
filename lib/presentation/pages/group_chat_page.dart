@@ -486,6 +486,22 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     return () => _openContactDetailFromAvatar(id);
   }
 
+  VoidCallback? _memberAvatarMention(String userId, String displayName) {
+    final id = userId.trim();
+    if (!id.startsWith('@') || !id.contains(':')) return null;
+    if (id == ref.read(matrixClientProvider).userID?.trim()) return null;
+    return () {
+      _insertMention(
+        GroupCallInviteMember(
+          userId: id,
+          displayName: displayName.trim().isEmpty
+              ? _fallbackDisplayNameForMxid(id)
+              : displayName.trim(),
+        ),
+      );
+    };
+  }
+
   Future<void> _openRedPacketDetail(RedPacketPayload payload) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -2682,6 +2698,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                       senderName: senderName,
                                       senderAvatarUrl: senderAvatarUrl,
                                       onAvatarTap: _memberAvatarTap(callerId),
+                                      onAvatarLongPress: _memberAvatarMention(
+                                        callerId,
+                                        senderName,
+                                      ),
                                       isVideo:
                                           asCallSessionRecordIsVideo(session),
                                       text: asCallSessionRecordText(session),
@@ -2728,6 +2748,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                   );
                                   final senderAvatarTap =
                                       _memberAvatarTap(e.senderId);
+                                  final senderAvatarLongPress =
+                                      _memberAvatarMention(
+                                    e.senderId,
+                                    e.senderFromMemoryOrFallback
+                                        .calcDisplayname(),
+                                  );
                                   void toggle() => setState(() {
                                         if (selected) {
                                           _selected.remove(e.eventId);
@@ -2781,6 +2807,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                           callerId,
                                         ),
                                         onAvatarTap: _memberAvatarTap(callerId),
+                                        onAvatarLongPress: _memberAvatarMention(
+                                          callerId,
+                                          callerName,
+                                        ),
                                         time: DateFormat('HH:mm').format(
                                           e.originServerTs.toLocal(),
                                         ),
@@ -2819,6 +2849,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                         isMe: isMe,
                                         senderAvatarUrl: senderAvatarUrl,
                                         onAvatarTap: senderAvatarTap,
+                                        onAvatarLongPress:
+                                            senderAvatarLongPress,
                                         selected: selected,
                                         multiSelect: _multiSelect,
                                         mediaSize:
@@ -2853,6 +2885,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                         isMe: isMe,
                                         senderAvatarUrl: senderAvatarUrl,
                                         onAvatarTap: senderAvatarTap,
+                                        onAvatarLongPress:
+                                            senderAvatarLongPress,
                                         selected: selected,
                                         multiSelect: _multiSelect,
                                         fallbackIcon: Symbols.movie,
@@ -2898,6 +2932,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                         isMe: isMe,
                                         senderAvatarUrl: senderAvatarUrl,
                                         onAvatarTap: senderAvatarTap,
+                                        onAvatarLongPress:
+                                            senderAvatarLongPress,
                                         time: time,
                                         durationSeconds:
                                             _groupVoiceDurationSecondsForEvent(
@@ -2955,6 +2991,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                         isMe: isMe,
                                         senderAvatarUrl: senderAvatarUrl,
                                         onAvatarTap: senderAvatarTap,
+                                        onAvatarLongPress:
+                                            senderAvatarLongPress,
                                         time: time,
                                         fileName: e.body,
                                         sizeLabel: sizeLabel,
@@ -2999,6 +3037,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                       isMe: isMe,
                                       senderAvatarUrl: senderAvatarUrl,
                                       onAvatarTap: senderAvatarTap,
+                                      onAvatarLongPress: senderAvatarLongPress,
                                       channelShareJoining:
                                           _joiningChannelShareIds
                                               .contains(channelShareJoinId),
@@ -3185,6 +3224,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
     this.mediaSize = chatMessageDefaultImageMediaSize,
     this.centerOverlay,
     this.onAvatarTap,
+    this.onAvatarLongPress,
     this.onTap,
   });
 
@@ -3199,6 +3239,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
   final ChatMediaBubbleSize mediaSize;
   final Widget? centerOverlay;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onAvatarLongPress;
   final VoidCallback? onTap;
 
   @override
@@ -3284,6 +3325,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
             const SizedBox(width: 8),
           ],
@@ -3328,6 +3370,7 @@ class _GroupImageMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
           ],
         ],
@@ -3589,6 +3632,7 @@ class _GroupFileMessageBubble extends StatelessWidget {
     required this.multiSelect,
     this.senderAvatarUrl,
     this.onAvatarTap,
+    this.onAvatarLongPress,
     this.onTap,
   });
 
@@ -3603,6 +3647,7 @@ class _GroupFileMessageBubble extends StatelessWidget {
   final bool multiSelect;
   final String? senderAvatarUrl;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onAvatarLongPress;
   final VoidCallback? onTap;
 
   @override
@@ -3641,6 +3686,7 @@ class _GroupFileMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
             const SizedBox(width: 8),
           ],
@@ -3684,6 +3730,7 @@ class _GroupFileMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
           ],
         ],
@@ -3712,6 +3759,7 @@ class _GroupVoiceMessageBubble extends StatelessWidget {
     this.event,
     this.senderAvatarUrl,
     this.onAvatarTap,
+    this.onAvatarLongPress,
     this.onLongPressAt,
     this.onTap,
   });
@@ -3727,6 +3775,7 @@ class _GroupVoiceMessageBubble extends StatelessWidget {
   final ValueChanged<int>? onSeek;
   final String? senderAvatarUrl;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onAvatarLongPress;
   final _MessageContextAnchorCallback? onLongPressAt;
   final VoidCallback? onTap;
 
@@ -3823,6 +3872,7 @@ class _GroupVoiceMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
             const SizedBox(width: 8),
           ],
@@ -3866,6 +3916,7 @@ class _GroupVoiceMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
           ],
         ],
@@ -4214,6 +4265,7 @@ class _GroupMessageBubble extends StatelessWidget {
     this.quote,
     this.senderAvatarUrl,
     this.onAvatarTap,
+    this.onAvatarLongPress,
     this.channelShareJoining = false,
     this.channelShareAlreadyJoined = false,
     this.onJoinChannelShare,
@@ -4229,6 +4281,7 @@ class _GroupMessageBubble extends StatelessWidget {
   final _GroupQuotedMessagePreview? quote;
   final String? senderAvatarUrl;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onAvatarLongPress;
   final bool channelShareJoining;
   final bool channelShareAlreadyJoined;
   final VoidCallback? onJoinChannelShare;
@@ -4381,6 +4434,7 @@ class _GroupMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
             const SizedBox(width: 8),
           ],
@@ -4425,6 +4479,7 @@ class _GroupMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
           ],
         ],
@@ -4731,6 +4786,7 @@ class _GroupCallRecordMessageBubble extends StatelessWidget {
     required this.senderName,
     this.senderAvatarUrl,
     this.onAvatarTap,
+    this.onAvatarLongPress,
     required this.time,
     required this.onLongPressAt,
     required this.selected,
@@ -4745,6 +4801,7 @@ class _GroupCallRecordMessageBubble extends StatelessWidget {
   final String senderName;
   final String? senderAvatarUrl;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onAvatarLongPress;
   final String time;
   final _MessageContextAnchorCallback onLongPressAt;
   final bool selected;
@@ -4772,6 +4829,7 @@ class _GroupCallRecordMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
             const SizedBox(width: 8),
           ],
@@ -4825,6 +4883,7 @@ class _GroupCallRecordMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
           ],
         ],
@@ -4847,6 +4906,7 @@ class _GroupAsCallRecordMessageBubble extends StatelessWidget {
     required this.senderName,
     this.senderAvatarUrl,
     this.onAvatarTap,
+    this.onAvatarLongPress,
     required this.isVideo,
     required this.text,
     required this.time,
@@ -4857,6 +4917,7 @@ class _GroupAsCallRecordMessageBubble extends StatelessWidget {
   final String senderName;
   final String? senderAvatarUrl;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onAvatarLongPress;
   final bool isVideo;
   final String text;
   final String time;
@@ -4877,6 +4938,7 @@ class _GroupAsCallRecordMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
             const SizedBox(width: 8),
           ],
@@ -4924,6 +4986,7 @@ class _GroupAsCallRecordMessageBubble extends StatelessWidget {
               name: senderName,
               imageUrl: senderAvatarUrl,
               onTap: onAvatarTap,
+              onLongPress: onAvatarLongPress,
             ),
           ],
         ],
@@ -5634,11 +5697,13 @@ class _MemberAvatar extends StatelessWidget {
     required this.name,
     this.imageUrl,
     this.onTap,
+    this.onLongPress,
   });
   final String seed;
   final String name;
   final String? imageUrl;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -5649,10 +5714,11 @@ class _MemberAvatar extends StatelessWidget {
       imageUrl: imageUrl,
       shape: AvatarShape.squircle,
     );
-    if (onTap == null) return avatar;
+    if (onTap == null && onLongPress == null) return avatar;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
+      onLongPress: onLongPress,
       child: avatar,
     );
   }

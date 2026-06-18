@@ -46,6 +46,39 @@ void main() {
     expect(loaded, hasLength(1));
     expect(loaded.single.body, '新内容');
   });
+
+  test('upsertChannel replaces stale cached posts for the channel', () async {
+    await store.upsertChannel('ch_1', [
+      _post(postId: 'stale', channelId: 'ch_1', ts: 1000),
+    ]);
+    await store.upsertPost(_post(postId: 'other', channelId: 'ch_2', ts: 2000));
+    await store.upsertChannel('ch_1', [
+      _post(postId: 'fresh', channelId: 'ch_1', ts: 3000),
+    ]);
+
+    expect(
+      (await store.readChannel('ch_1')).map((post) => post.postId),
+      ['fresh'],
+    );
+    expect(
+      (await store.readChannel('ch_2')).map((post) => post.postId),
+      ['other'],
+    );
+  });
+
+  test('removePost deletes one post by post id', () async {
+    await store.upsertChannel('ch_1', [
+      _post(postId: 'keep', channelId: 'ch_1', ts: 1000),
+      _post(postId: 'remove', channelId: 'ch_1', ts: 2000),
+    ]);
+
+    await store.removePost('ch_1', 'remove');
+
+    expect(
+      (await store.readChannel('ch_1')).map((post) => post.postId),
+      ['keep'],
+    );
+  });
 }
 
 AsChannelPost _post({

@@ -131,7 +131,7 @@
   "loginButton": "登录",
   "loginButtonLoading": "登录中…",
   "addContactTitle": "添加好友",
-  "addContactEmptyHint": "输入对方昵称或 Portal URL 查找",
+  "addContactEmptyHint": "输入对方域名查找",
   "addContactDomainNotProductUser": "该域名不是产品用户",
   "addContactMessageAfterAdding": "添加好友后即可发消息",
   "addContactVoiceAfterAdding": "添加好友后即可音频通话",

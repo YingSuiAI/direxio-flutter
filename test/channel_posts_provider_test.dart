@@ -93,6 +93,7 @@ class _MemoryChannelPostStore implements ChannelPostStore {
     String channelId,
     Iterable<AsChannelPost> posts,
   ) async {
+    _posts.removeWhere((_, post) => post.channelId == channelId);
     for (final post in posts) {
       await upsertPost(post);
     }
@@ -101,6 +102,16 @@ class _MemoryChannelPostStore implements ChannelPostStore {
   @override
   Future<void> upsertPost(AsChannelPost post) async {
     _posts[_postKey(post)] = post;
+  }
+
+  @override
+  Future<void> removePost(String channelId, String postId) async {
+    _posts.removeWhere((_, post) {
+      if (post.channelId.trim() != channelId.trim()) return false;
+      final id = post.postId.trim();
+      if (id.isNotEmpty) return id == postId.trim();
+      return post.eventId.trim() == postId.trim();
+    });
   }
 
   String _postKey(AsChannelPost post) {

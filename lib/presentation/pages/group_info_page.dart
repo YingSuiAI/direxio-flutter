@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../chat/chat_glass_background.dart';
 import '../groups/group_leave_flow.dart';
 import '../groups/group_member_invite_flow.dart';
+import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../utils/avatar_url.dart';
@@ -32,6 +33,8 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   bool _showMemberNick = true;
   bool _leaving = false;
   bool _clearing = false;
+  bool _removingMember = false;
+  final Set<String> _locallyRemovedMemberIds = {};
 
   @override
   void initState() {
@@ -61,7 +64,9 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     // 真实成员列表（已加入）；降级到空列表
     final members = room
             ?.getParticipants()
-            .where((m) => m.membership == Membership.join)
+            .where((m) =>
+                m.membership == Membership.join &&
+                !_locallyRemovedMemberIds.contains(m.id.trim()))
             .toList() ??
         const <User>[];
     final existingMemberMxids = members
@@ -92,6 +97,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                         children: [
                           for (final m in members)
                             _MemberChip(
+                              key: ValueKey('group_info_member_${m.id}'),
                               name: m.calcDisplayname(),
                               avatarUrl:
                                   matrixContentHttpUrl(client, m.avatarUrl),
@@ -104,6 +110,16 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                               existingMemberMxids: existingMemberMxids,
                             ),
                           ),
+                          if (canManageGroup)
+                            _RemoveMemberChip(
+                              onTap: _removingMember
+                                  ? null
+                                  : () => _showRemoveMemberSheet(
+                                        context,
+                                        room,
+                                        members,
+                                      ),
+                            ),
                         ],
                       ),
                     ),
@@ -226,6 +242,178 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final self = room.client.userID;
     if (self == null || self.isEmpty) return false;
     return room.getPowerLevelByUserId(self) >= 50;
+  }
+
+  Future<void> _showRemoveMemberSheet(
+    BuildContext context,
+    Room room,
+    List<User> members,
+  ) async {
+    final self = room.client.userID?.trim() ?? '';
+    final selfPower = self.isEmpty ? 0 : room.getPowerLevelByUserId(self);
+    final removableMembers = members.where((member) {
+      final mxid = member.id.trim();
+      if (mxid.isEmpty || mxid == self) return false;
+      return room.getPowerLevelByUserId(mxid) < selfPower;
+    }).toList();
+
+    if (removableMembers.isEmpty) {
+      _toast(context, '暂无可移除成员');
+      return;
+    }
+
+    final selected = await showModalBottomSheet<User>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: context.tk.surface,
+      builder: (sheetContext) {
+        final t = sheetContext.tk;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '移除成员',
+                    style: AppTheme.sans(
+                      size: 17,
+                      weight: FontWeight.w600,
+                      color: t.text,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: removableMembers.length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      color: t.surfaceHigh,
+                    ),
+                    itemBuilder: (_, index) {
+                      final member = removableMembers[index];
+                      final displayName = member.calcDisplayname();
+                      return ListTile(
+                        key: ValueKey(
+                          'group_info_remove_member_${member.id}',
+                        ),
+                        contentPadding: EdgeInsets.zero,
+                        leading: PortalAvatar(
+                          seed: displayName,
+                          size: 40,
+                          imageUrl: matrixContentHttpUrl(
+                            room.client,
+                            member.avatarUrl,
+                          ),
+                        ),
+                        title: Text(
+                          displayName,
+                          style: AppTheme.sans(
+                            size: 15,
+                            weight: FontWeight.w500,
+                            color: t.text,
+                          ),
+                        ),
+                        subtitle: Text(
+                          member.id,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(size: 13, color: t.textMute),
+                        ),
+                        trailing: Icon(
+                          Symbols.person_remove,
+                          color: t.danger,
+                          size: 22,
+                        ),
+                        onTap: () => Navigator.of(sheetContext).pop(member),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!context.mounted || selected == null) return;
+    await _confirmRemoveMember(context, selected);
+  }
+
+  Future<void> _confirmRemoveMember(BuildContext context, User member) async {
+    if (_removingMember) return;
+    final displayName = member.calcDisplayname();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          '移除成员',
+          style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+        ),
+        content: Text(
+          '确定将 $displayName 移出群聊吗？',
+          style: AppTheme.sans(size: 15, color: context.tk.textMute),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              '取消',
+              style: AppTheme.sans(size: 15, color: context.tk.textMute),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              '移除',
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: context.tk.danger,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _removeGroupMember(member);
+  }
+
+  Future<void> _removeGroupMember(User member) async {
+    final peerMxid = member.id.trim();
+    if (_removingMember || peerMxid.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final displayName = member.calcDisplayname();
+    setState(() => _removingMember = true);
+    try {
+      await ref.read(asClientProvider).removeGroupMember(
+            roomId: widget.roomId,
+            peerMxid: peerMxid,
+          );
+      final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
+      room?.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: room.client.userID ?? peerMxid,
+          stateKey: peerMxid,
+          content: {'membership': Membership.leave.name},
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _locallyRemovedMemberIds.add(peerMxid));
+      messenger.showSnackBar(SnackBar(content: Text('已移除$displayName')));
+      await _fetchMembers();
+    } on Object catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('移除成员失败: $e')));
+    } finally {
+      if (mounted) setState(() => _removingMember = false);
+    }
   }
 
   Future<void> _showGroupRemarkDialog(
@@ -486,7 +674,7 @@ class _GroupTextEditDialogState extends State<_GroupTextEditDialog> {
 }
 
 class _MemberChip extends StatelessWidget {
-  const _MemberChip({required this.name, this.avatarUrl});
+  const _MemberChip({super.key, required this.name, this.avatarUrl});
   final String name;
   final String? avatarUrl;
 
@@ -545,6 +733,52 @@ class _InviteChip extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text('邀请', style: AppTheme.sans(size: 10, color: t.textMute)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RemoveMemberChip extends StatelessWidget {
+  const _RemoveMemberChip({required this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: t.border, width: 1.5),
+                ),
+                child: Icon(
+                  Symbols.remove,
+                  size: 22,
+                  color: t.textMute,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '移除',
+                style: AppTheme.sans(
+                  size: 10,
+                  color: t.textMute,
+                ),
+              ),
             ],
           ),
         ),

@@ -500,6 +500,7 @@ class MockAsClient implements AsClient {
   Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,
+    String? deviceId,
   }) async {
     await Future.delayed(_latency);
     throw UnsupportedError('Mock AS does not issue auth tokens');

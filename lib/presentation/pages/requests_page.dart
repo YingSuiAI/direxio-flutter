@@ -236,7 +236,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       if (target.mxid == client.userID) {
         throw const FormatException('不能添加自己');
       }
-      await _refreshBootstrap();
+      await _refreshBootstrap(silent: true);
       final syncCache = ref.read(asSyncCacheProvider);
       final acceptedContact = syncCache.acceptedContactForUserId(target.mxid);
       final existingContact = syncCache.contactForUserId(target.mxid);
@@ -266,7 +266,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             (state) => state.withContactEntry(contact),
           );
       await client.oneShotSync();
-      await _refreshBootstrap();
+      await _refreshBootstrap(silent: true);
       if (!mounted) return;
       _searchCtrl.clear();
       final restored = contact.status.trim() == 'accepted';
@@ -385,8 +385,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final invites = _incomingDirectContactInvites(client)
         .where((room) => !pendingInboundRoomIds.contains(room.id.trim()))
         .toList(growable: false);
-    final pendingOutboundContacts = syncCache.pendingOutboundContacts;
-    final rejectedOutboundContacts = syncCache.rejectedOutboundContacts;
+    final pendingOutboundContacts =
+        _pendingOutboundContactsForDisplay(client, syncCache);
+    final rejectedOutboundContacts =
+        _rejectedOutboundContactsForDisplay(client, syncCache);
     final acceptedContacts = syncCache.acceptedContacts;
     final searchResults = _searchResultsForQuery(
       client: client,
@@ -621,22 +623,40 @@ List<ContactEntry> _rejectedOutgoingRequestsAfterBootstrap({
   required AsSyncBootstrap bootstrap,
   required Client client,
 }) {
-  final bootstrapRoomIds = bootstrap.contacts
-      .map((contact) => contact.roomId.trim())
-      .where((roomId) => roomId.isNotEmpty)
-      .toSet();
-  final bootstrapPeerIds = bootstrap.contacts
-      .map((contact) => contact.userId.trim())
-      .where((userId) => userId.isNotEmpty)
-      .toSet();
+  final bootstrapStatusesByPeerId = <String, String>{};
+  final candidates = <String, AsSyncContact>{};
+
+  void addCandidate(AsSyncContact contact) {
+    final roomId = contact.roomId.trim();
+    final peerMxid = contact.userId.trim();
+    if (roomId.isEmpty || peerMxid.isEmpty) return;
+    candidates.putIfAbsent(peerMxid, () => contact);
+  }
+
+  for (final contact in bootstrap.contacts) {
+    final peerMxid = contact.userId.trim();
+    if (peerMxid.isEmpty) continue;
+    bootstrapStatusesByPeerId[peerMxid] = contact.status.trim();
+    if (contact.status.trim() == 'pending_outbound') {
+      addCandidate(contact);
+    }
+  }
+
   final rejected = <ContactEntry>[];
 
   for (final contact in before.pendingOutboundContacts) {
+    addCandidate(contact);
+  }
+
+  for (final contact in candidates.values) {
     final roomId = contact.roomId.trim();
     final peerMxid = contact.userId.trim();
     if (roomId.isEmpty || peerMxid.isEmpty) continue;
-    if (bootstrapRoomIds.contains(roomId) ||
-        bootstrapPeerIds.contains(peerMxid)) {
+    final bootstrapStatus = bootstrapStatusesByPeerId[peerMxid];
+    if (bootstrapStatus != null &&
+        bootstrapStatus.isNotEmpty &&
+        bootstrapStatus != 'pending_outbound' &&
+        bootstrapStatus != 'rejected_outbound') {
       continue;
     }
     if (!_peerRejectedRequest(client, roomId, peerMxid)) continue;
@@ -651,6 +671,49 @@ List<ContactEntry> _rejectedOutgoingRequestsAfterBootstrap({
     );
   }
   return rejected;
+}
+
+List<AsSyncContact> _pendingOutboundContactsForDisplay(
+  Client client,
+  AsSyncCacheState syncCache,
+) {
+  return syncCache.pendingOutboundContacts.where((contact) {
+    return !_peerRejectedRequest(
+      client,
+      contact.roomId.trim(),
+      contact.userId.trim(),
+    );
+  }).toList(growable: false);
+}
+
+List<AsSyncContact> _rejectedOutboundContactsForDisplay(
+  Client client,
+  AsSyncCacheState syncCache,
+) {
+  final contactsByPeer = <String, AsSyncContact>{};
+  for (final contact in syncCache.rejectedOutboundContacts) {
+    final peerMxid = contact.userId.trim();
+    if (peerMxid.isNotEmpty) {
+      contactsByPeer[peerMxid] = contact;
+    }
+  }
+  for (final contact in syncCache.pendingOutboundContacts) {
+    final roomId = contact.roomId.trim();
+    final peerMxid = contact.userId.trim();
+    if (roomId.isEmpty || peerMxid.isEmpty) continue;
+    if (!_peerRejectedRequest(client, roomId, peerMxid)) continue;
+    contactsByPeer[peerMxid] = AsSyncContact(
+      userId: contact.userId,
+      displayName: contact.displayName,
+      avatarUrl: contact.avatarUrl,
+      roomId: contact.roomId,
+      domain: contact.domain,
+      status: 'rejected_outbound',
+      visibleAfterTs: contact.visibleAfterTs,
+      deletedEventIds: contact.deletedEventIds,
+    );
+  }
+  return List.unmodifiable(contactsByPeer.values);
 }
 
 bool _peerRejectedRequest(Client client, String roomId, String peerMxid) {

@@ -88,6 +88,23 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<AsSyncMessages> syncMessages({
+    String roomId = '',
+    int page = 1,
+    int pageSize = 20,
+    int fromTs = 0,
+    int toTs = 0,
+  }) async {
+    await Future.delayed(_latency);
+    return AsSyncMessages(
+      syncedAt: DateTime.now().toUtc(),
+      page: page,
+      pageSize: pageSize,
+      rooms: const [],
+    );
+  }
+
+  @override
   Future<List<AsSearchResult>> search(
     String query, {
     String? roomId,

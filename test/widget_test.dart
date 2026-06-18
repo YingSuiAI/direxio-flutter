@@ -16,7 +16,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/core/theme/design_tokens.dart';
 import 'package:portal_app/data/as_bootstrap_store.dart';
-import 'package:portal_app/data/as_gateway_client.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/chat_clear_state_store.dart';
 import 'package:portal_app/data/conversation_preferences_store.dart';
@@ -56,7 +55,6 @@ import 'package:portal_app/presentation/pages/profile_info_page.dart';
 import 'package:portal_app/presentation/pages/requests_page.dart';
 import 'package:portal_app/presentation/pages/search_page.dart';
 import 'package:portal_app/presentation/pages/settings_page.dart';
-import 'package:portal_app/presentation/providers/as_gateway_provider.dart';
 import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
@@ -183,6 +181,21 @@ class _EmptyAsClient implements AsClient {
   @override
   Future<AsSyncUnread> syncUnread({int limitPerRoom = 200}) async =>
       AsSyncUnread(syncedAt: DateTime.now().toUtc(), rooms: const []);
+
+  @override
+  Future<AsSyncMessages> syncMessages({
+    String roomId = '',
+    int page = 1,
+    int pageSize = 20,
+    int fromTs = 0,
+    int toTs = 0,
+  }) async =>
+      AsSyncMessages(
+        syncedAt: DateTime.now().toUtc(),
+        page: page,
+        pageSize: pageSize,
+        rooms: const [],
+      );
 
   @override
   Future<List<AsSearchResult>> search(
@@ -8707,30 +8720,18 @@ void main() {
     expect(find.text('删除好友'), findsOneWidget);
   });
 
-  testWidgets('mock auth chat does not poll AS gateway', (tester) async {
+  testWidgets('mock auth chat stays local', (tester) async {
     const mockAuthEnabled = bool.fromEnvironment(
       'P2P_MATRIX_MOCK_AUTH',
       defaultValue: false,
     );
     if (!mockAuthEnabled) return;
 
-    var gatewayCalls = 0;
-
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
-          asGatewayClientProvider.overrideWithValue(
-            AsGatewayClient(
-              asUrl: 'http://as-gateway.test',
-              agentToken: 'test',
-              httpClient: MockClient((_) async {
-                gatewayCalls += 1;
-                return http.Response('{"messages":[]}', 200);
-              }),
-            ),
-          ),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -8740,7 +8741,6 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(gatewayCalls, 0);
     expect(find.text('Dave Lee'), findsOneWidget);
   });
 
@@ -11421,15 +11421,6 @@ void main() {
         overrides: [
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-          asGatewayClientProvider.overrideWithValue(
-            AsGatewayClient(
-              asUrl: 'http://as-gateway.test',
-              agentToken: 'test',
-              httpClient: MockClient(
-                (_) async => http.Response('{"messages":[]}', 200),
-              ),
-            ),
-          ),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,

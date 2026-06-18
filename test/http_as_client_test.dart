@@ -93,6 +93,66 @@ void main() {
     expect(eventId, r'$sent');
   });
 
+  test('syncMessages uses unified P2P query action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'sync.messages',
+          'params': {
+            'room_id': '!agent:p2p-im.com',
+            'page': '2',
+            'page_size': '3',
+          },
+        });
+        return _jsonResponse(
+          {
+            'synced_at': '2026-06-19T10:00:00Z',
+            'page': 2,
+            'page_size': 3,
+            'rooms': [
+              {
+                'room_id': '!agent:p2p-im.com',
+                'has_more_messages': true,
+                'next_message_page': 3,
+                'messages': [
+                  {
+                    'event_id': r'$event',
+                    'room_id': '!agent:p2p-im.com',
+                    'sender_id': '@owner:p2p-im.com',
+                    'sender_name': '我',
+                    'content': 'hello',
+                    'message_type': 'text',
+                    'origin_server_ts': 1781813000000,
+                    'timestamp': '2026-06-19T10:00:00Z',
+                  }
+                ],
+              }
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final result = await client.syncMessages(
+      roomId: '!agent:p2p-im.com',
+      page: 2,
+      pageSize: 3,
+    );
+
+    expect(result.page, 2);
+    expect(result.pageSize, 3);
+    expect(result.rooms.single.hasMoreMessages, isTrue);
+    expect(result.rooms.single.nextMessagePage, 3);
+    expect(result.rooms.single.messages.single.eventId, r'$event');
+    expect(result.rooms.single.messages.single.content, 'hello');
+  });
+
   test('changePortalPassword uses unified portal password action', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),

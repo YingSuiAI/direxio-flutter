@@ -13,7 +13,6 @@ import '../providers/auth_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
-import '../providers/as_gateway_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../providers/local_message_order_provider.dart';
@@ -64,7 +63,6 @@ import '../widgets/async_image_preview.dart';
 import '../widgets/tool_call_bubble.dart';
 import '../../data/as_client.dart';
 import '../../data/as_call_session_store.dart';
-import '../../data/as_gateway_client.dart';
 import '../../data/local_outbox_store.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
@@ -3376,9 +3374,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   bool _agentBusy = false;
   _PendingConfirm? _pendingConfirm;
   Timer? _streamTimer;
-  Timer? _gatewaySyncTimer;
-  bool _gatewaySyncing = false;
-  int _gatewayFailureCount = 0;
   static const _agentId = 'local-aibot';
 
   // s-chat 视觉状态
@@ -3396,15 +3391,11 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
   bool _lastBottomPanelVisible = false;
 
   bool get _isAiBot => widget.conv.id == 'mock_aibot';
-  bool get _usesAsGatewaySync => !_mockAuthEnabled && _isAiBot;
 
   @override
   void initState() {
     super.initState();
     _messages = _isAiBot ? <MockMessage>[] : List.of(widget.conv.messages);
-    if (_usesAsGatewaySync) {
-      _scheduleGatewaySync(immediate: true);
-    }
     _scrollToLatest(jump: true);
   }
 
@@ -3413,7 +3404,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
     _ctrl.dispose();
     _scrollCtrl.dispose();
     _streamTimer?.cancel();
-    _gatewaySyncTimer?.cancel();
     _initialMockEntranceTimer?.cancel();
     super.dispose();
   }
@@ -3439,66 +3429,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
       _replyTo = null;
     });
     _scrollToLatest();
-
-    if (!_usesAsGatewaySync) return;
-
-    try {
-      final gateway = ref.read(asGatewayClientProvider);
-      await gateway.sendMessage(_gatewayRoomId, text);
-      await _loadAsGatewayMessages();
-      _scheduleGatewaySync();
-    } on AsGatewayException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('发送失败：${e.message}')),
-      );
-      _scheduleGatewaySync();
-    }
-  }
-
-  void _scheduleGatewaySync({bool immediate = false}) {
-    if (!_usesAsGatewaySync) return;
-    _gatewaySyncTimer?.cancel();
-    final delay = immediate ? Duration.zero : _gatewayPollDelay;
-    _gatewaySyncTimer = Timer(
-      delay,
-      () => unawaited(_loadAsGatewayMessages(scheduleNext: true)),
-    );
-  }
-
-  Duration get _gatewayPollDelay {
-    final seconds = math.min(15, 3 * (1 << math.min(_gatewayFailureCount, 3)));
-    return Duration(seconds: seconds);
-  }
-
-  Future<void> _loadAsGatewayMessages({bool scheduleNext = false}) async {
-    if (!_usesAsGatewaySync) return;
-    if (_gatewaySyncing) {
-      if (scheduleNext && mounted) _scheduleGatewaySync();
-      return;
-    }
-    _gatewaySyncing = true;
-    try {
-      final gateway = ref.read(asGatewayClientProvider);
-      final data = await gateway.readRoomMessages(_gatewayRoomId, limit: 80);
-      final rows = (data['messages'] as List? ?? const []);
-      final next = rows
-          .whereType<Map>()
-          .map((row) => _messageFromAs(Map<String, dynamic>.from(row)))
-          .toList();
-      if (!mounted) return;
-      if (next.isEmpty && !_isAiBot) return;
-      _gatewayFailureCount = 0;
-      setState(() => _messages = next);
-      _scrollToLatest();
-    } on AsGatewayException catch (e) {
-      _gatewayFailureCount = math.min(_gatewayFailureCount + 1, 4);
-      debugPrint('AS Gateway sync failed: $e');
-      // Non-agent demo conversations can still fall back to bundled data.
-    } finally {
-      _gatewaySyncing = false;
-      if (scheduleNext && mounted) _scheduleGatewaySync();
-    }
   }
 
   VoidCallback? _mockPeerAvatarTap(MockMessage message) {
@@ -3551,21 +3481,6 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
         ),
       );
     });
-  }
-
-  String get _gatewayRoomId => widget.conv.id;
-
-  MockMessage _messageFromAs(Map<String, dynamic> row) {
-    final sender = row['sender_mxid'] as String? ?? '';
-    final senderName = row['sender_name'] as String? ?? '';
-    final isMe = sender == '@me:mock.local' || senderName == '我';
-    final timestamp = DateTime.tryParse(row['timestamp'] as String? ?? '');
-    return MockMessage(
-      isMe: isMe,
-      text: row['content'] as String? ?? '',
-      time: timestamp ?? DateTime.now(),
-      senderName: isMe ? null : senderName,
-    );
   }
 
   /// 流式输出：按字符 append，制造打字机感

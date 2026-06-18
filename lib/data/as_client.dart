@@ -1338,6 +1338,54 @@ class AsSyncUnread {
   }
 }
 
+class AsSyncMessages {
+  const AsSyncMessages({
+    required this.syncedAt,
+    required this.page,
+    required this.pageSize,
+    required this.rooms,
+  });
+
+  final DateTime syncedAt;
+  final int page;
+  final int pageSize;
+  final List<AsSyncMessagesRoom> rooms;
+
+  factory AsSyncMessages.fromJson(Map<String, dynamic> json) {
+    final page = _parseInt(json['page']);
+    final pageSize = _parseInt(json['page_size']);
+    return AsSyncMessages(
+      syncedAt: _parseDateTime(json['synced_at']) ?? DateTime.now().toUtc(),
+      page: page <= 0 ? 1 : page,
+      pageSize: pageSize <= 0 ? 20 : pageSize,
+      rooms: _parseList(json['rooms'], AsSyncMessagesRoom.fromJson),
+    );
+  }
+}
+
+class AsSyncMessagesRoom {
+  const AsSyncMessagesRoom({
+    required this.roomId,
+    required this.messages,
+    required this.hasMoreMessages,
+    this.nextMessagePage,
+  });
+
+  final String roomId;
+  final List<AsUnreadMessage> messages;
+  final bool hasMoreMessages;
+  final int? nextMessagePage;
+
+  factory AsSyncMessagesRoom.fromJson(Map<String, dynamic> json) {
+    return AsSyncMessagesRoom(
+      roomId: json['room_id'] as String? ?? '',
+      messages: _parseList(json['messages'], AsUnreadMessage.fromJson),
+      hasMoreMessages: _parseNullableBool(json['has_more_messages']) ?? false,
+      nextMessagePage: _parseOptionalPositiveInt(json['next_message_page']),
+    );
+  }
+}
+
 class AsUnreadRoom {
   const AsUnreadRoom({
     required this.roomId,
@@ -1435,6 +1483,17 @@ abstract class AsClient {
 
   /// GET /_as/sync/unread?limit_per_room=
   Future<AsSyncUnread> syncUnread({int limitPerRoom = 200});
+
+  /// GET /_as/sync/messages?room_id=&page=&page_size=
+  Future<AsSyncMessages> syncMessages({
+    String roomId = '',
+    int page = 1,
+    int pageSize = 20,
+    int fromTs = 0,
+    int toTs = 0,
+  }) {
+    throw AsClientException('syncMessages is not supported by this client');
+  }
 
   /// §5.1 GET /_as/search?q=&room_id=&limit=
   Future<List<AsSearchResult>> search(
@@ -1850,6 +1909,11 @@ int _parseInt(Object? value) {
   if (value is num) return value.toInt();
   if (value is String) return int.tryParse(value) ?? 0;
   return 0;
+}
+
+int? _parseOptionalPositiveInt(Object? value) {
+  final parsed = _parseInt(value);
+  return parsed <= 0 ? null : parsed;
 }
 
 bool? _parseNullableBool(Object? value) {

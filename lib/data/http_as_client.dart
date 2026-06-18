@@ -185,6 +185,27 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<AsSyncMessages> syncMessages({
+    String roomId = '',
+    int page = 1,
+    int pageSize = 20,
+    int fromTs = 0,
+    int toTs = 0,
+  }) async {
+    final body = await _getJson(
+      'sync/messages',
+      queryParameters: {
+        if (roomId.trim().isNotEmpty) 'room_id': roomId.trim(),
+        'page': page.toString(),
+        'page_size': pageSize.toString(),
+        if (fromTs > 0) 'from_ts': fromTs.toString(),
+        if (toTs > 0) 'to_ts': toTs.toString(),
+      },
+    );
+    return AsSyncMessages.fromJson(body);
+  }
+
+  @override
   Future<List<AsSearchResult>> search(
     String query, {
     String? roomId,

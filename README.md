@@ -1,6 +1,6 @@
 # p2p-matrix-client
 
-> P2P-IM 的多端客户端（Flutter）。当前阶段：Matrix / AS Gateway 接入版
+> P2P-IM 的多端客户端（Flutter）。当前阶段：Matrix / 统一消息服务接入版
 
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-3.41.9-blue.svg)](https://flutter.dev)
@@ -13,11 +13,11 @@
 
 P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / Windows / Linux**。
 
-当前仓库已经接入真实 Matrix / AS Gateway 链路，未登录状态仍保留少量演示数据用于界面开发：
+当前仓库已经接入真实 Matrix / 统一消息服务链路，未登录状态仍保留少量演示数据用于界面开发：
 
 - Portal Token 登录、Matrix session 持久化代码已在 `auth_provider.dart` 内实现。
-- AS Admin API 已有 HTTP 客户端，用 `portal_token` 调 `/_as/*`。
-- AI Bot 快捷指令通过 `AsGatewayClient` 调 `p2p-matrix-as` 的 `/api/*` Gateway 接口。
+- 业务 API 已统一到 `HttpAsClient`，用 `portal_token` 调 `/_p2p/*`。
+- AI Bot 演示会话不再连接独立 `/api/*` Gateway；真实 Agent 会话走 Matrix room 与统一业务 API。
 
 > 真后端接入路径见组织内 [`p2p-matrix-as`](https://github.com/P2P-IM/p2p-matrix-as)（Matrix Application Service）+ [`p2p-matrix-ops`](https://github.com/P2P-IM/p2p-matrix-ops)（Dendrite homeserver）。
 
@@ -30,7 +30,7 @@ P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / W
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | 会话列表 + 普通聊天 | ⚠️ 部分 | 登录后走 Matrix room；未登录展示演示会话 |
-| AI Bot 会话 | ⚠️ 部分 | 快捷指令已接 AS Gateway；完整对话依赖 homeserver |
+| AI Bot 会话 | ⚠️ 部分 | 演示快捷指令保留本地逻辑；真实 Agent 对话依赖 homeserver |
 | Markdown 渲染 | ✅ | 表格 / 列表 / 引用 / 行内代码 / 代码块 / LaTeX |
 | 流式输出 + Typing 指示 | ✅ | 按字符喂入 + 三点跳动 |
 | 工具调用气泡 | ✅ | 可折叠看 args / warnings / latency |
@@ -44,8 +44,8 @@ P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / W
 | **Android APK CI** | ✅ | push / PR 自动出 debug APK |
 | **Windows EXE CI** | ✅ | push / PR 自动出 release zip |
 | Portal Token 登录 / 初始化 | ⚠️ 代码就绪 | `AuthStateNotifier` 已实现；当前演示路由仍跳过登录直进首页 |
-| AS Admin API | ✅ HTTP | `HttpAsClient` 已接 `/_as/*`，使用 `portal_token` |
-| AS Gateway / MCP 工具通路 | ⚠️ 部分 | `AsGatewayClient` 已接 `/api/*`；消息历史和搜索等依赖 AS 后续实现 |
+| 统一业务 API | ✅ HTTP | `HttpAsClient` 已接 `/_p2p/*`，使用 `portal_token` |
+| Agent / MCP 工具通路 | ⚠️ 部分 | 页面演示逻辑保留本地实现；真实 Agent 消息走 Matrix room |
 | 真 Matrix 会话通路 | ⚠️ 部分 | 真 room / timeline 代码在；端到端依赖 Dendrite + AS registration |
 
 ### 进行中 / 计划
@@ -56,7 +56,7 @@ P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / W
 - [ ] Tag 触发 GitHub Releases（产物长期可下载链接）
 - [ ] APK release 签名（接 keystore）
 - [ ] 启用真实登录路由守卫（关闭 `P2P_MATRIX_MOCK_AUTH` 演示入口）
-- [ ] 用 Dendrite + p2p-matrix-as 做端到端登录 / AS Admin API 验证
+- [ ] 用 Dendrite + 统一 message-server 做端到端登录 / 业务 API 验证
 - [ ] 接入真 Matrix homeserver，完成真实 room / timeline 验证
 - [ ] 接入真 MCP server adapter，替换页面内演示工具调用
 
@@ -157,26 +157,11 @@ AS Admin API 当前对接端点：
 
 注意：`p2p-matrix-as` 当前 `/_as/search` 仍返回 501，client 已真实请求该接口；AS 未实现前搜索页会按空结果处理。
 
-### AS Gateway / Agent API
+### 统一业务 API / Agent API
 
-AI Bot 页面中的“测试 AS 连接”会通过 `AsGatewayClient` 请求 `p2p-matrix-as` Gateway：
+客户端只连接 homeserver 暴露的统一 `/_p2p/*` 业务接口，不再连接独立 `19091` Gateway 或 `/api/*` 服务。
 
-```bash
-flutter run -d chrome \
-  --dart-define=P2P_MATRIX_AS_URL=http://127.0.0.1:19091 \
-  --dart-define=P2P_MATRIX_AGENT_TOKEN=<gateway-or-portal-token>
-```
-
-配置项：
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `P2P_MATRIX_AS_URL` | AS Gateway 地址，提供 `/api/*` | `http://127.0.0.1:19091` |
-| `P2P_MATRIX_AGENT_TOKEN` | Gateway Bearer token；本地 AS 单 token 模式下可使用 portal token | 空 |
-| `P2P_MATRIX_AS_TIMEOUT_MS` | Gateway 请求超时 | `10000` |
-| `P2P_MATRIX_AS_RETRY_COUNT` | GET / 幂等发送请求重试次数 | `2` |
-
-注意：`p2p_auth_status` 只检查本地配置是否存在，不访问后端；房间列表、联系人、发送消息会真实请求 AS Gateway。若 Dendrite 未启动或 AS registration 未加载，这些请求会返回 AS 后端错误。
+登录成功后，`HttpAsClient` 会从 Matrix homeserver 推导 `/_p2p` base URL，并使用登录返回的 `admin_access_token` 访问联系人、群聊、频道、搜索、Agent 状态和消息分页等业务接口。
 
 ### 已知本地编译坑
 
@@ -264,7 +249,6 @@ p2p-matrix-client/
 │   ├── data/
 │   │   ├── as_client.dart            # AS Admin API 抽象与模型
 │   │   ├── http_as_client.dart       # AS HTTP 实现，使用 portal_token
-│   │   ├── as_gateway_client.dart    # AS Gateway /api/* HTTP client
 │   │   ├── mock_as_client.dart       # 旧演示数据适配器
 │   │   └── well_known_service.dart   # Matrix / Portal well-known 发现
 │   ├── presentation/
@@ -336,9 +320,9 @@ p2p-matrix-client/
 
 ## 开发约定
 
-- **真实链路优先**：AS Admin API 使用 `HttpAsClient`，AI Bot 快捷指令使用 `AsGatewayClient`
+- **真实链路优先**：业务 API 统一使用 `HttpAsClient`，不要新增独立 Gateway 客户端
 - **演示入口**：`P2P_MATRIX_MOCK_AUTH=true` 时跳过登录，仅用于本地 UI 验证
-- **后端接入**：端到端联调需要 Dendrite、p2p-matrix-as、AS registration 和 gateway token 同时就绪
+- **后端接入**：端到端联调需要统一 message-server、PostgreSQL 和 portal token 就绪
 - **代码风格**：默认不写注释；非显然意图（why）才注释，不要写 what
 - **PR 流程**：开 feature 分支 → PR 到 main → 两个 CI 都绿 → merge
 

@@ -321,6 +321,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final roomIds = {
       for (final room in _incomingDirectContactInvites(client)) room.id,
       for (final contact in syncCache.pendingInboundContacts) contact.roomId,
+      for (final request in syncCache.bootstrap?.pending.friendRequests ??
+          const <AsSyncPendingItem>[])
+        request.id,
     };
     ref.read(friendRequestReadProvider.notifier).markRead(roomIds);
   }

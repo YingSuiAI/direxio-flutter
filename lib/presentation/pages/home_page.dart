@@ -623,6 +623,9 @@ List<String> _pendingFriendRequestRoomIds({
         room.id.trim(),
     for (final contact in syncCache.pendingInboundContacts)
       if (contact.roomId.trim().isNotEmpty) contact.roomId.trim(),
+    for (final request in syncCache.bootstrap?.pending.friendRequests ??
+        const <AsSyncPendingItem>[])
+      if (request.id.trim().isNotEmpty) request.id.trim(),
   };
   return roomIds.toList(growable: false);
 }

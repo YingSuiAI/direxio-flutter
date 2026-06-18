@@ -1726,6 +1726,37 @@ class _RefreshingBootstrapAsClient extends _EmptyAsClient {
   }
 }
 
+class _RefreshingFriendRequestBootstrapAsClient extends _EmptyAsClient {
+  int syncBootstrapCalls = 0;
+  bool showPendingFriendRequest = false;
+
+  @override
+  Future<AsSyncBootstrap> syncBootstrap() async {
+    syncBootstrapCalls++;
+    return AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 19, 13, syncBootstrapCalls),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: showPendingFriendRequest
+          ? const AsSyncPending(
+              friendRequests: [
+                AsSyncPendingItem(
+                  id: '!pending-live:p2p-im.com',
+                  title: 'Alice',
+                  createdAt: null,
+                ),
+              ],
+              groupInvites: [],
+              channelNotices: [],
+            )
+          : const AsSyncPending.empty(),
+    );
+  }
+}
+
 class _RecordingAvatarPreloader implements AvatarPreloader {
   final urls = <String>[];
 
@@ -4654,6 +4685,64 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
+
+    await tester.tap(find.text('通讯录').last);
+    await tester.pump();
+
+    final contactSectionBadge =
+        find.byKey(const ValueKey('section_action_badge_新朋友'));
+    expect(contactSectionBadge, findsOneWidget);
+    expect(
+      find.descendant(of: contactSectionBadge, matching: find.text('1')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'new friend badge refreshes AS pending notices after Matrix sync',
+      (tester) async {
+    final client = Client('PortalIMPendingFriendNoticeSyncTest')
+      ..setUserId('@owner:p2p-im.com');
+    final readStore = _MemoryFriendRequestReadStore();
+    final asClient = _RefreshingFriendRequestBootstrapAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          friendRequestReadStoreProvider.overrideWith((ref) async => readStore),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 1);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
+
+    asClient.showPendingFriendRequest = true;
+    _addTestRoom(
+      client,
+      roomId: '!pending-live:p2p-im.com',
+      roomMembership: Membership.invite,
+      directPeerMxid: '@alice:p2p-im.com',
+      directPeerMembership: Membership.invite,
+    );
+    await tester.pump(const Duration(seconds: 9));
+    await client.handleSync(SyncUpdate(nextBatch: 'friend-request'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 2);
     expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
 
     await tester.tap(find.text('通讯录').last);

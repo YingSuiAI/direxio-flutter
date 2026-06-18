@@ -147,9 +147,13 @@ class _HomePageState extends ConsumerState<HomePage>
       syncCache: syncCache,
       agentMxid: agentMxid,
     );
+    final hasPendingInvite = _hasPendingInviteRooms(
+      client: client,
+      agentMxid: agentMxid,
+    );
     _scheduleAsBootstrapRefreshIfNeeded(
       refreshExisting: true,
-      force: needsClassification,
+      force: needsClassification || hasPendingInvite,
     );
     final nextSignature = _homeSyncSignature(client);
     if (nextSignature == _lastHomeSyncSignature) return;
@@ -1810,6 +1814,16 @@ bool _hasUnclassifiedJoinedRooms({
     if (room.membership != Membership.join) return false;
     if (_isAgentRoom(room, agentMxid)) return false;
     return !knownRoomIds.contains(room.id.trim());
+  });
+}
+
+bool _hasPendingInviteRooms({
+  required Client client,
+  required String? agentMxid,
+}) {
+  return client.rooms.any((room) {
+    if (room.membership != Membership.invite) return false;
+    return !_isAgentRoom(room, agentMxid);
   });
 }
 

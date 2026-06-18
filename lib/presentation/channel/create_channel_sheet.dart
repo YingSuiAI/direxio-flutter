@@ -42,8 +42,8 @@ String _channelTypeForDraft(String type) {
   return type.trim() == '帖子' ? 'post' : 'chat';
 }
 
-String createChannelJoinPolicyForVisibility(bool isPublic) {
-  return isPublic ? asChannelJoinPolicyOpen : asChannelJoinPolicyApproval;
+String createChannelJoinPolicyForApproval(bool needsApproval) {
+  return needsApproval ? asChannelJoinPolicyApproval : asChannelJoinPolicyOpen;
 }
 
 class _CreateChannelDraft {
@@ -53,6 +53,7 @@ class _CreateChannelDraft {
     required this.description,
     this.avatarUrl = '',
     required this.isPublic,
+    required this.needsApproval,
   });
 
   final String name;
@@ -60,6 +61,7 @@ class _CreateChannelDraft {
   final String description;
   final String avatarUrl;
   final bool isPublic;
+  final bool needsApproval;
 }
 
 class _CreateChannelSheet extends ConsumerStatefulWidget {
@@ -151,6 +153,7 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
         description: _introCtrl.text,
         avatarUrl: _avatarUrl,
         isPublic: _isPublic,
+        needsApproval: _needsApproval,
       );
       final channel = await ref.read(asClientProvider).createChannel(
         name: name,
@@ -159,7 +162,7 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
         visibility: draft.isPublic
             ? asChannelVisibilityPublic
             : asChannelVisibilityPrivate,
-        joinPolicy: createChannelJoinPolicyForVisibility(draft.isPublic),
+        joinPolicy: createChannelJoinPolicyForApproval(draft.needsApproval),
         channelType: _channelTypeForDraft(draft.type),
         tags: [draft.type],
       );
@@ -167,9 +170,10 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
         '[AS admin] create channel result ${jsonEncode(channel.toJson())}',
       );
       final createdAt = DateTime.now().toUtc();
+      final cachedChannel = _channelWithDraftProfile(channel, draft);
       await ref
           .read(localCreatedChannelsProvider.notifier)
-          .cacheCreatedChannel(channel, createdAt);
+          .cacheCreatedChannel(cachedChannel, createdAt);
       final bootstrap = _bootstrapWithCreatedChannel(
         await ref.read(asBootstrapRepositoryProvider).refresh(),
         channel,
@@ -314,6 +318,33 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
       ),
     );
   }
+}
+
+AsChannel _channelWithDraftProfile(
+  AsChannel channel,
+  _CreateChannelDraft draft,
+) {
+  return AsChannel(
+    channelId: channel.channelId,
+    roomId: channel.roomId,
+    name: channel.name.trim().isEmpty ? draft.name.trim() : channel.name,
+    homeDomain: channel.homeDomain,
+    description: channel.description.trim().isEmpty
+        ? draft.description.trim()
+        : channel.description,
+    avatarUrl:
+        channel.avatarUrl.trim().isEmpty ? draft.avatarUrl : channel.avatarUrl,
+    visibility: channel.visibility,
+    joinPolicy: channel.joinPolicy,
+    commentsEnabled: channel.commentsEnabled,
+    channelType: channel.channelType,
+    role: channel.role,
+    memberStatus: channel.memberStatus,
+    memberCount: channel.memberCount,
+    pendingJoinCount: channel.pendingJoinCount,
+    tags: channel.tags.isEmpty ? [draft.type] : channel.tags,
+    latestActivityAt: channel.latestActivityAt,
+  );
 }
 
 AsSyncBootstrap _bootstrapWithCreatedChannel(

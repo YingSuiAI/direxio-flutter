@@ -297,15 +297,20 @@ class ChannelInboxData {
       if (index < 0) {
         merged.add(cachedItem);
       } else {
+        final mergedItem = merged[index];
         merged[index] = merged[index].copyWith(
-          latestAt: _latestOf(merged[index].latestAt, entry.createdAt),
+          avatarUrl: _preferReadableText(
+            mergedItem.avatarUrl,
+            cachedItem.avatarUrl,
+          ),
+          latestAt: _latestOf(mergedItem.latestAt, entry.createdAt),
           isOwned: true,
-          role: merged[index].role.trim().isEmpty
+          role: mergedItem.role.trim().isEmpty
               ? asChannelRoleOwner
-              : merged[index].role,
-          memberStatus: merged[index].memberStatus.trim().isEmpty
+              : mergedItem.role,
+          memberStatus: mergedItem.memberStatus.trim().isEmpty
               ? asChannelMemberStatusJoined
-              : merged[index].memberStatus,
+              : mergedItem.memberStatus,
         );
       }
     }

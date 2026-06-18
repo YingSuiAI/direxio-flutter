@@ -11,6 +11,7 @@ import '../../l10n/app_localizations.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_created_channels_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
@@ -30,6 +31,10 @@ const _channelBorder = Color(0xFFE6E6E6);
 final _channelListProvider = FutureProvider.autoDispose<List<AsChannel>>((ref) {
   return ref.read(asClientProvider).listChannels();
 });
+
+final _hiddenChannelListKeysProvider = StateProvider<Set<String>>(
+  (ref) => const <String>{},
+);
 
 final _channelPendingReviewCountProvider = FutureProvider.autoDispose<int>((
   ref,
@@ -60,9 +65,6 @@ class ChannelExplorePage extends ConsumerStatefulWidget {
 }
 
 class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
-  String _section = '我创建';
-  String _contentType = '全部';
-
   @override
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
@@ -79,8 +81,10 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     final localCreatedChannels = useRealChannels
         ? ref.watch(localCreatedChannelsProvider)
         : const <ChannelCreatedCacheEntry>[];
+    final hiddenChannelKeys = ref.watch(_hiddenChannelListKeysProvider);
+    final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
     final fallbackDomain = _clientServerName(client);
-    final hiddenChannelKeys = _hiddenChannelKeys(syncCache);
+    final syncHiddenChannelKeys = _hiddenChannelKeys(syncCache);
     final sourceChannels = useRealChannels
         ? ChannelInboxData.mergeCreatedCache(
             listedChannels == null
@@ -107,20 +111,19 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             fallbackDomain: fallbackDomain,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
-            hiddenChannelKeys: hiddenChannelKeys,
+            hiddenChannelKeys: syncHiddenChannelKeys,
           )
         : _mockChannelItems();
-    final joinedChannels = _channelFilteredItems(
-      sourceChannels.where((channel) => !channel.isOwned).toList(),
-      _contentType,
-    );
-    final ownedChannels = _channelFilteredItems(
+    final visibleSourceChannels = _sortPinnedChannels(
       sourceChannels
-          .where((channel) => channel.isOwned && !_channelIsDissolved(channel))
-          .toList(),
-      _contentType,
+          .where((channel) =>
+              !_channelHiddenKeysContain(hiddenChannelKeys, channel))
+          .toList(growable: false),
+      pinnedChannelKeys,
     );
-    final visibleChannels = _section == '已加入' ? joinedChannels : ownedChannels;
+    final visibleChannels = visibleSourceChannels
+        .where((channel) => !_channelIsDissolved(channel))
+        .toList(growable: false);
     final activeChannelKeys = _activeChannelKeys(
       syncCache,
       localCreatedChannels,
@@ -193,36 +196,14 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
               ],
             ),
           ),
-          Positioned(
-            left: 16,
-            right: 16,
-            top: topInset + 76,
-            height: 42,
-            child: _ChannelSectionSwitch(
-              key: const ValueKey('channel_filter_bar'),
-              value: _section,
-              onChanged: (value) => setState(() => _section = value),
-            ),
-          ),
-          Positioned(
-            left: 16,
-            top: topInset + 128,
-            height: 29,
-            child: _ChannelTypeFilter(
-              value: _contentType,
-              onChanged: (value) => setState(() => _contentType = value),
-            ),
-          ),
           Positioned.fill(
-            top: topInset + 171,
+            top: topInset + 76,
             child: visibleChannels.isEmpty
-                ? _ChannelEmptyArea(selectedSection: _section)
+                ? const _ChannelEmptyArea()
                 : ChannelInboxList(
-                    key: ValueKey(
-                      'channel_inbox_${_section}_$_contentType',
-                    ),
-                    storageKey: PageStorageKey(
-                      'channel_inbox_scroll_${_section}_$_contentType',
+                    key: const ValueKey('channel_inbox_all'),
+                    storageKey: const PageStorageKey(
+                      'channel_inbox_scroll_all',
                     ),
                     channels: visibleChannels,
                     onTapChannel: (channel) => _openChannelInboxItem(
@@ -231,11 +212,16 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                       validateExists: useRealChannels && bootstrap != null,
                       activeChannelKeys: activeChannelKeys,
                     ),
+                    pinnedChannelKeys: pinnedChannelKeys,
+                    onTogglePin: (channel) =>
+                        _toggleChannelListPin(ref, channel),
+                    onHide: (channel) => _hideChannelListItem(ref, channel),
+                    onDelete: (channel) => _deleteChannelListItem(ref, channel),
                   ),
           ),
           Positioned(
             right: 24,
-            bottom: 96,
+            bottom: 56,
             child: _ChannelCreateButton(
               key: const ValueKey('channel_post_button'),
               onTap: () => showCreateChannelDialog(
@@ -258,11 +244,18 @@ class ChannelReviewPage extends ConsumerStatefulWidget {
   ConsumerState<ChannelReviewPage> createState() => _ChannelReviewPageState();
 }
 
-class MeChannelsPage extends ConsumerWidget {
+class MeChannelsPage extends ConsumerStatefulWidget {
   const MeChannelsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MeChannelsPage> createState() => _MeChannelsPageState();
+}
+
+class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
+  String _section = '我创建';
+
+  @override
+  Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
     final auth = ref.watch(authStateNotifierProvider).valueOrNull;
     final syncCache = asSyncCacheForUser(
@@ -271,7 +264,9 @@ class MeChannelsPage extends ConsumerWidget {
     );
     final bootstrap = syncCache.bootstrap;
     final localCreatedChannels = ref.watch(localCreatedChannelsProvider);
-    final hiddenChannelKeys = _hiddenChannelKeys(syncCache);
+    final hiddenChannelKeys = ref.watch(_hiddenChannelListKeysProvider);
+    final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
+    final syncHiddenChannelKeys = _hiddenChannelKeys(syncCache);
     final channels = bootstrap == null
         ? ChannelInboxData.mergeCreatedCache(
             const <ChannelInboxItem>[],
@@ -279,7 +274,7 @@ class MeChannelsPage extends ConsumerWidget {
             fallbackDomain: _clientServerName(client),
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
-          ).where((channel) => channel.isOwned).toList(growable: false)
+          )
         : ChannelInboxData.mergeCreatedCache(
             ChannelInboxData.fromBootstrap(
               bootstrap,
@@ -292,14 +287,30 @@ class MeChannelsPage extends ConsumerWidget {
             fallbackDomain: _clientServerName(client),
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
-            hiddenChannelKeys: hiddenChannelKeys,
-          ).where((channel) => channel.isOwned).toList(growable: false);
+            hiddenChannelKeys: syncHiddenChannelKeys,
+          );
+    final filteredChannels = channels.where((channel) {
+      final hidden = _channelHiddenKeysContain(hiddenChannelKeys, channel);
+      if (hidden) return false;
+      return _section == '我创建' ? channel.isOwned : !channel.isOwned;
+    }).toList(growable: false);
+    final visibleChannels = _sortPinnedChannels(
+      filteredChannels,
+      pinnedChannelKeys,
+    );
 
     return Scaffold(
       backgroundColor: _channelBgColor(context),
       body: Column(
         children: [
           GlassHeader.detail(title: '我的频道'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+            child: _MeChannelSectionSwitch(
+              value: _section,
+              onChanged: (value) => setState(() => _section = value),
+            ),
+          ),
           Expanded(
             child: bootstrap == null
                 ? const _ChannelEmpty(
@@ -307,16 +318,24 @@ class MeChannelsPage extends ConsumerWidget {
                     title: '正在同步频道',
                     subtitle: '请稍候',
                   )
-                : channels.isEmpty
-                    ? const _ChannelEmpty(
+                : visibleChannels.isEmpty
+                    ? _ChannelEmpty(
                         icon: Symbols.forum,
-                        title: '暂无我创建的频道',
-                        subtitle: '创建的频道会显示在这里',
+                        title: _section == '我创建' ? '暂无我创建的频道' : '暂无已加入频道',
+                        subtitle:
+                            _section == '我创建' ? '创建的频道会显示在这里' : '加入的频道会显示在这里',
                       )
                     : ChannelInboxList(
                         storageKey: const PageStorageKey('me_channels'),
-                        channels: channels,
+                        channels: visibleChannels,
                         bottomPadding: 24,
+                        showTime: false,
+                        pinnedChannelKeys: pinnedChannelKeys,
+                        onTogglePin: (channel) =>
+                            _toggleChannelListPin(ref, channel),
+                        onHide: (channel) => _hideChannelListItem(ref, channel),
+                        onDelete: (channel) =>
+                            _deleteChannelListItem(ref, channel),
                       ),
           ),
         ],
@@ -649,9 +668,8 @@ class _ChannelFrame extends StatelessWidget {
   }
 }
 
-class _ChannelSectionSwitch extends StatelessWidget {
-  const _ChannelSectionSwitch({
-    super.key,
+class _MeChannelSectionSwitch extends StatelessWidget {
+  const _MeChannelSectionSwitch({
     required this.value,
     required this.onChanged,
   });
@@ -662,16 +680,17 @@ class _ChannelSectionSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      height: 42,
       padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        color: _channelSegmentBgColor(context),
+        color: context.tk.surfaceHover,
         borderRadius: BorderRadius.circular(21),
       ),
       child: Row(
         children: [
-          for (final label in _channelSections)
+          for (final label in _meChannelSections)
             Expanded(
-              child: _ChannelSectionSegment(
+              child: _MeChannelSectionSegment(
                 label: label,
                 selected: label == value,
                 onTap: () {
@@ -686,8 +705,8 @@ class _ChannelSectionSwitch extends StatelessWidget {
   }
 }
 
-class _ChannelSectionSegment extends StatelessWidget {
-  const _ChannelSectionSegment({
+class _MeChannelSectionSegment extends StatelessWidget {
+  const _MeChannelSectionSegment({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -700,8 +719,7 @@ class _ChannelSectionSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color:
-          selected ? _channelSelectedSegmentColor(context) : Colors.transparent,
+      color: selected ? context.tk.surface : Colors.transparent,
       borderRadius: BorderRadius.circular(30),
       child: InkWell(
         onTap: onTap,
@@ -714,78 +732,8 @@ class _ChannelSectionSegment extends StatelessWidget {
             style: AppTheme.sans(
               size: 13,
               weight: FontWeight.w500,
-              color: selected
-                  ? _channelSelectedSegmentTextColor(context)
-                  : _channelMutedColor(context),
+              color: selected ? context.tk.text : context.tk.textMute,
             ).copyWith(height: 16 / 13),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChannelTypeFilter extends StatelessWidget {
-  const _ChannelTypeFilter({
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (final label in _channelTypeFilters) ...[
-          _ChannelTypePill(
-            label: label,
-            selected: label == value,
-            onTap: () => onChanged(label),
-          ),
-          if (label != _channelTypeFilters.last) const SizedBox(width: 8),
-        ],
-      ],
-    );
-  }
-}
-
-class _ChannelTypePill extends StatelessWidget {
-  const _ChannelTypePill({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = selected
-        ? _channelSelectedFilterBgColor(context)
-        : _channelFilterBgColor(context);
-    final fg = selected ? context.tk.accent : _channelMutedColor(context);
-    return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(30),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(30),
-        child: SizedBox(
-          width: 57,
-          height: 29,
-          child: Center(
-            child: Text(
-              label,
-              style: AppTheme.sans(
-                size: 12,
-                weight: FontWeight.w500,
-                color: fg,
-              ).copyWith(height: 16 / 12),
-            ),
           ),
         ),
       ),
@@ -903,12 +851,22 @@ class ChannelInboxList extends StatelessWidget {
     required this.storageKey,
     required this.channels,
     this.onTapChannel,
+    this.pinnedChannelKeys = const <String>{},
+    this.onTogglePin,
+    this.onHide,
+    this.onDelete,
+    this.showTime = true,
     this.bottomPadding = 104,
   });
 
   final PageStorageKey<String> storageKey;
   final List<ChannelInboxItem> channels;
   final ValueChanged<ChannelInboxItem>? onTapChannel;
+  final Set<String> pinnedChannelKeys;
+  final ValueChanged<ChannelInboxItem>? onTogglePin;
+  final ValueChanged<ChannelInboxItem>? onHide;
+  final ValueChanged<ChannelInboxItem>? onDelete;
+  final bool showTime;
   final double bottomPadding;
 
   @override
@@ -922,6 +880,11 @@ class ChannelInboxList extends StatelessWidget {
         channel: channels[index],
         showDivider: index != channels.length - 1,
         onTap: onTapChannel,
+        isPinned: _channelPinnedKeysContain(pinnedChannelKeys, channels[index]),
+        onTogglePin: onTogglePin,
+        onHide: onHide,
+        onDelete: onDelete,
+        showTime: showTime,
       ),
     );
   }
@@ -933,111 +896,159 @@ class ChannelInboxTile extends StatelessWidget {
     required this.channel,
     required this.showDivider,
     this.onTap,
+    this.isPinned = false,
+    this.onTogglePin,
+    this.onHide,
+    this.onDelete,
+    this.showTime = true,
   });
 
   final ChannelInboxItem channel;
   final bool showDivider;
   final ValueChanged<ChannelInboxItem>? onTap;
+  final bool isPinned;
+  final ValueChanged<ChannelInboxItem>? onTogglePin;
+  final ValueChanged<ChannelInboxItem>? onHide;
+  final ValueChanged<ChannelInboxItem>? onDelete;
+  final bool showTime;
 
   @override
   Widget build(BuildContext context) {
     final channelId = channel.id.trim();
-    return InkWell(
-      onTap: channelId.isEmpty
-          ? null
-          : () {
-              final handler = onTap;
-              if (handler == null) {
-                context.push(_channelRoute(channel));
-                return;
-              }
-              handler(channel);
-            },
-      child: SizedBox(
-        height: 64,
-        child: Row(
-          children: [
-            const SizedBox(width: 16),
-            _ChannelAvatar(channel: channel, size: 42),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  border: showDivider
-                      ? Border(
-                          bottom: BorderSide(
-                            color: _channelBorderColor(context),
-                            width: 0.5,
-                          ),
-                        )
-                      : null,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 21),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                channel.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTheme.sans(
-                                  size: 14,
-                                  weight: FontWeight.w500,
-                                  color: _channelTextColor(context),
-                                ).copyWith(height: 18 / 14),
+    Offset menuPosition = Offset.zero;
+    return GestureDetector(
+      onSecondaryTapDown: (details) => menuPosition = details.globalPosition,
+      onSecondaryTap: () => _showChannelInboxMenu(
+        context,
+        menuPosition,
+        channel,
+        isPinned: isPinned,
+        onTogglePin: onTogglePin,
+        onHide: onHide,
+        onDelete: onDelete,
+      ),
+      onLongPressStart: (details) {
+        menuPosition = details.globalPosition;
+        _showChannelInboxMenu(
+          context,
+          menuPosition,
+          channel,
+          isPinned: isPinned,
+          onTogglePin: onTogglePin,
+          onHide: onHide,
+          onDelete: onDelete,
+        );
+      },
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: channelId.isEmpty
+              ? null
+              : () {
+                  final handler = onTap;
+                  if (handler == null) {
+                    context.push(_channelRoute(channel));
+                    return;
+                  }
+                  handler(channel);
+                },
+          child: SizedBox(
+            height: 64,
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                _ChannelAvatar(channel: channel, size: 42),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: showDivider
+                          ? Border(
+                              bottom: BorderSide(
+                                color: _channelBorderColor(context),
+                                width: 0.5,
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            _ChannelKindBadge(
-                              label: _channelIsTextType(channel) ? '文字' : '帖子',
-                            ),
-                          ],
-                        ),
-                      ),
+                            )
+                          : null,
                     ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 50,
-                      height: 64,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 12, bottom: 11),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              _formatChannelTime(channel.latestAt),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.right,
-                              style: AppTheme.sans(
-                                size: 12,
-                                weight: FontWeight.w500,
-                                color: _channelMutedColor(context),
-                              ).copyWith(height: 15 / 12),
-                            ),
-                            const Spacer(),
-                            if (_channelIsTextType(channel) &&
-                                channel.unreadCount > 0)
-                              _UnreadBadge(
-                                key: ValueKey(
-                                  'channel_unread_count_${channel.id}',
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 21),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    channel.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTheme.sans(
+                                      size: 14,
+                                      weight: FontWeight.w500,
+                                      color: _channelTextColor(context),
+                                    ).copyWith(height: 18 / 14),
+                                  ),
                                 ),
-                                count: channel.unreadCount,
-                              ),
-                          ],
+                                const SizedBox(width: 6),
+                                _ChannelKindBadge(
+                                  label:
+                                      _channelIsTextType(channel) ? '文字' : '帖子',
+                                ),
+                                if (isPinned) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Symbols.push_pin,
+                                    size: 14,
+                                    color: _channelMutedColor(context),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 50,
+                          height: 64,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 12, bottom: 11),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (showTime)
+                                  Text(
+                                    _formatChannelTime(channel.latestAt),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.right,
+                                    style: AppTheme.sans(
+                                      size: 12,
+                                      weight: FontWeight.w500,
+                                      color: _channelMutedColor(context),
+                                    ).copyWith(height: 15 / 12),
+                                  ),
+                                const Spacer(),
+                                if (_channelIsTextType(channel) &&
+                                    channel.unreadCount > 0)
+                                  _UnreadBadge(
+                                    key: ValueKey(
+                                      'channel_unread_count_${channel.id}',
+                                    ),
+                                    count: channel.unreadCount,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1146,17 +1157,15 @@ class _UnreadBadge extends StatelessWidget {
 }
 
 class _ChannelEmptyArea extends StatelessWidget {
-  const _ChannelEmptyArea({required this.selectedSection});
-
-  final String selectedSection;
+  const _ChannelEmptyArea();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: _ChannelEmpty(
         icon: Symbols.campaign,
         title: '还没有频道',
-        subtitle: selectedSection == '我创建' ? '创建频道后会显示在这里' : '加入频道后会显示在这里',
+        subtitle: '加入或创建频道后会显示在这里',
       ),
     );
   }
@@ -1383,25 +1392,7 @@ class _ReviewItem {
   }
 }
 
-const _channelSections = ['已加入', '我创建'];
-const _channelTypeFilters = ['全部', '文字', '帖子'];
-
-List<ChannelInboxItem> _channelFilteredItems(
-  List<ChannelInboxItem> channels,
-  String category,
-) {
-  final sorted = switch (category) {
-    '文字' => channels.where(_channelIsTextType).toList(),
-    '帖子' => channels.where((channel) => !_channelIsTextType(channel)).toList(),
-    _ => [...channels],
-  };
-  sorted.sort((a, b) {
-    final aMs = a.latestAt?.millisecondsSinceEpoch ?? 0;
-    final bMs = b.latestAt?.millisecondsSinceEpoch ?? 0;
-    return bMs.compareTo(aMs);
-  });
-  return sorted;
-}
+const _meChannelSections = ['已加入', '我创建'];
 
 bool _channelIsTextType(ChannelInboxItem channel) {
   return normalizeAsChannelType(channel.channelType) == asChannelTypeChat;
@@ -1413,6 +1404,166 @@ String _channelRoute(ChannelInboxItem channel) {
   final name = channel.name.trim();
   final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
   return '/channel/$channelId/conversation$query';
+}
+
+void _showChannelInboxMenu(
+  BuildContext context,
+  Offset position,
+  ChannelInboxItem channel, {
+  required bool isPinned,
+  ValueChanged<ChannelInboxItem>? onTogglePin,
+  ValueChanged<ChannelInboxItem>? onHide,
+  ValueChanged<ChannelInboxItem>? onDelete,
+}) {
+  if (onTogglePin == null && onHide == null && onDelete == null) return;
+  final size = MediaQuery.of(context).size;
+  const menuWidth = 176.0;
+  const menuHeight = 148.0;
+  var left = position.dx;
+  var top = position.dy;
+  if (left + menuWidth > size.width - 8) left = size.width - menuWidth - 8;
+  if (top + menuHeight > size.height - 8) top = size.height - menuHeight - 8;
+  if (left < 8) left = 8;
+  if (top < 8) top = 8;
+
+  showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'channel-inbox-menu',
+    barrierColor: Colors.black.withValues(alpha: 0.15),
+    transitionDuration: const Duration(milliseconds: 120),
+    pageBuilder: (dialogContext, _, __) => Stack(
+      children: [
+        Positioned(
+          left: left,
+          top: top,
+          width: menuWidth,
+          child: _ChannelInboxMenuCard(
+            channel: channel,
+            isPinned: isPinned,
+            onTogglePin: onTogglePin,
+            onHide: onHide,
+            onDelete: onDelete,
+          ),
+        ),
+      ],
+    ),
+    transitionBuilder: (_, animation, __, child) =>
+        FadeTransition(opacity: animation, child: child),
+  );
+}
+
+class _ChannelInboxMenuCard extends StatelessWidget {
+  const _ChannelInboxMenuCard({
+    required this.channel,
+    required this.isPinned,
+    this.onTogglePin,
+    this.onHide,
+    this.onDelete,
+  });
+
+  final ChannelInboxItem channel;
+  final bool isPinned;
+  final ValueChanged<ChannelInboxItem>? onTogglePin;
+  final ValueChanged<ChannelInboxItem>? onHide;
+  final ValueChanged<ChannelInboxItem>? onDelete;
+
+  static const _dark = Color(0xFF1E2026); // theme-fixed
+  static const _divider = Color(0x1AFFFFFF); // theme-fixed
+  static const _icon = Color(0xB3FFFFFF); // theme-fixed
+  static const _label = Colors.white; // theme-fixed
+  static const _danger = Color(0xFFFF6B6B); // theme-fixed
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _dark,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _row(
+              context,
+              isPinned ? Symbols.keep_off : Symbols.push_pin,
+              isPinned ? '取消置顶' : '置顶',
+              () {
+                Navigator.of(context).pop();
+                onTogglePin?.call(channel);
+                _toast(
+                  context,
+                  isPinned ? '已取消置顶「${channel.name}」' : '已置顶「${channel.name}」',
+                );
+              },
+            ),
+            const Divider(
+              height: 1,
+              color: _divider,
+              indent: 16,
+              endIndent: 16,
+            ),
+            _row(context, Symbols.visibility_off, '不显示', () {
+              Navigator.of(context).pop();
+              onHide?.call(channel);
+              _toast(context, '已隐藏「${channel.name}」');
+            }),
+            const Divider(
+              height: 1,
+              color: _divider,
+              indent: 16,
+              endIndent: 16,
+            ),
+            _row(context, Symbols.delete, '删除频道', () {
+              Navigator.of(context).pop();
+              onDelete?.call(channel);
+              _toast(context, '已删除「${channel.name}」');
+            }, danger: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(
+    BuildContext context,
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    bool danger = false,
+  }) {
+    final color = danger ? _danger : _label;
+    final iconColor = danger ? _danger : _icon;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: iconColor),
+            const SizedBox(width: 12),
+            Text(label, style: AppTheme.sans(size: 15, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _toast(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message), duration: const Duration(seconds: 1)),
+  );
 }
 
 void _openChannelInboxItem(
@@ -1448,6 +1599,73 @@ Set<String> _activeChannelKeys(
       entry.channel.roomId,
     );
   }
+  return keys;
+}
+
+List<ChannelInboxItem> _sortPinnedChannels(
+  List<ChannelInboxItem> channels,
+  Set<String> pinnedChannelKeys,
+) {
+  final sorted = [...channels]..sort((a, b) {
+      final aPinned = _channelPinnedKeysContain(pinnedChannelKeys, a);
+      final bPinned = _channelPinnedKeysContain(pinnedChannelKeys, b);
+      if (aPinned != bPinned) return aPinned ? -1 : 1;
+      return 0;
+    });
+  return sorted;
+}
+
+void _toggleChannelListPin(WidgetRef ref, ChannelInboxItem channel) {
+  final key = _channelPreferenceKey(channel);
+  if (key.isEmpty) return;
+  toggleConversationPin(ref, key);
+}
+
+void _hideChannelListItem(WidgetRef ref, ChannelInboxItem channel) {
+  _updateHiddenChannelListKeys(ref, channel);
+}
+
+void _deleteChannelListItem(WidgetRef ref, ChannelInboxItem channel) {
+  _updateHiddenChannelListKeys(ref, channel);
+  final key = _channelPreferenceKey(channel);
+  if (key.isNotEmpty) unpinConversation(ref, key);
+}
+
+void _updateHiddenChannelListKeys(WidgetRef ref, ChannelInboxItem channel) {
+  final keys = _channelListKeys(channel);
+  if (keys.isEmpty) return;
+  ref.read(_hiddenChannelListKeysProvider.notifier).update(
+        (current) => {...current, ...keys},
+      );
+}
+
+bool _channelHiddenKeysContain(
+  Set<String> hiddenChannelKeys,
+  ChannelInboxItem channel,
+) {
+  return _channelListKeys(channel).any(hiddenChannelKeys.contains);
+}
+
+bool _channelPinnedKeysContain(
+  Set<String> pinnedChannelKeys,
+  ChannelInboxItem channel,
+) {
+  final key = _channelPreferenceKey(channel);
+  return key.isNotEmpty && pinnedChannelKeys.contains(key);
+}
+
+String _channelPreferenceKey(ChannelInboxItem channel) {
+  final roomId = channel.roomId.trim();
+  if (roomId.isNotEmpty) return roomId;
+  return channel.id.trim();
+}
+
+Set<String> _channelListKeys(ChannelInboxItem channel) {
+  final keys = <String>{};
+  final channelId = channel.id.trim();
+  final roomId = channel.roomId.trim();
+  if (channelId.isNotEmpty) keys.add(channelId);
+  if (roomId.isNotEmpty) keys.add(roomId);
   return keys;
 }
 
@@ -1715,30 +1933,6 @@ Color _channelSoftFillColor(BuildContext context) {
   return Theme.of(context).brightness == Brightness.dark
       ? context.tk.surfaceHigh
       : const Color(0xFFEEF1F6);
-}
-
-Color _channelSegmentBgColor(BuildContext context) {
-  return Theme.of(context).brightness == Brightness.dark
-      ? context.tk.surfaceHover
-      : const Color(0xFFE9EAED);
-}
-
-Color _channelSelectedSegmentColor(BuildContext context) {
-  return Theme.of(context).brightness == Brightness.dark
-      ? context.tk.surface
-      : Colors.white;
-}
-
-Color _channelSelectedSegmentTextColor(BuildContext context) {
-  return Theme.of(context).brightness == Brightness.dark
-      ? context.tk.text
-      : Colors.black;
-}
-
-Color _channelFilterBgColor(BuildContext context) {
-  return Theme.of(context).brightness == Brightness.dark
-      ? context.tk.surfaceHover
-      : const Color(0xFFEDF0F4);
 }
 
 Color _channelSelectedFilterBgColor(BuildContext context) {

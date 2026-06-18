@@ -3565,6 +3565,9 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -3804,8 +3807,10 @@ void main() {
     expect(find.text('关注'), findsNothing);
     expect(find.text('Agent'), findsNothing);
     expect(find.byType(PageView), findsNothing);
-    expect(find.text('已加入'), findsOneWidget);
-    expect(find.text('频道列表'), findsOneWidget);
+    expect(find.text('已加入'), findsNothing);
+    expect(find.text('我创建'), findsNothing);
+    expect(find.text('频道列表'), findsNothing);
+    expect(find.text('全部'), findsNothing);
     expect(find.text('#综合讨论'), findsOneWidget);
     expect(find.text('#新手问答'), findsOneWidget);
     expect(find.text('草稿箱'), findsNothing);
@@ -3832,7 +3837,10 @@ void main() {
 
     expect(find.byKey(const ValueKey('channel_tab_title')), findsOneWidget);
     expect(find.byKey(const ValueKey('channel_search_button')), findsOneWidget);
-    expect(find.byKey(const ValueKey('channel_filter_bar')), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_filter_bar')), findsNothing);
+    expect(find.text('已加入'), findsNothing);
+    expect(find.text('我创建'), findsNothing);
+    expect(find.text('全部'), findsNothing);
     expect(find.byKey(const ValueKey('channel_post_button')), findsOneWidget);
   });
 
@@ -3853,7 +3861,7 @@ void main() {
           name: '我创建的频道',
           avatarUrl: '',
           unreadCount: 2,
-          lastActivityAt: DateTime.utc(2026, 6, 17, 9, 30),
+          lastActivityAt: DateTime.utc(2026, 1, 2, 9, 30),
           description: '频道列表 item 样式',
           isOwned: true,
           tags: const ['文字'],
@@ -3864,7 +3872,7 @@ void main() {
           name: '我加入的频道',
           avatarUrl: '',
           unreadCount: 0,
-          lastActivityAt: DateTime.utc(2026, 6, 17, 9),
+          lastActivityAt: DateTime.utc(2026, 1, 3, 9),
           description: '不应该显示',
           isOwned: false,
           tags: const ['帖子'],
@@ -3877,6 +3885,9 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -3887,13 +3898,25 @@ void main() {
     await tester.pump();
 
     expect(find.text('我的频道'), findsOneWidget);
+    expect(find.text('已加入'), findsOneWidget);
+    expect(find.text('我创建'), findsOneWidget);
     expect(find.byKey(const ValueKey('channel_inbox_tile_owned-channel')),
         findsOneWidget);
     expect(find.text('我创建的频道'), findsOneWidget);
     expect(find.text('频道列表 item 样式'), findsNothing);
+    expect(find.text('1/2'), findsNothing);
     expect(find.text('我加入的频道'), findsNothing);
     expect(find.byKey(const ValueKey('channel_inbox_tile_joined-channel')),
         findsNothing);
+
+    await tester.tap(find.text('已加入'));
+    await tester.pump();
+
+    expect(find.text('我加入的频道'), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_inbox_tile_joined-channel')),
+        findsOneWidget);
+    expect(find.text('我创建的频道'), findsNothing);
+    expect(find.text('1/3'), findsNothing);
   });
 
   testWidgets('channel search page matches figma empty state', (tester) async {
@@ -3967,13 +3990,13 @@ void main() {
     expect(find.text('加入是否需要审核'), findsOneWidget);
   });
 
-  test('create channel join policy follows public visibility', () {
+  test('create channel join policy follows approval switch', () {
     expect(
-      createChannelJoinPolicyForVisibility(false),
+      createChannelJoinPolicyForApproval(true),
       asChannelJoinPolicyApproval,
     );
     expect(
-      createChannelJoinPolicyForVisibility(true),
+      createChannelJoinPolicyForApproval(false),
       asChannelJoinPolicyOpen,
     );
   });
@@ -8647,8 +8670,8 @@ void main() {
     expect(find.text('搜索频道、群体、话题'), findsNothing);
     expect(find.textContaining('推荐频道'), findsNothing);
     expect(find.text('关注'), findsNothing);
-    for (final label in ['已加入', '频道列表', '全部']) {
-      expect(find.text(label), findsOneWidget);
+    for (final label in ['已加入', '我创建', '频道列表', '全部']) {
+      expect(find.text(label), findsNothing);
     }
     expect(find.text('文字'), findsAtLeastNWidgets(1));
     expect(find.text('帖子'), findsAtLeastNWidgets(1));
@@ -8726,7 +8749,7 @@ void main() {
         findsNothing);
   });
 
-  testWidgets('channel tab switches to discover channel list', (tester) async {
+  testWidgets('channel tab hides legacy discover switch', (tester) async {
     final client = Client('PortalIMTest');
 
     await tester.pumpWidget(
@@ -8742,17 +8765,13 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('频道列表'));
-    await tester.pump();
 
-    expect(find.text('#前端开发者'), findsOneWidget);
-    expect(find.text('#AI 产品研究'), findsOneWidget);
-    expect(find.text('加入'), findsWidgets);
-    expect(find.text('申请'), findsOneWidget);
-    expect(find.text('#综合讨论'), findsNothing);
+    expect(find.text('频道列表'), findsNothing);
+    expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('#新手问答'), findsOneWidget);
   });
 
-  testWidgets('channel filters use fixed figma segments', (tester) async {
+  testWidgets('channel filters are hidden on channel tab', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -8775,11 +8794,10 @@ void main() {
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
 
-    for (final label in ['已加入', '频道列表', '全部']) {
-      expect(find.text(label), findsOneWidget);
+    for (final label in ['已加入', '我创建', '频道列表', '全部']) {
+      expect(find.text(label), findsNothing);
     }
-    expect(find.text('文字'), findsAtLeastNWidgets(1));
-    expect(find.text('帖子'), findsAtLeastNWidgets(1));
+    expect(find.byKey(const ValueKey('channel_filter_bar')), findsNothing);
     expect(find.text('草稿'), findsNothing);
     expect(find.text('活动'), findsNothing);
     expect(find.text('节点'), findsNothing);
@@ -8885,11 +8903,72 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    await tester.tap(find.text('已加入'));
-    await tester.pump();
-
     expect(find.text('旧频道'), findsNothing);
     expect(find.text('频道已经解散'), findsNothing);
+  });
+
+  testWidgets('channel inbox long press shows channel actions', (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (mockAuthEnabled) return;
+
+    final client = Client('PortalIMChannelInboxMenuTest')
+      ..setUserId('@member:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-18T10:30:00Z'),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_menu',
+          roomId: '!menu:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '频道菜单',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-18T10:20:00Z'),
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypeChat,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_MemberLoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(_NeverListChannelsAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelExplorePage(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.longPress(find.text('频道菜单'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('置顶'), findsOneWidget);
+    expect(find.text('不显示'), findsOneWidget);
+    expect(find.text('删除频道'), findsOneWidget);
+    expect(find.text('删除聊天'), findsNothing);
   });
 
   testWidgets('empty real channel inbox does not show mock sample channels',

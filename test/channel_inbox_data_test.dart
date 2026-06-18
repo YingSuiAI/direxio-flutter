@@ -370,6 +370,52 @@ void main() {
     expect(merged.first.latestAt, DateTime.parse('2026-06-17T10:20:00Z'));
   });
 
+  test('local created channel cache fills missing existing avatar', () {
+    final items = ChannelInboxData.fromBootstrap(
+      AsSyncBootstrap(
+        syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),
+        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: [
+          AsSyncRoomSummary(
+            channelId: 'ch_created',
+            roomId: '!created:p2p-im.com',
+            homeDomain: 'p2p-im.com',
+            name: '刚创建的文字',
+            avatarUrl: '',
+            unreadCount: 0,
+            lastActivityAt: DateTime.parse('2026-06-17T09:00:00Z'),
+            channelType: asChannelTypeChat,
+          ),
+        ],
+        pending: const AsSyncPending.empty(),
+      ),
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    final merged = ChannelInboxData.mergeCreatedCache(
+      items,
+      [
+        ChannelCreatedCacheEntry(
+          channel: AsChannel.fromJson({
+            'channel_id': 'ch_created',
+            'room_id': '!created:p2p-im.com',
+            'name': '刚创建的文字',
+            'avatar_url': 'mxc://p2p-im.com/new-channel-avatar',
+            'channel_type': 'chat',
+          }),
+          createdAt: DateTime.parse('2026-06-17T10:20:00Z'),
+        ),
+      ],
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    expect(merged.single.avatarUrl, 'mxc://p2p-im.com/new-channel-avatar');
+    expect(merged.single.isOwned, isTrue);
+  });
+
   test('hides exited or dissolved channels from inbox data', () {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-18T10:30:00Z'),

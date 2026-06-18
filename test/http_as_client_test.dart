@@ -15,20 +15,82 @@ http.Response _jsonResponse(Map<String, dynamic> body, int statusCode) {
 }
 
 void main() {
-  test('maps loopback homeserver to local AS admin port', () {
+  test('maps loopback homeserver to local P2P API port', () {
     final base = HttpAsClient.defaultAdminBaseUri(
       Uri.parse('http://127.0.0.1:8008'),
     );
 
-    expect(base.toString(), 'http://127.0.0.1:9090/_as');
+    expect(base.toString(), 'http://127.0.0.1:8008/_p2p');
   });
 
-  test('maps hosted homeserver without synthetic port', () {
+  test('maps hosted homeserver to integrated P2P API', () {
     final base = HttpAsClient.defaultAdminBaseUri(
       Uri.parse('https://im.jkmf.top'),
     );
 
-    expect(base.toString(), 'https://im.jkmf.top/_as');
+    expect(base.toString(), 'https://im.jkmf.top/_p2p');
+  });
+
+  test('search uses unified P2P query action with portal bearer token',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'search',
+          'params': {'q': 'hello', 'limit': '30'},
+        });
+        return http.Response(
+          jsonEncode({
+            'results': [
+              {
+                'event_id': r'$event',
+                'room_id': '!room:example.com',
+                'sender_name': 'Alice',
+                'content': 'hello world',
+                'timestamp': '2026-05-20T10:30:00Z',
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final results = await client.search('hello', limit: 30);
+
+    expect(results, hasLength(1));
+    expect(results.single.eventId, r'$event');
+  });
+
+  test('sendRoomMessage uses unified P2P command action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(jsonDecode(request.body), {
+          'action': 'rooms.send',
+          'params': {
+            'room_id': '!alice:p2p-im.com',
+            'content': 'hello',
+          },
+        });
+        return http.Response(jsonEncode({'event_id': r'$sent'}), 200);
+      }),
+    );
+
+    final eventId = await client.sendRoomMessage(
+      '!alice:p2p-im.com',
+      'hello',
+    );
+
+    expect(eventId, r'$sent');
   });
 
   test('maps legacy channel intro field to description', () {

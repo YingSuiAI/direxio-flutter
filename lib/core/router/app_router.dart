@@ -1,5 +1,6 @@
 import 'dart:io' as io;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -239,6 +240,9 @@ String? rememberCallAutotestInitialRoute({
 }
 
 String? consumeCallAutotestInitialRouteFile() {
+  if (kIsWeb) {
+    return null;
+  }
   try {
     final file = io.File(
       '${io.Directory.systemTemp.path}/$_callAutotestInitialRouteFileName',
@@ -254,6 +258,24 @@ String? consumeCallAutotestInitialRouteFile() {
   } catch (_) {
     return null;
   }
+}
+
+Map<String, String> appRouterEnvironment() {
+  if (!kIsWeb) {
+    return io.Platform.environment;
+  }
+  const initialRoute = String.fromEnvironment('P2P_INITIAL_ROUTE');
+  if (initialRoute.trim().isEmpty) {
+    return const {};
+  }
+  return const {'P2P_INITIAL_ROUTE': initialRoute};
+}
+
+List<String> appRouterExecutableArguments() {
+  if (kIsWeb) {
+    return const [];
+  }
+  return io.Platform.executableArguments;
 }
 
 @riverpod
@@ -275,8 +297,8 @@ GoRouter appRouter(Ref ref) {
     initialLocation: initialAppLocation(
       mockAuthEnabled: _mockAuthEnabled,
       callAutotestEnabled: _callAutotestEnabled,
-      environment: io.Platform.environment,
-      arguments: io.Platform.executableArguments,
+      environment: appRouterEnvironment(),
+      arguments: appRouterExecutableArguments(),
       routeFileContent: _pendingCallAutotestInitialRoute,
     ),
     refreshListenable: authRefresh,

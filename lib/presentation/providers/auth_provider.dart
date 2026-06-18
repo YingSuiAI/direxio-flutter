@@ -55,14 +55,15 @@ Client matrixClient(Ref ref) {
     'PortalIM',
     httpClient: refreshingHttpClient,
     databaseBuilder: (_) async {
-      final dir = await getApplicationSupportDirectory();
-      final db = MatrixSdkDatabase(
-        'portal_im_db',
-        database: await sqlite.openDatabase(
-          '${dir.path}/portal_im_matrix.sqlite',
-          singleInstance: false,
-        ),
-      );
+      final db = kIsWeb
+          ? MatrixSdkDatabase('portal_im_db')
+          : MatrixSdkDatabase(
+              'portal_im_db',
+              database: await sqlite.openDatabase(
+                '${(await getApplicationSupportDirectory()).path}/portal_im_matrix.sqlite',
+                singleInstance: false,
+              ),
+            );
       await db.open();
       return db;
     },
@@ -196,11 +197,18 @@ Future<void> _persistMatrixSession(
 Uri _resolveClientHomeserver(Uri inputUri, String asHomeserver) {
   final parsed = Uri.tryParse(asHomeserver);
   if (parsed == null || parsed.host.isEmpty) return inputUri;
+  if (_isLocalHost(inputUri.host) && !_isLocalHost(parsed.host)) {
+    return inputUri;
+  }
   if (_isLocalHost(parsed.host) && !_isLocalHost(inputUri.host)) {
     return inputUri;
   }
   return parsed;
 }
+
+@visibleForTesting
+Uri resolveClientHomeserverForSession(Uri inputUri, String asHomeserver) =>
+    _resolveClientHomeserver(inputUri, asHomeserver);
 
 bool _isLocalHost(String host) {
   return host == 'localhost' ||
@@ -1172,22 +1180,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final trimmed = input.trim().replaceAll(RegExp(r'/+$'), '');
     if (trimmed.isEmpty) throw ArgumentError('Portal 地址不能为空');
     return Uri.parse(trimmed.startsWith('http') ? trimmed : 'https://$trimmed');
-  }
-
-  Uri _resolveClientHomeserver(Uri inputUri, String asHomeserver) {
-    final parsed = Uri.tryParse(asHomeserver);
-    if (parsed == null || parsed.host.isEmpty) return inputUri;
-    if (_isLocalHost(parsed.host) && !_isLocalHost(inputUri.host)) {
-      return inputUri;
-    }
-    return parsed;
-  }
-
-  bool _isLocalHost(String host) {
-    return host == 'localhost' ||
-        host == '127.0.0.1' ||
-        host == '::1' ||
-        host == '0.0.0.0';
   }
 
   String _createDeviceId() {

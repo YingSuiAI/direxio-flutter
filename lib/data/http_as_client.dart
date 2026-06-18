@@ -9,10 +9,8 @@ import 'as_client.dart';
 
 /// HTTP implementation for the p2p-matrix-as Admin API.
 ///
-/// Production deployments expose AS under `https://{domain}/_as/*`.
-/// Local AS development runs the admin API on port 9090, so loopback
-/// homeservers such as `http://127.0.0.1:8008` are mapped to
-/// `http://127.0.0.1:9090/_as/*`.
+/// Production deployments expose the integrated P2P product API under
+/// `https://{domain}/_p2p/*`.
 class HttpAsClient implements AsClient {
   HttpAsClient({
     required Uri baseUri,
@@ -82,18 +80,11 @@ class HttpAsClient implements AsClient {
 
   static Uri defaultAdminBaseUri(Uri homeserver) {
     final host = homeserver.host;
-    final isLoopback =
-        host == 'localhost' || host == '127.0.0.1' || host == '::1';
-    final port = isLoopback
-        ? 9090
-        : homeserver.hasPort
-            ? homeserver.port
-            : null;
     return Uri(
       scheme: homeserver.scheme.isEmpty ? 'https' : homeserver.scheme,
       host: host,
-      port: port,
-      path: '/_as',
+      port: homeserver.hasPort ? homeserver.port : null,
+      path: '/_p2p',
     );
   }
 
@@ -1473,6 +1464,130 @@ class HttpAsClient implements AsClient {
     Object? body,
     Set<int> allowedStatusCodes = const {200},
   }) async {
+    if (!_isUnifiedBase(_baseUri)) {
+      return _legacyRequestJson(
+        method,
+        path,
+        queryParameters: queryParameters,
+        body: body,
+        allowedStatusCodes: allowedStatusCodes,
+      );
+    }
+    final action = _actionFor(method, path);
+    final params =
+        _actionParams(path, queryParameters: queryParameters, body: body);
+    final endpoint = method == 'GET' ? 'query' : 'command';
+    final uri = _resolve(endpoint);
+    final request = http.Request('POST', uri);
+    request.headers['Authorization'] = 'Bearer $_portalToken';
+    request.headers['Accept'] = 'application/json';
+    request.encoding = utf8;
+    request.headers['Content-Type'] = 'application/json; charset=utf-8';
+    request.body = jsonEncode({
+      'action': action,
+      'params': params,
+    });
+    if (method == 'POST' && path == 'contacts/requests') {
+      final authorization = request.headers['Authorization'] ?? '';
+      final matrixAccessToken = _matrixAccessTokenForDebug?.trim() ?? '';
+      ApiLogger.info(
+        '[AS admin] friend request auth '
+        'authorization_present=${authorization.isNotEmpty} '
+        'bearer=${authorization.startsWith('Bearer ')} '
+        'auth_source=$_authSourceLabel '
+        'portal_token_present=${_portalToken.trim().isNotEmpty} '
+        'portal_token_length=${_portalToken.length} '
+        'matrix_access_token_present=${matrixAccessToken.isNotEmpty} '
+        'matrix_access_token_length=${matrixAccessToken.length} '
+        'authorization_matches_matrix_access_token='
+        '${authorization == 'Bearer $matrixAccessToken'} '
+        'target=${_friendRequestTarget(body)}',
+      );
+    }
+    final requestBody = request.body.isEmpty ? null : request.body;
+
+    final stopwatch = Stopwatch()..start();
+    late http.Response response;
+    try {
+      final streamed = await _http.send(request).timeout(_timeout);
+      response = await http.Response.fromStream(streamed);
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      ApiLogger.failure(
+        service: 'AS admin',
+        method: 'POST',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        error: error,
+        stackTrace: stackTrace,
+        requestBody: requestBody,
+      );
+      rethrow;
+    }
+    stopwatch.stop();
+    ApiLogger.response(
+      service: 'AS admin',
+      method: 'POST',
+      uri: uri,
+      statusCode: response.statusCode,
+      elapsed: stopwatch.elapsed,
+      requestBody: requestBody,
+      responseBody: response.body,
+    );
+    if (!allowedStatusCodes.contains(response.statusCode)) {
+      if (_isAuthenticationFailureResponse(response)) {
+        await _onAuthenticationFailed?.call();
+      }
+      throw AsClientException(
+        _extractErrorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+    if (response.body.trim().isEmpty) return const {};
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (error, stackTrace) {
+      ApiLogger.failure(
+        service: 'AS admin',
+        method: method,
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        statusCode: response.statusCode,
+        requestBody: requestBody,
+        responseBody: response.body,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+    if (decoded is! Map<String, dynamic>) {
+      final error = AsClientException(
+        'AS returned a non-object JSON response',
+        statusCode: response.statusCode,
+      );
+      ApiLogger.failure(
+        service: 'AS admin',
+        method: method,
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        statusCode: response.statusCode,
+        requestBody: requestBody,
+        responseBody: response.body,
+        error: error,
+      );
+      throw error;
+    }
+    return decoded;
+  }
+
+  Future<Map<String, dynamic>> _legacyRequestJson(
+    String method,
+    String path, {
+    Map<String, String>? queryParameters,
+    Object? body,
+    Set<int> allowedStatusCodes = const {200},
+  }) async {
     final uri = _resolve(path, queryParameters: queryParameters);
     final request = http.Request(method, uri);
     request.headers['Authorization'] = 'Bearer $_portalToken';
@@ -1609,8 +1724,9 @@ class HttpAsClient implements AsClient {
 
   static Uri _normalizeBaseUri(Uri baseUri) {
     final path =
-        baseUri.path.isEmpty || baseUri.path == '/' ? '/_as' : baseUri.path;
-    return baseUri.replace(path: path.endsWith('/') ? path : path);
+        baseUri.path.isEmpty || baseUri.path == '/' ? '/_p2p' : baseUri.path;
+    return baseUri.replace(
+        path: path.endsWith('/') ? path.substring(0, path.length - 1) : path);
   }
 
   static String _extractErrorMessage(http.Response response) {
@@ -1654,8 +1770,17 @@ class HttpAsClient implements AsClient {
     String path, {
     required Map<String, String> body,
   }) async {
-    final uri = _resolveStatic(baseUri, path);
-    final requestBody = jsonEncode(body);
+    final unified = _isUnifiedBase(baseUri);
+    final uri = _resolveStatic(baseUri, unified ? 'command' : path);
+    final requestBody = jsonEncode(
+      unified
+          ? {
+              'action':
+                  path == 'bootstrap' ? 'portal.bootstrap' : 'portal.auth',
+              'params': body,
+            }
+          : body,
+    );
     final stopwatch = Stopwatch()..start();
     late http.Response response;
     try {
@@ -1766,8 +1891,216 @@ class HttpAsClient implements AsClient {
   }
 }
 
+String _actionFor(String method, String path) {
+  final clean = path.trim().replaceAll(RegExp(r'^/+|/+$'), '');
+  final segments = clean.split('/');
+  if (method == 'GET' && clean == 'agent/config') return 'agent.config.get';
+  if (method == 'PUT' && clean == 'agent/config') return 'agent.config.update';
+  if (method == 'GET' && clean == 'agent/status') return 'agent.status';
+  if (method == 'GET' && clean == 'follows') return 'follows.list';
+  if (method == 'POST' && clean == 'follows') return 'follows.add';
+  if (method == 'DELETE' && segments.first == 'follows') {
+    return 'follows.remove';
+  }
+  if (method == 'GET' && clean == 'favorites') return 'favorites.list';
+  if (method == 'POST' && clean == 'favorites') return 'favorites.add';
+  if (method == 'DELETE' && segments.first == 'favorites') {
+    return 'favorites.delete';
+  }
+  if (method == 'POST' && clean == 'calls') return 'calls.create';
+  if (method == 'GET' && clean == 'calls/active') return 'calls.active';
+  if (method == 'GET' && clean == 'calls') return 'calls.list';
+  if (method == 'POST' && clean == 'calls/incoming') return 'calls.incoming';
+  if (segments.length == 2 && segments.first == 'calls') return 'calls.get';
+  if (segments.length == 3 && segments.first == 'calls') return 'calls.event';
+  if (method == 'POST' && clean == 'channels') return 'channels.create';
+  if (method == 'GET' && clean == 'channels') return 'channels.list';
+  if (method == 'GET' && clean == 'channels/me/comments') {
+    return 'channels.my_comments';
+  }
+  if (method == 'GET' && clean == 'channels/me/reactions') {
+    return 'channels.my_reactions';
+  }
+  if (segments.length >= 3 &&
+      segments[0] == 'public' &&
+      segments[1] == 'channels') {
+    return method == 'GET'
+        ? 'channels.public.get'
+        : 'channels.public.join_request';
+  }
+  if (segments.isNotEmpty && segments[0] == 'channels') {
+    if (segments.length == 2 && method == 'PUT') return 'channels.update';
+    if (segments.length == 2 && method == 'POST') return 'channels.join';
+    if (segments.length == 3 && segments[2] == 'join') return 'channels.join';
+    if (segments.length == 3 && segments[2] == 'leave') return 'channels.leave';
+    if (segments.length == 3 && segments[2] == 'invite') {
+      return 'channels.invite';
+    }
+    if (segments.length == 3 && segments[2] == 'members') {
+      return 'channels.members';
+    }
+    if (segments.length >= 5 && segments[2] == 'members') {
+      return 'channels.member.${segments[4].replaceAll('-', '_')}';
+    }
+    if (segments.length >= 5 && segments[2] == 'join-requests') {
+      return 'channels.join_request.${segments[4].replaceAll('-', '_')}';
+    }
+    if (segments.length == 3 &&
+        (segments[2] == 'mute' || segments[2] == 'unmute')) {
+      return 'channels.${segments[2]}';
+    }
+    if (segments.length == 3 && segments[2] == 'posts') {
+      return 'channels.posts.list';
+    }
+    if (segments.length == 3 && segments[2] == 'read-marker') {
+      return 'channels.read_marker';
+    }
+    if (segments.length == 4 && segments[2] == 'posts') {
+      return 'channels.posts.recall';
+    }
+    if (segments.length == 5 &&
+        segments[2] == 'posts' &&
+        segments[4] == 'recall') {
+      return 'channels.posts.recall';
+    }
+    if (segments.length == 5 &&
+        segments[2] == 'posts' &&
+        segments[4] == 'comments') {
+      return method == 'GET'
+          ? 'channels.comments.list'
+          : 'channels.comments.create';
+    }
+    if (segments.length == 5 &&
+        segments[2] == 'posts' &&
+        segments[4] == 'reactions') {
+      return 'channels.post_reaction.toggle';
+    }
+    if (segments.length >= 7 &&
+        segments[2] == 'posts' &&
+        segments[4] == 'comments') {
+      return segments.last == 'recall'
+          ? 'channels.comments.recall'
+          : 'channels.comment_reaction.toggle';
+    }
+  }
+  if (method == 'POST' && clean == 'groups') return 'groups.create';
+  if (method == 'GET' && clean == 'groups') return 'groups.list';
+  if (segments.isNotEmpty && segments[0] == 'groups') {
+    if (segments.length == 2 && method == 'PUT') return 'groups.update';
+    if (segments.length == 3 && segments[2] == 'invite') return 'groups.invite';
+    if (segments.length == 3 && segments[2] == 'members') {
+      return 'groups.members';
+    }
+    if (segments.length >= 5 && segments[2] == 'members') {
+      return 'groups.member.${segments[4].replaceAll('-', '_')}';
+    }
+    if (segments.length == 3 && segments[2] == 'invite-policy') {
+      return 'groups.invite_policy.update';
+    }
+    if (segments.length == 3) {
+      return 'groups.${segments[2].replaceAll('-', '_')}';
+    }
+  }
+  if (method == 'GET' && clean == 'profile') return 'profile.get';
+  if (method == 'PUT' && clean == 'profile') return 'profile.update';
+  if (method == 'GET' && clean == 'sync/bootstrap') return 'sync.bootstrap';
+  if (method == 'GET' && clean == 'sync/unread') return 'sync.unread';
+  if (method == 'PUT' && clean == 'sync/read-marker') return 'sync.read_marker';
+  if (method == 'GET' && clean == 'search') return 'search';
+  if (method == 'GET' && clean == 'portal/status') return 'portal.status';
+  if (method == 'POST' && clean == 'contacts/requests') {
+    return 'contacts.request';
+  }
+  if (segments.length >= 4 &&
+      segments[0] == 'contacts' &&
+      segments[1] == 'requests') {
+    return 'contacts.requests.${segments.last.replaceAll('-', '_')}';
+  }
+  if (segments.length >= 2 && segments[0] == 'contacts') {
+    return 'contacts.delete';
+  }
+  if (segments.length >= 3 &&
+      segments[0] == 'rooms' &&
+      segments[2] == 'messages') {
+    if (segments.length >= 5) return 'rooms.messages.recall';
+    return 'rooms.messages.${segments.last.replaceAll('-', '_')}';
+  }
+  if (segments.length == 3 && segments[0] == 'rooms' && segments[2] == 'send') {
+    return 'rooms.send';
+  }
+  if (segments.length == 3 &&
+      segments[0] == 'rooms' &&
+      segments[2] == 'send-media') {
+    return 'rooms.send_media';
+  }
+  return clean.replaceAll('/', '.').replaceAll('-', '_');
+}
+
+Map<String, Object?> _actionParams(
+  String path, {
+  Map<String, String>? queryParameters,
+  Object? body,
+}) {
+  final params = <String, Object?>{};
+  if (queryParameters != null) {
+    params.addAll(queryParameters);
+  }
+  if (body is Map) {
+    params.addAll(body.cast<String, Object?>());
+  } else if (body != null) {
+    params['body'] = body;
+  }
+  final clean = path.trim().replaceAll(RegExp(r'^/+|/+$'), '');
+  final segments = clean.split('/');
+  if (segments.length >= 2 && segments[0] == 'rooms') {
+    params['room_id'] = Uri.decodeComponent(segments[1]);
+  }
+  if (segments.length >= 2 && segments[0] == 'channels') {
+    params['channel_id'] = Uri.decodeComponent(segments[1]);
+  }
+  if (segments.length >= 4 &&
+      segments[0] == 'channels' &&
+      segments[2] == 'posts') {
+    params['post_id'] = Uri.decodeComponent(segments[3]);
+  }
+  if (segments.length >= 6 &&
+      segments[0] == 'channels' &&
+      segments[2] == 'posts' &&
+      segments[4] == 'comments') {
+    params['comment_id'] = Uri.decodeComponent(segments[5]);
+  }
+  if (segments.length >= 4 &&
+      segments[0] == 'channels' &&
+      (segments[2] == 'members' || segments[2] == 'join-requests')) {
+    params['user_id'] = Uri.decodeComponent(segments[3]);
+    params['user_mxid'] = Uri.decodeComponent(segments[3]);
+  }
+  if (segments.length >= 2 && segments[0] == 'groups') {
+    params['room_id'] = Uri.decodeComponent(segments[1]);
+  }
+  if (segments.length >= 4 &&
+      segments[0] == 'groups' &&
+      segments[2] == 'members') {
+    params['user_id'] = Uri.decodeComponent(segments[3]);
+    params['peer_mxid'] = Uri.decodeComponent(segments[3]);
+  }
+  if (segments.length >= 2 && segments[0] == 'calls') {
+    params['call_id'] = Uri.decodeComponent(segments[1]);
+  }
+  if (segments.length >= 2 && segments[0] == 'favorites') {
+    params['id'] = Uri.decodeComponent(segments[1]);
+  }
+  if (segments.length >= 2 && segments[0] == 'follows') {
+    params['domain'] = Uri.decodeComponent(segments[1]);
+  }
+  return params;
+}
+
 String _encodeStrictPathComponent(String value) =>
     Uri.encodeComponent(value).replaceAll('!', '%21');
+
+bool _isUnifiedBase(Uri baseUri) =>
+    baseUri.path == '/_p2p' || baseUri.path.startsWith('/_p2p/');
 
 String _friendRequestTarget(Object? body) {
   if (body is! Map) return '<unknown>';
@@ -1822,7 +2155,7 @@ List<String> _normalizedStringList(Iterable<String> values) {
 String _normalizedChannelType(String value) {
   final trimmed = value.trim().toLowerCase();
   return switch (trimmed) {
-    'post' || '帖子' => 'post',
-    _ => 'chat',
+    'chat' || '聊天' => 'chat',
+    _ => 'post',
   };
 }

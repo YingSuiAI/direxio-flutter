@@ -534,7 +534,7 @@ class AsSyncRoomSummary {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
-    this.channelType = asChannelTypeChat,
+    this.channelType = asChannelTypePost,
     this.role = '',
     this.memberStatus = '',
     this.memberCount = 0,
@@ -743,7 +743,7 @@ class AsChannel {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
-    this.channelType = asChannelTypeChat,
+    this.channelType = asChannelTypePost,
     this.role = '',
     this.memberStatus = '',
     this.memberCount = 0,
@@ -831,7 +831,7 @@ class AsChannelShareDraft {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
-    this.channelType = asChannelTypeChat,
+    this.channelType = asChannelTypePost,
     this.tags = const [],
   });
 
@@ -1874,8 +1874,8 @@ String _normalizeChannelJoinPolicy(String policy) {
 String normalizeAsChannelType(String value) {
   final trimmed = value.trim().toLowerCase();
   return switch (trimmed) {
-    asChannelTypePost || '帖子' => asChannelTypePost,
-    _ => asChannelTypeChat,
+    asChannelTypeChat || '聊天' => asChannelTypeChat,
+    _ => asChannelTypePost,
   };
 }
 

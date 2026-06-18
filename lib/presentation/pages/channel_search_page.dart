@@ -83,6 +83,13 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
         _results = results;
         _loading = false;
       });
+    } on AsClientException catch (err) {
+      if (!mounted || serial != _serial) return;
+      setState(() {
+        _results = const [];
+        _loading = false;
+        _error = err.statusCode == 404 ? '' : '搜索失败，请稍后重试';
+      });
     } catch (err) {
       if (!mounted || serial != _serial) return;
       setState(() {

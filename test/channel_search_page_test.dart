@@ -118,6 +118,34 @@ void main() {
     expect(asClient.publicSearchCallCount, 0);
   });
 
+  testWidgets('channel search treats public room 404 as empty result',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient()..publicRoomErrorStatus = 404;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.byType(TextField),
+      '!missing:dendrite-a:8448',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.requestedPublicRoomId, '!missing:dendrite-a:8448');
+    expect(find.text('搜索失败，请稍后重试'), findsNothing);
+    expect(find.text('请检查网络或目标节点地址'), findsNothing);
+    expect(find.text('没有找到频道'), findsOneWidget);
+  });
+
   testWidgets('channel search opens public detail by room id', (tester) async {
     final asClient = _ChannelSearchAsClient();
     final router = GoRouter(
@@ -169,6 +197,7 @@ class _ChannelSearchAsClient extends MockAsClient {
   Uri? requestedPublicRoomBaseUri;
   String? lastPublicSearchQuery;
   Uri? lastPublicSearchBaseUri;
+  int? publicRoomErrorStatus;
   int publicSearchCallCount = 0;
 
   @override
@@ -221,6 +250,10 @@ class _ChannelSearchAsClient extends MockAsClient {
   }) async {
     requestedPublicRoomId = roomId;
     requestedPublicRoomBaseUri = baseUri;
+    final errorStatus = publicRoomErrorStatus;
+    if (errorStatus != null) {
+      throw AsClientException('not found', statusCode: errorStatus);
+    }
     return const AsChannel(
       channelId: 'ch_product',
       roomId: '!ch_product:p2p-im.com',

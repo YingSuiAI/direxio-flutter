@@ -5,12 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/mock_as_client.dart';
-import 'package:portal_app/data/p2p_api_client.dart';
 import 'package:portal_app/presentation/channel/channel_share.dart';
 import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
 import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
-import 'package:portal_app/presentation/providers/p2p_api_provider.dart';
 
 void main() {
   testWidgets('channel search uses public discovery and marks approval pending',
@@ -20,7 +18,6 @@ void main() {
       ProviderScope(
         overrides: [
           asClientProvider.overrideWithValue(asClient),
-          p2pApiClientProvider.overrideWithValue(asClient.p2pApiClient),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -33,8 +30,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
 
-    expect(asClient.p2pApiClient.lastKeyword, '产品');
-    expect(asClient.p2pApiClient.lastOwnerDomain, '');
+    expect(asClient.lastPublicSearchQuery, '产品');
+    expect(asClient.lastPublicSearchBaseUri, isNull);
     expect(find.text('产品公告'), findsOneWidget);
     expect(find.text('申请加入'), findsOneWidget);
 
@@ -52,7 +49,6 @@ void main() {
       ProviderScope(
         overrides: [
           asClientProvider.overrideWithValue(asClient),
-          p2pApiClientProvider.overrideWithValue(asClient.p2pApiClient),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -65,8 +61,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
 
-    expect(asClient.p2pApiClient.lastKeyword, '');
-    expect(asClient.p2pApiClient.lastOwnerDomain, 'p2p-liyanan.com');
+    expect(asClient.lastPublicSearchQuery, '');
+    expect(asClient.lastPublicSearchBaseUri?.host, 'p2p-liyanan.com');
   });
 
   testWidgets('channel search loads public detail directly for room id',
@@ -76,7 +72,6 @@ void main() {
       ProviderScope(
         overrides: [
           asClientProvider.overrideWithValue(asClient),
-          p2pApiClientProvider.overrideWithValue(asClient.p2pApiClient),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -90,7 +85,7 @@ void main() {
     await tester.pump();
 
     expect(asClient.requestedPublicRoomId, '!ch_product:p2p-im.com');
-    expect(asClient.p2pApiClient.listCallCount, 0);
+    expect(asClient.publicSearchCallCount, 0);
     expect(find.text('接口返回频道'), findsOneWidget);
     expect(find.text('申请加入'), findsOneWidget);
   });
@@ -118,7 +113,6 @@ void main() {
       ProviderScope(
         overrides: [
           asClientProvider.overrideWithValue(asClient),
-          p2pApiClientProvider.overrideWithValue(asClient.p2pApiClient),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -142,9 +136,34 @@ void main() {
 }
 
 class _ChannelSearchAsClient extends MockAsClient {
-  final p2pApiClient = _ChannelSearchP2pApiClient();
   String? joinedRoomId;
   String? requestedPublicRoomId;
+  String? lastPublicSearchQuery;
+  Uri? lastPublicSearchBaseUri;
+  int publicSearchCallCount = 0;
+
+  @override
+  Future<List<AsChannel>> searchPublicChannels(
+    String query, {
+    Uri? baseUri,
+    int limit = 20,
+  }) async {
+    publicSearchCallCount += 1;
+    lastPublicSearchQuery = query;
+    lastPublicSearchBaseUri = baseUri;
+    return const [
+      AsChannel(
+        channelId: 'ch_product',
+        roomId: '!ch_product:p2p-im.com',
+        homeDomain: 'p2p-im.com',
+        name: '产品公告',
+        description: '只发布重要产品更新',
+        visibility: asChannelVisibilityPublic,
+        joinPolicy: asChannelJoinPolicyApproval,
+        commentsEnabled: true,
+      ),
+    ];
+  }
 
   @override
   Future<AsChannel> joinChannelByRoomId(
@@ -182,40 +201,5 @@ class _ChannelSearchAsClient extends MockAsClient {
       joinPolicy: asChannelJoinPolicyApproval,
       commentsEnabled: true,
     );
-  }
-}
-
-class _ChannelSearchP2pApiClient extends P2pApiClient {
-  _ChannelSearchP2pApiClient()
-      : super(baseUri: Uri.parse('http://192.168.1.103:9090'));
-
-  String? lastKeyword;
-  String? lastOwnerDomain;
-  int listCallCount = 0;
-
-  @override
-  Future<List<AsChannel>> listChannels({
-    int page = 1,
-    int pageSize = 10,
-    String ownerDomain = '',
-    String keyword = '',
-    String sortBy = 'createdAt',
-    bool desc = true,
-  }) async {
-    listCallCount += 1;
-    lastKeyword = keyword;
-    lastOwnerDomain = ownerDomain;
-    return const [
-      AsChannel(
-        channelId: 'ch_product',
-        roomId: '!ch_product:p2p-im.com',
-        homeDomain: 'p2p-im.com',
-        name: '产品公告',
-        description: '只发布重要产品更新',
-        visibility: asChannelVisibilityPublic,
-        joinPolicy: asChannelJoinPolicyApproval,
-        commentsEnabled: true,
-      ),
-    ];
   }
 }

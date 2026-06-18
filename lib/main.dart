@@ -12,8 +12,8 @@ import 'l10n/app_localizations.dart';
 import 'presentation/providers/app_locale_provider.dart';
 import 'presentation/providers/app_theme_provider.dart';
 import 'presentation/providers/auth_provider.dart';
+import 'presentation/providers/bi_analytics_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
-import 'presentation/providers/p2p_api_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
 
 bool _sessionExpiredDialogShowing = false;

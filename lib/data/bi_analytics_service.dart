@@ -4,18 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import 'p2p_api_client.dart';
-
 class BiAnalyticsService {
   BiAnalyticsService({
-    required P2pApiClient apiClient,
+    Future<void> Function(BiAnalyticsEvent event)? reporter,
     FlutterSecureStorage storage = const FlutterSecureStorage(),
     bool enabled = true,
-  })  : _apiClient = apiClient,
+  })  : _reporter = reporter,
         _storage = storage,
         _enabled = enabled;
 
-  final P2pApiClient _apiClient;
+  final Future<void> Function(BiAnalyticsEvent event)? _reporter;
   final FlutterSecureStorage _storage;
   final bool _enabled;
 
@@ -54,13 +52,15 @@ class BiAnalyticsService {
     Map<String, Object?> payload = const {},
   }) async {
     if (!_enabled) return;
-    await _apiClient.reportBiEvent(
+    final reporter = _reporter;
+    if (reporter == null) return;
+    await reporter(BiAnalyticsEvent(
       deviceNo: await _deviceNo(),
       eventType: eventType,
       phoneModel: _phoneModel(),
       reportTime: DateTime.now().millisecondsSinceEpoch,
       payload: payload,
-    );
+    ));
   }
 
   Future<Map<String, Object?>> _basePayload({required String page}) async {
@@ -85,6 +85,22 @@ class BiAnalyticsService {
     if (kIsWeb) return 'web';
     return 'flutter-${defaultTargetPlatform.name}';
   }
+}
+
+class BiAnalyticsEvent {
+  const BiAnalyticsEvent({
+    required this.deviceNo,
+    required this.eventType,
+    required this.phoneModel,
+    required this.reportTime,
+    required this.payload,
+  });
+
+  final String deviceNo;
+  final String eventType;
+  final String phoneModel;
+  final int reportTime;
+  final Map<String, Object?> payload;
 }
 
 void reportBiInBackground(Future<void> Function() task) {

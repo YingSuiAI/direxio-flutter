@@ -18,6 +18,7 @@ import '../../data/well_known_service.dart';
 import '../../data/bi_analytics_service.dart';
 import 'as_sync_cache_provider.dart';
 import 'as_call_session_store_provider.dart';
+import 'bi_analytics_provider.dart';
 import 'chat_clear_state_provider.dart';
 import 'channel_provider.dart';
 import 'friend_request_read_provider.dart';
@@ -25,7 +26,6 @@ import 'local_created_channels_provider.dart';
 import 'local_message_order_provider.dart';
 import 'local_outbox_provider.dart';
 import 'media_thumbnail_cache_provider.dart';
-import 'p2p_api_provider.dart';
 import 'recovered_unread_store_provider.dart';
 
 part 'auth_provider.g.dart';

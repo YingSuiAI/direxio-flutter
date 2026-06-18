@@ -853,6 +853,81 @@ void main() {
     expect(auth?.ownerDisplayName, isNull);
   });
 
+  test(
+      'portal login trusts initialized password flags when profile flag is absent',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final client = Client(
+      'AuthPortalLoginInitializedPasswordFlagsTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:example.com","display_name":""}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.auth') != null) {
+          return http.Response(
+            '{"matrix_access_token":"fresh-token",'
+            '"admin_access_token":"fresh-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE1",'
+            '"initialized":true,'
+            '"password_initialized":true}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'profile.get') != null) {
+          return http.Response('{}', 404);
+        }
+        if (_p2pAction(request, 'sync.bootstrap') != null) {
+          return http.Response(
+            '{"synced_at":"2026-06-19T00:00:00Z",'
+            '"user":{"user_id":"@owner:example.com"},'
+            '"rooms":[],"contacts":[],"groups":[],"channels":[],"pending":{}}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync' &&
+            request.url.queryParameters['timeout'] == '0') {
+          return http.Response('{"next_batch":"baseline","rooms":{}}', 200);
+        }
+        return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .login('https://example.com', 'portal-token');
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.ownerDisplayName, isNull);
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.profileInitializedKey),
+      'true',
+    );
+  });
+
   test('bootstrap long-term password posts password payload', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final requestPaths = <String>[];
@@ -1075,6 +1150,84 @@ void main() {
             '"admin_access_token":"new-admin-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'PortalIM',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .changePortalPassword(
+          oldPassword: '11111111',
+          newPassword: '12345678',
+        );
+
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.requiresProfileSetup, isFalse);
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.profileInitializedKey),
+      'true',
+    );
+  });
+
+  test(
+      'password change trusts initialized password flags when stored flag is stale',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'false',
+    });
+    final client = Client(
+      'AuthPasswordChangeTrustsInitializedPasswordFlagsTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.password') != null) {
+          return http.Response(
+            '{"matrix_access_token":"new-token",'
+            '"admin_access_token":"new-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE1",'
+            '"initialized":true,'
+            '"password_initialized":true}',
             200,
           );
         }

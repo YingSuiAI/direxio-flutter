@@ -42,6 +42,8 @@ class AsPortalSession {
     required this.homeserver,
     this.deviceId,
     this.agentRoomId,
+    this.initialized,
+    this.passwordInitialized,
     this.profileInitialized,
   });
 
@@ -51,6 +53,8 @@ class AsPortalSession {
   final String homeserver;
   final String? deviceId;
   final String? agentRoomId;
+  final bool? initialized;
+  final bool? passwordInitialized;
   final bool? profileInitialized;
 
   factory AsPortalSession.fromJson(Map<String, dynamic> json) {
@@ -61,6 +65,8 @@ class AsPortalSession {
       homeserver: json['homeserver'] as String? ?? '',
       deviceId: json['device_id'] as String?,
       agentRoomId: json['agent_room_id'] as String?,
+      initialized: _parseNullableBool(json['initialized']),
+      passwordInitialized: _parseNullableBool(json['password_initialized']),
       profileInitialized: _parseNullableBool(json['profile_initialized']),
     );
   }

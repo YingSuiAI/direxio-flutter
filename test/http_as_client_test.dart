@@ -172,6 +172,9 @@ void main() {
           jsonEncode({
             'matrix_access_token': 'matrix-token',
             'admin_access_token': 'admin-token',
+            'initialized': true,
+            'password_initialized': true,
+            'profile_initialized': true,
           }),
           200,
         );
@@ -186,6 +189,9 @@ void main() {
 
     expect(session.matrixAccessToken, 'matrix-token');
     expect(session.adminAccessToken, 'admin-token');
+    expect(session.initialized, isTrue);
+    expect(session.passwordInitialized, isTrue);
+    expect(session.profileInitialized, isTrue);
   });
 
   test('deleteFavorite uses unified favorite delete action', () async {
@@ -1854,6 +1860,9 @@ void main() {
           jsonEncode({
             'matrix_access_token': 'new-matrix-token',
             'admin_access_token': 'new-admin-token',
+            'initialized': true,
+            'password_initialized': true,
+            'profile_initialized': true,
           }),
           200,
         );
@@ -1870,6 +1879,9 @@ void main() {
     expect(session.adminAccessToken, 'new-admin-token');
     expect(session.userId, isEmpty);
     expect(session.homeserver, isEmpty);
+    expect(session.initialized, isTrue);
+    expect(session.passwordInitialized, isTrue);
+    expect(session.profileInitialized, isTrue);
   });
 
   test('createChannel posts channel metadata to AS admin API', () async {
@@ -2865,6 +2877,9 @@ void main() {
             'user_id': '@owner:example.com',
             'homeserver': 'https://example.com',
             'agent_room_id': '!agent:example.com',
+            'initialized': true,
+            'password_initialized': false,
+            'profile_initialized': false,
           }),
           200,
         );
@@ -2877,6 +2892,9 @@ void main() {
     expect(session.homeserver, 'https://example.com');
     expect(session.deviceId, isNull);
     expect(session.agentRoomId, '!agent:example.com');
+    expect(session.initialized, isTrue);
+    expect(session.passwordInitialized, isFalse);
+    expect(session.profileInitialized, isFalse);
   });
 
   test('bootstrapPortal posts setup code to bootstrap', () async {
@@ -2898,6 +2916,9 @@ void main() {
             'admin_access_token': 'bootstrapped-admin-token',
             'user_id': '@owner:example.com',
             'homeserver': 'https://example.com',
+            'initialized': true,
+            'password_initialized': false,
+            'profile_initialized': false,
           }),
           200,
         );
@@ -2906,5 +2927,8 @@ void main() {
 
     expect(session.matrixAccessToken, 'bootstrapped-matrix-token');
     expect(session.adminAccessToken, 'bootstrapped-admin-token');
+    expect(session.initialized, isTrue);
+    expect(session.passwordInitialized, isFalse);
+    expect(session.profileInitialized, isFalse);
   });
 }

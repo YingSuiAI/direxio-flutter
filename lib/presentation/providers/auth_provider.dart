@@ -436,12 +436,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (displayName != null && displayName.trim().isNotEmpty) {
       await client.setDisplayName(session.userId, displayName.trim());
     }
+    final profileInitialized = _sessionProfileInitialized(session);
     await _persistSession(
       client,
       checkedHomeserver,
       portalToken: effectivePortalToken,
       deviceId: deviceId,
-      profileInitialized: session.profileInitialized,
+      profileInitialized: profileInitialized,
       loginPortalToken: cleanPortalToken,
     );
     final result = _PortalLoginResult(
@@ -456,7 +457,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: effectivePortalToken,
     );
     if (publishState) {
-      final requiresProfileSetup = session.profileInitialized == false;
+      final requiresProfileSetup = profileInitialized == false;
       state = AsyncData(
         AuthState(
           isLoggedIn: true,
@@ -480,6 +481,17 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           ),
     );
     return result;
+  }
+
+  bool? _sessionProfileInitialized(AsPortalSession session) {
+    if (session.profileInitialized != null) return session.profileInitialized;
+    if (session.initialized == true && session.passwordInitialized == true) {
+      return true;
+    }
+    if (session.initialized == true && session.passwordInitialized == false) {
+      return false;
+    }
+    return null;
   }
 
   Future<String?> _loadOwnerDisplayNameForLogin(
@@ -628,7 +640,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.adminAccessToken,
       deviceId: deviceId,
       loginPortalToken: cleanToken,
-      profileInitialized: session.profileInitialized ?? true,
+      profileInitialized: _sessionProfileInitialized(session) ?? true,
     );
     final userId = session.userId.trim().isNotEmpty
         ? session.userId
@@ -736,11 +748,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.adminAccessToken,
       deviceId: deviceId,
       loginPortalToken: cleanNewPassword,
-      profileInitialized: session.profileInitialized ??
+      profileInitialized: _sessionProfileInitialized(session) ??
           _parseStoredBool(await _storage.read(key: profileInitializedKey)) ??
           !(auth?.requiresProfileSetup ?? false),
     );
-    final profileInitialized = session.profileInitialized ??
+    final profileInitialized = _sessionProfileInitialized(session) ??
         _parseStoredBool(await _storage.read(key: profileInitializedKey));
     state = AsyncData(
       AuthState(
@@ -803,7 +815,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.adminAccessToken,
       deviceId: deviceId,
       loginPortalToken: cleanNewToken,
-      profileInitialized: session.profileInitialized ?? false,
+      profileInitialized: _sessionProfileInitialized(session) ?? false,
     );
     state = AsyncData(
       AuthState(
@@ -945,6 +957,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           loginPortalToken: authPortalToken,
         );
       } else {
+        final profileInitialized = _sessionProfileInitialized(session);
         await client.init(
           newToken: session.matrixAccessToken,
           newUserID: session.userId,
@@ -960,17 +973,18 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           portalToken: effectivePortalToken,
           deviceId: deviceId,
           userId: session.userId,
-          profileInitialized: session.profileInitialized,
+          profileInitialized: profileInitialized,
           loginPortalToken: authPortalToken,
         );
       }
+      final profileInitialized = _sessionProfileInitialized(session);
       await _loadChatClearState();
       return AuthState(
         isLoggedIn: true,
         userId: client.userID ?? session.userId,
         homeserver: (client.homeserver ?? matrixUri).toString(),
         portalToken: effectivePortalToken,
-        requiresProfileSetup: session.profileInitialized == false,
+        requiresProfileSetup: profileInitialized == false,
       );
     } catch (e) {
       debugPrint('portal token restore failed: $e');
@@ -1091,7 +1105,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: portalToken,
       deviceId: effectiveDeviceId,
       userId: effectiveUserId,
-      profileInitialized: profileInitialized ?? session.profileInitialized,
+      profileInitialized:
+          profileInitialized ?? _sessionProfileInitialized(session),
       loginPortalToken: loginPortalToken,
     );
   }

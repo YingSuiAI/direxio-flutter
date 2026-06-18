@@ -1059,6 +1059,52 @@ void main() {
     expect(call.state, 'ringing');
   });
 
+  test('registerIncomingCall preserves call id through unified API', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'calls.incoming',
+          'params': {
+            'call_id': 'call_remote',
+            'room_id': '!alice:p2p-im.com',
+            'media_type': 'video',
+            'created_by_mxid': '@alice:p2p-liyanan.com',
+            'created_at_ms': 1780230600000,
+          },
+        });
+        return http.Response(
+          jsonEncode({
+            'call_id': 'call_remote',
+            'room_id': '!alice:p2p-im.com',
+            'room_type': 'direct',
+            'media_type': 'video',
+            'created_by_mxid': '@alice:p2p-liyanan.com',
+            'state': 'ringing',
+            'created_at': '2026-05-31T12:30:00Z',
+          }),
+          200,
+        );
+      }),
+    );
+
+    final call = await client.registerIncomingCall(
+      callId: 'call_remote',
+      roomId: '!alice:p2p-im.com',
+      mediaType: 'video',
+      createdByMxid: '@alice:p2p-liyanan.com',
+      createdAt: DateTime.parse('2026-05-31T12:30:00Z'),
+    );
+
+    expect(call.callId, 'call_remote');
+    expect(call.mediaType, 'video');
+    expect(call.state, 'ringing');
+  });
+
   test('createGroup posts name avatar and accepted contact invites through AS',
       () async {
     final client = HttpAsClient(

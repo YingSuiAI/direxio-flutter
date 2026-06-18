@@ -2275,7 +2275,10 @@ Map<String, Object?> _actionParams(
     params['user_id'] = Uri.decodeComponent(segments[3]);
     params['peer_mxid'] = Uri.decodeComponent(segments[3]);
   }
-  if (segments.length >= 2 && segments[0] == 'calls') {
+  if (segments.length >= 2 &&
+      segments[0] == 'calls' &&
+      segments[1] != 'incoming' &&
+      segments[1] != 'active') {
     params['call_id'] = Uri.decodeComponent(segments[1]);
   }
   if (segments.length >= 2 && segments[0] == 'favorites') {

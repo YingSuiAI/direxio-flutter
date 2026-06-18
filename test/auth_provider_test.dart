@@ -458,7 +458,8 @@ void main() {
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
             '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
-            '"homeserver":"https://example.com","device_id":"DEVICE1"}',
+            '"homeserver":"https://example.com","device_id":"DEVICE1",'
+            '"profile_initialized":false}',
             200,
           );
         }
@@ -674,7 +675,8 @@ void main() {
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
             '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
-            '"homeserver":"https://example.com","device_id":"DEVICE1"}',
+            '"homeserver":"https://example.com","device_id":"DEVICE1",'
+            '"profile_initialized":false}',
             200,
           );
         }
@@ -719,7 +721,7 @@ void main() {
     expect(auth?.ownerDisplayName, isEmpty);
   });
 
-  test('portal login marks missing AS profile for setup', () async {
+  test('portal login does not infer setup from missing AS profile', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(
       'AuthPortalLoginMissingProfileTest',
@@ -778,7 +780,7 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isTrue);
+    expect(auth?.requiresProfileSetup, isFalse);
     expect(auth?.ownerDisplayName, isNull);
   });
 
@@ -1131,8 +1133,7 @@ void main() {
     expect(client.deviceID, 'DEVICE_B');
   });
 
-  test('password change preserves current Matrix device on same device',
-      () async {
+  test('password change follows token Matrix device when it differs', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
@@ -1215,10 +1216,10 @@ void main() {
         );
 
     expect(client.accessToken, 'changed-matrix-token');
-    expect(client.deviceID, 'OLDDEVICE');
+    expect(client.deviceID, 'P2P_PORTAL');
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_device_id'),
-      'OLDDEVICE',
+      'P2P_PORTAL',
     );
   });
 

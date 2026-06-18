@@ -129,11 +129,6 @@ Future<String> _resolveSessionDeviceId({
   String? sessionDeviceId,
   String? storedDeviceId,
 }) async {
-  final cleanSessionDeviceId = sessionDeviceId?.trim();
-  if (cleanSessionDeviceId != null && cleanSessionDeviceId.isNotEmpty) {
-    return cleanSessionDeviceId;
-  }
-
   final tokenDeviceId = await _fetchTokenDeviceId(
     httpClient: httpClient,
     homeserver: homeserver,
@@ -141,6 +136,11 @@ Future<String> _resolveSessionDeviceId({
   );
   if (tokenDeviceId != null && tokenDeviceId.isNotEmpty) {
     return tokenDeviceId;
+  }
+
+  final cleanSessionDeviceId = sessionDeviceId?.trim();
+  if (cleanSessionDeviceId != null && cleanSessionDeviceId.isNotEmpty) {
+    return cleanSessionDeviceId;
   }
 
   final cleanStoredDeviceId = storedDeviceId?.trim();
@@ -151,12 +151,12 @@ Future<String> _resolveSessionDeviceId({
 }
 
 String _preferredSessionDeviceId(AsPortalSession session, String fallback) {
+  final cleanFallback = fallback.trim();
+  if (cleanFallback.isNotEmpty) return cleanFallback;
   final cleanSessionDeviceId = session.deviceId?.trim();
   if (cleanSessionDeviceId != null && cleanSessionDeviceId.isNotEmpty) {
     return cleanSessionDeviceId;
   }
-  final cleanFallback = fallback.trim();
-  if (cleanFallback.isNotEmpty) return cleanFallback;
   return _createDeviceId();
 }
 
@@ -175,19 +175,6 @@ bool _hasStaleSameUserDevice(
       currentDeviceId.isNotEmpty &&
       cleanNextDeviceId.isNotEmpty &&
       currentDeviceId != cleanNextDeviceId;
-}
-
-String? _currentLoggedInDeviceIdForUser(Client client, String userId) {
-  final cleanUserId = userId.trim();
-  final currentUserId = client.userID?.trim() ?? '';
-  final currentDeviceId = client.deviceID?.trim() ?? '';
-  if (client.onLoginStateChanged.value != LoginState.loggedIn ||
-      cleanUserId.isEmpty ||
-      currentUserId != cleanUserId ||
-      currentDeviceId.isEmpty) {
-    return null;
-  }
-  return currentDeviceId;
 }
 
 Future<String?> _fetchTokenDeviceId({
@@ -463,9 +450,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: effectivePortalToken,
     );
     if (publishState) {
-      final requiresProfileSetup = session.profileInitialized == null
-          ? ownerDisplayName == null || ownerDisplayName.trim().isEmpty
-          : !session.profileInitialized!;
+      final requiresProfileSetup = session.profileInitialized == false;
       state = AsyncData(
         AuthState(
           isLoggedIn: true,
@@ -729,15 +714,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final userId = session.userId.trim().isNotEmpty
         ? session.userId
         : auth?.userId ?? client.userID ?? '';
-    final currentDeviceId = _currentLoggedInDeviceIdForUser(client, userId);
-    final deviceId = currentDeviceId ??
-        await _resolveSessionDeviceId(
-          httpClient: client.httpClient,
-          homeserver: matrixUri,
-          accessToken: session.matrixAccessToken,
-          sessionDeviceId: session.deviceId,
-          storedDeviceId: await _storage.read(key: 'matrix_device_id'),
-        );
+    final deviceId = await _resolveSessionDeviceId(
+      httpClient: client.httpClient,
+      homeserver: matrixUri,
+      accessToken: session.matrixAccessToken,
+      sessionDeviceId: session.deviceId,
+      storedDeviceId: await _storage.read(key: 'matrix_device_id'),
+    );
     await _applyRefreshedSession(
       client,
       matrixUri,
@@ -745,7 +728,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.adminAccessToken,
       deviceId: deviceId,
       loginPortalToken: cleanNewPassword,
-      preserveProvidedDeviceId: currentDeviceId != null,
     );
     state = AsyncData(
       AuthState(
@@ -792,8 +774,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final userId = session.userId.trim().isNotEmpty
         ? session.userId
         : result.userId ?? client.userID ?? '';
-    final currentDeviceId = _currentLoggedInDeviceIdForUser(client, userId);
-    final deviceId = currentDeviceId ?? session.deviceId ?? result.deviceId;
+    final deviceId = await _resolveSessionDeviceId(
+      httpClient: client.httpClient,
+      homeserver: matrixUri,
+      accessToken: session.matrixAccessToken,
+      sessionDeviceId: session.deviceId,
+      storedDeviceId: result.deviceId,
+    );
     await _applyRefreshedSession(
       client,
       matrixUri,
@@ -801,7 +788,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.adminAccessToken,
       deviceId: deviceId,
       loginPortalToken: cleanNewToken,
-      preserveProvidedDeviceId: currentDeviceId != null,
     );
     state = AsyncData(
       AuthState(
@@ -1046,7 +1032,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String portalToken,
     required String deviceId,
     String? loginPortalToken,
-    bool preserveProvidedDeviceId = false,
   }) async {
     final matrixUri = _resolveClientHomeserver(
       currentHomeserver,
@@ -1055,9 +1040,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final effectiveUserId = session.userId.trim().isNotEmpty
         ? session.userId
         : client.userID ?? await _storage.read(key: 'matrix_user_id') ?? '';
-    final effectiveDeviceId = preserveProvidedDeviceId
-        ? (deviceId.trim().isNotEmpty ? deviceId.trim() : _createDeviceId())
-        : _preferredSessionDeviceId(session, deviceId);
+    final effectiveDeviceId = _preferredSessionDeviceId(session, deviceId);
     if (_hasStaleSameUserDevice(client, effectiveUserId, effectiveDeviceId)) {
       await client.clear();
       await client.init(
@@ -1480,6 +1463,5 @@ class _PortalLoginResult {
         homeserver: homeserver.toString(),
         portalToken: portalToken,
         ownerDisplayName: ownerDisplayName,
-        requiresProfileSetup: ownerDisplayName.trim().isEmpty,
       );
 }

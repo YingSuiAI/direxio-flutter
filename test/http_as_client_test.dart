@@ -1444,6 +1444,46 @@ void main() {
     expect(favorite.url, 'mxc://p2p-im.com/photo');
   });
 
+  test('submitReport posts through unified reports action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'reports.submit',
+          'params': {
+            'reporter_domain': 'p2p-im.com',
+            'reported_domain': 'portal.local',
+            'target_type': 1,
+            'reason': '欺诈',
+          },
+        });
+        return http.Response.bytes(
+          utf8.encode(jsonEncode({
+            'id': 'report-1',
+            'reporter_domain': 'p2p-im.com',
+            'reported_domain': 'portal.local',
+            'target_type': 1,
+            'reason': '欺诈',
+          })),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    final report = await client.submitReport(
+      reporterDomain: ' p2p-im.com ',
+      reportedDomain: ' portal.local ',
+      reason: ' 欺诈 ',
+    );
+
+    expect(report['id'], 'report-1');
+  });
+
   test('getFavorites parses AS favorites list and optional type filter',
       () async {
     final client = HttpAsClient(

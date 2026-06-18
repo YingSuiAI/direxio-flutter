@@ -18,7 +18,6 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/profile_provider.dart';
-import '../providers/p2p_api_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
@@ -358,7 +357,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       null,
     );
     try {
-      await ref.read(p2pApiClientProvider).submitReport(
+      await ref.read(asClientProvider).submitReport(
             reporterDomain: reporterDomain,
             reportedDomain: reportedDomain,
             targetType: 1,

@@ -12,7 +12,6 @@ import '../channel/channel_leave_flow.dart';
 import '../channel/channel_share.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/p2p_api_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
@@ -423,7 +422,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       channel.domain,
     );
     try {
-      await ref.read(p2pApiClientProvider).submitReport(
+      await ref.read(asClientProvider).submitReport(
             reporterDomain: reporterDomain,
             reportedDomain: reportedDomain,
             targetType: 1,

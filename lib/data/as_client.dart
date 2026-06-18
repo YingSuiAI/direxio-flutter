@@ -1473,6 +1473,15 @@ abstract class AsClient {
   /// DELETE /_as/favorites/{id}
   Future<void> deleteFavorite(int id);
 
+  /// POST /_as/reports
+  Future<Map<String, dynamic>> submitReport({
+    required String reporterDomain,
+    required String reportedDomain,
+    required String reason,
+    int targetType = 1,
+    List<String> images = const [],
+  });
+
   /// POST /_as/contacts/requests
   Future<ContactEntry> createContactRequest({
     required String mxid,

@@ -229,6 +229,25 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<Map<String, dynamic>> submitReport({
+    required String reporterDomain,
+    required String reportedDomain,
+    required String reason,
+    int targetType = 1,
+    List<String> images = const [],
+  }) async {
+    await Future.delayed(_latency);
+    return {
+      'id': 'mock_report_${DateTime.now().microsecondsSinceEpoch}',
+      'reporter_domain': reporterDomain.trim(),
+      'reported_domain': reportedDomain.trim(),
+      'target_type': targetType,
+      'reason': reason.trim(),
+      'images': images,
+    };
+  }
+
+  @override
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',

@@ -7,28 +7,31 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
-import 'package:portal_app/data/p2p_api_client.dart';
+import 'package:portal_app/data/http_as_client.dart';
 import 'package:portal_app/presentation/pages/contact_detail_page.dart';
+import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
-import 'package:portal_app/presentation/providers/p2p_api_provider.dart';
 import 'package:portal_app/presentation/providers/profile_provider.dart';
 
 void main() {
-  testWidgets('contact detail submits user report to IM public API',
+  testWidgets('contact detail submits user report through unified AS API',
       (tester) async {
     late http.Request seen;
     final matrixClient = Client('ContactDetailReportTest')
       ..setUserId('@owner:p2p-im.com');
-    final p2pClient = P2pApiClient(
-      baseUri: Uri.parse('http://localhost:8888'),
+    final asClient = HttpAsClient(
+      baseUri: Uri.parse('http://portal.local/_p2p'),
+      portalToken: 'admin-token',
       httpClient: MockClient((request) async {
         seen = request;
-        return http.Response(
-          jsonEncode({
-            'code': 0,
-            'data': {'ID': 7},
-            'msg': 'success'
-          }),
+        return http.Response.bytes(
+          utf8.encode(jsonEncode({
+            'id': 'report-7',
+            'reporter_domain': 'p2p-im.com',
+            'reported_domain': 'portal.local',
+            'target_type': 1,
+            'reason': '欺诈',
+          })),
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
@@ -39,7 +42,7 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(matrixClient),
-          p2pApiClientProvider.overrideWithValue(p2pClient),
+          asClientProvider.overrideWithValue(asClient),
           currentUserProfileProvider.overrideWith((ref) async => null),
         ],
         child: MaterialApp(
@@ -57,12 +60,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(seen.method, 'POST');
-    expect(seen.url.path, '/im/report');
+    expect(seen.url.path, '/_p2p/command');
     expect(jsonDecode(seen.body), {
-      'reporterDomain': 'p2p-im.com',
-      'reportedDomain': 'portal.local',
-      'targetType': 1,
-      'reason': '欺诈',
+      'action': 'reports.submit',
+      'params': {
+        'reporter_domain': 'p2p-im.com',
+        'reported_domain': 'portal.local',
+        'target_type': 1,
+        'reason': '欺诈',
+      },
     });
     expect(find.text('举报已提交'), findsOneWidget);
   });

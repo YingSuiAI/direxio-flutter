@@ -17,7 +17,8 @@ void main() {
     await tempDir.delete(recursive: true);
   });
 
-  test('write and read persists AS product metadata without messages', () async {
+  test('write and read persists AS product metadata without messages',
+      () async {
     await store.write(_bootstrap(
       contactRoomId: '!old:p2p-im.com',
       deletedEventIds: const [r'$deleted'],
@@ -52,6 +53,33 @@ void main() {
     await File('${tempDir.path}/bootstrap.json').writeAsString('{bad json');
 
     expect(await store.read(), isNull);
+  });
+
+  test('parses contact peer_mxid from message-server bootstrap', () {
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': '2026-06-19T00:00:00Z',
+      'user': {'user_id': '@owner:dendrite-b:8448'},
+      'rooms': [],
+      'contacts': [
+        {
+          'peer_mxid': '@owner:dendrite-a:8448',
+          'display_name': 'owner',
+          'domain': 'dendrite-a:8448',
+          'room_id': '!request:dendrite-a:8448',
+          'status': 'pending_inbound',
+        }
+      ],
+      'groups': [],
+      'channels': [],
+      'pending': {
+        'friend_requests': [],
+        'group_invites': [],
+        'channel_notices': [],
+      },
+    });
+
+    expect(bootstrap.contacts.single.userId, '@owner:dendrite-a:8448');
+    expect(bootstrap.contacts.single.status, 'pending_inbound');
   });
 }
 

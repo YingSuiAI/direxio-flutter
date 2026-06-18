@@ -4772,7 +4772,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('bottom_nav_badge_联系人')), findsOneWidget);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
 
     await tester.tap(find.text('通讯录').last);
     await tester.pump();
@@ -4791,7 +4791,7 @@ void main() {
     await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('bottom_nav_badge_联系人')), findsNothing);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
     expect(
         find.byKey(const ValueKey('section_action_badge_新朋友')), findsNothing);
 

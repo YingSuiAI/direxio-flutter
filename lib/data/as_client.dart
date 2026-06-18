@@ -495,7 +495,7 @@ class AsSyncContact {
 
   factory AsSyncContact.fromJson(Map<String, dynamic> json) {
     return AsSyncContact(
-      userId: json['user_id'] as String? ?? '',
+      userId: json['user_id'] as String? ?? json['peer_mxid'] as String? ?? '',
       displayName: json['display_name'] as String? ?? '',
       avatarUrl: json['avatar_url'] as String? ?? '',
       roomId: json['room_id'] as String? ?? '',

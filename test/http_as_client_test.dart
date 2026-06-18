@@ -2034,6 +2034,49 @@ void main() {
     expect(channel.roomId, '!channel:example.com');
   });
 
+  test('getPublicChannelByRoomId uses override unified node without auth',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('http://127.0.0.1:28008/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.toString(),
+          'http://127.0.0.1:18008/_p2p/query',
+        );
+        expect(request.headers['Authorization'], isNull);
+        expect(jsonDecode(request.body), {
+          'action': 'channels.public.get',
+          'params': {
+            'channel_id': '!channel:dendrite-a:8448',
+            'room_id': '!channel:dendrite-a:8448',
+          },
+        });
+        return _jsonResponse(
+          {
+            'channel_id': 'ch1',
+            'room_id': '!channel:dendrite-a:8448',
+            'home_domain': 'dendrite-a:8448',
+            'name': '产品公告',
+            'visibility': 'public',
+            'join_policy': 'open',
+            'comments_enabled': true,
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.getPublicChannelByRoomId(
+      '!channel:dendrite-a:8448',
+      baseUri: Uri.parse('http://127.0.0.1:18008/_p2p'),
+    );
+
+    expect(channel.channelId, 'ch1');
+    expect(channel.roomId, '!channel:dendrite-a:8448');
+  });
+
   test('getUserPublicChannels calls public user endpoint without auth',
       () async {
     final client = HttpAsClient(

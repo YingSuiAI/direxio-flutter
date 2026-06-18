@@ -112,6 +112,47 @@ void main() {
     expect(requestPaths, isNot(contains('/_p2p/command')));
   });
 
+  test('restores stored profile initialization flag without profile lookup',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'stored-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.adminAccessTokenKey: 'admin-token',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final client = Client(
+      'AuthStoredProfileInitializedFlagTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s0","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    final auth = await container.read(authStateNotifierProvider.future);
+
+    expect(auth.isLoggedIn, isTrue);
+    expect(auth.requiresProfileSetup, isFalse);
+  });
+
   test(
       'restores stored auth state without waiting for Matrix preflight network',
       () async {

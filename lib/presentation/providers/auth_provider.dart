@@ -221,6 +221,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   static const adminAccessTokenKey = 'admin_access_token';
   static const lastLoginHomeserverKey = 'last_login_homeserver';
   static const lastLoginPortalTokenKey = 'last_login_portal_token';
+  static const profileInitializedKey = 'profile_initialized';
   bool _sessionExpiredLocally = false;
   bool _isMounted = false;
 
@@ -246,6 +247,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       _storage.read(key: AuthStateNotifier.adminAccessTokenKey),
       _storage.read(key: lastLoginHomeserverKey),
       _storage.read(key: lastLoginPortalTokenKey),
+      _storage.read(key: profileInitializedKey),
     ]);
     final token = storedValues[0];
     final homeserver = storedValues[1];
@@ -253,6 +255,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final portalToken = storedValues[3];
     final lastLoginHomeserver = storedValues[4];
     final lastLoginPortalToken = storedValues[5];
+    final storedProfileInitialized = _parseStoredBool(storedValues[6]);
     final storedPortalToken = (portalToken?.trim().isNotEmpty ?? false)
         ? portalToken
         : lastLoginPortalToken;
@@ -292,6 +295,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           userId: client.userID ?? userId,
           homeserver: (client.homeserver ?? homeserverUri).toString(),
           portalToken: storedPortalToken,
+          requiresProfileSetup: storedProfileInitialized == false,
         );
       } catch (_) {
         await _storage.delete(key: 'matrix_token');
@@ -320,6 +324,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       _storage.delete(key: 'matrix_user_id'),
       _storage.delete(key: 'matrix_device_id'),
       _storage.delete(key: adminAccessTokenKey),
+      _storage.delete(key: profileInitializedKey),
     ]);
   }
 
@@ -443,6 +448,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       checkedHomeserver,
       portalToken: effectivePortalToken,
       deviceId: deviceId,
+      profileInitialized: session.profileInitialized,
       loginPortalToken: cleanPortalToken,
     );
     final result = _PortalLoginResult(
@@ -859,6 +865,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         userId: userId,
         homeserver: homeserver.toString(),
         portalToken: portalToken,
+        requiresProfileSetup:
+            _parseStoredBool(await _storage.read(key: profileInitializedKey)) ==
+                false,
       );
     } catch (_) {
       return null;
@@ -948,6 +957,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           portalToken: effectivePortalToken,
           deviceId: deviceId,
           userId: session.userId,
+          profileInitialized: session.profileInitialized,
           loginPortalToken: authPortalToken,
         );
       }
@@ -957,6 +967,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         userId: client.userID ?? session.userId,
         homeserver: (client.homeserver ?? matrixUri).toString(),
         portalToken: effectivePortalToken,
+        requiresProfileSetup: session.profileInitialized == false,
       );
     } catch (e) {
       debugPrint('portal token restore failed: $e');
@@ -1079,6 +1090,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: portalToken,
       deviceId: effectiveDeviceId,
       userId: effectiveUserId,
+      profileInitialized: session.profileInitialized,
       loginPortalToken: loginPortalToken,
     );
   }
@@ -1183,6 +1195,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String portalToken,
     required String deviceId,
     String? userId,
+    bool? profileInitialized,
     String? loginPortalToken,
   }) async {
     await _storage.write(key: 'matrix_token', value: client.accessToken);
@@ -1199,6 +1212,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       key: lastLoginPortalTokenKey,
       value: loginPortalToken ?? portalToken,
     );
+    if (profileInitialized != null) {
+      await _storage.write(
+        key: profileInitializedKey,
+        value: profileInitialized ? 'true' : 'false',
+      );
+    }
   }
 
   Future<void> _clearUserScopedLocalState(
@@ -1416,6 +1435,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _storage.delete(key: 'matrix_device_id');
     await _storage.delete(key: AuthStateNotifier.adminAccessTokenKey);
     await _storage.delete(key: lastLoginPortalTokenKey);
+    await _storage.delete(key: profileInitializedKey);
     ref.read(sessionExpiredNoticeProvider.notifier).state++;
     if (publishState) {
       state = const AsyncData(AuthState(isLoggedIn: false));
@@ -1432,6 +1452,13 @@ String _validatePortalLoginToken(String token) {
     throw ArgumentError('新登录口令不能包含空格');
   }
   return cleanToken;
+}
+
+bool? _parseStoredBool(String? value) {
+  final clean = value?.trim().toLowerCase();
+  if (clean == 'true') return true;
+  if (clean == 'false') return false;
+  return null;
 }
 
 class _PortalLoginResult {

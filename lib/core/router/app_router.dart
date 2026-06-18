@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' as io;
 
 import 'package:flutter/foundation.dart';
@@ -676,8 +677,29 @@ GoRouter appRouter(Ref ref) {
   );
 }
 
-class _AuthRestorePage extends StatelessWidget {
+class _AuthRestorePage extends StatefulWidget {
   const _AuthRestorePage();
+
+  @override
+  State<_AuthRestorePage> createState() => _AuthRestorePageState();
+}
+
+class _AuthRestorePageState extends State<_AuthRestorePage> {
+  Timer? _fallbackTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _fallbackTimer = Timer(const Duration(seconds: 14), () {
+      if (mounted) context.go('/login');
+    });
+  }
+
+  @override
+  void dispose() {
+    _fallbackTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

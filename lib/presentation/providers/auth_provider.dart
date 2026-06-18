@@ -220,7 +220,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       return await _buildRestoredAuthState().timeout(_startupRestoreTimeout);
     } catch (e) {
       debugPrint('startup auth restore failed, returning to login: $e');
-      await _clearAutoRestoreCredentials();
+      unawaited(
+        _clearAutoRestoreCredentials()
+            .timeout(const Duration(seconds: 2))
+            .catchError((Object clearError) {
+          debugPrint('startup auth credential cleanup skipped: $clearError');
+        }),
+      );
       return const AuthState(isLoggedIn: false);
     }
   }
@@ -622,6 +628,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.adminAccessToken,
       deviceId: deviceId,
       loginPortalToken: cleanToken,
+      profileInitialized: session.profileInitialized ?? true,
     );
     final userId = session.userId.trim().isNotEmpty
         ? session.userId
@@ -639,6 +646,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         homeserver: matrixUri.toString(),
         portalToken: session.adminAccessToken,
         ownerDisplayName: savedDisplayName,
+        requiresProfileSetup: false,
       ),
     );
     _startPostLoginConversationSync(
@@ -728,13 +736,20 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.adminAccessToken,
       deviceId: deviceId,
       loginPortalToken: cleanNewPassword,
+      profileInitialized: session.profileInitialized ??
+          _parseStoredBool(await _storage.read(key: profileInitializedKey)) ??
+          !(auth?.requiresProfileSetup ?? false),
     );
+    final profileInitialized = session.profileInitialized ??
+        _parseStoredBool(await _storage.read(key: profileInitializedKey));
     state = AsyncData(
       AuthState(
         isLoggedIn: true,
         userId: userId,
         homeserver: matrixUri.toString(),
         portalToken: session.adminAccessToken,
+        ownerDisplayName: auth?.ownerDisplayName,
+        requiresProfileSetup: profileInitialized == false,
       ),
     );
   }
@@ -788,6 +803,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.adminAccessToken,
       deviceId: deviceId,
       loginPortalToken: cleanNewToken,
+      profileInitialized: session.profileInitialized ?? false,
     );
     state = AsyncData(
       AuthState(
@@ -795,6 +811,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         userId: userId,
         homeserver: matrixUri.toString(),
         portalToken: session.adminAccessToken,
+        requiresProfileSetup: true,
       ),
     );
   }
@@ -1032,6 +1049,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String portalToken,
     required String deviceId,
     String? loginPortalToken,
+    bool? profileInitialized,
   }) async {
     final matrixUri = _resolveClientHomeserver(
       currentHomeserver,
@@ -1073,7 +1091,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: portalToken,
       deviceId: effectiveDeviceId,
       userId: effectiveUserId,
-      profileInitialized: session.profileInitialized,
+      profileInitialized: profileInitialized ?? session.profileInitialized,
       loginPortalToken: loginPortalToken,
     );
   }

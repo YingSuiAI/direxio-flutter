@@ -962,6 +962,167 @@ void main() {
     );
   });
 
+  test(
+      'profile setup persists initialized flag when password response omits it',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'false',
+    });
+    final client = Client(
+      'AuthCompleteProfileSetupInitializedFlagTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'profile.update') != null) {
+          return http.Response(
+            '{"user_id":"@owner:example.com","display_name":"Alice",'
+            '"domain":"example.com"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.password') != null) {
+          return http.Response(
+            '{"matrix_access_token":"new-token",'
+            '"admin_access_token":"new-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path.startsWith('/_matrix/client/v3/profile/') &&
+            request.url.path.endsWith('/displayname')) {
+          return http.Response('{}', 200);
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'PortalIM',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .completeOwnerProfileSetup(
+          displayName: 'Alice',
+          newPortalToken: '12345678',
+        );
+
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.ownerDisplayName, 'Alice');
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.profileInitializedKey),
+      'true',
+    );
+  });
+
+  test('password change keeps initialized flag when response omits it',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final client = Client(
+      'AuthPasswordChangeKeepsInitializedFlagTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.password') != null) {
+          return http.Response(
+            '{"matrix_access_token":"new-token",'
+            '"admin_access_token":"new-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'PortalIM',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .changePortalPassword(
+          oldPassword: '11111111',
+          newPassword: '12345678',
+        );
+
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.requiresProfileSetup, isFalse);
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.profileInitializedKey),
+      'true',
+    );
+  });
+
   test('logout preserves Matrix device store for same device login', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'current-token',

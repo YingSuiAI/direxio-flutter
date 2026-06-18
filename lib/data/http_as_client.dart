@@ -1894,6 +1894,11 @@ class HttpAsClient implements AsClient {
 String _actionFor(String method, String path) {
   final clean = path.trim().replaceAll(RegExp(r'^/+|/+$'), '');
   final segments = clean.split('/');
+  if (method == 'GET' && clean == 'agents/get-password') {
+    return 'agent.password';
+  }
+  if (method == 'GET' && clean == 'apis') return 'apis.list';
+  if (method == 'PUT' && clean == 'apis/status') return 'apis.status';
   if (method == 'GET' && clean == 'agent/config') return 'agent.config.get';
   if (method == 'PUT' && clean == 'agent/config') return 'agent.config.update';
   if (method == 'GET' && clean == 'agent/status') return 'agent.status';
@@ -1904,6 +1909,9 @@ String _actionFor(String method, String path) {
   }
   if (method == 'GET' && clean == 'favorites') return 'favorites.list';
   if (method == 'POST' && clean == 'favorites') return 'favorites.add';
+  if (method == 'POST' && clean == 'favorites/delete-batch') {
+    return 'favorites.delete_batch';
+  }
   if (method == 'DELETE' && segments.first == 'favorites') {
     return 'favorites.delete';
   }
@@ -2005,11 +2013,21 @@ String _actionFor(String method, String path) {
   if (method == 'PUT' && clean == 'profile') return 'profile.update';
   if (method == 'GET' && clean == 'sync/bootstrap') return 'sync.bootstrap';
   if (method == 'GET' && clean == 'sync/unread') return 'sync.unread';
+  if (method == 'GET' && clean == 'sync/messages') return 'sync.messages';
   if (method == 'PUT' && clean == 'sync/read-marker') return 'sync.read_marker';
   if (method == 'GET' && clean == 'search') return 'search';
   if (method == 'GET' && clean == 'portal/status') return 'portal.status';
+  if (method == 'POST' && clean == 'portal/setup') return 'portal.setup';
+  if (method == 'PUT' && clean == 'portal/password') return 'portal.password';
+  if (method == 'GET' && clean == 'contacts') return 'contacts.list';
   if (method == 'POST' && clean == 'contacts/requests') {
     return 'contacts.request';
+  }
+  if (method == 'DELETE' &&
+      segments.length >= 3 &&
+      segments[0] == 'contacts' &&
+      segments[1] == 'requests') {
+    return 'contacts.requests.delete';
   }
   if (segments.length >= 4 &&
       segments[0] == 'contacts' &&
@@ -2092,6 +2110,13 @@ Map<String, Object?> _actionParams(
   }
   if (segments.length >= 2 && segments[0] == 'follows') {
     params['domain'] = Uri.decodeComponent(segments[1]);
+  }
+  if (segments.length >= 2 && segments[0] == 'contacts') {
+    if (segments[1] == 'requests' && segments.length >= 3) {
+      params['room_id'] = Uri.decodeComponent(segments[2]);
+    } else {
+      params['room_id'] = Uri.decodeComponent(segments[1]);
+    }
   }
   return params;
 }

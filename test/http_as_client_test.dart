@@ -93,6 +93,85 @@ void main() {
     expect(eventId, r'$sent');
   });
 
+  test('changePortalPassword uses unified portal password action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(jsonDecode(request.body), {
+          'action': 'portal.password',
+          'params': {
+            'old_password': 'old-secret',
+            'new_password': 'new-secret',
+          },
+        });
+        return http.Response(
+          jsonEncode({
+            'matrix_access_token': 'matrix-token',
+            'admin_access_token': 'admin-token',
+          }),
+          200,
+        );
+      }),
+    );
+
+    final session = await client.changePortalPassword(
+      oldPassword: 'old-secret',
+      newPassword: 'new-secret',
+    );
+
+    expect(session.matrixAccessToken, 'matrix-token');
+    expect(session.adminAccessToken, 'admin-token');
+  });
+
+  test('deleteFavorite uses unified favorite delete action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(jsonDecode(request.body), {
+          'action': 'favorites.delete',
+          'params': {'id': '7'},
+        });
+        return http.Response(jsonEncode({'status': 'ok'}), 200);
+      }),
+    );
+
+    await expectLater(client.deleteFavorite(7), completes);
+  });
+
+  test('deleteContact uses unified contact delete action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(jsonDecode(request.body), {
+          'action': 'contacts.delete',
+          'params': {'room_id': '!alice:p2p-im.com'},
+        });
+        return http.Response(
+          jsonEncode({
+            'peer_mxid': '@alice:p2p-im.com',
+            'room_id': '!alice:p2p-im.com',
+            'status': 'deleted',
+          }),
+          200,
+        );
+      }),
+    );
+
+    final contact = await client.deleteContact('!alice:p2p-im.com');
+
+    expect(contact.roomId, '!alice:p2p-im.com');
+    expect(contact.status, 'deleted');
+  });
+
   test('maps legacy channel intro field to description', () {
     final summary = AsSyncRoomSummary.fromJson({
       'channel_id': 'ch_intro',

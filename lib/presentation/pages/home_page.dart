@@ -616,17 +616,15 @@ List<String> _pendingFriendRequestRoomIds({
   required AsSyncCacheState syncCache,
 }) {
   final agentMxid = portalAgentMxidForClient(client);
-  if (syncCache.bootstrap == null) {
-    return client.rooms
-        .where((r) => isIncomingDirectContactInvite(r, agentMxid: agentMxid))
-        .map((r) => r.id.trim())
-        .where((roomId) => roomId.isNotEmpty)
-        .toList();
-  }
-  return syncCache.pendingInboundContacts
-      .map((contact) => contact.roomId.trim())
-      .where((roomId) => roomId.isNotEmpty)
-      .toList();
+  final roomIds = <String>{
+    for (final room in client.rooms)
+      if (isIncomingDirectContactInvite(room, agentMxid: agentMxid) &&
+          room.id.trim().isNotEmpty)
+        room.id.trim(),
+    for (final contact in syncCache.pendingInboundContacts)
+      if (contact.roomId.trim().isNotEmpty) contact.roomId.trim(),
+  };
+  return roomIds.toList(growable: false);
 }
 
 String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';

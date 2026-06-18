@@ -318,14 +318,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   void _markCurrentFriendRequestsRead() {
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.read(asSyncCacheProvider);
-    final roomIds = syncCache.bootstrap == null
-        ? client.rooms
-            .where((room) => isIncomingDirectContactInvite(
-                  room,
-                  agentMxid: portalAgentMxidForClient(client),
-                ))
-            .map((room) => room.id)
-        : syncCache.pendingInboundContacts.map((contact) => contact.roomId);
+    final roomIds = {
+      for (final room in _incomingDirectContactInvites(client)) room.id,
+      for (final contact in syncCache.pendingInboundContacts) contact.roomId,
+    };
     ref.read(friendRequestReadProvider.notifier).markRead(roomIds);
   }
 
@@ -377,16 +373,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   @override
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
-    final agentMxid = portalAgentMxidForClient(client);
     final syncCache = ref.watch(asSyncCacheProvider);
-    final bootstrapLoaded = syncCache.bootstrap != null;
-    final invites = bootstrapLoaded
-        ? <Room>[]
-        : client.rooms
-            .where(
-                (r) => isIncomingDirectContactInvite(r, agentMxid: agentMxid))
-            .toList();
     final pendingInboundContacts = syncCache.pendingInboundContacts;
+    final pendingInboundRoomIds = pendingInboundContacts
+        .map((contact) => contact.roomId.trim())
+        .where((roomId) => roomId.isNotEmpty)
+        .toSet();
+    final invites = _incomingDirectContactInvites(client)
+        .where((room) => !pendingInboundRoomIds.contains(room.id.trim()))
+        .toList(growable: false);
     final pendingOutboundContacts = syncCache.pendingOutboundContacts;
     final rejectedOutboundContacts = syncCache.rejectedOutboundContacts;
     final acceptedContacts = syncCache.acceptedContacts;
@@ -512,6 +507,17 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     if (id.isEmpty) return;
     context.push('/contact/${Uri.encodeComponent(id)}');
   }
+}
+
+List<Room> _incomingDirectContactInvites(Client client) {
+  final agentMxid = portalAgentMxidForClient(client);
+  final knownPendingRoomIds = <String>{};
+  return client.rooms.where((room) {
+    if (!isIncomingDirectContactInvite(room, agentMxid: agentMxid)) {
+      return false;
+    }
+    return knownPendingRoomIds.add(room.id.trim());
+  }).toList(growable: false);
 }
 
 class _RequestsHeader extends StatelessWidget {

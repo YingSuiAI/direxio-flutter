@@ -2019,6 +2019,9 @@ String _actionFor(String method, String path) {
   if (method == 'GET' && clean == 'channels/me/reactions') {
     return 'channels.my_reactions';
   }
+  if (method == 'GET' && clean == 'public/channels/search') {
+    return 'channels.public.search';
+  }
   if (segments.length >= 3 &&
       segments[0] == 'public' &&
       segments[1] == 'channels') {
@@ -2186,7 +2189,8 @@ Map<String, Object?> _actionParams(
   }
   if (segments.length >= 3 &&
       segments[0] == 'public' &&
-      segments[1] == 'channels') {
+      segments[1] == 'channels' &&
+      segments[2] != 'search') {
     final id = Uri.decodeComponent(segments[2]);
     params['channel_id'] = id;
     params['room_id'] = id;

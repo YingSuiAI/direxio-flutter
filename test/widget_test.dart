@@ -137,6 +137,8 @@ class _MemoryChatClearStateStore implements ChatClearStateStore {
 
 class _EmptyAsClient implements AsClient {
   String? updatedOwnerDisplayName;
+  Uri? lastPublicChannelLookupBaseUri;
+  String? lastPublicChannelSearchQuery;
 
   @override
   Future<OwnerProfile> getOwnerProfile() async => const OwnerProfile(
@@ -209,6 +211,7 @@ class _EmptyAsClient implements AsClient {
   Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,
+    String? deviceId,
   }) async {
     throw UnsupportedError('Test AS fake does not issue auth tokens');
   }
@@ -326,8 +329,17 @@ class _EmptyAsClient implements AsClient {
     String query, {
     Uri? baseUri,
     int limit = 20,
-  }) async =>
-      const [];
+  }) async {
+    lastPublicChannelSearchQuery = query;
+    return [
+      AsChannel(
+        channelId: 'ch_search',
+        roomId: '!search:example.com',
+        name: query,
+        homeDomain: 'example.com',
+      ),
+    ];
+  }
 
   @override
   Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri}) async =>
@@ -342,13 +354,15 @@ class _EmptyAsClient implements AsClient {
   Future<AsChannel> getPublicChannelByRoomId(
     String roomId, {
     Uri? baseUri,
-  }) async =>
-      AsChannel(
-        channelId: roomId,
-        roomId: roomId,
-        name: '频道',
-        homeDomain: 'example.com',
-      );
+  }) async {
+    lastPublicChannelLookupBaseUri = baseUri;
+    return AsChannel(
+      channelId: roomId,
+      roomId: roomId,
+      name: '频道',
+      homeDomain: 'example.com',
+    );
+  }
 
   @override
   Future<List<AsChannel>> getUserPublicChannels(
@@ -3959,6 +3973,66 @@ void main() {
     }
   });
 
+  testWidgets('channel search routes Matrix room id lookup to owner node',
+      (tester) async {
+    final client = Client('PortalIMChannelSearchRoomIdTargetTest');
+    final asClient = _EmptyAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child:
+            MaterialApp(theme: AppTheme.light, home: const ChannelSearchPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(
+      find.byType(M3SearchField),
+      '!room123:node.example.com',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.lastPublicChannelLookupBaseUri, isNotNull);
+    expect(asClient.lastPublicChannelLookupBaseUri!.scheme, 'https');
+    expect(asClient.lastPublicChannelLookupBaseUri!.host, 'node.example.com');
+    expect(asClient.lastPublicChannelLookupBaseUri!.path, '/_p2p');
+  });
+
+  testWidgets('channel search uses unified AS public search for keywords',
+      (tester) async {
+    final client = Client('PortalIMChannelSearchUnifiedTest');
+    final asClient = _EmptyAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child:
+            MaterialApp(theme: AppTheme.light, home: const ChannelSearchPage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(M3SearchField), 'garden');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.lastPublicChannelSearchQuery, 'garden');
+    expect(find.text('garden'), findsWidgets);
+    expect(find.text('example.com'), findsOneWidget);
+  });
+
   testWidgets('create channel entry opens figma form', (tester) async {
     final client = Client('PortalIMCreateChannelTest');
 
@@ -4504,6 +4578,59 @@ void main() {
     );
   });
 
+  testWidgets('new friend badge counts Matrix invites after AS bootstrap',
+      (tester) async {
+    final client = Client('PortalIMInviteBadgeBootstrapTest')
+      ..setUserId('@owner:p2p-im.com');
+    final readStore = _MemoryFriendRequestReadStore();
+    _addTestRoom(
+      client,
+      roomId: '!person-invite:p2p-remote.com',
+      roomMembership: Membership.invite,
+      directPeerMxid: '@alice:p2p-remote.com',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 19, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          friendRequestReadStoreProvider.overrideWith((ref) async => readStore),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('通讯录').last);
+    await tester.pump();
+
+    final contactSectionBadge =
+        find.byKey(const ValueKey('section_action_badge_新朋友'));
+    expect(contactSectionBadge, findsOneWidget);
+    expect(
+      find.descendant(of: contactSectionBadge, matching: find.text('1')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('chat list shows group unread badge from AS room summary',
       (tester) async {
     const roomId = '!group-unread:p2p-im.com';
@@ -4673,6 +4800,46 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('暂无好友请求'), findsNothing);
+    expect(find.text('查看'), findsOneWidget);
+  });
+
+  testWidgets('new friends page still lists Matrix invites after AS bootstrap',
+      (tester) async {
+    final client = Client('PortalIMRequestsBootstrapInviteTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!person-invite:p2p-remote.com',
+      roomMembership: Membership.invite,
+      directPeerMxid: '@alice:p2p-remote.com',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 19, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
       ),

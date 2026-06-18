@@ -371,7 +371,7 @@ class _AddContactProfile {
 
 _AddContactProfile _profileForAddContact(String userId, String? displayName) {
   final home = MockData.contactHomeByMxid(userId);
-  final domain = userId.contains(':') ? userId.split(':').last : '';
+  final domain = domainFromMxid(userId);
   final name = contactDisplayNameFromIdentity(
     mxid: userId,
     displayName: displayName ?? home?.displayName ?? '',

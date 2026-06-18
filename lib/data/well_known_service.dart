@@ -103,11 +103,24 @@ class WellKnownService {
       .replaceAll(RegExp(r'^https?://'), '')
       .replaceAll(RegExp(r'/+$'), '');
 
+  Uri _wellKnownUri(String domain, String path) {
+    final d = _normalizeDomain(domain);
+    final localPort = _localDualNodeHttpPort(d);
+    if (localPort != null) {
+      return Uri(
+        scheme: 'http',
+        host: '127.0.0.1',
+        port: localPort,
+        path: path,
+      );
+    }
+    return Uri.parse('https://$d$path');
+  }
+
   /// 发现 Homeserver —— §2.1
   /// GET https://{domain}/.well-known/matrix/client
   Future<String?> discoverHomeserver(String domain) async {
-    final d = _normalizeDomain(domain);
-    final uri = Uri.parse('https://$d/.well-known/matrix/client');
+    final uri = _wellKnownUri(domain, '/.well-known/matrix/client');
     try {
       final resp = await _get(uri);
       if (resp.statusCode != 200) return null;
@@ -126,8 +139,7 @@ class WellKnownService {
   Future<({PortalAvailability availability, PortalOwner? owner})> discoverOwner(
     String domain,
   ) async {
-    final d = _normalizeDomain(domain);
-    final uri = Uri.parse('https://$d/.well-known/portal/owner.json');
+    final uri = _wellKnownUri(domain, '/.well-known/portal/owner.json');
     try {
       final resp = await _get(uri);
       if (resp.statusCode == 404) {
@@ -149,8 +161,7 @@ class WellKnownService {
   /// 发现 Federation —— §2.3
   /// GET https://{domain}/.well-known/matrix/server
   Future<String?> discoverFederation(String domain) async {
-    final d = _normalizeDomain(domain);
-    final uri = Uri.parse('https://$d/.well-known/matrix/server');
+    final uri = _wellKnownUri(domain, '/.well-known/matrix/server');
     try {
       final resp = await _get(uri);
       if (resp.statusCode != 200) return null;
@@ -229,4 +240,13 @@ class WellKnownService {
       rethrow;
     }
   }
+}
+
+int? _localDualNodeHttpPort(String domain) {
+  final host = Uri.tryParse('matrix://$domain')?.host.toLowerCase();
+  return switch (host) {
+    'dendrite-a' => 18008,
+    'dendrite-b' => 28008,
+    _ => null,
+  };
 }

@@ -1,14 +1,14 @@
 import 'package:matrix/matrix.dart';
 
 import '../../data/well_known_service.dart';
+import 'contact_identity_label.dart';
 
 const productRoomKindEventType = 'p2p.room.kind';
 
 String? serverNameFromMxid(String? mxid) {
   if (mxid == null) return null;
-  final idx = mxid.lastIndexOf(':');
-  if (idx < 0 || idx == mxid.length - 1) return null;
-  return mxid.substring(idx + 1);
+  final serverName = domainFromMxid(mxid);
+  return serverName.isEmpty ? null : serverName;
 }
 
 String? portalAgentMxidForClient(Client client) {

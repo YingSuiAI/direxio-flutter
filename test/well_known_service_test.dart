@@ -46,4 +46,27 @@ void main() {
     expect(result.owner?.displayName, 'Alice Chen');
     expect(result.owner?.avatarUrl, 'https://cdn.example.com/alice.png');
   });
+
+  test('discover owner maps local dual-node server names to loopback ports',
+      () async {
+    final requestedUris = <Uri>[];
+    final service = WellKnownService(
+      httpClient: MockClient((request) async {
+        requestedUris.add(request.url);
+        return http.Response(
+          '{"matrix_user_id":"@owner:dendrite-b:8448","display_name":"Owner B"}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    final result = await service.discoverOwner('dendrite-b:8448');
+
+    expect(result.availability, PortalAvailability.online);
+    expect(result.owner?.matrixUserId, '@owner:dendrite-b:8448');
+    expect(requestedUris, [
+      Uri.parse('http://127.0.0.1:28008/.well-known/portal/owner.json'),
+    ]);
+  });
 }

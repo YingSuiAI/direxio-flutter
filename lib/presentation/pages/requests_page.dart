@@ -334,9 +334,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   }
 
   String _domainFromMxid(String mxid) {
-    final idx = mxid.lastIndexOf(':');
-    if (idx < 0 || idx == mxid.length - 1) return '';
-    return mxid.substring(idx + 1);
+    return domainFromMxid(mxid);
   }
 
   Future<_InviteTarget> _resolveInviteTarget(

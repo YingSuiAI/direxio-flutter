@@ -1364,6 +1364,7 @@ class _NeverListChannelsAsClient extends _EmptyAsClient {
 class _TrackingAsClient extends _EmptyAsClient {
   int createContactRequestCalls = 0;
   String? createdContactMxid;
+  String? createdContactDomain;
   int deleteContactCalls = 0;
   String? deletedContactRoomId;
   int deleteRoomMessageCalls = 0;
@@ -1412,6 +1413,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   }) async {
     createContactRequestCalls++;
     createdContactMxid = mxid;
+    createdContactDomain = domain;
     return ContactEntry(
       peerMxid: mxid,
       displayName: displayName,
@@ -5885,6 +5887,41 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('上一页'), findsOneWidget);
     expect(find.text('好友验证'), findsNothing);
+  });
+
+  testWidgets('add contact verification preserves mxid server name with port',
+      (tester) async {
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const AddContactVerificationPage(
+            userId: '@owner:dendrite-b:8448',
+            displayName: 'Owner B',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('发送申请'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(asClient.createContactRequestCalls, 1);
+    expect(asClient.createdContactMxid, '@owner:dendrite-b:8448');
+    expect(asClient.createdContactDomain, 'dendrite-b:8448');
+    await tester.pumpAndSettle();
   });
 
   testWidgets('add contact verification page uses dark tokens in dark mode',

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/presentation/utils/contact_identity_label.dart';
+import 'package:portal_app/presentation/utils/direct_contact_status.dart';
 
 void main() {
   group('contactDisplayNameFromIdentity', () {
@@ -33,6 +34,18 @@ void main() {
         ),
         'owner',
       );
+    });
+  });
+
+  group('domainFromMxid', () {
+    test('keeps server names with ports intact', () {
+      expect(domainFromMxid('@owner:dendrite-b:8448'), 'dendrite-b:8448');
+    });
+  });
+
+  group('serverNameFromMxid', () {
+    test('keeps server names with ports intact', () {
+      expect(serverNameFromMxid('@owner:dendrite-a:8448'), 'dendrite-a:8448');
     });
   });
 }

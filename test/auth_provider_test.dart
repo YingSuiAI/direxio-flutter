@@ -825,11 +825,74 @@ void main() {
     );
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_device_id'),
-      'DEVICE2',
+      'DEVICE1',
     );
   });
 
-  test('password change refresh resolves new Matrix token device id', () async {
+  test('logout preserves Matrix device store for same device login', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'current-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.adminAccessTokenKey: 'current-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
+      AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
+    });
+    final client = Client(
+      'AuthLogoutPreservesMatrixDeviceTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/logout') {
+          return http.Response('{}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'current-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'PortalIM',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container.read(authStateNotifierProvider.notifier).logout();
+
+    expect(container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+        isFalse);
+    expect(client.deviceID, 'DEVICE1');
+    expect(
+        await const FlutterSecureStorage().read(key: 'matrix_token'), isNull);
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
+      '12345678',
+    );
+  });
+
+  test('password change preserves current Matrix device on same device',
+      () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
@@ -911,9 +974,10 @@ void main() {
         );
 
     expect(client.accessToken, 'changed-matrix-token');
+    expect(client.deviceID, 'OLDDEVICE');
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_device_id'),
-      'P2P_PORTAL',
+      'OLDDEVICE',
     );
   });
 }

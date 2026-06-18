@@ -73,6 +73,11 @@ Client matrixClient(Ref ref) {
         .read(authStateNotifierProvider.notifier)
         .expireSessionDueInvalidToken();
   };
+  refreshingHttpClient.onAuthenticationFailedForToken = (failedToken) async {
+    await ref
+        .read(authStateNotifierProvider.notifier)
+        .expireSessionDueInvalidTokenIfCurrent(failedToken);
+  };
   ref.onDispose(refreshingHttpClient.close);
   return client;
 }
@@ -216,6 +221,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   Future<AuthState> build() async {
     _isMounted = true;
     ref.onDispose(() => _isMounted = false);
+    _configureMatrixTokenFailureHandler(ref.watch(matrixClientProvider));
     try {
       return await _buildRestoredAuthState().timeout(_startupRestoreTimeout);
     } catch (e) {
@@ -484,6 +490,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   }
 
   bool? _sessionProfileInitialized(AsPortalSession session) {
+    if (session.accountInitialized != null) return session.accountInitialized;
     if (session.profileInitialized != null) return session.profileInitialized;
     if (session.initialized == true && session.passwordInitialized == true) {
       return true;
@@ -1053,6 +1060,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (httpClient is MatrixTokenRefreshingHttpClient) {
       return httpClient.innerClient;
     }
+    if (httpClient is TimeoutHttpClient &&
+        httpClient.inner is MatrixTokenRefreshingHttpClient) {
+      return (httpClient.inner as MatrixTokenRefreshingHttpClient).innerClient;
+    }
     return httpClient;
   }
 
@@ -1430,6 +1441,19 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _expireSessionDueInvalidToken(client);
   }
 
+  Future<void> expireSessionDueInvalidTokenIfCurrent(String failedToken) async {
+    final rejectedToken = failedToken.trim();
+    final client = ref.read(matrixClientProvider);
+    final currentToken = client.accessToken?.trim() ?? '';
+    if (rejectedToken.isNotEmpty &&
+        currentToken.isNotEmpty &&
+        rejectedToken != currentToken) {
+      debugPrint('stale Matrix access token rejected; keeping current session');
+      return;
+    }
+    await _expireSessionDueInvalidToken(client);
+  }
+
   Future<void> _expireSessionDueInvalidToken(
     Client client, {
     bool publishState = true,
@@ -1456,6 +1480,29 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (publishState) {
       state = const AsyncData(AuthState(isLoggedIn: false));
     }
+  }
+
+  void _configureMatrixTokenFailureHandler(Client client) {
+    final httpClient = _matrixTokenRefreshingHttpClient(client);
+    if (httpClient == null) return;
+    httpClient.onAuthenticationFailed = () async {
+      await expireSessionDueInvalidToken();
+    };
+    httpClient.onAuthenticationFailedForToken = (failedToken) async {
+      await expireSessionDueInvalidTokenIfCurrent(failedToken);
+    };
+  }
+
+  MatrixTokenRefreshingHttpClient? _matrixTokenRefreshingHttpClient(
+    Client client,
+  ) {
+    final httpClient = client.httpClient;
+    if (httpClient is MatrixTokenRefreshingHttpClient) return httpClient;
+    if (httpClient is TimeoutHttpClient &&
+        httpClient.inner is MatrixTokenRefreshingHttpClient) {
+      return httpClient.inner as MatrixTokenRefreshingHttpClient;
+    }
+    return null;
   }
 }
 

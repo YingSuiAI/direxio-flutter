@@ -175,6 +175,7 @@ void main() {
             'initialized': true,
             'password_initialized': true,
             'profile_initialized': true,
+            'account_initialized': true,
           }),
           200,
         );
@@ -192,6 +193,7 @@ void main() {
     expect(session.initialized, isTrue);
     expect(session.passwordInitialized, isTrue);
     expect(session.profileInitialized, isTrue);
+    expect(session.accountInitialized, isTrue);
   });
 
   test('deleteFavorite uses unified favorite delete action', () async {

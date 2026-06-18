@@ -104,6 +104,40 @@ void main() {
     expect(authFailures, 1);
   });
 
+  test('passes rejected Matrix token to token-aware auth failure callback',
+      () async {
+    var calls = 0;
+    final rejectedTokens = <String>[];
+    final client = MatrixTokenRefreshingHttpClient(
+      inner: MockClient((request) async {
+        calls += 1;
+        return http.Response(
+          jsonEncode({
+            'errcode': 'M_UNKNOWN_TOKEN',
+            'error': 'Unknown token',
+          }),
+          401,
+        );
+      }),
+    );
+    client.onAuthenticationFailedForToken = (token) async {
+      rejectedTokens.add(token);
+    };
+
+    final request = http.Request(
+      'PUT',
+      Uri.parse('https://example.com/_matrix/client/v3/keys/upload'),
+    )..headers['authorization'] = 'Bearer stale-token';
+
+    final response = await client.send(request);
+    final body = await response.stream.bytesToString();
+
+    expect(response.statusCode, 401);
+    expect(jsonDecode(body), containsPair('errcode', 'M_UNKNOWN_TOKEN'));
+    expect(calls, 1);
+    expect(rejectedTokens, ['stale-token']);
+  });
+
   test('does not refresh or notify for M_MISSING_TOKEN', () async {
     var refreshes = 0;
     var authFailures = 0;

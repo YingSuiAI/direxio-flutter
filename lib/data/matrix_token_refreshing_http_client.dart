@@ -20,6 +20,7 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
   final Duration uploadRetryDelay;
   Future<String?> Function()? refreshAccessToken;
   Future<void> Function()? onAuthenticationFailed;
+  Future<void> Function(String failedToken)? onAuthenticationFailedForToken;
   Future<String?>? _refreshInFlight;
 
   http.Client get innerClient => _inner;
@@ -78,7 +79,7 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
         stackTrace: stackTrace,
         requestBody: _tokenPreview('old_token', originalToken),
       );
-      await _notifyAuthenticationFailed();
+      await _notifyAuthenticationFailed(originalToken);
       return _rebuildResponse(response, responseBody);
     }
     if (token == null || token.isEmpty) {
@@ -86,7 +87,7 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
         '[Matrix] access token refresh returned empty '
         'uri=${request.url} ${_tokenPreview('old_token', originalToken)}',
       );
-      await _notifyAuthenticationFailed();
+      await _notifyAuthenticationFailed(originalToken);
       return _rebuildResponse(response, responseBody);
     }
 
@@ -98,12 +99,17 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       'changed=${originalToken != token}',
     );
     _setBearerAuth(retryRequest.headers, token);
-    return _sendRetry(retryRequest, notifyAuthenticationFailed: true);
+    return _sendRetry(
+      retryRequest,
+      notifyAuthenticationFailed: true,
+      failedToken: token,
+    );
   }
 
   Future<http.StreamedResponse> _sendRetry(
     http.BaseRequest request, {
     bool notifyAuthenticationFailed = false,
+    String failedToken = '',
   }) async {
     final stopwatch = Stopwatch()..start();
     try {
@@ -117,7 +123,7 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
       if (notifyAuthenticationFailed &&
           response.statusCode == 401 &&
           _isTokenFailure(responseBody)) {
-        await _notifyAuthenticationFailed();
+        await _notifyAuthenticationFailed(failedToken);
       }
       return _rebuildResponse(response, responseBody);
     } on http.ClientException catch (error, stackTrace) {
@@ -178,7 +184,23 @@ class MatrixTokenRefreshingHttpClient extends http.BaseClient {
     return future.whenComplete(() => _refreshInFlight = null);
   }
 
-  Future<void> _notifyAuthenticationFailed() async {
+  Future<void> _notifyAuthenticationFailed(String failedToken) async {
+    final tokenCallback = onAuthenticationFailedForToken;
+    if (tokenCallback != null) {
+      try {
+        await tokenCallback(failedToken);
+      } catch (error, stackTrace) {
+        ApiLogger.failure(
+          service: 'Matrix auth failure',
+          method: 'CALLBACK',
+          uri: Uri.parse('matrix://local/auth-failure'),
+          elapsed: Duration.zero,
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+      return;
+    }
     final callback = onAuthenticationFailed;
     if (callback == null) return;
     try {

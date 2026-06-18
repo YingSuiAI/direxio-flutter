@@ -2503,6 +2503,7 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.pump();
 
     expect(find.text('owner'), findsOneWidget);
     expect(find.textContaining('Group with'), findsNothing);

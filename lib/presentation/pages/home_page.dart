@@ -107,6 +107,7 @@ class _HomePageState extends ConsumerState<HomePage>
   StreamSubscription<GroupCallUiState>? _groupCallSub;
   bool _resumeSyncInFlight = false;
   bool _asBootstrapRefreshInFlight = false;
+  bool _asBootstrapRefreshScheduled = false;
   bool _staleBootstrapClearScheduled = false;
   Timer? _asBootstrapRefreshTimer;
   DateTime? _lastAsBootstrapRefreshAt;
@@ -135,10 +136,24 @@ class _HomePageState extends ConsumerState<HomePage>
 
   void _refreshHomeAfterMatrixSync(Client client) {
     if (!mounted) return;
+    final agentMxid = portalAgentMxidForClient(client);
+    final auth = ref.read(authStateNotifierProvider).valueOrNull;
+    final syncCache = asSyncCacheForUser(
+      ref.read(asSyncCacheProvider),
+      client.userID ?? auth?.userId,
+    );
+    final needsClassification = _hasUnclassifiedJoinedRooms(
+      client: client,
+      syncCache: syncCache,
+      agentMxid: agentMxid,
+    );
+    _scheduleAsBootstrapRefreshIfNeeded(
+      refreshExisting: true,
+      force: needsClassification,
+    );
     final nextSignature = _homeSyncSignature(client);
     if (nextSignature == _lastHomeSyncSignature) return;
     _lastHomeSyncSignature = nextSignature;
-    _scheduleAsBootstrapRefreshIfNeeded(refreshExisting: true);
     setState(() {});
   }
 
@@ -262,10 +277,16 @@ class _HomePageState extends ConsumerState<HomePage>
     }
   }
 
-  void _scheduleAsBootstrapRefreshIfNeeded({bool refreshExisting = false}) {
+  void _scheduleAsBootstrapRefreshIfNeeded({
+    bool refreshExisting = false,
+    bool force = false,
+  }) {
     if (_mockAuthEnabled || _asBootstrapRefreshInFlight) return;
-    if (_asBootstrapRefreshTimer?.isActive ?? false) return;
-    if (refreshExisting) {
+    if (_asBootstrapRefreshScheduled ||
+        (_asBootstrapRefreshTimer?.isActive ?? false)) {
+      return;
+    }
+    if (refreshExisting && !force) {
       final refreshedAt = _lastAsBootstrapRefreshAt;
       if (refreshedAt != null &&
           DateTime.now().difference(refreshedAt) <
@@ -288,15 +309,24 @@ class _HomePageState extends ConsumerState<HomePage>
       return;
     }
 
-    _asBootstrapRefreshTimer = Timer(
-      refreshExisting ? const Duration(milliseconds: 300) : Duration.zero,
-      () {
+    if (!refreshExisting) {
+      _asBootstrapRefreshScheduled = true;
+      scheduleMicrotask(() {
+        _asBootstrapRefreshScheduled = false;
         if (!mounted || _asBootstrapRefreshInFlight) return;
         _asBootstrapRefreshInFlight = true;
         _lastAsBootstrapRefreshAt = DateTime.now();
         unawaited(_refreshAsBootstrap());
-      },
-    );
+      });
+      return;
+    }
+
+    _asBootstrapRefreshTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted || _asBootstrapRefreshInFlight) return;
+      _asBootstrapRefreshInFlight = true;
+      _lastAsBootstrapRefreshAt = DateTime.now();
+      unawaited(_refreshAsBootstrap());
+    });
   }
 
   void _finishAsBootstrapRefresh() {
@@ -324,6 +354,7 @@ class _HomePageState extends ConsumerState<HomePage>
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
           );
+      if (mounted) setState(() {});
     } catch (e) {
       _lastBootstrapRefreshUserId = refreshUserId;
       debugPrint('home bootstrap refresh failed: $e');
@@ -392,7 +423,11 @@ class _HomePageState extends ConsumerState<HomePage>
               builder: (ctx, c) {
                 final wide = c.maxWidth >= 900;
                 final pane = switch (_tab) {
-                  0 => _ChatList(client: client),
+                  0 => _ChatList(
+                      client: client,
+                      onNeedsBootstrapRefresh:
+                          _scheduleAsBootstrapRefreshIfNeeded,
+                    ),
                   1 => _ContactList(client: client),
                   2 => const ChannelExplorePage(),
                   _ => MePage(client: client),
@@ -1293,8 +1328,12 @@ class _GroupAvatarGrid extends StatelessWidget {
 }
 
 class _ChatList extends ConsumerWidget {
-  const _ChatList({required this.client});
+  const _ChatList({
+    required this.client,
+    required this.onNeedsBootstrapRefresh,
+  });
   final Client client;
+  final VoidCallback onNeedsBootstrapRefresh;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1368,6 +1407,7 @@ class _ChatList extends ConsumerWidget {
     final agentMxid = portalAgentMxidForClient(client);
     if (syncCache.bootstrap == null &&
         rooms.any((room) => _needsAsClassification(room, agentMxid))) {
+      onNeedsBootstrapRefresh();
       return const _Empty(
         icon: Symbols.sync,
         title: '正在同步联系人信息',
@@ -1434,14 +1474,13 @@ class _ChatList extends ConsumerWidget {
       for (final conversation in sortedConversations)
         if (!hiddenConversationIds.contains(conversation.roomId)) conversation,
     ];
-    _debugPrintConversationList(
-      client: client,
-      auth: authState.valueOrNull,
-      syncCache: syncCache,
-      rooms: rooms,
-      conversations: filteredConversations,
-      outbox: outbox,
-    );
+    if (filteredConversations.isEmpty) {
+      return const _Empty(
+        icon: Symbols.chat_bubble,
+        title: '还没有会话',
+        subtitle: '新的聊天会显示在这里',
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
@@ -1529,89 +1568,6 @@ void _toggleHomeConversationPin(WidgetRef ref, String roomId) {
   final trimmed = roomId.trim();
   if (trimmed.isEmpty) return;
   toggleConversationPin(ref, trimmed);
-}
-
-void _debugPrintConversationList({
-  required Client client,
-  required AuthState? auth,
-  required AsSyncCacheState syncCache,
-  required List<Room> rooms,
-  required List<_VisibleConversation> conversations,
-  required LocalOutboxState outbox,
-}) {
-  if (!kDebugMode) return;
-  final bootstrap = syncCache.bootstrap;
-  final roomLines = rooms.map((room) {
-    final last = room.lastEvent;
-    return {
-      'room_id': room.id,
-      'membership': room.membership.name,
-      'name': room.getLocalizedDisplayname(),
-      'last_event_id': last?.eventId,
-      'last_event_type': last?.type,
-      'last_sender': last?.senderId,
-      'unread': room.notificationCount,
-    };
-  }).toList();
-  final conversationLines = conversations.map((conversation) {
-    final room = conversation.room;
-    return {
-      'kind': conversation.isAgent
-          ? 'agent'
-          : conversation.isGroup
-              ? 'group'
-              : 'direct',
-      'room_id': conversation.roomId,
-      'name': conversation.isAgent
-          ? 'Agent'
-          : _conversationDisplayName(conversation),
-      'contact_user_id': conversation.contact?.userId,
-      'contact_status': conversation.contact?.status,
-      'group_name': conversation.group?.name,
-      'has_matrix_room': room != null,
-      'matrix_membership': room?.membership.name,
-      'matrix_last_event_id': room?.lastEvent?.eventId,
-    };
-  }).toList();
-  final bootstrapContacts = [
-    for (final contact in bootstrap?.contacts ?? const <AsSyncContact>[])
-      {
-        'user_id': contact.userId,
-        'room_id': contact.roomId,
-        'status': contact.status,
-        'display_name': contact.displayName,
-      },
-  ];
-  final bootstrapGroups = [
-    for (final group in bootstrap?.groups ?? const <AsSyncRoomSummary>[])
-      {
-        'room_id': group.roomId,
-        'name': group.name,
-        'unread': group.unreadCount,
-      },
-  ];
-  final bootstrapChannels = [
-    for (final channel in bootstrap?.channels ?? const <AsSyncRoomSummary>[])
-      {
-        'room_id': channel.roomId,
-        'name': channel.name,
-        'unread': channel.unreadCount,
-      },
-  ];
-
-  debugPrint(
-    '[home.conversations] auth_user=${auth?.userId} '
-    'client_user=${client.userID} homeserver=${client.homeserver} '
-    'rooms=${rooms.length} bootstrap_user=${bootstrap?.user.userId} '
-    'contacts=${bootstrapContacts.length} groups=${bootstrapGroups.length} '
-    'channels=${bootstrapChannels.length} outbox=${outbox.items.length} '
-    'visible=${conversations.length}',
-  );
-  debugPrint('[home.conversations] matrix_rooms=$roomLines');
-  debugPrint('[home.conversations] bootstrap_contacts=$bootstrapContacts');
-  debugPrint('[home.conversations] bootstrap_groups=$bootstrapGroups');
-  debugPrint('[home.conversations] bootstrap_channels=$bootstrapChannels');
-  debugPrint('[home.conversations] visible_conversations=$conversationLines');
 }
 
 class _VisibleConversation {
@@ -1754,9 +1710,14 @@ String _conversationDisplayName(
   if (contact != null) {
     final memberName =
         directPeerMemberDisplayName(conversation.room, contact.userId);
+    final memberNameIsFallback =
+        memberName == localpartFromMxid(contact.userId);
+    final contactName = contact.displayName.trim();
     final label = contactDisplayNameFromIdentity(
       mxid: contact.userId,
-      displayName: memberName.isNotEmpty ? memberName : contact.displayName,
+      displayName: memberName.isNotEmpty && !memberNameIsFallback
+          ? memberName
+          : contactName,
       domain: contact.domain,
     );
     if (label.isNotEmpty) return label;
@@ -1822,6 +1783,34 @@ bool _needsAsClassification(Room room, String? agentMxid) {
   if (_isAgentRoom(room, agentMxid)) return false;
   if (room.isDirectChat) return true;
   return isProductDirectContactRoom(room, agentMxid: agentMxid);
+}
+
+bool _hasUnclassifiedJoinedRooms({
+  required Client client,
+  required AsSyncCacheState syncCache,
+  required String? agentMxid,
+}) {
+  final bootstrap = syncCache.bootstrap;
+  if (bootstrap == null) {
+    return client.rooms.any((room) {
+      return room.membership == Membership.join &&
+          !_isAgentRoom(room, agentMxid);
+    });
+  }
+  final knownRoomIds = <String>{
+    if (bootstrap.agentRoomId.trim().isNotEmpty) bootstrap.agentRoomId.trim(),
+    for (final contact in bootstrap.contacts)
+      if (contact.roomId.trim().isNotEmpty) contact.roomId.trim(),
+    for (final group in bootstrap.groups)
+      if (group.roomId.trim().isNotEmpty) group.roomId.trim(),
+    for (final channel in bootstrap.channels)
+      if (channel.roomId.trim().isNotEmpty) channel.roomId.trim(),
+  };
+  return client.rooms.any((room) {
+    if (room.membership != Membership.join) return false;
+    if (_isAgentRoom(room, agentMxid)) return false;
+    return !knownRoomIds.contains(room.id.trim());
+  });
 }
 
 int _conversationSortTime(

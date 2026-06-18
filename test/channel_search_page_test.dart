@@ -90,6 +90,34 @@ void main() {
     expect(find.text('申请加入'), findsOneWidget);
   });
 
+  testWidgets('channel search maps local dual node room id to host port',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+        find.byType(TextField), '!ch_product:dendrite-a:8448');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.requestedPublicRoomId, '!ch_product:dendrite-a:8448');
+    expect(
+      asClient.requestedPublicRoomBaseUri.toString(),
+      'http://127.0.0.1:18008/_p2p',
+    );
+    expect(asClient.publicSearchCallCount, 0);
+  });
+
   testWidgets('channel search opens public detail by room id', (tester) async {
     final asClient = _ChannelSearchAsClient();
     final router = GoRouter(
@@ -138,6 +166,7 @@ void main() {
 class _ChannelSearchAsClient extends MockAsClient {
   String? joinedRoomId;
   String? requestedPublicRoomId;
+  Uri? requestedPublicRoomBaseUri;
   String? lastPublicSearchQuery;
   Uri? lastPublicSearchBaseUri;
   int publicSearchCallCount = 0;
@@ -191,6 +220,7 @@ class _ChannelSearchAsClient extends MockAsClient {
     Uri? baseUri,
   }) async {
     requestedPublicRoomId = roomId;
+    requestedPublicRoomBaseUri = baseUri;
     return const AsChannel(
       channelId: 'ch_product',
       roomId: '!ch_product:p2p-im.com',

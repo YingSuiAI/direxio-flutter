@@ -42,6 +42,7 @@ class AsPortalSession {
     required this.homeserver,
     this.deviceId,
     this.agentRoomId,
+    this.profileInitialized,
   });
 
   final String matrixAccessToken;
@@ -50,6 +51,7 @@ class AsPortalSession {
   final String homeserver;
   final String? deviceId;
   final String? agentRoomId;
+  final bool? profileInitialized;
 
   factory AsPortalSession.fromJson(Map<String, dynamic> json) {
     return AsPortalSession(
@@ -59,6 +61,7 @@ class AsPortalSession {
       homeserver: json['homeserver'] as String? ?? '',
       deviceId: json['device_id'] as String?,
       agentRoomId: json['agent_room_id'] as String?,
+      profileInitialized: _parseNullableBool(json['profile_initialized']),
     );
   }
 }
@@ -1838,6 +1841,17 @@ int _parseInt(Object? value) {
   if (value is num) return value.toInt();
   if (value is String) return int.tryParse(value) ?? 0;
   return 0;
+}
+
+bool? _parseNullableBool(Object? value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1') return true;
+    if (normalized == 'false' || normalized == '0') return false;
+  }
+  return null;
 }
 
 String _parseChannelDisplayName(Map<String, dynamic> json) {

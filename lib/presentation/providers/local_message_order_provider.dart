@@ -64,11 +64,14 @@ class LocalMessageOrderNotifier extends StateNotifier<LocalMessageOrderState> {
   Future<void> _load() async {
     try {
       final store = await _loadStore();
+      final entries = await store.readAll();
+      if (!mounted) return;
       state = LocalMessageOrderState(
         loaded: true,
-        entries: await store.readAll(),
+        entries: entries,
       );
     } catch (_) {
+      if (!mounted) return;
       state = state.copyWith(loaded: true);
     }
   }

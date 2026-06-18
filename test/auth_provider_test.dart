@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
+import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 
 Map<String, dynamic>? _p2pAction(http.Request request, String action) {
@@ -698,6 +699,14 @@ void main() {
         if (_p2pAction(request, 'profile.get') != null) {
           return http.Response('{}', 404);
         }
+        if (_p2pAction(request, 'sync.bootstrap') != null) {
+          return http.Response(
+            '{"synced_at":"2026-06-19T00:00:00Z",'
+            '"user":{"user_id":"@owner:example.com"},'
+            '"rooms":[],"contacts":[],"groups":[],"channels":[],"pending":{}}',
+            200,
+          );
+        }
         if (request.url.path == '/_matrix/client/versions') {
           return http.Response('{"versions":["v1.1"]}', 200);
         }
@@ -729,6 +738,75 @@ void main() {
 
     expect(auth?.isLoggedIn, isTrue);
     expect(auth?.requiresProfileSetup, isTrue);
+    expect(auth?.ownerDisplayName, isNull);
+  });
+
+  test(
+      'portal login trusts profile initialization flag when profile load fails',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final client = Client(
+      'AuthPortalLoginProfileInitializedFlagTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:example.com","display_name":""}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.auth') != null) {
+          return http.Response(
+            '{"matrix_access_token":"fresh-token",'
+            '"admin_access_token":"fresh-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE1",'
+            '"profile_initialized":true}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'profile.get') != null) {
+          return http.Response('{}', 404);
+        }
+        if (_p2pAction(request, 'sync.bootstrap') != null) {
+          return http.Response(
+            '{"synced_at":"2026-06-19T00:00:00Z",'
+            '"user":{"user_id":"@owner:example.com"},'
+            '"rooms":[],"contacts":[],"groups":[],"channels":[],"pending":{}}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync' &&
+            request.url.queryParameters['timeout'] == '0') {
+          return http.Response('{"next_batch":"baseline","rooms":{}}', 200);
+        }
+        return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .login('https://example.com', 'portal-token');
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.requiresProfileSetup, isFalse);
     expect(auth?.ownerDisplayName, isNull);
   });
 
@@ -901,6 +979,115 @@ void main() {
           .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
       '12345678',
     );
+  });
+
+  test(
+      'same device can switch from one account to another without provider loop',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'alice-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@alice:example.com',
+      'matrix_device_id': 'DEVICE_A',
+      AuthStateNotifier.adminAccessTokenKey: 'alice-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'alicepass',
+      AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
+    });
+    final client = Client(
+      'AuthSameDeviceAccountSwitchTest',
+      httpClient: MockClient((request) async {
+        final authAction = _p2pAction(request, 'portal.auth');
+        if (authAction != null) {
+          final params = authAction['params'] as Map<String, dynamic>;
+          expect(params['password'], 'bobpass12');
+          return http.Response(
+            '{"matrix_access_token":"bob-token",'
+            '"admin_access_token":"bob-admin-token",'
+            '"user_id":"@bob:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE_B"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'profile.get') != null) {
+          return http.Response(
+            '{"user_id":"@bob:example.com","display_name":"Bob",'
+            '"domain":"example.com"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'sync.bootstrap') != null) {
+          return http.Response(
+            '{"synced_at":"2026-06-19T00:00:00Z",'
+            '"user":{"user_id":"@bob:example.com","display_name":"Bob"},'
+            '"rooms":[],"contacts":[],"groups":[],"channels":[],"pending":{}}',
+            200,
+          );
+        }
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@bob:example.com","display_name":"Bob"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/logout') {
+          return http.Response('{}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          final authorization = request.headers['authorization'] ?? '';
+          if (authorization == 'Bearer bob-token') {
+            return http.Response(
+              '{"user_id":"@bob:example.com","device_id":"DEVICE_B"}',
+              200,
+            );
+          }
+          return http.Response(
+            '{"user_id":"@alice:example.com","device_id":"DEVICE_A"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'alice-token',
+      newUserID: '@alice:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE_A',
+      newDeviceName: 'PortalIM',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+    container.read(asClientProvider);
+
+    await container.read(authStateNotifierProvider.notifier).logout();
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .login('https://example.com', 'bobpass12');
+
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.userId, '@bob:example.com');
+    expect(auth?.portalToken, 'bob-admin-token');
+    expect(client.userID, '@bob:example.com');
+    expect(client.accessToken, 'bob-token');
+    expect(client.deviceID, 'DEVICE_B');
   });
 
   test('password change preserves current Matrix device on same device',

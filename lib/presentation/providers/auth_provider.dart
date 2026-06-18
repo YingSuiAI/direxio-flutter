@@ -222,9 +222,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   static const lastLoginHomeserverKey = 'last_login_homeserver';
   static const lastLoginPortalTokenKey = 'last_login_portal_token';
   bool _sessionExpiredLocally = false;
+  bool _isMounted = false;
 
   @override
   Future<AuthState> build() async {
+    _isMounted = true;
+    ref.onDispose(() => _isMounted = false);
     try {
       return await _buildRestoredAuthState().timeout(_startupRestoreTimeout);
     } catch (e) {
@@ -454,6 +457,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: effectivePortalToken,
     );
     if (publishState) {
+      final requiresProfileSetup = session.profileInitialized == null
+          ? ownerDisplayName == null || ownerDisplayName.trim().isEmpty
+          : !session.profileInitialized!;
       state = AsyncData(
         AuthState(
           isLoggedIn: true,
@@ -461,8 +467,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           homeserver: result.homeserver.toString(),
           portalToken: result.portalToken,
           ownerDisplayName: ownerDisplayName,
-          requiresProfileSetup:
-              ownerDisplayName == null || ownerDisplayName.trim().isEmpty,
+          requiresProfileSetup: requiresProfileSetup,
         ),
       );
       _startPostLoginConversationSync(
@@ -550,6 +555,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         );
         return;
       }
+      if (!_isMounted) return;
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
           );
@@ -1205,19 +1211,30 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
     if (!clearCaches) return;
     ref.read(asSyncCacheProvider.notifier).state = const AsSyncCacheState();
-    ref.invalidate(localOutboxProvider);
-    ref.invalidate(localOutboxStoreProvider);
-    ref.invalidate(localMessageOrderProvider);
-    ref.invalidate(localMessageOrderStoreProvider);
-    ref.invalidate(mediaThumbnailCacheProvider);
-    ref.invalidate(chatClearStateStoreProvider);
-    ref.invalidate(friendRequestReadProvider);
-    ref.invalidate(friendRequestReadStoreProvider);
-    ref.invalidate(recoveredUnreadStoreProvider);
-    ref.invalidate(asCallSessionStoreProvider);
-    ref.invalidate(channelPostStoreProvider);
-    ref.invalidate(localCreatedChannelsProvider);
     await _deleteUserScopedSupportFiles();
+    _scheduleUserScopedProviderInvalidation();
+  }
+
+  void _scheduleUserScopedProviderInvalidation() {
+    unawaited(Future<void>(() {
+      if (!_isMounted) return;
+      try {
+        ref.invalidate(localOutboxProvider);
+        ref.invalidate(localOutboxStoreProvider);
+        ref.invalidate(localMessageOrderProvider);
+        ref.invalidate(localMessageOrderStoreProvider);
+        ref.invalidate(mediaThumbnailCacheProvider);
+        ref.invalidate(chatClearStateStoreProvider);
+        ref.invalidate(friendRequestReadProvider);
+        ref.invalidate(friendRequestReadStoreProvider);
+        ref.invalidate(recoveredUnreadStoreProvider);
+        ref.invalidate(asCallSessionStoreProvider);
+        ref.invalidate(channelPostStoreProvider);
+        ref.invalidate(localCreatedChannelsProvider);
+      } catch (e) {
+        debugPrint('deferred user scoped provider invalidation failed: $e');
+      }
+    }));
   }
 
   Future<void> _deleteUserScopedSupportFiles() async {

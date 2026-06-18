@@ -49,11 +49,13 @@ class FriendRequestReadNotifier extends StateNotifier<FriendRequestReadState> {
     try {
       final store = await _loadStore();
       final stored = await store.readRoomIds();
+      if (!mounted) return;
       state = FriendRequestReadState(
         loaded: true,
         readRoomIds: Set.unmodifiable({...stored, ...state.readRoomIds}),
       );
     } catch (_) {
+      if (!mounted) return;
       state = state.copyWith(loaded: true);
     }
   }

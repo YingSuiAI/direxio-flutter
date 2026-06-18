@@ -128,11 +128,13 @@ class LocalOutboxNotifier extends StateNotifier<LocalOutboxState> {
         await store.readAll(),
         currentRuntimeId: runtimeId,
       );
+      if (!mounted) return;
       state = LocalOutboxState(loaded: true, items: items);
       for (final item in items) {
         await store.upsert(item);
       }
     } catch (_) {
+      if (!mounted) return;
       state = state.copyWith(loaded: true);
     }
   }

@@ -262,13 +262,19 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
       AuthStateNotifier.lastLoginPortalTokenKey: 'portal-token',
+      'matrix_device_id': 'DEVICE1',
     });
     final requestPaths = <String>[];
     final client = Client(
       'AuthStoredPortalTokenRestoreTest',
       httpClient: MockClient((request) async {
         requestPaths.add(request.url.path);
-        if (_p2pAction(request, 'portal.auth') != null) {
+        final authAction = _p2pAction(request, 'portal.auth');
+        if (authAction != null) {
+          expect(authAction['params'], {
+            'password': 'portal-token',
+            'device_id': 'DEVICE1',
+          });
           return http.Response(
             '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
@@ -543,10 +549,14 @@ void main() {
         if (request.url.path == '/_p2p/command') {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           if (body['action'] == 'portal.auth') {
-            expect(body['params'], {'password': '12345678'});
+            final params = body['params'] as Map<String, dynamic>;
+            if (params['password'] != '12345678') {
+              return http.Response('{"error":"password invalid"}', 401);
+            }
+            expect(params, {'password': '12345678', 'device_id': 'OLDDEVICE'});
             return http.Response(
               '{"matrix_access_token":"new-token","admin_access_token":"new-admin-token","user_id":"@owner:example.com",'
-              '"homeserver":"https://example.com"}',
+              '"homeserver":"https://example.com","device_id":"OLDDEVICE"}',
               200,
             );
           }
@@ -558,13 +568,6 @@ void main() {
           );
         }
         if (request.url.path == '/_matrix/client/v3/account/whoami') {
-          final authorization = request.headers['authorization'] ?? '';
-          if (authorization == 'Bearer new-token') {
-            return http.Response(
-              '{"user_id":"@owner:example.com","device_id":"P2P_PORTAL"}',
-              200,
-            );
-          }
           return http.Response(
             '{"user_id":"@owner:example.com","device_id":"OLDDEVICE"}',
             200,
@@ -608,10 +611,10 @@ void main() {
         .login('https://example.com', '12345678');
 
     expect(client.accessToken, 'new-token');
-    expect(client.deviceID, 'P2P_PORTAL');
+    expect(client.deviceID, 'OLDDEVICE');
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_device_id'),
-      'P2P_PORTAL',
+      'OLDDEVICE',
     );
   });
 
@@ -733,6 +736,7 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
     final requestPaths = <String>[];
     final requestActions = <String>[];
+    String? bootstrapDeviceId;
     final client = Client(
       'AuthBootstrapPasswordChangeTest',
       httpClient: MockClient((request) async {
@@ -741,10 +745,17 @@ void main() {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           requestActions.add(body['action'] as String);
           if (body['action'] == 'portal.bootstrap') {
-            expect(body['params'], {'token': '11111111'});
+            final params = body['params'] as Map<String, dynamic>;
+            final requestedDeviceId = params['device_id'] as String;
+            bootstrapDeviceId = requestedDeviceId;
+            expect(requestedDeviceId, startsWith('PORTALIM'));
+            expect(params, {
+              'token': '11111111',
+              'device_id': requestedDeviceId,
+            });
             return http.Response(
               '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
-              '"homeserver":"https://example.com","device_id":"DEVICE1"}',
+              '"homeserver":"https://example.com","device_id":"$requestedDeviceId"}',
               200,
             );
           }
@@ -755,11 +766,12 @@ void main() {
             expect(body['params'], {
               'old_password': '11111111',
               'new_password': '22222222',
+              'device_id': bootstrapDeviceId,
             });
             return http.Response(
               '{"matrix_access_token":"changed-matrix-token",'
               '"admin_access_token":"changed-admin-token",'
-              '"device_id":"DEVICE2"}',
+              '"device_id":"$bootstrapDeviceId"}',
               200,
             );
           }
@@ -825,7 +837,7 @@ void main() {
     );
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_device_id'),
-      'DEVICE1',
+      bootstrapDeviceId,
     );
   });
 
@@ -937,12 +949,13 @@ void main() {
           expect(body['params'], {
             'old_password': 'oldpass123',
             'new_password': '12345678',
+            'device_id': 'OLDDEVICE',
           });
           return http.Response(
             '{"matrix_access_token":"changed-matrix-token",'
             '"admin_access_token":"changed-admin-token",'
             '"user_id":"@owner:example.com",'
-            '"homeserver":"https://example.com"}',
+            '"homeserver":"https://example.com","device_id":"OLDDEVICE"}',
             200,
           );
         }
@@ -979,5 +992,169 @@ void main() {
       await const FlutterSecureStorage().read(key: 'matrix_device_id'),
       'OLDDEVICE',
     );
+  });
+
+  test('new device login uses its own device and old device expires', () async {
+    final matrixDevicesByToken = <String, String>{'token-a': 'DEVICE_A'};
+
+    http.Response tokenOwnerResponse(http.Request request) {
+      final auth = request.headers['authorization'] ?? '';
+      final token = auth.startsWith('Bearer ') ? auth.substring(7) : '';
+      final deviceId = matrixDevicesByToken[token];
+      if (deviceId != null) {
+        return http.Response(
+          '{"user_id":"@owner:example.com","device_id":"$deviceId"}',
+          200,
+        );
+      }
+      return http.Response(
+        '{"errcode":"M_UNKNOWN_TOKEN","error":"Unknown token"}',
+        401,
+      );
+    }
+
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'token-a',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE_A',
+      AuthStateNotifier.adminAccessTokenKey: 'admin-a',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass12',
+    });
+    final clientA = Client(
+      'AuthTwoDeviceDeviceATest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return tokenOwnerResponse(request);
+        }
+        if (request.url.path == '/_p2p/command') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (body['action'] == 'portal.password') {
+            expect(body['params'], {
+              'old_password': 'oldpass12',
+              'new_password': '12345678',
+              'device_id': 'DEVICE_A',
+            });
+            matrixDevicesByToken['token-a-new'] = 'DEVICE_A';
+            return http.Response(
+              '{"matrix_access_token":"token-a-new",'
+              '"admin_access_token":"admin-a-new",'
+              '"user_id":"@owner:example.com",'
+              '"homeserver":"https://example.com","device_id":"DEVICE_A"}',
+              200,
+            );
+          }
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await clientA.init(
+      newToken: 'token-a',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE_A',
+      newDeviceName: 'PortalIM',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+    final containerA = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(clientA)],
+    );
+    addTearDown(containerA.dispose);
+    addTearDown(clientA.clear);
+    await containerA.read(authStateNotifierProvider.future);
+    await containerA
+        .read(authStateNotifierProvider.notifier)
+        .changePortalPassword(
+          oldPassword: 'oldpass12',
+          newPassword: '12345678',
+        );
+
+    FlutterSecureStorage.setMockInitialValues({});
+    String? deviceB;
+    final clientB = Client(
+      'AuthTwoDeviceDeviceBTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_p2p/command') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (body['action'] == 'portal.auth') {
+            final params = body['params'] as Map<String, dynamic>;
+            deviceB = params['device_id'] as String;
+            expect(params['password'], '12345678');
+            expect(deviceB, startsWith('PORTALIM'));
+            expect(deviceB, isNot('DEVICE_A'));
+            matrixDevicesByToken
+              ..clear()
+              ..['token-b'] = deviceB!;
+            return http.Response(
+              '{"matrix_access_token":"token-b",'
+              '"admin_access_token":"admin-b",'
+              '"user_id":"@owner:example.com",'
+              '"homeserver":"https://example.com","device_id":"$deviceB"}',
+              200,
+            );
+          }
+        }
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:example.com","display_name":"owner"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'profile.get') != null) {
+          return http.Response(
+            '{"user_id":"@owner:example.com","display_name":"owner",'
+            '"domain":"example.com"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return tokenOwnerResponse(request);
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    final containerB = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(clientB)],
+    );
+    addTearDown(containerB.dispose);
+    addTearDown(clientB.clear);
+    await containerB.read(authStateNotifierProvider.future);
+    await containerB
+        .read(authStateNotifierProvider.notifier)
+        .login('https://example.com', '12345678');
+
+    expect(clientB.deviceID, deviceB);
+    expect(clientB.accessToken, 'token-b');
+
+    await expectLater(
+      containerA
+          .read(authStateNotifierProvider.notifier)
+          .ensureFreshMatrixSession(),
+      throwsA(isA<StateError>()),
+    );
+    expect(
+      containerA.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isFalse,
+    );
+    expect(containerA.read(sessionExpiredNoticeProvider), greaterThan(0));
   });
 }

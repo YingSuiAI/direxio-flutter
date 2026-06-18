@@ -355,17 +355,20 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (cleanPortalToken.isEmpty) {
       throw ArgumentError('登录密码 不能为空');
     }
+    final requestedDeviceId = await _localMatrixDeviceId(client);
 
     final baseUri = HttpAsClient.defaultAdminBaseUri(inputUri);
     final session = useBootstrap
         ? await HttpAsClient.bootstrapPortal(
             baseUri: baseUri,
             setupCode: cleanPortalToken,
+            deviceId: requestedDeviceId,
             httpClient: client.httpClient,
           )
         : await HttpAsClient.authenticatePortal(
             baseUri: baseUri,
             portalToken: cleanPortalToken,
+            deviceId: requestedDeviceId,
             httpClient: client.httpClient,
           );
     final storedUserId = await _storage.read(key: 'matrix_user_id');
@@ -605,6 +608,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final session = await asClient.changePortalPassword(
       oldPassword: currentLoginPassword,
       newPassword: cleanToken,
+      deviceId: await _localMatrixDeviceId(client),
     );
     final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
     final deviceId = await _resolveSessionDeviceId(
@@ -707,6 +711,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final session = await asClient.changePortalPassword(
       oldPassword: cleanOldPassword,
       newPassword: cleanNewPassword,
+      deviceId: await _localMatrixDeviceId(client),
     );
     final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
     final userId = session.userId.trim().isNotEmpty
@@ -766,6 +771,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final session = await asClient.changePortalPassword(
       oldPassword: cleanSetupCode,
       newPassword: cleanNewToken,
+      deviceId: await _localMatrixDeviceId(client),
     );
     final matrixUri = _resolveClientHomeserver(
       result.homeserver,
@@ -892,9 +898,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         : cleanPortalToken;
 
     try {
+      final requestedDeviceId = await _localMatrixDeviceId(client);
       final session = await HttpAsClient.authenticatePortal(
         baseUri: HttpAsClient.defaultAdminBaseUri(homeserverUri),
         portalToken: authPortalToken,
+        deviceId: requestedDeviceId,
         httpClient: client.httpClient,
       );
       final effectivePortalToken = session.adminAccessToken.trim();
@@ -982,6 +990,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final session = await HttpAsClient.authenticatePortal(
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
       portalToken: authPortalToken,
+      deviceId: deviceId,
       httpClient: _rawHttpClient(client),
     );
     final effectivePortalToken = session.adminAccessToken.trim();
@@ -1066,6 +1075,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       userId: effectiveUserId,
       loginPortalToken: loginPortalToken,
     );
+  }
+
+  Future<String> _localMatrixDeviceId(Client client) async {
+    final current = client.deviceID?.trim();
+    if (current != null && current.isNotEmpty) return current;
+    final stored = (await _storage.read(key: 'matrix_device_id'))?.trim();
+    if (stored != null && stored.isNotEmpty) return stored;
+    return _createDeviceId();
   }
 
   bool _isLoggedInAs(Client client, String userId) {

@@ -1592,6 +1592,7 @@ abstract class AsClient {
   Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,
+    String? deviceId,
   });
 
   /// POST /_as/channels

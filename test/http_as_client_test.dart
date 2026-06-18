@@ -105,6 +105,7 @@ void main() {
           'params': {
             'old_password': 'old-secret',
             'new_password': 'new-secret',
+            'device_id': 'DEVICE1',
           },
         });
         return http.Response(
@@ -120,6 +121,7 @@ void main() {
     final session = await client.changePortalPassword(
       oldPassword: 'old-secret',
       newPassword: 'new-secret',
+      deviceId: 'DEVICE1',
     );
 
     expect(session.matrixAccessToken, 'matrix-token');
@@ -1746,6 +1748,7 @@ void main() {
         expect(jsonDecode(request.body), {
           'old_password': '11111111',
           'new_password': '22222222',
+          'device_id': 'DEVICE1',
         });
         return http.Response(
           jsonEncode({
@@ -1760,6 +1763,7 @@ void main() {
     final session = await client.changePortalPassword(
       oldPassword: '11111111',
       newPassword: '22222222',
+      deviceId: 'DEVICE1',
     );
 
     expect(session.matrixAccessToken, 'new-matrix-token');
@@ -2702,11 +2706,15 @@ void main() {
     final session = await HttpAsClient.authenticatePortal(
       baseUri: Uri.parse('https://example.com/_as'),
       portalToken: '11111111',
+      deviceId: 'DEVICE2',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
         expect(request.url.path, '/_as/auth');
         expect(request.headers['Authorization'], isNull);
-        expect(jsonDecode(request.body), {'password': '11111111'});
+        expect(jsonDecode(request.body), {
+          'password': '11111111',
+          'device_id': 'DEVICE2',
+        });
         return http.Response(
           jsonEncode({
             'matrix_access_token': 'matrix-access-token',
@@ -2732,11 +2740,15 @@ void main() {
     final session = await HttpAsClient.bootstrapPortal(
       baseUri: Uri.parse('https://example.com/_as'),
       setupCode: 'setup-code',
+      deviceId: 'DEVICE3',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
         expect(request.url.path, '/_as/bootstrap');
         expect(request.headers['Authorization'], isNull);
-        expect(jsonDecode(request.body), {'token': 'setup-code'});
+        expect(jsonDecode(request.body), {
+          'token': 'setup-code',
+          'device_id': 'DEVICE3',
+        });
         return http.Response(
           jsonEncode({
             'matrix_access_token': 'bootstrapped-matrix-token',

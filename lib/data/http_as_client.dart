@@ -122,6 +122,7 @@ class HttpAsClient implements AsClient {
   static Future<AsPortalSession> authenticatePortal({
     required Uri baseUri,
     required String portalToken,
+    String? deviceId,
     http.Client? httpClient,
   }) async {
     final ownsClient = httpClient == null;
@@ -132,7 +133,11 @@ class HttpAsClient implements AsClient {
         client,
         normalizedBase,
         'auth',
-        body: {'password': portalToken},
+        body: {
+          'password': portalToken,
+          if (deviceId != null && deviceId.trim().isNotEmpty)
+            'device_id': deviceId.trim(),
+        },
       );
     } finally {
       if (ownsClient) client.close();
@@ -142,6 +147,7 @@ class HttpAsClient implements AsClient {
   static Future<AsPortalSession> bootstrapPortal({
     required Uri baseUri,
     required String setupCode,
+    String? deviceId,
     http.Client? httpClient,
   }) async {
     final ownsClient = httpClient == null;
@@ -152,7 +158,11 @@ class HttpAsClient implements AsClient {
         client,
         normalizedBase,
         'bootstrap',
-        body: {'token': setupCode},
+        body: {
+          'token': setupCode,
+          if (deviceId != null && deviceId.trim().isNotEmpty)
+            'device_id': deviceId.trim(),
+        },
       );
     } finally {
       if (ownsClient) client.close();
@@ -680,10 +690,13 @@ class HttpAsClient implements AsClient {
   Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,
+    String? deviceId,
   }) async {
     final requestBody = {
       'old_password': oldPassword.trim(),
       'new_password': newPassword.trim(),
+      if (deviceId != null && deviceId.trim().isNotEmpty)
+        'device_id': deviceId.trim(),
     };
     ApiLogger.info(
       '[AS admin] portal password params '

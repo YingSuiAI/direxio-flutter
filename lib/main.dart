@@ -54,12 +54,13 @@ class PortalApp extends ConsumerWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted || _sessionExpiredDialogShowing) return;
         _sessionExpiredDialogShowing = true;
+        router.go('/login');
         showCupertinoDialog<void>(
           context: context,
           barrierDismissible: false,
           builder: (dialogContext) {
             return CupertinoAlertDialog(
-              title: const Text('登录已过期'),
+              title: const Text('账号在其他设备登录'),
               content: const Text('请重新登录'),
               actions: [
                 CupertinoDialogAction(

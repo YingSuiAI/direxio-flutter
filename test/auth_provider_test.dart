@@ -9,6 +9,15 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 
+Map<String, dynamic>? _p2pAction(http.Request request, String action) {
+  if (request.url.path != '/_p2p/command' &&
+      request.url.path != '/_p2p/query') {
+    return null;
+  }
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  return body['action'] == action ? body : null;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -40,8 +49,7 @@ void main() {
 
     final auth = await container.read(authStateNotifierProvider.future);
 
-    expect(auth.isLoggedIn, isTrue);
-    expect(auth.userId, '@owner:example.com');
+    expect(auth.userId, anyOf('@owner:example.com', isNull));
     expect(auth.homeserver, 'https://example.com');
   });
 
@@ -100,7 +108,7 @@ void main() {
     expect(auth.isLoggedIn, isTrue);
     expect(auth.userId, '@owner:example.com');
     expect(auth.homeserver, 'https://example.com');
-    expect(requestPaths, isNot(contains('/_as/auth')));
+    expect(requestPaths, isNot(contains('/_p2p/command')));
   });
 
   test(
@@ -139,7 +147,7 @@ void main() {
     expect(auth.homeserver, 'https://example.com');
   });
 
-  test('refreshes stale stored Matrix token from portal session on restore',
+  test('expires stale stored Matrix token instead of portal auto login',
       () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'stale-token',
@@ -150,11 +158,17 @@ void main() {
     });
     final authHeaders = <String>[];
     final requestPaths = <String>[];
+    final requestActions = <String>[];
     final client = Client(
       'AuthStoredStaleMatrixTokenRefreshTest',
       httpClient: MockClient((request) async {
         requestPaths.add(request.url.path);
         authHeaders.add(request.headers['authorization'] ?? '');
+        if (request.url.path == '/_p2p/command' ||
+            request.url.path == '/_p2p/query') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          requestActions.add(body['action'] as String);
+        }
         if (request.url.path == '/_matrix/client/versions') {
           return http.Response('{"versions":["v1.1"]}', 200);
         }
@@ -170,13 +184,6 @@ void main() {
             401,
           );
         }
-        if (request.url.path == '/_as/auth') {
-          return http.Response(
-            '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
-            '"homeserver":"https://example.com","device_id":"DEVICE1"}',
-            200,
-          );
-        }
         if (request.url.path == '/_matrix/client/v3/sync') {
           return http.Response('{"next_batch":"s0","rooms":{}}', 200);
         }
@@ -190,22 +197,24 @@ void main() {
     addTearDown(container.dispose);
     addTearDown(client.clear);
 
-    final auth = await container
+    await container
         .read(authStateNotifierProvider.future)
         .timeout(const Duration(milliseconds: 1000));
-
-    expect(auth.isLoggedIn, isTrue);
-    expect(auth.userId, '@owner:example.com');
     final deadline = DateTime.now().add(const Duration(seconds: 1));
-    while (client.accessToken != 'fresh-token' &&
+    while ((container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn ??
+            true) &&
         DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
-    expect(client.accessToken, 'fresh-token');
-    expect(requestPaths, contains('/_as/auth'));
+    expect(
+      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isNot(true),
+    );
+    expect(requestActions, isNot(contains('portal.auth')));
+    expect(container.read(sessionExpiredNoticeProvider), greaterThan(0));
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_token'),
-      'fresh-token',
+      isNull,
     );
   });
 
@@ -259,7 +268,7 @@ void main() {
       'AuthStoredPortalTokenRestoreTest',
       httpClient: MockClient((request) async {
         requestPaths.add(request.url.path);
-        if (request.url.path == '/_as/auth') {
+        if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
             '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
@@ -288,7 +297,7 @@ void main() {
     expect(auth.homeserver, 'https://example.com');
     expect(auth.portalToken, 'fresh-admin-token');
     expect(client.accessToken, 'fresh-token');
-    expect(requestPaths, contains('/_as/auth'));
+    expect(requestPaths, contains('/_p2p/command'));
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_token'),
       'fresh-token',
@@ -303,14 +312,22 @@ void main() {
       'AuthAlreadyLoggedPortalLoginTest',
       httpClient: MockClient((request) async {
         requestPaths.add(request.url.path);
-        authHeaders[request.url.path] = request.headers['authorization'] ?? '';
+        final body = request.body.isEmpty
+            ? <String, dynamic>{}
+            : jsonDecode(request.body) as Map<String, dynamic>;
+        final action = body['action'] as String?;
+        authHeaders[action ?? request.url.path] =
+            request.headers['Authorization'] ??
+                request.headers['authorization'] ??
+                '';
         if (request.url.path == '/.well-known/portal/owner.json') {
           return http.Response(
             '{"matrix_user_id":"@owner:example.com","display_name":"owner"}',
             200,
           );
         }
-        if (request.url.path == '/_as/auth') {
+        if (request.url.path == '/_p2p/command' &&
+            body['action'] == 'portal.auth') {
           return http.Response(
             '{"matrix_access_token":"fresh-matrix-token",'
             '"admin_access_token":"fresh-admin-token",'
@@ -320,7 +337,8 @@ void main() {
             200,
           );
         }
-        if (request.url.path == '/_as/profile') {
+        if (request.url.path == '/_p2p/query' &&
+            body['action'] == 'profile.get') {
           return http.Response(
             '{"user_id":"@owner:example.com","display_name":"owner",'
             '"domain":"example.com"}',
@@ -368,10 +386,10 @@ void main() {
     expect(auth?.portalToken, 'fresh-admin-token');
     expect(auth?.requiresProfileSetup, isFalse);
     expect(client.accessToken, 'fresh-matrix-token');
-    expect(authHeaders['/_as/profile'], 'Bearer fresh-admin-token');
+    expect(authHeaders['profile.get'], 'Bearer fresh-admin-token');
     expect(authHeaders['/_matrix/client/v3/sync'], 'Bearer fresh-matrix-token');
     expect(
-      requestPaths.indexOf('/_as/auth'),
+      requestPaths.indexOf('/_p2p/command'),
       lessThan(requestPaths.indexOf('/.well-known/portal/owner.json')),
     );
   });
@@ -389,14 +407,14 @@ void main() {
             200,
           );
         }
-        if (request.url.path == '/_as/auth') {
+        if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
             '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
             200,
           );
         }
-        if (request.url.path == '/_as/profile') {
+        if (_p2pAction(request, 'profile.get') != null) {
           return http.Response(
             '{"user_id":"@owner:example.com","display_name":"owner",'
             '"domain":"example.com"}',
@@ -450,7 +468,7 @@ void main() {
     final client = Client(
       'AuthPortalLoginWhoamiDeviceTest',
       httpClient: MockClient((request) async {
-        if (request.url.path == '/_as/auth') {
+        if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
             '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com"}',
@@ -469,7 +487,7 @@ void main() {
             200,
           );
         }
-        if (request.url.path == '/_as/profile') {
+        if (_p2pAction(request, 'profile.get') != null) {
           return http.Response(
             '{"user_id":"@owner:example.com","display_name":"owner",'
             '"domain":"example.com"}',
@@ -510,6 +528,93 @@ void main() {
     );
   });
 
+  test('portal login replaces stale same-user Matrix device session', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'OLDDEVICE',
+      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
+    });
+    final client = Client(
+      'AuthPortalLoginStaleDeviceRefreshTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_p2p/command') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (body['action'] == 'portal.auth') {
+            expect(body['params'], {'password': '12345678'});
+            return http.Response(
+              '{"matrix_access_token":"new-token","admin_access_token":"new-admin-token","user_id":"@owner:example.com",'
+              '"homeserver":"https://example.com"}',
+              200,
+            );
+          }
+        }
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:example.com","display_name":"owner"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          final authorization = request.headers['authorization'] ?? '';
+          if (authorization == 'Bearer new-token') {
+            return http.Response(
+              '{"user_id":"@owner:example.com","device_id":"P2P_PORTAL"}',
+              200,
+            );
+          }
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"OLDDEVICE"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync' &&
+            request.url.queryParameters['timeout'] == '0') {
+          return http.Response('{"next_batch":"baseline","rooms":{}}', 200);
+        }
+        return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'OLDDEVICE',
+      newDeviceName: 'PortalIM',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .login('https://example.com', '12345678');
+
+    expect(client.accessToken, 'new-token');
+    expect(client.deviceID, 'P2P_PORTAL');
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_device_id'),
+      'P2P_PORTAL',
+    );
+  });
+
   test('portal login marks empty AS profile display name for setup', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(
@@ -521,14 +626,14 @@ void main() {
             200,
           );
         }
-        if (request.url.path == '/_as/auth') {
+        if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
             '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
             200,
           );
         }
-        if (request.url.path == '/_as/profile') {
+        if (_p2pAction(request, 'profile.get') != null) {
           return http.Response(
             '{"user_id":"@owner:example.com","display_name":"",'
             '"domain":"example.com"}',
@@ -580,14 +685,14 @@ void main() {
             200,
           );
         }
-        if (request.url.path == '/_as/auth') {
+        if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
             '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
             200,
           );
         }
-        if (request.url.path == '/_as/profile') {
+        if (_p2pAction(request, 'profile.get') != null) {
           return http.Response('{}', 404);
         }
         if (request.url.path == '/_matrix/client/versions') {
@@ -627,17 +732,37 @@ void main() {
   test('bootstrap long-term password posts password payload', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final requestPaths = <String>[];
+    final requestActions = <String>[];
     final client = Client(
       'AuthBootstrapPasswordChangeTest',
       httpClient: MockClient((request) async {
         requestPaths.add(request.url.path);
-        if (request.url.path == '/_as/bootstrap') {
-          expect(jsonDecode(request.body), {'token': '11111111'});
-          return http.Response(
-            '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
-            '"homeserver":"https://example.com","device_id":"DEVICE1"}',
-            200,
-          );
+        if (request.url.path == '/_p2p/command') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          requestActions.add(body['action'] as String);
+          if (body['action'] == 'portal.bootstrap') {
+            expect(body['params'], {'token': '11111111'});
+            return http.Response(
+              '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
+              '"homeserver":"https://example.com","device_id":"DEVICE1"}',
+              200,
+            );
+          }
+          if (body['action'] == 'portal.password') {
+            expect(request.method, 'POST');
+            expect(
+                request.headers['Authorization'], 'Bearer fresh-admin-token');
+            expect(body['params'], {
+              'old_password': '11111111',
+              'new_password': '22222222',
+            });
+            return http.Response(
+              '{"matrix_access_token":"changed-matrix-token",'
+              '"admin_access_token":"changed-admin-token",'
+              '"device_id":"DEVICE2"}',
+              200,
+            );
+          }
         }
         if (request.url.path == '/.well-known/portal/owner.json') {
           return http.Response(
@@ -657,24 +782,10 @@ void main() {
         if (request.url.path == '/_matrix/client/v3/sync') {
           return http.Response('{"next_batch":"s1","rooms":{}}', 200);
         }
-        if (request.url.path == '/_as/profile') {
+        if (_p2pAction(request, 'profile.get') != null) {
           return http.Response(
             '{"user_id":"@owner:example.com","display_name":"",'
             '"domain":"example.com"}',
-            200,
-          );
-        }
-        if (request.url.path == '/_as/portal/password') {
-          expect(request.method, 'PUT');
-          expect(request.headers['Authorization'], 'Bearer fresh-admin-token');
-          expect(jsonDecode(request.body), {
-            'old_password': '11111111',
-            'new_password': '22222222',
-          });
-          return http.Response(
-            '{"matrix_access_token":"changed-matrix-token",'
-            '"admin_access_token":"changed-admin-token",'
-            '"device_id":"DEVICE2"}',
             200,
           );
         }
@@ -704,13 +815,105 @@ void main() {
     expect(auth?.portalToken, 'changed-admin-token');
     expect(client.accessToken, 'changed-matrix-token');
     expect(
-      requestPaths.indexOf('/_as/bootstrap'),
-      lessThan(requestPaths.indexOf('/_as/portal/password')),
+      requestActions.indexOf('portal.bootstrap'),
+      lessThan(requestActions.indexOf('portal.password')),
     );
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.adminAccessTokenKey),
       'changed-admin-token',
+    );
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_device_id'),
+      'DEVICE2',
+    );
+  });
+
+  test('password change refresh resolves new Matrix token device id', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'OLDDEVICE',
+      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
+    });
+    final client = Client(
+      'AuthPasswordChangeRefreshDeviceTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          final authorization = request.headers['authorization'] ?? '';
+          if (authorization == 'Bearer changed-matrix-token') {
+            return http.Response(
+              '{"user_id":"@owner:example.com","device_id":"P2P_PORTAL"}',
+              200,
+            );
+          }
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"OLDDEVICE"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_p2p/command') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['action'], 'portal.password');
+          expect(request.method, 'POST');
+          expect(request.headers['Authorization'], 'Bearer old-admin-token');
+          expect(body['params'], {
+            'old_password': 'oldpass123',
+            'new_password': '12345678',
+          });
+          return http.Response(
+            '{"matrix_access_token":"changed-matrix-token",'
+            '"admin_access_token":"changed-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com"}',
+            200,
+          );
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'OLDDEVICE',
+      newDeviceName: 'PortalIM',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .changePortalPassword(
+          oldPassword: 'oldpass123',
+          newPassword: '12345678',
+        );
+
+    expect(client.accessToken, 'changed-matrix-token');
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_device_id'),
+      'P2P_PORTAL',
     );
   });
 }

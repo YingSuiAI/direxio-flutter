@@ -68,8 +68,6 @@ Client matrixClient(Ref ref) {
       return db;
     },
   );
-  refreshingHttpClient.refreshAccessToken =
-      () => _refreshMatrixAccessTokenFromPortal(client, rawHttpClient);
   refreshingHttpClient.onAuthenticationFailed = () async {
     await ref
         .read(authStateNotifierProvider.notifier)
@@ -95,103 +93,6 @@ class AuthState {
   final String? portalToken;
   final String? ownerDisplayName;
   final bool requiresProfileSetup;
-}
-
-Future<String?> _refreshMatrixAccessTokenFromPortal(
-  Client client,
-  http.Client httpClient,
-) async {
-  final portalToken = await AuthStateNotifier._storage
-      .read(key: AuthStateNotifier.adminAccessTokenKey);
-  final cleanPortalToken = portalToken?.trim() ?? '';
-  if (cleanPortalToken.isEmpty) return null;
-  final loginPortalToken = (await AuthStateNotifier._storage.read(
-    key: AuthStateNotifier.lastLoginPortalTokenKey,
-  ))
-      ?.trim();
-  final authPortalToken = (loginPortalToken?.isNotEmpty ?? false)
-      ? loginPortalToken!
-      : cleanPortalToken;
-
-  final storedHomeserver =
-      await AuthStateNotifier._storage.read(key: 'matrix_homeserver');
-  final homeserver = client.homeserver ?? Uri.tryParse(storedHomeserver ?? '');
-  if (homeserver == null) return null;
-
-  final storedDeviceId =
-      await AuthStateNotifier._storage.read(key: 'matrix_device_id');
-  final session = await HttpAsClient.authenticatePortal(
-    baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
-    portalToken: authPortalToken,
-    httpClient: httpClient,
-  );
-  final effectivePortalToken = session.adminAccessToken.trim();
-  final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
-  final deviceId = await _resolveSessionDeviceId(
-    httpClient: httpClient,
-    homeserver: matrixUri,
-    accessToken: session.matrixAccessToken,
-    sessionDeviceId: session.deviceId,
-    storedDeviceId: client.deviceID ?? storedDeviceId,
-  );
-
-  client.homeserver = matrixUri;
-  client.accessToken = session.matrixAccessToken;
-  await client.database?.updateClient(
-    matrixUri.toString(),
-    session.matrixAccessToken,
-    null,
-    null,
-    session.userId,
-    deviceId,
-    client.deviceName ?? 'PortalIM',
-    client.prevBatch,
-    client.encryption?.pickledOlmAccount,
-  );
-  await _persistMatrixSession(
-    client,
-    matrixUri,
-    userId: session.userId,
-    portalToken: effectivePortalToken,
-    deviceId: deviceId,
-    loginPortalToken: authPortalToken,
-  );
-
-  return session.matrixAccessToken;
-}
-
-Future<void> _persistMatrixSession(
-  Client client,
-  Uri uri, {
-  required String? userId,
-  required String portalToken,
-  required String deviceId,
-  String? loginPortalToken,
-}) async {
-  await AuthStateNotifier._storage.write(
-    key: 'matrix_token',
-    value: client.accessToken,
-  );
-  await AuthStateNotifier._storage.write(
-    key: 'matrix_homeserver',
-    value: uri.toString(),
-  );
-  await AuthStateNotifier._storage.write(
-    key: 'matrix_user_id',
-    value: userId ?? client.userID,
-  );
-  await AuthStateNotifier._storage.write(
-    key: 'matrix_device_id',
-    value: client.deviceID ?? deviceId,
-  );
-  await AuthStateNotifier._storage.write(
-    key: AuthStateNotifier.adminAccessTokenKey,
-    value: portalToken,
-  );
-  await AuthStateNotifier._storage.write(
-    key: AuthStateNotifier.lastLoginPortalTokenKey,
-    value: loginPortalToken ?? portalToken,
-  );
 }
 
 Uri _resolveClientHomeserver(Uri inputUri, String asHomeserver) {
@@ -247,6 +148,33 @@ Future<String> _resolveSessionDeviceId({
     return cleanStoredDeviceId;
   }
   return _createDeviceId();
+}
+
+String _preferredSessionDeviceId(AsPortalSession session, String fallback) {
+  final cleanSessionDeviceId = session.deviceId?.trim();
+  if (cleanSessionDeviceId != null && cleanSessionDeviceId.isNotEmpty) {
+    return cleanSessionDeviceId;
+  }
+  final cleanFallback = fallback.trim();
+  if (cleanFallback.isNotEmpty) return cleanFallback;
+  return _createDeviceId();
+}
+
+bool _hasStaleSameUserDevice(
+  Client client,
+  String nextUserId,
+  String nextDeviceId,
+) {
+  final currentUserId = client.userID?.trim() ?? '';
+  final currentDeviceId = client.deviceID?.trim() ?? '';
+  final cleanNextUserId = nextUserId.trim();
+  final cleanNextDeviceId = nextDeviceId.trim();
+  return client.onLoginStateChanged.value == LoginState.loggedIn &&
+      currentUserId.isNotEmpty &&
+      currentUserId == cleanNextUserId &&
+      currentDeviceId.isNotEmpty &&
+      cleanNextDeviceId.isNotEmpty &&
+      currentDeviceId != cleanNextDeviceId;
 }
 
 Future<String?> _fetchTokenDeviceId({
@@ -453,6 +381,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       sessionDeviceId: session.deviceId,
       storedDeviceId: storedDeviceId,
     );
+    final hasStaleSameUserDevice = _hasStaleSameUserDevice(
+      client,
+      session.userId,
+      deviceId,
+    );
+    if (hasStaleSameUserDevice) {
+      await client.clear();
+    }
     await _establishPrivacyBaselineBeforeInit(
       client,
       homeserver: checkedHomeserver,
@@ -657,19 +593,22 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       oldPassword: currentLoginPassword,
       newPassword: cleanToken,
     );
-    final deviceId = client.deviceID ??
-        session.deviceId ??
-        await _storage.read(key: 'matrix_device_id') ??
-        _createDeviceId();
+    final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
+    final deviceId = await _resolveSessionDeviceId(
+      httpClient: client.httpClient,
+      homeserver: matrixUri,
+      accessToken: session.matrixAccessToken,
+      sessionDeviceId: session.deviceId,
+      storedDeviceId: await _storage.read(key: 'matrix_device_id'),
+    );
     await _applyRefreshedSession(
       client,
-      homeserver,
+      matrixUri,
       session,
       portalToken: session.adminAccessToken,
       deviceId: deviceId,
       loginPortalToken: cleanToken,
     );
-    final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
     final userId = session.userId.trim().isNotEmpty
         ? session.userId
         : auth?.userId ?? client.userID ?? '';
@@ -757,10 +696,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       newPassword: cleanNewPassword,
     );
     final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
-    final deviceId = client.deviceID ??
-        session.deviceId ??
-        await _storage.read(key: 'matrix_device_id') ??
-        _createDeviceId();
+    final deviceId = await _resolveSessionDeviceId(
+      httpClient: client.httpClient,
+      homeserver: matrixUri,
+      accessToken: session.matrixAccessToken,
+      sessionDeviceId: session.deviceId,
+      storedDeviceId: await _storage.read(key: 'matrix_device_id'),
+    );
     await _applyRefreshedSession(
       client,
       matrixUri,
@@ -850,24 +792,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         userId = client.userID ?? tokenOwner.userId;
       } catch (e) {
         if (_isTokenFailure(e)) {
-          final homeserver = client.homeserver;
-          final expectedUserId = client.userID;
-          if (homeserver == null ||
-              expectedUserId == null ||
-              expectedUserId.isEmpty ||
-              (portalToken?.trim().isEmpty ?? true)) {
-            return null;
-          }
-          await _ensureCurrentSessionValid(
-            client,
-            homeserver,
-            expectedUserId,
-            portalToken,
-            client.deviceID ??
-                await _storage.read(key: 'matrix_device_id') ??
-                _createDeviceId(),
-          );
-          userId = client.userID ?? expectedUserId;
+          await _expireSessionDueInvalidToken(client, publishState: false);
+          return null;
         } else {
           userId = client.userID;
         }
@@ -914,12 +840,15 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     String deviceId,
   ) {
     unawaited(
-      _ensureCurrentSessionValid(
-        client,
-        homeserver,
-        userId,
-        portalToken,
-        deviceId,
+      Future<void>.delayed(
+        Duration.zero,
+        () => _ensureCurrentSessionValid(
+          client,
+          homeserver,
+          userId,
+          portalToken,
+          deviceId,
+        ),
       ).timeout(const Duration(seconds: 10)).catchError((Object e) {
         debugPrint('background Matrix session refresh skipped: $e');
       }),
@@ -1015,6 +944,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       if (tokenOwner.userId == expectedUserId) return;
     } catch (e) {
       if (!_isTokenFailure(e)) rethrow;
+      await _expireSessionDueInvalidToken(client);
+      throw StateError('账号在其他设备登录，请重新登录');
     }
 
     final cleanPortalToken = portalToken?.trim() ?? '';
@@ -1076,20 +1007,33 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final effectiveUserId = session.userId.trim().isNotEmpty
         ? session.userId
         : client.userID ?? await _storage.read(key: 'matrix_user_id') ?? '';
-    client.homeserver = matrixUri;
-    client.accessToken = session.matrixAccessToken;
-    final effectiveDeviceId = client.deviceID ?? session.deviceId ?? deviceId;
-    await client.database?.updateClient(
-      matrixUri.toString(),
-      session.matrixAccessToken,
-      null,
-      null,
-      effectiveUserId,
-      effectiveDeviceId,
-      client.deviceName ?? 'PortalIM',
-      client.prevBatch,
-      client.encryption?.pickledOlmAccount,
-    );
+    final effectiveDeviceId = _preferredSessionDeviceId(session, deviceId);
+    if (_hasStaleSameUserDevice(client, effectiveUserId, effectiveDeviceId)) {
+      await client.clear();
+      await client.init(
+        newToken: session.matrixAccessToken,
+        newUserID: effectiveUserId,
+        newHomeserver: matrixUri,
+        newDeviceID: effectiveDeviceId,
+        newDeviceName: 'PortalIM',
+        waitForFirstSync: false,
+        waitUntilLoadCompletedLoaded: false,
+      );
+    } else {
+      client.homeserver = matrixUri;
+      client.accessToken = session.matrixAccessToken;
+      await client.database?.updateClient(
+        matrixUri.toString(),
+        session.matrixAccessToken,
+        null,
+        null,
+        effectiveUserId,
+        effectiveDeviceId,
+        client.deviceName ?? 'PortalIM',
+        client.prevBatch,
+        client.encryption?.pickledOlmAccount,
+      );
+    }
     await _persistSession(
       client,
       matrixUri,
@@ -1199,7 +1143,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _storage.write(key: 'matrix_user_id', value: userId ?? client.userID);
     await _storage.write(
       key: 'matrix_device_id',
-      value: client.deviceID ?? deviceId,
+      value: deviceId,
     );
     await _storage.write(
         key: AuthStateNotifier.adminAccessTokenKey, value: portalToken);
@@ -1213,10 +1157,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   Future<void> _clearUserScopedLocalState(
     Client client, {
     bool clearMatrix = true,
+    bool clearCaches = true,
   }) async {
     if (clearMatrix) {
       await client.clear();
     }
+    if (!clearCaches) return;
     ref.read(asSyncCacheProvider.notifier).state = const AsSyncCacheState();
     ref.invalidate(localOutboxProvider);
     ref.invalidate(localOutboxStoreProvider);
@@ -1333,7 +1279,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final lastPortalToken = await _storage.read(key: lastLoginPortalTokenKey) ??
         await _storage.read(key: AuthStateNotifier.adminAccessTokenKey);
     await _logoutMatrixSessionPreservingStore(client);
-    await _clearUserScopedLocalState(client);
+    await _clearUserScopedLocalState(client, clearCaches: false);
     await _storage.deleteAll();
     if (lastHomeserver != null && lastHomeserver.trim().isNotEmpty) {
       await _storage.write(
@@ -1384,9 +1330,20 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<void> expireSessionDueInvalidToken() async {
     final client = ref.read(matrixClientProvider);
+    await _expireSessionDueInvalidToken(client);
+  }
+
+  Future<void> _expireSessionDueInvalidToken(
+    Client client, {
+    bool publishState = true,
+  }) async {
+    if (_sessionExpiredLocally && publishState) {
+      state = const AsyncData(AuthState(isLoggedIn: false));
+      return;
+    }
     _sessionExpiredLocally = true;
     debugPrint('access token rejected; expiring local session');
-    await _clearUserScopedLocalState(client);
+    await _clearUserScopedLocalState(client, clearCaches: false);
     await _storage.delete(key: 'matrix_token');
     await _storage.delete(key: 'matrix_homeserver');
     await _storage.delete(key: 'matrix_user_id');
@@ -1394,7 +1351,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _storage.delete(key: AuthStateNotifier.adminAccessTokenKey);
     await _storage.delete(key: lastLoginPortalTokenKey);
     ref.read(sessionExpiredNoticeProvider.notifier).state++;
-    state = const AsyncData(AuthState(isLoggedIn: false));
+    if (publishState) {
+      state = const AsyncData(AuthState(isLoggedIn: false));
+    }
   }
 }
 

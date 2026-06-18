@@ -98,7 +98,7 @@ class AuthState {
 Uri _resolveClientHomeserver(Uri inputUri, String asHomeserver) {
   final parsed = Uri.tryParse(asHomeserver);
   if (parsed == null || parsed.host.isEmpty) return inputUri;
-  if (_isLocalHost(inputUri.host) && !_isLocalHost(parsed.host)) {
+  if (_isLocalHost(inputUri.host)) {
     return inputUri;
   }
   if (_isLocalHost(parsed.host) && !_isLocalHost(inputUri.host)) {

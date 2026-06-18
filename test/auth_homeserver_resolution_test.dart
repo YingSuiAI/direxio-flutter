@@ -13,6 +13,16 @@ void main() {
     expect(resolved.toString(), 'http://127.0.0.1:18008');
   });
 
+  test('local login keeps input port when AS returns localhost without port',
+      () {
+    final resolved = resolveClientHomeserverForSession(
+      Uri.parse('http://127.0.0.1:8008'),
+      'https://localhost',
+    );
+
+    expect(resolved.toString(), 'http://127.0.0.1:8008');
+  });
+
   test('hosted login uses AS homeserver when it is externally routable', () {
     final resolved = resolveClientHomeserverForSession(
       Uri.parse('https://login.example.com'),

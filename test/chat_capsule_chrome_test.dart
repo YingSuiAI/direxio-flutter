@@ -64,6 +64,28 @@ void main() {
     expect(find.byTooltip('视频通话'), findsNothing);
   });
 
+  testWidgets('chat capsule header hides right capsule without actions',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: ChatCapsuleHeader(
+            title: 'Agent',
+            onBack: () {},
+            actions: const [],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('chat_header_left_capsule')), findsOne);
+    expect(find.byKey(const ValueKey('chat_header_title_capsule')), findsOne);
+    expect(find.byKey(const ValueKey('chat_header_actions_capsule')),
+        findsNothing);
+    expect(find.byTooltip('详情'), findsNothing);
+  });
+
   testWidgets('chat capsule header shows status dot before online subtitle',
       (tester) async {
     await tester.pumpWidget(

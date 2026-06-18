@@ -2,6 +2,8 @@
 // 真登录后 client.rooms 非空，自动走真数据。
 import 'package:flutter/material.dart';
 
+import '../../core/theme/design_tokens.dart';
+
 /// 头像 URL：抓自 P2P-APP-UI/index.html 设计稿（lh3.googleusercontent.com/aida-public）。
 /// 集中放在这里，方便联系人/聊天/详情等多处复用同一张图。
 class MockAvatars {
@@ -154,7 +156,7 @@ class MockData {
       mxid: '@openclaw:local',
       subtitle: '本机 OpenClaw 已接入',
       unread: 0,
-      accentColor: Color(0xFF3097CB),
+      accentColor: PortalTokens.brandPrimary,
       messages: [],
     ),
     MockConversation(

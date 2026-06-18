@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1439,6 +1441,7 @@ void _showChannelInboxMenu(
           top: top,
           width: menuWidth,
           child: _ChannelInboxMenuCard(
+            scaffoldContext: context,
             channel: channel,
             isPinned: isPinned,
             onTogglePin: onTogglePin,
@@ -1455,6 +1458,7 @@ void _showChannelInboxMenu(
 
 class _ChannelInboxMenuCard extends StatelessWidget {
   const _ChannelInboxMenuCard({
+    required this.scaffoldContext,
     required this.channel,
     required this.isPinned,
     this.onTogglePin,
@@ -1462,6 +1466,7 @@ class _ChannelInboxMenuCard extends StatelessWidget {
     this.onDelete,
   });
 
+  final BuildContext scaffoldContext;
   final ChannelInboxItem channel;
   final bool isPinned;
   final ValueChanged<ChannelInboxItem>? onTogglePin;
@@ -1502,7 +1507,7 @@ class _ChannelInboxMenuCard extends StatelessWidget {
                 Navigator.of(context).pop();
                 onTogglePin?.call(channel);
                 _toast(
-                  context,
+                  scaffoldContext,
                   isPinned ? '已取消置顶「${channel.name}」' : '已置顶「${channel.name}」',
                 );
               },
@@ -1516,7 +1521,7 @@ class _ChannelInboxMenuCard extends StatelessWidget {
             _row(context, Symbols.visibility_off, '不显示', () {
               Navigator.of(context).pop();
               onHide?.call(channel);
-              _toast(context, '已隐藏「${channel.name}」');
+              _toast(scaffoldContext, '已隐藏「${channel.name}」');
             }),
             const Divider(
               height: 1,
@@ -1527,7 +1532,7 @@ class _ChannelInboxMenuCard extends StatelessWidget {
             _row(context, Symbols.delete, '删除频道', () {
               Navigator.of(context).pop();
               onDelete?.call(channel);
-              _toast(context, '已删除「${channel.name}」');
+              _toast(scaffoldContext, '已删除「${channel.name}」');
             }, danger: true),
           ],
         ),
@@ -1627,6 +1632,15 @@ void _hideChannelListItem(WidgetRef ref, ChannelInboxItem channel) {
 
 void _deleteChannelListItem(WidgetRef ref, ChannelInboxItem channel) {
   _updateHiddenChannelListKeys(ref, channel);
+  ref.read(asSyncCacheProvider.notifier).update(
+        (state) => state.withoutChannel(
+            channel.id.trim().isNotEmpty ? channel.id : channel.roomId),
+      );
+  unawaited(
+    ref.read(localCreatedChannelsProvider.notifier).removeChannel(
+        channel.id.trim().isNotEmpty ? channel.id : channel.roomId),
+  );
+  ref.invalidate(_channelListProvider);
   final key = _channelPreferenceKey(channel);
   if (key.isNotEmpty) unpinConversation(ref, key);
 }

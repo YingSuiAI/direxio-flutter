@@ -30,6 +30,7 @@ import 'package:portal_app/presentation/channel/channel_inbox_data.dart';
 import 'package:portal_app/presentation/pages/add_contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_verification_page.dart';
+import 'package:portal_app/presentation/pages/about_us_page.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
 import 'package:portal_app/presentation/pages/channel_post_detail_page.dart';
 import 'package:portal_app/presentation/pages/channel_search_page.dart';
@@ -48,6 +49,7 @@ import 'package:portal_app/presentation/pages/group_detail_page.dart';
 import 'package:portal_app/presentation/pages/group_info_page.dart';
 import 'package:portal_app/presentation/pages/group_manage_page.dart';
 import 'package:portal_app/presentation/pages/groups_list_page.dart';
+import 'package:portal_app/presentation/pages/init_page.dart';
 import 'package:portal_app/presentation/pages/me_account_page.dart';
 import 'package:portal_app/presentation/pages/me_home_tab.dart';
 import 'package:portal_app/presentation/pages/me_menu_page.dart';
@@ -69,6 +71,7 @@ import 'package:portal_app/presentation/providers/friend_request_read_provider.d
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 import 'package:portal_app/presentation/providers/profile_provider.dart';
 import 'package:portal_app/presentation/providers/voice_call_provider.dart';
+import 'package:portal_app/presentation/chat/chat_attachment_panel.dart';
 import 'package:portal_app/presentation/chat/cached_thumbnail_image.dart';
 import 'package:portal_app/presentation/utils/group_creation_flow.dart';
 import 'package:portal_app/presentation/utils/room_read_state.dart';
@@ -157,6 +160,9 @@ class _MemoryChatClearStateStore implements ChatClearStateStore {
 
 class _EmptyAsClient implements AsClient {
   String? updatedOwnerDisplayName;
+  String? updatedOwnerGender;
+  String? updatedOwnerBirthday;
+  String? updatedOwnerEmail;
 
   @override
   Future<OwnerProfile> getOwnerProfile() async => const OwnerProfile(
@@ -175,6 +181,9 @@ class _EmptyAsClient implements AsClient {
     String email = '',
   }) async {
     updatedOwnerDisplayName = displayName.trim();
+    updatedOwnerGender = gender.trim();
+    updatedOwnerBirthday = birthday.trim();
+    updatedOwnerEmail = email.trim();
     return OwnerProfile(
       userId: '@owner:p2p-im.com',
       displayName: updatedOwnerDisplayName!,
@@ -9260,7 +9269,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const ChannelExplorePage(),
+          home: const Scaffold(body: ChannelExplorePage()),
         ),
       ),
     );
@@ -9319,7 +9328,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const ChannelExplorePage(),
+          home: const Scaffold(body: ChannelExplorePage()),
         ),
       ),
     );
@@ -9332,6 +9341,12 @@ void main() {
     expect(find.text('不显示'), findsOneWidget);
     expect(find.text('删除频道'), findsOneWidget);
     expect(find.text('删除聊天'), findsNothing);
+
+    await tester.tap(find.text('删除频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('频道菜单'), findsNothing);
+    expect(find.text('已删除「频道菜单」'), findsOneWidget);
   });
 
   testWidgets('empty real channel inbox does not show mock sample channels',
@@ -11369,16 +11384,16 @@ void main() {
     await tester.tap(find.text('我的'));
     await tester.pump();
 
-    await tester.tap(find.byKey(const ValueKey('me_profile_entry')));
+    await tester.tap(find.byKey(const ValueKey('me_profile_avatar')));
     await tester.pumpAndSettle();
 
     expect(find.text('我的信息'), findsOneWidget);
     expect(find.text('修改'), findsOneWidget);
-    expect(find.text('名字'), findsOneWidget);
+    expect(find.text('昵称'), findsOneWidget);
     expect(find.text('UID: https://p2p-im.com'), findsOneWidget);
     expect(find.text('性别'), findsOneWidget);
     expect(find.text('生日'), findsOneWidget);
-    expect(find.text('手机号码'), findsOneWidget);
+    expect(find.text('手机号码'), findsNothing);
     expect(find.text('邮箱'), findsOneWidget);
 
     await tester.tap(find.text('UID: https://p2p-im.com'));
@@ -11422,7 +11437,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('名字'));
+    await tester.tap(find.text('昵称'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '破局');
     await tester.tap(find.text('保存'));
@@ -11437,6 +11452,50 @@ void main() {
     await tester.pump();
 
     expect(find.text('破局'), findsOneWidget);
+  });
+
+  testWidgets('profile info can fill gender from avatar entry', (tester) async {
+    final client = Client('PortalIMProfileGenderTest')
+      ..setUserId('@owner:p2p-im.com');
+    final asClient = _EmptyAsClient();
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/me/profile',
+          builder: (_, __) => const ProfileInfoPage(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('我的'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('me_profile_avatar')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('性别'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('女'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.updatedOwnerGender, '女');
+    expect(find.text('性别已更新'), findsOneWidget);
+    expect(find.text('女'), findsOneWidget);
   });
 
   testWidgets('settings page matches TokLink settings sections',
@@ -11476,6 +11535,67 @@ void main() {
     expect(find.text('关于我们'), findsOneWidget);
     expect(find.text('清空聊天记录'), findsOneWidget);
     expect(find.text('退出登录'), findsOneWidget);
+  });
+
+  testWidgets('settings about us opens Direxio about page', (tester) async {
+    final router = GoRouter(
+      initialLocation: '/settings',
+      routes: [
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+        GoRoute(
+          path: '/settings/about',
+          builder: (_, __) => const AboutUsPage(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('关于我们'),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('关于我们'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Symbols.arrow_back), findsOneWidget);
+    expect(find.text('Direxio'), findsOneWidget);
+    expect(find.text('官网'), findsOneWidget);
+    expect(find.text('https://im2.direxio.ai'), findsOneWidget);
+    expect(find.text('邮箱'), findsOneWidget);
+    expect(find.text('lInnebdeb@imdire.enwxio'), findsOneWidget);
+    expect(find.text('版本更新'), findsOneWidget);
+    expect(find.text('V1.0.0'), findsOneWidget);
+  });
+
+  testWidgets('about us follows app locale', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        theme: AppTheme.light,
+        home: const AboutUsPage(),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Website'), findsOneWidget);
+    expect(find.text('Email'), findsOneWidget);
+    expect(find.text('Version'), findsOneWidget);
+    expect(find.text('官网'), findsNothing);
   });
 
   testWidgets('settings page row icons use primary text color', (tester) async {
@@ -11603,6 +11723,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('Agent'), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat_header_actions_capsule')),
+        findsNothing);
+    expect(find.byKey(const ValueKey('chat_header_encryption_lock')),
+        findsNothing);
 
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
@@ -11638,6 +11762,46 @@ void main() {
     expect(find.text('Agent'), findsOneWidget);
     expect(find.text('离线'), findsOneWidget);
     expect(find.text('在线'), findsNothing);
+  });
+
+  testWidgets('agent chat media panel uses AS media route for thumbnails',
+      (tester) async {
+    final client = Client('PortalIMAgentMediaTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!agent:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@agent:p2p-im.com',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!agent:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('chat_input_plus_circle')));
+    await tester.pumpAndSettle();
+
+    final panel = tester.widget<ChatAttachmentPanel>(
+      find.byType(ChatAttachmentPanel),
+    );
+    expect(panel.useAsProductMedia, isTrue);
+    expect(find.text('视频'), findsOneWidget);
   });
 
   testWidgets('private chat header shows peer offline and typing status',
@@ -12383,6 +12547,12 @@ void main() {
     expect(find.text('或'), findsNothing);
     expect(find.text('扫码添加服务器'), findsNothing);
     expect(find.text('初始化 Portal'), findsNothing);
+    expect(find.text('阅读并同意'), findsOneWidget);
+    expect(find.text('《用户协议&隐私条款》'), findsOneWidget);
+    final logo = tester.widget<Image>(
+      find.byKey(const ValueKey('login_logo_asset')),
+    );
+    expect((logo.image as AssetImage).assetName, 'assets/images/logo.png');
   });
 
   testWidgets('login page does not default to a real node', (tester) async {
@@ -12451,6 +12621,32 @@ void main() {
     expect(_RecordingLoginAuthStateNotifier.portalToken, 'portal-token');
   });
 
+  testWidgets('init page matches first-login Direxio setup UI', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const InitPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Direxio'), findsOneWidget);
+    expect(find.text('使用你的Portal域名和密码进入去中心化通讯空间'), findsOneWidget);
+    expect(find.text('用户昵称'), findsOneWidget);
+    expect(find.text('长期登录口令'), findsOneWidget);
+    expect(find.text('再次输入长期登录口令'), findsOneWidget);
+    expect(find.text('密码至少8位'), findsOneWidget);
+    expect(find.text('确认'), findsOneWidget);
+    expect(find.text('阅读并同意'), findsOneWidget);
+    expect(find.text('《用户协议&隐私条款》'), findsOneWidget);
+  });
+
   testWidgets('login page follows app locale', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -12467,6 +12663,34 @@ void main() {
 
     expect(find.text('Log In'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
+    expect(find.text('I have read and agree to '), findsOneWidget);
+    expect(find.text('Terms & Privacy Policy'), findsOneWidget);
     expect(find.text('登录'), findsNothing);
+  });
+
+  testWidgets('init page follows app locale', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          home: const InitPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Display name'), findsOneWidget);
+    expect(find.text('Long-term login passphrase'), findsOneWidget);
+    expect(find.text('Re-enter long-term login passphrase'), findsOneWidget);
+    expect(find.text('At least 8 characters'), findsOneWidget);
+    expect(find.text('Confirm'), findsOneWidget);
+    expect(find.text('用户昵称'), findsNothing);
   });
 }

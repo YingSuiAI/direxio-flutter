@@ -374,7 +374,11 @@ Future<_ChannelMessageAction?> _showChannelMessageActionMenu(
   BuildContext context,
   _ChannelMessageMenuAnchor anchor, {
   required _ChannelMessageMenuPlacement placement,
-}) {
+}) async {
+  FocusScope.of(context).unfocus();
+  FocusManager.instance.primaryFocus?.unfocus();
+  await Future<void>.delayed(const Duration(milliseconds: 80));
+  if (!context.mounted) return null;
   final size = MediaQuery.of(context).size;
   final pos = anchor.position;
   final bubbleRect = anchor.bubbleRect;

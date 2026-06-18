@@ -23,6 +23,7 @@ import '../../presentation/pages/contact_channels_page.dart';
 import '../../presentation/pages/add_contact_page.dart';
 import '../../presentation/pages/add_contact_detail_page.dart';
 import '../../presentation/pages/add_contact_verification_page.dart';
+import '../../presentation/pages/about_us_page.dart';
 import '../../presentation/pages/requests_page.dart';
 import '../../presentation/pages/qr_scanner_page.dart';
 import '../../presentation/pages/group_detail_page.dart';
@@ -557,6 +558,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/settings',
         pageBuilder: (_, __) => _slidePage(const SettingsPage()),
+      ),
+      GoRoute(
+        path: '/settings/about',
+        pageBuilder: (_, __) => _slidePage(const AboutUsPage()),
       ),
       GoRoute(
         path: '/settings/blacklist',

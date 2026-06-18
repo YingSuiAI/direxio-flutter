@@ -59,7 +59,8 @@ const _assetTabContactsSelected = 'assets/images/通讯录选中.png';
 const _assetTabChannelNormal = 'assets/images/频道2.png';
 const _assetTabChannelSelected = 'assets/images/频道选中.png';
 const _assetTabMeNormal = 'assets/images/我的.png';
-const _assetTabMeSelected = 'assets/images/我的.png';
+const _assetTabMeSelected = 'assets/images/我的选中.png';
+const _contactShortcutIconColor = Color(0xFF3DCFFF);
 const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
 const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
@@ -89,8 +90,9 @@ Color _homeBorderColor(BuildContext context) {
 }
 
 Color _homeTabColor(BuildContext context, {required bool active}) {
+  if (active) return context.tk.accent;
   if (_homeDark(context)) return context.tk.accent;
-  return active ? context.tk.accent : _homeText;
+  return _homeText;
 }
 
 int _normalizedHomeTab(int tab) {
@@ -1053,7 +1055,7 @@ class _LiquidTabPill extends StatelessWidget {
                                 assetName: active
                                     ? item.activeIconAsset ?? item.iconAsset
                                     : item.inactiveIconAsset ?? item.iconAsset,
-                                size: 24,
+                                size: active ? 24 : 22,
                               ),
                               if (item.badge != null)
                                 Positioned(
@@ -2651,21 +2653,16 @@ class _SectionAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     return _ContactFlatRow(
       onTap: onTap,
       leading: Container(
         width: 28,
         height: 28,
-        decoration: BoxDecoration(
-          color: t.primaryContainer,
-          borderRadius: BorderRadius.circular(5),
-        ),
         alignment: Alignment.center,
         child: _DesignAssetIcon(
           assetName: iconAsset,
           size: 18,
-          color: t.onPrimaryContainer,
+          color: _contactShortcutIconColor,
         ),
       ),
       title: label,
@@ -2810,21 +2807,16 @@ class _AgentContactEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     return _ContactFlatRow(
       onTap: onTap,
       leading: Container(
         width: 28,
         height: 28,
-        decoration: BoxDecoration(
-          color: t.primaryContainer,
-          borderRadius: BorderRadius.circular(5),
-        ),
         alignment: Alignment.center,
-        child: Icon(
+        child: const Icon(
           Symbols.robot_2,
           size: 18,
-          color: t.onPrimaryContainer,
+          color: _contactShortcutIconColor,
           fill: 1,
         ),
       ),

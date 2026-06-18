@@ -35,7 +35,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l10n?.settingsClearChats ?? '清空聊天记录'),
-        content: const Text('将清空本机聊天记录、未读恢复和媒体缩略图缓存。服务器上的消息不会被删除。'),
+        content: Text(
+          l10n?.settingsClearChatsConfirmMessage ??
+              '将清空本机聊天记录、未读恢复和媒体缩略图缓存。服务器上的消息不会被删除。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -57,12 +60,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       await ref.read(authStateNotifierProvider.notifier).clearChatHistory();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('聊天记录已清空')),
+        SnackBar(content: Text(l10n?.settingsClearChatsSuccess ?? '聊天记录已清空')),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('清空聊天记录失败，请稍后重试')),
+        SnackBar(
+          content: Text(
+            l10n?.settingsClearChatsFailure ?? '清空聊天记录失败，请稍后重试',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -283,12 +290,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         _SettingsRow(
                           icon: Symbols.info,
                           label: l10n?.settingsAboutUs ?? '关于我们',
-                          onTap: () {},
+                          onTap: () => context.push('/settings/about'),
                         ),
                         _SettingsRow(
                           icon: Symbols.delete,
                           label: _clearingChats
-                              ? '正在清空...'
+                              ? l10n?.settingsClearChatsClearing ?? '正在清空...'
                               : l10n?.settingsClearChats ?? '清空聊天记录',
                           onTap: _clearChatHistory,
                         ),

@@ -103,6 +103,13 @@ bool _isProductDirectRoomForChat(Room room, AsSyncCacheState syncCache) {
       joinedPersonPeerMxid(room) != null;
 }
 
+bool _useAsMediaRouteForDirectChat({
+  required bool isProductDirect,
+  required bool isAgent,
+}) {
+  return isProductDirect || isAgent;
+}
+
 void _openChatRecordDetail(
   BuildContext context,
   ChatRecordPayload payload,
@@ -2433,7 +2440,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   subtitle: headerSubtitle,
                   subtitleStatus: headerSubtitleStatus,
                   onBack: () => unawaited(_popChatOrHome(context)),
-                  showEncryptionIcon: true,
+                  showEncryptionIcon: !isAgent,
                   actions: isAgent
                       ? const []
                       : [
@@ -3293,7 +3300,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   room: room,
                   roomId: widget.roomId,
                   canSend: canSendMessages,
-                  useAsProductMedia: isProductDirect && !isAgent,
+                  useAsProductMedia: _useAsMediaRouteForDirectChat(
+                    isProductDirect: isProductDirect,
+                    isAgent: isAgent,
+                  ),
                   onClose: () => setState(() => _showPlusPanel = false),
                   onCannotSend: _showPendingContactToast,
                   onImageUploadStarted: _addPendingImageUpload,
@@ -4059,7 +4069,7 @@ class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
                   title: _isAiBot ? 'Agent' : c.name,
                   subtitle: c.isGroup ? '6 名成员' : null,
                   onBack: () => unawaited(_popChatOrHome(context)),
-                  showEncryptionIcon: true,
+                  showEncryptionIcon: !_isAiBot,
                   actions: _isAiBot
                       ? const []
                       : [
@@ -6235,7 +6245,11 @@ Future<String?> _showMsgContextMenu(
   bool canCopy = true,
   bool canQuote = true,
   bool canRecall = false,
-}) {
+}) async {
+  FocusScope.of(context).unfocus();
+  FocusManager.instance.primaryFocus?.unfocus();
+  await Future<void>.delayed(const Duration(milliseconds: 80));
+  if (!context.mounted) return null;
   final size = MediaQuery.of(context).size;
   final pos = anchor.position;
   final bubbleRect = anchor.bubbleRect;

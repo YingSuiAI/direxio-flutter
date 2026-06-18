@@ -14,6 +14,7 @@ class AsSyncCacheState {
     this.localReadMarkersByRoomId = const {},
     this.localClearedBeforeTs = 0,
     this.localRoomClearedBeforeTs = const {},
+    this.localRemovedChannelKeys = const {},
   });
 
   final AsSyncBootstrap? bootstrap;
@@ -24,6 +25,7 @@ class AsSyncCacheState {
   final Map<String, DateTime> localReadMarkersByRoomId;
   final int localClearedBeforeTs;
   final Map<String, int> localRoomClearedBeforeTs;
+  final Set<String> localRemovedChannelKeys;
 
   Set<String> get _localContactPeerIds {
     return localContactEntriesByRoomId.values
@@ -199,12 +201,18 @@ class AsSyncCacheState {
     Map<String, DateTime>? localReadMarkersByRoomId,
     int? localClearedBeforeTs,
     Map<String, int>? localRoomClearedBeforeTs,
+    Set<String>? localRemovedChannelKeys,
   }) {
     final nextReadMarkers =
         localReadMarkersByRoomId ?? this.localReadMarkersByRoomId;
+    final nextRemovedChannelKeys =
+        localRemovedChannelKeys ?? this.localRemovedChannelKeys;
     final nextBootstrap = bootstrap == null
         ? this.bootstrap
-        : _bootstrapApplyingLocalReadMarkers(bootstrap, nextReadMarkers);
+        : _bootstrapWithoutLocalRemovedChannels(
+            _bootstrapApplyingLocalReadMarkers(bootstrap, nextReadMarkers),
+            nextRemovedChannelKeys,
+          );
     var nextLocalStatuses =
         localContactStatusesByRoomId ?? this.localContactStatusesByRoomId;
     var nextLocalEntries =
@@ -261,6 +269,7 @@ class AsSyncCacheState {
       localClearedBeforeTs: localClearedBeforeTs ?? this.localClearedBeforeTs,
       localRoomClearedBeforeTs: Map.unmodifiable(
           localRoomClearedBeforeTs ?? this.localRoomClearedBeforeTs),
+      localRemovedChannelKeys: Set.unmodifiable(nextRemovedChannelKeys),
     );
   }
 
@@ -475,8 +484,15 @@ class AsSyncCacheState {
 
   AsSyncCacheState withoutChannel(String channelIdOrRoomId) {
     final trimmed = channelIdOrRoomId.trim();
+    if (trimmed.isEmpty) return this;
     final current = bootstrap;
-    if (trimmed.isEmpty || current == null) return this;
+    final removedKeys = _removedChannelKeysFor(current, trimmed);
+    if (current == null) {
+      return copyWith(localRemovedChannelKeys: {
+        ...localRemovedChannelKeys,
+        ...removedKeys,
+      });
+    }
     return copyWith(
       bootstrap: AsSyncBootstrap(
         syncedAt: current.syncedAt,
@@ -491,6 +507,10 @@ class AsSyncCacheState {
         }).toList(growable: false),
         pending: current.pending,
       ),
+      localRemovedChannelKeys: {
+        ...localRemovedChannelKeys,
+        ...removedKeys,
+      },
     );
   }
 
@@ -628,10 +648,59 @@ AsSyncBootstrap _bootstrapApplyingLocalReadMarkers(
   return AsSyncBootstrap(
     syncedAt: bootstrap.syncedAt,
     user: bootstrap.user,
+    agentRoomId: bootstrap.agentRoomId,
     rooms: apply(bootstrap.rooms),
     contacts: bootstrap.contacts,
     groups: apply(bootstrap.groups),
     channels: apply(bootstrap.channels),
+    pending: bootstrap.pending,
+  );
+}
+
+Set<String> _removedChannelKeysFor(
+  AsSyncBootstrap? bootstrap,
+  String channelIdOrRoomId,
+) {
+  final trimmed = channelIdOrRoomId.trim();
+  if (trimmed.isEmpty) return const <String>{};
+  final keys = <String>{};
+  if (trimmed.startsWith('!')) {
+    keys.add('room:$trimmed');
+  } else {
+    keys.add('channel:$trimmed');
+  }
+  for (final channel in bootstrap?.channels ?? const <AsSyncRoomSummary>[]) {
+    if (channel.channelId.trim() != trimmed &&
+        channel.roomId.trim() != trimmed) {
+      continue;
+    }
+    final channelId = channel.channelId.trim();
+    final roomId = channel.roomId.trim();
+    if (channelId.isNotEmpty) keys.add('channel:$channelId');
+    if (roomId.isNotEmpty) keys.add('room:$roomId');
+  }
+  return keys;
+}
+
+AsSyncBootstrap _bootstrapWithoutLocalRemovedChannels(
+  AsSyncBootstrap bootstrap,
+  Set<String> removedChannelKeys,
+) {
+  if (removedChannelKeys.isEmpty) return bootstrap;
+  return AsSyncBootstrap(
+    syncedAt: bootstrap.syncedAt,
+    user: bootstrap.user,
+    agentRoomId: bootstrap.agentRoomId,
+    rooms: bootstrap.rooms,
+    contacts: bootstrap.contacts,
+    groups: bootstrap.groups,
+    channels: bootstrap.channels.where((channel) {
+      final channelId = channel.channelId.trim();
+      final roomId = channel.roomId.trim();
+      return (channelId.isEmpty ||
+              !removedChannelKeys.contains('channel:$channelId')) &&
+          (roomId.isEmpty || !removedChannelKeys.contains('room:$roomId'));
+    }).toList(growable: false),
     pending: bootstrap.pending,
   );
 }

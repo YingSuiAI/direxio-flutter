@@ -196,7 +196,7 @@ List<_ManageChannel> _managementChannels(WidgetRef ref) {
           memberCount: channel.memberCount,
           todayMessages: channel.unreadCount + 24,
           pendingCount: channel.pendingJoinCount,
-          color: const Color(0xFF3097CB),
+          color: PortalTokens.brandPrimary,
           isOwned: true,
           visibility: channel.visibility == 'private' ? 'private' : 'public',
           speechPolicy:
@@ -249,7 +249,7 @@ _ManageChannel _selectedChannel(
     memberCount: 5824,
     todayMessages: 96,
     pendingCount: 3,
-    color: const Color(0xFF3097CB),
+    color: PortalTokens.brandPrimary,
     isOwned: true,
     visibility: 'public',
     speechPolicy: 'admin_review',

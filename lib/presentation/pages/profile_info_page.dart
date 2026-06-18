@@ -94,6 +94,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     required String title,
     required String initialValue,
     required FutureOr<void> Function(String value) onSave,
+    TextInputType? keyboardType,
   }) async {
     final controller = TextEditingController(text: initialValue);
     final value = await showDialog<String>(
@@ -103,6 +104,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         content: TextField(
           controller: controller,
           autofocus: true,
+          keyboardType: keyboardType,
           decoration: InputDecoration(hintText: '请输入$title'),
         ),
         actions: [
@@ -119,6 +121,44 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     );
     if (value == null) return;
     await onSave(value.trim());
+  }
+
+  Future<void> _pickGender(PersonalProfileData data, String userId) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => _GenderPickerSheet(
+        value: _emptyIfUnset(data.gender),
+      ),
+    );
+    if (selected == null) return;
+    await _updateProfileField(
+      data,
+      userId: userId,
+      gender: selected,
+      successMessage: '性别已更新',
+      failureLabel: '性别',
+    );
+  }
+
+  Future<void> _pickBirthday(PersonalProfileData data, String userId) async {
+    final initial = _parseBirthday(data.birthday) ?? DateTime(2000);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      helpText: '选择生日',
+      cancelText: '取消',
+      confirmText: '保存',
+    );
+    if (picked == null) return;
+    await _updateProfileField(
+      data,
+      userId: userId,
+      birthday: _formatBirthday(picked),
+      successMessage: '生日已更新',
+      failureLabel: '生日',
+    );
   }
 
   void _updateProfile(PersonalProfileData data) {
@@ -224,7 +264,11 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         email: email,
       );
       if (cleanDisplayName != null) {
-        await _syncMatrixDisplayName(userId, cleanDisplayName);
+        try {
+          await _syncMatrixDisplayName(userId, cleanDisplayName);
+        } catch (e) {
+          debugPrint('sync Matrix display name failed: $e');
+        }
       }
       _updateProfile(_personalProfileFromOwner(data, ownerProfile));
       ref.invalidate(currentUserProfileProvider);
@@ -286,11 +330,11 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                     ),
                     const SizedBox(height: 22),
                     _ProfileInfoCard(
-                      label: '名字',
+                      label: '昵称',
                       value: displayName,
                       busy: _profileBusy,
                       onTap: () => _editField(
-                        title: '名字',
+                        title: '昵称',
                         initialValue: displayName,
                         onSave: (value) => _updateProfileField(
                           data,
@@ -310,49 +354,13 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                     _ProfileInfoCard(
                       label: '性别',
                       value: data.gender,
-                      onTap: () => _editField(
-                        title: '性别',
-                        initialValue: _emptyIfUnset(data.gender),
-                        onSave: (value) => _updateProfileField(
-                          data,
-                          userId: userId,
-                          gender: value,
-                          successMessage: '性别已更新',
-                          failureLabel: '性别',
-                        ),
-                      ),
+                      onTap: () => _pickGender(data, userId),
                     ),
                     const SizedBox(height: 16),
                     _ProfileInfoCard(
                       label: '生日',
                       value: data.birthday,
-                      onTap: () => _editField(
-                        title: '生日',
-                        initialValue: _emptyIfUnset(data.birthday),
-                        onSave: (value) => _updateProfileField(
-                          data,
-                          userId: userId,
-                          birthday: value,
-                          successMessage: '生日已更新',
-                          failureLabel: '生日',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _ProfileInfoCard(
-                      label: '手机号码',
-                      value: data.phone,
-                      onTap: () => _editField(
-                        title: '手机号码',
-                        initialValue: data.phone,
-                        onSave: (value) => _updateProfileField(
-                          data,
-                          userId: userId,
-                          phone: value,
-                          successMessage: '手机号码已更新',
-                          failureLabel: '手机号码',
-                        ),
-                      ),
+                      onTap: () => _pickBirthday(data, userId),
                     ),
                     const SizedBox(height: 16),
                     _ProfileInfoCard(
@@ -361,6 +369,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                       onTap: () => _editField(
                         title: '邮箱',
                         initialValue: data.email,
+                        keyboardType: TextInputType.emailAddress,
                         onSave: (value) => _updateProfileField(
                           data,
                           userId: userId,
@@ -385,6 +394,19 @@ String _emptyIfUnset(String value) =>
     value == '未设置' || value == '不展示' ? '' : value;
 
 String _asProfileValue(String value) => _emptyIfUnset(value).trim();
+
+DateTime? _parseBirthday(String value) {
+  final clean = _emptyIfUnset(value).trim();
+  if (clean.isEmpty) return null;
+  final normalized = clean.replaceAll('/', '-').replaceAll('.', '-');
+  return DateTime.tryParse(normalized);
+}
+
+String _formatBirthday(DateTime value) {
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  return '${value.year}-$month-$day';
+}
 
 String _profileDisplayValue(String value) {
   final clean = value.trim();
@@ -559,6 +581,103 @@ class _AvatarEditor extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GenderPickerSheet extends StatelessWidget {
+  const _GenderPickerSheet({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _GenderOptionButton(
+                    label: '男',
+                    selected: value == '男',
+                    onTap: () => Navigator.of(context).pop('男'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _GenderOptionButton(
+                    label: '女',
+                    selected: value == '女',
+                    onTap: () => Navigator.of(context).pop('女'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: t.textMute,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  '取消',
+                  style: AppTheme.sans(size: 15, color: t.textMute),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GenderOptionButton extends StatelessWidget {
+  const _GenderOptionButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Material(
+      color: selected ? t.accent : t.surfaceHover,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 44,
+          child: Center(
+            child: Text(
+              label,
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: selected ? t.onAccent : t.text,
+              ),
+            ),
           ),
         ),
       ),

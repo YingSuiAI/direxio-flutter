@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../core/theme/design_tokens.dart';
+
 class MockChannel {
   const MockChannel({
     required this.id,
@@ -107,7 +109,7 @@ class MockChannels {
         ),
       ],
       icon: Symbols.campaign,
-      color: Color(0xFF3097CB),
+      color: PortalTokens.brandPrimary,
     ),
     MockChannel(
       id: 'agent-workflows',

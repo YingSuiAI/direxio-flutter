@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/channel/channel_inbox_data.dart';
+import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 
 void main() {
   test('builds inbox items from bootstrap channel metadata', () {
@@ -493,6 +494,49 @@ void main() {
     );
 
     expect(merged, isEmpty);
+  });
+
+  test('locally removed channel stays hidden after stale bootstrap refresh',
+      () {
+    final firstBootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-18T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_removed',
+          roomId: '!removed:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '待解散频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-18T10:20:00Z'),
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final staleBootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-18T10:31:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: firstBootstrap.channels,
+      pending: const AsSyncPending.empty(),
+    );
+
+    final state = AsSyncCacheState(bootstrap: firstBootstrap)
+        .withoutChannel('ch_removed')
+        .copyWith(bootstrap: staleBootstrap);
+
+    expect(state.bootstrap?.channels, isEmpty);
+    expect(state.localRemovedChannelKeys, {
+      'channel:ch_removed',
+      'room:!removed:p2p-im.com',
+    });
   });
 
   test('does not expose matrix room id as bootstrap channel name', () {

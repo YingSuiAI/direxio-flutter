@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
-import '../widgets/m3/m3_card.dart';
 
 /// 登录页 —— 对齐 Agent P2P 设计稿 s-login。
 class LoginPage extends ConsumerStatefulWidget {
@@ -78,104 +78,282 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
+  Future<void> _openTerms() async {
+    final uri = Uri.parse('https://im2.direxio.ai/terms');
+    final opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    if (!opened && mounted) {
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n?.loginTermsOpenFailed ?? '无法打开用户协议与隐私条款',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
+    const loginTokens = PortalTokens.dark;
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
     );
     return Scaffold(
-      backgroundColor: t.bg,
+      backgroundColor: loginTokens.surface,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-              child: Column(
-                children: [
-                  // App icon — squircle 112
-                  Container(
-                    width: 112,
-                    height: 112,
-                    decoration: BoxDecoration(
-                      color: t.primaryContainer,
-                      borderRadius: BorderRadius.circular(112 * 0.225),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      Symbols.communication,
-                      size: 56,
-                      color: t.onPrimaryContainer,
-                      fill: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    l10n?.loginTitle ?? 'Portal IM',
-                    style: AppTheme.sans(
-                      size: 28,
-                      weight: FontWeight.w700,
-                      color: t.text,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    l10n?.loginSubtitle ?? '使用你的 Portal 域名和密码进入去中心化通讯空间',
-                    style: AppTheme.sans(size: 12, color: t.textMute),
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Portal 地址
-                  M3InputField(
-                    controller: _domainCtrl,
-                    icon: Symbols.link,
-                    hint: l10n?.loginDomainHint ?? '你的域名',
-                    keyboardType: TextInputType.url,
-                  ),
-                  const SizedBox(height: 12),
-                  // Portal Token
-                  M3InputField(
-                    controller: _portalTokenCtrl,
-                    icon: Symbols.key,
-                    hint: l10n?.loginPasswordHint ?? '登录密码',
-                    obscure: _obscure,
-                    onSubmitted: (_) => _login(),
-                    trailing: IconButton(
-                      icon: Icon(
-                        _obscure ? Symbols.visibility : Symbols.visibility_off,
-                        size: 16,
-                        color: t.textMute,
-                      ),
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
-                  ),
-
-                  if (_error != null) ...[
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                loginTokens.primaryContainer,
+                loginTokens.surface,
+                loginTokens.surface,
+              ],
+              stops: const [0, 0.28, 1],
+            ),
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(19, 62, 19, 80),
+                child: Column(
+                  children: [
+                    const _DirexioLogoMark(),
                     const SizedBox(height: 12),
-                    _ErrorBanner(message: _error!),
+                    Text(
+                      'Direxio',
+                      style: AppTheme.sans(
+                        size: 24,
+                        weight: FontWeight.w700,
+                        color: loginTokens.text,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n?.loginSubtitle ?? '使用你的Portal域名和密码进入去中心化通讯空间',
+                      textAlign: TextAlign.center,
+                      style: AppTheme.sans(size: 12, color: loginTokens.accent),
+                    ),
+                    const SizedBox(height: 44),
+                    _LoginPillInputField(
+                      controller: _domainCtrl,
+                      icon: Symbols.link,
+                      hint: l10n?.loginDomainHint ?? '你的域名',
+                      keyboardType: TextInputType.url,
+                      tokens: loginTokens,
+                    ),
+                    const SizedBox(height: 15),
+                    _LoginPillInputField(
+                      controller: _portalTokenCtrl,
+                      icon: Symbols.lock,
+                      hint: l10n?.loginPasswordHint ?? '登录密码',
+                      obscure: _obscure,
+                      onSubmitted: (_) => _login(),
+                      tokens: loginTokens,
+                      trailing: IconButton(
+                        icon: Icon(
+                          _obscure
+                              ? Symbols.visibility
+                              : Symbols.visibility_off,
+                          size: 22,
+                          color: loginTokens.text,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                    ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      _ErrorBanner(message: _error!),
+                    ],
+                    const SizedBox(height: 45),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 53,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: loginTokens.accent,
+                          foregroundColor: loginTokens.onAccent,
+                          disabledBackgroundColor:
+                              loginTokens.accent.withValues(alpha: 0.55),
+                          disabledForegroundColor:
+                              loginTokens.onAccent.withValues(alpha: 0.75),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: AppTheme.sans(
+                            size: 16,
+                            weight: FontWeight.w600,
+                            color: loginTokens.onAccent,
+                          ),
+                        ),
+                        onPressed: _loading ? null : _login,
+                        child: Text(
+                          _loading
+                              ? l10n?.loginButtonLoading ?? '登录中…'
+                              : l10n?.loginButton ?? '登录',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 214),
+                    _LoginAgreementLine(
+                      tokens: loginTokens,
+                      onTermsTap: _openTerms,
+                    ),
                   ],
-
-                  const SizedBox(height: 40),
-                  M3PrimaryButton(
-                    label: _loading
-                        ? l10n?.loginButtonLoading ?? '登录中…'
-                        : l10n?.loginButton ?? '登录',
-                    onPressed: _loading ? null : _login,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LoginAgreementLine extends StatelessWidget {
+  const _LoginAgreementLine({
+    required this.tokens,
+    required this.onTermsTap,
+  });
+
+  final PortalTokens tokens;
+  final VoidCallback onTermsTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Icon(
+          Symbols.radio_button_unchecked,
+          size: 16,
+          color: tokens.textMute,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          l10n?.agreementPrefix ?? '阅读并同意',
+          style: AppTheme.sans(size: 12, color: tokens.textMute),
+        ),
+        InkWell(
+          onTap: onTermsTap,
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              l10n?.agreementTermsPrivacy ?? '《用户协议&隐私条款》',
+              style: AppTheme.sans(size: 12, color: tokens.text),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DirexioLogoMark extends StatelessWidget {
+  const _DirexioLogoMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(27),
+      child: Image.asset(
+        'assets/images/logo.png',
+        key: const ValueKey('login_logo_asset'),
+        width: 96,
+        height: 96,
+        fit: BoxFit.cover,
+      ),
+    );
+  }
+}
+
+class _LoginPillInputField extends StatelessWidget {
+  const _LoginPillInputField({
+    required this.controller,
+    required this.icon,
+    required this.hint,
+    required this.tokens,
+    this.obscure = false,
+    this.keyboardType,
+    this.trailing,
+    this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final IconData icon;
+  final String hint;
+  final PortalTokens tokens;
+  final bool obscure;
+  final TextInputType? keyboardType;
+  final Widget? trailing;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 53,
+      decoration: BoxDecoration(
+        color: tokens.surface.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: tokens.accent),
+        boxShadow: [
+          BoxShadow(
+            color: tokens.surface.withValues(alpha: 0.12),
+            blurRadius: 4,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 28),
+          Icon(icon, size: 24, color: tokens.accent),
+          Container(
+            width: 1,
+            height: 25,
+            margin: const EdgeInsets.only(left: 17, right: 12),
+            color: tokens.text,
+          ),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              obscureText: obscure,
+              keyboardType: keyboardType,
+              onSubmitted: onSubmitted,
+              style: AppTheme.sans(size: 16, color: tokens.text),
+              cursorColor: tokens.text,
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: AppTheme.sans(
+                  size: 16,
+                  color: tokens.text.withValues(alpha: 0.58),
+                ),
+                isCollapsed: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+              ),
+            ),
+          ),
+          if (trailing != null) trailing!,
+          const SizedBox(width: 12),
+        ],
       ),
     );
   }

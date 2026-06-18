@@ -172,6 +172,119 @@ void main() {
     expect(contact.status, 'deleted');
   });
 
+  test('agent management helpers use unified API actions', () async {
+    final seen = <String>[];
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        seen.add(request.body);
+        expect(request.method, 'POST');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        switch (body['action']) {
+          case 'agent.password':
+            expect(request.url.path, '/_p2p/query');
+            return http.Response(jsonEncode({'password': 'secret'}), 200);
+          case 'apis.list':
+            expect(request.url.path, '/_p2p/query');
+            return http.Response(
+              jsonEncode({
+                'items': [
+                  {'action': 'contacts.request', 'enabled': true},
+                ],
+              }),
+              200,
+            );
+          case 'apis.status':
+            expect(request.url.path, '/_p2p/command');
+            expect(body['params'], {
+              'items': [
+                {'action': 'contacts.request', 'enabled': false},
+              ],
+            });
+            return http.Response(
+              jsonEncode({
+                'items': [
+                  {'action': 'contacts.request', 'enabled': false},
+                ],
+              }),
+              200,
+            );
+          default:
+            fail('unexpected action ${body['action']}');
+        }
+      }),
+    );
+
+    expect((await client.getAgentPassword())['password'], 'secret');
+    expect((await client.listApiPermissions())['items'], isNotEmpty);
+    final updated = await client.updateApiPermissionStatus([
+      {'action': 'contacts.request', 'enabled': false},
+    ]);
+
+    expect(updated['items'], isNotEmpty);
+    expect(seen, hasLength(3));
+  });
+
+  test('contact backup helpers use unified API actions', () async {
+    final backup = {
+      'version': 1,
+      'contacts': [
+        {
+          'peer_mxid': '@alice:p2p-im.com',
+          'room_id': '!alice:p2p-im.com',
+          'status': 'accepted'
+        },
+      ],
+      'messages': [],
+    };
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        switch (body['action']) {
+          case 'contacts.export':
+            expect(request.url.path, '/_p2p/command');
+            expect(body['params'], isEmpty);
+            return http.Response(
+              jsonEncode({
+                'filename': 'contacts-backup-test.json',
+                'contacts_count': 1,
+                'messages_count': 0,
+                'backup': backup,
+              }),
+              200,
+            );
+          case 'contacts.download':
+            expect(request.url.path, '/_p2p/query');
+            expect(body['params'], {'filename': 'contacts-backup-test.json'});
+            return http.Response(jsonEncode({'backup': backup}), 200);
+          case 'contacts.import':
+            expect(request.url.path, '/_p2p/command');
+            expect(body['params'], {'backup': backup});
+            return http.Response(
+              jsonEncode({'contacts_imported': 1, 'messages_imported': 0}),
+              200,
+            );
+          default:
+            fail('unexpected action ${body['action']}');
+        }
+      }),
+    );
+
+    expect((await client.exportContactsBackup())['contacts_count'], 1);
+    expect(
+      (await client
+          .downloadContactsBackup('contacts-backup-test.json'))['backup'],
+      backup,
+    );
+    expect((await client.importContactsBackup(backup))['contacts_imported'], 1);
+  });
+
   test('maps legacy channel intro field to description', () {
     final summary = AsSyncRoomSummary.fromJson({
       'channel_id': 'ch_intro',

@@ -217,6 +217,25 @@ class HttpAsClient implements AsClient {
     return AgentStatus.fromJson(body);
   }
 
+  Future<Map<String, dynamic>> getAgentPassword() {
+    return _getJson('agents/get-password');
+  }
+
+  Future<Map<String, dynamic>> listApiPermissions() {
+    return _getJson('apis');
+  }
+
+  Future<Map<String, dynamic>> updateApiPermissionStatus(
+    List<Map<String, Object?>> items,
+  ) {
+    return _requestJson(
+      'PUT',
+      'apis/status',
+      body: {'items': items},
+      allowedStatusCodes: const {200},
+    );
+  }
+
   @override
   Future<List<FollowEntry>> getFollows() async {
     final body = await _getJson('follows');
@@ -388,6 +407,29 @@ class HttpAsClient implements AsClient {
       allowedStatusCodes: const {200},
     );
     return ContactEntry.fromJson(body);
+  }
+
+  Future<Map<String, dynamic>> exportContactsBackup() {
+    return _requestJson(
+      'POST',
+      'contacts/export',
+      allowedStatusCodes: const {200},
+    );
+  }
+
+  Future<Map<String, dynamic>> downloadContactsBackup(String filename) {
+    return _getJson('contacts/export/${Uri.encodeComponent(filename)}');
+  }
+
+  Future<Map<String, dynamic>> importContactsBackup(
+    Map<String, Object?> backup,
+  ) {
+    return _requestJson(
+      'POST',
+      'contacts/import',
+      body: {'backup': backup},
+      allowedStatusCodes: const {200},
+    );
   }
 
   @override
@@ -2020,6 +2062,18 @@ String _actionFor(String method, String path) {
   if (method == 'POST' && clean == 'portal/setup') return 'portal.setup';
   if (method == 'PUT' && clean == 'portal/password') return 'portal.password';
   if (method == 'GET' && clean == 'contacts') return 'contacts.list';
+  if (method == 'POST' && clean == 'contacts/export') {
+    return 'contacts.export';
+  }
+  if (method == 'GET' &&
+      segments.length >= 3 &&
+      segments[0] == 'contacts' &&
+      segments[1] == 'export') {
+    return 'contacts.download';
+  }
+  if (method == 'POST' && clean == 'contacts/import') {
+    return 'contacts.import';
+  }
   if (method == 'POST' && clean == 'contacts/requests') {
     return 'contacts.request';
   }
@@ -2112,9 +2166,11 @@ Map<String, Object?> _actionParams(
     params['domain'] = Uri.decodeComponent(segments[1]);
   }
   if (segments.length >= 2 && segments[0] == 'contacts') {
-    if (segments[1] == 'requests' && segments.length >= 3) {
+    if (segments[1] == 'export' && segments.length >= 3) {
+      params['filename'] = Uri.decodeComponent(segments[2]);
+    } else if (segments[1] == 'requests' && segments.length >= 3) {
       params['room_id'] = Uri.decodeComponent(segments[2]);
-    } else {
+    } else if (segments[1] != 'export' && segments[1] != 'import') {
       params['room_id'] = Uri.decodeComponent(segments[1]);
     }
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +15,8 @@ import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
 import 'presentation/providers/p2p_api_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
+
+bool _sessionExpiredDialogShowing = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,15 +52,28 @@ class PortalApp extends ConsumerWidget {
     ref.listen<int>(sessionExpiredNoticeProvider, (previous, next) {
       if (previous == null || next <= previous) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text('登录已失效，请重新登录'),
-              duration: Duration(seconds: 2),
-            ),
-          );
+        if (!context.mounted || _sessionExpiredDialogShowing) return;
+        _sessionExpiredDialogShowing = true;
+        showCupertinoDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            return CupertinoAlertDialog(
+              title: const Text('登录已过期'),
+              content: const Text('请重新登录'),
+              actions: [
+                CupertinoDialogAction(
+                  isDefaultAction: true,
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('确定'),
+                ),
+              ],
+            );
+          },
+        ).whenComplete(
+          () => _sessionExpiredDialogShowing = false,
+        );
+        ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
       });
     });
     return MaterialApp.router(

@@ -292,6 +292,34 @@ void main() {
     );
   });
 
+  test('chat record forward targets include local accepted contacts', () {
+    const state = AsSyncCacheState(
+      localContactEntriesByRoomId: {
+        '!new-friend:p2p-im.com': ContactEntry(
+          peerMxid: '@new-friend:p2p-im.com',
+          displayName: '新好友',
+          domain: 'p2p-im.com',
+          roomId: '!new-friend:p2p-im.com',
+          status: 'accepted',
+        ),
+      },
+    );
+
+    final targets = chatRecordForwardTargets(
+      state,
+      currentRoomId: '!channel:p2p-im.com',
+      currentRoomName: '频道',
+      currentRoomType: 'channel',
+    );
+
+    final target = targets.singleWhere(
+      (target) => target.roomId == '!new-friend:p2p-im.com',
+    );
+    expect(target.name, '新好友');
+    expect(target.roomType, 'direct');
+    expect(target.sendViaAs, isTrue);
+  });
+
   testWidgets('chat record detail hides image filenames on media previews',
       (tester) async {
     const imageName = 'very-long-camera-upload-name-20260529-abcdef.jpg';

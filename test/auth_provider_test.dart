@@ -36,7 +36,6 @@ void main() {
     final container = ProviderContainer(
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
-    addTearDown(container.dispose);
     addTearDown(client.clear);
 
     final auth = await container.read(authStateNotifierProvider.future);

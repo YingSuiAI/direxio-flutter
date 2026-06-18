@@ -69,6 +69,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
         .where((mxid) => mxid.isNotEmpty)
         .toSet();
     final memberCount = room?.summary.mJoinedMemberCount ?? members.length;
+    final canManageGroup = room != null && _canManageGroup(room);
 
     return Scaffold(
       backgroundColor: chatPageBackgroundColor(context),
@@ -113,11 +114,15 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                     padding: EdgeInsets.zero,
                     child: Column(
                       children: [
-                        InfoNavRow(
+                        if (canManageGroup) ...[
+                          InfoNavRow(
                             label: '群管理',
                             onTap: () => context.push(
-                                '/group-manage/${Uri.encodeComponent(widget.roomId)}')),
-                        const InfoDivider(),
+                              '/group-manage/${Uri.encodeComponent(widget.roomId)}',
+                            ),
+                          ),
+                          const InfoDivider(),
+                        ],
                         InfoNavRow(
                           label: '设置备注',
                           value: groupRemark.isEmpty ? null : groupRemark,
@@ -215,6 +220,12 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
         ),
       ),
     );
+  }
+
+  bool _canManageGroup(Room room) {
+    final self = room.client.userID;
+    if (self == null || self.isEmpty) return false;
+    return room.getPowerLevelByUserId(self) >= 50;
   }
 
   Future<void> _showGroupRemarkDialog(

@@ -737,7 +737,7 @@ void main() {
     expect(call.state, 'ringing');
   });
 
-  test('createGroup posts name and accepted contact invites through AS',
+  test('createGroup posts name avatar and accepted contact invites through AS',
       () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),
@@ -748,6 +748,7 @@ void main() {
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'name': '产品测试群',
+          'avatar_url': 'mxc://p2p-im.com/group-avatar',
           'invite': ['@alice:p2p-liyanan.com'],
         });
         return http.Response(
@@ -765,6 +766,7 @@ void main() {
 
     final group = await client.createGroup(
       name: ' 产品测试群 ',
+      avatarUrl: ' mxc://p2p-im.com/group-avatar ',
       invite: const ['@alice:p2p-liyanan.com'],
     );
 
@@ -772,6 +774,43 @@ void main() {
     expect(group.name, '产品测试群');
     expect(group.memberCount, 1);
     expect(group.invitedCount, 1);
+  });
+
+  test('updateGroupProfile puts name topic and avatar through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'PUT');
+        expect(request.url.path, '/_as/groups/!group%3Ap2p-im.com');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'name': 'Project Group Renamed',
+          'topic': 'Weekly planning',
+          'avatar_url': 'mxc://example.com/group-avatar2',
+        });
+        return http.Response(
+          jsonEncode({
+            'room_id': '!group:p2p-im.com',
+            'name': 'Project Group Renamed',
+            'member_count': 3,
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    final group = await client.updateGroupProfile(
+      roomId: '!group:p2p-im.com',
+      name: ' Project Group Renamed ',
+      topic: ' Weekly planning ',
+      avatarUrl: ' mxc://example.com/group-avatar2 ',
+    );
+
+    expect(group.roomId, '!group:p2p-im.com');
+    expect(group.name, 'Project Group Renamed');
+    expect(group.memberCount, 3);
   });
 
   test('joinGroup posts invite-card context through AS', () async {
@@ -899,6 +938,34 @@ void main() {
 
     await expectLater(
       client.removeChannelMember('ch1', ' @carol:p2p-carol.com '),
+      completes,
+    );
+  });
+
+  test('inviteChannelMembers posts channel invites through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch1/invite');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'invite': ['@carol:p2p-carol.com'],
+        });
+        return http.Response(
+          jsonEncode({'ok': true}),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    await expectLater(
+      client.inviteChannelMembers(
+        channelId: ' ch1 ',
+        invite: const [' @carol:p2p-carol.com ', ''],
+      ),
       completes,
     );
   });

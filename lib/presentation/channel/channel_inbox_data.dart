@@ -112,7 +112,9 @@ class ChannelInboxData {
     String Function(String roomId)? roomAvatarForRoomId,
   }) {
     final items = bootstrap.channels
-        .where((channel) => channel.roomId.trim().isNotEmpty)
+        .where((channel) =>
+            channel.roomId.trim().isNotEmpty &&
+            _channelListMemberStatusVisible(channel.memberStatus))
         .map(
       (channel) {
         final roomId = channel.roomId.trim();
@@ -172,11 +174,18 @@ class ChannelInboxData {
       if (channelId.isNotEmpty) bootstrapByChannelId[channelId] = channel;
       if (roomId.isNotEmpty) bootstrapByRoomId[roomId] = channel;
     }
-    final items = channels
-        .where((channel) =>
-            channel.channelId.trim().isNotEmpty &&
-            channel.roomId.trim().isNotEmpty)
-        .map((channel) {
+    final items = channels.where((channel) {
+      final channelId = channel.channelId.trim();
+      final roomId = channel.roomId.trim();
+      if (channelId.isEmpty || roomId.isEmpty) return false;
+      final bootstrapChannel =
+          bootstrapByChannelId[channelId] ?? bootstrapByRoomId[roomId];
+      final status = _preferReadableText(
+        channel.memberStatus,
+        bootstrapChannel?.memberStatus,
+      );
+      return _channelListMemberStatusVisible(status);
+    }).map((channel) {
       final roomId = channel.roomId.trim();
       final channelId = channel.channelId.trim();
       final bootstrapChannel =
@@ -255,10 +264,12 @@ class ChannelInboxData {
     required String fallbackDomain,
     String Function(String roomId)? roomNameForRoomId,
     String Function(String roomId)? roomAvatarForRoomId,
+    Set<String> hiddenChannelKeys = const <String>{},
   }) {
     if (cached.isEmpty) return _sortByLatest([...items]);
     final merged = [...items];
     for (final entry in cached) {
+      if (_createdCacheEntryIsHidden(entry, hiddenChannelKeys)) continue;
       final cachedItems = fromChannels(
         [entry.channel],
         fallbackDomain: fallbackDomain,
@@ -348,9 +359,30 @@ class ChannelInboxData {
   }
 }
 
+bool _createdCacheEntryIsHidden(
+  ChannelCreatedCacheEntry entry,
+  Set<String> hiddenChannelKeys,
+) {
+  if (hiddenChannelKeys.isEmpty) return false;
+  final channelId = entry.channel.channelId.trim();
+  final roomId = entry.channel.roomId.trim();
+  return (channelId.isNotEmpty &&
+          hiddenChannelKeys.contains('channel:$channelId')) ||
+      (roomId.isNotEmpty && hiddenChannelKeys.contains('room:$roomId'));
+}
+
 bool _isChannelOwnerRole(String role) {
   final normalized = role.trim();
   return normalized == asChannelRoleOwner || normalized == asChannelRoleAdmin;
+}
+
+bool _channelListMemberStatusVisible(String status) {
+  final normalized = status.trim().toLowerCase();
+  return normalized != 'left' &&
+      normalized != 'removed' &&
+      normalized != 'dissolved' &&
+      normalized != 'deleted' &&
+      normalized != 'closed';
 }
 
 String _channelPreviewText(String value) {

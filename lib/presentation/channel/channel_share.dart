@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
@@ -12,6 +13,8 @@ import '../chat/chat_record_forwarding.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/avatar_url.dart';
+import '../widgets/portal_avatar.dart';
 
 const channelShareMessageType = 'channel_share';
 const channelShareMatrixPayloadKey = 'p2p.channel_share';
@@ -300,6 +303,7 @@ class ChannelSharePreviewCard extends StatelessWidget {
     final subtitle = payload.description.trim().isEmpty
         ? payload.homeDomain.trim()
         : payload.description.trim();
+    final typeLabel = _channelShareTypeLabel(payload);
     final buttonTap = joining
         ? null
         : alreadyJoined
@@ -320,15 +324,23 @@ class ChannelSharePreviewCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        payload.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(
-                          size: 16,
-                          weight: FontWeight.w700,
-                          color: t.text,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              payload.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTheme.sans(
+                                size: 16,
+                                weight: FontWeight.w700,
+                                color: t.text,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          _ChannelShareTypePill(label: typeLabel),
+                        ],
                       ),
                       const SizedBox(height: 5),
                       Text(
@@ -381,6 +393,43 @@ class ChannelSharePreviewCard extends StatelessWidget {
   }
 }
 
+class _ChannelShareTypePill extends StatelessWidget {
+  const _ChannelShareTypePill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      key: ValueKey('channel_share_type_$label'),
+      height: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: t.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTheme.sans(
+          size: 11,
+          weight: FontWeight.w600,
+          color: t.accent,
+        ),
+      ),
+    );
+  }
+}
+
+String _channelShareTypeLabel(ChannelSharePayload payload) {
+  return normalizeAsChannelType(payload.channelType) == asChannelTypePost
+      ? '帖子'
+      : '文字';
+}
+
 class _ChannelShareAvatar extends StatelessWidget {
   const _ChannelShareAvatar({required this.payload});
 
@@ -413,14 +462,16 @@ class _ChannelShareAvatar extends StatelessWidget {
   }
 }
 
-class _ChannelShareTargetSheet extends StatelessWidget {
+class _ChannelShareTargetSheet extends ConsumerWidget {
   const _ChannelShareTargetSheet({required this.targets});
 
   final List<ChatRecordForwardTarget> targets;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
+    final client = ref.watch(matrixClientProvider);
+    final syncCache = ref.watch(asSyncCacheProvider);
     return SafeArea(
       child: ListView.separated(
         shrinkWrap: true,
@@ -442,15 +493,18 @@ class _ChannelShareTargetSheet extends StatelessWidget {
             );
           }
           final target = targets[index - 1];
+          final avatarUrl = _targetAvatarUrl(client, syncCache, target);
           return ListTile(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
               side: BorderSide(color: t.border.withValues(alpha: 0.16)),
             ),
             tileColor: t.surface,
-            leading: Icon(
-              target.roomType == 'group' ? Symbols.group : Symbols.person,
-              color: t.text,
+            leading: PortalAvatar(
+              seed: target.name,
+              size: 40,
+              imageUrl: avatarUrl,
+              shape: AvatarShape.squircle,
             ),
             title: Text(
               target.name,
@@ -463,6 +517,29 @@ class _ChannelShareTargetSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _targetAvatarUrl(
+  Client client,
+  AsSyncCacheState syncCache,
+  ChatRecordForwardTarget target,
+) {
+  final roomId = target.roomId.trim();
+  final room = roomId.isEmpty ? null : client.getRoomById(roomId);
+  if (target.roomType == 'direct') {
+    final contact = syncCache.acceptedContactForRoom(roomId);
+    final peerMxid = contact?.userId.trim() ?? '';
+    final member = peerMxid.isEmpty
+        ? null
+        : room?.unsafeGetUserFromMemoryOrFallback(peerMxid);
+    return avatarHttpUrl(client, contact?.avatarUrl) ??
+        matrixContentHttpUrl(client, member?.avatarUrl) ??
+        (room == null ? null : roomAvatarHttpUrl(room));
+  }
+  if (target.roomType == 'group') {
+    return room == null ? null : roomAvatarHttpUrl(room);
+  }
+  return null;
 }
 
 String _stringValue(Object? value) => value is String ? value : '';

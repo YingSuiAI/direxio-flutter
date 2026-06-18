@@ -20,6 +20,7 @@ import '../providers/conversation_preferences_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/p2p_api_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../widgets/portal_avatar.dart';
@@ -100,13 +101,14 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final uidDomain = reportDomainForUserId(userId, acceptedContact?.domain);
     final currentProfileName = currentUserProfile?.displayName?.trim();
     final peerMember = room?.unsafeGetUserFromMemoryOrFallback(userId);
+    final peerMemberName = directPeerMemberDisplayName(room, userId);
     final displayName = contactDisplayNameFromIdentity(
       mxid: userId,
       displayName: isSelf && currentProfileName?.isNotEmpty == true
           ? currentProfileName!
           : _firstNonEmpty([
+              peerMemberName,
               acceptedContact?.displayName,
-              peerMember?.calcDisplayname(),
               room?.getLocalizedDisplayname(),
               mock?.name,
             ]),

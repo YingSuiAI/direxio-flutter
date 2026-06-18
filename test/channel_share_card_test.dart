@@ -56,6 +56,7 @@ void main() {
       homeDomain: 'p2p-im.com',
       name: '产品公告',
       description: '只发布重要产品更新',
+      channelType: asChannelTypePost,
       tags: ['产品'],
     );
 
@@ -72,7 +73,34 @@ void main() {
 
     expect(find.text('产品公告'), findsOneWidget);
     expect(find.text('只发布重要产品更新'), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_share_type_帖子')), findsOneWidget);
     expect(find.text('加入频道'), findsOneWidget);
+  });
+
+  testWidgets('channel share preview card renders text channel label',
+      (tester) async {
+    const payload = ChannelSharePayload(
+      channelId: 'ch_chat',
+      roomId: '!chat:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '文字频道',
+      description: '实时文字讨论',
+      channelType: asChannelTypeChat,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: const Scaffold(
+          body: Center(
+            child: ChannelSharePreviewCard(payload: payload),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('文字频道'), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_share_type_文字')), findsOneWidget);
   });
 
   testWidgets('channel share preview card join button invokes join',

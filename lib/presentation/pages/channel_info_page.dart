@@ -97,7 +97,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   @override
   Widget build(BuildContext context) {
     final channel = resolveChannelInfoData(ref, widget.channelId);
-    final ownerMemberCount = _ownerVisibleMemberCount(channel);
+    final titleMemberCount = _channelTitleMemberCount(channel);
     return Scaffold(
       backgroundColor: context.tk.bg,
       body: SafeArea(
@@ -108,9 +108,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
               children: [
                 _InfoTopBar(
-                  title: channel.isOwned && ownerMemberCount > 0
-                      ? '${channel.name}（$ownerMemberCount）'
-                      : channel.name,
+                  title: '频道信息($titleMemberCount)',
                   onBack: () => context.pop(),
                 ),
                 if (channel.isOwned)
@@ -198,6 +196,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             members: displayMembers.take(visibleMemberCount).toList(),
             placeholderCount: displayMembers.isEmpty ? visibleMemberCount : 0,
             isLoading: isLoading,
+            onMemberTap: _openMemberProfile,
             onRemove: _showRemoveMemberSheet,
           );
         },
@@ -232,11 +231,11 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     ];
   }
 
-  int _ownerVisibleMemberCount(ChannelInfoData channel) {
+  int _channelTitleMemberCount(ChannelInfoData channel) {
     final joinedMembers =
         _members.where(_isJoinedChannelMember).toList(growable: false);
     if (joinedMembers.isNotEmpty) return joinedMembers.length;
-    return channel.memberCount;
+    return channel.memberCount < 0 ? 0 : channel.memberCount;
   }
 
   Future<void> _showRemoveMemberSheet() async {
@@ -375,6 +374,19 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         setState(() => _removingMember = false);
       }
     }
+  }
+
+  void _openMemberProfile(AsChannelMember member) {
+    final userMxid = member.userMxid.trim();
+    if (userMxid.isEmpty) return;
+    final currentUserId = ref.read(matrixClientProvider).userID?.trim() ?? '';
+    if (currentUserId.isNotEmpty && userMxid == currentUserId) {
+      context.push('/me/profile');
+      return;
+    }
+    context.push(
+      '/contact/${Uri.encodeComponent(userMxid)}?source=channel_info_avatar',
+    );
   }
 
   Future<void> _setChannelMuted(
@@ -563,6 +575,7 @@ class _OwnerMemberGrid extends StatelessWidget {
     required this.members,
     required this.placeholderCount,
     required this.isLoading,
+    required this.onMemberTap,
     required this.onRemove,
   });
 
@@ -570,6 +583,7 @@ class _OwnerMemberGrid extends StatelessWidget {
   final List<AsChannelMember> members;
   final int placeholderCount;
   final bool isLoading;
+  final ValueChanged<AsChannelMember> onMemberTap;
   final VoidCallback onRemove;
 
   @override
@@ -579,10 +593,15 @@ class _OwnerMemberGrid extends StatelessWidget {
       runSpacing: 10,
       children: [
         for (final member in members)
-          PortalAvatar(
-            seed: _memberName(member),
-            size: 40,
-            shape: AvatarShape.squircle,
+          InkWell(
+            key: ValueKey('channel_member_avatar_${member.userMxid}'),
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => onMemberTap(member),
+            child: PortalAvatar(
+              seed: _memberName(member),
+              size: 40,
+              shape: AvatarShape.squircle,
+            ),
           ),
         for (var index = 0; index < placeholderCount; index++)
           PortalAvatar(

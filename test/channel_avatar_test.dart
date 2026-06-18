@@ -129,4 +129,48 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened, 'chat:ch_chat');
   });
+
+  testWidgets('channel inbox list tap callback can show dissolved hint',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ChannelInboxList(
+                storageKey: const PageStorageKey('dissolved_channel_test'),
+                bottomPadding: 0,
+                channels: const [
+                  ChannelInboxItem(
+                    id: 'ch_removed',
+                    roomId: '!removed:p2p-im.com',
+                    name: '已解散频道',
+                    domain: 'p2p-im.com',
+                    avatarUrl: '',
+                    latestPreview: '历史会话',
+                    latestAt: null,
+                    unreadCount: 0,
+                    isOwned: false,
+                    tags: [],
+                    channelType: asChannelTypeChat,
+                  ),
+                ],
+                onTapChannel: (channel) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('频道已解散')),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('已解散频道'));
+    await tester.pump();
+
+    expect(find.text('频道已解散'), findsOneWidget);
+  });
 }

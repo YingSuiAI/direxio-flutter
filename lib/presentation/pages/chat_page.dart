@@ -1312,6 +1312,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (!isMe && event.senderId.trim().isNotEmpty) {
       final contact =
           ref.read(asSyncCacheProvider).contactForUserId(event.senderId);
+      final roomMemberName = directPeerMemberDisplayName(_room, event.senderId);
+      if (roomMemberName.isNotEmpty) return roomMemberName;
       final name = contact?.displayName.trim();
       if (name != null && name.isNotEmpty) return name;
       final peerName = peerDisplayName.trim();
@@ -1611,7 +1613,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
         return;
       }
-      context.go(channelShareJoinedRoute(payload, joined));
+      context.push(channelShareJoinedRoute(payload, joined));
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

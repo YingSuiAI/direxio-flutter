@@ -728,6 +728,29 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<void> inviteChannelMembers({
+    required String channelId,
+    required List<String> invite,
+  }) async {
+    await Future.delayed(_latency);
+    final key = channelId.trim();
+    if (key.isEmpty) return;
+    final members = _channelMembers.putIfAbsent(key, () => []);
+    for (final mxid in invite.map((value) => value.trim())) {
+      if (mxid.isEmpty) continue;
+      members.removeWhere((member) => member.userMxid.trim() == mxid);
+      members.add(
+        AsChannelMember(
+          channelId: key,
+          userMxid: mxid,
+          role: asChannelRoleMember,
+          status: 'invited',
+        ),
+      );
+    }
+  }
+
+  @override
   Future<AsChannel> approveChannelJoin(
     String channelId,
     String userMxid,
@@ -1098,6 +1121,7 @@ class MockAsClient implements AsClient {
   Future<AsGroupResult> createGroup({
     required String name,
     required List<String> invite,
+    String avatarUrl = '',
   }) async {
     await Future.delayed(_latency);
     return AsGroupResult(
@@ -1105,6 +1129,23 @@ class MockAsClient implements AsClient {
       name: name.trim(),
       memberCount: 1,
       invitedCount: invite.where((mxid) => mxid.trim().isNotEmpty).length,
+      role: 'owner',
+    );
+  }
+
+  @override
+  Future<AsGroupResult> updateGroupProfile({
+    required String roomId,
+    String name = '',
+    String topic = '',
+    String avatarUrl = '',
+  }) async {
+    await Future.delayed(_latency);
+    return AsGroupResult(
+      roomId: roomId.trim(),
+      name: name.trim().isEmpty ? '群聊' : name.trim(),
+      memberCount: 1,
+      invitedCount: 0,
       role: 'owner',
     );
   }

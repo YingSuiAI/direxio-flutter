@@ -270,6 +270,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   static const adminAccessTokenKey = 'admin_access_token';
   static const lastLoginHomeserverKey = 'last_login_homeserver';
   static const lastLoginPortalTokenKey = 'last_login_portal_token';
+  bool _sessionExpiredLocally = false;
 
   @override
   Future<AuthState> build() async {
@@ -302,6 +303,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         ? portalToken
         : lastLoginPortalToken;
     final storedHomeserver = homeserver ?? lastLoginHomeserver;
+    if (_sessionExpiredLocally) {
+      return const AuthState(isLoggedIn: false);
+    }
 
     if (token != null && homeserver != null && userId != null) {
       try {
@@ -326,6 +330,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           deviceId,
         );
         await _loadChatClearState();
+        if (_sessionExpiredLocally) {
+          return const AuthState(isLoggedIn: false);
+        }
         return AuthState(
           isLoggedIn: true,
           userId: client.userID ?? userId,
@@ -337,6 +344,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       }
     }
     final restored = await _restoreMatrixSdkSession(client, storedPortalToken);
+    if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
     if (restored != null) return restored;
     if ((storedPortalToken?.trim().isNotEmpty ?? false) &&
         (storedHomeserver?.trim().isNotEmpty ?? false)) {
@@ -345,6 +353,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         homeserver: storedHomeserver,
         portalToken: storedPortalToken,
       );
+      if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
       if (portalRestored != null) return portalRestored;
     }
     return const AuthState(isLoggedIn: false);
@@ -378,6 +387,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   }
 
   Future<void> login(String homeserverUrl, String portalToken) async {
+    _sessionExpiredLocally = false;
     await _loginWithPortal(homeserverUrl, portalToken);
   }
 
@@ -984,6 +994,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     String? portalToken,
     String deviceId,
   ) async {
+    if (_sessionExpiredLocally) {
+      throw StateError('登录态已失效，请重新登录');
+    }
     try {
       final tokenOwner = await client.getTokenOwner();
       if (tokenOwner.userId == expectedUserId) return;
@@ -1014,6 +1027,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       sessionDeviceId: session.deviceId,
       storedDeviceId: deviceId,
     );
+    if (_sessionExpiredLocally) {
+      throw StateError('登录态已失效，请重新登录');
+    }
     await _applyRefreshedSession(
       client,
       homeserver,
@@ -1346,6 +1362,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<void> expireSessionDueInvalidToken() async {
     final client = ref.read(matrixClientProvider);
+    _sessionExpiredLocally = true;
     debugPrint('access token rejected; expiring local session');
     await _clearUserScopedLocalState(client);
     await _storage.delete(key: 'matrix_token');
@@ -1353,6 +1370,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _storage.delete(key: 'matrix_user_id');
     await _storage.delete(key: 'matrix_device_id');
     await _storage.delete(key: AuthStateNotifier.adminAccessTokenKey);
+    await _storage.delete(key: lastLoginPortalTokenKey);
     ref.read(sessionExpiredNoticeProvider.notifier).state++;
     state = const AsyncData(AuthState(isLoggedIn: false));
   }

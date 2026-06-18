@@ -10,7 +10,14 @@ import 'auth_provider.dart';
 
 final localCreatedChannelsProvider = StateNotifierProvider<
     LocalCreatedChannelsNotifier, List<ChannelCreatedCacheEntry>>((ref) {
-  final userId = ref.watch(matrixClientProvider).userID ?? '';
+  final auth = ref.exists(authStateNotifierProvider)
+      ? ref.watch(authStateNotifierProvider).valueOrNull
+      : null;
+  final authUserId = auth?.isLoggedIn == true ? auth?.userId?.trim() ?? '' : '';
+  final matrixUserId = auth?.isLoggedIn == false
+      ? ''
+      : ref.watch(matrixClientProvider).userID?.trim() ?? '';
+  final userId = authUserId.isNotEmpty ? authUserId : matrixUserId;
   return LocalCreatedChannelsNotifier(userId)..load();
 });
 
@@ -51,6 +58,18 @@ class LocalCreatedChannelsNotifier
       createdAt: createdAt.toUtc(),
     );
     state = _dedupeAndSort([entry, ...state]);
+    await _save();
+  }
+
+  Future<void> removeChannel(String channelIdOrRoomId) async {
+    final trimmed = channelIdOrRoomId.trim();
+    if (trimmed.isEmpty) return;
+    final next = state.where((entry) {
+      return entry.channel.channelId.trim() != trimmed &&
+          entry.channel.roomId.trim() != trimmed;
+    }).toList(growable: false);
+    if (next.length == state.length) return;
+    state = next;
     await _save();
   }
 

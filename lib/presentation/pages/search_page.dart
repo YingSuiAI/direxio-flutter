@@ -17,6 +17,7 @@ import '../providers/auth_provider.dart';
 import '../mock/mock_channels.dart';
 import '../mock/mock_data.dart';
 import '../groups/group_invite_content.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../widgets/m3/m3_search_field.dart';
@@ -187,9 +188,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         if (room.membership != Membership.join) continue;
         final acceptedContact = syncCache.acceptedContactForRoom(room.id);
         final peerMxid = productDirectPeerMxid(room) ?? acceptedContact?.userId;
+        final memberName = directPeerMemberDisplayName(room, peerMxid);
         final name = contactDisplayNameFromIdentity(
           mxid: peerMxid ?? '',
-          displayName: acceptedContact?.displayName ?? '',
+          displayName: memberName.isNotEmpty
+              ? memberName
+              : acceptedContact?.displayName ?? '',
           domain: acceptedContact?.domain ?? '',
           fallback: room.getLocalizedDisplayname(),
         );

@@ -370,6 +370,85 @@ void main() {
     expect(merged.first.latestAt, DateTime.parse('2026-06-17T10:20:00Z'));
   });
 
+  test('hides exited or dissolved channels from inbox data', () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-18T10:30:00Z'),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_joined',
+          roomId: '!joined:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '正常频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-18T10:20:00Z'),
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+        AsSyncRoomSummary(
+          channelId: 'ch_removed',
+          roomId: '!removed:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '已解散频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-18T10:21:00Z'),
+          memberStatus: 'removed',
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final bootstrapItems = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+    );
+    expect(bootstrapItems.map((item) => item.id), ['ch_joined']);
+
+    final listedItems = ChannelInboxData.fromChannels(
+      const [
+        AsChannel(
+          channelId: 'ch_removed',
+          roomId: '!removed:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '已解散频道',
+          memberStatus: 'removed',
+        ),
+      ],
+      fallbackDomain: 'p2p-im.com',
+      bootstrap: bootstrap,
+    );
+    expect(listedItems, isEmpty);
+  });
+
+  test('hidden bootstrap channel suppresses local created cache entry', () {
+    final cachedAt = DateTime.parse('2026-06-18T10:30:00Z');
+    final merged = ChannelInboxData.mergeCreatedCache(
+      const <ChannelInboxItem>[],
+      [
+        ChannelCreatedCacheEntry(
+          channel: const AsChannel(
+            channelId: 'ch_removed',
+            roomId: '!removed:p2p-im.com',
+            homeDomain: 'p2p-im.com',
+            name: '已解散频道',
+          ),
+          createdAt: cachedAt,
+        ),
+      ],
+      fallbackDomain: 'p2p-im.com',
+      hiddenChannelKeys: const {
+        'channel:ch_removed',
+        'room:!removed:p2p-im.com',
+      },
+    );
+
+    expect(merged, isEmpty);
+  });
+
   test('does not expose matrix room id as bootstrap channel name', () {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),

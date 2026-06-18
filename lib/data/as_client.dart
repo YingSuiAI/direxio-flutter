@@ -625,6 +625,62 @@ class AsSyncRoomSummary {
     );
   }
 
+  AsSyncRoomSummary withName(String nextName) {
+    return AsSyncRoomSummary(
+      channelId: channelId,
+      roomId: roomId,
+      homeDomain: homeDomain,
+      name: nextName.trim().isEmpty ? name : nextName.trim(),
+      avatarUrl: avatarUrl,
+      unreadCount: unreadCount,
+      lastActivityAt: lastActivityAt,
+      description: description,
+      topic: topic,
+      isOwned: isOwned,
+      tags: tags,
+      invitePolicy: invitePolicy,
+      visibility: visibility,
+      joinPolicy: joinPolicy,
+      commentsEnabled: commentsEnabled,
+      channelType: channelType,
+      role: role,
+      memberStatus: memberStatus,
+      memberCount: memberCount,
+      pendingJoinCount: pendingJoinCount,
+    );
+  }
+
+  AsSyncRoomSummary withProfile({
+    String? name,
+    String? avatarUrl,
+    String? topic,
+  }) {
+    return AsSyncRoomSummary(
+      channelId: channelId,
+      roomId: roomId,
+      homeDomain: homeDomain,
+      name: name?.trim().isNotEmpty == true ? name!.trim() : this.name,
+      avatarUrl: avatarUrl?.trim().isNotEmpty == true
+          ? avatarUrl!.trim()
+          : this.avatarUrl,
+      unreadCount: unreadCount,
+      lastActivityAt: lastActivityAt,
+      description: description,
+      topic: topic?.trim().isNotEmpty == true ? topic!.trim() : this.topic,
+      isOwned: isOwned,
+      tags: tags,
+      invitePolicy: invitePolicy,
+      visibility: visibility,
+      joinPolicy: joinPolicy,
+      commentsEnabled: commentsEnabled,
+      channelType: channelType,
+      role: role,
+      memberStatus: memberStatus,
+      memberCount: memberCount,
+      pendingJoinCount: pendingJoinCount,
+    );
+  }
+
   AsSyncRoomSummary withUnreadCount(int count) {
     return AsSyncRoomSummary(
       channelId: channelId,
@@ -1596,6 +1652,12 @@ abstract class AsClient {
     String status = '',
   });
 
+  /// POST /_as/channels/{channelId}/invite
+  Future<void> inviteChannelMembers({
+    required String channelId,
+    required List<String> invite,
+  });
+
   /// POST /_as/channels/{channelId}/join-requests/{userMxid}/approve
   Future<AsChannel> approveChannelJoin(String channelId, String userMxid);
 
@@ -1685,6 +1747,15 @@ abstract class AsClient {
   Future<AsGroupResult> createGroup({
     required String name,
     required List<String> invite,
+    String avatarUrl = '',
+  });
+
+  /// PUT /_as/groups/{roomId}
+  Future<AsGroupResult> updateGroupProfile({
+    required String roomId,
+    String name = '',
+    String topic = '',
+    String avatarUrl = '',
   });
 
   /// POST /_as/groups/{roomId}/invite

@@ -33,6 +33,7 @@ import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
 import '../widgets/app_glass_background.dart';
 import '../widgets/m3/m3_search_field.dart';
+import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import 'me_home_tab.dart';
@@ -539,18 +540,19 @@ String _homeSyncSignature(Client client) {
         lastEvent?.originServerTs.millisecondsSinceEpoch.toString() ?? '',
         room.notificationCount.toString(),
         room.highlightCount.toString(),
-        _roomMemberAvatarSignature(client, room),
+        _roomMemberProfileSignature(client, room),
       ].join(','),
     );
   }
   return parts.join('|');
 }
 
-String _roomMemberAvatarSignature(Client client, Room room) {
+String _roomMemberProfileSignature(Client client, Room room) {
   final users = room.getParticipants()..sort((a, b) => a.id.compareTo(b.id));
   return users.map((user) {
     final avatar = matrixContentHttpUrl(client, user.avatarUrl) ?? '';
-    return '${user.id}:$avatar';
+    final displayName = user.displayName?.trim() ?? '';
+    return '${user.id}:$displayName:$avatar';
   }).join(';');
 }
 
@@ -1416,7 +1418,11 @@ class _ChatList extends ConsumerWidget {
       final roomId = group.roomId.trim();
       if (roomId.isEmpty || !asGroupRoomIds.contains(roomId)) continue;
       visibleConversations.add(
-        _VisibleConversation.group(group, client.getRoomById(roomId)),
+        _VisibleConversation.group(
+          group,
+          client.getRoomById(roomId),
+          asRoomSummariesByRoomId[roomId],
+        ),
       );
     }
 
@@ -1658,11 +1664,16 @@ class _VisibleConversation {
     );
   }
 
-  factory _VisibleConversation.group(AsSyncRoomSummary group, Room? room) {
+  factory _VisibleConversation.group(
+    AsSyncRoomSummary group,
+    Room? room, [
+    AsSyncRoomSummary? roomSummary,
+  ]) {
     return _VisibleConversation._(
       roomId: group.roomId.trim(),
       room: room,
       group: group,
+      roomSummary: roomSummary,
       isGroup: true,
     );
   }
@@ -1763,9 +1774,11 @@ String _conversationDisplayName(
   }
   final contact = conversation.contact;
   if (contact != null) {
+    final memberName =
+        directPeerMemberDisplayName(conversation.room, contact.userId);
     final label = contactDisplayNameFromIdentity(
       mxid: contact.userId,
-      displayName: contact.displayName,
+      displayName: memberName.isNotEmpty ? memberName : contact.displayName,
       domain: contact.domain,
     );
     if (label.isNotEmpty) return label;
@@ -2380,10 +2393,13 @@ class _ContactList extends ConsumerWidget {
             .toList()
         : acceptedContacts.map((contact) {
             final peerMxid = contact.userId.trim();
+            final room = client.getRoomById(contact.roomId.trim());
+            final memberName = directPeerMemberDisplayName(room, peerMxid);
             return _ContactListEntry(
               name: contactDisplayNameFromIdentity(
                 mxid: peerMxid,
-                displayName: contact.displayName,
+                displayName:
+                    memberName.isNotEmpty ? memberName : contact.displayName,
                 domain: contact.domain,
               ),
               mxid: peerMxid,

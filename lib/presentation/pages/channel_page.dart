@@ -79,8 +79,10 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
               children: [
-                const _ChannelIntroPill(),
-                const SizedBox(height: 20),
+                if (channel.posts.isNotEmpty) ...[
+                  const _ChannelIntroPill(),
+                  const SizedBox(height: 20),
+                ],
                 for (final post in channel.posts) ...[
                   _ChannelPostCard(
                     channel: channel,
@@ -361,8 +363,10 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
               children: [
-                const _ChannelIntroPill(),
-                const SizedBox(height: 20),
+                if (posts.isNotEmpty) ...[
+                  const _ChannelIntroPill(),
+                  const SizedBox(height: 20),
+                ],
                 if (postsAsync.isLoading && postsAsync.valueOrNull == null)
                   const Padding(
                     padding: EdgeInsets.only(top: 48),
@@ -392,17 +396,6 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
                         },
                       ),
                     )
-                else if (channel.latestPreview.isNotEmpty &&
-                    channel.latestPreview != '暂无频道动态')
-                  _ChannelTopicCard(
-                    channel: channel,
-                    selected: widget.selected.contains('topic'),
-                    multiSelect: widget.multiSelect,
-                    onTap: widget.multiSelect
-                        ? () => widget.onTogglePost('topic')
-                        : null,
-                    onLongPress: () => widget.onEnterMultiSelect('topic'),
-                  )
                 else
                   const Padding(
                     padding: EdgeInsets.only(top: 72),
@@ -566,23 +559,17 @@ class _PublicChannelScaffoldState
         subtitle: '该频道可能是私密频道、已删除，或目标节点暂时不可达',
       );
     }
-    final item = _channelItemFromPublicChannel(channel);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-      children: [
-        const _ChannelIntroPill(),
-        const SizedBox(height: 20),
-        if (item.latestPreview.isNotEmpty && item.latestPreview != '暂无频道动态')
-          _ChannelTopicCard(channel: item)
-        else
-          const Padding(
-            padding: EdgeInsets.only(top: 72),
-            child: _ChannelEmptyState(
-              icon: Symbols.campaign,
-              title: '还没有公开内容',
-              subtitle: '加入频道后可以查看后续发布内容',
-            ),
+      children: const [
+        Padding(
+          padding: EdgeInsets.only(top: 72),
+          child: _ChannelEmptyState(
+            icon: Symbols.campaign,
+            title: '还没有公开内容',
+            subtitle: '加入频道后可以查看后续发布内容',
           ),
+        ),
       ],
     );
   }
@@ -640,9 +627,8 @@ Widget? _channelTitleLock(BuildContext context, String visibility) {
 
 String _postChannelTitle(String name) {
   final trimmed = name.trim();
-  if (trimmed.isEmpty) return '#频道';
-  if (trimmed.startsWith('#')) return trimmed;
-  return '#$trimmed';
+  if (trimmed.isEmpty) return '频道';
+  return trimmed.startsWith('#') ? trimmed.substring(1).trim() : trimmed;
 }
 
 void _openJoinedPublicChannel(
@@ -663,38 +649,6 @@ void _openJoinedPublicChannel(
       joined.name.trim().isEmpty ? fallback.name.trim() : joined.name.trim();
   final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
   context.go('/channel/$encodedChannelId/conversation$query');
-}
-
-ChannelInboxItem _channelItemFromPublicChannel(AsChannel channel) {
-  final roomId = channel.roomId.trim();
-  final channelId = channel.channelId.trim();
-  final fallbackId = channelId.isEmpty ? roomId : channelId;
-  return ChannelInboxItem(
-    id: fallbackId,
-    roomId: roomId,
-    name: channel.name.trim().isEmpty ? '未命名频道' : channel.name.trim(),
-    domain: channel.homeDomain.trim().isEmpty
-        ? _domainFromRoomId(roomId) ?? ''
-        : channel.homeDomain.trim(),
-    avatarUrl: channel.avatarUrl,
-    latestPreview: channel.description.trim().isEmpty
-        ? '暂无频道动态'
-        : channel.description.trim(),
-    latestAt: channel.latestActivityAt,
-    unreadCount: 0,
-    isOwned: channel.role == asChannelRoleOwner ||
-        channel.role == asChannelRoleAdmin,
-    tags: channel.tags,
-    description: channel.description,
-    visibility: channel.visibility,
-    joinPolicy: channel.joinPolicy,
-    commentsEnabled: channel.commentsEnabled,
-    channelType: channel.channelType,
-    role: channel.role,
-    memberStatus: channel.memberStatus,
-    memberCount: channel.memberCount,
-    pendingJoinCount: channel.pendingJoinCount,
-  );
 }
 
 class _PublicChannelJoinBar extends StatelessWidget {
@@ -1276,160 +1230,6 @@ String _formatPostTime(int originServerTs) {
   return '${dt.month}.${dt.day}';
 }
 
-String _formatTopicTime(DateTime? latestAt) {
-  if (latestAt == null) return '';
-  final dt = latestAt.toLocal();
-  final now = DateTime.now();
-  final sameDay =
-      dt.year == now.year && dt.month == now.month && dt.day == now.day;
-  if (sameDay) {
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
-  return '${dt.month}.${dt.day}';
-}
-
-class _ChannelTopicCard extends StatefulWidget {
-  const _ChannelTopicCard({
-    required this.channel,
-    this.selected = false,
-    this.multiSelect = false,
-    this.onTap,
-    this.onLongPress,
-  });
-
-  final ChannelInboxItem channel;
-  final bool selected;
-  final bool multiSelect;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-
-  @override
-  State<_ChannelTopicCard> createState() => _ChannelTopicCardState();
-}
-
-class _ChannelTopicCardState extends State<_ChannelTopicCard> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final title = _postTitle(widget.channel.latestPreview);
-    final excerpt = _postExcerpt(widget.channel.latestPreview, title);
-    final author =
-        widget.channel.name.trim().isEmpty ? '频道主' : widget.channel.name.trim();
-    final time = _formatTopicTime(widget.channel.latestAt);
-    return GestureDetector(
-      onTap: widget.onTap,
-      onLongPress: widget.onLongPress,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-        decoration: BoxDecoration(
-          color: widget.selected ? t.accent.withValues(alpha: 0.12) : t.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: widget.selected ? Border.all(color: t.accent) : null,
-          boxShadow: [
-            BoxShadow(
-              color: t.text.withValues(alpha: 0.07),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.multiSelect) ...[
-                  _ChannelSelectCheckmark(
-                    selected: widget.selected,
-                    onTap: widget.onTap,
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                _PostListAvatar(label: author),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              author,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.sans(
-                                size: 16,
-                                weight: FontWeight.w600,
-                                color: t.text,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const _PostTypeBadge(),
-                        ],
-                      ),
-                      const SizedBox(height: 1),
-                      if (time.isNotEmpty)
-                        Text(
-                          time,
-                          style: AppTheme.sans(size: 12, color: t.textMute),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 18,
-                weight: FontWeight.w600,
-                color: t.text,
-              ).copyWith(height: 26 / 18),
-            ),
-            if (excerpt.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              _ExpandablePostExcerpt(
-                excerpt,
-                expanded: _expanded,
-                onToggle: () => setState(() => _expanded = !_expanded),
-              ),
-              const SizedBox(height: 10),
-            ] else ...[
-              const SizedBox(height: 10),
-            ],
-            Row(
-              children: [
-                _PostCommentInput(onTap: widget.onTap),
-                const Spacer(),
-                _PostStatButton(
-                  icon: Symbols.favorite,
-                  count: 0,
-                  onTap: widget.onTap,
-                ),
-                const SizedBox(width: 16),
-                _PostStatButton(
-                  icon: Symbols.chat_bubble,
-                  count: 0,
-                  onTap: widget.onTap,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ChannelPostCard extends StatefulWidget {
   const _ChannelPostCard({
     required this.channel,
@@ -1591,42 +1391,6 @@ class _ChannelPostCreateFab extends StatelessWidget {
             color: t.onAccent,
             weight: 700,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _JoinedChannelStatusBar extends StatelessWidget {
-  const _JoinedChannelStatusBar();
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        decoration: BoxDecoration(
-          color: t.surface,
-          border:
-              Border(top: BorderSide(color: t.border.withValues(alpha: 0.5))),
-        ),
-        child: Row(
-          children: [
-            Icon(Symbols.check_circle, size: 20, color: t.textMute),
-            const SizedBox(width: 8),
-            Text(
-              '已关注',
-              style: AppTheme.sans(
-                size: 15,
-                weight: FontWeight.w600,
-                color: t.text,
-              ),
-            ),
-            const Spacer(),
-            Text('接收通知', style: AppTheme.sans(size: 13, color: t.textMute)),
-          ],
         ),
       ),
     );

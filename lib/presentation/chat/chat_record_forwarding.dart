@@ -304,10 +304,9 @@ List<ChatRecordForwardTarget> chatRecordForwardTargets(
   ];
   final seen = <String>{currentRoomId};
   final bootstrap = syncCache.bootstrap;
-  if (bootstrap == null) return targets;
 
-  for (final contact in bootstrap.contacts) {
-    if (contact.status != 'accepted' || contact.roomId.trim().isEmpty) {
+  for (final contact in syncCache.acceptedContacts) {
+    if (contact.roomId.trim().isEmpty) {
       continue;
     }
     if (!seen.add(contact.roomId)) continue;
@@ -322,6 +321,7 @@ List<ChatRecordForwardTarget> chatRecordForwardTargets(
       ),
     );
   }
+  if (bootstrap == null) return targets;
   for (final group in bootstrap.groups) {
     if (group.roomId.trim().isEmpty || !seen.add(group.roomId)) continue;
     targets.add(

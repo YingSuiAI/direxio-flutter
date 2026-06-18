@@ -67,7 +67,8 @@ void main() {
     expect(find.text('产品公告'), findsAtLeastNWidgets(1));
     expect(find.text('#产品公告'), findsNothing);
     expect(find.text('p2p-im.com · 我的频道'), findsNothing);
-    expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
+    expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsNothing);
+    expect(find.text('还没有频道内容'), findsOneWidget);
     expect(
         find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);
     expect(find.text('频道不存在'), findsNothing);
@@ -118,7 +119,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('#私密帖子'), findsOneWidget);
+    expect(find.text('私密帖子'), findsOneWidget);
+    expect(find.text('#私密帖子'), findsNothing);
     expect(find.byIcon(Symbols.lock), findsOneWidget);
   });
 
@@ -289,7 +291,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsNothing);
     expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
     expect(find.text('第一条帖子'), findsOneWidget);
     expect(
@@ -888,6 +891,77 @@ void main() {
 
     expect(find.text('移除频道成员'), findsOneWidget);
     expect(find.text('Alex Chen'), findsOneWidget);
+  });
+
+  testWidgets('owned channel member avatar opens current user profile',
+      (tester) async {
+    final asClient = _ChannelInfoMembersAsClient();
+    final matrixClient = Client('ChannelInfoAvatarProfileTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 1,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/channel/ch_real/info',
+      routes: [
+        GoRoute(
+          path: '/channel/:channelId/info',
+          builder: (_, state) => ChannelInfoPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/me/profile',
+          builder: (_, __) => const Scaffold(body: Text('个人信息页面')),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('channel_member_avatar_@owner:p2p-im.com')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('个人信息页面'), findsOneWidget);
   });
 
   testWidgets('owned channel info mute switch calls AS APIs', (tester) async {

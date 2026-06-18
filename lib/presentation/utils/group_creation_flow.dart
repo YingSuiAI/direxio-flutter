@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
@@ -17,6 +20,7 @@ import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../widgets/m3/m3_search_field.dart';
+import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/portal_avatar.dart';
 
 final groupCreationSyncAfterCreateProvider = Provider<bool>((ref) => true);
@@ -53,10 +57,22 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
   if (result == null || !context.mounted) return;
 
   try {
-    final ownerAvatarUrl = await _currentUserAvatarUrl(ref);
+    final pickedAvatarBytes = result.avatarBytes;
+    final pickedAvatarUrl = pickedAvatarBytes == null
+        ? ''
+        : (await client.uploadContent(
+            pickedAvatarBytes,
+            filename: 'group-avatar.png',
+            contentType: 'image/png',
+          ))
+            .toString();
+    final ownerAvatarUrl = pickedAvatarUrl.isNotEmpty
+        ? pickedAvatarUrl
+        : await _currentUserAvatarUrl(ref);
     final group = await ref.read(asClientProvider).createGroup(
           name: result.name,
           invite: result.inviteMxids,
+          avatarUrl: pickedAvatarUrl,
         );
     final roomId = group.roomId;
     _ensureOptimisticGroupRoom(
@@ -239,10 +255,12 @@ class _CreateGroupResult {
   const _CreateGroupResult({
     required this.name,
     required this.inviteMxids,
+    this.avatarBytes,
   });
 
   final String name;
   final List<String> inviteMxids;
+  final Uint8List? avatarBytes;
 }
 
 class _CreateGroupScreen extends StatefulWidget {
@@ -260,22 +278,32 @@ class _CreateGroupScreen extends StatefulWidget {
 
 class _CreateGroupScreenState extends State<_CreateGroupScreen> {
   final TextEditingController _queryController = TextEditingController();
+  final TextEditingController _groupNameController = TextEditingController();
+  final FocusNode _groupNameFocusNode = FocusNode();
   final Set<String> _selectedMxids = <String>{};
+  Uint8List? _groupAvatarBytes;
+  bool _showGroupSetup = false;
+  bool _avatarPicking = false;
 
   @override
   void initState() {
     super.initState();
     _queryController.addListener(_onQueryChanged);
+    _groupNameController.addListener(_onGroupNameChanged);
   }
 
   @override
   void dispose() {
     _queryController.removeListener(_onQueryChanged);
+    _groupNameController.removeListener(_onGroupNameChanged);
     _queryController.dispose();
+    _groupNameController.dispose();
+    _groupNameFocusNode.dispose();
     super.dispose();
   }
 
   void _onQueryChanged() => setState(() {});
+  void _onGroupNameChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
@@ -288,105 +316,143 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
         return a.compareTo(b);
       });
     final canComplete = _selectedMxids.isNotEmpty;
+    final selectedContacts = _selectedContacts();
 
     return Material(
       color: _createGroupBg,
-      child: SafeArea(
-        bottom: false,
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                SizedBox(
-                  height: 56,
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        left: 16,
-                        top: 4,
-                        child: _CreateGroupCircleButton(
-                          tooltip: '返回',
-                          icon: Symbols.arrow_back,
-                          onTap: () => Navigator.of(context).pop(),
-                        ),
-                      ),
-                      Positioned.fill(
-                        top: 13,
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: Text(
-                            '发起群聊',
-                            style: AppTheme.sans(
-                              size: 16,
-                              weight: FontWeight.w700,
-                              color: _createGroupText,
-                            ).copyWith(letterSpacing: -0.4011),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: SafeArea(
+          bottom: false,
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  SizedBox(
+                    height: 56,
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 16,
+                          top: 4,
+                          child: _CreateGroupCircleButton(
+                            tooltip: '返回',
+                            icon: Symbols.arrow_back,
+                            onTap: _showGroupSetup
+                                ? () => setState(() => _showGroupSetup = false)
+                                : () => Navigator.of(context).pop(),
                           ),
                         ),
-                      ),
-                      Positioned(
-                        right: 16,
-                        top: 10,
-                        child: _CreateGroupDoneButton(
-                          enabled: canComplete,
-                          count: _selectedMxids.length,
-                          onTap: canComplete ? _complete : null,
+                        Positioned.fill(
+                          top: 13,
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: Text(
+                              _showGroupSetup ? '创建群聊' : '发起群聊',
+                              style: AppTheme.sans(
+                                size: _showGroupSetup ? 20 : 16,
+                                weight: FontWeight.w700,
+                                color: _createGroupText,
+                              ),
+                            ),
+                          ),
                         ),
+                        if (_showGroupSetup)
+                          const Positioned(
+                            right: 16,
+                            top: 10,
+                            child: SizedBox(width: 48, height: 30),
+                          )
+                        else
+                          Positioned(
+                            right: 16,
+                            top: 10,
+                            child: _CreateGroupDoneButton(
+                              enabled: canComplete,
+                              count: _selectedMxids.length,
+                              onTap: canComplete ? _showSetup : null,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (_showGroupSetup)
+                    Expanded(
+                      child: _CreateGroupSetupStep(
+                        controller: _groupNameController,
+                        focusNode: _groupNameFocusNode,
+                        selectedContacts: selectedContacts,
+                        avatarBytes: _groupAvatarBytes,
+                        avatarPicking: _avatarPicking,
+                        contactName: _contactName,
+                        contactAvatarUrl: (contact) => avatarHttpUrl(
+                          widget.client,
+                          contact.avatarUrl,
+                        ),
+                        onAvatarTap: _pickGroupAvatar,
+                        canSubmit: canComplete,
+                        onSubmit: canComplete ? _complete : null,
                       ),
-                    ],
+                    )
+                  else ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                      child: _CreateGroupSearchField(
+                        controller: _queryController,
+                      ),
+                    ),
+                    const SizedBox(height: 13),
+                    Expanded(
+                      child: widget.contacts.isEmpty
+                          ? const _CreateGroupEmptyState(
+                              title: '暂无可邀请联系人',
+                              subtitle: '先添加好友后再发起群聊',
+                            )
+                          : filteredContacts.isEmpty
+                              ? const _CreateGroupEmptyState(
+                                  title: '没有找到好友',
+                                  subtitle: '换个 ID、昵称或邮箱试试',
+                                )
+                              : ListView(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(0, 0, 0, 28),
+                                  children: [
+                                    for (final sectionKey in sectionKeys) ...[
+                                      _CreateGroupSectionHeader(sectionKey),
+                                      ...groupedContacts[sectionKey]!.map(
+                                        (contact) {
+                                          final mxid = contact.userId.trim();
+                                          return _CreateGroupContactRow(
+                                            name: _contactName(contact),
+                                            avatarUrl: avatarHttpUrl(
+                                              widget.client,
+                                              contact.avatarUrl,
+                                            ),
+                                            selected:
+                                                _selectedMxids.contains(mxid),
+                                            onTap: () => _toggle(mxid),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                    ),
+                  ],
+                ],
+              ),
+              if (!_showGroupSetup && filteredContacts.isNotEmpty)
+                Positioned(
+                  top: 193,
+                  right: 12,
+                  bottom: 30,
+                  child: _CreateGroupAlphabetIndex(
+                    activeLetters: sectionKeys.toSet(),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                  child: _CreateGroupSearchField(controller: _queryController),
-                ),
-                const SizedBox(height: 13),
-                Expanded(
-                  child: widget.contacts.isEmpty
-                      ? const _CreateGroupEmptyState(
-                          title: '暂无可邀请联系人',
-                          subtitle: '先添加好友后再发起群聊',
-                        )
-                      : filteredContacts.isEmpty
-                          ? const _CreateGroupEmptyState(
-                              title: '没有找到好友',
-                              subtitle: '换个 ID、昵称或邮箱试试',
-                            )
-                          : ListView(
-                              padding: const EdgeInsets.fromLTRB(0, 0, 0, 28),
-                              children: [
-                                for (final sectionKey in sectionKeys) ...[
-                                  _CreateGroupSectionHeader(sectionKey),
-                                  ...groupedContacts[sectionKey]!.map(
-                                    (contact) {
-                                      final mxid = contact.userId.trim();
-                                      return _CreateGroupContactRow(
-                                        name: _contactName(contact),
-                                        avatarUrl: avatarHttpUrl(
-                                          widget.client,
-                                          contact.avatarUrl,
-                                        ),
-                                        selected: _selectedMxids.contains(mxid),
-                                        onTap: () => _toggle(mxid),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ],
-                            ),
-                ),
-              ],
-            ),
-            if (filteredContacts.isNotEmpty)
-              Positioned(
-                top: 193,
-                right: 12,
-                bottom: 30,
-                child: _CreateGroupAlphabetIndex(
-                  activeLetters: sectionKeys.toSet(),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -417,6 +483,21 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
     );
   }
 
+  List<AsSyncContact> _selectedContacts() {
+    return widget.contacts
+        .where((contact) => _selectedMxids.contains(contact.userId.trim()))
+        .toList(growable: false);
+  }
+
+  void _showSetup() {
+    if (_selectedMxids.isEmpty) return;
+    setState(() => _showGroupSetup = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _groupNameFocusNode.requestFocus();
+    });
+  }
+
   void _toggle(String mxid) {
     if (mxid.isEmpty) return;
     setState(() {
@@ -428,15 +509,329 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
     });
   }
 
+  Future<void> _pickGroupAvatar() async {
+    if (_avatarPicking) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _avatarPicking = true);
+    try {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 92,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        requestFullMetadata: false,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      await showAvatarAdjustSheet(
+        context,
+        imageBytes: bytes,
+        onConfirm: (adjustedBytes) async {
+          if (!mounted) return;
+          setState(() => _groupAvatarBytes = adjustedBytes);
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('选择群头像失败: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _avatarPicking = false);
+    }
+  }
+
   void _complete() {
     if (_selectedMxids.isEmpty) return;
-    final selectedContacts = widget.contacts
-        .where((contact) => _selectedMxids.contains(contact.userId.trim()))
-        .toList(growable: false);
+    final selectedContacts = _selectedContacts();
+    final typedName = _groupNameController.text.trim();
     Navigator.of(context).pop(
       _CreateGroupResult(
-        name: _defaultGroupName(selectedContacts),
+        name:
+            typedName.isEmpty ? _defaultGroupName(selectedContacts) : typedName,
         inviteMxids: _selectedMxids.toList(growable: false),
+        avatarBytes: _groupAvatarBytes,
+      ),
+    );
+  }
+}
+
+class _CreateGroupSetupStep extends StatelessWidget {
+  const _CreateGroupSetupStep({
+    required this.controller,
+    required this.focusNode,
+    required this.selectedContacts,
+    required this.avatarBytes,
+    required this.avatarPicking,
+    required this.contactName,
+    required this.contactAvatarUrl,
+    required this.onAvatarTap,
+    required this.canSubmit,
+    required this.onSubmit,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final List<AsSyncContact> selectedContacts;
+  final Uint8List? avatarBytes;
+  final bool avatarPicking;
+  final String Function(AsSyncContact contact) contactName;
+  final String? Function(AsSyncContact contact) contactAvatarUrl;
+  final VoidCallback onAvatarTap;
+  final bool canSubmit;
+  final VoidCallback? onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 24),
+            children: [
+              _CreateGroupInfoCard(
+                controller: controller,
+                focusNode: focusNode,
+                avatarBytes: avatarBytes,
+                avatarPicking: avatarPicking,
+                onAvatarTap: onAvatarTap,
+              ),
+              const SizedBox(height: 12),
+              _CreateGroupSelectedMembersCard(
+                selectedContacts: selectedContacts,
+                contactName: contactName,
+                contactAvatarUrl: contactAvatarUrl,
+              ),
+            ],
+          ),
+        ),
+        _CreateGroupSubmitBar(enabled: canSubmit, onTap: onSubmit),
+      ],
+    );
+  }
+}
+
+class _CreateGroupInfoCard extends StatelessWidget {
+  const _CreateGroupInfoCard({
+    required this.controller,
+    required this.focusNode,
+    required this.avatarBytes,
+    required this.avatarPicking,
+    required this.onAvatarTap,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final Uint8List? avatarBytes;
+  final bool avatarPicking;
+  final VoidCallback onAvatarTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final pickedAvatarBytes = avatarBytes;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Semantics(
+            button: true,
+            label: '选择群头像',
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                key: const ValueKey('create_group_avatar_picker'),
+                onTap: avatarPicking ? null : onAvatarTap,
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: t.surfaceHover,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.antiAlias,
+                  child: avatarPicking
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: t.accent,
+                          ),
+                        )
+                      : pickedAvatarBytes == null
+                          ? const Icon(
+                              Symbols.photo_camera,
+                              size: 24,
+                              color: _createGroupMuted,
+                            )
+                          : Image.memory(
+                              pickedAvatarBytes,
+                              width: 48,
+                              height: 48,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                            ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              key: const ValueKey('create_group_name_field'),
+              controller: controller,
+              focusNode: focusNode,
+              maxLength: 16,
+              cursorColor: _createGroupAccent,
+              style: AppTheme.sans(size: 17, color: _createGroupText),
+              decoration: InputDecoration(
+                hintText: '请输入群聊名称',
+                hintStyle: AppTheme.sans(size: 17, color: _createGroupHint),
+                counterText: '',
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreateGroupSelectedMembersCard extends StatelessWidget {
+  const _CreateGroupSelectedMembersCard({
+    required this.selectedContacts,
+    required this.contactName,
+    required this.contactAvatarUrl,
+  });
+
+  final List<AsSyncContact> selectedContacts;
+  final String Function(AsSyncContact contact) contactName;
+  final String? Function(AsSyncContact contact) contactAvatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: t.surface,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                Text(
+                  '群成员',
+                  style: AppTheme.sans(size: 15, color: _createGroupHint),
+                ),
+                const Spacer(),
+                Text(
+                  '${selectedContacts.length}人',
+                  style: AppTheme.sans(size: 15, color: _createGroupHint),
+                ),
+              ],
+            ),
+          ),
+          GridView.builder(
+            padding: const EdgeInsets.fromLTRB(12, 2, 12, 16),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount:
+                selectedContacts.length > 8 ? 8 : selectedContacts.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 3,
+              mainAxisExtent: 74,
+            ),
+            itemBuilder: (context, index) {
+              final contact = selectedContacts[index];
+              final name = contactName(contact);
+              return Column(
+                children: [
+                  PortalAvatar(
+                    seed: name,
+                    size: 48,
+                    imageUrl: contactAvatarUrl(contact),
+                    shape: AvatarShape.squircle,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(size: 10, color: _createGroupHint),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreateGroupSubmitBar extends StatelessWidget {
+  const _CreateGroupSubmitBar({
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      color: t.surface,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: SafeArea(
+        top: false,
+        child: Material(
+          color: enabled ? t.accent : _createGroupMuted,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              height: 48,
+              width: double.infinity,
+              child: Center(
+                child: Text(
+                  '完成创建',
+                  style: AppTheme.sans(
+                    size: 17,
+                    weight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

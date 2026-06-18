@@ -408,7 +408,7 @@ class HttpAsClient implements AsClient {
       'POST',
       'rooms/${Uri.encodeComponent(roomId)}/messages/delete',
       body: {'event_id': eventId.trim()},
-      allowedStatusCodes: const {200},
+      allowedStatusCodes: const {200, 201, 204},
     );
   }
 
@@ -896,6 +896,24 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<void> inviteChannelMembers({
+    required String channelId,
+    required List<String> invite,
+  }) async {
+    await _requestJson(
+      'POST',
+      'channels/${Uri.encodeComponent(channelId.trim())}/invite',
+      body: {
+        'invite': invite
+            .map((mxid) => mxid.trim())
+            .where((mxid) => mxid.isNotEmpty)
+            .toList(growable: false),
+      },
+      allowedStatusCodes: const {200},
+    );
+  }
+
+  @override
   Future<AsChannel> approveChannelJoin(
     String channelId,
     String userMxid,
@@ -1140,12 +1158,14 @@ class HttpAsClient implements AsClient {
   Future<AsGroupResult> createGroup({
     required String name,
     required List<String> invite,
+    String avatarUrl = '',
   }) async {
     final body = await _requestJson(
       'POST',
       'groups',
       body: {
         'name': name.trim(),
+        if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
         'invite': invite.map((mxid) => mxid.trim()).where((mxid) {
           return mxid.isNotEmpty;
         }).toList(growable: false),
@@ -1155,6 +1175,35 @@ class HttpAsClient implements AsClient {
     final group = AsGroupResult.fromJson(body);
     if (group.roomId.isEmpty) {
       throw AsClientException('AS create group response is missing room_id');
+    }
+    return group;
+  }
+
+  @override
+  Future<AsGroupResult> updateGroupProfile({
+    required String roomId,
+    String name = '',
+    String topic = '',
+    String avatarUrl = '',
+  }) async {
+    final trimmedRoomId = roomId.trim();
+    final body = <String, Object?>{
+      if (name.trim().isNotEmpty) 'name': name.trim(),
+      if (topic.trim().isNotEmpty) 'topic': topic.trim(),
+      if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
+    };
+    if (body.isEmpty) {
+      throw ArgumentError('At least one group profile field is required');
+    }
+    final response = await _requestJson(
+      'PUT',
+      'groups/${Uri.encodeComponent(trimmedRoomId)}',
+      body: body,
+      allowedStatusCodes: const {200},
+    );
+    final group = AsGroupResult.fromJson(response);
+    if (group.roomId.isEmpty) {
+      throw AsClientException('AS update group response is missing room_id');
     }
     return group;
   }

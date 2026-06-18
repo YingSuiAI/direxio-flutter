@@ -67,7 +67,12 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
     final isLoggedIn = client.isLogged();
-    final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
+    final auth = ref.watch(authStateNotifierProvider).valueOrNull;
+    final syncCache = asSyncCacheForUser(
+      ref.watch(asSyncCacheProvider),
+      auth?.userId,
+    );
+    final bootstrap = syncCache.bootstrap;
     final useRealChannels = !_mockAuthEnabled && isLoggedIn;
     final listedChannels =
         useRealChannels ? ref.watch(_channelListProvider).valueOrNull : null;
@@ -75,6 +80,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
         ? ref.watch(localCreatedChannelsProvider)
         : const <ChannelCreatedCacheEntry>[];
     final fallbackDomain = _clientServerName(client);
+    final hiddenChannelKeys = _hiddenChannelKeys(syncCache);
     final sourceChannels = useRealChannels
         ? ChannelInboxData.mergeCreatedCache(
             listedChannels == null
@@ -101,6 +107,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             fallbackDomain: fallbackDomain,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            hiddenChannelKeys: hiddenChannelKeys,
           )
         : _mockChannelItems();
     final joinedChannels = _channelFilteredItems(
@@ -108,10 +115,16 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
       _contentType,
     );
     final ownedChannels = _channelFilteredItems(
-      sourceChannels.where((channel) => channel.isOwned).toList(),
+      sourceChannels
+          .where((channel) => channel.isOwned && !_channelIsDissolved(channel))
+          .toList(),
       _contentType,
     );
     final visibleChannels = _section == '已加入' ? joinedChannels : ownedChannels;
+    final activeChannelKeys = _activeChannelKeys(
+      syncCache,
+      localCreatedChannels,
+    );
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
@@ -212,6 +225,12 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                       'channel_inbox_scroll_${_section}_$_contentType',
                     ),
                     channels: visibleChannels,
+                    onTapChannel: (channel) => _openChannelInboxItem(
+                      context,
+                      channel,
+                      validateExists: useRealChannels && bootstrap != null,
+                      activeChannelKeys: activeChannelKeys,
+                    ),
                   ),
           ),
           Positioned(
@@ -245,8 +264,14 @@ class MeChannelsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final client = ref.watch(matrixClientProvider);
-    final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
+    final auth = ref.watch(authStateNotifierProvider).valueOrNull;
+    final syncCache = asSyncCacheForUser(
+      ref.watch(asSyncCacheProvider),
+      auth?.userId,
+    );
+    final bootstrap = syncCache.bootstrap;
     final localCreatedChannels = ref.watch(localCreatedChannelsProvider);
+    final hiddenChannelKeys = _hiddenChannelKeys(syncCache);
     final channels = bootstrap == null
         ? ChannelInboxData.mergeCreatedCache(
             const <ChannelInboxItem>[],
@@ -267,6 +292,7 @@ class MeChannelsPage extends ConsumerWidget {
             fallbackDomain: _clientServerName(client),
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            hiddenChannelKeys: hiddenChannelKeys,
           ).where((channel) => channel.isOwned).toList(growable: false);
 
     return Scaffold(
@@ -876,11 +902,13 @@ class ChannelInboxList extends StatelessWidget {
     super.key,
     required this.storageKey,
     required this.channels,
+    this.onTapChannel,
     this.bottomPadding = 104,
   });
 
   final PageStorageKey<String> storageKey;
   final List<ChannelInboxItem> channels;
+  final ValueChanged<ChannelInboxItem>? onTapChannel;
   final double bottomPadding;
 
   @override
@@ -893,6 +921,7 @@ class ChannelInboxList extends StatelessWidget {
         key: ValueKey('channel_inbox_tile_${channels[index].id}'),
         channel: channels[index],
         showDivider: index != channels.length - 1,
+        onTap: onTapChannel,
       ),
     );
   }
@@ -903,10 +932,12 @@ class ChannelInboxTile extends StatelessWidget {
     super.key,
     required this.channel,
     required this.showDivider,
+    this.onTap,
   });
 
   final ChannelInboxItem channel;
   final bool showDivider;
+  final ValueChanged<ChannelInboxItem>? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -914,9 +945,14 @@ class ChannelInboxTile extends StatelessWidget {
     return InkWell(
       onTap: channelId.isEmpty
           ? null
-          : () => context.push(
-                _channelRoute(channel),
-              ),
+          : () {
+              final handler = onTap;
+              if (handler == null) {
+                context.push(_channelRoute(channel));
+                return;
+              }
+              handler(channel);
+            },
       child: SizedBox(
         height: 64,
         child: Row(
@@ -1377,6 +1413,82 @@ String _channelRoute(ChannelInboxItem channel) {
   final name = channel.name.trim();
   final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
   return '/channel/$channelId/conversation$query';
+}
+
+void _openChannelInboxItem(
+  BuildContext context,
+  ChannelInboxItem channel, {
+  required bool validateExists,
+  required Set<String> activeChannelKeys,
+}) {
+  if (_channelIsDissolved(channel) ||
+      (validateExists &&
+          !_activeChannelKeysContain(activeChannelKeys, channel))) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('频道已经解散')));
+    return;
+  }
+  context.push(_channelRoute(channel));
+}
+
+Set<String> _activeChannelKeys(
+  AsSyncCacheState syncCache,
+  List<ChannelCreatedCacheEntry> localCreatedChannels,
+) {
+  final keys = <String>{};
+  for (final channel in syncCache.bootstrap?.channels ?? const []) {
+    if (_channelStatusIsDissolved(channel.memberStatus)) continue;
+    _addChannelKeys(keys, channel.channelId, channel.roomId);
+  }
+  for (final entry in localCreatedChannels) {
+    _addChannelKeys(
+      keys,
+      entry.channel.channelId,
+      entry.channel.roomId,
+    );
+  }
+  return keys;
+}
+
+Set<String> _hiddenChannelKeys(AsSyncCacheState syncCache) {
+  final keys = <String>{};
+  for (final channel in syncCache.bootstrap?.channels ?? const []) {
+    if (!_channelStatusIsDissolved(channel.memberStatus)) continue;
+    _addChannelKeys(keys, channel.channelId, channel.roomId);
+  }
+  return keys;
+}
+
+bool _channelIsDissolved(ChannelInboxItem channel) {
+  return _channelStatusIsDissolved(channel.memberStatus);
+}
+
+bool _channelStatusIsDissolved(String status) {
+  final normalized = status.trim().toLowerCase();
+  return normalized == 'removed' ||
+      normalized == 'left' ||
+      normalized == 'dissolved' ||
+      normalized == 'deleted' ||
+      normalized == 'closed';
+}
+
+bool _activeChannelKeysContain(
+  Set<String> keys,
+  ChannelInboxItem channel,
+) {
+  final id = channel.id.trim();
+  final roomId = channel.roomId.trim();
+  return keys.contains('channel:$id') ||
+      keys.contains('room:$id') ||
+      keys.contains('room:$roomId');
+}
+
+void _addChannelKeys(Set<String> keys, String channelId, String roomId) {
+  final trimmedChannelId = channelId.trim();
+  if (trimmedChannelId.isNotEmpty) keys.add('channel:$trimmedChannelId');
+  final trimmedRoomId = roomId.trim();
+  if (trimmedRoomId.isNotEmpty) keys.add('room:$trimmedRoomId');
 }
 
 int _channelPendingCount(List<ChannelInboxItem> channels) {

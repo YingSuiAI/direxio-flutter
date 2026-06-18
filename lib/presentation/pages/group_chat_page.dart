@@ -1525,6 +1525,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }) async {
     final isChannelConversation = widget.channelId?.trim().isNotEmpty ?? false;
     if (isChannelConversation) {
+      if (!room.canSendDefaultMessages) {
+        throw StateError('当前频道已禁言，消息未发送');
+      }
       final eventId = await room.sendTextEvent(
         text,
         inReplyTo: replyTo,
@@ -1580,25 +1583,33 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (room.membership != Membership.join) return false;
     final channelId = widget.channelId?.trim();
     if (channelId != null && channelId.isNotEmpty) {
-      final channels = syncCache.bootstrap?.channels ?? const [];
-      for (final channel in channels) {
-        final cachedChannelId = channel.channelId.trim();
-        final cachedRoomId = channel.roomId.trim();
-        final matchesChannel = cachedChannelId == channelId ||
-            cachedRoomId == channelId ||
-            cachedRoomId == room.id;
-        if (!matchesChannel) continue;
-        final status = channel.memberStatus.trim();
-        return status != asChannelMemberStatusPending &&
-            status != asChannelMemberStatusRejected;
-      }
-      return false;
+      return _isJoinedChannelConversation(room, syncCache) &&
+          room.canSendDefaultMessages;
     }
     final isJoinedAsGroup = syncCache.bootstrap?.groups.any(
           (group) => group.roomId.trim() == room.id,
         ) ??
         false;
     return isJoinedAsGroup;
+  }
+
+  bool _isJoinedChannelConversation(Room room, AsSyncCacheState syncCache) {
+    if (room.membership != Membership.join) return false;
+    final channelId = widget.channelId?.trim();
+    if (channelId == null || channelId.isEmpty) return false;
+    final channels = syncCache.bootstrap?.channels ?? const [];
+    for (final channel in channels) {
+      final cachedChannelId = channel.channelId.trim();
+      final cachedRoomId = channel.roomId.trim();
+      final matchesChannel = cachedChannelId == channelId ||
+          cachedRoomId == channelId ||
+          cachedRoomId == room.id;
+      if (!matchesChannel) continue;
+      final status = channel.memberStatus.trim();
+      return status != asChannelMemberStatusPending &&
+          status != asChannelMemberStatusRejected;
+    }
+    return false;
   }
 
   void _showGroupCannotSendToast(BuildContext context) {
@@ -2411,6 +2422,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
     _scheduleScrollToLatest(newestTimelineItemKey);
     final canSendMessages = _canSendGroupMessage(room, syncCache);
+    final canQueueChannelTextFailure =
+        !canSendMessages && _isJoinedChannelConversation(room, syncCache);
     final myId = ref.read(matrixClientProvider).userID;
     final replyBarVisible = _replyTo != null;
     final selectionBarVisible = _multiSelect;
@@ -3102,6 +3115,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                   plusActive: _showPlusPanel,
                   emojiActive: _showEmojiPanel,
                   enabled: canSendMessages,
+                  textEnabled: canSendMessages || canQueueChannelTextFailure,
+                  sendEnabled: canSendMessages || canQueueChannelTextFailure,
                   onVoiceRecordStart: _startVoiceRecording,
                   onVoiceRecordStop: _stopVoiceRecording,
                   onVoiceRecordCancel: _cancelVoiceRecording,
@@ -3306,6 +3321,15 @@ class _GroupImageMessageBubble extends StatelessWidget {
               ),
             ),
           ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            _MemberAvatar(
+              seed: event.senderId,
+              name: senderName,
+              imageUrl: senderAvatarUrl,
+              onTap: onAvatarTap,
+            ),
+          ],
         ],
       ),
     );
@@ -3653,6 +3677,15 @@ class _GroupFileMessageBubble extends StatelessWidget {
               ),
             ),
           ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            _MemberAvatar(
+              seed: event.senderId,
+              name: senderName,
+              imageUrl: senderAvatarUrl,
+              onTap: onAvatarTap,
+            ),
+          ],
         ],
       ),
     );
@@ -3826,6 +3859,15 @@ class _GroupVoiceMessageBubble extends StatelessWidget {
               ),
             ),
           ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            _MemberAvatar(
+              seed: senderId,
+              name: senderName,
+              imageUrl: senderAvatarUrl,
+              onTap: onAvatarTap,
+            ),
+          ],
         ],
       ),
     );
@@ -4376,6 +4418,15 @@ class _GroupMessageBubble extends StatelessWidget {
               ),
             ),
           ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            _MemberAvatar(
+              seed: event.senderId,
+              name: senderName,
+              imageUrl: senderAvatarUrl,
+              onTap: onAvatarTap,
+            ),
+          ],
         ],
       ),
     );
@@ -4500,6 +4551,8 @@ class _GroupPendingTextBubble extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          const _MemberAvatar(seed: 'me', name: '我'),
         ],
       ),
     );
@@ -4864,6 +4917,15 @@ class _GroupAsCallRecordMessageBubble extends StatelessWidget {
               ),
             ),
           ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            _MemberAvatar(
+              seed: senderId,
+              name: senderName,
+              imageUrl: senderAvatarUrl,
+              onTap: onAvatarTap,
+            ),
+          ],
         ],
       ),
     );
@@ -4956,6 +5018,8 @@ class _GroupPendingMediaBubble extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          const _MemberAvatar(seed: 'me', name: '我'),
         ],
       ),
     );

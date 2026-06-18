@@ -694,8 +694,11 @@ class ChatCapsuleInputBar extends StatefulWidget {
     this.onVoiceRecordStop,
     this.onVoiceRecordCancel,
     this.enabled = true,
+    bool? textEnabled,
+    bool? sendEnabled,
     this.hintText = '',
-  });
+  })  : textEnabled = textEnabled ?? enabled,
+        sendEnabled = sendEnabled ?? enabled;
 
   final TextEditingController ctrl;
   final VoidCallback onSend;
@@ -709,6 +712,8 @@ class ChatCapsuleInputBar extends StatefulWidget {
   final VoidCallback? onVoiceRecordStop;
   final VoidCallback? onVoiceRecordCancel;
   final bool enabled;
+  final bool textEnabled;
+  final bool sendEnabled;
   final String hintText;
 
   @override
@@ -727,11 +732,11 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
   final FocusNode _textFocusNode = FocusNode();
 
   void _focusTextInput() {
-    if (!widget.enabled) return;
+    if (!widget.textEnabled) return;
     if (widget.emojiActive) {
       widget.onEmoji();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !widget.enabled) return;
+        if (!mounted || !widget.textEnabled) return;
         _textFocusNode.requestFocus();
       });
       return;
@@ -739,7 +744,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
     if (widget.plusActive) {
       widget.onPlus();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !widget.enabled) return;
+        if (!mounted || !widget.textEnabled) return;
         _textFocusNode.requestFocus();
       });
     }
@@ -1020,7 +1025,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                                         child: TextField(
                                           controller: widget.ctrl,
                                           focusNode: _textFocusNode,
-                                          enabled: widget.enabled,
+                                          enabled: widget.textEnabled,
                                           onTap: _focusTextInput,
                                           textInputAction:
                                               TextInputAction.newline,
@@ -1087,7 +1092,7 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                         child: hasText
                             ? _ComposerSendButton(
                                 key: const ValueKey('chat_input_send_button'),
-                                enabled: widget.enabled,
+                                enabled: widget.sendEnabled,
                                 onTap: widget.onSend,
                               )
                             : SizedBox(

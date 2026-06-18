@@ -513,6 +513,59 @@ class AsSyncCacheState {
       ),
     );
   }
+
+  AsSyncCacheState withGroupName(
+    String roomId,
+    String name,
+  ) {
+    final trimmed = roomId.trim();
+    final nextName = name.trim();
+    final current = bootstrap;
+    if (trimmed.isEmpty || nextName.isEmpty || current == null) return this;
+    return copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: current.syncedAt,
+        user: current.user,
+        rooms: current.rooms,
+        contacts: current.contacts,
+        groups: current.groups.map((group) {
+          if (group.roomId.trim() != trimmed) return group;
+          return group.withName(nextName);
+        }).toList(growable: false),
+        channels: current.channels,
+        pending: current.pending,
+      ),
+    );
+  }
+
+  AsSyncCacheState withGroupProfile(
+    String roomId, {
+    String name = '',
+    String avatarUrl = '',
+    String topic = '',
+  }) {
+    final trimmed = roomId.trim();
+    final current = bootstrap;
+    if (trimmed.isEmpty || current == null) return this;
+    return copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: current.syncedAt,
+        user: current.user,
+        rooms: current.rooms,
+        contacts: current.contacts,
+        groups: current.groups.map((group) {
+          if (group.roomId.trim() != trimmed) return group;
+          return group.withProfile(
+            name: name,
+            avatarUrl: avatarUrl,
+            topic: topic,
+          );
+        }).toList(growable: false),
+        channels: current.channels,
+        pending: current.pending,
+      ),
+    );
+  }
 }
 
 AsSyncUnread _emptyUnread() {

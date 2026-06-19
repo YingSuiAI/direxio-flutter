@@ -182,6 +182,38 @@ bool _hasStaleSameUserDevice(
       currentDeviceId != cleanNextDeviceId;
 }
 
+@visibleForTesting
+bool portalSessionNeedsCleanMatrixInit({
+  required String? currentAccessToken,
+  required String? currentUserId,
+  required String? currentDeviceId,
+  required Uri? currentHomeserver,
+  required String nextAccessToken,
+  required String nextUserId,
+  required String nextDeviceId,
+  required Uri nextHomeserver,
+}) {
+  final currentToken = currentAccessToken?.trim() ?? '';
+  final currentUser = currentUserId?.trim() ?? '';
+  final currentDevice = currentDeviceId?.trim() ?? '';
+  final currentHost = currentHomeserver == null
+      ? ''
+      : '${currentHomeserver.scheme.toLowerCase()}://'
+          '${currentHomeserver.host.toLowerCase()}'
+          '${currentHomeserver.hasPort ? ':${currentHomeserver.port}' : ''}';
+  final nextToken = nextAccessToken.trim();
+  final nextUser = nextUserId.trim();
+  final nextDevice = nextDeviceId.trim();
+  final nextHost = '${nextHomeserver.scheme.toLowerCase()}://'
+      '${nextHomeserver.host.toLowerCase()}'
+      '${nextHomeserver.hasPort ? ':${nextHomeserver.port}' : ''}';
+
+  return currentToken != nextToken ||
+      currentUser != nextUser ||
+      currentDevice != nextDevice ||
+      currentHost != nextHost;
+}
+
 Future<String?> _fetchTokenDeviceId({
   required http.Client httpClient,
   required Uri homeserver,
@@ -1091,7 +1123,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         ? session.userId
         : client.userID ?? await _storage.read(key: 'matrix_user_id') ?? '';
     final effectiveDeviceId = _preferredSessionDeviceId(session, deviceId);
-    if (_hasStaleSameUserDevice(client, effectiveUserId, effectiveDeviceId)) {
+    if (portalSessionNeedsCleanMatrixInit(
+      currentAccessToken: client.accessToken,
+      currentUserId: client.userID,
+      currentDeviceId: client.deviceID,
+      currentHomeserver: client.homeserver,
+      nextAccessToken: session.matrixAccessToken,
+      nextUserId: effectiveUserId,
+      nextDeviceId: effectiveDeviceId,
+      nextHomeserver: matrixUri,
+    )) {
       await client.clear();
       await _initMatrixSessionWithKeyUploadRetry(
         client,

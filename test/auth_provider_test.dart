@@ -23,6 +23,35 @@ Map<String, dynamic>? _p2pAction(http.Request request, String action) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('portal session token refresh requires clean Matrix init', () {
+    expect(
+      portalSessionNeedsCleanMatrixInit(
+        currentAccessToken: 'old-token',
+        currentUserId: '@owner:example.com',
+        currentDeviceId: 'DEVICE1',
+        currentHomeserver: Uri.parse('https://example.com'),
+        nextAccessToken: 'new-token',
+        nextUserId: '@owner:example.com',
+        nextDeviceId: 'DEVICE1',
+        nextHomeserver: Uri.parse('https://example.com'),
+      ),
+      isTrue,
+    );
+    expect(
+      portalSessionNeedsCleanMatrixInit(
+        currentAccessToken: 'new-token',
+        currentUserId: '@owner:example.com',
+        currentDeviceId: 'DEVICE1',
+        currentHomeserver: Uri.parse('https://example.com'),
+        nextAccessToken: 'new-token',
+        nextUserId: '@owner:example.com',
+        nextDeviceId: 'DEVICE1',
+        nextHomeserver: Uri.parse('https://example.com'),
+      ),
+      isFalse,
+    );
+  });
+
   test('restores auth state when Matrix client is already logged in', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(

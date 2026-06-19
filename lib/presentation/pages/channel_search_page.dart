@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../channel/channel_share.dart';
+import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -60,11 +61,11 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       _error = '';
     });
     try {
-      if (_looksLikeMatrixRoomId(query)) {
+      if (looksLikeMatrixRoomId(query)) {
         final channel =
             await ref.read(asClientProvider).getPublicChannelByRoomId(
                   query.trim(),
-                  baseUri: _publicBaseUriForMatrixRoomId(query),
+                  baseUri: publicBaseUriForMatrixRoomId(query),
                 );
         if (!mounted || serial != _serial) return;
         setState(() {
@@ -249,66 +250,6 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
   }
 }
 
-bool _looksLikeMatrixRoomId(String value) {
-  final trimmed = value.trim();
-  return trimmed.startsWith('!') && trimmed.contains(':');
-}
-
-Uri? _publicBaseUriForMatrixRoomId(String value) {
-  final trimmed = value.trim();
-  if (!_looksLikeMatrixRoomId(trimmed)) return null;
-  final separator = trimmed.indexOf(':');
-  if (separator < 0 || separator + 1 >= trimmed.length) return null;
-  final serverName = trimmed.substring(separator + 1).trim();
-  if (serverName.isEmpty) return null;
-  return _publicBaseUriForServerName(serverName);
-}
-
-Uri? _publicBaseUriForServerName(String serverName) {
-  final trimmed = serverName.trim();
-  if (trimmed.isEmpty) return null;
-  final parsed = Uri.tryParse(trimmed);
-  if (parsed != null &&
-      (parsed.scheme == 'http' || parsed.scheme == 'https') &&
-      parsed.host.isNotEmpty) {
-    return parsed.replace(path: '/_p2p', query: '', fragment: '');
-  }
-  final hostAndPort = trimmed.split(':');
-  final host = hostAndPort.first.trim();
-  if (host.isEmpty) return null;
-  final port = hostAndPort.length >= 2 ? int.tryParse(hostAndPort[1]) : null;
-  final localDualNodeBaseUri = _localDualNodeBaseUri(host, port);
-  if (localDualNodeBaseUri != null) return localDualNodeBaseUri;
-  final localHost = host == 'localhost' ||
-      host == '127.0.0.1' ||
-      host == '::1' ||
-      host.startsWith('192.168.') ||
-      host.startsWith('10.');
-  return Uri(
-    scheme: localHost ? 'http' : 'https',
-    host: host,
-    port: port,
-    path: '/_p2p',
-  );
-}
-
-Uri? _localDualNodeBaseUri(String host, int? port) {
-  final normalized = host.trim().toLowerCase();
-  if (port != null && port != 8008 && port != 8448) return null;
-  final hostPort = switch (normalized) {
-    'dendrite-a' => 18008,
-    'dendrite-b' => 28008,
-    _ => null,
-  };
-  if (hostPort == null) return null;
-  return Uri(
-    scheme: 'http',
-    host: '127.0.0.1',
-    port: hostPort,
-    path: '/_p2p',
-  );
-}
-
 class _ChannelSearchTarget {
   const _ChannelSearchTarget({
     this.keyword = '',
@@ -324,11 +265,11 @@ _ChannelSearchTarget _channelSearchTarget(String rawQuery) {
   final uri = Uri.tryParse(query);
   final host = uri == null || uri.host.isEmpty ? '' : uri.host.trim();
   if ((uri?.scheme == 'http' || uri?.scheme == 'https') && host.isNotEmpty) {
-    return _ChannelSearchTarget(baseUri: _publicBaseUriForServerName(query));
+    return _ChannelSearchTarget(baseUri: publicBaseUriForServerName(query));
   }
   final domainLike = RegExp(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
   if (domainLike.hasMatch(query)) {
-    return _ChannelSearchTarget(baseUri: _publicBaseUriForServerName(query));
+    return _ChannelSearchTarget(baseUri: publicBaseUriForServerName(query));
   }
   return _ChannelSearchTarget(keyword: query);
 }

@@ -9,6 +9,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../channel/channel_info_data.dart';
 import '../channel/channel_share.dart';
+import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -166,7 +167,10 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
     if (roomId.isEmpty) return null;
     return ref
         .read(asClientProvider)
-        .getPublicChannelByRoomId(roomId)
+        .getPublicChannelByRoomId(
+          roomId,
+          baseUri: publicBaseUriForMatrixRoomId(roomId),
+        )
         .then(channelInfoDataFromAsChannel);
   }
 
@@ -450,15 +454,21 @@ String _channelDetailDisplayId(ChannelInfoData channel) {
 }
 
 String _channelTypeLabel(ChannelInfoData channel) {
-  return normalizeAsChannelType(channel.channelType) == asChannelTypePost
-      ? '帖子'
-      : '文字';
+  return _channelInfoIsPostType(channel) ? '帖子' : '文字';
 }
 
 bool _channelInfoIsPostType(ChannelInfoData channel) {
+  if (channel.tags.any(_channelTagIsChatType)) return false;
   if (normalizeAsChannelType(channel.channelType) == asChannelTypePost) {
     return true;
   }
   return channel.tags
       .any((tag) => normalizeAsChannelType(tag) == asChannelTypePost);
+}
+
+bool _channelTagIsChatType(String tag) {
+  final trimmed = tag.trim().toLowerCase();
+  return trimmed == '文字' ||
+      trimmed == 'text' ||
+      normalizeAsChannelType(trimmed) == asChannelTypeChat;
 }

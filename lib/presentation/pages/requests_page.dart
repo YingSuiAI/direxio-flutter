@@ -43,7 +43,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     super.initState();
     final client = ref.read(matrixClientProvider);
     _syncSub = client.onSync.stream.listen((_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
+      unawaited(_refreshBootstrap(silent: true));
     });
     _searchCtrl.addListener(() {
       final next = _searchCtrl.text;
@@ -383,6 +385,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     final invites = _incomingDirectContactInvites(client)
         .where((room) => !pendingInboundRoomIds.contains(room.id.trim()))
         .toList(growable: false);
+    final inviteRoomIds = invites.map((room) => room.id.trim()).toSet();
+    final pendingFriendRequestNotices = [
+      for (final request in syncCache.bootstrap?.pending.friendRequests ??
+          const <AsSyncPendingItem>[])
+        if (request.id.trim().isNotEmpty &&
+            !pendingInboundRoomIds.contains(request.id.trim()) &&
+            !inviteRoomIds.contains(request.id.trim()))
+          request,
+    ];
     final pendingOutboundContacts =
         _pendingOutboundContactsForDisplay(client, syncCache);
     final rejectedOutboundContacts =
@@ -456,6 +467,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       client: client,
                       invites: invites,
                       contacts: pendingInboundContacts,
+                      notices: pendingFriendRequestNotices,
                       busy: _busy,
                       onOpenProfile: _openAddContactProfile,
                       onAccept: _accept,
@@ -1027,6 +1039,7 @@ class _PendingSection extends StatelessWidget {
     required this.client,
     required this.invites,
     required this.contacts,
+    required this.notices,
     required this.busy,
     required this.onOpenProfile,
     required this.onAccept,
@@ -1037,6 +1050,7 @@ class _PendingSection extends StatelessWidget {
   final Client client;
   final List<Room> invites;
   final List<AsSyncContact> contacts;
+  final List<AsSyncPendingItem> notices;
   final bool busy;
   final void Function(String mxid, String displayName) onOpenProfile;
   final void Function(Room) onAccept;
@@ -1090,6 +1104,22 @@ class _PendingSection extends StatelessWidget {
               inviterId.isEmpty ? null : () => onOpenProfile(inviterId, name),
           onAccept: busy ? null : () => onAccept(room),
           onReject: busy ? null : () => onReject(room),
+        ),
+      );
+    }
+    for (final notice in notices) {
+      final title = notice.title.trim();
+      final id = notice.id.trim();
+      final name = title.isEmpty ? '好友申请' : title;
+      rows.add(
+        _PendingRow(
+          name: name,
+          message: id.isEmpty ? '好友申请通知' : id,
+          seed: id.isEmpty ? name : id,
+          imageUrl: null,
+          onTap: null,
+          onAccept: null,
+          onReject: null,
         ),
       );
     }

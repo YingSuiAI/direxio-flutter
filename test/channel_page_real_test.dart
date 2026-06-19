@@ -165,9 +165,39 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.requestedRoomId, '!ch_public:p2p-im.com');
+    expect(
+      asClient.requestedRoomBaseUri.toString(),
+      'https://p2p-im.com/_p2p',
+    );
     expect(find.text('公开频道'), findsAtLeastNWidgets(1));
     expect(find.text('加入频道'), findsOneWidget);
     expect(find.text('频道不存在'), findsNothing);
+  });
+
+  testWidgets('channel detail maps local dual node room id to target base uri',
+      (tester) async {
+    final asClient = _PublicChannelAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPage(channelId: '!ch_public:dendrite-a:8448'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedRoomId, '!ch_public:dendrite-a:8448');
+    expect(
+      asClient.requestedRoomBaseUri.toString(),
+      'http://127.0.0.1:18008/_p2p',
+    );
+    expect(find.text('公开频道'), findsAtLeastNWidgets(1));
   });
 
   testWidgets('channel detail renders AS posts and publishes text post',
@@ -1677,6 +1707,7 @@ class _MemoryChannelPostStore implements ChannelPostStore {
 
 class _PublicChannelAsClient extends MockAsClient {
   String? requestedRoomId;
+  Uri? requestedRoomBaseUri;
 
   @override
   Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri}) async {
@@ -1698,6 +1729,7 @@ class _PublicChannelAsClient extends MockAsClient {
     Uri? baseUri,
   }) async {
     requestedRoomId = roomId;
+    requestedRoomBaseUri = baseUri;
     return const AsChannel(
       channelId: 'ch_public',
       roomId: '!ch_public:p2p-im.com',

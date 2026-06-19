@@ -5037,6 +5037,41 @@ void main() {
     expect(find.text('查看'), findsOneWidget);
   });
 
+  testWidgets('new friends page refreshes AS pending notices after Matrix sync',
+      (tester) async {
+    final client = Client('PortalIMRequestsLivePendingTest')
+      ..setUserId('@owner:p2p-im.com');
+    final asClient = _RefreshingFriendRequestBootstrapAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 1);
+    expect(find.text('暂无好友请求'), findsOneWidget);
+
+    asClient.showPendingFriendRequest = true;
+    await client.handleSync(SyncUpdate(nextBatch: 'friend-request'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 2);
+    expect(find.text('Alice'), findsOneWidget);
+  });
+
   testWidgets('new friends page still lists Matrix invites after AS bootstrap',
       (tester) async {
     final client = Client('PortalIMRequestsBootstrapInviteTest')

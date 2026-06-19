@@ -8,6 +8,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../chat/chat_glass_background.dart';
 import '../mock/mock_data.dart';
+import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/contact_display_name.dart';
@@ -183,9 +184,19 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     );
     if (ok != true) return;
     try {
+      final clearedBeforeTs =
+          DateTime.now().toUtc().millisecondsSinceEpoch + 1;
+      await ref.read(asClientProvider).deleteRoomMessagesByRange(
+            roomId: widget.roomId,
+            fromTs: 0,
+            toTs: clearedBeforeTs,
+          );
       await ref
           .read(authStateNotifierProvider.notifier)
-          .clearRoomChatHistory(widget.roomId);
+          .clearRoomChatHistory(
+            widget.roomId,
+            clearedBeforeTs: clearedBeforeTs,
+          );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('聊天记录已清空')),

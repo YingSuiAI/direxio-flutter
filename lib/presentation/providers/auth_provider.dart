@@ -1451,14 +1451,18 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     ref.invalidate(recoveredUnreadStoreProvider);
   }
 
-  Future<void> clearRoomChatHistory(String roomId) async {
+  Future<void> clearRoomChatHistory(
+    String roomId, {
+    int? clearedBeforeTs,
+  }) async {
     final trimmed = roomId.trim();
     if (trimmed.isEmpty) return;
-    final clearedBeforeTs = DateTime.now().toUtc().millisecondsSinceEpoch + 1;
+    final clearBefore =
+        clearedBeforeTs ?? DateTime.now().toUtc().millisecondsSinceEpoch + 1;
     final store = await ref.read(chatClearStateStoreProvider.future);
-    await store.writeRoomClearedBeforeTs(trimmed, clearedBeforeTs);
+    await store.writeRoomClearedBeforeTs(trimmed, clearBefore);
     ref.read(asSyncCacheProvider.notifier).update(
-          (state) => state.withRoomClearedBefore(trimmed, clearedBeforeTs),
+          (state) => state.withRoomClearedBefore(trimmed, clearBefore),
         );
     try {
       final unreadStore = await ref.read(recoveredUnreadStoreProvider.future);

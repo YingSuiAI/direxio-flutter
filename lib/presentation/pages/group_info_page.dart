@@ -481,7 +481,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '仅清空本机当前群聊的历史记录，新消息仍会正常接收。',
+          '确定清空当前群聊的所有聊天记录？该操作不可恢复。',
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
@@ -509,9 +509,19 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     if (ok != true || !context.mounted || _clearing) return;
     setState(() => _clearing = true);
     try {
+      final clearedBeforeTs =
+          DateTime.now().toUtc().millisecondsSinceEpoch + 1;
+      await ref.read(asClientProvider).deleteRoomMessagesByRange(
+            roomId: widget.roomId,
+            fromTs: 0,
+            toTs: clearedBeforeTs,
+          );
       await ref
           .read(authStateNotifierProvider.notifier)
-          .clearRoomChatHistory(widget.roomId);
+          .clearRoomChatHistory(
+            widget.roomId,
+            clearedBeforeTs: clearedBeforeTs,
+          );
       if (!context.mounted) return;
       _toast(context, '聊天记录已清空');
     } on Object catch (e) {

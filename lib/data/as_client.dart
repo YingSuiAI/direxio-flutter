@@ -1597,6 +1597,16 @@ abstract class AsClient {
     required String eventId,
   });
 
+  /// POST /_as/rooms/{roomId}/messages/delete-range
+  ///
+  /// Deletes room messages in a timestamp range for the current portal owner
+  /// only. Unlike recall, this must not be broadcast to other room members.
+  Future<void> deleteRoomMessagesByRange({
+    required String roomId,
+    required int fromTs,
+    required int toTs,
+  });
+
   /// POST /_as/rooms/{roomId}/send
   Future<String> sendRoomMessage(
     String roomId,

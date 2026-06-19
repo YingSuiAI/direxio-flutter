@@ -718,6 +718,13 @@ class _EmptyAsClient implements AsClient {
   }) async {}
 
   @override
+  Future<void> deleteRoomMessagesByRange({
+    required String roomId,
+    required int fromTs,
+    required int toTs,
+  }) async {}
+
+  @override
   Future<String> sendRoomMessage(
     String roomId,
     String content, {
@@ -1376,6 +1383,10 @@ class _TrackingAsClient extends _EmptyAsClient {
   int deleteRoomMessageCalls = 0;
   String? deletedRoomMessageRoomId;
   String? deletedRoomMessageEventId;
+  int deleteRoomMessagesByRangeCalls = 0;
+  String? deletedRoomMessagesByRangeRoomId;
+  int? deletedRoomMessagesByRangeFromTs;
+  int? deletedRoomMessagesByRangeToTs;
   int sendRoomMessageCalls = 0;
   String? sentRoomId;
   String? sentContent;
@@ -1450,6 +1461,18 @@ class _TrackingAsClient extends _EmptyAsClient {
     deleteRoomMessageCalls++;
     deletedRoomMessageRoomId = roomId;
     deletedRoomMessageEventId = eventId;
+  }
+
+  @override
+  Future<void> deleteRoomMessagesByRange({
+    required String roomId,
+    required int fromTs,
+    required int toTs,
+  }) async {
+    deleteRoomMessagesByRangeCalls++;
+    deletedRoomMessagesByRangeRoomId = roomId;
+    deletedRoomMessagesByRangeFromTs = fromTs;
+    deletedRoomMessagesByRangeToTs = toTs;
   }
 
   @override
@@ -3711,6 +3734,7 @@ void main() {
       pending: const AsSyncPending.empty(),
     );
     final clearStore = _MemoryChatClearStateStore();
+    final asClient = _TrackingAsClient();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3718,6 +3742,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
           chatClearStateStoreProvider.overrideWith((ref) async => clearStore),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
@@ -3738,6 +3763,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(clearStore.roomClearedBeforeTs[roomId], greaterThan(0));
+    expect(asClient.deleteRoomMessagesByRangeCalls, 1);
+    expect(asClient.deletedRoomMessagesByRangeRoomId, roomId);
+    expect(asClient.deletedRoomMessagesByRangeFromTs, 0);
+    expect(
+      asClient.deletedRoomMessagesByRangeToTs,
+      clearStore.roomClearedBeforeTs[roomId],
+    );
   });
 
   testWidgets('home starts app warmup on launch', (tester) async {
@@ -6954,6 +6986,7 @@ void main() {
       members: const {'@owner:p2p-im.com': 'Owner'},
     );
     final clearStore = _MemoryChatClearStateStore();
+    final asClient = _TrackingAsClient();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -6961,6 +6994,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
           chatClearStateStoreProvider.overrideWith((ref) async => clearStore),
         ],
         child: MaterialApp(
@@ -7006,6 +7040,13 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '清空'));
     await tester.pumpAndSettle();
     expect(clearStore.roomClearedBeforeTs['!group:p2p-im.com'], greaterThan(0));
+    expect(asClient.deleteRoomMessagesByRangeCalls, 1);
+    expect(asClient.deletedRoomMessagesByRangeRoomId, '!group:p2p-im.com');
+    expect(asClient.deletedRoomMessagesByRangeFromTs, 0);
+    expect(
+      asClient.deletedRoomMessagesByRangeToTs,
+      clearStore.roomClearedBeforeTs['!group:p2p-im.com'],
+    );
     expect(
       container
           .read(asSyncCacheProvider)

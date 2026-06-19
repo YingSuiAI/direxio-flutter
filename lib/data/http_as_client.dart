@@ -499,6 +499,23 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<void> deleteRoomMessagesByRange({
+    required String roomId,
+    required int fromTs,
+    required int toTs,
+  }) async {
+    await _requestJson(
+      'POST',
+      'rooms/${Uri.encodeComponent(roomId)}/messages/delete-range',
+      body: {
+        'from_ts': fromTs < 0 ? 0 : fromTs,
+        'to_ts': toTs < 0 ? 0 : toTs,
+      },
+      allowedStatusCodes: const {200, 201, 204},
+    );
+  }
+
+  @override
   Future<String> sendRoomMessage(
     String roomId,
     String content, {

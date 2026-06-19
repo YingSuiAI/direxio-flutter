@@ -336,6 +336,15 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<void> deleteRoomMessagesByRange({
+    required String roomId,
+    required int fromTs,
+    required int toTs,
+  }) async {
+    await Future.delayed(_latency);
+  }
+
+  @override
   Future<String> sendRoomMessage(
     String roomId,
     String content, {

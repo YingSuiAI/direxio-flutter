@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/presentation/pages/channel_page.dart';
 import 'package:portal_app/presentation/pages/contact_home_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
@@ -31,6 +33,7 @@ class _RelationshipAsClient extends Fake implements AsClient {
   final List<AsChannel> publicChannels;
   final removedFollows = <String>[];
   final deletedContacts = <String>[];
+  String? requestedPublicRoomId;
 
   @override
   Future<List<FollowEntry>> getFollows() async => initialFollows
@@ -43,6 +46,23 @@ class _RelationshipAsClient extends Fake implements AsClient {
     Uri? baseUri,
   }) async =>
       publicChannels;
+
+  @override
+  Future<AsChannel> getPublicChannelByRoomId(
+    String roomId, {
+    Uri? baseUri,
+  }) async {
+    requestedPublicRoomId = roomId;
+    return publicChannels.firstWhere(
+      (channel) => channel.roomId.trim() == roomId.trim(),
+      orElse: () => AsChannel(
+        channelId: roomId,
+        roomId: roomId,
+        name: '公开频道',
+        visibility: asChannelVisibilityPublic,
+      ),
+    );
+  }
 
   @override
   Future<void> addFollow(String domain) async {}
@@ -195,6 +215,80 @@ void main() {
     expect(find.text('Alice 公开频道'), findsOneWidget);
     expect(find.textContaining('!alice-channel:portal.local'), findsOneWidget);
     expect(find.text('还没有公开频道'), findsNothing);
+  });
+
+  testWidgets('visitor public channel opens channel detail for joining',
+      (tester) async {
+    final client = Client('ContactHomePublicChannelOpenTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = _bootstrap(
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:portal.local',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'alice.portal.local',
+          status: 'pending_outbound',
+        ),
+      ],
+    );
+    final asClient = _RelationshipAsClient(
+      publicChannels: const [
+        AsChannel(
+          channelId: 'ch_alice',
+          roomId: '!alice-channel:portal.local',
+          name: 'Alice 公开频道',
+          visibility: asChannelVisibilityPublic,
+          joinPolicy: asChannelJoinPolicyApproval,
+          memberCount: 7,
+        ),
+      ],
+    );
+    final router = GoRouter(
+      initialLocation:
+          '/contact-home/${Uri.encodeComponent('@alice:portal.local')}',
+      routes: [
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => ChannelPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Alice 公开频道'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedPublicRoomId, '!alice-channel:portal.local');
+    expect(find.text('申请加入'), findsOneWidget);
+    expect(find.text('频道不存在'), findsNothing);
   });
 
   testWidgets('accepted visitor home shows delete friend and removes via AS',

@@ -166,16 +166,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.requestedRoomId, '!ch_public:p2p-im.com');
-    expect(
-      asClient.requestedRoomBaseUri.toString(),
-      'https://p2p-im.com/_p2p',
-    );
+    expect(asClient.requestedRoomBaseUri, isNull);
     expect(find.text('公开频道'), findsAtLeastNWidgets(1));
     expect(find.text('加入频道'), findsOneWidget);
     expect(find.text('频道不存在'), findsNothing);
   });
 
-  testWidgets('channel detail maps local dual node room id to target base uri',
+  testWidgets(
+      'channel detail lets current backend proxy local dual node room id',
       (tester) async {
     final asClient = _PublicChannelAsClient();
 
@@ -194,10 +192,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.requestedRoomId, '!ch_public:dendrite-a:8448');
-    expect(
-      asClient.requestedRoomBaseUri.toString(),
-      'http://127.0.0.1:18008/_p2p',
-    );
+    expect(asClient.requestedRoomBaseUri, isNull);
     expect(find.text('公开频道'), findsAtLeastNWidgets(1));
   });
 

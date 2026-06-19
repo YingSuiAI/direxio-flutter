@@ -986,6 +986,77 @@ void main() {
     expect(auth?.ownerDisplayName, isNull);
   });
 
+  test(
+      'portal login requires password and profile flags when account flag is absent',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final client = Client(
+      'AuthPortalLoginPasswordProfileFlagsTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:example.com","display_name":"owner"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.auth') != null) {
+          return http.Response(
+            '{"matrix_access_token":"fresh-token",'
+            '"admin_access_token":"fresh-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE1",'
+            '"profile_initialized":true,'
+            '"password_initialized":false}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'profile.get') != null) {
+          return http.Response('{"display_name":"owner"}', 200);
+        }
+        if (_p2pAction(request, 'sync.bootstrap') != null) {
+          return http.Response(
+            '{"synced_at":"2026-06-19T00:00:00Z",'
+            '"user":{"user_id":"@owner:example.com"},'
+            '"rooms":[],"contacts":[],"groups":[],"channels":[],"pending":{}}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync' &&
+            request.url.queryParameters['timeout'] == '0') {
+          return http.Response('{"next_batch":"baseline","rooms":{}}', 200);
+        }
+        return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .login('https://example.com', 'portal-token');
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.requiresProfileSetup, isTrue);
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.profileInitializedKey),
+      'false',
+    );
+  });
+
   test('portal login trusts account initialization flag first', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(

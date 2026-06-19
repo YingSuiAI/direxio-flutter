@@ -597,6 +597,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (session.alreadyInitialized != null) return session.alreadyInitialized;
     if (session.setupCompleted != null) return session.setupCompleted;
     if (session.accountInitialized != null) return session.accountInitialized;
+    if (session.passwordInitialized == false) return false;
+    if (session.passwordInitialized == true &&
+        session.profileInitialized != null) {
+      return session.profileInitialized == true;
+    }
     if (session.profileInitialized != null) return session.profileInitialized;
     if (session.initialized == true) {
       return false;

@@ -696,6 +696,92 @@ void main() {
     expect(contact.status, 'pending_outbound');
   });
 
+  test('acceptContactRequest posts decision identity to AS', () async {
+    late http.Request seen;
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        seen = request;
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/_as/contacts/requests/!alice%3Ap2p-im.com/accept',
+        );
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'peer_mxid': '@alice:p2p-liyanan.com',
+          'display_name': 'Alice',
+          'domain': 'p2p-liyanan.com',
+        });
+        return http.Response(
+          jsonEncode({
+            'peer_mxid': '@alice:p2p-liyanan.com',
+            'display_name': 'Alice',
+            'domain': 'p2p-liyanan.com',
+            'room_id': '!alice:p2p-im.com',
+            'status': 'accepted',
+          }),
+          200,
+        );
+      }),
+    );
+
+    final contact = await client.acceptContactRequest(
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-liyanan.com',
+      displayName: 'Alice',
+      domain: 'p2p-liyanan.com',
+    );
+
+    expect(seen.url.path, '/_as/contacts/requests/!alice%3Ap2p-im.com/accept');
+    expect(contact.roomId, '!alice:p2p-im.com');
+    expect(contact.status, 'accepted');
+  });
+
+  test('rejectContactRequest posts decision identity to AS', () async {
+    late http.Request seen;
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        seen = request;
+        expect(request.method, 'POST');
+        expect(
+          request.url.path,
+          '/_as/contacts/requests/!alice%3Ap2p-im.com/reject',
+        );
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'peer_mxid': '@alice:p2p-liyanan.com',
+          'display_name': 'Alice',
+          'domain': 'p2p-liyanan.com',
+        });
+        return http.Response(
+          jsonEncode({
+            'peer_mxid': '@alice:p2p-liyanan.com',
+            'display_name': 'Alice',
+            'domain': 'p2p-liyanan.com',
+            'room_id': '!alice:p2p-im.com',
+            'status': 'rejected',
+          }),
+          200,
+        );
+      }),
+    );
+
+    final contact = await client.rejectContactRequest(
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-liyanan.com',
+      displayName: 'Alice',
+      domain: 'p2p-liyanan.com',
+    );
+
+    expect(seen.url.path, '/_as/contacts/requests/!alice%3Ap2p-im.com/reject');
+    expect(contact.roomId, '!alice:p2p-im.com');
+    expect(contact.status, 'rejected');
+  });
+
   test('sendRoomMessage posts content through AS product route', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),

@@ -296,11 +296,26 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
     final postId = comment.postId.trim();
     final commentId = comment.commentId.trim();
     if (channelId.isEmpty || postId.isEmpty || commentId.isEmpty) return;
-    await ref.read(asClientProvider).toggleChannelCommentReaction(
-          channelId,
-          postId,
-          commentId,
-        );
+    final result =
+        await ref.read(asClientProvider).toggleChannelCommentReaction(
+              channelId,
+              postId,
+              commentId,
+            );
+    if (mounted) {
+      setState(() {
+        _comments = [
+          for (final item in _comments)
+            if (item.commentId.trim() == commentId)
+              item.copyWith(
+                likeCount: result.reactionCount,
+                reactedByMe: result.active,
+              )
+            else
+              item,
+        ];
+      });
+    }
     ref.invalidate(
       channelCommentsProvider(
         ChannelCommentsKey(channelId: channelId, postId: postId),
@@ -783,6 +798,11 @@ class _CommentThreadRow extends StatelessWidget {
                     ),
                     const Spacer(),
                     InkWell(
+                      key: comment.commentId.trim().isEmpty
+                          ? null
+                          : ValueKey(
+                              'channel_comment_like_${comment.commentId.trim()}',
+                            ),
                       borderRadius: BorderRadius.circular(16),
                       onTap: comment.commentId.trim().isEmpty
                           ? null
@@ -1134,6 +1154,24 @@ class _PostComment {
   final int likeCount;
   final bool reactedByMe;
   final int originServerTs;
+
+  _PostComment copyWith({
+    int? likeCount,
+    bool? reactedByMe,
+  }) {
+    return _PostComment(
+      commentId: commentId,
+      channelId: channelId,
+      postId: postId,
+      authorName: authorName,
+      replyToName: replyToName,
+      body: body,
+      timeLabel: timeLabel,
+      likeCount: likeCount ?? this.likeCount,
+      reactedByMe: reactedByMe ?? this.reactedByMe,
+      originServerTs: originServerTs,
+    );
+  }
 }
 
 _PostDetailData _resolvePostDetail(

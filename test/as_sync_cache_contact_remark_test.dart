@@ -58,4 +58,45 @@ void main() {
       'Bobby',
     );
   });
+
+  test('bootstrap accepted contact replaces local optimistic pending request',
+      () {
+    const pending = ContactEntry(
+      peerMxid: '@bob:example.com',
+      displayName: 'Bob',
+      domain: 'example.com',
+      roomId: '!request:example.com',
+      status: 'pending_outbound',
+    );
+    final state = const AsSyncCacheState().withContactEntry(pending);
+
+    final next = state.copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        rooms: const [],
+        contacts: const [
+          AsSyncContact(
+            userId: '@bob:example.com',
+            displayName: 'Bob',
+            avatarUrl: 'mxc://example/bob',
+            roomId: '!accepted:example.com',
+            domain: 'example.com',
+            status: 'accepted',
+          ),
+        ],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    expect(next.pendingOutboundContacts, isEmpty);
+    expect(next.contactForRoom('!request:example.com'), isNull);
+    expect(next.acceptedDirectRoomIds, {'!accepted:example.com'});
+    expect(
+      next.acceptedContactForUserId('@bob:example.com')?.roomId,
+      '!accepted:example.com',
+    );
+  });
 }

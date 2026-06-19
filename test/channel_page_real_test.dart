@@ -828,6 +828,88 @@ void main() {
     expect(find.textContaining('评论 6'), findsOneWidget);
   });
 
+  testWidgets('channel post detail updates visible comment reaction',
+      (tester) async {
+    final asClient = _PostingChannelAsClient(
+      comments: const [
+        AsChannelComment(
+          commentId: 'comment-react',
+          postId: 'post1',
+          channelId: 'ch_real',
+          eventId: r'$comment-react',
+          authorId: '@alice:p2p-im.com',
+          authorName: 'Alice',
+          messageType: 'text',
+          body: '可以点赞的评论',
+          originServerTs: 1000,
+          reactionCount: 2,
+          reactedByMe: false,
+        ),
+      ],
+      commentReactionCount: 7,
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPostDetailPage(
+            channelId: 'ch_real',
+            postId: 'post1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('查看评论(1)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('可以点赞的评论'), findsOneWidget);
+    expect(find.text('2'), findsAtLeastNWidgets(1));
+
+    await tester.tap(
+      find.byKey(const ValueKey('channel_comment_like_comment-react')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(asClient.toggledCommentId, 'comment-react');
+    expect(asClient.toggledCommentPostId, 'post1');
+    expect(asClient.toggledCommentChannelId, 'ch_real');
+    expect(find.text('7'), findsOneWidget);
+  });
+
   testWidgets('channel info page renders figma actions', (tester) async {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
@@ -1895,12 +1977,14 @@ class _PostingChannelAsClient extends MockAsClient {
     this.reactedByMe = false,
     this.postId = 'post1',
     this.comments = const [],
+    this.commentReactionCount = 1,
   });
 
   final String? postBody;
   final bool reactedByMe;
   final String postId;
   final List<AsChannelComment> comments;
+  final int commentReactionCount;
   final List<int> requestedCommentPages = [];
   final List<int> requestedCommentPageSizes = [];
   String? createdBody;
@@ -1914,6 +1998,9 @@ class _PostingChannelAsClient extends MockAsClient {
   String? dissolvedChannelId;
   String? recalledPostId;
   String? recallReason;
+  String? toggledCommentChannelId;
+  String? toggledCommentPostId;
+  String? toggledCommentId;
 
   @override
   Future<List<AsChannelPost>> getChannelPosts(
@@ -2050,12 +2137,15 @@ class _PostingChannelAsClient extends MockAsClient {
     String commentId, {
     String reaction = 'like',
   }) async {
+    toggledCommentChannelId = channelId;
+    toggledCommentPostId = postId;
+    toggledCommentId = commentId;
     return AsChannelReaction(
       postId: postId,
       channelId: channelId,
       reaction: reaction,
       active: true,
-      reactionCount: 1,
+      reactionCount: commentReactionCount,
     );
   }
 

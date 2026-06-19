@@ -328,6 +328,22 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<ContactEntry> updateContact({
+    required String roomId,
+    required String displayName,
+    String domain = '',
+  }) async {
+    await Future.delayed(_latency);
+    return ContactEntry(
+      peerMxid: '@mock:portal.local',
+      displayName: displayName.trim(),
+      domain: domain.trim(),
+      roomId: roomId,
+      status: 'accepted',
+    );
+  }
+
+  @override
   Future<void> deleteRoomMessage({
     required String roomId,
     required String eventId,

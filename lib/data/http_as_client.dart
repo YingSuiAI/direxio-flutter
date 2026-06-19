@@ -462,6 +462,24 @@ class HttpAsClient implements AsClient {
     return ContactEntry.fromJson(body);
   }
 
+  @override
+  Future<ContactEntry> updateContact({
+    required String roomId,
+    required String displayName,
+    String domain = '',
+  }) async {
+    final body = await _requestJson(
+      'PUT',
+      'contacts/${Uri.encodeComponent(roomId)}',
+      body: {
+        'display_name': displayName.trim(),
+        if (domain.trim().isNotEmpty) 'domain': domain.trim(),
+      },
+      allowedStatusCodes: const {200},
+    );
+    return ContactEntry.fromJson(body);
+  }
+
   Future<Map<String, dynamic>> exportContactsBackup() {
     return _requestJson(
       'POST',
@@ -2240,6 +2258,7 @@ String _actionFor(String method, String path) {
     return 'contacts.requests.${segments.last.replaceAll('-', '_')}';
   }
   if (segments.length >= 2 && segments[0] == 'contacts') {
+    if (method == 'PUT') return 'contacts.update';
     return 'contacts.delete';
   }
   if (segments.length >= 3 &&

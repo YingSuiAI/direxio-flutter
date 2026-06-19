@@ -1591,6 +1591,13 @@ abstract class AsClient {
   /// DELETE /_as/contacts/{roomId}
   Future<ContactEntry> deleteContact(String roomId);
 
+  /// PUT /_as/contacts/{roomId}
+  Future<ContactEntry> updateContact({
+    required String roomId,
+    required String displayName,
+    String domain = '',
+  });
+
   /// POST /_as/rooms/{roomId}/messages/delete
   ///
   /// Hides one message for the current portal owner only. This must not use

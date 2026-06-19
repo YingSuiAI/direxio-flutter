@@ -712,6 +712,20 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
+  Future<ContactEntry> updateContact({
+    required String roomId,
+    required String displayName,
+    String domain = '',
+  }) async =>
+      ContactEntry(
+        peerMxid: '@contact:example.com',
+        displayName: displayName.trim(),
+        domain: domain.trim(),
+        roomId: roomId,
+        status: 'accepted',
+      );
+
+  @override
   Future<void> deleteRoomMessage({
     required String roomId,
     required String eventId,
@@ -1387,6 +1401,10 @@ class _TrackingAsClient extends _EmptyAsClient {
   String? createdContactDomain;
   int deleteContactCalls = 0;
   String? deletedContactRoomId;
+  int updateContactCalls = 0;
+  String? updatedContactRoomId;
+  String? updatedContactDisplayName;
+  String? updatedContactDomain;
   int deleteRoomMessageCalls = 0;
   String? deletedRoomMessageRoomId;
   String? deletedRoomMessageEventId;
@@ -1461,6 +1479,25 @@ class _TrackingAsClient extends _EmptyAsClient {
       domain: 'portal.local',
       roomId: roomId,
       status: 'rejected',
+    );
+  }
+
+  @override
+  Future<ContactEntry> updateContact({
+    required String roomId,
+    required String displayName,
+    String domain = '',
+  }) async {
+    updateContactCalls++;
+    updatedContactRoomId = roomId;
+    updatedContactDisplayName = displayName;
+    updatedContactDomain = domain;
+    return ContactEntry(
+      peerMxid: '@alice:portal.local',
+      displayName: displayName.trim(),
+      domain: domain.trim(),
+      roomId: roomId,
+      status: 'accepted',
     );
   }
 
@@ -10187,6 +10224,7 @@ void main() {
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
+    final asClient = _TrackingAsClient();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -10194,7 +10232,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
-          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -10217,6 +10255,10 @@ void main() {
     expect(find.text('备注已更新'), findsOneWidget);
     expect(find.text('Alice 备注'), findsOneWidget);
     expect(bootstrapStore.value?.contacts.single.displayName, 'Alice 备注');
+    expect(asClient.updateContactCalls, 1);
+    expect(asClient.updatedContactRoomId, '!alice:p2p-im.com');
+    expect(asClient.updatedContactDisplayName, 'Alice 备注');
+    expect(asClient.updatedContactDomain, 'portal.local');
   });
 
   testWidgets(

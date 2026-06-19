@@ -246,6 +246,44 @@ void main() {
     expect(contact.status, 'deleted');
   });
 
+  test('updateContact uses unified contact update action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(jsonDecode(request.body), {
+          'action': 'contacts.update',
+          'params': {
+            'room_id': '!alice:p2p-im.com',
+            'display_name': 'Alice Remark',
+            'domain': 'p2p-im.com',
+          },
+        });
+        return http.Response(
+          jsonEncode({
+            'peer_mxid': '@alice:p2p-im.com',
+            'display_name': 'Alice Remark',
+            'domain': 'p2p-im.com',
+            'room_id': '!alice:p2p-im.com',
+            'status': 'accepted',
+          }),
+          200,
+        );
+      }),
+    );
+
+    final contact = await client.updateContact(
+      roomId: '!alice:p2p-im.com',
+      displayName: '  Alice Remark  ',
+      domain: 'p2p-im.com',
+    );
+
+    expect(contact.displayName, 'Alice Remark');
+    expect(contact.status, 'accepted');
+  });
+
   test('agent management helpers use unified API actions', () async {
     final seen = <String>[];
     final client = HttpAsClient(

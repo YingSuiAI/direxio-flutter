@@ -7,6 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/core/theme/design_tokens.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/channel_post_store.dart';
 import 'package:portal_app/data/mock_as_client.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
@@ -20,6 +21,7 @@ import 'package:portal_app/presentation/pages/channel_post_detail_page.dart';
 import 'package:portal_app/presentation/pages/contact_home_page.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
+import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
@@ -170,6 +172,62 @@ void main() {
     expect(find.text('公开频道'), findsAtLeastNWidgets(1));
     expect(find.text('加入频道'), findsOneWidget);
     expect(find.text('频道不存在'), findsNothing);
+  });
+
+  testWidgets('public open channel completes Matrix join after AS invite',
+      (tester) async {
+    final asClient = _PublicChannelAsClient();
+    final bootstrapStore = _MemoryAsBootstrapStore();
+    final router = GoRouter(
+      initialLocation: '/channel/!ch_public:p2p-im.com',
+      routes: [
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => ChannelPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId/conversation',
+          builder: (_, __) => const Scaffold(body: Text('conversation-opened')),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          asBootstrapRepositoryProvider.overrideWithValue(
+            AsBootstrapRepository(
+              loadBootstrap: () async => AsSyncBootstrap(
+                syncedAt: DateTime(2026, 6, 20),
+                user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+                rooms: const [],
+                contacts: const [],
+                groups: const [],
+                channels: const [],
+                pending: const AsSyncPending.empty(),
+              ),
+              store: bootstrapStore,
+            ),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('加入频道'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.joinRequestRoomId, '!ch_public:p2p-im.com');
+    expect(asClient.joinProjectionChannelId, 'ch_public');
+    expect(find.text('conversation-opened'), findsOneWidget);
   });
 
   testWidgets(
@@ -1811,6 +1869,8 @@ class _MemoryChannelPostStore implements ChannelPostStore {
 class _PublicChannelAsClient extends MockAsClient {
   String? requestedRoomId;
   Uri? requestedRoomBaseUri;
+  String? joinRequestRoomId;
+  String? joinProjectionChannelId;
 
   @override
   Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri}) async {
@@ -1822,6 +1882,7 @@ class _PublicChannelAsClient extends MockAsClient {
       description: '公开频道说明',
       visibility: asChannelVisibilityPublic,
       joinPolicy: asChannelJoinPolicyOpen,
+      channelType: asChannelTypeChat,
       commentsEnabled: true,
     );
   }
@@ -1841,8 +1902,70 @@ class _PublicChannelAsClient extends MockAsClient {
       description: '公开频道说明',
       visibility: asChannelVisibilityPublic,
       joinPolicy: asChannelJoinPolicyOpen,
+      channelType: asChannelTypeChat,
       commentsEnabled: true,
     );
+  }
+
+  @override
+  Future<AsChannel> joinChannelByRoomId(
+    String roomId, {
+    String shareToken = '',
+    AsChannel? discoveredChannel,
+  }) async {
+    joinRequestRoomId = roomId;
+    return const AsChannel(
+      channelId: 'ch_public',
+      roomId: '!ch_public:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '公开频道',
+      description: '公开频道说明',
+      visibility: asChannelVisibilityPublic,
+      joinPolicy: asChannelJoinPolicyOpen,
+      channelType: asChannelTypeChat,
+      commentsEnabled: true,
+      role: asChannelRoleMember,
+      memberStatus: asChannelMemberStatusInvite,
+    );
+  }
+
+  @override
+  Future<AsChannel> joinChannel(
+    String channelId, {
+    String shareToken = '',
+    AsChannel? discoveredChannel,
+  }) async {
+    joinProjectionChannelId = channelId;
+    return const AsChannel(
+      channelId: 'ch_public',
+      roomId: '!ch_public:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '公开频道',
+      description: '公开频道说明',
+      visibility: asChannelVisibilityPublic,
+      joinPolicy: asChannelJoinPolicyOpen,
+      channelType: asChannelTypeChat,
+      commentsEnabled: true,
+      role: asChannelRoleMember,
+      memberStatus: asChannelMemberStatusJoined,
+    );
+  }
+}
+
+class _MemoryAsBootstrapStore implements AsBootstrapStore {
+  AsSyncBootstrap? value;
+
+  @override
+  Future<AsSyncBootstrap?> read() async => value;
+
+  @override
+  Future<void> write(AsSyncBootstrap bootstrap) async {
+    value = bootstrap;
+  }
+
+  @override
+  Future<void> clear() async {
+    value = null;
   }
 }
 

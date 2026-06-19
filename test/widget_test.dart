@@ -1523,6 +1523,9 @@ class _TrackingAsClient extends _EmptyAsClient {
   String? invitedGroupRoomId;
   List<String> invitedGroupMembers = const [];
   Object? inviteGroupMembersError;
+  int joinGroupCalls = 0;
+  String? joinedGroupRoomId;
+  String? joinedGroupName;
   int syncBootstrapCalls = 0;
   AsSyncBootstrap? bootstrapAfterCreate;
   int leaveGroupCalls = 0;
@@ -1762,6 +1765,25 @@ class _TrackingAsClient extends _EmptyAsClient {
       name: '真实群',
       memberCount: 2,
       invitedCount: invite.length,
+    );
+  }
+
+  @override
+  Future<AsGroupResult> joinGroup({
+    required String roomId,
+    String groupName = '',
+    String inviterMxid = '',
+    String inviteEventId = '',
+    String directRoomId = '',
+  }) async {
+    joinGroupCalls++;
+    joinedGroupRoomId = roomId;
+    joinedGroupName = groupName;
+    return AsGroupResult(
+      roomId: roomId,
+      name: groupName.trim().isEmpty ? '真实群' : groupName.trim(),
+      memberCount: 2,
+      role: 'member',
     );
   }
 
@@ -4941,6 +4963,65 @@ void main() {
     );
   });
 
+  testWidgets('new friend badge counts AS pending group invite notices',
+      (tester) async {
+    final client = Client('PortalIMPendingGroupInviteBadgeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final readStore = _MemoryFriendRequestReadStore();
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending(
+        friendRequests: [],
+        groupInvites: [
+          AsSyncPendingItem(
+            id: '!pending-group:p2p-im.com',
+            title: '项目群',
+            createdAt: null,
+          ),
+        ],
+        channelNotices: [],
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          friendRequestReadStoreProvider.overrideWith((ref) async => readStore),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
+
+    await tester.tap(find.text('通讯录').last);
+    await tester.pump();
+
+    final contactSectionBadge =
+        find.byKey(const ValueKey('section_action_badge_新朋友'));
+    expect(contactSectionBadge, findsOneWidget);
+    expect(
+      find.descendant(of: contactSectionBadge, matching: find.text('1')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('new friend badge refreshes AS pending notices after Matrix sync',
       (tester) async {
     final client = Client('PortalIMPendingFriendNoticeSyncTest')
@@ -5164,6 +5245,85 @@ void main() {
     );
   });
 
+  testWidgets('chat list shows recovered offline unread badge', (tester) async {
+    const roomId = '!offline-unread:p2p-im.com';
+    final client = Client('PortalIMHomeRecoveredUnreadBadgeTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: '@alice:p2p-im.com',
+      peerName: 'Alice',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 18, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final unread = AsSyncUnread(
+      syncedAt: DateTime.utc(2026, 6, 18, 8, 1),
+      rooms: const [
+        AsUnreadRoom(
+          roomId: roomId,
+          messages: [
+            AsUnreadMessage(
+              eventId: r'$offline-message',
+              senderId: '@alice:p2p-im.com',
+              senderName: 'Alice',
+              content: '离线消息',
+              messageType: MessageTypes.Text,
+              timestamp: null,
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap, unread: unread),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('消息(1)'), findsOneWidget);
+    final row = find.ancestor(
+      of: find.text('Alice'),
+      matching: find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_ConvRow',
+      ),
+    );
+    expect(row, findsOneWidget);
+    expect(find.descendant(of: row, matching: find.text('1')), findsOneWidget);
+  });
+
   testWidgets('viewing new friends clears unread badges but keeps request',
       (tester) async {
     final client = Client('PortalIMFriendRequestReadBadgeTest')
@@ -5304,6 +5464,69 @@ void main() {
 
     expect(asClient.syncBootstrapCalls, 2);
     expect(find.text('Alice'), findsOneWidget);
+  });
+
+  testWidgets('new friends page can accept AS pending group invite',
+      (tester) async {
+    final client = Client(
+      'PortalIMRequestsGroupInviteAcceptTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@member:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20, 9),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending(
+        friendRequests: [],
+        groupInvites: [
+          AsSyncPendingItem(
+            id: '!pending-group:p2p-im.com',
+            title: '项目群',
+            createdAt: null,
+          ),
+        ],
+        channelNotices: [],
+      ),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('项目群'), findsOneWidget);
+    await tester.tap(find.text('查看'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('接受'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.joinGroupCalls, 1);
+    expect(asClient.joinedGroupRoomId, '!pending-group:p2p-im.com');
+    expect(asClient.joinedGroupName, '项目群');
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('new friends page still lists Matrix invites after AS bootstrap',
@@ -7630,10 +7853,12 @@ void main() {
 
   testWidgets('channel conversation text input is enabled for joined channel',
       (tester) async {
+    var matrixSendCalls = 0;
     final client = Client(
       'PortalIMChannelTextSendAsTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
+          matrixSendCalls++;
           return http.Response(
             r'{"event_id":"$channel-message"}',
             200,
@@ -7706,7 +7931,10 @@ void main() {
     await tester.tap(find.text('发送'));
     await tester.pump(const Duration(seconds: 3));
 
-    expect(asClient.sendRoomMessageCalls, 0);
+    expect(asClient.sendRoomMessageCalls, 1);
+    expect(asClient.sentRoomId, '!channel:p2p-im.com');
+    expect(asClient.sentContent, '频道消息');
+    expect(matrixSendCalls, 0);
   });
 
   testWidgets(
@@ -7788,17 +8016,13 @@ void main() {
     expect(matrixSendCalls, 0);
   });
 
-  testWidgets('muted channel text send creates failed local message',
+  testWidgets('joined channel sends through AS despite Matrix power level',
       (tester) async {
     final client = Client(
       'PortalIMMutedChannelTextSendTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
-          return http.Response(
-            '{"errcode":"M_FORBIDDEN","error":"频道已全员禁言"}',
-            403,
-            headers: {'content-type': 'application/json; charset=utf-8'},
-          );
+          throw StateError('channel text should not use Matrix send endpoint');
         }
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -7848,12 +8072,13 @@ void main() {
       pending: const AsSyncPending.empty(),
     );
     final outboxStore = _MemoryLocalOutboxStore();
+    final asClient = _TrackingAsClient();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -7876,9 +8101,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('禁言消息'), findsOneWidget);
-    expect(outboxStore.items, hasLength(1));
-    expect(outboxStore.items.single.status, LocalOutboxItemStatus.failed);
+    expect(asClient.sendRoomMessageCalls, 1);
+    expect(asClient.sentRoomId, '!muted-channel:p2p-im.com');
+    expect(asClient.sentContent, '禁言消息');
+    expect(outboxStore.items, isEmpty);
   });
 
   testWidgets('channel conversation title prefers channel name over room id',

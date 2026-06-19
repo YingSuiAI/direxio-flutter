@@ -616,10 +616,22 @@ class _PublicChannelScaffoldState
     if (roomId.isEmpty) return;
     setState(() => _joining = true);
     try {
-      final joined = await ref.read(asClientProvider).joinChannelByRoomId(
-            roomId,
-            discoveredChannel: channel,
+      final asClient = ref.read(asClientProvider);
+      var joined = await asClient.joinChannelByRoomId(
+        roomId,
+        discoveredChannel: channel,
+      );
+      if (joined.memberStatus == asChannelMemberStatusInvite) {
+        final channelId = joined.channelId.trim().isEmpty
+            ? channel.channelId.trim()
+            : joined.channelId.trim();
+        if (channelId.isNotEmpty) {
+          joined = await asClient.joinChannel(
+            channelId,
+            discoveredChannel: joined,
           );
+        }
+      }
       setState(() {
         _joining = false;
         _future = Future.value(joined);

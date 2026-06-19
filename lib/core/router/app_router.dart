@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io' as io;
 
 import 'package:flutter/foundation.dart';
@@ -685,22 +684,6 @@ class _AuthRestorePage extends StatefulWidget {
 }
 
 class _AuthRestorePageState extends State<_AuthRestorePage> {
-  Timer? _fallbackTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _fallbackTimer = Timer(const Duration(seconds: 14), () {
-      if (mounted) context.go('/login');
-    });
-  }
-
-  @override
-  void dispose() {
-    _fallbackTimer?.cancel();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = context.tk;

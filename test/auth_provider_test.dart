@@ -62,6 +62,45 @@ class _UploadKeyFailsOnceClient extends Client {
   }
 }
 
+class _StoredRestoreInitFailsClient extends Client {
+  _StoredRestoreInitFailsClient(
+    super.clientName, {
+    required super.httpClient,
+  });
+
+  @override
+  Future<void> init({
+    String? newToken,
+    DateTime? newTokenExpiresAt,
+    String? newRefreshToken,
+    Uri? newHomeserver,
+    String? newUserID,
+    String? newDeviceName,
+    String? newDeviceID,
+    String? newOlmAccount,
+    bool waitForFirstSync = true,
+    bool waitUntilLoadCompletedLoaded = true,
+    void Function()? onMigration,
+  }) async {
+    if (newToken == 'stored-token') {
+      throw TimeoutException('transient local restore failure');
+    }
+    return super.init(
+      newToken: newToken,
+      newTokenExpiresAt: newTokenExpiresAt,
+      newRefreshToken: newRefreshToken,
+      newHomeserver: newHomeserver,
+      newUserID: newUserID,
+      newDeviceName: newDeviceName,
+      newDeviceID: newDeviceID,
+      newOlmAccount: newOlmAccount,
+      waitForFirstSync: waitForFirstSync,
+      waitUntilLoadCompletedLoaded: waitUntilLoadCompletedLoaded,
+      onMigration: onMigration,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -320,6 +359,81 @@ void main() {
     expect(auth.isLoggedIn, isTrue);
     expect(auth.userId, '@owner:example.com');
     expect(auth.homeserver, 'https://example.com');
+  });
+
+  test('stored restore transient failure refreshes Matrix session via portal',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'stored-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.adminAccessTokenKey: 'admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'portal-token',
+      AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
+    });
+    final client = _StoredRestoreInitFailsClient(
+      'AuthStoredRestoreTransientFailureTest',
+      httpClient: MockClient((request) async {
+        final authAction = _p2pAction(request, 'portal.auth');
+        if (authAction != null) {
+          expect(authAction['params'], {
+            'password': 'portal-token',
+            'device_id': 'DEVICE1',
+          });
+          return http.Response(
+            '{"matrix_access_token":"fresh-token",'
+            '"admin_access_token":"fresh-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE1",'
+            '"setup_completed":true}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    final auth = await container.read(authStateNotifierProvider.future);
+
+    expect(auth.isLoggedIn, isTrue);
+    expect(auth.userId, '@owner:example.com');
+    expect(auth.homeserver, 'https://example.com');
+    expect(auth.portalToken, 'fresh-admin-token');
+    expect(client.accessToken, 'fresh-token');
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      'fresh-token',
+    );
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_homeserver'),
+      'https://example.com',
+    );
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_user_id'),
+      '@owner:example.com',
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.adminAccessTokenKey),
+      'fresh-admin-token',
+    );
   });
 
   test('expires stale stored Matrix token instead of portal auto login',

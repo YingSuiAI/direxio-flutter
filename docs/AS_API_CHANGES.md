@@ -1,6 +1,6 @@
 # AS API Change Log
 
-Last updated: 2026-06-19
+Last updated: 2026-06-20
 
 This document records frontend-impacting AS/Admin API changes. It is the client-side companion to the server work recorded in Codex thread `019edf7c-54fa-7ba3-a8f8-99c8dac1e838`.
 
@@ -82,6 +82,32 @@ Frontend alignment:
 - Client privacy rule remains: no `last_message` or historical read bodies in `/_as/sync/bootstrap`.
 - Recovered unread remains overlay-only and is not written to Matrix SDK persistent timeline.
 
+## 2026-06-20 Client Follow-Up
+
+### Pending Group Invitations
+
+Frontend alignment:
+
+- `/_as/sync/bootstrap.pending.group_invites[]` is now treated as actionable pending group invitations on the New Friends page.
+- Each pending group invite uses `id` as the Matrix room id and `title` as the group display name.
+- Accepting the invite calls `POST /_as/groups/{roomId}/join`, then runs one Matrix one-shot sync and refreshes bootstrap.
+- The Home contacts badge now includes pending group invites and channel notices, not only friend requests.
+
+### Channel Text Messages
+
+Frontend alignment:
+
+- `/channel/:id/conversation` sends text through existing `POST /_as/rooms/{roomId}/send` instead of direct Matrix `sendTextEvent`.
+- Joined channel members are allowed to type/send when AS bootstrap says their `member_status` is `joined`; Matrix `m.room.message` power level is no longer used as the frontend text-send gate.
+- `invite` and `pending` channel member statuses still block sending until Matrix/AS projection confirms `joined`.
+
+### Concrete Room History Restore
+
+Frontend alignment:
+
+- Bootstrap remains metadata-only.
+- Opening a concrete private chat, group, or channel conversation may request the first visible Matrix timeline history page so restored apps can show/sync messages after restart.
+
 ### Message And Call Query Compatibility
 
 Change:
@@ -102,4 +128,3 @@ When AS contracts change:
 - Update `lib/data/http_as_client.dart` and `lib/data/mock_as_client.dart` together.
 - Update focused tests in `test/http_as_client_test.dart` and affected widget tests.
 - Update this document in the same frontend change.
-

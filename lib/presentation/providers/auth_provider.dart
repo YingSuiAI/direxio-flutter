@@ -271,14 +271,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     try {
       return await _buildRestoredAuthStateWithCancelableTimeout();
     } catch (e) {
-      debugPrint('startup auth restore failed, returning to login: $e');
-      unawaited(
-        _clearAutoRestoreCredentials()
-            .timeout(const Duration(seconds: 2))
-            .catchError((Object clearError) {
-          debugPrint('startup auth credential cleanup skipped: $clearError');
-        }),
+      debugPrint(
+        'startup auth restore failed; keeping stored credentials for retry: $e',
       );
+      final fallback = await _storedAuthStateForRetry(
+        client: ref.read(matrixClientProvider),
+      );
+      if (fallback != null) return fallback;
       return const AuthState(isLoggedIn: false);
     }
   }
@@ -377,8 +376,39 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           portalToken: storedPortalToken,
           requiresProfileSetup: storedProfileInitialized == false,
         );
-      } catch (_) {
-        await _storage.delete(key: 'matrix_token');
+      } catch (e) {
+        if (_isTokenFailure(e)) {
+          await _storage.delete(key: 'matrix_token');
+        } else {
+          debugPrint(
+            'stored Matrix session init failed; preserving token for retry: $e',
+          );
+          if ((storedPortalToken?.trim().isNotEmpty ?? false) &&
+              (storedHomeserver?.trim().isNotEmpty ?? false)) {
+            final refreshed = await _restorePortalSession(
+              client,
+              homeserver: storedHomeserver,
+              portalToken: storedPortalToken,
+            );
+            if (_sessionExpiredLocally) {
+              return const AuthState(isLoggedIn: false);
+            }
+            if (refreshed != null) {
+              return refreshed;
+            }
+          }
+          final fallback = await _storedAuthStateForRetry(
+            client: client,
+            token: token,
+            homeserver: homeserver,
+            userId: userId,
+            portalToken: storedPortalToken,
+            storedProfileInitialized: storedProfileInitialized,
+          );
+          if (fallback != null) {
+            return fallback;
+          }
+        }
       }
     }
     final restored = await _restoreMatrixSdkSession(client, storedPortalToken);
@@ -397,15 +427,54 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     return const AuthState(isLoggedIn: false);
   }
 
-  Future<void> _clearAutoRestoreCredentials() async {
-    await Future.wait<void>([
-      _storage.delete(key: 'matrix_token'),
-      _storage.delete(key: 'matrix_homeserver'),
-      _storage.delete(key: 'matrix_user_id'),
-      _storage.delete(key: 'matrix_device_id'),
-      _storage.delete(key: adminAccessTokenKey),
-      _storage.delete(key: profileInitializedKey),
-    ]);
+  Future<AuthState?> _storedAuthStateForRetry({
+    required Client client,
+    String? token,
+    String? homeserver,
+    String? userId,
+    String? portalToken,
+    bool? storedProfileInitialized,
+  }) async {
+    if (_sessionExpiredLocally) return null;
+    final values = token == null || homeserver == null || userId == null
+        ? await Future.wait<String?>([
+            _storage.read(key: 'matrix_token'),
+            _storage.read(key: 'matrix_homeserver'),
+            _storage.read(key: 'matrix_user_id'),
+            _storage.read(key: AuthStateNotifier.adminAccessTokenKey),
+            _storage.read(key: lastLoginPortalTokenKey),
+            _storage.read(key: profileInitializedKey),
+          ])
+        : null;
+    final storedToken = (token ?? values?[0])?.trim() ?? '';
+    final storedHomeserver = (homeserver ?? values?[1])?.trim() ?? '';
+    final storedUserId = (userId ?? values?[2])?.trim() ?? '';
+    final authPortalToken = (portalToken?.trim().isNotEmpty ?? false)
+        ? portalToken!.trim()
+        : ((values?[3]?.trim().isNotEmpty ?? false)
+            ? values![3]!.trim()
+            : values?[4]?.trim());
+    final profileInitialized =
+        storedProfileInitialized ?? _parseStoredBool(values?[5]);
+    final homeserverUri = Uri.tryParse(storedHomeserver);
+    if (storedToken.isEmpty ||
+        storedHomeserver.isEmpty ||
+        storedUserId.isEmpty ||
+        homeserverUri == null ||
+        homeserverUri.host.isEmpty) {
+      return null;
+    }
+    client.homeserver = homeserverUri;
+    client.accessToken = storedToken;
+    client.setUserId(storedUserId);
+    await _loadChatClearState();
+    return AuthState(
+      isLoggedIn: true,
+      userId: storedUserId,
+      homeserver: storedHomeserver,
+      portalToken: authPortalToken,
+      requiresProfileSetup: profileInitialized == false,
+    );
   }
 
   Future<void> _loadChatClearState() async {

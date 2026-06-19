@@ -13,12 +13,11 @@ enum MessageHistoryLoadTrigger {
 
 /// Privacy-first policy for loading message bodies on this device.
 ///
-/// Bootstrap remains metadata-only. Once the user opens a concrete room, the
-/// first visible page can be loaded so a new phone does not show an empty chat
-/// until the user manually pulls down.
+/// Bootstrap remains metadata-only. Opening a room should render cached
+/// timeline/local history only; explicit older-message loading is user driven.
 bool shouldRequestHistoricalMessages(MessageHistoryLoadTrigger trigger) {
   return switch (trigger) {
-    MessageHistoryLoadTrigger.chatOpen => true,
+    MessageHistoryLoadTrigger.chatOpen => false,
     MessageHistoryLoadTrigger.userLoadOlder => true,
     MessageHistoryLoadTrigger.unreadRecovery => true,
   };

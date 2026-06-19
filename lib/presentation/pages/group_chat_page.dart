@@ -1548,18 +1548,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }) async {
     final isChannelConversation = widget.channelId?.trim().isNotEmpty ?? false;
     if (isChannelConversation) {
-      if (!room.canSendDefaultMessages) {
-        throw StateError('当前频道已禁言，消息未发送');
-      }
-      final eventId = await room.sendTextEvent(
+      return ref.read(asClientProvider).sendRoomMessage(
+        room.id,
         text,
-        inReplyTo: replyTo,
-        parseCommands: false,
+        replyToEventId: replyTo?.eventId,
+        mentions: mentions,
       );
-      if (eventId == null || eventId.trim().isEmpty) {
-        throw StateError('Matrix send returned empty event id');
-      }
-      return eventId;
     }
     return ref.read(asClientProvider).sendRoomMessage(
           room.id,
@@ -1606,8 +1600,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (room.membership != Membership.join) return false;
     final channelId = widget.channelId?.trim();
     if (channelId != null && channelId.isNotEmpty) {
-      return _isJoinedChannelConversation(room, syncCache) &&
-          room.canSendDefaultMessages;
+      return _isJoinedChannelConversation(room, syncCache);
     }
     final isJoinedAsGroup = syncCache.bootstrap?.groups.any(
           (group) => group.roomId.trim() == room.id,

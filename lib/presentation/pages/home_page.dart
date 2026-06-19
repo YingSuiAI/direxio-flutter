@@ -572,19 +572,34 @@ String _homeTabTitle(AppLocalizations? l10n, int index) {
 }
 
 int _homeUnreadTotal(Client client, AsSyncCacheState syncCache) {
-  var total = 0;
+  final unreadByRoomId = <String, int>{};
+  void merge(String roomId, int count) {
+    final trimmed = roomId.trim();
+    if (trimmed.isEmpty || count <= 0) return;
+    final current = unreadByRoomId[trimmed] ?? 0;
+    if (count > current) unreadByRoomId[trimmed] = count;
+  }
+
   for (final room in client.rooms) {
     if (room.membership == Membership.join) {
-      total += conversationUnreadCount(
-        matrixUnreadCount: room.notificationCount,
+      merge(
+        room.id,
+        conversationUnreadCount(matrixUnreadCount: room.notificationCount),
       );
     }
   }
   for (final room
       in syncCache.bootstrap?.rooms ?? const <AsSyncRoomSummary>[]) {
-    total += room.unreadCount;
+    merge(room.roomId, room.unreadCount);
   }
-  return total;
+  for (final group
+      in syncCache.bootstrap?.groups ?? const <AsSyncRoomSummary>[]) {
+    merge(group.roomId, group.unreadCount);
+  }
+  for (final unreadRoom in syncCache.unread?.rooms ?? const <AsUnreadRoom>[]) {
+    merge(unreadRoom.roomId, unreadRoom.messages.length);
+  }
+  return unreadByRoomId.values.fold<int>(0, (total, count) => total + count);
 }
 
 String _homeSyncSignature(Client client) {
@@ -687,6 +702,12 @@ List<String> _pendingFriendRequestRoomIds({
     for (final contact in syncCache.pendingInboundContacts)
       if (contact.roomId.trim().isNotEmpty) contact.roomId.trim(),
     for (final request in syncCache.bootstrap?.pending.friendRequests ??
+        const <AsSyncPendingItem>[])
+      if (request.id.trim().isNotEmpty) request.id.trim(),
+    for (final request in syncCache.bootstrap?.pending.groupInvites ??
+        const <AsSyncPendingItem>[])
+      if (request.id.trim().isNotEmpty) request.id.trim(),
+    for (final request in syncCache.bootstrap?.pending.channelNotices ??
         const <AsSyncPendingItem>[])
       if (request.id.trim().isNotEmpty) request.id.trim(),
   };
@@ -1574,7 +1595,7 @@ class _ChatList extends ConsumerWidget {
           time: previewTime == null
               ? ''
               : _formatConvTime(previewTime.millisecondsSinceEpoch),
-          unread: _conversationUnreadCount(conversation, room),
+          unread: _conversationUnreadCount(conversation, room, syncCache),
           isAgent: conversation.isAgent,
           isGroup: conversation.isGroup,
           avatarUrl: _conversationAvatarUrl(client, conversation, room),
@@ -1901,12 +1922,20 @@ bool _isAgentRoom(Room room, String? agentMxid) {
   return isPortalAgentDirectRoom(room, agentMxid: agentMxid);
 }
 
-int _conversationUnreadCount(_VisibleConversation conversation, Room? room) {
+int _conversationUnreadCount(
+  _VisibleConversation conversation,
+  Room? room,
+  AsSyncCacheState syncCache,
+) {
   final groupUnread = conversation.group?.unreadCount ?? 0;
   if (conversation.isGroup && groupUnread > 0) return groupUnread;
 
   final asRoomUnread = conversation.roomSummary?.unreadCount ?? 0;
   if (asRoomUnread > 0) return asRoomUnread;
+
+  final recoveredUnread =
+      syncCache.unreadMessagesForRoom(conversation.roomId).length;
+  if (recoveredUnread > 0) return recoveredUnread;
 
   return conversationUnreadCount(
       matrixUnreadCount: room?.notificationCount ?? 0);

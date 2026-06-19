@@ -1004,6 +1004,8 @@ class MockAsClient implements AsClient {
     String postId, {
     required String messageType,
     required String body,
+    String parentCommentId = '',
+    Map<String, Object?> quote = const {},
     Map<String, Object?> media = const {},
   }) async {
     await Future.delayed(_latency);

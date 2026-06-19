@@ -59,6 +59,50 @@ void main() {
       ['AS 新帖子', 'AS 里的缓存帖'],
     );
   });
+
+  test('channel posts provider applies post reaction response to cache',
+      () async {
+    final store = _MemoryChannelPostStore();
+    await store.upsertPost(
+      _post(postId: 'post1', body: '帖子', ts: 1000),
+    );
+    final asClient = _ControlledChannelPostsAsClient(
+      Future.value([_post(postId: 'post1', body: '帖子', ts: 1000)]),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        asClientProvider.overrideWithValue(asClient),
+        channelPostStoreProvider.overrideWith((ref) async => store),
+      ],
+    );
+    addTearDown(container.dispose);
+    final sub = container.listen(
+      channelPostsProvider('ch_1'),
+      (_, __) {},
+      fireImmediately: true,
+    );
+    addTearDown(sub.close);
+    await pumpEventQueue();
+
+    await container.read(channelPostsProvider('ch_1').notifier).applyReaction(
+          'post1',
+          const AsChannelReaction(
+            postId: 'post1',
+            channelId: 'ch_1',
+            reaction: 'like',
+            active: true,
+            reactionCount: 3,
+          ),
+        );
+
+    final post =
+        container.read(channelPostsProvider('ch_1')).valueOrNull!.single;
+    expect(post.reactionCount, 3);
+    expect(post.reactedByMe, isTrue);
+    final cached = (await store.readChannel('ch_1')).single;
+    expect(cached.reactionCount, 3);
+    expect(cached.reactedByMe, isTrue);
+  });
 }
 
 class _ControlledChannelPostsAsClient extends MockAsClient {

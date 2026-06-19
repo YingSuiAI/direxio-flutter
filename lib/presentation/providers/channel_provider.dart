@@ -92,6 +92,37 @@ class ChannelPostsNotifier
     state = AsyncValue.data(await store.readChannel(channelId));
   }
 
+  Future<void> applyReaction(
+    String postId,
+    AsChannelReaction reaction,
+  ) async {
+    final trimmedPostId = postId.trim();
+    final reactionPostId = reaction.postId.trim();
+    if (trimmedPostId.isEmpty && reactionPostId.isEmpty) return;
+    final current = state.valueOrNull ??
+        await (await _store()).readChannel(
+          channelId,
+        );
+    var changed = false;
+    final next = [
+      for (final post in current)
+        if (_matchesPost(post, trimmedPostId, reactionPostId))
+          () {
+            changed = true;
+            return post.copyWith(
+              reactionCount: reaction.reactionCount,
+              reactedByMe: reaction.active,
+            );
+          }()
+        else
+          post,
+    ];
+    if (!changed) return;
+    final store = await _store();
+    await store.upsertChannel(channelId, next);
+    state = AsyncValue.data(await store.readChannel(channelId));
+  }
+
   Future<void> _load() async {
     List<AsChannelPost> cached = const [];
     try {
@@ -107,6 +138,20 @@ class ChannelPostsNotifier
 
   Future<ChannelPostStore> _store() {
     return _storeFuture ??= _loadStore();
+  }
+
+  bool _matchesPost(
+    AsChannelPost post,
+    String postId,
+    String reactionPostId,
+  ) {
+    final ids = {
+      post.postId.trim(),
+      post.eventId.trim(),
+    }..remove('');
+    if (postId.isNotEmpty && ids.contains(postId)) return true;
+    if (reactionPostId.isNotEmpty && ids.contains(reactionPostId)) return true;
+    return false;
   }
 }
 

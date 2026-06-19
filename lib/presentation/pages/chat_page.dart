@@ -107,7 +107,7 @@ bool _useAsMediaRouteForDirectChat({
   required bool isProductDirect,
   required bool isAgent,
 }) {
-  return isProductDirect || isAgent;
+  return isProductDirect && !isAgent;
 }
 
 void _openChatRecordDetail(

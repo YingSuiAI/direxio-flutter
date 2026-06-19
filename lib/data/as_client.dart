@@ -912,6 +912,38 @@ class AsChannelPost {
   final int reactionCount;
   final bool reactedByMe;
 
+  AsChannelPost copyWith({
+    String? postId,
+    String? channelId,
+    String? roomId,
+    String? eventId,
+    String? authorId,
+    String? authorName,
+    String? messageType,
+    String? body,
+    Map<String, Object?>? media,
+    int? originServerTs,
+    int? commentCount,
+    int? reactionCount,
+    bool? reactedByMe,
+  }) {
+    return AsChannelPost(
+      postId: postId ?? this.postId,
+      channelId: channelId ?? this.channelId,
+      roomId: roomId ?? this.roomId,
+      eventId: eventId ?? this.eventId,
+      authorId: authorId ?? this.authorId,
+      authorName: authorName ?? this.authorName,
+      messageType: messageType ?? this.messageType,
+      body: body ?? this.body,
+      media: media ?? this.media,
+      originServerTs: originServerTs ?? this.originServerTs,
+      commentCount: commentCount ?? this.commentCount,
+      reactionCount: reactionCount ?? this.reactionCount,
+      reactedByMe: reactedByMe ?? this.reactedByMe,
+    );
+  }
+
   factory AsChannelPost.fromJson(Map<String, dynamic> json) {
     return AsChannelPost(
       postId: json['post_id'] as String? ?? '',
@@ -1740,6 +1772,8 @@ abstract class AsClient {
     String postId, {
     required String messageType,
     required String body,
+    String parentCommentId = '',
+    Map<String, Object?> quote = const {},
     Map<String, Object?> media = const {},
   });
 

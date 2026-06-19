@@ -349,6 +349,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Unable to open the Terms and Privacy Policy';
 
   @override
+  String get loginAgreementRequiredTitle => 'Please review and agree';
+
+  @override
+  String get loginAgreementRequiredMessage =>
+      'You need to agree to the Terms and Privacy Policy before logging in.';
+
+  @override
+  String get loginAgreementConfirmAndLogin => 'Agree and Log In';
+
+  @override
   String get agreementPrefix => 'I have read and agree to ';
 
   @override

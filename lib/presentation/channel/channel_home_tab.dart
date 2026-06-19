@@ -15,6 +15,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_created_channels_provider.dart';
+import '../utils/message_preview.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
@@ -99,6 +100,10 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                             _matrixRoomName(client, roomId),
                         roomAvatarForRoomId: (roomId) =>
                             _matrixRoomAvatar(client, roomId),
+                        latestPreviewForRoomId: (roomId) =>
+                            _matrixRoomLatestPreview(client, roomId),
+                        latestAtForRoomId: (roomId) =>
+                            _matrixRoomLatestAt(client, roomId),
                       )
                 : ChannelInboxData.fromChannels(
                     listedChannels,
@@ -108,18 +113,27 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                         _matrixRoomName(client, roomId),
                     roomAvatarForRoomId: (roomId) =>
                         _matrixRoomAvatar(client, roomId),
+                    latestPreviewForRoomId: (roomId) =>
+                        _matrixRoomLatestPreview(client, roomId),
+                    latestAtForRoomId: (roomId) =>
+                        _matrixRoomLatestAt(client, roomId),
+                    hiddenChannelKeys: syncHiddenChannelKeys,
                   ),
             localCreatedChannels,
             fallbackDomain: fallbackDomain,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            latestPreviewForRoomId: (roomId) =>
+                _matrixRoomLatestPreview(client, roomId),
+            latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           )
         : _mockChannelItems();
     final visibleSourceChannels = _sortPinnedChannels(
       sourceChannels
           .where((channel) =>
-              !_channelHiddenKeysContain(hiddenChannelKeys, channel))
+              !_channelHiddenKeysContain(hiddenChannelKeys, channel) &&
+              !_channelHiddenKeysContain(syncHiddenChannelKeys, channel))
           .toList(growable: false),
       pinnedChannelKeys,
     );
@@ -276,6 +290,9 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             fallbackDomain: _clientServerName(client),
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            latestPreviewForRoomId: (roomId) =>
+                _matrixRoomLatestPreview(client, roomId),
+            latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
           )
         : ChannelInboxData.mergeCreatedCache(
             ChannelInboxData.fromBootstrap(
@@ -284,15 +301,23 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
               roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
               roomAvatarForRoomId: (roomId) =>
                   _matrixRoomAvatar(client, roomId),
+              latestPreviewForRoomId: (roomId) =>
+                  _matrixRoomLatestPreview(client, roomId),
+              latestAtForRoomId: (roomId) =>
+                  _matrixRoomLatestAt(client, roomId),
             ),
             localCreatedChannels,
             fallbackDomain: _clientServerName(client),
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            latestPreviewForRoomId: (roomId) =>
+                _matrixRoomLatestPreview(client, roomId),
+            latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           );
     final filteredChannels = channels.where((channel) {
-      final hidden = _channelHiddenKeysContain(hiddenChannelKeys, channel);
+      final hidden = _channelHiddenKeysContain(hiddenChannelKeys, channel) ||
+          _channelHiddenKeysContain(syncHiddenChannelKeys, channel);
       if (hidden) return false;
       return _section == '我创建' ? channel.isOwned : !channel.isOwned;
     }).toList(growable: false);
@@ -977,34 +1002,51 @@ class ChannelInboxTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 21),
-                            child: Row(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Flexible(
-                                  child: Text(
-                                    channel.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTheme.sans(
-                                      size: 14,
-                                      weight: FontWeight.w500,
-                                      color: _channelTextColor(context),
-                                    ).copyWith(height: 18 / 14),
-                                  ),
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        channel.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTheme.sans(
+                                          size: 14,
+                                          weight: FontWeight.w500,
+                                          color: _channelTextColor(context),
+                                        ).copyWith(height: 18 / 14),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _ChannelKindBadge(
+                                      label: _channelIsTextType(channel)
+                                          ? '文字'
+                                          : '帖子',
+                                    ),
+                                    if (isPinned) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Symbols.push_pin,
+                                        size: 14,
+                                        color: _channelMutedColor(context),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                                const SizedBox(width: 6),
-                                _ChannelKindBadge(
-                                  label:
-                                      _channelIsTextType(channel) ? '文字' : '帖子',
-                                ),
-                                if (isPinned) ...[
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Symbols.push_pin,
-                                    size: 14,
+                                const SizedBox(height: 3),
+                                Text(
+                                  channel.latestPreview,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTheme.sans(
+                                    size: 12,
                                     color: _channelMutedColor(context),
                                   ),
-                                ],
+                                ),
                               ],
                             ),
                           ),
@@ -1684,7 +1726,7 @@ Set<String> _channelListKeys(ChannelInboxItem channel) {
 }
 
 Set<String> _hiddenChannelKeys(AsSyncCacheState syncCache) {
-  final keys = <String>{};
+  final keys = {...syncCache.localRemovedChannelKeys};
   for (final channel in syncCache.bootstrap?.channels ?? const []) {
     if (!_channelStatusIsDissolved(channel.memberStatus)) continue;
     _addChannelKeys(keys, channel.channelId, channel.roomId);
@@ -1895,6 +1937,16 @@ String _matrixRoomName(Client client, String roomId) {
 
 String _matrixRoomAvatar(Client client, String roomId) {
   return client.getRoomById(roomId.trim())?.avatar?.toString() ?? '';
+}
+
+String _matrixRoomLatestPreview(Client client, String roomId) {
+  final event = client.getRoomById(roomId.trim())?.lastEvent;
+  final preview = roomEventPreviewText(event, isAgent: false).trim();
+  return preview;
+}
+
+DateTime? _matrixRoomLatestAt(Client client, String roomId) {
+  return client.getRoomById(roomId.trim())?.lastEvent?.originServerTs;
 }
 
 bool _looksLikeMatrixRoomId(String text) {

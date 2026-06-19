@@ -749,6 +749,24 @@ abstract class AppLocalizations {
   /// **'无法打开用户协议与隐私条款'**
   String get loginTermsOpenFailed;
 
+  /// No description provided for @loginAgreementRequiredTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先阅读并同意'**
+  String get loginAgreementRequiredTitle;
+
+  /// No description provided for @loginAgreementRequiredMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录前需要同意用户协议与隐私条款。'**
+  String get loginAgreementRequiredMessage;
+
+  /// No description provided for @loginAgreementConfirmAndLogin.
+  ///
+  /// In zh, this message translates to:
+  /// **'同意并登录'**
+  String get loginAgreementConfirmAndLogin;
+
   /// No description provided for @agreementPrefix.
   ///
   /// In zh, this message translates to:

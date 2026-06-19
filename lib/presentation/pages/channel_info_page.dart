@@ -100,7 +100,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   @override
   Widget build(BuildContext context) {
     final channel = resolveChannelInfoData(ref, widget.channelId);
-    final titleMemberCount = _channelTitleMemberCount(channel);
+    final membersFuture = _ensureMembersFuture();
     return Scaffold(
       backgroundColor: context.tk.bg,
       body: SafeArea(
@@ -110,9 +110,18 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             ListView(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
               children: [
-                _InfoTopBar(
-                  title: '频道信息($titleMemberCount)',
-                  onBack: () => context.pop(),
+                FutureBuilder<List<AsChannelMember>>(
+                  future: membersFuture,
+                  builder: (context, snapshot) {
+                    final titleMemberCount = _channelTitleMemberCount(
+                      channel,
+                      loadedMembers: snapshot.data,
+                    );
+                    return _InfoTopBar(
+                      title: '频道信息($titleMemberCount)',
+                      onBack: () => context.pop(),
+                    );
+                  },
                 ),
                 if (channel.isOwned)
                   ..._ownerContent(context, channel)
@@ -233,10 +242,18 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     ];
   }
 
-  int _channelTitleMemberCount(ChannelInfoData channel) {
-    final joinedMembers =
-        _members.where(_isJoinedChannelMember).toList(growable: false);
-    if (joinedMembers.isNotEmpty) return joinedMembers.length;
+  int _channelTitleMemberCount(
+    ChannelInfoData channel, {
+    List<AsChannelMember>? loadedMembers,
+  }) {
+    final members = loadedMembers ?? _members;
+    final joinedMembers = members.where(_isJoinedChannelMember);
+    if (loadedMembers != null && joinedMembers.isNotEmpty ||
+        loadedMembers == null &&
+            _membersFuture != null &&
+            _members.isNotEmpty) {
+      return joinedMembers.length;
+    }
     return channel.memberCount < 0 ? 0 : channel.memberCount;
   }
 

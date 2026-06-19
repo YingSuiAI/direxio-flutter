@@ -139,6 +139,114 @@ void main() {
     expect(auth.homeserver, 'https://example.com');
   });
 
+  test('restored stored auth keeps pending profile setup flag', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'stored-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.adminAccessTokenKey: 'admin-token',
+      AuthStateNotifier.requiresProfileSetupKey: 'true',
+      AuthStateNotifier.ownerDisplayNameKey: '',
+    });
+    final requestPaths = <String>[];
+    final client = Client(
+      'AuthStoredRestoreProfileSetupFlagTest',
+      httpClient: MockClient((request) async {
+        requestPaths.add(request.url.path);
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s0","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    final auth = await container.read(authStateNotifierProvider.future);
+
+    expect(auth.isLoggedIn, isTrue);
+    expect(auth.requiresProfileSetup, isTrue);
+    expect(requestPaths, isNot(contains('/_as/profile')));
+  });
+
+  test('restored stored auth probes AS profile when setup flag is missing',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'stored-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.adminAccessTokenKey: 'admin-token',
+    });
+    final client = Client(
+      'AuthStoredRestoreProfileSetupProbeTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response(
+            '{"flows":[{"type":"m.login.password"}]}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_as/profile') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","display_name":"",'
+            '"domain":"example.com"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s0","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    final auth = await container.read(authStateNotifierProvider.future);
+
+    expect(auth.isLoggedIn, isTrue);
+    expect(auth.requiresProfileSetup, isTrue);
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.requiresProfileSetupKey),
+      'true',
+    );
+  });
+
   test('refreshes stale stored Matrix token from portal session on restore',
       () async {
     FlutterSecureStorage.setMockInitialValues({

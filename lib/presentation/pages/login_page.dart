@@ -21,6 +21,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _portalTokenCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
+  bool _agreed = false;
   String? _error;
 
   @override
@@ -60,6 +61,40 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     _domainCtrl.dispose();
     _portalTokenCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _submitLogin() async {
+    if (_loading) return;
+    if (_agreed) {
+      await _login();
+      return;
+    }
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n?.loginAgreementRequiredTitle ?? '请先阅读并同意'),
+        content: Text(
+          l10n?.loginAgreementRequiredMessage ?? '登录前需要同意用户协议与隐私条款。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n?.commonCancel ?? '取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l10n?.loginAgreementConfirmAndLogin ?? '同意并登录'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _agreed = true);
+    await _login();
   }
 
   Future<void> _login() async {
@@ -156,7 +191,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       icon: Symbols.lock,
                       hint: l10n?.loginPasswordHint ?? '登录密码',
                       obscure: _obscure,
-                      onSubmitted: (_) => _login(),
+                      onSubmitted: (_) => _submitLogin(),
                       tokens: loginTokens,
                       trailing: IconButton(
                         icon: Icon(
@@ -194,7 +229,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             color: loginTokens.onAccent,
                           ),
                         ),
-                        onPressed: _loading ? null : _login,
+                        onPressed: _loading ? null : _submitLogin,
                         child: Text(
                           _loading
                               ? l10n?.loginButtonLoading ?? '登录中…'
@@ -204,7 +239,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                     const SizedBox(height: 214),
                     _LoginAgreementLine(
+                      agreed: _agreed,
                       tokens: loginTokens,
+                      onToggle: () => setState(() => _agreed = !_agreed),
                       onTermsTap: _openTerms,
                     ),
                   ],
@@ -220,11 +257,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
 class _LoginAgreementLine extends StatelessWidget {
   const _LoginAgreementLine({
+    required this.agreed,
     required this.tokens,
+    required this.onToggle,
     required this.onTermsTap,
   });
 
+  final bool agreed;
   final PortalTokens tokens;
+  final VoidCallback onToggle;
   final VoidCallback onTermsTap;
 
   @override
@@ -237,12 +278,20 @@ class _LoginAgreementLine extends StatelessWidget {
       alignment: WrapAlignment.center,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Icon(
-          Symbols.radio_button_unchecked,
-          size: 16,
-          color: tokens.textMute,
+        InkWell(
+          onTap: onToggle,
+          customBorder: const CircleBorder(),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(
+              agreed ? Symbols.check_circle : Symbols.radio_button_unchecked,
+              size: 16,
+              color: agreed ? tokens.accent : tokens.textMute,
+              fill: agreed ? 1 : 0,
+            ),
+          ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
         Text(
           l10n?.agreementPrefix ?? '阅读并同意',
           style: AppTheme.sans(size: 12, color: tokens.textMute),

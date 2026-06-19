@@ -516,6 +516,8 @@ class _EmptyAsClient implements AsClient {
     String postId, {
     required String messageType,
     required String body,
+    String parentCommentId = '',
+    Map<String, Object?> quote = const {},
     Map<String, Object?> media = const {},
   }) async =>
       AsChannelComment(
@@ -1385,6 +1387,15 @@ AsSyncBootstrap _pendingFriendRequestBootstrap({
 class _NeverListChannelsAsClient extends _EmptyAsClient {
   @override
   Future<List<AsChannel>> listChannels() => Completer<List<AsChannel>>().future;
+}
+
+class _ListedChannelsAsClient extends _EmptyAsClient {
+  _ListedChannelsAsClient(this.channels);
+
+  final List<AsChannel> channels;
+
+  @override
+  Future<List<AsChannel>> listChannels() async => channels;
 }
 
 class _TrackingAsClient extends _EmptyAsClient {
@@ -3928,8 +3939,8 @@ void main() {
     expect(find.text('我创建'), findsNothing);
     expect(find.text('频道列表'), findsNothing);
     expect(find.text('全部'), findsNothing);
-    expect(find.text('#综合讨论'), findsOneWidget);
-    expect(find.text('#新手问答'), findsOneWidget);
+    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('P2P IM 官方'), findsOneWidget);
     expect(find.text('草稿箱'), findsNothing);
     expect(find.byIcon(Symbols.search), findsOneWidget);
     expect(find.byKey(const ValueKey('channel_post_button')), findsOneWidget);
@@ -3965,6 +3976,40 @@ void main() {
       (tester) async {
     final client = Client('PortalIMMeChannelsTest')
       ..setUserId('@owner:p2p-im.com');
+    final ownedRoom = Room(
+      id: '!owned:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(ownedRoom);
+    ownedRoom.lastEvent = Event(
+      room: ownedRoom,
+      eventId: r'$owned-channel-last',
+      senderId: '@owner:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 1, 4, 9, 30),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '这是我创建频道的最新消息',
+      },
+    );
+    final joinedRoom = Room(
+      id: '!joined:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(joinedRoom);
+    joinedRoom.lastEvent = Event(
+      room: joinedRoom,
+      eventId: r'$joined-channel-last',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 1, 4, 9),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '这是加入频道的最新消息',
+      },
+    );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 17, 10),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -4020,6 +4065,7 @@ void main() {
     expect(find.byKey(const ValueKey('channel_inbox_tile_owned-channel')),
         findsOneWidget);
     expect(find.text('我创建的频道'), findsOneWidget);
+    expect(find.text('这是我创建频道的最新消息'), findsOneWidget);
     expect(find.text('频道列表 item 样式'), findsNothing);
     expect(find.text('1/2'), findsNothing);
     expect(find.text('我加入的频道'), findsNothing);
@@ -4032,6 +4078,8 @@ void main() {
     expect(find.text('我加入的频道'), findsOneWidget);
     expect(find.byKey(const ValueKey('channel_inbox_tile_joined-channel')),
         findsOneWidget);
+    expect(find.text('这是加入频道的最新消息'), findsOneWidget);
+    expect(find.text('不应该显示'), findsNothing);
     expect(find.text('我创建的频道'), findsNothing);
     expect(find.text('1/3'), findsNothing);
   });
@@ -9049,13 +9097,13 @@ void main() {
     expect(find.text('帖子'), findsAtLeastNWidgets(1));
     expect(find.text('草稿'), findsNothing);
 
-    expect(find.text('#综合讨论'), findsOneWidget);
-    expect(find.text('#新手问答'), findsOneWidget);
+    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('P2P IM 官方'), findsOneWidget);
     expect(find.text('草稿箱'), findsNothing);
     expect(find.text('自由讨论、技术交流与闲聊'), findsOneWidget);
 
-    final firstTop = tester.getTopLeft(find.text('#综合讨论')).dy;
-    final secondTop = tester.getTopLeft(find.text('#新手问答')).dy;
+    final firstTop = tester.getTopLeft(find.text('P2P IM 官方')).dy;
+    final secondTop = tester.getTopLeft(find.text('综合讨论')).dy;
     expect(firstTop, lessThan(secondTop));
   });
 
@@ -9139,8 +9187,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('频道列表'), findsNothing);
-    expect(find.text('#综合讨论'), findsOneWidget);
-    expect(find.text('#新手问答'), findsOneWidget);
+    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('P2P IM 官方'), findsOneWidget);
   });
 
   testWidgets('channel filters are hidden on channel tab', (tester) async {
@@ -9211,7 +9259,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('p2p-im.com · 我的频道'), findsNothing);
-    expect(find.text('#P2P IM 官方'), findsOneWidget);
+    expect(find.text('P2P IM 官方'), findsOneWidget);
     expect(
         find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);
     expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
@@ -9277,6 +9325,100 @@ void main() {
 
     expect(find.text('旧频道'), findsNothing);
     expect(find.text('频道已经解散'), findsNothing);
+  });
+
+  testWidgets('locally left channel stays hidden from stale channel list',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (mockAuthEnabled) return;
+
+    final client = Client('PortalIMLeftChannelHiddenTest')
+      ..setUserId('@member:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final room = Room(
+      id: '!left:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.lastEvent = Event(
+      room: room,
+      eventId: r'$left-channel-last',
+      senderId: '@owner:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 18, 10, 20),
+      content: const {
+        'msgtype': MessageTypes.Text,
+        'body': '退出后不应该还看到这条消息',
+      },
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-18T10:30:00Z'),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_left',
+          roomId: '!left:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '已退出频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-18T10:20:00Z'),
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypeChat,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final state = AsSyncCacheState(bootstrap: bootstrap).withoutChannel(
+      'ch_left',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_MemberLoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(
+            _ListedChannelsAsClient(
+              const [
+                AsChannel(
+                  channelId: 'ch_left',
+                  roomId: '!left:p2p-im.com',
+                  homeDomain: 'p2p-im.com',
+                  name: '已退出频道',
+                  description: '',
+                  avatarUrl: '',
+                  channelType: asChannelTypeChat,
+                  role: asChannelRoleMember,
+                  memberStatus: asChannelMemberStatusJoined,
+                ),
+              ],
+            ),
+          ),
+          asSyncCacheProvider.overrideWith((ref) => state),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const Scaffold(body: ChannelExplorePage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('已退出频道'), findsNothing);
+    expect(find.text('退出后不应该还看到这条消息'), findsNothing);
   });
 
   testWidgets('channel inbox long press shows channel actions', (tester) async {
@@ -11764,8 +11906,7 @@ void main() {
     expect(find.text('在线'), findsNothing);
   });
 
-  testWidgets('agent chat media panel uses AS media route for thumbnails',
-      (tester) async {
+  testWidgets('agent chat media panel uses Matrix media route', (tester) async {
     final client = Client('PortalIMAgentMediaTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
@@ -11800,7 +11941,7 @@ void main() {
     final panel = tester.widget<ChatAttachmentPanel>(
       find.byType(ChatAttachmentPanel),
     );
-    expect(panel.useAsProductMedia, isTrue);
+    expect(panel.useAsProductMedia, isFalse);
     expect(find.text('视频'), findsOneWidget);
   });
 
@@ -12617,6 +12758,46 @@ void main() {
     await tester.tap(find.text('登录'));
     await tester.pump();
 
+    expect(_RecordingLoginAuthStateNotifier.homeserver, isNull);
+    expect(find.text('请先阅读并同意'), findsOneWidget);
+    await tester.tap(find.text('同意并登录'));
+    await tester.pump();
+
+    expect(_RecordingLoginAuthStateNotifier.homeserver, 'https://example.com');
+    expect(_RecordingLoginAuthStateNotifier.portalToken, 'portal-token');
+    expect(find.byIcon(Symbols.check_circle), findsOneWidget);
+  });
+
+  testWidgets('login page agreement circle can be checked before submit',
+      (tester) async {
+    _RecordingLoginAuthStateNotifier.reset();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_RecordingLoginAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.ensureVisible(find.byIcon(Symbols.radio_button_unchecked));
+    await tester.pump();
+    await tester.tap(find.byIcon(Symbols.radio_button_unchecked));
+    await tester.pump();
+    expect(find.byIcon(Symbols.check_circle), findsOneWidget);
+
+    final fields = find.byType(EditableText);
+    await tester.enterText(fields.first, 'example.com');
+    await tester.enterText(fields.last, 'portal-token');
+    await tester.tap(find.text('登录'));
+    await tester.pump();
+
+    expect(find.text('请先阅读并同意'), findsNothing);
     expect(_RecordingLoginAuthStateNotifier.homeserver, 'https://example.com');
     expect(_RecordingLoginAuthStateNotifier.portalToken, 'portal-token');
   });

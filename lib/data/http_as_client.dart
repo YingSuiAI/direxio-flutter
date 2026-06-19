@@ -1088,8 +1088,11 @@ class HttpAsClient implements AsClient {
     String postId, {
     required String messageType,
     required String body,
+    String parentCommentId = '',
+    Map<String, Object?> quote = const {},
     Map<String, Object?> media = const {},
   }) async {
+    final commentQuote = _channelCommentQuoteBody(quote);
     final response = await _requestJson(
       'POST',
       'channels/${Uri.encodeComponent(channelId)}/posts/${Uri.encodeComponent(postId)}/comments',
@@ -1097,11 +1100,26 @@ class HttpAsClient implements AsClient {
         'message_type':
             messageType.trim().isEmpty ? 'text' : messageType.trim(),
         'body': body.trim(),
+        'parent_comment_id': parentCommentId.trim(),
+        if (commentQuote.isNotEmpty) 'quote': commentQuote,
         if (media.isNotEmpty) 'media_json': jsonEncode(media),
       },
       allowedStatusCodes: const {200},
     );
     return AsChannelComment.fromJson(response);
+  }
+
+  Map<String, Object?> _channelCommentQuoteBody(Map<String, Object?> quote) {
+    final eventId = (quote['event_id'] ?? quote['eventId'])?.toString().trim();
+    final body = quote['body']?.toString().trim();
+    if ((eventId == null || eventId.isEmpty) &&
+        (body == null || body.isEmpty)) {
+      return const {};
+    }
+    return {
+      if (eventId != null && eventId.isNotEmpty) 'event_id': eventId,
+      if (body != null && body.isNotEmpty) 'body': body,
+    };
   }
 
   @override

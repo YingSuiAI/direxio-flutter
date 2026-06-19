@@ -369,11 +369,13 @@ void main() {
     );
 
     expect(heart.color, PortalTokens.light.danger);
+    expect(find.text('2'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('channel_post_like_post1')));
     await tester.pumpAndSettle();
 
     expect(asClient.toggledPostId, 'post1');
+    expect(find.text('3'), findsOneWidget);
   });
 
   testWidgets('channel owner can recall a post from post list', (tester) async {
@@ -915,6 +917,113 @@ void main() {
     expect(find.text('移除频道成员'), findsOneWidget);
     expect(find.text('Alex Chen'), findsOneWidget);
     expect(find.text('@agent:p2p-im.com'), findsNothing);
+  });
+
+  testWidgets('member channel info refreshes joined members from AS',
+      (tester) async {
+    final asClient = _ChannelInfoMembersAsClient();
+    final matrixClient = Client('ChannelInfoMemberCountTest')
+      ..setUserId('@alex:p2p-liyanan.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@alex:p2p-liyanan.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 3,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedChannelId, 'ch_real');
+    expect(asClient.requestedStatus, asChannelMemberStatusJoined);
+    expect(find.text('频道信息(2)'), findsOneWidget);
+    expect(find.text('频道信息(3)'), findsNothing);
+  });
+
+  testWidgets(
+      'channel info title falls back to metadata when members are empty',
+      (tester) async {
+    final matrixClient = Client('ChannelInfoEmptyMembersTest')
+      ..setUserId('@member:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 32,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asClientProvider
+              .overrideWithValue(_EmptyChannelInfoMembersAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('频道信息(32)'), findsOneWidget);
+    expect(find.text('频道信息(0)'), findsNothing);
   });
 
   testWidgets('owned channel member avatar does not open profile',
@@ -1958,6 +2067,16 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
   }
 }
 
+class _EmptyChannelInfoMembersAsClient extends MockAsClient {
+  @override
+  Future<List<AsChannelMember>> getChannelMembers(
+    String channelId, {
+    String status = '',
+  }) async {
+    return const [];
+  }
+}
+
 Finder _ownerSwitchFinder() {
   return find.byWidgetPredicate(
     (widget) => widget.runtimeType.toString() == '_OwnerSwitch',
@@ -2127,6 +2246,8 @@ class _PostingChannelAsClient extends MockAsClient {
     String postId, {
     required String messageType,
     required String body,
+    String parentCommentId = '',
+    Map<String, Object?> quote = const {},
     Map<String, Object?> media = const {},
   }) async {
     createdCommentBody = body;

@@ -341,6 +341,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginTermsOpenFailed => '无法打开用户协议与隐私条款';
 
   @override
+  String get loginAgreementRequiredTitle => '请先阅读并同意';
+
+  @override
+  String get loginAgreementRequiredMessage => '登录前需要同意用户协议与隐私条款。';
+
+  @override
+  String get loginAgreementConfirmAndLogin => '同意并登录';
+
+  @override
   String get agreementPrefix => '阅读并同意';
 
   @override

@@ -406,13 +406,8 @@ class ChatAttachmentPanel extends ConsumerWidget {
             return;
           }
           await room!.sendFileEvent(
-            MatrixFile(
-              bytes: attachment.bytes,
-              name: attachment.name,
-              mimeType: attachment.mimeType.isEmpty
-                  ? videoMimeTypeForName(attachment.name)
-                  : attachment.mimeType,
-            ),
+            _matrixVideoFileForAttachment(attachment),
+            thumbnail: _matrixVideoThumbnailForAttachment(attachment),
           );
         },
         showNotice: (
@@ -438,6 +433,45 @@ class ChatAttachmentPanel extends ConsumerWidget {
         duration: const Duration(seconds: 3),
       );
     }
+  }
+
+  MatrixVideoFile _matrixVideoFileForAttachment(
+    ChatMediaAttachment attachment,
+  ) {
+    return MatrixVideoFile(
+      bytes: attachment.bytes,
+      name: attachment.name,
+      mimeType: attachment.mimeType.isEmpty
+          ? videoMimeTypeForName(attachment.name)
+          : attachment.mimeType,
+      width: attachment.width > 0 ? attachment.width : null,
+      height: attachment.height > 0 ? attachment.height : null,
+      duration: attachment.durationMs > 0 ? attachment.durationMs : null,
+    );
+  }
+
+  MatrixImageFile? _matrixVideoThumbnailForAttachment(
+    ChatMediaAttachment attachment,
+  ) {
+    final bytes = attachment.thumbnailBytes;
+    if (bytes == null || bytes.isEmpty) return null;
+    return MatrixImageFile(
+      bytes: bytes,
+      name: _videoThumbnailName(attachment.name),
+      mimeType: attachment.thumbnailMimeType.isEmpty
+          ? 'image/jpeg'
+          : attachment.thumbnailMimeType,
+      width: attachment.width > 0 ? attachment.width : null,
+      height: attachment.height > 0 ? attachment.height : null,
+    );
+  }
+
+  String _videoThumbnailName(String videoName) {
+    final trimmed = videoName.trim();
+    if (trimmed.isEmpty) return 'video-thumb.jpg';
+    final dot = trimmed.lastIndexOf('.');
+    final base = dot > 0 ? trimmed.substring(0, dot) : trimmed;
+    return '$base-thumb.jpg';
   }
 
   @override

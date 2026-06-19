@@ -343,6 +343,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get loginTermsOpenFailed => '利用規約とプライバシーポリシーを開けません';
 
   @override
+  String get loginAgreementRequiredTitle => '確認して同意してください';
+
+  @override
+  String get loginAgreementRequiredMessage =>
+      'ログインする前に利用規約とプライバシーポリシーへの同意が必要です。';
+
+  @override
+  String get loginAgreementConfirmAndLogin => '同意してログイン';
+
+  @override
   String get agreementPrefix => '確認して同意します';
 
   @override

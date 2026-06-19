@@ -1942,6 +1942,7 @@ void main() {
         expect(jsonDecode(request.body), {
           'message_type': 'text',
           'body': '收到',
+          'parent_comment_id': '',
         });
         return _jsonResponse(
           {
@@ -1972,6 +1973,54 @@ void main() {
     expect(comment.postId, 'post1');
     expect(comment.reactionCount, 5);
     expect(comment.reactedByMe, isTrue);
+  });
+
+  test('createChannelComment posts parent comment and quote metadata',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch1/posts/post1/comments');
+        expect(jsonDecode(request.body), {
+          'message_type': 'text',
+          'body': '回复',
+          'parent_comment_id': 'comment-parent',
+          'quote': {
+            'event_id': r'$quoted',
+            'body': 'quoted preview',
+          },
+        });
+        return _jsonResponse(
+          {
+            'comment_id': 'comment2',
+            'post_id': 'post1',
+            'channel_id': 'ch1',
+            'event_id': r'$comment2',
+            'author_mxid': '@owner:example.com',
+            'body': '回复',
+            'message_type': 'text',
+            'origin_server_ts': 1780730000001,
+          },
+          200,
+        );
+      }),
+    );
+
+    final comment = await client.createChannelComment(
+      'ch1',
+      'post1',
+      messageType: 'text',
+      body: ' 回复 ',
+      parentCommentId: ' comment-parent ',
+      quote: {
+        'event_id': r' $quoted ',
+        'body': ' quoted preview ',
+      },
+    );
+
+    expect(comment.commentId, 'comment2');
   });
 
   test('getChannelComments uses page query parameters', () async {

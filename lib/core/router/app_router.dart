@@ -293,16 +293,26 @@ GoRouter appRouter(Ref ref) {
     refreshListenable: authRefresh,
     redirect: (context, state) {
       final authState = ref.read(authStateNotifierProvider);
-      return authRedirectLocation(
+      final auth = authState.valueOrNull;
+      final redirect = authRedirectLocation(
         mockAuthEnabled: _mockAuthEnabled,
         callAutotestEnabled: _callAutotestEnabled,
         isAuthLoading: authState.isLoading && authState.valueOrNull == null,
-        isLoggedIn: authState.valueOrNull?.isLoggedIn ?? false,
-        requiresProfileSetup:
-            authState.valueOrNull?.requiresProfileSetup ?? false,
+        isLoggedIn: auth?.isLoggedIn ?? false,
+        requiresProfileSetup: auth?.requiresProfileSetup ?? false,
         matchedLocation: state.matchedLocation,
         uri: state.uri,
       );
+      if (redirect != null) {
+        debugPrint(
+          '[router] redirect ${state.matchedLocation} -> $redirect '
+          'loading=${authState.isLoading && auth == null} '
+          'logged_in=${auth?.isLoggedIn ?? false} '
+          'requires_profile_setup=${auth?.requiresProfileSetup ?? false} '
+          'user=${auth?.userId ?? "<none>"}',
+        );
+      }
+      return redirect;
     },
     routes: [
       GoRoute(path: '/restore', builder: (_, __) => const _AuthRestorePage()),

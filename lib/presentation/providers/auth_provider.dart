@@ -272,6 +272,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   static const adminAccessTokenKey = 'admin_access_token';
   static const lastLoginHomeserverKey = 'last_login_homeserver';
   static const lastLoginPortalTokenKey = 'last_login_portal_token';
+  static const ownerDisplayNameKey = 'owner_display_name';
+  static const requiresProfileSetupKey = 'requires_profile_setup';
   bool _sessionExpiredLocally = false;
 
   @override
@@ -305,6 +307,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         ? portalToken
         : lastLoginPortalToken;
     final storedHomeserver = homeserver ?? lastLoginHomeserver;
+    debugPrint(
+      '[auth] restore start matrix_token=${token != null} '
+      'matrix_user=${userId ?? "<none>"} '
+      'matrix_homeserver=${homeserver ?? "<none>"} '
+      'admin_token=${portalToken != null} '
+      'last_login_homeserver=${lastLoginHomeserver ?? "<none>"} '
+      'last_login_token=${lastLoginPortalToken != null}',
+    );
     if (_sessionExpiredLocally) {
       return const AuthState(isLoggedIn: false);
     }
@@ -335,11 +345,25 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         if (_sessionExpiredLocally) {
           return const AuthState(isLoggedIn: false);
         }
+        final profileSetup = await _restoreOwnerProfileSetupSnapshot(
+          client,
+          homeserverUri,
+          storedPortalToken,
+          source: 'stored_matrix',
+        );
+        debugPrint(
+          '[auth] restore stored_matrix success user=${client.userID ?? userId} '
+          'homeserver=${(client.homeserver ?? homeserverUri)} '
+          'requires_profile_setup=${profileSetup.requiresProfileSetup} '
+          'owner_display_name_empty=${profileSetup.ownerDisplayName?.trim().isEmpty ?? true}',
+        );
         return AuthState(
           isLoggedIn: true,
           userId: client.userID ?? userId,
           homeserver: (client.homeserver ?? homeserverUri).toString(),
           portalToken: storedPortalToken,
+          ownerDisplayName: profileSetup.ownerDisplayName,
+          requiresProfileSetup: profileSetup.requiresProfileSetup,
         );
       } catch (_) {
         await _storage.delete(key: 'matrix_token');
@@ -358,6 +382,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
       if (portalRestored != null) return portalRestored;
     }
+    debugPrint('[auth] restore ended without valid local session');
     return const AuthState(isLoggedIn: false);
   }
 
@@ -368,6 +393,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       _storage.delete(key: 'matrix_user_id'),
       _storage.delete(key: 'matrix_device_id'),
       _storage.delete(key: adminAccessTokenKey),
+      _storage.delete(key: ownerDisplayNameKey),
+      _storage.delete(key: requiresProfileSetupKey),
     ]);
   }
 
@@ -408,6 +435,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
 
     final baseUri = HttpAsClient.defaultAdminBaseUri(inputUri);
+    debugPrint(
+      '[auth] login start input=${inputUri.host} '
+      'password_present=${cleanPortalToken.isNotEmpty} '
+      'password_length=${cleanPortalToken.length} '
+      'bootstrap=$useBootstrap',
+    );
     final session = useBootstrap
         ? await HttpAsClient.bootstrapPortal(
             baseUri: baseUri,
@@ -419,6 +452,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             portalToken: cleanPortalToken,
             httpClient: client.httpClient,
           );
+    debugPrint(
+      '[auth] login AS auth success input=${inputUri.host} '
+      'session_user=${session.userId} '
+      'session_homeserver=${session.homeserver} '
+      'admin_token_length=${session.adminAccessToken.trim().length}',
+    );
     final storedUserId = await _storage.read(key: 'matrix_user_id');
     final storedHomeserver = await _storage.read(key: 'matrix_homeserver');
     // 认证成功后再读取 owner.json，用于确认 Portal owner 信息。
@@ -493,6 +532,15 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       homeserver: checkedHomeserver,
       portalToken: effectivePortalToken,
     );
+    await _persistOwnerProfileSetupState(ownerDisplayName);
+    final requiresProfileSetup =
+        ownerDisplayName == null || ownerDisplayName.trim().isEmpty;
+    debugPrint(
+      '[auth] login owner profile '
+      'user=${result.userId ?? session.userId} '
+      'display_name_empty=${ownerDisplayName?.trim().isEmpty ?? true} '
+      'requires_profile_setup=$requiresProfileSetup',
+    );
     if (publishState) {
       state = AsyncData(
         AuthState(
@@ -501,8 +549,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           homeserver: result.homeserver.toString(),
           portalToken: result.portalToken,
           ownerDisplayName: ownerDisplayName,
-          requiresProfileSetup:
-              ownerDisplayName == null || ownerDisplayName.trim().isEmpty,
+          requiresProfileSetup: requiresProfileSetup,
         ),
       );
       _startPostLoginConversationSync(
@@ -531,6 +578,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         portalToken: portalToken,
         baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
       ).getOwnerProfile().timeout(const Duration(seconds: 2));
+      debugPrint(
+        '[auth] AS owner profile loaded homeserver=$homeserver '
+        'display_name_empty=${ownerProfile.displayName.trim().isEmpty}',
+      );
       return ownerProfile.displayName;
     } on TimeoutException {
       debugPrint('AS owner profile timed out during login');
@@ -539,6 +590,73 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       debugPrint('AS owner profile failed during login: $e');
       return null;
     }
+  }
+
+  Future<void> _persistOwnerProfileSetupState(String? ownerDisplayName) async {
+    final cleanName = ownerDisplayName?.trim() ?? '';
+    await _storage.write(key: ownerDisplayNameKey, value: cleanName);
+    await _storage.write(
+      key: requiresProfileSetupKey,
+      value: cleanName.isEmpty ? 'true' : 'false',
+    );
+  }
+
+  Future<_OwnerProfileSetupSnapshot> _restoreOwnerProfileSetupSnapshot(
+    Client client,
+    Uri homeserver,
+    String? portalToken, {
+    required String source,
+  }) async {
+    final storedRequires = await _storage.read(key: requiresProfileSetupKey);
+    final storedDisplayName = await _storage.read(key: ownerDisplayNameKey);
+    if (storedRequires != null) {
+      final requires = storedRequires == 'true';
+      debugPrint(
+        '[auth] profile setup restored from local source=$source '
+        'requires_profile_setup=$requires '
+        'owner_display_name_empty=${storedDisplayName?.trim().isEmpty ?? true}',
+      );
+      return _OwnerProfileSetupSnapshot(
+        ownerDisplayName: storedDisplayName,
+        requiresProfileSetup: requires,
+      );
+    }
+
+    final cleanPortalToken = portalToken?.trim() ?? '';
+    if (cleanPortalToken.isEmpty) {
+      debugPrint(
+        '[auth] profile setup unknown source=$source no_portal_token; '
+        'default requires_profile_setup=false',
+      );
+      return const _OwnerProfileSetupSnapshot(
+        ownerDisplayName: null,
+        requiresProfileSetup: false,
+      );
+    }
+
+    final ownerDisplayName = await _loadOwnerDisplayNameForLogin(
+      client,
+      homeserver: homeserver,
+      portalToken: cleanPortalToken,
+    ).timeout(
+      const Duration(milliseconds: 900),
+      onTimeout: () {
+        debugPrint('[auth] profile setup probe timed out source=$source');
+        return null;
+      },
+    );
+    await _persistOwnerProfileSetupState(ownerDisplayName);
+    final requires =
+        ownerDisplayName == null || ownerDisplayName.trim().isEmpty;
+    debugPrint(
+      '[auth] profile setup probed source=$source '
+      'requires_profile_setup=$requires '
+      'owner_display_name_empty=${ownerDisplayName?.trim().isEmpty ?? true}',
+    );
+    return _OwnerProfileSetupSnapshot(
+      ownerDisplayName: ownerDisplayName,
+      requiresProfileSetup: requires,
+    );
   }
 
   void _startPostLoginConversationSync(
@@ -671,6 +789,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final savedDisplayName = profile.displayName.trim().isNotEmpty
         ? profile.displayName.trim()
         : cleanDisplayName;
+    await _persistOwnerProfileSetupState(savedDisplayName);
+    debugPrint(
+      '[auth] owner profile setup completed user=$userId '
+      'display_name_empty=${savedDisplayName.trim().isEmpty}',
+    );
     state = AsyncData(
       AuthState(
         isLoggedIn: true,
@@ -887,11 +1010,24 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       }
 
       await _loadChatClearState();
+      final profileSetup = await _restoreOwnerProfileSetupSnapshot(
+        client,
+        homeserver,
+        portalToken,
+        source: 'matrix_sdk',
+      );
+      debugPrint(
+        '[auth] restore matrix_sdk success user=$userId '
+        'homeserver=$homeserver '
+        'requires_profile_setup=${profileSetup.requiresProfileSetup}',
+      );
       return AuthState(
         isLoggedIn: true,
         userId: userId,
         homeserver: homeserver.toString(),
         portalToken: portalToken,
+        ownerDisplayName: profileSetup.ownerDisplayName,
+        requiresProfileSetup: profileSetup.requiresProfileSetup,
       );
     } catch (_) {
       return null;
@@ -980,11 +1116,25 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         );
       }
       await _loadChatClearState();
+      final profileSetup = await _restoreOwnerProfileSetupSnapshot(
+        client,
+        matrixUri,
+        effectivePortalToken,
+        source: 'portal_token',
+      );
+      debugPrint(
+        '[auth] restore portal_token success '
+        'user=${client.userID ?? session.userId} '
+        'homeserver=${client.homeserver ?? matrixUri} '
+        'requires_profile_setup=${profileSetup.requiresProfileSetup}',
+      );
       return AuthState(
         isLoggedIn: true,
         userId: client.userID ?? session.userId,
         homeserver: (client.homeserver ?? matrixUri).toString(),
         portalToken: effectivePortalToken,
+        ownerDisplayName: profileSetup.ownerDisplayName,
+        requiresProfileSetup: profileSetup.requiresProfileSetup,
       );
     } catch (e) {
       debugPrint('portal token restore failed: $e');
@@ -1338,8 +1488,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final client = ref.read(matrixClientProvider);
     final lastHomeserver = await _storage.read(key: lastLoginHomeserverKey) ??
         await _storage.read(key: 'matrix_homeserver');
-    final lastPortalToken = await _storage.read(key: lastLoginPortalTokenKey) ??
-        await _storage.read(key: AuthStateNotifier.adminAccessTokenKey);
     await _logoutMatrixSessionPreservingStore(client);
     await _clearUserScopedLocalState(client);
     await _storage.deleteAll();
@@ -1349,12 +1497,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         value: lastHomeserver.trim(),
       );
     }
-    if (lastPortalToken != null && lastPortalToken.trim().isNotEmpty) {
-      await _storage.write(
-        key: lastLoginPortalTokenKey,
-        value: lastPortalToken.trim(),
-      );
-    }
+    debugPrint(
+        '[auth] logout completed; preserved_homeserver=${lastHomeserver != null}');
     state = const AsyncData(AuthState(isLoggedIn: false));
   }
 
@@ -1401,9 +1545,21 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _storage.delete(key: 'matrix_device_id');
     await _storage.delete(key: AuthStateNotifier.adminAccessTokenKey);
     await _storage.delete(key: lastLoginPortalTokenKey);
+    await _storage.delete(key: ownerDisplayNameKey);
+    await _storage.delete(key: requiresProfileSetupKey);
     ref.read(sessionExpiredNoticeProvider.notifier).state++;
     state = const AsyncData(AuthState(isLoggedIn: false));
   }
+}
+
+class _OwnerProfileSetupSnapshot {
+  const _OwnerProfileSetupSnapshot({
+    required this.ownerDisplayName,
+    required this.requiresProfileSetup,
+  });
+
+  final String? ownerDisplayName;
+  final bool requiresProfileSetup;
 }
 
 String _validatePortalLoginToken(String token) {

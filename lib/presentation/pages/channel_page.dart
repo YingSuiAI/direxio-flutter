@@ -384,7 +384,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
                           '/post/${Uri.encodeComponent(_realPostKey(post))}',
                         ),
                         onReaction: () async {
-                          await ref
+                          final reaction = await ref
                               .read(asClientProvider)
                               .toggleChannelPostReaction(
                                 channel.id,
@@ -392,7 +392,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
                               );
                           await ref
                               .read(channelPostsProvider(channel.id).notifier)
-                              .refresh(silent: true);
+                              .applyReaction(_realPostKey(post), reaction);
                         },
                         onRecall: _canRecallPost(channel, post)
                             ? () => _recallPost(channel, post)

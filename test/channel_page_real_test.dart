@@ -17,6 +17,7 @@ import 'package:portal_app/presentation/pages/channel_management_page.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
 import 'package:portal_app/presentation/pages/channel_post_create_page.dart';
 import 'package:portal_app/presentation/pages/channel_post_detail_page.dart';
+import 'package:portal_app/presentation/pages/contact_home_page.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
@@ -874,8 +875,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('综合讨论'), findsOneWidget);
     expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('频道信息(32)'), findsOneWidget);
     expect(find.text('频道详情'), findsOneWidget);
     expect(find.text('分享频道'), findsOneWidget);
     expect(find.text('举报频道'), findsOneWidget);
@@ -917,6 +918,8 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(matrixClient),
+          authStateNotifierProvider
+              .overrideWith(_ChannelTestLoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
@@ -932,7 +935,7 @@ void main() {
 
     expect(asClient.requestedChannelId, 'ch_real');
     expect(asClient.requestedStatus, asChannelMemberStatusJoined);
-    expect(find.text('产品公告（2）'), findsOneWidget);
+    expect(find.text('频道信息(2)'), findsOneWidget);
     expect(find.text('2 名成员'), findsNothing);
 
     await tester.tap(find.byIcon(Symbols.remove));
@@ -942,9 +945,19 @@ void main() {
     expect(find.text('Alex Chen'), findsOneWidget);
   });
 
-  testWidgets('owned channel member avatar does not open profile',
+  testWidgets('owned channel member avatar opens visitor public channels',
       (tester) async {
-    final asClient = _ChannelInfoMembersAsClient();
+    final asClient = _ChannelInfoMembersAsClient(
+      publicChannels: const [
+        AsChannel(
+          channelId: 'ch_alex_public',
+          roomId: '!alex-public:p2p-liyanan.com',
+          name: 'Alex 公开频道',
+          visibility: asChannelVisibilityPublic,
+          memberCount: 5,
+        ),
+      ],
+    );
     final matrixClient = Client('ChannelInfoAvatarProfileTest')
       ..setUserId('@owner:p2p-im.com')
       ..homeserver = Uri.parse('https://p2p-im.com')
@@ -985,6 +998,12 @@ void main() {
           path: '/me/profile',
           builder: (_, __) => const Scaffold(body: Text('个人信息页面')),
         ),
+        GoRoute(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
       ],
     );
 
@@ -992,6 +1011,8 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(matrixClient),
+          authStateNotifierProvider
+              .overrideWith(_ChannelTestLoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
@@ -1006,13 +1027,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('频道详情'), findsOneWidget);
-    await tester.tap(
-      find.byKey(const ValueKey('channel_member_avatar_@owner:p2p-im.com')),
-    );
+    await tester.tap(find.byKey(
+      const ValueKey('channel_member_avatar_@alex:p2p-liyanan.com'),
+    ));
     await tester.pumpAndSettle();
 
     expect(find.text('个人信息页面'), findsNothing);
-    expect(find.text('频道详情'), findsOneWidget);
+    expect(find.text('主页'), findsOneWidget);
+    expect(asClient.requestedPublicChannelUserId, '@alex:p2p-liyanan.com');
+    expect(find.text('Alex 公开频道'), findsOneWidget);
+    expect(find.text('还没有公开频道'), findsNothing);
   });
 
   testWidgets('owned channel info mute switch calls AS APIs', (tester) async {
@@ -1553,7 +1577,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ChannelInfoPage), findsOneWidget);
-    expect(find.text('产品公告'), findsOneWidget);
+    expect(find.textContaining('频道信息('), findsOneWidget);
     expect(find.text('频道详情'), findsOneWidget);
     expect(find.text('分享频道'), findsOneWidget);
     expect(find.text('解散频道'), findsOneWidget);
@@ -1744,10 +1768,16 @@ class _PublicChannelAsClient extends MockAsClient {
 }
 
 class _ChannelInfoMembersAsClient extends MockAsClient {
+  _ChannelInfoMembersAsClient({
+    this.publicChannels = const [],
+  });
+
+  final List<AsChannel> publicChannels;
   String? requestedChannelId;
   String? requestedStatus;
   String? mutedChannelId;
   String? unmutedChannelId;
+  String? requestedPublicChannelUserId;
 
   @override
   Future<List<AsChannelMember>> getChannelMembers(
@@ -1786,6 +1816,15 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
   @override
   Future<void> unmuteChannel(String channelId) async {
     unmutedChannelId = channelId;
+  }
+
+  @override
+  Future<List<AsChannel>> getUserPublicChannels(
+    String userId, {
+    Uri? baseUri,
+  }) async {
+    requestedPublicChannelUserId = userId;
+    return publicChannels;
   }
 }
 
@@ -2085,4 +2124,13 @@ class _PostingChannelAsClient extends MockAsClient {
   Future<void> leaveChannel(String channelId) async {
     leftChannelId = channelId.trim();
   }
+}
+
+class _ChannelTestLoggedInAuthStateNotifier extends AuthStateNotifier {
+  @override
+  Future<AuthState> build() async => const AuthState(
+        isLoggedIn: true,
+        portalToken: 'portal-token',
+        homeserver: 'https://p2p-im.com',
+      );
 }

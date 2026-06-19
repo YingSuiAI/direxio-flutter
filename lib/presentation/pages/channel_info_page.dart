@@ -195,6 +195,8 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             members: displayMembers.take(visibleMemberCount).toList(),
             placeholderCount: displayMembers.isEmpty ? visibleMemberCount : 0,
             isLoading: isLoading,
+            currentUserId: ref.read(matrixClientProvider).userID ?? '',
+            onOpenMember: _openMemberHome,
             onRemove: _showRemoveMemberSheet,
           );
         },
@@ -340,6 +342,12 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         );
       },
     );
+  }
+
+  void _openMemberHome(AsChannelMember member) {
+    final userMxid = member.userMxid.trim();
+    if (userMxid.isEmpty) return;
+    context.push('/contact/${Uri.encodeComponent(userMxid)}');
   }
 
   Future<void> _confirmRemoveMember(
@@ -560,6 +568,8 @@ class _OwnerMemberGrid extends StatelessWidget {
     required this.members,
     required this.placeholderCount,
     required this.isLoading,
+    required this.currentUserId,
+    required this.onOpenMember,
     required this.onRemove,
   });
 
@@ -567,6 +577,8 @@ class _OwnerMemberGrid extends StatelessWidget {
   final List<AsChannelMember> members;
   final int placeholderCount;
   final bool isLoading;
+  final String currentUserId;
+  final ValueChanged<AsChannelMember> onOpenMember;
   final VoidCallback onRemove;
 
   @override
@@ -576,11 +588,17 @@ class _OwnerMemberGrid extends StatelessWidget {
       runSpacing: 10,
       children: [
         for (final member in members)
-          PortalAvatar(
+          InkWell(
             key: ValueKey('channel_member_avatar_${member.userMxid}'),
-            seed: _memberName(member),
-            size: 40,
-            shape: AvatarShape.squircle,
+            borderRadius: BorderRadius.circular(8),
+            onTap: member.userMxid.trim() == currentUserId.trim()
+                ? null
+                : () => onOpenMember(member),
+            child: PortalAvatar(
+              seed: _memberName(member),
+              size: 40,
+              shape: AvatarShape.squircle,
+            ),
           ),
         for (var index = 0; index < placeholderCount; index++)
           PortalAvatar(

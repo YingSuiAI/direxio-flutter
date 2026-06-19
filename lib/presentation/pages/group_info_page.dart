@@ -43,8 +43,13 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   }
 
   Future<void> _fetchMembers() async {
-    final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
+    final client = ref.read(matrixClientProvider);
+    final room = client.getRoomById(widget.roomId);
     if (room == null) return;
+    if (client.homeserver == null) {
+      if (mounted) setState(() {});
+      return;
+    }
     try {
       await room.requestParticipants();
     } on Object catch (e) {

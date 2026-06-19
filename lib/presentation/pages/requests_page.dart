@@ -326,6 +326,12 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       for (final request in syncCache.bootstrap?.pending.friendRequests ??
           const <AsSyncPendingItem>[])
         request.id,
+      for (final request in syncCache.bootstrap?.pending.groupInvites ??
+          const <AsSyncPendingItem>[])
+        request.id,
+      for (final request in syncCache.bootstrap?.pending.channelNotices ??
+          const <AsSyncPendingItem>[])
+        request.id,
     };
     ref.read(friendRequestReadProvider.notifier).markRead(roomIds);
   }
@@ -393,6 +399,12 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             !pendingInboundRoomIds.contains(request.id.trim()) &&
             !inviteRoomIds.contains(request.id.trim()))
           request,
+      for (final request in syncCache.bootstrap?.pending.groupInvites ??
+          const <AsSyncPendingItem>[])
+        if (request.id.trim().isNotEmpty) request,
+      for (final request in syncCache.bootstrap?.pending.channelNotices ??
+          const <AsSyncPendingItem>[])
+        if (request.id.trim().isNotEmpty) request,
     ];
     final pendingOutboundContacts =
         _pendingOutboundContactsForDisplay(client, syncCache);

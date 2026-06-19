@@ -959,13 +959,13 @@ class HttpAsClient implements AsClient {
   }) async {
     final trimmedRoomId = roomId.trim();
     final requestBody = <String, Object?>{
-      'room_id': trimmedRoomId,
       if (shareToken.trim().isNotEmpty) 'share_token': shareToken.trim(),
+      ..._discoveredChannelJoinBody(discoveredChannel),
     };
     final body = await _requestJson(
       'POST',
-      'channels/join',
-      body: requestBody,
+      'public/channels/${_encodeStrictPathComponent(trimmedRoomId)}/join-requests',
+      body: requestBody.isEmpty ? null : requestBody,
       allowedStatusCodes: const {200},
     );
     return AsChannel.fromJson(

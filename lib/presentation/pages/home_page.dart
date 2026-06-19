@@ -1833,16 +1833,14 @@ String _conversationDisplayName(
   }
   final contact = conversation.contact;
   if (contact != null) {
+    final contactName = contact.displayName.trim();
     final memberName =
         directPeerMemberDisplayName(conversation.room, contact.userId);
-    final memberNameIsFallback =
-        memberName == localpartFromMxid(contact.userId);
-    final contactName = contact.displayName.trim();
+    final fallbackName =
+        memberName == localpartFromMxid(contact.userId) ? '' : memberName;
     final label = contactDisplayNameFromIdentity(
       mxid: contact.userId,
-      displayName: memberName.isNotEmpty && !memberNameIsFallback
-          ? memberName
-          : contactName,
+      displayName: contactName.isNotEmpty ? contactName : fallbackName,
       domain: contact.domain,
     );
     if (label.isNotEmpty) return label;
@@ -2400,12 +2398,12 @@ class _ContactList extends ConsumerWidget {
         : acceptedContacts.map((contact) {
             final peerMxid = contact.userId.trim();
             final room = client.getRoomById(contact.roomId.trim());
+            final contactName = contact.displayName.trim();
             final memberName = directPeerMemberDisplayName(room, peerMxid);
             return _ContactListEntry(
               name: contactDisplayNameFromIdentity(
                 mxid: peerMxid,
-                displayName:
-                    memberName.isNotEmpty ? memberName : contact.displayName,
+                displayName: contactName.isNotEmpty ? contactName : memberName,
                 domain: contact.domain,
               ),
               mxid: peerMxid,

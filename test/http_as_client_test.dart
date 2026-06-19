@@ -2437,16 +2437,27 @@ void main() {
     expect(channel.joinPolicy, 'approval');
   });
 
-  test('joinChannelByRoomId posts room_id to channel join endpoint', () async {
+  test('joinChannelByRoomId posts room_id to public join request endpoint',
+      () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/join');
+        expect(
+          request.url.path,
+          '/_as/public/channels/%21remote%3Ap2p-im.com/join-requests',
+        );
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'room_id': '!remote:p2p-im.com',
+          'home_domain': 'p2p-im.com',
+          'name': '远端公开频道',
+          'description': '跨节点发现',
+          'visibility': 'public',
+          'join_policy': 'open',
+          'comments_enabled': true,
+          'tags': ['产品'],
         });
         return _jsonResponse(
           {
@@ -2486,8 +2497,7 @@ void main() {
     expect(channel.memberStatus, 'joined');
   });
 
-  test('joinChannelByRoomId uses unified join action without fake channel id',
-      () async {
+  test('joinChannelByRoomId requests public channel join by room id', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
@@ -2496,8 +2506,9 @@ void main() {
         expect(request.url.path, '/_p2p/command');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         final envelope = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(envelope['action'], 'channels.join');
+        expect(envelope['action'], 'channels.public.join_request');
         expect(envelope['params'], {
+          'channel_id': '!remote:p2p-im.com',
           'room_id': '!remote:p2p-im.com',
         });
         return _jsonResponse(

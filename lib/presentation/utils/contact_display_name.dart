@@ -18,11 +18,11 @@ String directContactDisplayName(
   final identity = contact?.userId.trim().isNotEmpty == true
       ? contact!.userId
       : peerMxid ?? '';
+  final contactName = contact?.displayName.trim() ?? '';
   final memberName = directPeerMemberDisplayName(room, identity);
   final label = contactDisplayNameFromIdentity(
     mxid: identity,
-    displayName:
-        memberName.isNotEmpty ? memberName : contact?.displayName ?? '',
+    displayName: contactName.isNotEmpty ? contactName : memberName,
     domain: contact?.domain ?? '',
   );
   if (label.isNotEmpty) return label;

@@ -4,7 +4,7 @@ import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/utils/contact_display_name.dart';
 
 void main() {
-  test('direct contact display uses Matrix member name before stale AS cache',
+  test('direct contact display prefers AS contact remark over Matrix member',
       () {
     final client = Client('DirectContactDisplayNameTest')
       ..setUserId('@owner:example.com');
@@ -37,7 +37,7 @@ void main() {
 
     expect(
       directContactDisplayName(contact, room, peerMxid: '@alice:example.com'),
-      'Alice 新昵称',
+      'Alice 旧昵称',
     );
   });
 }

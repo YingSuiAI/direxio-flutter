@@ -63,6 +63,10 @@ const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
 const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
 
+final asBootstrapLiveRefreshIntervalProvider = Provider<Duration?>(
+  (ref) => const Duration(seconds: 10),
+);
+
 final _homeHiddenConversationIdsProvider = StateProvider<Set<String>>(
   (ref) => const <String>{},
 );
@@ -109,6 +113,7 @@ class _HomePageState extends ConsumerState<HomePage>
   bool _asBootstrapRefreshInFlight = false;
   bool _asBootstrapRefreshScheduled = false;
   bool _staleBootstrapClearScheduled = false;
+  Timer? _asBootstrapLiveRefreshTimer;
   Timer? _asBootstrapRefreshTimer;
   DateTime? _lastAsBootstrapRefreshAt;
   String? _lastBootstrapRefreshUserId;
@@ -131,6 +136,7 @@ class _HomePageState extends ConsumerState<HomePage>
     });
     if (!_mockAuthEnabled) {
       unawaited(ref.read(appWarmupProvider.future));
+      _startAsBootstrapLiveRefresh();
     }
   }
 
@@ -167,8 +173,22 @@ class _HomePageState extends ConsumerState<HomePage>
     _syncSub?.cancel();
     _voiceCallSub?.cancel();
     _groupCallSub?.cancel();
+    _asBootstrapLiveRefreshTimer?.cancel();
     _asBootstrapRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  void _startAsBootstrapLiveRefresh() {
+    final interval = ref.read(asBootstrapLiveRefreshIntervalProvider);
+    if (interval == null || interval <= Duration.zero) return;
+    _asBootstrapLiveRefreshTimer?.cancel();
+    _asBootstrapLiveRefreshTimer = Timer.periodic(interval, (_) {
+      if (!mounted) return;
+      _scheduleAsBootstrapRefreshIfNeeded(
+        refreshExisting: true,
+        force: true,
+      );
+    });
   }
 
   void _attachVoiceCallController(Client client) {

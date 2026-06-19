@@ -4701,8 +4701,7 @@ void main() {
     );
   });
 
-  testWidgets(
-      'new friend badge refreshes AS pending notices after Matrix sync',
+  testWidgets('new friend badge refreshes AS pending notices after Matrix sync',
       (tester) async {
     final client = Client('PortalIMPendingFriendNoticeSyncTest')
       ..setUserId('@owner:p2p-im.com');
@@ -4757,6 +4756,47 @@ void main() {
       find.descendant(of: contactSectionBadge, matching: find.text('1')),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'new friend badge refreshes AS pending notices without Matrix sync',
+      (tester) async {
+    final client = Client('PortalIMPendingFriendNoticeLiveRefreshTest')
+      ..setUserId('@owner:p2p-im.com');
+    final readStore = _MemoryFriendRequestReadStore();
+    final asClient = _RefreshingFriendRequestBootstrapAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          asBootstrapLiveRefreshIntervalProvider.overrideWithValue(
+            const Duration(seconds: 1),
+          ),
+          friendRequestReadStoreProvider.overrideWith((ref) async => readStore),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 1);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
+
+    asClient.showPendingFriendRequest = true;
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 2);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
   });
 
   testWidgets('new friend badge counts Matrix invites after AS bootstrap',

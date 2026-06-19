@@ -47,6 +47,7 @@ class AsPortalSession {
     this.profileInitialized,
     this.accountInitialized,
     this.setupCompleted,
+    this.alreadyInitialized,
   });
 
   final String matrixAccessToken;
@@ -60,6 +61,7 @@ class AsPortalSession {
   final bool? profileInitialized;
   final bool? accountInitialized;
   final bool? setupCompleted;
+  final bool? alreadyInitialized;
 
   factory AsPortalSession.fromJson(Map<String, dynamic> json) {
     return AsPortalSession(
@@ -74,6 +76,7 @@ class AsPortalSession {
       profileInitialized: _parseNullableBool(json['profile_initialized']),
       accountInitialized: _parseNullableBool(json['account_initialized']),
       setupCompleted: _parseNullableBool(json['setup_completed']),
+      alreadyInitialized: _parseNullableBool(json['already_initialized']),
     );
   }
 }

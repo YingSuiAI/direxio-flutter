@@ -177,6 +177,7 @@ void main() {
             'profile_initialized': true,
             'account_initialized': true,
             'setup_completed': true,
+            'already_initialized': true,
           }),
           200,
         );
@@ -193,6 +194,7 @@ void main() {
     expect(session.adminAccessToken, 'admin-token');
     expect(session.initialized, isTrue);
     expect(session.passwordInitialized, isTrue);
+    expect(session.alreadyInitialized, isTrue);
     expect(session.profileInitialized, isTrue);
     expect(session.accountInitialized, isTrue);
     expect(session.setupCompleted, isTrue);

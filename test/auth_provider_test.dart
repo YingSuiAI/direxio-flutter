@@ -1125,11 +1125,12 @@ void main() {
     );
   });
 
-  test('portal login trusts setup completion flag when profile load is empty',
+  test(
+      'portal login trusts already initialized flag when profile load fails',
       () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(
-      'AuthPortalLoginSetupCompletedFlagTest',
+      'AuthPortalLoginAlreadyInitializedFlagTest',
       httpClient: MockClient((request) async {
         if (request.url.path == '/.well-known/portal/owner.json') {
           return http.Response(
@@ -1144,15 +1145,12 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"setup_completed":true}',
+            '"already_initialized":true}',
             200,
           );
         }
         if (_p2pAction(request, 'profile.get') != null) {
-          return http.Response(
-            '{"user_id":"@owner:example.com","display_name":""}',
-            200,
-          );
+          return http.Response('{"error":"profile unavailable"}', 500);
         }
         if (_p2pAction(request, 'sync.bootstrap') != null) {
           return http.Response(

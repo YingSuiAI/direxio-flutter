@@ -594,6 +594,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   }
 
   bool? _sessionProfileInitialized(AsPortalSession session) {
+    if (session.alreadyInitialized != null) return session.alreadyInitialized;
     if (session.setupCompleted != null) return session.setupCompleted;
     if (session.accountInitialized != null) return session.accountInitialized;
     if (session.profileInitialized != null) return session.profileInitialized;

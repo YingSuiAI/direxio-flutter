@@ -14,6 +14,7 @@ import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_created_channels_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/contact_identity_label.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 import 'channel_inbox_data.dart';
@@ -1865,8 +1866,8 @@ String _localpartFromMxid(String mxid) {
 
 String _clientServerName(Client client) {
   final userId = client.userID ?? '';
-  final mxidDomain = RegExp(r':([^:]+)$').firstMatch(userId)?.group(1);
-  if (mxidDomain != null && mxidDomain.isNotEmpty) return mxidDomain;
+  final mxidDomain = domainFromMxid(userId);
+  if (mxidDomain.isNotEmpty) return mxidDomain;
   final homeserver = client.homeserver;
   if (homeserver != null && homeserver.host.isNotEmpty) return homeserver.host;
   return 'p2p-im.com';

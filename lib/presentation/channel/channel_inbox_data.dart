@@ -1,4 +1,5 @@
 import '../../data/as_client.dart';
+import '../utils/contact_identity_label.dart';
 
 class ChannelInboxItem {
   const ChannelInboxItem({
@@ -358,9 +359,8 @@ class ChannelInboxData {
   }
 
   static String? _domainFromRoomId(String roomId) {
-    final idx = roomId.lastIndexOf(':');
-    if (idx < 0 || idx == roomId.length - 1) return null;
-    return roomId.substring(idx + 1);
+    final domain = serverNameFromMatrixId(roomId);
+    return domain.isEmpty ? null : domain;
   }
 }
 

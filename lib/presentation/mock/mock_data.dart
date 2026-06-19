@@ -2,6 +2,8 @@
 // 真登录后 client.rooms 非空，自动走真数据。
 import 'package:flutter/material.dart';
 
+import '../utils/contact_identity_label.dart';
+
 /// 头像 URL：抓自 P2P-APP-UI/index.html 设计稿（lh3.googleusercontent.com/aida-public）。
 /// 集中放在这里，方便联系人/聊天/详情等多处复用同一张图。
 class MockAvatars {
@@ -429,8 +431,8 @@ class MockData {
     final localpart = mxid.startsWith('@') && mxid.contains(':')
         ? mxid.substring(1, mxid.indexOf(':'))
         : mock.name.toLowerCase().replaceAll(' ', '.');
-    final rawDomain =
-        mxid.contains(':') ? mxid.split(':').last : 'portal.local';
+    final parsedDomain = domainFromMxid(mxid);
+    final rawDomain = parsedDomain.isEmpty ? 'portal.local' : parsedDomain;
     final displayDomain = '$localpart.$rawDomain';
 
     if (mock.id == 'mock_alice') {

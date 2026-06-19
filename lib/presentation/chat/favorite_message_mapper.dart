@@ -1,4 +1,5 @@
 import '../../data/as_client.dart';
+import '../utils/contact_identity_label.dart';
 import 'chat_record_forwarding.dart';
 
 AsFavoriteMessageDraft favoriteDraftFromMatrixMessage({
@@ -96,9 +97,7 @@ bool favoriteMediaNeedsOwnerCopy({
 }
 
 String ownerUserIdDomain(String ownerUserId) {
-  final idx = ownerUserId.lastIndexOf(':');
-  if (idx < 0 || idx == ownerUserId.length - 1) return '';
-  return ownerUserId.substring(idx + 1);
+  return domainFromMxid(ownerUserId);
 }
 
 bool isFavoriteMediaMessageType(String messageType) {

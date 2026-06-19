@@ -96,7 +96,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final canOpenChat = canUseRealRoom || canUseMock;
     final acceptedContact = acceptedContactForUser ??
         (room == null ? null : syncCache.acceptedContactForRoom(room.id));
-    final domain = userId.contains(':') ? userId.split(':').last : userId;
+    final domain = domainFromMxid(userId);
     final uidDomain = reportDomainForUserId(userId, acceptedContact?.domain);
     final currentProfileName = currentUserProfile?.displayName?.trim();
     final peerMember = room?.unsafeGetUserFromMemoryOrFallback(userId);

@@ -48,4 +48,13 @@ void main() {
       expect(serverNameFromMxid('@owner:dendrite-a:8448'), 'dendrite-a:8448');
     });
   });
+
+  group('serverNameFromMatrixId', () {
+    test('keeps room id server names with ports intact', () {
+      expect(
+        serverNameFromMatrixId('!room:dendrite-a:8448'),
+        'dendrite-a:8448',
+      );
+    });
+  });
 }

@@ -596,4 +596,35 @@ void main() {
     expect(items.single.latestPreview, '暂无频道动态');
     expect(items.single.description, '');
   });
+
+  test('keeps server names with ports when deriving channel domain', () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:dendrite-b:8448'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_remote',
+          roomId: '!remote:dendrite-a:8448',
+          homeDomain: '',
+          name: 'Remote Channel',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-17T09:30:00Z'),
+          description: '',
+          isOwned: false,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'dendrite-b:8448',
+    );
+
+    expect(items.single.domain, 'dendrite-a:8448');
+  });
 }

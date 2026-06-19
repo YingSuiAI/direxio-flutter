@@ -30,11 +30,13 @@ String localpartFromMxid(String mxid) {
 
 String domainFromMxid(String mxid) {
   final trimmed = mxid.trim();
+  if (!trimmed.startsWith('@')) return '';
+  return serverNameFromMatrixId(trimmed);
+}
+
+String serverNameFromMatrixId(String id) {
+  final trimmed = id.trim();
   final separator = trimmed.indexOf(':');
-  if (trimmed.startsWith('@') &&
-      separator > 1 &&
-      separator < trimmed.length - 1) {
-    return trimmed.substring(separator + 1);
-  }
-  return '';
+  if (separator < 0 || separator == trimmed.length - 1) return '';
+  return trimmed.substring(separator + 1);
 }

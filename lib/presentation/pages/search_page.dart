@@ -351,10 +351,8 @@ const _searchToolbarHeight = 48.0;
 
 String _fallbackDomain(Client client) {
   final userId = client.userID ?? '';
-  final idx = userId.lastIndexOf(':');
-  if (idx >= 0 && idx < userId.length - 1) {
-    return userId.substring(idx + 1);
-  }
+  final serverName = domainFromMxid(userId);
+  if (serverName.isNotEmpty) return serverName;
   final homeserver = client.homeserver;
   if (homeserver != null && homeserver.host.isNotEmpty) return homeserver.host;
   return 'p2p-im.com';

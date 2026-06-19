@@ -2,6 +2,7 @@
 //
 // 真实 App 注入点已经切到 HttpAsClient；本类保留给本地 UI / 单测兜底使用。
 import '../presentation/mock/mock_data.dart';
+import '../presentation/utils/contact_identity_label.dart';
 import 'as_client.dart';
 
 class MockAsClient implements AsClient {
@@ -648,7 +649,7 @@ class MockAsClient implements AsClient {
       roomId: trimmedRoomId,
       name: '公开频道',
       homeDomain: trimmedRoomId.contains(':')
-          ? trimmedRoomId.split(':').last
+          ? serverNameFromMatrixId(trimmedRoomId)
           : 'mock.local',
       visibility: asChannelVisibilityPublic,
       joinPolicy: asChannelJoinPolicyOpen,

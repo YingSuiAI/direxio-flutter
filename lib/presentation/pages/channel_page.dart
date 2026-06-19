@@ -17,6 +17,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
+import '../utils/contact_identity_label.dart';
 import '../widgets/m3/glass_header.dart';
 import 'channel_info_page.dart';
 
@@ -233,9 +234,8 @@ ChannelInboxItem? _findRealChannel(WidgetRef ref, String channelId) {
 }
 
 String? _domainFromRoomId(String roomId) {
-  final idx = roomId.lastIndexOf(':');
-  if (idx < 0 || idx == roomId.length - 1) return null;
-  return roomId.substring(idx + 1);
+  final domain = serverNameFromMatrixId(roomId);
+  return domain.isEmpty ? null : domain;
 }
 
 String _matrixRoomName(Client client, String roomId) {

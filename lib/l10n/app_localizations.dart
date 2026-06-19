@@ -140,7 +140,7 @@ abstract class AppLocalizations {
   /// No description provided for @tabChats.
   ///
   /// In zh, this message translates to:
-  /// **'Chats'**
+  /// **'消息'**
   String get tabChats;
 
   /// No description provided for @tabContacts.

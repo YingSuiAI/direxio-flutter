@@ -1148,7 +1148,7 @@ void main() {
 
     expect(find.text('举报频道'), findsNothing);
     expect(find.text('退出频道'), findsNothing);
-    expect(find.text('产品公告（2）'), findsOneWidget);
+    expect(find.text('频道信息(2)'), findsOneWidget);
     expect(find.text('2 名成员'), findsNothing);
   });
 

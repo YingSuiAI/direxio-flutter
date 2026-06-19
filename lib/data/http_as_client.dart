@@ -2409,6 +2409,12 @@ Map<String, dynamic> _portalSessionLogJson(AsPortalSession session) {
     'user_id': session.userId,
     'homeserver': session.homeserver,
     'device_id': session.deviceId,
+    'initialization_completed': session.initializationCompleted,
+    'already_initialized': session.alreadyInitialized,
+    'setup_completed': session.setupCompleted,
+    'account_initialized': session.accountInitialized,
+    'profile_initialized': session.profileInitialized,
+    'password_initialized': session.passwordInitialized,
   };
 }
 

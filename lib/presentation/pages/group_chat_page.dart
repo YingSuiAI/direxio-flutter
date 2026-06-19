@@ -2078,7 +2078,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     );
     if (ok != true || !mounted) return;
     try {
-      await event.redactEvent(reason: '撤回消息');
+      await ref.read(asClientProvider).recallRoomMessage(
+            roomId: widget.roomId,
+            eventId: event.eventId,
+            reason: '撤回消息',
+          );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('消息已撤回')),

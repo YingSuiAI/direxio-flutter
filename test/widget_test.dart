@@ -718,6 +718,13 @@ class _EmptyAsClient implements AsClient {
   }) async {}
 
   @override
+  Future<void> recallRoomMessage({
+    required String roomId,
+    required String eventId,
+    String reason = '撤回消息',
+  }) async {}
+
+  @override
   Future<void> deleteRoomMessagesByRange({
     required String roomId,
     required int fromTs,
@@ -1383,6 +1390,10 @@ class _TrackingAsClient extends _EmptyAsClient {
   int deleteRoomMessageCalls = 0;
   String? deletedRoomMessageRoomId;
   String? deletedRoomMessageEventId;
+  int recallRoomMessageCalls = 0;
+  String? recalledRoomId;
+  String? recalledEventId;
+  String? recallRoomMessageReason;
   int deleteRoomMessagesByRangeCalls = 0;
   String? deletedRoomMessagesByRangeRoomId;
   int? deletedRoomMessagesByRangeFromTs;
@@ -1461,6 +1472,18 @@ class _TrackingAsClient extends _EmptyAsClient {
     deleteRoomMessageCalls++;
     deletedRoomMessageRoomId = roomId;
     deletedRoomMessageEventId = eventId;
+  }
+
+  @override
+  Future<void> recallRoomMessage({
+    required String roomId,
+    required String eventId,
+    String reason = '撤回消息',
+  }) async {
+    recallRoomMessageCalls++;
+    recalledRoomId = roomId;
+    recalledEventId = eventId;
+    recallRoomMessageReason = reason;
   }
 
   @override
@@ -1970,12 +1993,23 @@ class _GroupChatHarness {
   final _MemoryAsBootstrapStore bootstrapStore;
 }
 
+class _DirectChatHarness {
+  const _DirectChatHarness({
+    required this.client,
+    required this.asClient,
+  });
+
+  final Client client;
+  final _TrackingAsClient asClient;
+}
+
 Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   WidgetTester tester, {
   String roomId = '!group:p2p-im.com',
   String roomName = '真实群',
   String eventId = r'$group-text',
   String body = '群聊长按消息',
+  String senderMxid = '@alice:p2p-im.com',
   List<LocalOutboxItem> initialOutboxItems = const [],
   bool sendTextEvent = true,
   GoRouter? router,
@@ -2070,7 +2104,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
                   type: EventTypes.Message,
                   eventId: eventId,
                   roomId: roomId,
-                  senderId: '@alice:p2p-im.com',
+                  senderId: senderMxid,
                   originServerTs: DateTime.utc(2026, 5, 30, 10),
                   content: {
                     'msgtype': MessageTypes.Text,
@@ -2094,13 +2128,14 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   );
 }
 
-Future<void> _pumpDirectChatWithPeerTextEvent(
+Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
   WidgetTester tester, {
   String roomId = '!direct:p2p-im.com',
   String peerMxid = '@alice:p2p-liyanan.com',
   String peerName = 'Alice',
   String eventId = r'$direct-text',
   String body = '别人发来的消息',
+  String? senderMxid,
   List<LocalOutboxItem> initialOutboxItems = const [],
   bool sendPeerEvent = true,
 }) async {
@@ -2140,13 +2175,14 @@ Future<void> _pumpDirectChatWithPeerTextEvent(
     channels: const [],
     pending: const AsSyncPending.empty(),
   );
+  final asClient = _TrackingAsClient();
 
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         authStateNotifierProvider.overrideWith(_LoggedInAuthStateNotifier.new),
-        asClientProvider.overrideWithValue(_TrackingAsClient()),
+        asClientProvider.overrideWithValue(asClient),
         asSyncCacheProvider.overrideWith(
           (ref) => AsSyncCacheState(bootstrap: bootstrap),
         ),
@@ -2163,7 +2199,7 @@ Future<void> _pumpDirectChatWithPeerTextEvent(
   await tester.pumpAndSettle();
 
   if (!sendPeerEvent) {
-    return;
+    return _DirectChatHarness(client: client, asClient: asClient);
   }
 
   await client.handleSync(
@@ -2178,7 +2214,7 @@ Future<void> _pumpDirectChatWithPeerTextEvent(
                   type: EventTypes.Message,
                   eventId: eventId,
                   roomId: roomId,
-                  senderId: peerMxid,
+                  senderId: senderMxid ?? peerMxid,
                   originServerTs: DateTime.utc(2026, 5, 30, 12, 10),
                   content: {
                     'msgtype': MessageTypes.Text,
@@ -2194,6 +2230,7 @@ Future<void> _pumpDirectChatWithPeerTextEvent(
   );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
+  return _DirectChatHarness(client: client, asClient: asClient);
 }
 
 Room _addHeroSummaryRoom(
@@ -8626,6 +8663,27 @@ void main() {
     expect(find.text('引用'), findsOneWidget);
   });
 
+  testWidgets('group chat recalls own message through AS', (tester) async {
+    final harness = await _pumpGroupChatWithTextEvent(
+      tester,
+      eventId: r'$group-own-text',
+      body: '我发出的群聊消息',
+      senderMxid: '@owner:p2p-im.com',
+    );
+
+    await tester.longPress(find.text('我发出的群聊消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('撤回'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '撤回'));
+    await tester.pumpAndSettle();
+
+    expect(harness.asClient.recallRoomMessageCalls, 1);
+    expect(harness.asClient.recalledRoomId, '!group:p2p-im.com');
+    expect(harness.asClient.recalledEventId, r'$group-own-text');
+    expect(harness.asClient.recallRoomMessageReason, '撤回消息');
+  });
+
   testWidgets('group chat long press exposes local outbox actions',
       (tester) async {
     await _pumpGroupChatWithTextEvent(
@@ -11907,6 +11965,27 @@ void main() {
     expect(find.text('删除'), findsOneWidget);
     expect(find.text('多选'), findsOneWidget);
     expect(find.text('引用'), findsOneWidget);
+  });
+
+  testWidgets('private chat recalls own message through AS', (tester) async {
+    final harness = await _pumpDirectChatWithPeerTextEvent(
+      tester,
+      eventId: r'$direct-own-text',
+      body: '我发出的单聊消息',
+      senderMxid: '@owner:p2p-im.com',
+    );
+
+    await tester.longPress(find.text('我发出的单聊消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('撤回'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '撤回'));
+    await tester.pumpAndSettle();
+
+    expect(harness.asClient.recallRoomMessageCalls, 1);
+    expect(harness.asClient.recalledRoomId, '!direct:p2p-im.com');
+    expect(harness.asClient.recalledEventId, r'$direct-own-text');
+    expect(harness.asClient.recallRoomMessageReason, '撤回消息');
   });
 
   testWidgets('private chat long press exposes local outbox actions',

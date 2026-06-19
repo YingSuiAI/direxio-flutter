@@ -20,6 +20,48 @@ Map<String, dynamic>? _p2pAction(http.Request request, String action) {
   return body['action'] == action ? body : null;
 }
 
+class _UploadKeyFailsOnceClient extends Client {
+  _UploadKeyFailsOnceClient(
+    super.clientName, {
+    required super.httpClient,
+  });
+
+  int initCalls = 0;
+
+  @override
+  Future<void> init({
+    String? newToken,
+    DateTime? newTokenExpiresAt,
+    String? newRefreshToken,
+    Uri? newHomeserver,
+    String? newUserID,
+    String? newDeviceName,
+    String? newDeviceID,
+    String? newOlmAccount,
+    bool waitForFirstSync = true,
+    bool waitUntilLoadCompletedLoaded = true,
+    void Function()? onMigration,
+  }) async {
+    initCalls++;
+    if (newToken == 'token-1') {
+      throw 'Upload key failed';
+    }
+    return super.init(
+      newToken: newToken,
+      newTokenExpiresAt: newTokenExpiresAt,
+      newRefreshToken: newRefreshToken,
+      newHomeserver: newHomeserver,
+      newUserID: newUserID,
+      newDeviceName: newDeviceName,
+      newDeviceID: newDeviceID,
+      newOlmAccount: newOlmAccount,
+      waitForFirstSync: waitForFirstSync,
+      waitUntilLoadCompletedLoaded: waitUntilLoadCompletedLoaded,
+      onMigration: onMigration,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -1874,6 +1916,188 @@ void main() {
       await const FlutterSecureStorage().read(key: 'matrix_device_id'),
       'P2P_PORTAL',
     );
+  });
+
+  test('portal login retries with a fresh device when key upload fails',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final requestedDevices = <String>[];
+    final client = _UploadKeyFailsOnceClient(
+      'AuthPortalLoginUploadKeyRetryTest',
+      httpClient: MockClient((request) async {
+        final authAction = _p2pAction(request, 'portal.auth');
+        if (authAction != null) {
+          final params = authAction['params'] as Map<String, dynamic>;
+          requestedDevices.add(params['device_id'] as String);
+          return http.Response(
+            '{"matrix_access_token":"token-${requestedDevices.length}",'
+            '"admin_access_token":"admin-${requestedDevices.length}",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"${params['device_id']}",'
+            '"setup_completed":true}',
+            200,
+          );
+        }
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:example.com","display_name":"owner"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'profile.get') != null) {
+          return http.Response('{}', 404);
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          final authorization = request.headers['authorization'] ?? '';
+          final token = authorization.replaceFirst('Bearer ', '');
+          final suffix = token.split('-').last;
+          final index = int.tryParse(suffix) ?? 1;
+          final device = requestedDevices[index - 1];
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"$device"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .login('https://example.com', '12345678');
+
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.requiresProfileSetup, isFalse);
+    expect(requestedDevices, hasLength(2));
+    expect(requestedDevices[0], isNot(requestedDevices[1]));
+    expect(client.accessToken, 'token-2');
+    expect(client.deviceID, requestedDevices[1]);
+  });
+
+  test('password change retries auth with a fresh device when key upload fails',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE_A',
+      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final requestedDevices = <String>[];
+    final client = _UploadKeyFailsOnceClient(
+      'AuthPasswordUploadKeyRetryTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          final authorization = request.headers['authorization'] ?? '';
+          if (authorization == 'Bearer old-token') {
+            return http.Response(
+              '{"user_id":"@owner:example.com","device_id":"DEVICE_A"}',
+              200,
+            );
+          }
+          final token = authorization.replaceFirst('Bearer token-', '');
+          final index = int.tryParse(token) ?? 1;
+          final device = requestedDevices[index - 1];
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"$device"}',
+            200,
+          );
+        }
+        final passwordAction = _p2pAction(request, 'portal.password');
+        if (passwordAction != null) {
+          final params = passwordAction['params'] as Map<String, dynamic>;
+          requestedDevices.add(params['device_id'] as String);
+          expect(params['old_password'], '11111111');
+          expect(params['new_password'], '12345678');
+          return http.Response(
+            '{"matrix_access_token":"token-1",'
+            '"admin_access_token":"admin-1",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"${params['device_id']}",'
+            '"setup_completed":true}',
+            200,
+          );
+        }
+        final authAction = _p2pAction(request, 'portal.auth');
+        if (authAction != null) {
+          final params = authAction['params'] as Map<String, dynamic>;
+          expect(params['password'], '12345678');
+          requestedDevices.add(params['device_id'] as String);
+          return http.Response(
+            '{"matrix_access_token":"token-2",'
+            '"admin_access_token":"admin-2",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"${params['device_id']}",'
+            '"setup_completed":true}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE_A',
+      newDeviceName: 'PortalIM',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .changePortalPassword(
+          oldPassword: '11111111',
+          newPassword: '12345678',
+        );
+
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+    expect(auth?.isLoggedIn, isTrue);
+    expect(auth?.requiresProfileSetup, isFalse);
+    expect(requestedDevices, hasLength(2));
+    expect(requestedDevices[0], 'DEVICE_A');
+    expect(requestedDevices[1], isNot('DEVICE_A'));
+    expect(client.accessToken, 'token-2');
+    expect(client.deviceID, requestedDevices[1]);
   });
 
   test('new device login uses its own device and old device expires', () async {

@@ -3099,6 +3099,36 @@ void main() {
     );
   });
 
+  test('recallRoomMessage uses unified room recall action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'rooms.messages.recall',
+          'params': {
+            'room_id': '!room:example.com',
+            'event_id': r'$event:example.com',
+            'reason': '撤回消息',
+          },
+        });
+        return http.Response(jsonEncode({'status': 'ok'}), 200);
+      }),
+    );
+
+    await expectLater(
+      client.recallRoomMessage(
+        roomId: '!room:example.com',
+        eventId: r'$event:example.com',
+        reason: '撤回消息',
+      ),
+      completes,
+    );
+  });
+
   test('authenticatePortal posts password to auth', () async {
     final session = await HttpAsClient.authenticatePortal(
       baseUri: Uri.parse('https://example.com/_as'),

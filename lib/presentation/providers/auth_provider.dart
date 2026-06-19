@@ -100,6 +100,20 @@ class AuthState {
   final bool requiresProfileSetup;
 }
 
+class _ActivatedPortalSession {
+  const _ActivatedPortalSession({
+    required this.session,
+    required this.homeserver,
+    required this.userId,
+    required this.deviceId,
+  });
+
+  final AsPortalSession session;
+  final Uri homeserver;
+  final String userId;
+  final String deviceId;
+}
+
 Uri _resolveClientHomeserver(Uri inputUri, String asHomeserver) {
   final parsed = Uri.tryParse(asHomeserver);
   if (parsed == null || parsed.host.isEmpty) return inputUri;
@@ -407,7 +421,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final requestedDeviceId = await _localMatrixDeviceId(client);
 
     final baseUri = HttpAsClient.defaultAdminBaseUri(inputUri);
-    final session = useBootstrap
+    var session = useBootstrap
         ? await HttpAsClient.bootstrapPortal(
             baseUri: baseUri,
             setupCode: cleanPortalToken,
@@ -424,7 +438,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final storedHomeserver = await _storage.read(key: 'matrix_homeserver');
     // 认证成功后再读取 owner.json，用于确认 Portal owner 信息。
     await _assertPortalDeployed(inputUri.host);
-    final effectivePortalToken = session.adminAccessToken.trim();
+    var effectivePortalToken = session.adminAccessToken.trim();
     final matrixUri = _resolveClientHomeserver(inputUri, session.homeserver);
 
     if (_shouldResetUserScopedLocalStateForLogin(
@@ -437,9 +451,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       await _clearUserScopedLocalState(client);
     }
     await client.checkHomeserver(matrixUri);
-    final checkedHomeserver = client.homeserver ?? matrixUri;
+    var checkedHomeserver = client.homeserver ?? matrixUri;
     final storedDeviceId = await _storage.read(key: 'matrix_device_id');
-    final deviceId = await _resolveSessionDeviceId(
+    var deviceId = await _resolveSessionDeviceId(
       httpClient: client.httpClient,
       homeserver: checkedHomeserver,
       accessToken: session.matrixAccessToken,
@@ -462,15 +476,65 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       deviceId: deviceId,
     );
 
-    if (_isLoggedInAs(client, session.userId)) {
-      await _applyRefreshedSession(
+    try {
+      if (_isLoggedInAs(client, session.userId)) {
+        await _applyRefreshedSession(
+          client,
+          checkedHomeserver,
+          session,
+          portalToken: effectivePortalToken,
+          deviceId: deviceId,
+        );
+      } else {
+        await _initMatrixSessionWithKeyUploadRetry(
+          client,
+          accessToken: session.matrixAccessToken,
+          userId: session.userId,
+          homeserver: checkedHomeserver,
+          deviceId: deviceId,
+        );
+      }
+    } catch (error) {
+      if (!_isUploadKeyFailure(error)) rethrow;
+      debugPrint(
+        'Matrix key upload failed after portal auth; retrying fresh device',
+      );
+      final freshDeviceId = _createDeviceId();
+      session = useBootstrap
+          ? await HttpAsClient.bootstrapPortal(
+              baseUri: baseUri,
+              setupCode: cleanPortalToken,
+              deviceId: freshDeviceId,
+              httpClient: client.httpClient,
+            )
+          : await HttpAsClient.authenticatePortal(
+              baseUri: baseUri,
+              portalToken: cleanPortalToken,
+              deviceId: freshDeviceId,
+              httpClient: client.httpClient,
+            );
+      effectivePortalToken = session.adminAccessToken.trim();
+      final retryMatrixUri = _resolveClientHomeserver(
+        inputUri,
+        session.homeserver,
+      );
+      await _clearMatrixForCleanInit(client);
+      await client.checkHomeserver(retryMatrixUri);
+      checkedHomeserver = client.homeserver ?? retryMatrixUri;
+      deviceId = await _resolveSessionDeviceId(
+        httpClient: client.httpClient,
+        homeserver: checkedHomeserver,
+        accessToken: session.matrixAccessToken,
+        sessionDeviceId: session.deviceId,
+        storedDeviceId: freshDeviceId,
+      );
+      await _establishPrivacyBaselineBeforeInit(
         client,
-        checkedHomeserver,
-        session,
-        portalToken: effectivePortalToken,
+        homeserver: checkedHomeserver,
+        accessToken: session.matrixAccessToken,
+        userId: session.userId,
         deviceId: deviceId,
       );
-    } else {
       await _initMatrixSessionWithKeyUploadRetry(
         client,
         accessToken: session.matrixAccessToken,
@@ -665,31 +729,47 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     );
     final profile =
         await asClient.updateOwnerProfile(displayName: cleanDisplayName);
-    final session = await asClient.changePortalPassword(
+    var session = await asClient.changePortalPassword(
       oldPassword: currentLoginPassword,
       newPassword: cleanToken,
       deviceId: await _localMatrixDeviceId(client),
     );
-    final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
-    final deviceId = await _resolveSessionDeviceId(
+    var matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
+    var deviceId = await _resolveSessionDeviceId(
       httpClient: client.httpClient,
       homeserver: matrixUri,
       accessToken: session.matrixAccessToken,
       sessionDeviceId: session.deviceId,
       storedDeviceId: await _storage.read(key: 'matrix_device_id'),
     );
-    await _applyRefreshedSession(
-      client,
-      matrixUri,
-      session,
-      portalToken: session.adminAccessToken,
-      deviceId: deviceId,
-      loginPortalToken: cleanToken,
-      profileInitialized: _sessionProfileInitialized(session) ?? true,
-    );
-    final userId = session.userId.trim().isNotEmpty
+    var userId = session.userId.trim().isNotEmpty
         ? session.userId
         : auth?.userId ?? client.userID ?? '';
+    try {
+      await _applyRefreshedSession(
+        client,
+        matrixUri,
+        session,
+        portalToken: session.adminAccessToken,
+        deviceId: deviceId,
+        loginPortalToken: cleanToken,
+        profileInitialized: _sessionProfileInitialized(session) ?? true,
+      );
+    } catch (error) {
+      if (!_isUploadKeyFailure(error)) rethrow;
+      final recovered = await _authenticateFreshDeviceAfterUploadKeyFailure(
+        client,
+        homeserver: homeserver,
+        loginPassword: cleanToken,
+        fallbackUserId: auth?.userId,
+        profileInitialized: _sessionProfileInitialized(session) ?? true,
+        logContext: 'profile setup',
+      );
+      session = recovered.session;
+      matrixUri = recovered.homeserver;
+      userId = recovered.userId;
+      deviceId = recovered.deviceId;
+    }
     if (userId.isNotEmpty) {
       await client.setDisplayName(userId, cleanDisplayName);
     }
@@ -770,33 +850,52 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: currentPortalToken.trim(),
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
     );
-    final session = await asClient.changePortalPassword(
+    var session = await asClient.changePortalPassword(
       oldPassword: cleanOldPassword,
       newPassword: cleanNewPassword,
       deviceId: await _localMatrixDeviceId(client),
     );
-    final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
-    final userId = session.userId.trim().isNotEmpty
+    var matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
+    var userId = session.userId.trim().isNotEmpty
         ? session.userId
         : auth?.userId ?? client.userID ?? '';
-    final deviceId = await _resolveSessionDeviceId(
+    var deviceId = await _resolveSessionDeviceId(
       httpClient: client.httpClient,
       homeserver: matrixUri,
       accessToken: session.matrixAccessToken,
       sessionDeviceId: session.deviceId,
       storedDeviceId: await _storage.read(key: 'matrix_device_id'),
     );
-    await _applyRefreshedSession(
-      client,
-      matrixUri,
-      session,
-      portalToken: session.adminAccessToken,
-      deviceId: deviceId,
-      loginPortalToken: cleanNewPassword,
-      profileInitialized: _sessionProfileInitialized(session) ??
-          _parseStoredBool(await _storage.read(key: profileInitializedKey)) ??
-          !(auth?.requiresProfileSetup ?? false),
-    );
+    final fallbackProfileInitialized =
+        _parseStoredBool(await _storage.read(key: profileInitializedKey)) ??
+            !(auth?.requiresProfileSetup ?? false);
+    try {
+      await _applyRefreshedSession(
+        client,
+        matrixUri,
+        session,
+        portalToken: session.adminAccessToken,
+        deviceId: deviceId,
+        loginPortalToken: cleanNewPassword,
+        profileInitialized:
+            _sessionProfileInitialized(session) ?? fallbackProfileInitialized,
+      );
+    } catch (error) {
+      if (!_isUploadKeyFailure(error)) rethrow;
+      final recovered = await _authenticateFreshDeviceAfterUploadKeyFailure(
+        client,
+        homeserver: homeserver,
+        loginPassword: cleanNewPassword,
+        fallbackUserId: auth?.userId,
+        profileInitialized:
+            _sessionProfileInitialized(session) ?? fallbackProfileInitialized,
+        logContext: 'password change',
+      );
+      session = recovered.session;
+      matrixUri = recovered.homeserver;
+      userId = recovered.userId;
+      deviceId = recovered.deviceId;
+    }
     final profileInitialized = _sessionProfileInitialized(session) ??
         _parseStoredBool(await _storage.read(key: profileInitializedKey));
     state = AsyncData(
@@ -1101,6 +1200,69 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       return (httpClient.inner as MatrixTokenRefreshingHttpClient).innerClient;
     }
     return httpClient;
+  }
+
+  Future<_ActivatedPortalSession> _authenticateFreshDeviceAfterUploadKeyFailure(
+    Client client, {
+    required Uri homeserver,
+    required String loginPassword,
+    required String? fallbackUserId,
+    required bool profileInitialized,
+    required String logContext,
+  }) async {
+    debugPrint(
+      'Matrix key upload failed after $logContext; retrying fresh auth',
+    );
+    final freshDeviceId = _createDeviceId();
+    final session = await HttpAsClient.authenticatePortal(
+      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+      portalToken: loginPassword,
+      deviceId: freshDeviceId,
+      httpClient: client.httpClient,
+    );
+    final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
+    final userId = session.userId.trim().isNotEmpty
+        ? session.userId
+        : fallbackUserId ?? client.userID ?? '';
+    await _clearMatrixForCleanInit(client);
+    await client.checkHomeserver(matrixUri);
+    final checkedHomeserver = client.homeserver ?? matrixUri;
+    final deviceId = await _resolveSessionDeviceId(
+      httpClient: client.httpClient,
+      homeserver: checkedHomeserver,
+      accessToken: session.matrixAccessToken,
+      sessionDeviceId: session.deviceId,
+      storedDeviceId: freshDeviceId,
+    );
+    await _establishPrivacyBaselineBeforeInit(
+      client,
+      homeserver: checkedHomeserver,
+      accessToken: session.matrixAccessToken,
+      userId: userId,
+      deviceId: deviceId,
+    );
+    await _initMatrixSessionWithKeyUploadRetry(
+      client,
+      accessToken: session.matrixAccessToken,
+      userId: userId,
+      homeserver: checkedHomeserver,
+      deviceId: deviceId,
+    );
+    await _persistSession(
+      client,
+      checkedHomeserver,
+      portalToken: session.adminAccessToken,
+      deviceId: deviceId,
+      userId: userId,
+      profileInitialized: profileInitialized,
+      loginPortalToken: loginPassword,
+    );
+    return _ActivatedPortalSession(
+      session: session,
+      homeserver: checkedHomeserver,
+      userId: userId,
+      deviceId: deviceId,
+    );
   }
 
   Future<void> _applyRefreshedSession(

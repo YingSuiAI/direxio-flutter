@@ -1597,6 +1597,16 @@ abstract class AsClient {
     required String eventId,
   });
 
+  /// POST /_as/rooms/{roomId}/messages/{eventId}/recall
+  ///
+  /// Recalls one message for every room member through Matrix redaction.
+  /// This is intentionally separate from local delete.
+  Future<void> recallRoomMessage({
+    required String roomId,
+    required String eventId,
+    String reason = '撤回消息',
+  });
+
   /// POST /_as/rooms/{roomId}/messages/delete-range
   ///
   /// Deletes room messages in a timestamp range for the current portal owner

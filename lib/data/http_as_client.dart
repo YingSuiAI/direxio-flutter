@@ -499,6 +499,24 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<void> recallRoomMessage({
+    required String roomId,
+    required String eventId,
+    String reason = '撤回消息',
+  }) async {
+    await _requestJson(
+      'POST',
+      'rooms/${Uri.encodeComponent(roomId)}/messages/'
+          '${Uri.encodeComponent(eventId)}/recall',
+      body: {
+        'event_id': eventId.trim(),
+        'reason': reason.trim().isEmpty ? '撤回消息' : reason.trim(),
+      },
+      allowedStatusCodes: const {200, 201, 204},
+    );
+  }
+
+  @override
   Future<void> deleteRoomMessagesByRange({
     required String roomId,
     required int fromTs,

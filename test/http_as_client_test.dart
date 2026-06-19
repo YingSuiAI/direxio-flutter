@@ -2561,6 +2561,11 @@ void main() {
         expect(jsonDecode(request.body), {
           'message_type': 'text',
           'body': '收到',
+          'reply_to_comment_id': 'parent1',
+          'reply_to_author_mxid': '@owner:example.com',
+          'mentions': [
+            {'user_id': '@alice:remote.example', 'display_name': 'Alice'},
+          ],
         });
         return _jsonResponse(
           {
@@ -2571,6 +2576,10 @@ void main() {
             'author_mxid': '@owner:example.com',
             'body': '收到',
             'message_type': 'text',
+            'reply_to_comment_id': 'parent1',
+            'reply_to_author_mxid': '@owner:example.com',
+            'mentions_json':
+                '[{"user_id":"@alice:remote.example","display_name":"Alice"}]',
             'origin_server_ts': 1780730000000,
             'reaction_count': 5,
             'reacted_by_me': true,
@@ -2585,10 +2594,21 @@ void main() {
       'post1',
       messageType: 'text',
       body: '收到',
+      replyToCommentId: 'parent1',
+      replyToAuthorId: '@owner:example.com',
+      mentions: const [
+        {'user_id': '@alice:remote.example', 'display_name': 'Alice'},
+        {'display_name': 'Missing user'},
+      ],
     );
 
     expect(comment.commentId, 'comment1');
     expect(comment.postId, 'post1');
+    expect(comment.replyToCommentId, 'parent1');
+    expect(comment.replyToAuthorId, '@owner:example.com');
+    expect(comment.mentions, [
+      {'user_id': '@alice:remote.example', 'display_name': 'Alice'},
+    ]);
     expect(comment.reactionCount, 5);
     expect(comment.reactedByMe, isTrue);
   });

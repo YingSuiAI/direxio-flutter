@@ -1017,6 +1017,9 @@ class AsChannelComment {
     this.authorName = '',
     this.authorDomain = '',
     this.media = const {},
+    this.replyToCommentId = '',
+    this.replyToAuthorId = '',
+    this.mentions = const [],
     this.reactionCount = 0,
     this.reactedByMe = false,
   });
@@ -1031,6 +1034,9 @@ class AsChannelComment {
   final String messageType;
   final String body;
   final Map<String, Object?> media;
+  final String replyToCommentId;
+  final String replyToAuthorId;
+  final List<Map<String, Object?>> mentions;
   final int originServerTs;
   final int reactionCount;
   final bool reactedByMe;
@@ -1047,6 +1053,9 @@ class AsChannelComment {
       messageType: json['message_type'] as String? ?? 'text',
       body: json['body'] as String? ?? '',
       media: _objectMapOrJson(json['media_json'] ?? json['media']),
+      replyToCommentId: json['reply_to_comment_id'] as String? ?? '',
+      replyToAuthorId: json['reply_to_author_mxid'] as String? ?? '',
+      mentions: _objectMapListOrJson(json['mentions'] ?? json['mentions_json']),
       originServerTs: _parseInt(json['origin_server_ts']),
       reactionCount: _parseInt(json['reaction_count']),
       reactedByMe: json['reacted_by_me'] as bool? ?? false,
@@ -1803,6 +1812,9 @@ abstract class AsClient {
     required String messageType,
     required String body,
     Map<String, Object?> media = const {},
+    String replyToCommentId = '',
+    String replyToAuthorId = '',
+    List<Map<String, Object?>> mentions = const [],
   });
 
   /// GET /_as/channels/me/comments
@@ -2005,6 +2017,23 @@ Map<String, Object?> _objectMapOrJson(Object? value) {
   } on FormatException {
     return const {};
   }
+}
+
+List<Map<String, Object?>> _objectMapListOrJson(Object? value) {
+  Object? raw = value;
+  if (value is String) {
+    if (value.trim().isEmpty) return const [];
+    try {
+      raw = jsonDecode(value);
+    } on FormatException {
+      return const [];
+    }
+  }
+  final list = raw as List? ?? const [];
+  return list
+      .whereType<Map>()
+      .map((item) => item.cast<String, Object?>())
+      .toList(growable: false);
 }
 
 List<T> _parseList<T>(

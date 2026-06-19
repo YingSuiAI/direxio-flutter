@@ -1031,6 +1031,9 @@ class MockAsClient implements AsClient {
         messageType: comment.messageType,
         body: comment.body,
         media: comment.media,
+        replyToCommentId: comment.replyToCommentId,
+        replyToAuthorId: comment.replyToAuthorId,
+        mentions: comment.mentions,
         originServerTs: comment.originServerTs,
         reactionCount: reacted ? 1 : comment.reactionCount,
         reactedByMe: reacted,
@@ -1045,6 +1048,9 @@ class MockAsClient implements AsClient {
     required String messageType,
     required String body,
     Map<String, Object?> media = const {},
+    String replyToCommentId = '',
+    String replyToAuthorId = '',
+    List<Map<String, Object?>> mentions = const [],
   }) async {
     await Future.delayed(_latency);
     final commentId = 'mock_comment_${_nextChannelCommentId++}';
@@ -1058,6 +1064,9 @@ class MockAsClient implements AsClient {
       messageType: messageType,
       body: body,
       media: media,
+      replyToCommentId: replyToCommentId,
+      replyToAuthorId: replyToAuthorId,
+      mentions: mentions,
       originServerTs: DateTime.now().millisecondsSinceEpoch,
     );
     _channelComments.putIfAbsent(postId, () => []).add(comment);

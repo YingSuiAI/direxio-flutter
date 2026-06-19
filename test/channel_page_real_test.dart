@@ -1927,6 +1927,9 @@ class _PostingChannelAsClient extends MockAsClient {
     required String messageType,
     required String body,
     Map<String, Object?> media = const {},
+    String replyToCommentId = '',
+    String replyToAuthorId = '',
+    List<Map<String, Object?>> mentions = const [],
   }) async {
     createdCommentBody = body;
     return AsChannelComment(
@@ -1939,6 +1942,9 @@ class _PostingChannelAsClient extends MockAsClient {
       messageType: messageType,
       body: body,
       media: media,
+      replyToCommentId: replyToCommentId,
+      replyToAuthorId: replyToAuthorId,
+      mentions: mentions,
       originServerTs:
           DateTime.parse('2026-06-06T10:22:00Z').millisecondsSinceEpoch,
     );

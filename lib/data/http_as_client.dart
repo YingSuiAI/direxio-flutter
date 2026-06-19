@@ -506,15 +506,7 @@ class HttpAsClient implements AsClient {
     List<Map<String, String>> mentions = const [],
   }) async {
     final replyTo = replyToEventId?.trim();
-    final normalizedMentions = [
-      for (final mention in mentions)
-        if ((mention['user_id'] ?? '').trim().isNotEmpty)
-          {
-            'user_id': (mention['user_id'] ?? '').trim(),
-            if ((mention['display_name'] ?? '').trim().isNotEmpty)
-              'display_name': (mention['display_name'] ?? '').trim(),
-          },
-    ];
+    final normalizedMentions = _normalizedMentionPayload(mentions);
     final body = await _requestJson(
       'POST',
       'rooms/${Uri.encodeComponent(roomId)}/send',
@@ -1169,7 +1161,13 @@ class HttpAsClient implements AsClient {
     required String messageType,
     required String body,
     Map<String, Object?> media = const {},
+    String replyToCommentId = '',
+    String replyToAuthorId = '',
+    List<Map<String, Object?>> mentions = const [],
   }) async {
+    final normalizedMentions = _normalizedMentionPayload(mentions);
+    final replyTo = replyToCommentId.trim();
+    final replyAuthor = replyToAuthorId.trim();
     final response = await _requestJson(
       'POST',
       'channels/${Uri.encodeComponent(channelId)}/posts/${Uri.encodeComponent(postId)}/comments',
@@ -1178,6 +1176,9 @@ class HttpAsClient implements AsClient {
             messageType.trim().isEmpty ? 'text' : messageType.trim(),
         'body': body.trim(),
         if (media.isNotEmpty) 'media_json': jsonEncode(media),
+        if (replyTo.isNotEmpty) 'reply_to_comment_id': replyTo,
+        if (replyAuthor.isNotEmpty) 'reply_to_author_mxid': replyAuthor,
+        if (normalizedMentions.isNotEmpty) 'mentions': normalizedMentions,
       },
       allowedStatusCodes: const {200},
     );
@@ -2022,6 +2023,20 @@ class HttpAsClient implements AsClient {
         baseUri.path.endsWith('/') ? baseUri.path : '${baseUri.path}/';
     return baseUri.replace(path: '$basePath$cleanPath');
   }
+}
+
+List<Map<String, String>> _normalizedMentionPayload(
+  Iterable<Map<String, Object?>> mentions,
+) {
+  return [
+    for (final mention in mentions)
+      if ((mention['user_id']?.toString() ?? '').trim().isNotEmpty)
+        {
+          'user_id': (mention['user_id']?.toString() ?? '').trim(),
+          if ((mention['display_name']?.toString() ?? '').trim().isNotEmpty)
+            'display_name': (mention['display_name']?.toString() ?? '').trim(),
+        },
+  ];
 }
 
 String _actionFor(String method, String path) {

@@ -522,6 +522,9 @@ class _EmptyAsClient implements AsClient {
     required String messageType,
     required String body,
     Map<String, Object?> media = const {},
+    String replyToCommentId = '',
+    String replyToAuthorId = '',
+    List<Map<String, Object?>> mentions = const [],
   }) async =>
       AsChannelComment(
         commentId: 'comment',
@@ -532,6 +535,9 @@ class _EmptyAsClient implements AsClient {
         messageType: messageType,
         body: body,
         media: media,
+        replyToCommentId: replyToCommentId,
+        replyToAuthorId: replyToAuthorId,
+        mentions: mentions,
         originServerTs: 1,
       );
 

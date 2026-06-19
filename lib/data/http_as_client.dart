@@ -18,12 +18,14 @@ class HttpAsClient implements AsClient {
     String? accessToken,
     String authSource = 'portal_token',
     String? matrixAccessTokenForDebug,
+    FutureOr<String?> Function()? onAuthenticationRefresh,
     FutureOr<void> Function()? onAuthenticationFailed,
     http.Client? httpClient,
   })  : _baseUri = _normalizeBaseUri(baseUri),
         _portalToken = _requireToken(portalToken ?? accessToken),
         _authSource = authSource,
         _matrixAccessTokenForDebug = matrixAccessTokenForDebug,
+        _onAuthenticationRefresh = onAuthenticationRefresh,
         _onAuthenticationFailed = onAuthenticationFailed,
         _http = httpClient ?? http.Client();
 
@@ -31,6 +33,7 @@ class HttpAsClient implements AsClient {
     Client client, {
     required String portalToken,
     Uri? baseUri,
+    FutureOr<String?> Function()? onAuthenticationRefresh,
     FutureOr<void> Function()? onAuthenticationFailed,
   }) {
     final homeserver = client.homeserver;
@@ -42,6 +45,7 @@ class HttpAsClient implements AsClient {
       portalToken: portalToken,
       authSource: 'portal_token',
       matrixAccessTokenForDebug: client.accessToken,
+      onAuthenticationRefresh: onAuthenticationRefresh,
       onAuthenticationFailed: onAuthenticationFailed,
       httpClient: client.httpClient,
     );
@@ -52,6 +56,7 @@ class HttpAsClient implements AsClient {
   factory HttpAsClient.fromMatrixClient(
     Client client, {
     Uri? baseUri,
+    FutureOr<String?> Function()? onAuthenticationRefresh,
     FutureOr<void> Function()? onAuthenticationFailed,
   }) {
     final token = client.accessToken;
@@ -64,15 +69,17 @@ class HttpAsClient implements AsClient {
       accessToken: token,
       authSource: 'matrix_access_token',
       matrixAccessTokenForDebug: token,
+      onAuthenticationRefresh: onAuthenticationRefresh,
       onAuthenticationFailed: onAuthenticationFailed,
       httpClient: client.httpClient,
     );
   }
 
   final Uri _baseUri;
-  final String _portalToken;
+  String _portalToken;
   final String? _authSource;
   final String? _matrixAccessTokenForDebug;
+  final FutureOr<String?> Function()? _onAuthenticationRefresh;
   final FutureOr<void> Function()? _onAuthenticationFailed;
   final http.Client _http;
 
@@ -1679,64 +1686,78 @@ class HttpAsClient implements AsClient {
         _actionParams(path, queryParameters: queryParameters, body: body);
     final endpoint = method == 'GET' ? 'query' : 'command';
     final uri = _resolve(endpoint);
-    final request = http.Request('POST', uri);
-    request.headers['Authorization'] = 'Bearer $_portalToken';
-    request.headers['Accept'] = 'application/json';
-    request.encoding = utf8;
-    request.headers['Content-Type'] = 'application/json; charset=utf-8';
-    request.body = jsonEncode({
-      'action': action,
-      'params': params,
-    });
-    if (method == 'POST' && path == 'contacts/requests') {
-      final authorization = request.headers['Authorization'] ?? '';
-      final matrixAccessToken = _matrixAccessTokenForDebug?.trim() ?? '';
-      ApiLogger.info(
-        '[AS admin] friend request auth '
-        'authorization_present=${authorization.isNotEmpty} '
-        'bearer=${authorization.startsWith('Bearer ')} '
-        'auth_source=$_authSourceLabel '
-        'portal_token_present=${_portalToken.trim().isNotEmpty} '
-        'portal_token_length=${_portalToken.length} '
-        'matrix_access_token_present=${matrixAccessToken.isNotEmpty} '
-        'matrix_access_token_length=${matrixAccessToken.length} '
-        'authorization_matches_matrix_access_token='
-        '${authorization == 'Bearer $matrixAccessToken'} '
-        'target=${_friendRequestTarget(body)}',
-      );
-    }
-    final requestBody = request.body.isEmpty ? null : request.body;
-
-    final stopwatch = Stopwatch()..start();
     late http.Response response;
-    try {
-      final streamed = await _http.send(request).timeout(_timeout);
-      response = await http.Response.fromStream(streamed);
-    } catch (error, stackTrace) {
+    String? requestBody;
+    var requestElapsed = Duration.zero;
+    for (var attempt = 0;; attempt++) {
+      final request = http.Request('POST', uri);
+      request.headers['Authorization'] = 'Bearer $_portalToken';
+      request.headers['Accept'] = 'application/json';
+      request.encoding = utf8;
+      request.headers['Content-Type'] = 'application/json; charset=utf-8';
+      request.body = jsonEncode({
+        'action': action,
+        'params': params,
+      });
+      if (method == 'POST' && path == 'contacts/requests') {
+        final authorization = request.headers['Authorization'] ?? '';
+        final matrixAccessToken = _matrixAccessTokenForDebug?.trim() ?? '';
+        ApiLogger.info(
+          '[AS admin] friend request auth '
+          'authorization_present=${authorization.isNotEmpty} '
+          'bearer=${authorization.startsWith('Bearer ')} '
+          'auth_source=$_authSourceLabel '
+          'portal_token_present=${_portalToken.trim().isNotEmpty} '
+          'portal_token_length=${_portalToken.length} '
+          'matrix_access_token_present=${matrixAccessToken.isNotEmpty} '
+          'matrix_access_token_length=${matrixAccessToken.length} '
+          'authorization_matches_matrix_access_token='
+          '${authorization == 'Bearer $matrixAccessToken'} '
+          'target=${_friendRequestTarget(body)}',
+        );
+      }
+      requestBody = request.body.isEmpty ? null : request.body;
+
+      final stopwatch = Stopwatch()..start();
+      try {
+        final streamed = await _http.send(request).timeout(_timeout);
+        response = await http.Response.fromStream(streamed);
+      } catch (error, stackTrace) {
+        stopwatch.stop();
+        ApiLogger.failure(
+          service: 'AS admin',
+          method: 'POST',
+          uri: uri,
+          elapsed: stopwatch.elapsed,
+          error: error,
+          stackTrace: stackTrace,
+          requestBody: requestBody,
+        );
+        rethrow;
+      }
       stopwatch.stop();
-      ApiLogger.failure(
+      requestElapsed = stopwatch.elapsed;
+      ApiLogger.response(
         service: 'AS admin',
         method: 'POST',
         uri: uri,
-        elapsed: stopwatch.elapsed,
-        error: error,
-        stackTrace: stackTrace,
+        statusCode: response.statusCode,
+        elapsed: requestElapsed,
         requestBody: requestBody,
+        responseBody: response.body,
       );
-      rethrow;
-    }
-    stopwatch.stop();
-    ApiLogger.response(
-      service: 'AS admin',
-      method: 'POST',
-      uri: uri,
-      statusCode: response.statusCode,
-      elapsed: stopwatch.elapsed,
-      requestBody: requestBody,
-      responseBody: response.body,
-    );
-    if (!allowedStatusCodes.contains(response.statusCode)) {
+      if (allowedStatusCodes.contains(response.statusCode)) {
+        break;
+      }
       if (_isAuthenticationFailureResponse(response)) {
+        if (attempt == 0) {
+          final refreshedToken =
+              (await _onAuthenticationRefresh?.call())?.trim();
+          if (refreshedToken != null && refreshedToken.isNotEmpty) {
+            _portalToken = refreshedToken;
+            continue;
+          }
+        }
         await _onAuthenticationFailed?.call();
       }
       throw AsClientException(
@@ -1753,7 +1774,7 @@ class HttpAsClient implements AsClient {
         service: 'AS admin',
         method: method,
         uri: uri,
-        elapsed: stopwatch.elapsed,
+        elapsed: requestElapsed,
         statusCode: response.statusCode,
         requestBody: requestBody,
         responseBody: response.body,
@@ -1771,7 +1792,7 @@ class HttpAsClient implements AsClient {
         service: 'AS admin',
         method: method,
         uri: uri,
-        elapsed: stopwatch.elapsed,
+        elapsed: requestElapsed,
         statusCode: response.statusCode,
         requestBody: requestBody,
         responseBody: response.body,

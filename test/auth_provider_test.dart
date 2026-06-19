@@ -20,6 +20,15 @@ Map<String, dynamic>? _p2pAction(http.Request request, String action) {
   return body['action'] == action ? body : null;
 }
 
+String? _p2pActionName(http.Request request) {
+  if (request.url.path != '/_p2p/command' &&
+      request.url.path != '/_p2p/query') {
+    return null;
+  }
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  return body['action'] as String?;
+}
+
 class _UploadKeyFailsOnceClient extends Client {
   _UploadKeyFailsOnceClient(
     super.clientName, {
@@ -544,6 +553,116 @@ void main() {
 
     expect(auth.isLoggedIn, isTrue);
     expect(auth.portalToken, 'last-portal-token');
+  });
+
+  test('AS admin token failure refreshes portal session and retries request',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'matrix-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final seenAuthorizations = <String>[];
+    final requestActions = <String>[];
+    final client = Client(
+      'AuthAsAdminTokenRefreshTest',
+      httpClient: MockClient((request) async {
+        final action = _p2pActionName(request);
+        if (action != null) requestActions.add(action);
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.auth') != null) {
+          expect(_p2pAction(request, 'portal.auth')!['params'], {
+            'password': 'oldpass123',
+            'device_id': 'DEVICE1',
+          });
+          return http.Response(
+            '{"matrix_access_token":"matrix-token",'
+            '"admin_access_token":"new-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE1",'
+            '"profile_initialized":true}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'sync.bootstrap') != null) {
+          final authorization = request.headers['Authorization'] ?? '';
+          seenAuthorizations.add(authorization);
+          if (authorization == 'Bearer old-admin-token') {
+            return http.Response(
+              '{"error":"M_UNKNOWN_TOKEN"}',
+              401,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          expect(authorization, 'Bearer new-admin-token');
+          return http.Response(
+            '{"synced_at":"2026-06-20T00:00:00Z",'
+            '"user":{"user_id":"@owner:example.com"},'
+            '"rooms":[],"contacts":[],"groups":[],"channels":[],'
+            '"pending":{}}',
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    final authSub = container.listen(
+      authStateNotifierProvider,
+      (_, __) {},
+      fireImmediately: true,
+    );
+    addTearDown(authSub.close);
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    final bootstrap = await container.read(asClientProvider).syncBootstrap();
+
+    expect(bootstrap.user.userId, '@owner:example.com');
+    expect(seenAuthorizations, [
+      'Bearer old-admin-token',
+      'Bearer new-admin-token',
+    ]);
+    expect(
+        requestActions,
+        containsAllInOrder([
+          'sync.bootstrap',
+          'portal.auth',
+          'sync.bootstrap',
+        ]));
+    expect(
+      container.read(authStateNotifierProvider).valueOrNull?.portalToken,
+      'new-admin-token',
+    );
+    expect(
+      await const FlutterSecureStorage().read(
+        key: AuthStateNotifier.adminAccessTokenKey,
+      ),
+      'new-admin-token',
+    );
   });
 
   test('restores auth from stored portal token when Matrix token is missing',

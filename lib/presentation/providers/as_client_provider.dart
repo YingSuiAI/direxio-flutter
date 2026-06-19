@@ -19,6 +19,9 @@ final asClientProvider = Provider<AsClient>((ref) {
     return HttpAsClient.fromPortalSession(
       client,
       portalToken: portalToken,
+      onAuthenticationRefresh: () => ref
+          .read(authStateNotifierProvider.notifier)
+          .refreshPortalSessionForAsAdminToken(),
       onAuthenticationFailed: () => ref
           .read(authStateNotifierProvider.notifier)
           .expireSessionDueInvalidToken(),
@@ -31,6 +34,9 @@ final asClientProvider = Provider<AsClient>((ref) {
   );
   return HttpAsClient.fromMatrixClient(
     client,
+    onAuthenticationRefresh: () => ref
+        .read(authStateNotifierProvider.notifier)
+        .refreshPortalSessionForAsAdminToken(),
     onAuthenticationFailed: () => ref
         .read(authStateNotifierProvider.notifier)
         .expireSessionDueInvalidToken(),

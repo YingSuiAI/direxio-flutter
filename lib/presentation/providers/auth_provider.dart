@@ -921,6 +921,30 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     );
   }
 
+  Future<String?> refreshPortalSessionForAsAdminToken() async {
+    if (_sessionExpiredLocally) return null;
+    final client = ref.read(matrixClientProvider);
+    final auth = state.valueOrNull;
+    final homeserver = client.homeserver ??
+        Uri.tryParse(auth?.homeserver ?? '') ??
+        Uri.tryParse(await _storage.read(key: 'matrix_homeserver') ?? '') ??
+        Uri.tryParse(await _storage.read(key: lastLoginHomeserverKey) ?? '');
+    if (homeserver == null) return null;
+    final portalToken = auth?.portalToken ??
+        await _storage.read(key: AuthStateNotifier.adminAccessTokenKey) ??
+        await _storage.read(key: lastLoginPortalTokenKey);
+    final restored = await _restorePortalSession(
+      client,
+      homeserver: homeserver.toString(),
+      portalToken: portalToken,
+    );
+    if (restored == null || _sessionExpiredLocally) return null;
+    if (_isMounted) {
+      state = AsyncData(restored);
+    }
+    return restored.portalToken;
+  }
+
   Future<void> changePortalPassword({
     required String oldPassword,
     required String newPassword,

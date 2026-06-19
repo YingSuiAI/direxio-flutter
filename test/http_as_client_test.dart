@@ -452,6 +452,48 @@ void main() {
     expect(results.single.content, 'hello world');
   });
 
+  test('AS M_UNKNOWN_TOKEN refreshes token and retries once', () async {
+    final authorizations = <String>[];
+    var refreshCount = 0;
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'old-admin-token',
+      onAuthenticationRefresh: () {
+        refreshCount++;
+        return 'new-admin-token';
+      },
+      httpClient: MockClient((request) async {
+        authorizations.add(request.headers['Authorization'] ?? '');
+        if (request.headers['Authorization'] == 'Bearer old-admin-token') {
+          return _jsonResponse({'error': 'M_UNKNOWN_TOKEN'}, 401);
+        }
+        expect(request.headers['Authorization'], 'Bearer new-admin-token');
+        expect(jsonDecode(request.body)['action'], 'sync.bootstrap');
+        return _jsonResponse(
+          {
+            'synced_at': '2026-06-20T00:00:00Z',
+            'user': {'user_id': '@owner:example.com'},
+            'rooms': [],
+            'contacts': [],
+            'groups': [],
+            'channels': [],
+            'pending': {},
+          },
+          200,
+        );
+      }),
+    );
+
+    final bootstrap = await client.syncBootstrap();
+
+    expect(bootstrap.user.userId, '@owner:example.com');
+    expect(refreshCount, 1);
+    expect(authorizations, [
+      'Bearer old-admin-token',
+      'Bearer new-admin-token',
+    ]);
+  });
+
   test('AS M_UNKNOWN_TOKEN invokes session expiration callback', () async {
     var expired = false;
     final client = HttpAsClient(

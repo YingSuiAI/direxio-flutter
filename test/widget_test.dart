@@ -1969,6 +1969,7 @@ class _RefreshingBootstrapAsClient extends _EmptyAsClient {
 class _RefreshingFriendRequestBootstrapAsClient extends _EmptyAsClient {
   int syncBootstrapCalls = 0;
   bool showPendingFriendRequest = false;
+  bool showPendingGroupInvite = false;
 
   @override
   Future<AsSyncBootstrap> syncBootstrap() async {
@@ -1980,19 +1981,27 @@ class _RefreshingFriendRequestBootstrapAsClient extends _EmptyAsClient {
       contacts: const [],
       groups: const [],
       channels: const [],
-      pending: showPendingFriendRequest
-          ? const AsSyncPending(
-              friendRequests: [
+      pending: AsSyncPending(
+        friendRequests: showPendingFriendRequest
+            ? const [
                 AsSyncPendingItem(
                   id: '!pending-live:p2p-im.com',
                   title: 'Alice',
                   createdAt: null,
                 ),
-              ],
-              groupInvites: [],
-              channelNotices: [],
-            )
-          : const AsSyncPending.empty(),
+              ]
+            : const [],
+        groupInvites: showPendingGroupInvite
+            ? const [
+                AsSyncPendingItem(
+                  id: '!pending-group-live:p2p-im.com',
+                  title: '实时群聊',
+                  createdAt: null,
+                ),
+              ]
+            : const [],
+        channelNotices: const [],
+      ),
     );
   }
 }
@@ -5120,6 +5129,46 @@ void main() {
     expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
   });
 
+  testWidgets('new friend badge refreshes AS pending group invites',
+      (tester) async {
+    final client = Client('PortalIMPendingGroupInviteLiveRefreshTest')
+      ..setUserId('@owner:p2p-im.com');
+    final readStore = _MemoryFriendRequestReadStore();
+    final asClient = _RefreshingFriendRequestBootstrapAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          asBootstrapLiveRefreshIntervalProvider.overrideWithValue(
+            const Duration(seconds: 1),
+          ),
+          friendRequestReadStoreProvider.overrideWith((ref) async => readStore),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 1);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
+
+    asClient.showPendingGroupInvite = true;
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 2);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
+  });
+
   testWidgets('new friend badge counts Matrix invites after AS bootstrap',
       (tester) async {
     final client = Client('PortalIMInviteBadgeBootstrapTest')
@@ -5464,6 +5513,43 @@ void main() {
 
     expect(asClient.syncBootstrapCalls, 2);
     expect(find.text('Alice'), findsOneWidget);
+  });
+
+  testWidgets('new friends page refreshes AS pending group invites after sync',
+      (tester) async {
+    final client = Client('PortalIMRequestsLiveGroupInviteTest')
+      ..setUserId('@owner:p2p-im.com');
+    final asClient = _RefreshingFriendRequestBootstrapAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 1);
+    expect(find.text('暂无好友请求'), findsOneWidget);
+
+    asClient.showPendingGroupInvite = true;
+    await client.handleSync(SyncUpdate(nextBatch: 'group-invite'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 2);
+    expect(find.text('实时群聊'), findsOneWidget);
+    expect(
+        find.text('邀请加入群聊 · !pending-group-live:p2p-im.com'), findsOneWidget);
   });
 
   testWidgets('new friends page can accept AS pending group invite',

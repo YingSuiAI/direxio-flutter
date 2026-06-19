@@ -1210,6 +1210,7 @@ void main() {
 
     expect(asClient.leftChannelId, 'ch_real');
     expect(find.text('已退出频道'), findsOneWidget);
+    asClient.leftChannelId = null;
 
     final ownerBootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
@@ -1272,7 +1273,8 @@ void main() {
     await tester.tap(find.text('确定'));
     await tester.pumpAndSettle();
 
-    expect(asClient.leftChannelId, 'ch_real');
+    expect(asClient.dissolvedChannelId, 'ch_real');
+    expect(asClient.leftChannelId, isNull);
     expect(find.text('已解散频道'), findsOneWidget);
   });
 
@@ -1914,6 +1916,7 @@ class _PostingChannelAsClient extends MockAsClient {
   String? readMarkerChannelId;
   String? readMarkerEventId;
   String? leftChannelId;
+  String? dissolvedChannelId;
   String? recalledPostId;
   String? recallReason;
 
@@ -2123,6 +2126,11 @@ class _PostingChannelAsClient extends MockAsClient {
   @override
   Future<void> leaveChannel(String channelId) async {
     leftChannelId = channelId.trim();
+  }
+
+  @override
+  Future<void> dissolveChannel(String channelId) async {
+    dissolvedChannelId = channelId.trim();
   }
 }
 

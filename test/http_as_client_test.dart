@@ -1498,6 +1498,23 @@ void main() {
     await expectLater(client.leaveGroup('!group:p2p-im.com'), completes);
   });
 
+  test('dissolveGroup posts dissolve through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/groups/!group%3Ap2p-im.com/dissolve');
+        return http.Response(
+          jsonEncode({'room_id': '!group:p2p-im.com', 'status': 'ok'}),
+          200,
+        );
+      }),
+    );
+
+    await expectLater(client.dissolveGroup('!group:p2p-im.com'), completes);
+  });
+
   test('leaveChannel posts leave through AS', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),
@@ -1514,6 +1531,51 @@ void main() {
     );
 
     await expectLater(client.leaveChannel(' ch1 '), completes);
+  });
+
+  test('dissolveChannel posts dissolve through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/channels/ch1/dissolve');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        return http.Response(
+          jsonEncode({'channel_id': 'ch1', 'status': 'ok'}),
+          200,
+        );
+      }),
+    );
+
+    await expectLater(client.dissolveChannel(' ch1 '), completes);
+  });
+
+  test('dissolve actions use unified P2P command body', () async {
+    final seenActions = <String>[];
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final action = body['action'] as String;
+        seenActions.add(action);
+        if (action == 'channels.dissolve') {
+          expect(body['params'], {'channel_id': 'ch1'});
+          return http.Response(jsonEncode({'status': 'ok'}), 200);
+        }
+        expect(action, 'groups.dissolve');
+        expect(body['params'], {'room_id': '!group:p2p-im.com'});
+        return http.Response(jsonEncode({'status': 'ok'}), 200);
+      }),
+    );
+
+    await client.dissolveChannel('ch1');
+    await client.dissolveGroup('!group:p2p-im.com');
+
+    expect(seenActions, ['channels.dissolve', 'groups.dissolve']);
   });
 
   test('favoriteMessage posts a generic favorite snapshot', () async {

@@ -473,6 +473,9 @@ class _EmptyAsClient implements AsClient {
   Future<void> leaveChannel(String channelId) async {}
 
   @override
+  Future<void> dissolveChannel(String channelId) async {}
+
+  @override
   Future<List<AsChannelPost>> getChannelPosts(
     String channelId, {
     int limit = 50,
@@ -885,6 +888,9 @@ class _EmptyAsClient implements AsClient {
 
   @override
   Future<void> leaveGroup(String roomId) async {}
+
+  @override
+  Future<void> dissolveGroup(String roomId) async {}
 
   @override
   Future<void> updateReadMarker(
@@ -1433,6 +1439,8 @@ class _TrackingAsClient extends _EmptyAsClient {
   AsSyncBootstrap? bootstrapAfterCreate;
   int leaveGroupCalls = 0;
   String? leftGroupRoomId;
+  int dissolveGroupCalls = 0;
+  String? dissolvedGroupRoomId;
   int removeGroupMemberCalls = 0;
   String? removedGroupRoomId;
   String? removedGroupPeerMxid;
@@ -1658,6 +1666,12 @@ class _TrackingAsClient extends _EmptyAsClient {
   Future<void> leaveGroup(String roomId) async {
     leaveGroupCalls++;
     leftGroupRoomId = roomId;
+  }
+
+  @override
+  Future<void> dissolveGroup(String roomId) async {
+    dissolveGroupCalls++;
+    dissolvedGroupRoomId = roomId;
   }
 
   @override
@@ -6673,7 +6687,7 @@ void main() {
     expect(find.text('设置当前聊天背景'), findsNothing);
   });
 
-  testWidgets('group detail leaves through AS and refreshes bootstrap',
+  testWidgets('group detail owner dissolves through AS and refreshes bootstrap',
       (tester) async {
     final client = Client('PortalIMGroupDetailLeaveAsTest')
       ..setUserId('@owner:p2p-im.com');
@@ -6753,14 +6767,15 @@ void main() {
     );
     await tester.pump();
 
-    await tester.ensureVisible(find.text('退出群聊'));
-    await tester.tap(find.text('退出群聊'));
+    await tester.ensureVisible(find.text('解散群聊'));
+    await tester.tap(find.text('解散群聊'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('退出').last);
+    await tester.tap(find.text('解散').last);
     await tester.pumpAndSettle();
 
-    expect(asClient.leaveGroupCalls, 1);
-    expect(asClient.leftGroupRoomId, '!group:p2p-im.com');
+    expect(asClient.dissolveGroupCalls, 1);
+    expect(asClient.dissolvedGroupRoomId, '!group:p2p-im.com');
+    expect(asClient.leaveGroupCalls, 0);
     expect(find.text('HomeRoot'), findsOneWidget);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(MaterialApp).first),

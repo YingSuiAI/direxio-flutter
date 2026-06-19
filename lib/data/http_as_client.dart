@@ -1003,6 +1003,15 @@ class HttpAsClient implements AsClient {
     );
   }
 
+  @override
+  Future<void> dissolveChannel(String channelId) async {
+    await _requestJson(
+      'POST',
+      'channels/${Uri.encodeComponent(channelId.trim())}/dissolve',
+      allowedStatusCodes: const {200},
+    );
+  }
+
   static Map<String, Object?> _discoveredChannelJoinBody(
     AsChannel? channel,
   ) {
@@ -1501,7 +1510,16 @@ class HttpAsClient implements AsClient {
   Future<void> leaveGroup(String roomId) async {
     await _requestJson(
       'POST',
-      'groups/${Uri.encodeComponent(roomId)}/leave',
+      'groups/${Uri.encodeComponent(roomId.trim())}/leave',
+      allowedStatusCodes: const {200},
+    );
+  }
+
+  @override
+  Future<void> dissolveGroup(String roomId) async {
+    await _requestJson(
+      'POST',
+      'groups/${Uri.encodeComponent(roomId.trim())}/dissolve',
       allowedStatusCodes: const {200},
     );
   }
@@ -2151,6 +2169,9 @@ String _actionFor(String method, String path) {
     if (segments.length == 2 && method == 'POST') return 'channels.join';
     if (segments.length == 3 && segments[2] == 'join') return 'channels.join';
     if (segments.length == 3 && segments[2] == 'leave') return 'channels.leave';
+    if (segments.length == 3 && segments[2] == 'dissolve') {
+      return 'channels.dissolve';
+    }
     if (segments.length == 3 && segments[2] == 'invite') {
       return 'channels.invite';
     }

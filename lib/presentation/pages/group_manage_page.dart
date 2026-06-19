@@ -43,6 +43,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
     final currentInvitePolicy = _currentInvitePolicy();
     final groupName = _currentGroupName();
     final groupAvatarUrl = _currentGroupAvatarUrl();
+    final canDissolveGroup = _canDissolveGroup();
 
     return Scaffold(
       backgroundColor: chatPageBackgroundColor(context),
@@ -115,19 +116,36 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
                     _GroupedCard(
                       children: [
                         _RowDanger(
-                          label: '退出群聊',
-                          onTap: () => _confirmDismiss(context, () async {
-                            if (_leaving) return;
-                            setState(() => _leaving = true);
-                            if (!context.mounted) return;
-                            try {
-                              await leaveGroupThroughAs(ref, widget.roomId);
+                          label: canDissolveGroup ? '解散群聊' : '退出群聊',
+                          onTap: () => _confirmDismiss(
+                            context,
+                            title: canDissolveGroup ? '解散群聊' : '退出群聊',
+                            content: canDissolveGroup
+                                ? '解散后群聊将从当前服务移除。'
+                                : '退出后你将不再接收该群聊消息。',
+                            confirmLabel: canDissolveGroup ? '解散' : '退出',
+                            failurePrefix:
+                                canDissolveGroup ? '解散群聊失败' : '退出群聊失败',
+                            onConfirm: () async {
+                              if (_leaving) return;
+                              setState(() => _leaving = true);
                               if (!context.mounted) return;
-                              context.go('/home');
-                            } finally {
-                              if (mounted) setState(() => _leaving = false);
-                            }
-                          }),
+                              try {
+                                if (canDissolveGroup) {
+                                  await dissolveGroupThroughAs(
+                                    ref,
+                                    widget.roomId,
+                                  );
+                                } else {
+                                  await leaveGroupThroughAs(ref, widget.roomId);
+                                }
+                                if (!context.mounted) return;
+                                context.go('/home');
+                              } finally {
+                                if (mounted) setState(() => _leaving = false);
+                              }
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -193,6 +211,15 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
     return matrixContentHttpUrl(
             ref.watch(matrixClientProvider), room?.avatar) ??
         '';
+  }
+
+  bool _canDissolveGroup() {
+    final room =
+        ref.read(matrixClientProvider).getRoomById(widget.roomId.trim());
+    final self = room?.client.userID;
+    if (room == null || self == null || self.isEmpty) return false;
+    if (room.getState(EventTypes.RoomCreate)?.senderId == self) return true;
+    return room.getPowerLevelByUserId(self) >= 100;
   }
 
   Future<void> _showRenameDialog(String currentName) async {
@@ -372,19 +399,23 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
   }
 
   Future<void> _confirmDismiss(
-    BuildContext context,
-    Future<void> Function() onConfirm,
-  ) async {
+    BuildContext context, {
+    required String title,
+    required String content,
+    required String confirmLabel,
+    required String failurePrefix,
+    required Future<void> Function() onConfirm,
+  }) async {
     final t = context.tk;
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: Text(
-          '退出群聊',
+          title,
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '退出后你将不再接收该群聊消息。',
+          content,
           style: AppTheme.sans(size: 15, color: t.textMute),
         ),
         actions: [
@@ -398,7 +429,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
           TextButton(
             onPressed: () => Navigator.of(c).pop(true),
             child: Text(
-              '退出',
+              confirmLabel,
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -415,7 +446,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
     } on Object catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('退出群聊失败: $e')),
+        SnackBar(content: Text('$failurePrefix: $e')),
       );
     }
   }

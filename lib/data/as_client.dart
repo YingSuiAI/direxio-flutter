@@ -1776,6 +1776,9 @@ abstract class AsClient {
   /// POST /_as/channels/{channelId}/leave
   Future<void> leaveChannel(String channelId);
 
+  /// POST /_as/channels/{channelId}/dissolve
+  Future<void> dissolveChannel(String channelId);
+
   /// GET /_as/channels/{channelId}/members
   Future<List<AsChannelMember>> getChannelMembers(
     String channelId, {
@@ -1945,6 +1948,9 @@ abstract class AsClient {
 
   /// POST /_as/groups/{roomId}/leave
   Future<void> leaveGroup(String roomId);
+
+  /// POST /_as/groups/{roomId}/dissolve
+  Future<void> dissolveGroup(String roomId);
 
   /// PUT /_as/sync/read-marker
   ///

@@ -75,6 +75,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
         .toSet();
     final memberCount = room?.summary.mJoinedMemberCount ?? members.length;
     final canManageGroup = room != null && _canManageGroup(room);
+    final canDissolveGroup = room != null && _canDissolveGroup(room);
 
     return Scaffold(
       backgroundColor: chatPageBackgroundColor(context),
@@ -224,9 +225,12 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                   M3Card(
                     padding: EdgeInsets.zero,
                     child: InfoCenterRow(
-                      label: '退出群聊',
+                      label: canDissolveGroup ? '解散群聊' : '退出群聊',
                       danger: true,
-                      onTap: () => _confirmLeave(context),
+                      onTap: () => _confirmLeave(
+                        context,
+                        dissolve: canDissolveGroup,
+                      ),
                     ),
                   ),
                 ],
@@ -242,6 +246,13 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final self = room.client.userID;
     if (self == null || self.isEmpty) return false;
     return room.getPowerLevelByUserId(self) >= 50;
+  }
+
+  bool _canDissolveGroup(Room room) {
+    final self = room.client.userID;
+    if (self == null || self.isEmpty) return false;
+    if (room.getState(EventTypes.RoomCreate)?.senderId == self) return true;
+    return room.getPowerLevelByUserId(self) >= 100;
   }
 
   Future<void> _showRemoveMemberSheet(
@@ -509,16 +520,13 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     if (ok != true || !context.mounted || _clearing) return;
     setState(() => _clearing = true);
     try {
-      final clearedBeforeTs =
-          DateTime.now().toUtc().millisecondsSinceEpoch + 1;
+      final clearedBeforeTs = DateTime.now().toUtc().millisecondsSinceEpoch + 1;
       await ref.read(asClientProvider).deleteRoomMessagesByRange(
             roomId: widget.roomId,
             fromTs: 0,
             toTs: clearedBeforeTs,
           );
-      await ref
-          .read(authStateNotifierProvider.notifier)
-          .clearRoomChatHistory(
+      await ref.read(authStateNotifierProvider.notifier).clearRoomChatHistory(
             widget.roomId,
             clearedBeforeTs: clearedBeforeTs,
           );
@@ -532,17 +540,20 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     }
   }
 
-  Future<void> _confirmLeave(BuildContext context) async {
+  Future<void> _confirmLeave(
+    BuildContext context, {
+    required bool dissolve,
+  }) async {
     if (_leaving) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          '退出群聊',
+          dissolve ? '解散群聊' : '退出群聊',
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '确定要退出该群聊吗？',
+          dissolve ? '确定要解散该群聊吗？' : '确定要退出该群聊吗？',
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
@@ -556,7 +567,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(
-              '退出',
+              dissolve ? '解散' : '退出',
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -570,12 +581,16 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     if (ok != true || !mounted) return;
     setState(() => _leaving = true);
     try {
-      await leaveGroupThroughAs(ref, widget.roomId);
+      if (dissolve) {
+        await dissolveGroupThroughAs(ref, widget.roomId);
+      } else {
+        await leaveGroupThroughAs(ref, widget.roomId);
+      }
       if (context.mounted) context.go('/home');
     } on Object catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('退出群聊失败: $e')),
+        SnackBar(content: Text('${dissolve ? '解散' : '退出'}群聊失败: $e')),
       );
     } finally {
       if (mounted) setState(() => _leaving = false);

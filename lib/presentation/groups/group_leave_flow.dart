@@ -10,18 +10,29 @@ Future<void> leaveGroupThroughAs(WidgetRef ref, String roomId) async {
   if (trimmedRoomId.isEmpty) return;
 
   await ref.read(asClientProvider).leaveGroup(trimmedRoomId);
+  await _removeGroupLocally(ref, trimmedRoomId);
+}
+
+Future<void> dissolveGroupThroughAs(WidgetRef ref, String roomId) async {
+  final trimmedRoomId = roomId.trim();
+  if (trimmedRoomId.isEmpty) return;
+
+  await ref.read(asClientProvider).dissolveGroup(trimmedRoomId);
+  await _removeGroupLocally(ref, trimmedRoomId);
+}
+
+Future<void> _removeGroupLocally(WidgetRef ref, String roomId) async {
   ref.read(asSyncCacheProvider.notifier).update(
-        (state) => state.withoutGroup(trimmedRoomId).withoutUnreadRoom(
-              trimmedRoomId,
+        (state) => state.withoutGroup(roomId).withoutUnreadRoom(
+              roomId,
             ),
       );
-
   try {
     final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
     ref.read(asSyncCacheProvider.notifier).update(
           (state) => state.copyWith(bootstrap: bootstrap),
         );
   } on Object catch (e) {
-    debugPrint('refresh bootstrap after group leave failed: $e');
+    debugPrint('refresh bootstrap after group removal failed: $e');
   }
 }

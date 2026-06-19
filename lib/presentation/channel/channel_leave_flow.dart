@@ -11,10 +11,23 @@ Future<void> leaveChannelThroughAs(WidgetRef ref, String channelId) async {
   final trimmed = channelId.trim();
   if (trimmed.isEmpty) return;
   await ref.read(asClientProvider).leaveChannel(trimmed);
+  await _removeChannelLocally(ref, trimmed);
+}
+
+Future<void> dissolveChannelThroughAs(WidgetRef ref, String channelId) async {
+  final trimmed = channelId.trim();
+  if (trimmed.isEmpty) return;
+  await ref.read(asClientProvider).dissolveChannel(trimmed);
+  await _removeChannelLocally(ref, trimmed);
+}
+
+Future<void> _removeChannelLocally(WidgetRef ref, String channelId) async {
   ref.read(asSyncCacheProvider.notifier).update(
-        (state) => state.withoutChannel(trimmed),
+        (state) => state.withoutChannel(channelId),
       );
-  await ref.read(localCreatedChannelsProvider.notifier).removeChannel(trimmed);
+  await ref
+      .read(localCreatedChannelsProvider.notifier)
+      .removeChannel(channelId);
   unawaited(_refreshBootstrap(ref));
 }
 

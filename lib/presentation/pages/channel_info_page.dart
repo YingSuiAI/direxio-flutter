@@ -868,7 +868,7 @@ Future<void> _confirmDissolveChannel(
   );
   if (!context.mounted || !confirmed) return;
   try {
-    await leaveChannelThroughAs(ref, channel.id);
+    await dissolveChannelThroughAs(ref, channel.id);
     if (!context.mounted) return;
     _showSnack(context, '已解散频道');
     _returnToChannelList(context);

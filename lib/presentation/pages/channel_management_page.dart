@@ -1419,7 +1419,7 @@ Future<void> _confirmDissolveChannel(
   );
   if (!context.mounted || !confirmed) return;
   try {
-    await leaveChannelThroughAs(ref, channelId);
+    await dissolveChannelThroughAs(ref, channelId);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('已解散频道')),

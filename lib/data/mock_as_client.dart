@@ -915,6 +915,9 @@ class MockAsClient implements AsClient {
     _channelPosts.remove(key);
   }
 
+  @override
+  Future<void> dissolveChannel(String channelId) => leaveChannel(channelId);
+
   Future<AsChannel> _resolveMockChannelJoin(
     String channelId,
     String userMxid, {
@@ -1342,6 +1345,9 @@ class MockAsClient implements AsClient {
   Future<void> leaveGroup(String roomId) async {
     await Future.delayed(_latency);
   }
+
+  @override
+  Future<void> dissolveGroup(String roomId) => leaveGroup(roomId);
 
   @override
   Future<void> updateReadMarker(

@@ -90,7 +90,7 @@ void main() {
     expect(find.text('申请加入'), findsOneWidget);
   });
 
-  testWidgets('channel search maps local dual node room id to host port',
+  testWidgets('channel search lets current backend proxy Matrix room id lookup',
       (tester) async {
     final asClient = _ChannelSearchAsClient();
     await tester.pumpWidget(
@@ -111,10 +111,7 @@ void main() {
     await tester.pump();
 
     expect(asClient.requestedPublicRoomId, '!ch_product:dendrite-a:8448');
-    expect(
-      asClient.requestedPublicRoomBaseUri.toString(),
-      'http://127.0.0.1:18008/_p2p',
-    );
+    expect(asClient.requestedPublicRoomBaseUri, isNull);
     expect(asClient.publicSearchCallCount, 0);
   });
 
@@ -141,10 +138,7 @@ void main() {
     await tester.pump();
 
     expect(asClient.requestedPublicRoomId, '!ch_product:dendrite-a:8448');
-    expect(
-      asClient.requestedPublicRoomBaseUri.toString(),
-      'http://127.0.0.1:18008/_p2p',
-    );
+    expect(asClient.requestedPublicRoomBaseUri, isNull);
     expect(find.text('接口返回频道'), findsOneWidget);
 
     await tester.tap(find.text('申请加入'));

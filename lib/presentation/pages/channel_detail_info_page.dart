@@ -9,7 +9,6 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../channel/channel_info_data.dart';
 import '../channel/channel_share.dart';
-import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -167,10 +166,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
     if (roomId.isEmpty) return null;
     return ref
         .read(asClientProvider)
-        .getPublicChannelByRoomId(
-          roomId,
-          baseUri: publicBaseUriForMatrixRoomId(roomId),
-        )
+        .getPublicChannelByRoomId(roomId)
         .then(channelInfoDataFromAsChannel);
   }
 

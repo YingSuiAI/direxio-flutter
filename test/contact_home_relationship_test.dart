@@ -124,7 +124,8 @@ void main() {
     expect(find.text('联系人主页不存在'), findsNothing);
     expect(find.text('owner'), findsOneWidget);
     expect(find.text('p2p-liyanan.com'), findsOneWidget);
-    expect(find.text('还没有公开频道'), findsOneWidget);
+    expect(find.text('她的频道'), findsNothing);
+    expect(find.text('还没有公开频道'), findsNothing);
     expect(find.text('还没有公开动态'), findsOneWidget);
     expect(
       find.descendant(

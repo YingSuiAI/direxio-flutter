@@ -347,7 +347,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   void _openMemberHome(AsChannelMember member) {
     final userMxid = member.userMxid.trim();
     if (userMxid.isEmpty) return;
-    context.push('/contact/${Uri.encodeComponent(userMxid)}');
+    context.push('/contact-home/${Uri.encodeComponent(userMxid)}');
   }
 
   Future<void> _confirmRemoveMember(

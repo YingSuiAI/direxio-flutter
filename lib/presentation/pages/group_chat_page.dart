@@ -475,9 +475,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   void _openContactDetailFromAvatar(String userId) {
     final id = userId.trim();
     if (id.isEmpty) return;
-    context.push(
-      '/contact/${Uri.encodeComponent(id)}?source=chat_avatar',
-    );
+    context.push('/contact-home/${Uri.encodeComponent(id)}');
   }
 
   VoidCallback? _memberAvatarTap(String userId) {

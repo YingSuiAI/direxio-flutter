@@ -8754,8 +8754,7 @@ void main() {
     expect(find.text('多选'), findsOneWidget);
   });
 
-  testWidgets('group chat member avatar opens contact detail like direct chat',
-      (tester) async {
+  testWidgets('group chat member avatar opens visitor home', (tester) async {
     const roomId = '!group:p2p-im.com';
     final router = GoRouter(
       initialLocation: '/group/${Uri.encodeComponent(roomId)}',
@@ -8767,11 +8766,10 @@ void main() {
           ),
         ),
         GoRoute(
-          path: '/contact/:userId',
+          path: '/contact-home/:userId',
           builder: (_, state) => Scaffold(
             body: Text(
-              'contact:${state.pathParameters['userId']}:'
-              '${state.uri.queryParameters['source']}',
+              'contact-home:${state.pathParameters['userId']}',
             ),
           ),
         ),
@@ -8786,7 +8784,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('contact:@alice:p2p-im.com:chat_avatar'), findsOneWidget);
+    expect(find.text('contact-home:@alice:p2p-im.com'), findsOneWidget);
   });
 
   testWidgets('group chat long pressing member avatar inserts mention',

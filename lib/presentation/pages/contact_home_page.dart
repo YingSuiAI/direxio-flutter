@@ -297,30 +297,30 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
                         onFriendTap: () => _onFriendAction(home),
                       ),
                       const SizedBox(height: 16),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: glassListTileHorizontalMargin,
+                      if (visitorChannels.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: glassListTileHorizontalMargin,
+                          ),
+                          child: _VisitorSection(
+                            title: '她的频道',
+                            child: Column(
+                              children: [
+                                for (var i = 0;
+                                    i < visitorChannels.length;
+                                    i++) ...[
+                                  _VisitorChannelTile(
+                                    channel: visitorChannels[i],
+                                  ),
+                                  if (i != visitorChannels.length - 1)
+                                    const SizedBox(height: 10),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
-                        child: _VisitorSection(
-                          title: '她的频道',
-                          child: visitorChannels.isEmpty
-                              ? const _VisitorEmptyLine(text: '还没有公开频道')
-                              : Column(
-                                  children: [
-                                    for (var i = 0;
-                                        i < visitorChannels.length;
-                                        i++) ...[
-                                      _VisitorChannelTile(
-                                        channel: visitorChannels[i],
-                                      ),
-                                      if (i != visitorChannels.length - 1)
-                                        const SizedBox(height: 10),
-                                    ],
-                                  ],
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
+                      ],
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: glassListTileHorizontalMargin,

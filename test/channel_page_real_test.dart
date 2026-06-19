@@ -999,7 +999,7 @@ void main() {
           builder: (_, __) => const Scaffold(body: Text('个人信息页面')),
         ),
         GoRoute(
-          path: '/contact/:userId',
+          path: '/contact-home/:userId',
           builder: (_, state) => ContactHomePage(
             userId: state.pathParameters['userId']!,
           ),

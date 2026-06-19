@@ -1009,7 +1009,7 @@ void main() {
   });
 
   test(
-      'portal login trusts initialized password flags when profile flag is absent',
+      'portal login requires explicit account initialization flag when profile flag is absent',
       () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(
@@ -1074,12 +1074,12 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresProfileSetup, isTrue);
     expect(auth?.ownerDisplayName, isNull);
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.profileInitializedKey),
-      'true',
+      'false',
     );
   });
 
@@ -1426,7 +1426,7 @@ void main() {
   });
 
   test(
-      'password change trusts initialized password flags when stored flag is stale',
+      'password change trusts account initialization flag when stored flag is stale',
       () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'old-token',
@@ -1454,7 +1454,9 @@ void main() {
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
             '"initialized":true,'
-            '"password_initialized":true}',
+            '"password_initialized":true,'
+            '"account_initialized":true,'
+            '"setup_completed":true}',
             200,
           );
         }

@@ -452,7 +452,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       deviceId,
     );
     if (hasStaleSameUserDevice) {
-      await client.clear();
+      await _clearMatrixForCleanInit(client);
     }
     await _establishPrivacyBaselineBeforeInit(
       client,
@@ -533,10 +533,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (session.setupCompleted != null) return session.setupCompleted;
     if (session.accountInitialized != null) return session.accountInitialized;
     if (session.profileInitialized != null) return session.profileInitialized;
-    if (session.initialized == true && session.passwordInitialized == true) {
-      return true;
-    }
-    if (session.initialized == true && session.passwordInitialized == false) {
+    if (session.initialized == true) {
       return false;
     }
     return null;
@@ -1133,7 +1130,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       nextDeviceId: effectiveDeviceId,
       nextHomeserver: matrixUri,
     )) {
-      await client.clear();
+      await _clearMatrixForCleanInit(client);
       await _initMatrixSessionWithKeyUploadRetry(
         client,
         accessToken: session.matrixAccessToken,
@@ -1201,9 +1198,24 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       if (!_isUploadKeyFailure(error)) rethrow;
       debugPrint(
           'Matrix key upload failed during init; retrying clean session');
-      await client.clear();
+      await _clearMatrixForCleanInit(client);
       await init();
     }
+  }
+
+  Future<void> _clearMatrixForCleanInit(Client client) async {
+    try {
+      client.backgroundSync = false;
+      await client.abortSync();
+    } catch (e) {
+      debugPrint('stop Matrix sync before clean init failed: $e');
+    }
+    try {
+      await client.encryption?.olmManager.currentUpload?.cancel();
+    } catch (e) {
+      debugPrint('cancel Matrix key upload before clean init failed: $e');
+    }
+    await client.clear();
   }
 
   bool _isUploadKeyFailure(Object error) {
@@ -1333,7 +1345,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     bool clearCaches = true,
   }) async {
     if (clearMatrix) {
-      await client.clear();
+      await _clearMatrixForCleanInit(client);
     }
     if (!clearCaches) return;
     ref.read(asSyncCacheProvider.notifier).state = const AsSyncCacheState();

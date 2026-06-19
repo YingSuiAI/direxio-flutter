@@ -11,6 +11,7 @@ import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
 import '../providers/as_bootstrap_store_provider.dart';
+import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
@@ -1412,6 +1413,7 @@ class _ChatList extends ConsumerWidget {
           final last = c.lastMessage;
           final isAgent = c.id == 'mock_aibot';
           return _ConvRow(
+            key: ValueKey('home_conversation_${c.id}'),
             name: isAgent ? 'Agent' : c.name,
             lastMessage: previewText(last?.text ?? c.subtitle),
             time: last == null ? '' : DateFormat('HH:mm').format(last.time),
@@ -1422,6 +1424,7 @@ class _ChatList extends ConsumerWidget {
             isPinned: pinnedConversationIds.contains(c.id),
             onTap: () => context.push('/chat/${c.id}'),
             onTogglePin: () => _toggleHomeConversationPin(ref, c.id),
+            onHide: () => _hideHomeConversation(ref, c.id),
             onDelete: () => _hideHomeConversation(ref, c.id),
           );
         },
@@ -1547,13 +1550,15 @@ class _ChatList extends ConsumerWidget {
               visibleLastEvent == null &&
               failedOutbox == null,
         );
+        final displayName = conversation.isAgent
+            ? 'Agent'
+            : _conversationDisplayName(
+                conversation,
+                groupRemarkNames: groupRemarkNames,
+              );
         return _ConvRow(
-          name: conversation.isAgent
-              ? 'Agent'
-              : _conversationDisplayName(
-                  conversation,
-                  groupRemarkNames: groupRemarkNames,
-                ),
+          key: ValueKey('home_conversation_${conversation.roomId}'),
+          name: displayName,
           lastMessage: lastMessage,
           time: previewTime == null
               ? ''
@@ -1572,9 +1577,93 @@ class _ChatList extends ConsumerWidget {
             ref,
             conversation.roomId,
           ),
-          onDelete: () => _hideHomeConversation(ref, conversation.roomId),
+          onHide: () => _hideHomeConversation(ref, conversation.roomId),
+          onDelete: () => _deleteHomeConversation(
+            context,
+            ref,
+            conversation.roomId,
+            displayName,
+          ),
         );
       },
+    );
+  }
+}
+
+Future<void> _deleteHomeConversation(
+  BuildContext context,
+  WidgetRef ref,
+  String roomId,
+  String name,
+) async {
+  final trimmed = roomId.trim();
+  if (trimmed.isEmpty) return;
+  final asClient = ref.read(asClientProvider);
+  final authNotifier = ref.read(authStateNotifierProvider.notifier);
+  final preferences = ref.read(conversationPreferencesProvider.notifier);
+  final hidden = ref.read(_homeHiddenConversationIdsProvider.notifier);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      final t = dialogContext.tk;
+      return AlertDialog(
+        title: Text(
+          '删除聊天记录',
+          style: AppTheme.sans(size: 17, weight: FontWeight.w600),
+        ),
+        content: Text(
+          '确定删除「$name」的所有聊天记录？该操作不可恢复。',
+          style: AppTheme.sans(size: 15, color: t.textMute),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              '取消',
+              style: AppTheme.sans(size: 15, color: t.textMute),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              '删除',
+              style: AppTheme.sans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: t.danger,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+  if (ok != true) return;
+  try {
+    final clearedBeforeTs = DateTime.now().toUtc().millisecondsSinceEpoch + 1;
+    await asClient.deleteRoomMessagesByRange(
+      roomId: trimmed,
+      fromTs: 0,
+      toTs: clearedBeforeTs,
+    );
+    _hideHomeConversationWithNotifiers(preferences, hidden, trimmed);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已删除「$name」')),
+      );
+    }
+    try {
+      await authNotifier.clearRoomChatHistory(
+        trimmed,
+        clearedBeforeTs: clearedBeforeTs,
+      );
+    } catch (localError) {
+      debugPrint('clear local room chat history failed: $localError');
+    }
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('删除聊天记录失败: $error')),
     );
   }
 }
@@ -1582,10 +1671,22 @@ class _ChatList extends ConsumerWidget {
 void _hideHomeConversation(WidgetRef ref, String roomId) {
   final trimmed = roomId.trim();
   if (trimmed.isEmpty) return;
-  unpinConversation(ref, trimmed);
-  ref.read(_homeHiddenConversationIdsProvider.notifier).update(
-        (ids) => {...ids, trimmed},
-      );
+  _hideHomeConversationWithNotifiers(
+    ref.read(conversationPreferencesProvider.notifier),
+    ref.read(_homeHiddenConversationIdsProvider.notifier),
+    trimmed,
+  );
+}
+
+void _hideHomeConversationWithNotifiers(
+  ConversationPreferencesController preferences,
+  StateController<Set<String>> hidden,
+  String roomId,
+) {
+  final trimmed = roomId.trim();
+  if (trimmed.isEmpty) return;
+  preferences.unpin(trimmed);
+  hidden.update((ids) => {...ids, trimmed});
 }
 
 void _toggleHomeConversationPin(WidgetRef ref, String roomId) {
@@ -1883,12 +1984,14 @@ String _formatConvTime(int ts) {
 /// 头像 42×42、圆角 8、头像与内容间距 8，右侧时间/未读固定宽度。
 class _ConvRow extends StatelessWidget {
   const _ConvRow({
+    super.key,
     required this.name,
     required this.lastMessage,
     required this.time,
     required this.unread,
     required this.onTap,
     required this.onTogglePin,
+    required this.onHide,
     required this.onDelete,
     this.isAgent = false,
     this.isGroup = false,
@@ -1901,6 +2004,7 @@ class _ConvRow extends StatelessWidget {
   final int unread;
   final VoidCallback onTap;
   final VoidCallback onTogglePin;
+  final VoidCallback onHide;
   final VoidCallback onDelete;
   final bool isAgent;
   final bool isGroup;
@@ -1948,6 +2052,7 @@ class _ConvRow extends StatelessWidget {
         name,
         isPinned: isPinned,
         onTogglePin: onTogglePin,
+        onHide: onHide,
         onDelete: onDelete,
       ),
       onLongPressStart: (d) {
@@ -1958,6 +2063,7 @@ class _ConvRow extends StatelessWidget {
           name,
           isPinned: isPinned,
           onTogglePin: onTogglePin,
+          onHide: onHide,
           onDelete: onDelete,
         );
       },
@@ -2113,6 +2219,7 @@ void _showChatCtxMenu(
   String name, {
   required bool isPinned,
   required VoidCallback onTogglePin,
+  required VoidCallback onHide,
   required VoidCallback onDelete,
 }) {
   final size = MediaQuery.of(context).size;
@@ -2141,6 +2248,7 @@ void _showChatCtxMenu(
             name: name,
             isPinned: isPinned,
             onTogglePin: onTogglePin,
+            onHide: onHide,
             onDelete: onDelete,
           ),
         ),
@@ -2156,11 +2264,13 @@ class _ChatCtxMenuCard extends StatelessWidget {
     required this.name,
     required this.isPinned,
     required this.onTogglePin,
+    required this.onHide,
     required this.onDelete,
   });
   final String name;
   final bool isPinned;
   final VoidCallback onTogglePin;
+  final VoidCallback onHide;
   final VoidCallback onDelete;
 
   // chat-ctx-menu 用固定深色，与 light/dark 主题无关（对齐 index.html#chat-ctx-menu）。
@@ -2204,7 +2314,7 @@ class _ChatCtxMenuCard extends StatelessWidget {
             ),
             _row(context, Symbols.visibility_off, '不显示', () {
               Navigator.of(context).pop();
-              onDelete();
+              onHide();
               _toast(context, '已隐藏「$name」');
             }),
             const Divider(
@@ -2216,7 +2326,6 @@ class _ChatCtxMenuCard extends StatelessWidget {
             _row(context, Symbols.delete, '删除聊天', () {
               Navigator.of(context).pop();
               onDelete();
-              _toast(context, '已删除「$name」');
             }, danger: true),
           ],
         ),

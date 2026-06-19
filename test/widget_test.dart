@@ -9033,6 +9033,78 @@ void main() {
     expect(find.textContaining('已删除'), findsOneWidget);
   });
 
+  testWidgets('home conversation delete clears AS room history after confirm',
+      (tester) async {
+    final client = Client('PortalIMHomeDeleteConversationAsTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final asClient = _TrackingAsClient();
+    final clearStore = _MemoryChatClearStateStore();
+    const roomId = '!direct:p2p-im.com';
+    const conversationKey = ValueKey('home_conversation_$roomId');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 19, 9),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          chatClearStateStoreProvider.overrideWith((ref) async => clearStore),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice'), findsOneWidget);
+
+    await tester.longPress(find.text('Alice'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除聊天'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('删除聊天记录'), findsOneWidget);
+
+    await tester.tap(find.text('删除').last);
+    await tester.pumpAndSettle();
+
+    expect(asClient.deleteRoomMessagesByRangeCalls, 1);
+    expect(asClient.deletedRoomMessagesByRangeRoomId, roomId);
+    expect(asClient.deletedRoomMessagesByRangeFromTs, 0);
+    expect(
+      asClient.deletedRoomMessagesByRangeToTs,
+      clearStore.roomClearedBeforeTs[roomId],
+    );
+    expect(find.textContaining('删除聊天记录失败'), findsNothing);
+    expect(find.textContaining('已删除'), findsOneWidget);
+    expect(find.byKey(conversationKey), findsNothing);
+  });
+
   testWidgets('mock auth build opens mock chat despite cached login',
       (tester) async {
     const mockAuthEnabled = bool.fromEnvironment(

@@ -5709,15 +5709,18 @@ class _MemberAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatarKey = ValueKey('group_member_avatar_$seed');
     final avatar = PortalAvatar(
-      key: ValueKey('group_member_avatar_$seed'),
       seed: name.isNotEmpty ? name : seed,
       size: 40,
       imageUrl: imageUrl,
       shape: AvatarShape.squircle,
     );
-    if (onTap == null && onLongPress == null) return avatar;
+    if (onTap == null && onLongPress == null) {
+      return KeyedSubtree(key: avatarKey, child: avatar);
+    }
     return GestureDetector(
+      key: avatarKey,
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       onLongPress: onLongPress,

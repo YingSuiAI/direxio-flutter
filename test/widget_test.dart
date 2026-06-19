@@ -1458,6 +1458,10 @@ class _TrackingAsClient extends _EmptyAsClient {
   int unmuteGroupCalls = 0;
   String? unmutedGroupRoomId;
   int listCallsCount = 0;
+  List<AsChannel> userPublicChannels = const [];
+  String? requestedUserPublicChannelsUserId;
+  Uri? requestedUserPublicChannelsBaseUri;
+  String? requestedPublicChannelRoomId;
 
   @override
   Future<ContactEntry> createContactRequest({
@@ -1475,6 +1479,27 @@ class _TrackingAsClient extends _EmptyAsClient {
       roomId: '!new-request:example.com',
       status: 'pending_outbound',
     );
+  }
+
+  @override
+  Future<List<AsChannel>> getUserPublicChannels(
+    String userId, {
+    Uri? baseUri,
+  }) async {
+    requestedUserPublicChannelsUserId = userId;
+    requestedUserPublicChannelsBaseUri = baseUri;
+    return userPublicChannels;
+  }
+
+  @override
+  Future<AsChannel> getPublicChannelByRoomId(
+    String roomId, {
+    Uri? baseUri,
+  }) async {
+    requestedPublicChannelRoomId = roomId;
+    final channel = userPublicChannels.where((item) => item.roomId == roomId);
+    if (channel.isNotEmpty) return channel.first;
+    return super.getPublicChannelByRoomId(roomId, baseUri: baseUri);
   }
 
   @override
@@ -2063,6 +2088,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   String senderMxid = '@alice:p2p-im.com',
   List<LocalOutboxItem> initialOutboxItems = const [],
   bool sendTextEvent = true,
+  bool loggedInAuth = false,
   GoRouter? router,
 }) async {
   final client = Client(
@@ -2108,6 +2134,9 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
     ProviderScope(
       overrides: [
         matrixClientProvider.overrideWithValue(client),
+        if (loggedInAuth)
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
         asClientProvider.overrideWithValue(asClient),
         asBootstrapRepositoryProvider.overrideWithValue(
           AsBootstrapRepository(
@@ -8769,7 +8798,8 @@ void main() {
     expect(find.text('多选'), findsOneWidget);
   });
 
-  testWidgets('group chat member avatar opens visitor home', (tester) async {
+  testWidgets('group chat member avatar opens visitor public channels',
+      (tester) async {
     const roomId = '!group:p2p-im.com';
     final router = GoRouter(
       initialLocation: '/group/${Uri.encodeComponent(roomId)}',
@@ -8782,24 +8812,54 @@ void main() {
         ),
         GoRoute(
           path: '/contact-home/:userId',
-          builder: (_, state) => Scaffold(
-            body: Text(
-              'contact-home:${state.pathParameters['userId']}',
-            ),
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => ChannelPage(
+            channelId: state.pathParameters['channelId']!,
           ),
         ),
       ],
     );
 
-    await _pumpGroupChatWithTextEvent(tester, roomId: roomId, router: router);
+    final harness = await _pumpGroupChatWithTextEvent(tester,
+        roomId: roomId, loggedInAuth: true, router: router);
+    harness.asClient.userPublicChannels = const [
+      AsChannel(
+        channelId: 'ch_alice_group',
+        roomId: '!alice-public:p2p-im.com',
+        name: 'Alice 群成员公开频道',
+        visibility: asChannelVisibilityPublic,
+        joinPolicy: asChannelJoinPolicyApproval,
+        memberCount: 3,
+      ),
+    ];
     await tester.pumpAndSettle();
 
-    await tester.tap(
+    final avatar = tester.widget<GestureDetector>(
       find.byKey(const ValueKey('group_member_avatar_@alice:p2p-im.com')),
     );
+    expect(avatar.onTap, isNotNull);
+    expect(avatar.onLongPress, isNotNull);
+
+    avatar.onTap!();
     await tester.pumpAndSettle();
 
-    expect(find.text('contact-home:@alice:p2p-im.com'), findsOneWidget);
+    expect(find.byType(ContactHomePage), findsOneWidget);
+    expect(harness.asClient.requestedUserPublicChannelsUserId,
+        '@alice:p2p-im.com');
+    expect(find.text('Alice 群成员公开频道'), findsOneWidget);
+    expect(find.text('还没有公开频道'), findsNothing);
+
+    await tester.tap(find.text('Alice 群成员公开频道'));
+    await tester.pumpAndSettle();
+
+    expect(harness.asClient.requestedPublicChannelRoomId,
+        '!alice-public:p2p-im.com');
+    expect(find.text('申请加入'), findsOneWidget);
   });
 
   testWidgets('group chat long pressing member avatar inserts mention',

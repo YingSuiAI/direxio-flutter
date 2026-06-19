@@ -289,6 +289,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         if (_sessionExpiredLocally) {
           return const AuthState(isLoggedIn: false);
         }
+        if (storedProfileInitialized == false &&
+            (storedPortalToken?.trim().isNotEmpty ?? false)) {
+          final refreshed = await _restorePortalSession(
+            client,
+            homeserver: storedHomeserver,
+            portalToken: storedPortalToken,
+          );
+          if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
+          if (refreshed != null) return refreshed;
+        }
         return AuthState(
           isLoggedIn: true,
           userId: client.userID ?? userId,
@@ -429,14 +439,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         deviceId: deviceId,
       );
     } else {
-      await client.init(
-        newToken: session.matrixAccessToken,
-        newUserID: session.userId,
-        newHomeserver: checkedHomeserver,
-        newDeviceID: deviceId,
-        newDeviceName: 'PortalIM',
-        waitForFirstSync: false,
-        waitUntilLoadCompletedLoaded: false,
+      await _initMatrixSessionWithKeyUploadRetry(
+        client,
+        accessToken: session.matrixAccessToken,
+        userId: session.userId,
+        homeserver: checkedHomeserver,
+        deviceId: deviceId,
       );
     }
     if (displayName != null && displayName.trim().isNotEmpty) {
@@ -490,6 +498,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   }
 
   bool? _sessionProfileInitialized(AsPortalSession session) {
+    if (session.setupCompleted != null) return session.setupCompleted;
     if (session.accountInitialized != null) return session.accountInitialized;
     if (session.profileInitialized != null) return session.profileInitialized;
     if (session.initialized == true && session.passwordInitialized == true) {
@@ -965,14 +974,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         );
       } else {
         final profileInitialized = _sessionProfileInitialized(session);
-        await client.init(
-          newToken: session.matrixAccessToken,
-          newUserID: session.userId,
-          newHomeserver: matrixUri,
-          newDeviceID: deviceId,
-          newDeviceName: 'PortalIM',
-          waitForFirstSync: false,
-          waitUntilLoadCompletedLoaded: false,
+        await _initMatrixSessionWithKeyUploadRetry(
+          client,
+          accessToken: session.matrixAccessToken,
+          userId: session.userId,
+          homeserver: matrixUri,
+          deviceId: deviceId,
         );
         await _persistSession(
           client,
@@ -1086,14 +1093,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final effectiveDeviceId = _preferredSessionDeviceId(session, deviceId);
     if (_hasStaleSameUserDevice(client, effectiveUserId, effectiveDeviceId)) {
       await client.clear();
-      await client.init(
-        newToken: session.matrixAccessToken,
-        newUserID: effectiveUserId,
-        newHomeserver: matrixUri,
-        newDeviceID: effectiveDeviceId,
-        newDeviceName: 'PortalIM',
-        waitForFirstSync: false,
-        waitUntilLoadCompletedLoaded: false,
+      await _initMatrixSessionWithKeyUploadRetry(
+        client,
+        accessToken: session.matrixAccessToken,
+        userId: effectiveUserId,
+        homeserver: matrixUri,
+        deviceId: effectiveDeviceId,
       );
     } else {
       client.homeserver = matrixUri;
@@ -1128,6 +1133,40 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final stored = (await _storage.read(key: 'matrix_device_id'))?.trim();
     if (stored != null && stored.isNotEmpty) return stored;
     return _createDeviceId();
+  }
+
+  Future<void> _initMatrixSessionWithKeyUploadRetry(
+    Client client, {
+    required String accessToken,
+    required String userId,
+    required Uri homeserver,
+    required String deviceId,
+  }) async {
+    Future<void> init() {
+      return client.init(
+        newToken: accessToken,
+        newUserID: userId,
+        newHomeserver: homeserver,
+        newDeviceID: deviceId,
+        newDeviceName: 'PortalIM',
+        waitForFirstSync: false,
+        waitUntilLoadCompletedLoaded: false,
+      );
+    }
+
+    try {
+      await init();
+    } catch (error) {
+      if (!_isUploadKeyFailure(error)) rethrow;
+      debugPrint(
+          'Matrix key upload failed during init; retrying clean session');
+      await client.clear();
+      await init();
+    }
+  }
+
+  bool _isUploadKeyFailure(Object error) {
+    return error.toString().contains('Upload key failed');
   }
 
   bool _isLoggedInAs(Client client, String userId) {

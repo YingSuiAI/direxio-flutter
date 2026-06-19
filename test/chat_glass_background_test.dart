@@ -1,12 +1,10 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/presentation/chat/chat_glass_background.dart';
 
 void main() {
-  testWidgets('chat glass background provides translucent blur layer',
+  testWidgets('chat background provides page color without duplicating glass',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -20,20 +18,18 @@ void main() {
     );
 
     expect(find.text('message area'), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Image &&
-            widget.image is AssetImage &&
-            (widget.image as AssetImage).assetName ==
-                ChatGlassBackground.assetName,
-      ),
-      findsOneWidget,
-    );
-    expect(find.byType(BackdropFilter), findsOneWidget);
+    expect(find.byType(Image), findsNothing);
+    expect(find.byType(BackdropFilter), findsNothing);
 
-    final filter = tester.widget<BackdropFilter>(find.byType(BackdropFilter));
-    final imageFilter = filter.filter;
-    expect(imageFilter, isA<ImageFilter>());
+    final background = tester.widget<ColoredBox>(
+      find
+          .ancestor(
+            of: find.text('message area'),
+            matching: find.byType(ColoredBox),
+          )
+          .first,
+    );
+    expect(background.color,
+        chatPageBackgroundColor(tester.element(find.text('message area'))));
   });
 }

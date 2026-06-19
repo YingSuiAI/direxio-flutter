@@ -537,6 +537,16 @@ class _MemoryChannelPostStore implements ChannelPostStore {
   Future<void> upsertPost(AsChannelPost post) async {
     posts['${post.channelId}:${post.postId}'] = post;
   }
+
+  @override
+  Future<void> removePost(String channelId, String postId) async {
+    posts.removeWhere((_, post) {
+      if (post.channelId.trim() != channelId.trim()) return false;
+      final id = post.postId.trim();
+      if (id.isNotEmpty) return id == postId.trim();
+      return post.eventId.trim() == postId.trim();
+    });
+  }
 }
 
 AsChannelPost _channelPost({

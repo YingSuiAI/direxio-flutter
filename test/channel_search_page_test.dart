@@ -118,6 +118,44 @@ void main() {
     expect(asClient.publicSearchCallCount, 0);
   });
 
+  testWidgets('channel search joins public channel found by remote room id',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.byType(TextField),
+      '!ch_product:dendrite-a:8448',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(asClient.requestedPublicRoomId, '!ch_product:dendrite-a:8448');
+    expect(
+      asClient.requestedPublicRoomBaseUri.toString(),
+      'http://127.0.0.1:18008/_p2p',
+    );
+    expect(find.text('接口返回频道'), findsOneWidget);
+
+    await tester.tap(find.text('申请加入'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
+    expect(find.text('待审核'), findsOneWidget);
+    expect(find.textContaining('加入频道失败'), findsNothing);
+  });
+
   testWidgets('channel search treats public room 404 as empty result',
       (tester) async {
     final asClient = _ChannelSearchAsClient()..publicRoomErrorStatus = 404;

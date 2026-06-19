@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/well_known_service.dart';
 
 void main() {
@@ -45,6 +46,26 @@ void main() {
     expect(result.owner?.matrixUserId, '@alice:portal.local');
     expect(result.owner?.displayName, 'Alice Chen');
     expect(result.owner?.avatarUrl, 'https://cdn.example.com/alice.png');
+  });
+
+  test('discover owner accepts the Matrix client HTTP wrapper', () async {
+    final client = Client(
+      'WellKnownMatrixHttpWrapperTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"matrix_user_id":"@alice:portal.local","display_name":"Alice Chen"}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final service = WellKnownService(httpClient: client.httpClient);
+
+    final result = await service.discoverOwner('alice.portal.local');
+
+    expect(result.availability, PortalAvailability.online);
+    expect(result.owner?.matrixUserId, '@alice:portal.local');
+    expect(result.owner?.displayName, 'Alice Chen');
   });
 
   test('discover owner maps local dual-node server names to loopback ports',

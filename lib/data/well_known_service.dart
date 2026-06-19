@@ -198,7 +198,7 @@ class WellKnownService {
   Future<http.Response> _get(Uri uri) async {
     final stopwatch = Stopwatch()..start();
     try {
-      final response = await _http.get(uri).timeout(_timeout);
+      final response = await _effectiveClient(_http).get(uri).timeout(_timeout);
       stopwatch.stop();
       ApiLogger.response(
         service: 'well-known',
@@ -240,6 +240,17 @@ class WellKnownService {
       rethrow;
     }
   }
+}
+
+http.Client _effectiveClient(http.Client client) {
+  final dynamic maybeTimeoutClient = client;
+  try {
+    final inner = maybeTimeoutClient.inner;
+    if (inner is http.Client) return inner;
+  } catch (_) {
+    // Not a Matrix SDK timeout wrapper.
+  }
+  return client;
 }
 
 int? _localDualNodeHttpPort(String domain) {

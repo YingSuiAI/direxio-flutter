@@ -244,6 +244,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           label: l10n?.settingsChangePassword ?? '修改密码',
                           onTap: () => context.push('/me/account/password'),
                         ),
+                        _SettingsRow(
+                          icon: Symbols.person_remove,
+                          label: '通讯录黑名单',
+                          onTap: () => context.push('/settings/blacklist'),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),

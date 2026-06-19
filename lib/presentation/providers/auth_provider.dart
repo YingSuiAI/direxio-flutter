@@ -269,7 +269,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     ref.onDispose(() => _isMounted = false);
     _configureMatrixTokenFailureHandler(ref.watch(matrixClientProvider));
     try {
-      return await _buildRestoredAuthState().timeout(_startupRestoreTimeout);
+      return await _buildRestoredAuthStateWithCancelableTimeout();
     } catch (e) {
       debugPrint('startup auth restore failed, returning to login: $e');
       unawaited(
@@ -281,6 +281,31 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       );
       return const AuthState(isLoggedIn: false);
     }
+  }
+
+  Future<AuthState> _buildRestoredAuthStateWithCancelableTimeout() {
+    final completer = Completer<AuthState>();
+    Timer? timeout;
+    void complete(AuthState state) {
+      if (!completer.isCompleted) completer.complete(state);
+    }
+
+    timeout = Timer(_startupRestoreTimeout, () {
+      if (!completer.isCompleted) {
+        completer.completeError(
+          TimeoutException('startup auth restore timed out'),
+        );
+      }
+    });
+    ref.onDispose(() {
+      timeout?.cancel();
+    });
+    unawaited(
+      _buildRestoredAuthState().then(complete).catchError((Object error) {
+        if (!completer.isCompleted) completer.completeError(error);
+      }).whenComplete(() => timeout?.cancel()),
+    );
+    return completer.future;
   }
 
   Future<AuthState> _buildRestoredAuthState() async {

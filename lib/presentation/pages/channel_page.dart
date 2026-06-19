@@ -68,7 +68,7 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
       body: Column(
         children: [
           GlassHeader.detail(
-            title: _postChannelTitle(channel.name),
+            title: _mockPostChannelTitle(channel.name),
             actions: [
               GlassHeaderButton(
                 icon: Symbols.more_vert,
@@ -625,9 +625,15 @@ class _PublicChannelScaffoldState
         _future = Future.value(joined);
       });
       if (!mounted) return;
-      if (joined.memberStatus == asChannelMemberStatusPending) {
+      if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已提交加入申请')),
+          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
+        );
+        return;
+      }
+      if (!isAsChannelMemberJoined(joined.memberStatus)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('频道加入状态未完成，请稍后刷新')),
         );
         return;
       }
@@ -645,6 +651,12 @@ class _PublicChannelScaffoldState
       );
     }
   }
+}
+
+String _channelJoinWaitingText(String memberStatus) {
+  return memberStatus == asChannelMemberStatusPending
+      ? '已提交加入申请'
+      : '已发送频道邀请，等待加入完成';
 }
 
 bool _looksLikeMatrixRoomId(String value) {
@@ -665,6 +677,11 @@ String _postChannelTitle(String name) {
   final trimmed = name.trim();
   if (trimmed.isEmpty) return '频道';
   return trimmed.startsWith('#') ? trimmed.substring(1).trim() : trimmed;
+}
+
+String _mockPostChannelTitle(String name) {
+  final title = _postChannelTitle(name);
+  return title.startsWith('#') ? title : '#$title';
 }
 
 void _openJoinedPublicChannel(

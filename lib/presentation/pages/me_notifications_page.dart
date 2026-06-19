@@ -52,7 +52,7 @@ class _MeNotificationsPageState extends ConsumerState<MeNotificationsPage> {
                   ),
                   _Divider(),
                   _IconSwitchRow(
-                    icon: Symbols.notifications,
+                    icon: Symbols.volume_up,
                     label: '新消息提示音',
                     value: notificationPrefs.messageSound,
                     onChanged: (v) => unawaited(

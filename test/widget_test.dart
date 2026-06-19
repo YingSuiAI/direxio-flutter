@@ -77,6 +77,94 @@ final _transparentPng = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lGt2qQAAAABJRU5ErkJggg==',
 );
 
+void _mockAudioRecorderPlugins(WidgetTester tester) {
+  const audioPlayer = MethodChannel('xyz.luan/audioplayers');
+  const audioGlobal = MethodChannel('xyz.luan/audioplayers.global');
+  const audioEvents = MethodChannel('xyz.luan/audioplayers.global/events');
+  const recordMessages = MethodChannel('com.llfbandit.record/messages');
+  const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+  final playerEventChannels = <MethodChannel>[];
+
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    audioPlayer,
+    (call) async {
+      if (call.method == 'create') {
+        final args = call.arguments;
+        final playerId = args is Map ? args['playerId']?.toString() : null;
+        if (playerId != null && playerId.isNotEmpty) {
+          final events =
+              MethodChannel('xyz.luan/audioplayers/events/$playerId');
+          playerEventChannels.add(events);
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            events,
+            (_) async => null,
+          );
+        }
+      }
+      return null;
+    },
+  );
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    audioGlobal,
+    (_) async => null,
+  );
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    audioEvents,
+    (_) async => null,
+  );
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    recordMessages,
+    (call) async {
+      switch (call.method) {
+        case 'hasPermission':
+        case 'isEncoderSupported':
+          return true;
+        case 'isRecording':
+        case 'isPaused':
+          return false;
+        case 'getAmplitude':
+          return {'current': 0.0, 'max': 0.0};
+        case 'stop':
+          return '';
+        default:
+          return null;
+      }
+    },
+  );
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    pathProvider,
+    (_) async => '.',
+  );
+  addTearDown(() {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      audioPlayer,
+      null,
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      audioGlobal,
+      null,
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      audioEvents,
+      null,
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      recordMessages,
+      null,
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      pathProvider,
+      null,
+    );
+    for (final channel in playerEventChannels) {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      );
+    }
+  });
+}
+
 class _FakeAuthStateNotifier extends AuthStateNotifier {
   @override
   Future<AuthState> build() async => const AuthState(isLoggedIn: false);
@@ -3985,7 +4073,7 @@ void main() {
     );
     await tester.pump();
 
-    for (final title in ['消息', '联系人']) {
+    for (final title in ['消息', '通讯录']) {
       if (title != '消息') {
         await tester.tap(find.text(title).last);
         await tester.pump();
@@ -4192,7 +4280,7 @@ void main() {
     }
   });
 
-  testWidgets('channel search routes Matrix room id lookup to owner node',
+  testWidgets('channel search keeps Matrix room id lookup on configured AS',
       (tester) async {
     final client = Client('PortalIMChannelSearchRoomIdTargetTest');
     final asClient = _EmptyAsClient();
@@ -4218,10 +4306,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
 
-    expect(asClient.lastPublicChannelLookupBaseUri, isNotNull);
-    expect(asClient.lastPublicChannelLookupBaseUri!.scheme, 'https');
-    expect(asClient.lastPublicChannelLookupBaseUri!.host, 'node.example.com');
-    expect(asClient.lastPublicChannelLookupBaseUri!.path, '/_p2p');
+    expect(asClient.lastPublicChannelLookupBaseUri, isNull);
   });
 
   testWidgets('channel search uses unified AS public search for keywords',
@@ -5065,7 +5150,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Chats(9)'), findsOneWidget);
+    expect(find.text('消息(9)'), findsOneWidget);
     final groupRow = find.ancestor(
       of: find.text('Group unread'),
       matching: find.byWidgetPredicate(
@@ -5720,6 +5805,12 @@ void main() {
       initialLocation: '/follows',
       routes: [
         GoRoute(path: '/follows', builder: (_, __) => const FollowsListPage()),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
         GoRoute(
           path: '/add-contact/detail/:userId',
           builder: (_, state) => AddContactDetailPage(
@@ -7618,6 +7709,85 @@ void main() {
     expect(asClient.sendRoomMessageCalls, 0);
   });
 
+  testWidgets(
+      'channel conversation blocks invited channel before Matrix join projection',
+      (tester) async {
+    var matrixSendCalls = 0;
+    final client = Client(
+      'PortalIMChannelInvitedSendBlockTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          matrixSendCalls++;
+          return http.Response(
+            r'{"event_id":"$channel-message"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!channel-invite:p2p-im.com',
+      name: '待加入频道',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 19, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_invite',
+          roomId: '!channel-invite:p2p-im.com',
+          name: '待加入频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusInvite,
+          tags: ['文字'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(
+            roomId: '!channel-invite:p2p-im.com',
+            channelId: 'ch_invite',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('发送'), findsNothing);
+    expect(matrixSendCalls, 0);
+  });
+
   testWidgets('muted channel text send creates failed local message',
       (tester) async {
     final client = Client(
@@ -8878,12 +9048,13 @@ void main() {
 
   testWidgets('group chat quote shows reply bar and clears after send',
       (tester) async {
+    _mockAudioRecorderPlugins(tester);
     final harness = await _pumpGroupChatWithTextEvent(tester);
 
     await tester.longPress(find.text('群聊长按消息'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('引用'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.byIcon(Symbols.reply), findsOneWidget);
     expect(find.text('Alice'), findsWidgets);
@@ -8891,8 +9062,11 @@ void main() {
     await tester.enterText(find.byType(TextField), '引用后的回复');
     await tester.pump();
     await tester.tap(find.text('发送'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pump();
 
     expect(harness.asClient.sentRoomId, '!group:p2p-im.com');
     expect(harness.asClient.sentContent, '引用后的回复');
@@ -11893,7 +12067,7 @@ void main() {
     for (final icon in [
       Symbols.language,
       Symbols.contrast,
-      Symbols.bookmarks,
+      Symbols.key,
       Symbols.person_remove,
       Symbols.do_not_disturb_on,
       Symbols.notifications,
@@ -11932,7 +12106,10 @@ void main() {
   testWidgets('notification settings page setting icons are neutral',
       (tester) async {
     await tester.pumpWidget(
-      MaterialApp(theme: AppTheme.light, home: const MeNotificationsPage()),
+      ProviderScope(
+        child: MaterialApp(
+            theme: AppTheme.light, home: const MeNotificationsPage()),
+      ),
     );
     await tester.pump();
 

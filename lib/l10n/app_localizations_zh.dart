@@ -27,7 +27,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get languageDialogTitle => '语言';
 
   @override
-  String get tabChats => 'Chats';
+  String get tabChats => '消息';
 
   @override
   String get tabContacts => '通讯录';

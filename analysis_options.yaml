@@ -1,5 +1,11 @@
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    - vendor/**
+    - build/**
+    - dist/**
+
 linter:
   rules:
     avoid_print: true

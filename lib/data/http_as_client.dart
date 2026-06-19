@@ -968,9 +968,7 @@ class HttpAsClient implements AsClient {
       body: requestBody.isEmpty ? null : requestBody,
       allowedStatusCodes: const {200},
     );
-    return AsChannel.fromJson(
-      (body['channel'] as Map?)?.cast<String, dynamic>() ?? body,
-    );
+    return _parseChannelEnvelope(body, statusBelongsToCurrentUser: true);
   }
 
   @override
@@ -989,9 +987,7 @@ class HttpAsClient implements AsClient {
       body: requestBody.isEmpty ? null : requestBody,
       allowedStatusCodes: const {200},
     );
-    return AsChannel.fromJson(
-      (body['channel'] as Map?)?.cast<String, dynamic>() ?? body,
-    );
+    return _parseChannelEnvelope(body, statusBelongsToCurrentUser: true);
   }
 
   @override
@@ -1925,6 +1921,27 @@ class HttpAsClient implements AsClient {
         .whereType<Map>()
         .map((item) => AsChannel.fromJson(item.cast<String, dynamic>()))
         .toList(growable: false);
+  }
+
+  static AsChannel _parseChannelEnvelope(
+    Map<String, dynamic> body, {
+    bool statusBelongsToCurrentUser = false,
+  }) {
+    final channelJson =
+        (body['channel'] as Map?)?.cast<String, dynamic>() ?? body;
+    if (statusBelongsToCurrentUser) {
+      final currentStatus = channelJson['member_status'];
+      final envelopeStatus = body['status'];
+      if ((currentStatus is! String || currentStatus.trim().isEmpty) &&
+          envelopeStatus is String &&
+          envelopeStatus.trim().isNotEmpty) {
+        return AsChannel.fromJson({
+          ...channelJson,
+          'member_status': envelopeStatus,
+        });
+      }
+    }
+    return AsChannel.fromJson(channelJson);
   }
 
   static Uri _normalizeBaseUri(Uri baseUri) {

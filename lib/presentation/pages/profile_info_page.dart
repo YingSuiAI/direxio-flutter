@@ -224,7 +224,11 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         email: email,
       );
       if (cleanDisplayName != null) {
-        await _syncMatrixDisplayName(userId, cleanDisplayName);
+        try {
+          await _syncMatrixDisplayName(userId, cleanDisplayName);
+        } catch (e) {
+          debugPrint('sync Matrix display name failed: $e');
+        }
       }
       _updateProfile(_personalProfileFromOwner(data, ownerProfile));
       ref.invalidate(currentUserProfileProvider);

@@ -519,13 +519,19 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
             roomId,
             discoveredChannel: payload.asDiscoveredChannel,
           );
-      if (joined.memberStatus == asChannelMemberStatusJoined) {
+      if (isAsChannelMemberJoined(joined.memberStatus)) {
         await _refreshBootstrapAfterVisibilityMutation();
       }
       if (!mounted) return;
-      if (joined.memberStatus == asChannelMemberStatusPending) {
+      if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已提交加入申请')),
+          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
+        );
+        return;
+      }
+      if (!isAsChannelMemberJoined(joined.memberStatus)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('频道加入状态未完成，请稍后刷新')),
         );
         return;
       }
@@ -1513,7 +1519,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       );
       _rememberLocalReplyPreview(eventId, replyTo);
       try {
-        await ref.read(matrixClientProvider).oneShotSync();
+        final client = ref.read(matrixClientProvider);
+        if (client.onLoginStateChanged.value == LoginState.loggedIn) {
+          await client.oneShotSync();
+        }
       } on Object catch (e) {
         debugPrint('post-send group Matrix sync failed: $e');
       }
@@ -1619,9 +1628,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
           cachedRoomId == channelId ||
           cachedRoomId == room.id;
       if (!matchesChannel) continue;
-      final status = channel.memberStatus.trim();
-      return status != asChannelMemberStatusPending &&
-          status != asChannelMemberStatusRejected;
+      return isAsChannelMemberJoined(channel.memberStatus);
     }
     return false;
   }
@@ -2286,8 +2293,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       final t = context.tk;
       final syncCache = ref.watch(asSyncCacheProvider);
       final group = _groupSummary(syncCache);
-      final bootstrapKnown = syncCache.bootstrap != null;
-      final canRecover = group != null || !bootstrapKnown;
+      final canRecover = group != null;
       final title =
           group?.name.trim().isNotEmpty == true ? group!.name.trim() : '群聊';
       if (canRecover) {
@@ -3211,6 +3217,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       ),
     );
   }
+}
+
+String _channelJoinWaitingText(String memberStatus) {
+  return memberStatus == asChannelMemberStatusPending
+      ? '已提交加入申请'
+      : '已发送频道邀请，等待加入完成';
 }
 
 class _GroupImageMessageBubble extends StatelessWidget {

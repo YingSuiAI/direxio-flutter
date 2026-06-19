@@ -733,11 +733,49 @@ class MockAsClient implements AsClient {
           joinPolicy: asChannelJoinPolicyOpen,
           commentsEnabled: true,
         );
-    return joinChannel(
-      existing.channelId.trim().isEmpty ? existing.roomId : existing.channelId,
-      shareToken: shareToken,
-      discoveredChannel: existing,
+    final key = existing.channelId.trim().isEmpty
+        ? existing.roomId
+        : existing.channelId;
+    final memberStatus = existing.joinPolicy == asChannelJoinPolicyApproval
+        ? asChannelMemberStatusPending
+        : asChannelMemberStatusInvite;
+    final invited = AsChannel(
+      channelId: existing.channelId,
+      roomId: existing.roomId,
+      name: existing.name,
+      homeDomain: existing.homeDomain,
+      description: existing.description,
+      avatarUrl: existing.avatarUrl,
+      visibility: existing.visibility,
+      joinPolicy: existing.joinPolicy,
+      commentsEnabled: existing.commentsEnabled,
+      channelType: existing.channelType,
+      role: asChannelRoleMember,
+      memberStatus: memberStatus,
+      memberCount: existing.memberCount,
+      pendingJoinCount: existing.pendingJoinCount,
+      tags: existing.tags,
+      latestActivityAt: existing.latestActivityAt,
     );
+    _channels[key] = invited;
+    _channelMembers.putIfAbsent(key, () => []);
+    final members = _channelMembers[key]!;
+    members.removeWhere((member) => member.userMxid == _ownerProfile.userId);
+    members.add(
+      AsChannelMember(
+        channelId: key,
+        userMxid: _ownerProfile.userId,
+        domain: _ownerProfile.domain,
+        displayName: _ownerProfile.displayName,
+        role: asChannelRoleMember,
+        status: memberStatus,
+        joinedAtMs: memberStatus == asChannelMemberStatusInvite
+            ? DateTime.now().millisecondsSinceEpoch
+            : 0,
+      ),
+    );
+    _channelPosts.putIfAbsent(key, () => []);
+    return invited;
   }
 
   @override
@@ -828,7 +866,7 @@ class MockAsClient implements AsClient {
           channelId: key,
           userMxid: mxid,
           role: asChannelRoleMember,
-          status: 'invited',
+          status: asChannelMemberStatusInvite,
         ),
       );
     }
@@ -935,7 +973,7 @@ class MockAsClient implements AsClient {
         displayName: member.displayName,
         role: member.role,
         status: joined
-            ? asChannelMemberStatusJoined
+            ? asChannelMemberStatusInvite
             : asChannelMemberStatusRejected,
         joinedAtMs:
             joined ? DateTime.now().millisecondsSinceEpoch : member.joinedAtMs,

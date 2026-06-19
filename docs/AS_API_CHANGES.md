@@ -1,0 +1,105 @@
+# AS API Change Log
+
+Last updated: 2026-06-19
+
+This document records frontend-impacting AS/Admin API changes. It is the client-side companion to the server work recorded in Codex thread `019edf7c-54fa-7ba3-a8f8-99c8dac1e838`.
+
+## 2026-06-19 Server Sync
+
+Server reference:
+
+- Branch: `p2p-integrated-as`
+- Commit: `4bd44609 fix: harden p2p multi-node communication`
+- Docker image tags: `direxio/message-server:latest`, `direxio/message-server:4bd44609`
+- Image digest: `sha256:e2e0f2...`
+
+### Public Remote Channel Lookup
+
+Change:
+
+- Public remote channel lookup now requires explicit server configuration through `P2P_REMOTE_NODE_BASE_URLS`.
+- TLS verification is enabled by default.
+- The client must not infer a remote AS base URL from a Matrix `room_id` server name.
+
+Frontend alignment:
+
+- `ChannelSearchPage` keeps Matrix room-id lookup on the configured AS client.
+- Widget coverage now asserts no implicit `https://{room_id_server}/_p2p` base URI is generated.
+
+### Channel Join / Approval Status
+
+Change:
+
+- Public channel join and owner approval no longer imply immediate membership `join`.
+- Join/approval may return top-level `status: "invited"` and member membership/status `invite`.
+- Actual `joined` is only valid after Matrix join projection confirms membership.
+
+Frontend alignment:
+
+- `AsChannel.memberStatus` and `AsChannelMember.status` normalize these aliases:
+  - `join`, `joined` -> `joined`
+  - `invite`, `invited` -> `invite`
+  - `pending` -> `pending`
+  - `reject`, `rejected` -> `rejected`
+- `isAsChannelMemberJoined` is the only positive joined predicate.
+- `isAsChannelMemberAwaitingJoin` covers `pending` and `invite`.
+- Channel search/detail/post/chat join flows show waiting messages for `pending`/`invite` and do not navigate into joined chat until status is `joined`.
+- Channel conversation sending is blocked for `invite` and `pending`.
+- `HttpAsClient.joinChannelByRoomId` merges top-level join status into the returned channel for current-user join flows only.
+- `HttpAsClient.approveChannelJoin` does not merge top-level status into current-user state because approval status belongs to the target member.
+- `MockAsClient` now simulates public join as `invite` or `pending`, and approval as `invite`.
+
+### `portal.status`
+
+Change:
+
+- `portal.status` now returns unified fields:
+  - `initialized`
+  - `user_id`
+  - `homeserver`
+  - `store_mode`
+  - `projector_started`
+- Legacy `dendrite` / `federation` / `agent` health subtrees are not guaranteed.
+
+Frontend alignment:
+
+- `PortalStatus` accepts both legacy and unified response shapes.
+- `PortalStatus.allHealthy` treats the unified shape as healthy only when initialized, user id, homeserver, store mode, and projector state are usable.
+- Existing tests cover the unified response.
+
+### Bootstrap And Privacy
+
+Change:
+
+- Product state events are published for group/channel create/update/dissolve.
+- The projector supports dissolved rooms and ignores unknown non-product rooms.
+- New-device bootstrap remains metadata-only.
+
+Frontend alignment:
+
+- Channel list still uses `AsSyncBootstrap.channels` as the primary logged-in source.
+- Empty real bootstrap channels produce a real empty state instead of mock channels.
+- Client privacy rule remains: no `last_message` or historical read bodies in `/_as/sync/bootstrap`.
+- Recovered unread remains overlay-only and is not written to Matrix SDK persistent timeline.
+
+### Message And Call Query Compatibility
+
+Change:
+
+- `sync.messages.limit` is accepted as an alias for `page_size`.
+- `calls.active` filters all terminal states.
+
+Frontend alignment:
+
+- Current `HttpAsClient.syncMessages` continues to send `page_size`; no frontend contract change required.
+- Existing active call flows rely on AS active-call filtering and do not need client-side terminal-state patching.
+
+## Maintenance Rule
+
+When AS contracts change:
+
+- Update `lib/data/as_client.dart` first.
+- Update `lib/data/http_as_client.dart` and `lib/data/mock_as_client.dart` together.
+- Update focused tests in `test/http_as_client_test.dart` and affected widget tests.
+- Update this document in the same frontend change.
+

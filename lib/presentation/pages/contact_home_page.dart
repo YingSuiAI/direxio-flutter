@@ -221,8 +221,12 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     try {
       final asClient = ref.read(asClientProvider);
       await asClient.deleteContact(roomId);
-      await _refreshBootstrapFromAs();
       _removeLocalMatrixRoom(roomId);
+      try {
+        await _refreshBootstrapFromAs();
+      } catch (e) {
+        debugPrint('refresh bootstrap after deleting contact failed: $e');
+      }
       if (!mounted) return;
       setState(() {
         _friendState = _FriendButtonState.none;
@@ -244,8 +248,10 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
 
   void _removeLocalMatrixRoom(String roomId) {
     final client = ref.read(matrixClientProvider);
-    final room = client.getRoomById(roomId);
-    if (room != null) client.rooms.remove(room);
+    client.rooms = [
+      for (final room in client.rooms)
+        if (room.id != roomId) room,
+    ];
   }
 
   Future<void> _refreshBootstrapFromAs() async {

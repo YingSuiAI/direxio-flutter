@@ -69,14 +69,14 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
   @override
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
-    final isLoggedIn = client.isLogged();
     final auth = ref.watch(authStateNotifierProvider).valueOrNull;
     final syncCache = asSyncCacheForUser(
       ref.watch(asSyncCacheProvider),
       auth?.userId,
     );
     final bootstrap = syncCache.bootstrap;
-    final useRealChannels = !_mockAuthEnabled && isLoggedIn;
+    final useRealChannels =
+        !_mockAuthEnabled && (auth?.isLoggedIn == true || client.isLogged());
     final listedChannels =
         useRealChannels ? ref.watch(_channelListProvider).valueOrNull : null;
     final localCreatedChannels = useRealChannels
@@ -190,7 +190,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                 const SizedBox(width: 8),
                 _ChannelIconButton(
                   key: const ValueKey('channel_search_button'),
-                  assetName: 'assets/images/search_icon.png',
+                  icon: Symbols.search,
                   iconSize: 20,
                   onTap: () => context.push('/channels/search'),
                 ),
@@ -330,6 +330,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
                         storageKey: const PageStorageKey('me_channels'),
                         channels: visibleChannels,
                         bottomPadding: 24,
+                        showPreview: false,
                         showTime: false,
                         pinnedChannelKeys: pinnedChannelKeys,
                         onTogglePin: (channel) =>
@@ -364,6 +365,10 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
   }
 
   Future<List<_ReviewItem>> _loadReviewItems() async {
+    final auth = ref.read(authStateNotifierProvider).valueOrNull;
+    if (_mockAuthEnabled || auth?.isLoggedIn != true) {
+      return _mockReviewItems();
+    }
     final listedChannels = await ref.read(asClientProvider).listChannels();
     final ownedChannels = listedChannels.where(_canReviewChannel).toList(
           growable: false,
@@ -484,6 +489,35 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
       );
     }
   }
+}
+
+List<_ReviewItem> _mockReviewItems() {
+  return const [
+    _ReviewItem(
+      channelId: 'mock-review-general',
+      channelName: 'P2P IM 官方',
+      userMxid: '@alice:portal.local',
+      name: 'Alice',
+      time: '09:30',
+      status: _ReviewStatus.pending,
+    ),
+    _ReviewItem(
+      channelId: 'mock-review-general',
+      channelName: 'P2P IM 官方',
+      userMxid: '@bob:portal.local',
+      name: 'Bob',
+      time: '昨天',
+      status: _ReviewStatus.approved,
+    ),
+    _ReviewItem(
+      channelId: 'mock-review-general',
+      channelName: 'P2P IM 官方',
+      userMxid: '@eve:portal.local',
+      name: 'Eve',
+      time: '06-16',
+      status: _ReviewStatus.rejected,
+    ),
+  ];
 }
 
 bool _canReviewChannel(AsChannel channel) {
@@ -746,12 +780,14 @@ class _ChannelIconButton extends StatelessWidget {
   const _ChannelIconButton({
     super.key,
     required this.onTap,
-    required this.assetName,
+    this.assetName,
+    this.icon,
     this.badgeCount = 0,
     this.iconSize = 24,
-  });
+  }) : assert(assetName != null || icon != null);
 
-  final String assetName;
+  final String? assetName;
+  final IconData? icon;
   final VoidCallback onTap;
   final int badgeCount;
   final double iconSize;
@@ -770,13 +806,19 @@ class _ChannelIconButton extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               Center(
-                child: Image.asset(
-                  assetName,
-                  width: iconSize,
-                  height: iconSize,
-                  fit: BoxFit.contain,
-                  color: _channelTextColor(context),
-                ),
+                child: icon == null
+                    ? Image.asset(
+                        assetName!,
+                        width: iconSize,
+                        height: iconSize,
+                        fit: BoxFit.contain,
+                        color: _channelTextColor(context),
+                      )
+                    : Icon(
+                        icon,
+                        size: iconSize,
+                        color: _channelTextColor(context),
+                      ),
               ),
               if (badgeCount > 0)
                 Positioned(
@@ -856,6 +898,7 @@ class ChannelInboxList extends StatelessWidget {
     this.onTogglePin,
     this.onHide,
     this.onDelete,
+    this.showPreview = true,
     this.showTime = true,
     this.bottomPadding = 104,
   });
@@ -867,6 +910,7 @@ class ChannelInboxList extends StatelessWidget {
   final ValueChanged<ChannelInboxItem>? onTogglePin;
   final ValueChanged<ChannelInboxItem>? onHide;
   final ValueChanged<ChannelInboxItem>? onDelete;
+  final bool showPreview;
   final bool showTime;
   final double bottomPadding;
 
@@ -885,6 +929,7 @@ class ChannelInboxList extends StatelessWidget {
         onTogglePin: onTogglePin,
         onHide: onHide,
         onDelete: onDelete,
+        showPreview: showPreview,
         showTime: showTime,
       ),
     );
@@ -901,6 +946,7 @@ class ChannelInboxTile extends StatelessWidget {
     this.onTogglePin,
     this.onHide,
     this.onDelete,
+    this.showPreview = true,
     this.showTime = true,
   });
 
@@ -911,6 +957,7 @@ class ChannelInboxTile extends StatelessWidget {
   final ValueChanged<ChannelInboxItem>? onTogglePin;
   final ValueChanged<ChannelInboxItem>? onHide;
   final ValueChanged<ChannelInboxItem>? onDelete;
+  final bool showPreview;
   final bool showTime;
 
   @override
@@ -976,32 +1023,55 @@ class ChannelInboxTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 21),
-                            child: Row(
+                            padding: const EdgeInsets.only(top: 11, bottom: 9),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Flexible(
-                                  child: Text(
-                                    channel.name,
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        _channelInboxDisplayName(channel),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTheme.sans(
+                                          size: 14,
+                                          weight: FontWeight.w500,
+                                          color: _channelTextColor(context),
+                                        ).copyWith(height: 18 / 14),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _ChannelKindBadge(
+                                      label: _channelIsTextType(channel)
+                                          ? '文字'
+                                          : '帖子',
+                                    ),
+                                    if (isPinned) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Symbols.push_pin,
+                                        size: 14,
+                                        color: _channelMutedColor(context),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                if (showPreview &&
+                                    channel.latestPreview
+                                        .trim()
+                                        .isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    channel.latestPreview,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppTheme.sans(
-                                      size: 14,
-                                      weight: FontWeight.w500,
-                                      color: _channelTextColor(context),
-                                    ).copyWith(height: 18 / 14),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                _ChannelKindBadge(
-                                  label:
-                                      _channelIsTextType(channel) ? '文字' : '帖子',
-                                ),
-                                if (isPinned) ...[
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Symbols.push_pin,
-                                    size: 14,
-                                    color: _channelMutedColor(context),
+                                      size: 12,
+                                      weight: FontWeight.w400,
+                                      color: _channelMutedColor(context),
+                                    ).copyWith(height: 16 / 12),
                                   ),
                                 ],
                               ],
@@ -1773,19 +1843,6 @@ List<ChannelInboxItem> _mockChannelItems() {
       tags: const ['帖子', 'AI'],
     ),
     ChannelInboxItem(
-      id: 'drafts',
-      roomId: 'drafts',
-      name: '草稿箱',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '2 条帖子待发布',
-      latestAt: DateTime.now().subtract(const Duration(days: 5)),
-      unreadCount: 0,
-      isOwned: true,
-      channelType: asChannelTypeChat,
-      tags: const ['文字'],
-    ),
-    ChannelInboxItem(
       id: 'joined-general',
       roomId: 'joined-general',
       name: '综合讨论',
@@ -1798,7 +1855,30 @@ List<ChannelInboxItem> _mockChannelItems() {
       channelType: asChannelTypeChat,
       tags: const ['文字'],
     ),
+    ChannelInboxItem(
+      id: 'new-user-qa',
+      roomId: 'new-user-qa',
+      name: '新手问答',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '新用户使用问题集中答疑',
+      latestAt: _todayAt(8, 50),
+      unreadCount: 0,
+      isOwned: false,
+      channelType: asChannelTypeChat,
+      tags: const ['文字'],
+    ),
   ];
+}
+
+String _channelInboxDisplayName(ChannelInboxItem channel) {
+  final name = channel.name.trim();
+  if (name.isEmpty) return '';
+  final isMockSample = !channel.roomId.trim().startsWith('!');
+  if (isMockSample && _channelIsTextType(channel) && !name.startsWith('#')) {
+    return '#$name';
+  }
+  return name;
 }
 
 String _avatarLabel(String name) {

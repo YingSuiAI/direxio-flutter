@@ -174,7 +174,7 @@ bool _channelShareIsJoined(
     final existingRoomId = channel.roomId.trim();
     if ((channelId.isNotEmpty && existingChannelId == channelId) ||
         (roomId.isNotEmpty && existingRoomId == roomId)) {
-      return channel.memberStatus == asChannelMemberStatusJoined;
+      return isAsChannelMemberJoined(channel.memberStatus);
     }
   }
   return false;

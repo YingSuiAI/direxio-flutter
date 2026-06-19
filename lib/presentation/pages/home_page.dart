@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
+import '../channel/create_channel_sheet.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -519,7 +520,7 @@ class _HomeTitleTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
-    final textColor = _homeTextColor(context);
+    final textColor = context.tk.text;
     return Container(
       height: topInset + 56,
       padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 4),
@@ -537,7 +538,7 @@ class _HomeTitleTopBar extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.left,
                 style: AppTheme.sans(
-                  size: 20,
+                  size: 24,
                   weight: FontWeight.w600,
                   color: textColor,
                 ),
@@ -547,6 +548,7 @@ class _HomeTitleTopBar extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: _GlassCircleButton(
+              key: const ValueKey('chat_input_plus_circle'),
               icon: Symbols.add,
               size: 40,
               iconSize: 24,
@@ -561,7 +563,7 @@ class _HomeTitleTopBar extends StatelessWidget {
 
 String _homeTabTitle(AppLocalizations? l10n, int index) {
   return switch (index) {
-    0 => l10n?.tabChats ?? 'Chats',
+    0 => l10n?.tabChats ?? '消息',
     1 => l10n?.tabContacts ?? '通讯录',
     2 => l10n?.tabChannels ?? '频道',
     3 => l10n?.tabMe ?? '我的',
@@ -631,7 +633,7 @@ class _ChatsTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
     final label = unreadCount > 0 ? '$title($unreadCount)' : title;
-    final textColor = _homeTextColor(context);
+    final textColor = context.tk.text;
     return Container(
       height: topInset + 56,
       padding: EdgeInsets.fromLTRB(16, topInset + 4, 16, 4),
@@ -649,7 +651,7 @@ class _ChatsTopBar extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.left,
                 style: AppTheme.sans(
-                  size: 20,
+                  size: 24,
                   weight: FontWeight.w600,
                   color: textColor,
                 ),
@@ -659,6 +661,7 @@ class _ChatsTopBar extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: _GlassCircleButton(
+              key: const ValueKey('chat_input_plus_circle'),
               icon: Symbols.add,
               size: 40,
               iconSize: 25,
@@ -692,7 +695,7 @@ List<String> _pendingFriendRequestRoomIds({
 
 String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';
 
-enum _PlusAction { contact, group, scan }
+enum _PlusAction { contact, group, channel, scan }
 
 Future<void> _handleHomePlusTap(BuildContext context, WidgetRef ref) async {
   final action = await _showHomePlusMenu(context);
@@ -702,6 +705,8 @@ Future<void> _handleHomePlusTap(BuildContext context, WidgetRef ref) async {
       context.push('/add-contact');
     case _PlusAction.group:
       showCreateGroupFlow(context, ref);
+    case _PlusAction.channel:
+      showCreateChannelDialog(context, ref);
     case _PlusAction.scan:
       context.push('/scan');
   }
@@ -722,7 +727,7 @@ Future<_PlusAction?> _showHomePlusMenu(BuildContext context) {
             top: padding.top + 53,
             right: 15,
             width: 126,
-            height: 126,
+            height: 158,
             child: const _HomePlusMenuPanel(),
           ),
         ],
@@ -792,6 +797,11 @@ class _HomePlusMenuPanel extends StatelessWidget {
                     iconAsset: _iconMenuCreateGroup,
                     label: '创建群聊',
                     value: _PlusAction.group,
+                  ),
+                  _PlusMenuTile(
+                    iconAsset: _iconTabChannel,
+                    label: '创建频道',
+                    value: _PlusAction.channel,
                   ),
                   _PlusMenuTile(
                     iconAsset: _iconMenuScan,
@@ -1264,6 +1274,7 @@ IconData _fallbackIconForAsset(String assetName) {
 
 class _GlassCircleButton extends StatelessWidget {
   const _GlassCircleButton({
+    super.key,
     required this.icon,
     required this.onTap,
     required this.size,
@@ -1836,11 +1847,11 @@ String _conversationDisplayName(
     final contactName = contact.displayName.trim();
     final memberName =
         directPeerMemberDisplayName(conversation.room, contact.userId);
-    final fallbackName =
+    final matrixName =
         memberName == localpartFromMxid(contact.userId) ? '' : memberName;
     final label = contactDisplayNameFromIdentity(
       mxid: contact.userId,
-      displayName: contactName.isNotEmpty ? contactName : fallbackName,
+      displayName: matrixName.isNotEmpty ? matrixName : contactName,
       domain: contact.domain,
     );
     if (label.isNotEmpty) return label;

@@ -1605,13 +1605,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             roomId,
             discoveredChannel: payload.asDiscoveredChannel,
           );
-      if (joined.memberStatus == asChannelMemberStatusJoined) {
+      if (isAsChannelMemberJoined(joined.memberStatus)) {
         await _refreshBootstrapAfterVisibilityMutation();
       }
       if (!mounted) return;
-      if (joined.memberStatus == asChannelMemberStatusPending) {
+      if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已提交加入申请')),
+          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
+        );
+        return;
+      }
+      if (!isAsChannelMemberJoined(joined.memberStatus)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('频道加入状态未完成，请稍后刷新')),
         );
         return;
       }
@@ -2332,10 +2338,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final peerIsOnline =
         peerPresence != null && peerPresence != PresenceType.offline;
     final peerIsOffline = peerPresence == PresenceType.offline;
+    final agentStatus =
+        isAgent ? ref.watch(agentStatusProvider).valueOrNull : null;
+    final agentIsOnline = agentStatus?.connected ?? false;
     final headerSubtitle = isWaitingForAccept
         ? '等待对方接受'
         : isAgent
-            ? null
+            ? agentIsOnline
+                ? '在线'
+                : '离线'
             : peerIsTyping
                 ? '在想'
                 : peerIsOnline
@@ -2344,7 +2355,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ? '离线'
                         : null;
     final headerSubtitleStatus = isAgent
-        ? null
+        ? agentIsOnline
+            ? ChatCapsuleSubtitleStatus.online
+            : ChatCapsuleSubtitleStatus.offline
         : (peerIsTyping || peerIsOnline
             ? ChatCapsuleSubtitleStatus.online
             : peerIsOffline
@@ -3344,6 +3357,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       ),
     );
   }
+}
+
+String _channelJoinWaitingText(String memberStatus) {
+  return memberStatus == asChannelMemberStatusPending
+      ? '已提交加入申请'
+      : '已发送频道邀请，等待加入完成';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

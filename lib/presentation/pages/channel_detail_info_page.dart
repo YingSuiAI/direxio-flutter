@@ -181,7 +181,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
             roomId.isEmpty ? channelId : roomId,
             discoveredChannel: widget.sharePayload?.asDiscoveredChannel,
           );
-      if (joined.memberStatus == asChannelMemberStatusJoined) {
+      if (isAsChannelMemberJoined(joined.memberStatus)) {
         final bootstrap =
             await ref.read(asBootstrapRepositoryProvider).refresh();
         ref.read(asSyncCacheProvider.notifier).update(
@@ -190,9 +190,15 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       }
       if (!mounted) return;
       setState(() => _joining = false);
-      if (joined.memberStatus == asChannelMemberStatusPending) {
+      if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已提交加入申请')),
+          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
+        );
+        return;
+      }
+      if (!isAsChannelMemberJoined(joined.memberStatus)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('频道加入状态未完成，请稍后刷新')),
         );
         return;
       }
@@ -223,6 +229,12 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       );
     }
   }
+}
+
+String _channelJoinWaitingText(String memberStatus) {
+  return memberStatus == asChannelMemberStatusPending
+      ? '已提交加入申请'
+      : '已发送频道邀请，等待加入完成';
 }
 
 bool _looksLikeMatrixRoomId(String value) {

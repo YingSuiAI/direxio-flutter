@@ -10,6 +10,7 @@ import '../../core/theme/design_tokens.dart';
 import '../providers/personal_space_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 
 const _homeBg = Color(0xFFFAFAFA);
@@ -37,6 +38,12 @@ class MePage extends ConsumerWidget {
             : localpart;
     final avatarUrl = profileAvatarHttpUrl(profile, client) ?? '';
     final uidUrl = _meUidUrl(client, displayId);
+    final space = ref.watch(personalSpaceProvider).valueOrNull;
+    final signature = space?.signature.trim().isNotEmpty == true
+        ? space!.signature.trim()
+        : personalProfile.bio.trim();
+    final dynamics = [...(space?.works ?? const <WorkItem>[])]
+      ..sort((a, b) => b.sortKey.compareTo(a.sortKey));
 
     return ColoredBox(
       color: _homeBgColor(context),
@@ -45,7 +52,7 @@ class MePage extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
           children: [
-            _MeTopBar(onSettingsTap: () => context.push('/settings')),
+            _MeTopBar(onMenuTap: () => context.push('/me/menu')),
             const SizedBox(height: 12),
             _MeProfileTile(
               displayId: displayId,
@@ -57,36 +64,16 @@ class MePage extends ConsumerWidget {
               onUidTap: () => _copyUidUrl(context, uidUrl),
               onQrTap: () => context.push('/me/qr'),
             ),
-            const SizedBox(height: 34),
+            const SizedBox(height: 14),
+            _MeSignature(text: signature),
+            const SizedBox(height: 28),
             _MeActionRow(
               icon: Symbols.person_add,
               label: '我的频道',
               onTap: () => context.push('/me/channels'),
             ),
-            const SizedBox(height: 16),
-            _MeActionRow(
-              icon: Symbols.bookmark,
-              label: '收藏',
-              onTap: () => context.push('/me/favorites'),
-            ),
-            const SizedBox(height: 16),
-            _MeActionRow(
-              icon: Symbols.favorite,
-              label: '赞',
-              onTap: () => context.push('/me/likes'),
-            ),
-            const SizedBox(height: 16),
-            _MeActionRow(
-              icon: Symbols.error,
-              label: '评论',
-              onTap: () => context.push('/me/comments'),
-            ),
-            const SizedBox(height: 16),
-            _MeActionRow(
-              icon: Symbols.help,
-              label: '帮助与反馈',
-              onTap: () => _showHelpFeedback(context),
-            ),
+            const SizedBox(height: 28),
+            _MeDynamicTimeline(items: dynamics),
           ],
         ),
       ),
@@ -95,9 +82,9 @@ class MePage extends ConsumerWidget {
 }
 
 class _MeTopBar extends StatelessWidget {
-  const _MeTopBar({required this.onSettingsTap});
+  const _MeTopBar({required this.onMenuTap});
 
-  final VoidCallback onSettingsTap;
+  final VoidCallback onMenuTap;
 
   @override
   Widget build(BuildContext context) {
@@ -105,19 +92,12 @@ class _MeTopBar extends StatelessWidget {
       height: 48,
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              '我的',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 20,
-                weight: FontWeight.w600,
-                color: _homeTextColor(context),
-              ),
-            ),
+          const Spacer(),
+          GlassHeaderButton(
+            key: const ValueKey('me_menu_button'),
+            icon: Symbols.menu,
+            onTap: onMenuTap,
           ),
-          _MeIconButton(icon: Symbols.settings, onTap: onSettingsTap),
         ],
       ),
     );
@@ -163,6 +143,7 @@ class _MeProfileTile extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: InkWell(
+              key: const ValueKey('me_profile_entry'),
               onTap: onProfileTap,
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -189,7 +170,7 @@ class _MeProfileTile extends StatelessWidget {
                         children: [
                           Flexible(
                             child: Text(
-                              uid,
+                              'UID: $uid',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTheme.sans(
@@ -212,8 +193,134 @@ class _MeProfileTile extends StatelessWidget {
               ),
             ),
           ),
-          _MeIconButton(icon: Symbols.qr_code_2, onTap: onQrTap),
+          _MeIconButton(
+            key: const ValueKey('me_domain_qr_button'),
+            icon: Symbols.qr_code_2,
+            onTap: onQrTap,
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _MeSignature extends StatelessWidget {
+  const _MeSignature({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: AppTheme.sans(
+        size: 15,
+        weight: FontWeight.w400,
+        color: _homeMutedColor(context),
+      ).copyWith(height: 1.35),
+    );
+  }
+}
+
+class _MeDynamicTimeline extends StatelessWidget {
+  const _MeDynamicTimeline({required this.items});
+
+  final List<WorkItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      key: const ValueKey('me_dynamics_timeline'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '动态',
+          style: AppTheme.sans(
+            size: 20,
+            weight: FontWeight.w600,
+            color: _homeTextColor(context),
+          ),
+        ),
+        const SizedBox(height: 16),
+        for (final item in items) _MeDynamicItem(item: item),
+      ],
+    );
+  }
+}
+
+class _MeDynamicItem extends StatelessWidget {
+  const _MeDynamicItem({required this.item});
+
+  final WorkItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => context.push('/me/dynamic/${Uri.encodeComponent(item.id)}'),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 116,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.month,
+                    style: AppTheme.sans(
+                      size: item.day.isEmpty ? 16 : 14,
+                      weight: FontWeight.w600,
+                      color: _homeTextColor(context),
+                    ),
+                  ),
+                  if (item.day.isNotEmpty)
+                    Text(
+                      item.day,
+                      style: AppTheme.sans(
+                        size: 24,
+                        weight: FontWeight.w700,
+                        color: _homeTextColor(context),
+                      ).copyWith(height: 1.1),
+                    ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 16,
+                      weight: FontWeight.w600,
+                      color: _homeTextColor(context),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    item.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sans(
+                      size: 13,
+                      weight: FontWeight.w400,
+                      color: _homeMutedColor(context),
+                    ).copyWith(height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -273,7 +380,11 @@ class _MeActionRow extends StatelessWidget {
 }
 
 class _MeIconButton extends StatelessWidget {
-  const _MeIconButton({required this.icon, required this.onTap});
+  const _MeIconButton({
+    super.key,
+    required this.icon,
+    required this.onTap,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
@@ -309,23 +420,6 @@ Future<void> _copyUidUrl(BuildContext context, String uidUrl) async {
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text('已复制 UID')),
-  );
-}
-
-Future<void> _showHelpFeedback(BuildContext context) {
-  return showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('帮助与反馈'),
-      content: const Text(
-          '官方邮箱：support@direxio.ai\n\n温馨提示：请在反馈中描述问题发生的页面、操作步骤和设备型号。'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('知道了'),
-        ),
-      ],
-    ),
   );
 }
 

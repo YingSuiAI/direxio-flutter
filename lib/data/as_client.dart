@@ -24,6 +24,7 @@ const asChannelJoinPolicyOpen = 'open';
 const asChannelJoinPolicyApproval = 'approval';
 const asChannelJoinPolicyInvite = 'invite';
 const asChannelMemberStatusJoined = 'joined';
+const asChannelMemberStatusInvite = 'invite';
 const asChannelMemberStatusPending = 'pending';
 const asChannelMemberStatusRejected = 'rejected';
 const asChannelRoleOwner = 'owner';
@@ -395,10 +396,15 @@ class OwnerProfile {
 /// §5.5 Portal 整体状态
 class PortalStatus {
   const PortalStatus({
-    required this.dendrite,
-    required this.federation,
-    required this.agent,
+    this.dendrite = 'unknown',
+    this.federation = 'unknown',
+    this.agent = 'unknown',
     required this.uptime,
+    this.initialized,
+    this.userId = '',
+    this.homeserver = '',
+    this.storeMode = '',
+    this.projectorStarted,
   });
 
   /// "connected" / "disconnected"
@@ -413,17 +419,51 @@ class PortalStatus {
   /// 人类可读的运行时长，如 "3d 5h"
   final String uptime;
 
+  /// Unified `/_p2p` portal status fields.
+  final bool? initialized;
+  final String userId;
+  final String homeserver;
+  final String storeMode;
+  final bool? projectorStarted;
+
   factory PortalStatus.fromJson(Map<String, dynamic> j) => PortalStatus(
         dendrite: j['dendrite'] as String? ?? 'unknown',
         federation: j['federation'] as String? ?? 'unknown',
         agent: j['agent'] as String? ?? 'unknown',
         uptime: j['uptime'] as String? ?? '',
+        initialized: _parseNullableBool(j['initialized']),
+        userId: j['user_id'] as String? ?? '',
+        homeserver: j['homeserver'] as String? ?? '',
+        storeMode: j['store_mode'] as String? ?? '',
+        projectorStarted: _parseNullableBool(j['projector_started']),
       );
 
-  bool get allHealthy =>
-      dendrite == 'connected' &&
-      federation == 'ok' &&
-      agent.startsWith('connected');
+  bool get allHealthy {
+    final legacyHealthy = dendrite == 'connected' &&
+        federation == 'ok' &&
+        agent.startsWith('connected');
+    final hasUnifiedFields = initialized != null ||
+        userId.trim().isNotEmpty ||
+        homeserver.trim().isNotEmpty ||
+        storeMode.trim().isNotEmpty ||
+        projectorStarted != null;
+    if (!hasUnifiedFields) return legacyHealthy;
+    return initialized != false &&
+        userId.trim().isNotEmpty &&
+        homeserver.trim().isNotEmpty &&
+        storeMode.trim().isNotEmpty &&
+        projectorStarted != false;
+  }
+}
+
+bool isAsChannelMemberJoined(String status) {
+  return _normalizeChannelMemberStatus(status) == asChannelMemberStatusJoined;
+}
+
+bool isAsChannelMemberAwaitingJoin(String status) {
+  final normalized = _normalizeChannelMemberStatus(status);
+  return normalized == asChannelMemberStatusPending ||
+      normalized == asChannelMemberStatusInvite;
 }
 
 /// Privacy-safe new-device bootstrap metadata from `GET /_as/sync/bootstrap`.
@@ -616,7 +656,9 @@ class AsSyncRoomSummary {
       channelType:
           normalizeAsChannelType(json['channel_type'] as String? ?? ''),
       role: role,
-      memberStatus: json['member_status'] as String? ?? '',
+      memberStatus: _normalizeChannelMemberStatus(
+        _firstString(json, const ['member_status', 'membership', 'status']),
+      ),
       memberCount: _parseInt(json['member_count']),
       pendingJoinCount: _parseInt(json['pending_join_count']),
     );
@@ -810,7 +852,9 @@ class AsChannel {
       channelType:
           normalizeAsChannelType(json['channel_type'] as String? ?? ''),
       role: json['role'] as String? ?? '',
-      memberStatus: json['member_status'] as String? ?? '',
+      memberStatus: _normalizeChannelMemberStatus(
+        _firstString(json, const ['member_status', 'membership', 'status']),
+      ),
       memberCount: _parseInt(json['member_count']),
       pendingJoinCount: _parseInt(json['pending_join_count']),
       tags: _parseStringList(json['tags']),
@@ -1005,8 +1049,10 @@ class AsChannelMember {
       domain: json['domain'] as String? ?? '',
       displayName: json['display_name'] as String? ?? '',
       role: json['role'] as String? ?? asChannelRoleMember,
-      status: json['status'] as String? ?? '',
-      joinedAtMs: _parseInt(json['joined_at_ms']),
+      status: _normalizeChannelMemberStatus(
+        _firstString(json, const ['status', 'member_status', 'membership']),
+      ),
+      joinedAtMs: _parseInt(json['joined_at_ms'] ?? json['joined_at']),
     );
   }
 }
@@ -2023,6 +2069,24 @@ String _normalizeChannelJoinPolicy(String policy) {
       return asChannelJoinPolicyInvite;
     default:
       return asChannelJoinPolicyOpen;
+  }
+}
+
+String _normalizeChannelMemberStatus(String status) {
+  switch (status.trim().toLowerCase()) {
+    case 'join':
+    case asChannelMemberStatusJoined:
+      return asChannelMemberStatusJoined;
+    case asChannelMemberStatusInvite:
+    case 'invited':
+      return asChannelMemberStatusInvite;
+    case asChannelMemberStatusPending:
+      return asChannelMemberStatusPending;
+    case 'reject':
+    case asChannelMemberStatusRejected:
+      return asChannelMemberStatusRejected;
+    default:
+      return status.trim();
   }
 }
 

@@ -2080,6 +2080,40 @@ void main() {
     expect(status.allHealthy, isTrue);
   });
 
+  test('portal status parses unified storage and projector state', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(jsonDecode(request.body), {
+          'action': 'portal.status',
+          'params': <String, Object?>{},
+        });
+        return http.Response(
+          jsonEncode({
+            'initialized': true,
+            'user_id': '@owner:example.com',
+            'homeserver': 'https://example.com',
+            'store_mode': 'database',
+            'projector_started': true,
+          }),
+          200,
+        );
+      }),
+    );
+
+    final status = await client.getPortalStatus();
+
+    expect(status.initialized, isTrue);
+    expect(status.userId, '@owner:example.com');
+    expect(status.homeserver, 'https://example.com');
+    expect(status.storeMode, 'database');
+    expect(status.projectorStarted, isTrue);
+    expect(status.allHealthy, isTrue);
+  });
+
   test('changePortalPassword posts password payload to AS admin API', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
@@ -2461,7 +2495,7 @@ void main() {
         });
         return _jsonResponse(
           {
-            'status': 'joined',
+            'status': 'invited',
             'channel': {
               'channel_id': 'ch_remote',
               'room_id': '!remote:p2p-im.com',
@@ -2471,7 +2505,7 @@ void main() {
               'visibility': 'public',
               'join_policy': 'open',
               'comments_enabled': true,
-              'member_status': 'joined',
+              'member_status': 'invite',
             },
           },
           200,
@@ -2494,7 +2528,7 @@ void main() {
       ),
     );
 
-    expect(channel.memberStatus, 'joined');
+    expect(channel.memberStatus, asChannelMemberStatusInvite);
   });
 
   test('joinChannelByRoomId requests public channel join by room id', () async {
@@ -2513,7 +2547,7 @@ void main() {
         });
         return _jsonResponse(
           {
-            'status': 'joined',
+            'status': 'invited',
             'channel': {
               'channel_id': 'ch_remote',
               'room_id': '!remote:p2p-im.com',
@@ -2522,7 +2556,6 @@ void main() {
               'visibility': 'public',
               'join_policy': 'open',
               'comments_enabled': true,
-              'member_status': 'joined',
             },
           },
           200,
@@ -2533,7 +2566,7 @@ void main() {
     final channel = await client.joinChannelByRoomId('!remote:p2p-im.com');
 
     expect(channel.channelId, 'ch_remote');
-    expect(channel.memberStatus, 'joined');
+    expect(channel.memberStatus, asChannelMemberStatusInvite);
   });
 
   test('getChannelMembers reads pending approval requests', () async {
@@ -2573,6 +2606,18 @@ void main() {
     expect(members.single.status, asChannelMemberStatusPending);
   });
 
+  test('AsChannelMember normalizes service membership fields', () {
+    final member = AsChannelMember.fromJson({
+      'channel_id': 'ch1',
+      'user_mxid': '@alice:p2p-liyanan.com',
+      'membership': 'invite',
+      'joined_at': 1781870000000,
+    });
+
+    expect(member.status, asChannelMemberStatusInvite);
+    expect(member.joinedAtMs, 1781870000000);
+  });
+
   test('approveChannelJoin posts approval action to AS', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
@@ -2586,7 +2631,7 @@ void main() {
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return _jsonResponse(
           {
-            'status': 'joined',
+            'status': 'invited',
             'channel': {
               'channel_id': 'ch1',
               'room_id': '!channel:example.com',

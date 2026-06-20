@@ -1,0 +1,4 @@
+interface:
+  display_name: "P2P Client Release Build"
+  short_description: "Flutter release build and packaging flow"
+  default_prompt: "Use $p2p-client-release-build to rebuild or package p2p-client artifacts."

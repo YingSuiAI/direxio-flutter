@@ -1,0 +1,4 @@
+interface:
+  display_name: "P2P Client Channels"
+  short_description: "Channel search, join, and chat workflow"
+  default_prompt: "Use $p2p-client-channel-work for channel search, join, approval, or chat changes."

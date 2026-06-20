@@ -1,0 +1,4 @@
+interface:
+  display_name: "P2P Client M3 UI"
+  short_description: "Material 3 presentation layer rules"
+  default_prompt: "Use $p2p-client-presentation-m3 when editing lib/presentation UI."

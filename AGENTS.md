@@ -12,6 +12,18 @@ The product rule is: one person, one node, one owner. Agent/service accounts may
 - Check `docs/FEATURES.md` before changing user-visible behavior, and update it when a feature moves between demo, partial, local, or real status.
 - Check `docs/AS_API_CHANGES.md` before changing AS/Admin API contracts, and update it in the same change.
 
+## Project-local Codex Skills
+
+Project-local Codex skills live under `.codex/skills/`. Use `p2p-client-guardrails` as the entry skill, then use the focused skill that matches the task:
+
+- `p2p-client-as-contract`: AS/Admin API contracts, models, mocks, parsing, docs, and tests.
+- `p2p-client-channel-work`: channel search, join, approval, inbox, detail, share, posts, and chat send gating.
+- `p2p-client-presentation-m3`: `lib/presentation/` UI, widgets, providers, empty states, and Material 3 rules.
+- `p2p-client-auth-session`: login, setup, restore, route guards, credential storage, and token/session behavior.
+- `p2p-client-release-build`: APK/iOS/web release builds and artifact packaging.
+
+When business rules, API contracts, UI rules, workflow expectations, or verification requirements change, update the corresponding `.codex/skills/*/SKILL.md` in the same change so future agents receive the current rules.
+
 ## Project Layout
 
 ```text
@@ -113,4 +125,3 @@ Before claiming completion, run `flutter analyze --no-pub` and the broadest prac
 - Add comments only when the reason is not obvious.
 - Add dependencies only after confirming existing dependencies cannot reasonably solve the problem.
 - Do not edit generated files by hand unless the repo already tracks generated outputs and the matching source file is updated in the same change.
-

@@ -1,0 +1,4 @@
+interface:
+  display_name: "P2P Client Auth Session"
+  short_description: "Login, restore, and token boundary flow"
+  default_prompt: "Use $p2p-client-auth-session for login, restore, or token changes."

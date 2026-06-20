@@ -2105,6 +2105,46 @@ void main() {
     expect(eventId, r'$group-invite');
   });
 
+  test('sendGroupInviteMessage rejects empty direct room id', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((_) async {
+        fail('request should not be sent for empty direct room id');
+      }),
+    );
+
+    expect(
+      () => client.sendGroupInviteMessage(
+        directRoomId: ' ',
+        groupRoomId: '!group:p2p-im.com',
+        groupName: '产品群',
+        inviterMxid: '@owner:p2p-im.com',
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('sendGroupInviteMessage rejects empty group room id', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((_) async {
+        fail('request should not be sent for empty group room id');
+      }),
+    );
+
+    expect(
+      () => client.sendGroupInviteMessage(
+        directRoomId: '!dm:p2p-im.com',
+        groupRoomId: ' ',
+        groupName: '产品群',
+        inviterMxid: '@owner:p2p-im.com',
+      ),
+      throwsArgumentError,
+    );
+  });
+
   test('deleteContact removes a contact through AS product route', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),

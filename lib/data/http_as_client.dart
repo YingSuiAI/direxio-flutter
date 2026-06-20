@@ -641,6 +641,12 @@ class HttpAsClient implements AsClient {
   }) async {
     final trimmedDirectRoomId = directRoomId.trim();
     final trimmedGroupRoomId = groupRoomId.trim();
+    if (trimmedDirectRoomId.isEmpty) {
+      throw ArgumentError.value(directRoomId, 'directRoomId', 'is required');
+    }
+    if (trimmedGroupRoomId.isEmpty) {
+      throw ArgumentError.value(groupRoomId, 'groupRoomId', 'is required');
+    }
     final trimmedGroupName =
         groupName.trim().isEmpty ? '群聊' : groupName.trim();
     final response = await _requestJson(

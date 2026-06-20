@@ -868,6 +868,16 @@ class _EmptyAsClient implements AsClient {
       'channel-share-event';
 
   @override
+  Future<String> sendGroupInviteMessage({
+    required String directRoomId,
+    required String groupRoomId,
+    required String groupName,
+    required String inviterMxid,
+    String inviterDisplayName = '',
+  }) =>
+      Completer<String>().future;
+
+  @override
   Future<String> sendRoomMediaMessage({
     required String roomId,
     required String msgType,

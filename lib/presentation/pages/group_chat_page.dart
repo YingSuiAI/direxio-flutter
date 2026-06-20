@@ -39,6 +39,7 @@ import '../chat/chat_message_cards.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_media_send_flow.dart';
+import '../chat/chat_scroll_metrics.dart';
 import '../chat/chat_timeline_items.dart';
 import '../chat/chat_video_preview_page.dart';
 import '../chat/chat_voice_player.dart';
@@ -333,7 +334,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (channelId != null && channelId.isNotEmpty) {
       return '/channel/${Uri.encodeComponent(channelId)}/info';
     }
-    return '/group-info/${Uri.encodeComponent(widget.roomId)}';
+    return '/group-info/${Uri.encodeComponent(_resolvedRoomId)}';
   }
 
   bool get _isChannelConversation =>
@@ -456,8 +457,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       attachment: attachment,
       sendAttachment: createProductRoomMediaSender(
         matrixClient: ref.read(matrixClientProvider),
-        asClient: ref.read(asClientProvider),
-        roomId: widget.roomId,
+        roomId: room.id,
       ),
       thumbnailCacheFuture: null,
       onStarted: () => _addPendingFileUpload(attachment),
@@ -576,7 +576,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     }
     if (_ensureQuotedEventVisible(trimmed)) return;
     final index = _messageListIndexes[trimmed];
-    if (index == null || !_messageScrollCtrl.hasClients) {
+    if (index == null ||
+        chatScrollPositionWithDimensions(_messageScrollCtrl) == null) {
       _showQuotedMessageUnavailable();
       return;
     }
@@ -602,7 +603,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     int index, {
     bool showUnavailable = true,
   }) async {
-    final position = _messageScrollCtrl.position;
+    final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
+    if (position == null) {
+      if (showUnavailable) _showQuotedMessageUnavailable();
+      return;
+    }
     final estimate = (index * 88.0).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
@@ -638,7 +643,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       return;
     }
     final index = _messageListIndexes[eventId];
-    if (index != null && _messageScrollCtrl.hasClients) {
+    if (index != null &&
+        chatScrollPositionWithDimensions(_messageScrollCtrl) != null) {
       _pendingTargetEventId = null;
       _targetEventScrollTimer?.cancel();
       unawaited(
@@ -723,8 +729,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (!mounted) return;
       if (_pendingAutoScrollTimelineItemKey != newestItemKey) return;
       _pendingAutoScrollTimelineItemKey = null;
-      if (!_messageScrollCtrl.hasClients) return;
-      final position = _messageScrollCtrl.position;
+      final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
+      if (position == null) return;
       final target = position.maxScrollExtent;
       _lastAutoScrolledTimelineItemKey = newestItemKey;
       if ((position.pixels - target).abs() < 1) return;
@@ -744,8 +750,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _pendingViewportScrollToBottom = false;
-      if (!_messageScrollCtrl.hasClients) return;
-      final position = _messageScrollCtrl.position;
+      final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
+      if (position == null) return;
       final target = position.maxScrollExtent;
       if ((position.pixels - target).abs() < 1) return;
       unawaited(
@@ -893,14 +899,30 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     }
   }
 
-  Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
+  String get _resolvedRoomId {
+    final currentChannel =
+        _currentChannelSummary(ref.read(asSyncCacheProvider));
+    final channelRoomId = currentChannel?.roomId.trim() ?? '';
+    return channelRoomId.isNotEmpty ? channelRoomId : widget.roomId;
+  }
+
+  Room? get _room =>
+      ref.read(matrixClientProvider).getRoomById(_resolvedRoomId);
 
   AsSyncRoomSummary? _groupSummary(AsSyncCacheState syncCache) {
+    final resolvedRoomId = _resolvedRoomId;
     for (final group
         in syncCache.bootstrap?.groups ?? const <AsSyncRoomSummary>[]) {
-      if (group.roomId.trim() == widget.roomId) return group;
+      if (group.roomId.trim() == resolvedRoomId ||
+          group.roomId.trim() == widget.roomId) {
+        return group;
+      }
     }
     return null;
+  }
+
+  AsSyncRoomSummary? _conversationSummary(AsSyncCacheState syncCache) {
+    return _currentChannelSummary(syncCache) ?? _groupSummary(syncCache);
   }
 
   @override
@@ -1064,8 +1086,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _roomRecoveryFailed = false;
     try {
       var syncCache = ref.read(asSyncCacheProvider);
-      var group = _groupSummary(syncCache);
-      if (group == null && syncCache.bootstrap == null) {
+      var summary = _conversationSummary(syncCache);
+      if (summary == null && syncCache.bootstrap == null) {
         try {
           final bootstrap =
               await ref.read(asBootstrapRepositoryProvider).refresh();
@@ -1074,14 +1096,18 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                 (state) => state.copyWith(bootstrap: bootstrap),
               );
           syncCache = ref.read(asSyncCacheProvider);
-          group = _groupSummary(syncCache);
+          summary = _conversationSummary(syncCache);
         } on Object catch (e) {
           debugPrint('group chat bootstrap recovery failed: $e');
         }
       }
-      if (group == null && !force) return;
+      if (summary == null && !force) return;
       try {
-        await _syncMissingGroupRoomFromServer();
+        await _syncMissingGroupRoomFromServer(
+          summary?.roomId.trim().isNotEmpty == true
+              ? summary!.roomId.trim()
+              : _resolvedRoomId,
+        );
       } on Object catch (e) {
         debugPrint('group chat Matrix room recovery sync failed: $e');
       }
@@ -1097,11 +1123,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     }
   }
 
-  Future<void> _syncMissingGroupRoomFromServer() async {
+  Future<void> _syncMissingGroupRoomFromServer(String roomId) async {
+    final trimmedRoomId = roomId.trim();
+    if (trimmedRoomId.isEmpty) return;
     final client = ref.read(matrixClientProvider);
     final filter = jsonEncode({
       'room': {
-        'rooms': [widget.roomId],
+        'rooms': [trimmedRoomId],
         'timeline': {'limit': 0},
       },
     });
@@ -1175,11 +1203,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       final asClient = ref.read(asClientProvider);
       final store = await ref.read(asCallSessionStoreProvider.future);
       final sessions = await asClient.listCalls(
-        roomId: widget.roomId,
+        roomId: _resolvedRoomId,
         limit: 100,
       );
       await store.upsertAll(sessions);
-      final stable = await store.readRoomStable(widget.roomId);
+      final stable = await store.readRoomStable(_resolvedRoomId);
       if (!mounted) return;
       _replaceRoomAsCallHistory(stable);
     } on Object catch (e) {
@@ -1358,7 +1386,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   AsUnreadMessage? _latestRecoveredUnreadMessage() {
     final messages = ref
         .read(asSyncCacheProvider)
-        .unreadMessagesForRoom(widget.roomId)
+        .unreadMessagesForRoom(_resolvedRoomId)
         .where((message) => message.eventId.isNotEmpty)
         .toList();
     if (messages.isEmpty) return null;
@@ -1380,7 +1408,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (timelineEventIds.isEmpty) return;
     final duplicateIds = ref
         .read(asSyncCacheProvider)
-        .unreadMessagesForRoom(widget.roomId)
+        .unreadMessagesForRoom(_resolvedRoomId)
         .where((message) => timelineEventIds.contains(message.eventId))
         .map((message) => message.eventId)
         .toSet();
@@ -1402,12 +1430,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   Future<void> _clearRecoveredUnreadForRoom() async {
+    final roomId = _resolvedRoomId;
     ref.read(asSyncCacheProvider.notifier).update(
-          (state) => state.withoutUnreadRoom(widget.roomId),
+          (state) => state.withoutUnreadRoom(roomId),
         );
     try {
       final store = await ref.read(recoveredUnreadStoreProvider.future);
-      await store.removeRoom(widget.roomId);
+      await store.removeRoom(roomId);
     } on Object catch (e) {
       debugPrint('clear recovered unread room failed: $e');
     }
@@ -1542,7 +1571,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     String? pendingId;
     try {
       pendingId = await ref.read(localOutboxProvider.notifier).startItem(
-            conversationId: widget.roomId,
+            conversationId: room.id,
             conversationType: LocalOutboxConversationType.group,
             draft: LocalOutboxDraft.text(text: text),
           );
@@ -1585,21 +1614,28 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     Event? replyTo,
     List<Map<String, String>> mentions = const [],
   }) async {
-    final isChannelConversation = widget.channelId?.trim().isNotEmpty ?? false;
-    if (isChannelConversation) {
-      return ref.read(asClientProvider).sendRoomMessage(
-            room.id,
-            text,
-            replyToEventId: replyTo?.eventId,
-            mentions: mentions,
-          );
-    }
-    return ref.read(asClientProvider).sendRoomMessage(
-          room.id,
-          text,
-          replyToEventId: replyTo?.eventId,
-          mentions: mentions,
-        );
+    final content = <String, Object?>{
+      'msgtype': MessageTypes.Text,
+      'body': text,
+      if (replyTo?.eventId.trim().isNotEmpty ?? false)
+        'reply_to': replyTo!.eventId,
+      if (replyTo?.eventId.trim().isNotEmpty ?? false)
+        'm.relates_to': {
+          'm.in_reply_to': {
+            'event_id': replyTo!.eventId,
+          },
+        },
+      if (mentions.isNotEmpty) ...{
+        'mentions': mentions,
+        'mentions_json': jsonEncode(mentions),
+      },
+    };
+    return room.client.sendMessage(
+      room.id,
+      EventTypes.Message,
+      room.client.generateUniqueTransactionId(),
+      content,
+    );
   }
 
   List<Map<String, String>> _mentionsForText(String text) {
@@ -1756,7 +1792,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   Future<String> _addPendingImageUpload(ChatMediaAttachment attachment) {
     return startMediaOutboxItem(
       notifier: ref.read(localOutboxProvider.notifier),
-      conversationId: widget.roomId,
+      conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachment: attachment,
     );
@@ -1767,7 +1803,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   ) {
     return startImageOutboxItems(
       notifier: ref.read(localOutboxProvider.notifier),
-      conversationId: widget.roomId,
+      conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachments: attachments,
     );
@@ -1776,7 +1812,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   Future<String> _addPendingFileUpload(ChatMediaAttachment attachment) {
     return startMediaOutboxItem(
       notifier: ref.read(localOutboxProvider.notifier),
-      conversationId: widget.roomId,
+      conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachment: attachment,
     );
@@ -1785,7 +1821,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   Future<String> _addPendingVideoUpload(ChatMediaAttachment attachment) {
     return startMediaOutboxItem(
       notifier: ref.read(localOutboxProvider.notifier),
-      conversationId: widget.roomId,
+      conversationId: _room?.id ?? _resolvedRoomId,
       conversationType: LocalOutboxConversationType.group,
       attachment: attachment,
     );
@@ -1887,8 +1923,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         attachment: attachment,
         sendAttachment: createProductRoomMediaSender(
           matrixClient: ref.read(matrixClientProvider),
-          asClient: ref.read(asClientProvider),
-          roomId: widget.roomId,
+          roomId: room.id,
         ),
         thumbnailCacheFuture:
             item.messageKind == LocalOutboxMessageKind.image ||
@@ -2115,11 +2150,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     );
     if (ok != true || !mounted) return;
     try {
-      await ref.read(asClientProvider).recallRoomMessage(
-            roomId: widget.roomId,
-            eventId: event.eventId,
-            reason: '撤回消息',
-          );
+      await event.redactEvent(reason: '撤回消息');
+      try {
+        await ref.read(matrixClientProvider).oneShotSync();
+      } on Object catch (e) {
+        debugPrint('post-redaction group Matrix sync failed: $e');
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('消息已撤回')),
@@ -2324,11 +2360,17 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (room == null) {
       final t = context.tk;
       final syncCache = ref.watch(asSyncCacheProvider);
-      final group = _groupSummary(syncCache);
-      final knownGroup = group != null;
-      final recovering = knownGroup && !_roomRecoveryFailed;
-      final title =
-          group?.name.trim().isNotEmpty == true ? group!.name.trim() : '群聊';
+      final channel = _currentChannelSummary(syncCache);
+      final group = channel == null ? _groupSummary(syncCache) : null;
+      final summary = channel ?? group;
+      final knownConversation = summary != null;
+      final isChannel = _isChannelConversation || channel != null;
+      final recovering =
+          (knownConversation || _isChannelConversation) && !_roomRecoveryFailed;
+      final fallbackTitle = isChannel ? '频道' : '群聊';
+      final title = summary?.name.trim().isNotEmpty == true
+          ? summary!.name.trim()
+          : fallbackTitle;
       if (recovering) {
         unawaited(_recoverMissingGroupRoom());
       }
@@ -2339,7 +2381,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: ChatCapsuleHeader(
-                  title: knownGroup ? title : '群组不存在',
+                  title: knownConversation ? title : '$fallbackTitle不存在',
                   onBack: () => unawaited(_popGroupChatOrHome(context)),
                   actions: const [],
                 ),
@@ -2362,10 +2404,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                       ],
                       Text(
                         recovering
-                            ? '正在恢复群聊...'
-                            : knownGroup
-                                ? '群聊同步超时，请检查网络后重试'
-                                : '这个群聊暂时无法打开',
+                            ? '正在恢复$fallbackTitle...'
+                            : knownConversation
+                                ? '$fallbackTitle同步超时，请检查网络后重试'
+                                : '这个$fallbackTitle暂时无法打开',
                         style: AppTheme.sans(size: 15, color: t.textMute),
                       ),
                       if (!recovering) ...[
@@ -2385,8 +2427,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       );
     }
     final t = context.tk;
+    final activeRoomId = room.id;
     final remarkName =
-        ref.watch(groupRemarkNamesProvider)[widget.roomId]?.trim() ?? '';
+        ref.watch(groupRemarkNamesProvider)[activeRoomId]?.trim() ?? '';
     final name =
         remarkName.isNotEmpty ? remarkName : room.getLocalizedDisplayname();
     final memberCount = room.summary.mJoinedMemberCount ?? 0;
@@ -2411,11 +2454,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final activeTimelineGroupCall = isChannelConversation
         ? null
         : activeGroupCallEntryForTimeline(rawTimelineEvents);
-    final events = syncCache.chatVisibilityPolicyForRoom(widget.roomId).filter(
+    final events = syncCache.chatVisibilityPolicyForRoom(activeRoomId).filter(
           mergeRecoveredUnreadEvents(
             room: room,
             timelineEvents: timelineEvents,
-            recoveredMessages: syncCache.unreadMessagesForRoom(widget.roomId),
+            recoveredMessages: syncCache.unreadMessagesForRoom(activeRoomId),
           ),
           eventId: (event) => event.eventId,
           originServerTs: (event) =>
@@ -2425,7 +2468,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final pendingOutbox = ref
         .watch(localOutboxProvider)
         .itemsForConversation(
-          widget.roomId,
+          activeRoomId,
           type: LocalOutboxConversationType.group,
         )
         .toList()
@@ -2436,7 +2479,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         ? const <AsCallSession>[]
         : asCallSessionsForGroupTimeline(
             sessions: _roomAsCallHistory.values,
-            roomId: widget.roomId,
+            roomId: activeRoomId,
             rawTimelineEvents: rawTimelineEvents,
             visibleEvents: events,
             callRecordContextEvents: callRecordContextEvents,
@@ -2540,7 +2583,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     final activeGroupCall = _activeGroupCallForHeader(
                       controllerState: snapshot.data ?? GroupCallUiState.idle,
                       timelineEntry: activeTimelineGroupCall,
-                      roomId: widget.roomId,
+                      roomId: activeRoomId,
                     );
                     return ChatCapsuleHeader(
                       title: channelTitle,
@@ -2553,7 +2596,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                           ? null
                           : () => context.push(
                                 groupCallJoinRoute(
-                                  roomId: widget.roomId,
+                                  roomId: activeRoomId,
                                   roomName: name,
                                   callType: activeGroupCall.callType,
                                   callId: activeGroupCall.callId,
@@ -2570,7 +2613,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                             color: t.accent,
                             onTap: () => context.push(
                               groupCallInviteRoute(
-                                roomId: widget.roomId,
+                                roomId: activeRoomId,
                                 roomName: name,
                                 callType: ProductCallType.voice,
                               ),
@@ -2601,11 +2644,36 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     ),
                   )
                 : timelineItems.isEmpty
-                    ? Center(
-                        child: Text(
-                          '还没有消息',
-                          style: AppTheme.sans(size: 13, color: t.textMute),
-                        ),
+                    ? LayoutBuilder(
+                        builder: (context, constraints) {
+                          final emptyHeight = math.max(
+                            0.0,
+                            constraints.maxHeight - messagePadding.vertical,
+                          );
+                          return RefreshIndicator(
+                            color: t.accent,
+                            onRefresh: _requestOlderMessages,
+                            child: ListView(
+                              controller: _messageScrollCtrl,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: messagePadding,
+                              children: [
+                                SizedBox(
+                                  height: emptyHeight,
+                                  child: Center(
+                                    child: Text(
+                                      '还没有消息',
+                                      style: AppTheme.sans(
+                                        size: 13,
+                                        color: t.textMute,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       )
                     : ChatTimelineListMotion(
                         itemCount: timelineItems.length,
@@ -3206,7 +3274,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
               if (_showPlusPanel)
                 ChatAttachmentPanel(
                   room: room,
-                  roomId: widget.roomId,
+                  roomId: activeRoomId,
                   canSend: canSendMessages,
                   useAsProductMedia: true,
                   onClose: () => setState(() => _showPlusPanel = false),

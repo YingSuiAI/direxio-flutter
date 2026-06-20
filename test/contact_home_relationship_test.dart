@@ -4,9 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
+import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
 import 'package:portal_app/presentation/pages/contact_home_page.dart';
+import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
@@ -19,6 +21,23 @@ class _LoggedInAuthStateNotifier extends AuthStateNotifier {
         homeserver: 'https://p2p-im.com',
         portalToken: 'portal-token',
       );
+}
+
+class _MemoryAsBootstrapStore implements AsBootstrapStore {
+  AsSyncBootstrap? value;
+
+  @override
+  Future<void> clear() async {
+    value = null;
+  }
+
+  @override
+  Future<AsSyncBootstrap?> read() async => value;
+
+  @override
+  Future<void> write(AsSyncBootstrap bootstrap) async {
+    value = bootstrap;
+  }
 }
 
 class _RelationshipAsClient extends Fake implements AsClient {
@@ -272,6 +291,12 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(asClient),
+          asBootstrapRepositoryProvider.overrideWithValue(
+            AsBootstrapRepository(
+              loadBootstrap: () async => bootstrap,
+              store: _MemoryAsBootstrapStore(),
+            ),
+          ),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -285,7 +310,15 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Alice 公开频道'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pump();
 
     expect(asClient.requestedPublicRoomId, '!alice-channel:portal.local');
     expect(find.text('申请加入'), findsOneWidget);

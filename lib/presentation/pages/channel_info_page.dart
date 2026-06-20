@@ -11,6 +11,7 @@ import '../channel/channel_info_data.dart';
 import '../channel/channel_leave_flow.dart';
 import '../channel/channel_share.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
@@ -219,7 +220,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       ),
       const SizedBox(height: 14),
       _MuteRow(
-        value: _muted,
+        value: _displayedChannelMuted(channel),
         busy: _muteChanging,
         onChanged: (value) => _setChannelMuted(channel, value),
       ),
@@ -236,6 +237,11 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         _members.where(_isJoinedChannelMember).toList(growable: false);
     if (joinedMembers.isNotEmpty) return joinedMembers.length;
     return channel.memberCount < 0 ? 0 : channel.memberCount;
+  }
+
+  bool _displayedChannelMuted(ChannelInfoData channel) {
+    if (_muteChanging) return _muted;
+    return !channel.commentsEnabled;
   }
 
   Future<void> _showRemoveMemberSheet() async {
@@ -387,7 +393,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     bool muted,
   ) async {
     if (_muteChanging) return;
-    final previous = _muted;
+    final previous = _displayedChannelMuted(channel);
     setState(() {
       _muted = muted;
       _muteChanging = true;
@@ -400,6 +406,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         await asClient.unmuteChannel(channel.id);
       }
       if (!mounted) return;
+      _updateCachedChannelCommentsEnabled(channel, commentsEnabled: !muted);
       _showSnack(context, muted ? '已开启全员禁言' : '已解除全员禁言');
     } catch (err) {
       if (!mounted) return;
@@ -408,6 +415,27 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     } finally {
       if (mounted) setState(() => _muteChanging = false);
     }
+  }
+
+  void _updateCachedChannelCommentsEnabled(
+    ChannelInfoData channel, {
+    required bool commentsEnabled,
+  }) {
+    final channelId = channel.id.trim();
+    final roomId = channel.roomId.trim();
+    ref.read(asSyncCacheProvider.notifier).update((state) {
+      final next = state.withChannelCommentsEnabled(
+        channelId.isNotEmpty ? channelId : roomId,
+        commentsEnabled: commentsEnabled,
+      );
+      if (!identical(next, state) || roomId.isEmpty || roomId == channelId) {
+        return next;
+      }
+      return next.withChannelCommentsEnabled(
+        roomId,
+        commentsEnabled: commentsEnabled,
+      );
+    });
   }
 
   Future<void> _showReportDialog(

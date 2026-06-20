@@ -10,7 +10,6 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/media_thumbnail_cache.dart';
-import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 import 'chat_media_send_flow.dart';
@@ -211,11 +210,9 @@ class ChatAttachmentPanel extends ConsumerWidget {
     }
     final messenger = ScaffoldMessenger.of(context);
     final matrixClient = ref.read(matrixClientProvider);
-    final asClient = ref.read(asClientProvider);
     final thumbnailCacheFuture = ref.read(mediaThumbnailCacheProvider.future);
     final productMediaSender = createProductRoomMediaSender(
       matrixClient: matrixClient,
-      asClient: asClient,
       roomId: roomId,
     );
     final pendingImageUploads = <ChatMediaAttachment, String>{};
@@ -288,10 +285,8 @@ class ChatAttachmentPanel extends ConsumerWidget {
     }
     final messenger = ScaffoldMessenger.of(context);
     final matrixClient = ref.read(matrixClientProvider);
-    final asClient = ref.read(asClientProvider);
     final productMediaSender = createProductRoomMediaSender(
       matrixClient: matrixClient,
-      asClient: asClient,
       roomId: roomId,
     );
     try {
@@ -358,11 +353,9 @@ class ChatAttachmentPanel extends ConsumerWidget {
     }
     final messenger = ScaffoldMessenger.of(context);
     final matrixClient = ref.read(matrixClientProvider);
-    final asClient = ref.read(asClientProvider);
     final thumbnailCacheFuture = ref.read(mediaThumbnailCacheProvider.future);
     final productMediaSender = createProductRoomMediaSender(
       matrixClient: matrixClient,
-      asClient: asClient,
       roomId: roomId,
     );
     try {

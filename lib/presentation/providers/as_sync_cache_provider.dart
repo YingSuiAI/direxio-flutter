@@ -491,6 +491,38 @@ class AsSyncCacheState {
     );
   }
 
+  AsSyncCacheState withChannelCommentsEnabled(
+    String channelIdOrRoomId, {
+    required bool commentsEnabled,
+  }) {
+    final trimmed = channelIdOrRoomId.trim();
+    final current = bootstrap;
+    if (trimmed.isEmpty || current == null) return this;
+    var changed = false;
+    final channels = current.channels.map((channel) {
+      final matches = channel.channelId.trim() == trimmed ||
+          channel.roomId.trim() == trimmed;
+      if (!matches || channel.commentsEnabled == commentsEnabled) {
+        return channel;
+      }
+      changed = true;
+      return channel.withCommentsEnabled(commentsEnabled);
+    }).toList(growable: false);
+    if (!changed) return this;
+    return copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: current.syncedAt,
+        user: current.user,
+        agentRoomId: current.agentRoomId,
+        rooms: current.rooms,
+        contacts: current.contacts,
+        groups: current.groups,
+        channels: channels,
+        pending: current.pending,
+      ),
+    );
+  }
+
   AsSyncCacheState withGroupInvitePolicy(
     String roomId,
     String invitePolicy,

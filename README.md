@@ -23,13 +23,25 @@ P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / W
 
 ---
 
-## 当前进度（2026-05-24）
+## 当前进度（2026-06-20）
+
+### Matrix 原生化迁移状态
+
+- Matrix SDK 负责登录 session、room/timeline、普通文本消息、普通媒体消息、redaction、成员状态和媒体上传下载。
+- `HttpAsClient` 负责 Direxio 产品层能力：好友申请、频道审批、群/频道管理、本地删除/隐藏、收藏、Agent/API 权限、portal status、bootstrap/unread/search 等。
+- `GET /_p2p/events?since=<seq>` SSE 已接入为轻量刷新提示；客户端收到消息、redaction、profile、join request 等事件后刷新 Matrix sync 和必要的 P2P query，不再依赖高频 `sync.messages` 轮询。
+- `sync.messages` 使用 cursor pagination，不再发送 `page` / `page_size` / `limit`。
+- `portal.status` 解析 `policy_index_mode`、`policy_index_ready`、`event_stream_ready`，这些字段用于能力和诊断，不假设所有环境都为 ready。
+- Direct invite 显示识别 native `io.direxio.room.profile`，不再依赖新 direct invite stripped state 写 legacy `p2p.contact.request`。
+- 频道 post/comment 的 Matrix content 约定是：`p2p_kind=channel_post` / `channel_comment` 表示 Direxio 产品分类，Matrix `msgtype` 保持 `m.text` / `m.image` / `m.file` 等真实消息类型；`post_id`、`media_json`、`mentions`、`mentions_json` 等结构化字段需要保留。
+
+普通聊天媒体和撤回已经迁到 Matrix Client-Server API。频道帖子/评论、频道点赞历史仍通过 AS 产品 API 查询/变更，直到对应 Matrix 原生 post/comment 投影接口具备完整客户端读写语义。
 
 ### 已完成
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| 会话列表 + 普通聊天 | ⚠️ 部分 | 登录后走 Matrix room；未登录展示演示会话 |
+| 会话列表 + 普通聊天 | ✅ Matrix | 登录后走 Matrix room/timeline；普通文本、媒体、撤回走 Matrix SDK；未登录展示演示会话 |
 | AI Bot 会话 | ⚠️ 部分 | 演示快捷指令保留本地逻辑；真实 Agent 对话依赖 homeserver |
 | Markdown 渲染 | ✅ | 表格 / 列表 / 引用 / 行内代码 / 代码块 / LaTeX |
 | 流式输出 + Typing 指示 | ✅ | 按字符喂入 + 三点跳动 |
@@ -44,9 +56,9 @@ P2P-IM 项目的多端客户端，目标覆盖 **Android / iOS / Web / macOS / W
 | **Android APK CI** | ✅ | push / PR 自动出 debug APK |
 | **Windows EXE CI** | ✅ | push / PR 自动出 release zip |
 | Portal Token 登录 / 初始化 | ⚠️ 代码就绪 | `AuthStateNotifier` 已实现；当前演示路由仍跳过登录直进首页 |
-| 统一业务 API | ✅ HTTP | `HttpAsClient` 已接 `/_p2p/*`，使用 `portal_token` |
+| 统一业务 API | ✅ HTTP/SSE | `HttpAsClient` 已接 `/_p2p/*` 查询/命令和 SSE，使用 `portal_token` |
 | Agent / MCP 工具通路 | ⚠️ 部分 | 页面演示逻辑保留本地实现；真实 Agent 消息走 Matrix room |
-| 真 Matrix 会话通路 | ⚠️ 部分 | 真 room / timeline 代码在；端到端依赖 Dendrite + AS registration |
+| 真 Matrix 会话通路 | ✅ | 真 room / timeline、普通消息、媒体、redaction 已走 Matrix SDK；ProductPolicy 由服务端执行 |
 
 ### 进行中 / 计划
 
@@ -123,7 +135,7 @@ flutter run -d <android-device>    # Android
 flutter run -d windows             # Windows desktop
 ```
 
-### 登录与 AS Admin API
+### 登录、Matrix SDK 与 P2P API
 
 当前认证模型是两套凭证、职责分离：
 
@@ -131,8 +143,8 @@ flutter run -d windows             # Windows desktop
 2. App 用 QR 中的 `setup_code` 调 `POST /_as/bootstrap`，拿到 Matrix `access_token` 和当前 `portal_token`。
 3. App 立刻调用 `PUT /_as/portal/token`，把长期登录口令旋转成用户输入的新口令。
 4. 日常登录时，App 用长期 `portal_token` 调 `POST /_as/auth` 获取新的 Matrix `access_token`。
-5. Matrix SDK 用 `access_token` 走标准 Matrix 消息/房间 API。
-6. `asClientProvider` 请求 `/_as/*` 时统一带：
+5. Matrix SDK 用 Matrix `access_token` 走标准 Matrix 消息/房间 API。
+6. `asClientProvider` 请求 `/_p2p/*` 产品 API 时统一带 portal token：
 
 ```http
 Authorization: Bearer {portal_token}
@@ -140,22 +152,23 @@ Authorization: Bearer {portal_token}
 
 `portal_token` 和 Matrix `access_token` 都写入 `flutter_secure_storage`，但用途不同：前者只给 AS Admin API，后者只给 Matrix SDK。
 
-AS Admin API 当前对接端点：
+P2P 产品 API 当前主要保留给 Matrix 不建模或本地产品状态能力：
 
 | 能力 | 方法 |
 |------|------|
-| 消息搜索 | `GET /_as/search?q=&room_id=&limit=` |
-| Agent 配置 | `GET /_as/agent/config` / `PUT /_as/agent/config` |
-| Agent 状态 | `GET /_as/agent/status` |
-| 关注列表 | `GET /_as/follows` / `POST /_as/follows` / `DELETE /_as/follows/{domain}` |
-| Portal 状态 | `GET /_as/portal/status` |
+| Portal 状态 | `portal.status` |
+| SSE 刷新提示 | `GET /_p2p/events?since=<seq>` |
+| Bootstrap / unread / search | `sync.bootstrap` / `sync.unread` / search |
+| 好友/群/频道管理 | friend request、group/channel management、channel approval |
+| 本地状态 | local delete/hide、favorites |
+| Agent / API 权限 | Agent/MCP/API policy |
 
 部署路径约定：
 
-- 生产：`https://{domain}/_as/*`
-- 本地 AS：如果 homeserver 是 `http://127.0.0.1:8008` / `localhost`，client 自动映射到 `http://127.0.0.1:9090/_as/*`
+- 生产：`https://{domain}/_p2p/*`
+- 本地 AS：如果 homeserver 是 `http://127.0.0.1:8008` / `localhost`，client 自动映射到本地 P2P API 端口
 
-注意：`p2p-matrix-as` 当前 `/_as/search` 仍返回 501，client 已真实请求该接口；AS 未实现前搜索页会按空结果处理。
+Matrix 普通消息、媒体、reaction、redaction 应优先走 Matrix SDK。P2P command 不应用来绕过服务端 ProductPolicy。
 
 ### 统一业务 API / Agent API
 

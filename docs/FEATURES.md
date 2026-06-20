@@ -28,8 +28,8 @@ This document records the currently implemented client features and whether each
 | Home tabs | `/home`, `home_page.dart` | Real + demo | Logged-in messages/contacts/channels use real Matrix/AS data. Unauthenticated demo uses `MockData`. |
 | Direct conversation list | `home_page.dart` | Real | Accepted contacts come from AS bootstrap; current display name/avatar prefer Matrix room member state. |
 | Agent/system room | `chat_page.dart`, `agentStatusProvider` | Real + local | Agent is a system conversation, not a normal contact. Header reflects AS connection state. |
-| Direct chat timeline | `/chat/:roomId`, `chat_page.dart` | Real | Uses Matrix room/timeline for native message behavior and AS where product-layer extensions are needed. Opening a concrete chat may request the first visible history page; bootstrap stays metadata-only. |
-| Group/channel chat timeline | `/group/:roomId`, `/channel/:id/conversation`, `group_chat_page.dart` | Real | Supports Matrix timeline, AS group/channel send path, quote/reply metadata, mentions, local outbox, media, and read state. Opening a concrete room may request the first visible history page; bootstrap stays metadata-only. |
+| Direct chat timeline | `/chat/:roomId`, `chat_page.dart` | Real | Uses Matrix room/timeline for native text, media, and redaction behavior, and AS where product-layer extensions are needed. Opening a concrete chat may request the first visible history page; bootstrap stays metadata-only. |
+| Group/channel chat timeline | `/group/:roomId`, `/channel/:id/conversation`, `group_chat_page.dart` | Real | Supports Matrix timeline, Matrix SDK text/media send, quote/reply metadata, mentions, local outbox, redaction/delete where supported, and read state. Opening a concrete room may request the first visible history page; bootstrap stays metadata-only. |
 | Reply/quote rendering | `group_chat_page.dart` | Real | Sends `reply_to` through AS and renders Matrix/AS reply fallbacks. |
 | Message privacy clearing | `chat_clear_state_provider.dart`, `matrix_privacy_sync.dart` | Real + local | Local clear/hide state is preserved without deleting server messages. |
 | Recovered unread overlay | `recovered_unread_store_provider.dart` | Real + local | Recovered unread is overlay-only and merged by stable event id. It is not written into Matrix persistent timeline. |
@@ -42,7 +42,7 @@ This document records the currently implemented client features and whether each
 | Contacts tab | `home_page.dart` | Real + demo | Logged-in contacts come from AS bootstrap; demo uses mock contacts. |
 | Add contact | `/add-contact`, `add_contact_page.dart` | Real | Resolves portal domain/URL queries and opens detail or verification flow. |
 | Contact detail and verification | `/add-contact/detail/:userId`, `/add-contact/verify/:userId` | Real + demo | Sends AS contact requests; unauthenticated examples use mock identities. |
-| Friend/group/channel pending requests | `/requests`, `requests_page.dart` | Real | Uses AS pending state and Matrix direct invite metadata. AS `pending.group_invites` are discoverable from the New Friends entry and can be accepted through AS group join. |
+| Friend/group/channel pending requests | `/requests`, `requests_page.dart` | Real | Uses AS pending state and Matrix native direct profile metadata; new direct invites do not require legacy `p2p.contact.request`. AS `pending.group_invites` are discoverable from the New Friends entry and can be accepted through AS group join. |
 | Visitor home | `/contact-home/:userId`, `contact_home_page.dart` | Real + demo | Shows follow state, friend state, public channels, and dynamics. Demo data is used only when not logged in. |
 | Delete contact | `contact_home_page.dart`, `contact_detail_page.dart` | Real | Calls AS delete, removes local Matrix room immediately, then refreshes bootstrap best-effort. |
 | Follows list | `/follows`, `follows_list_page.dart` | Real + demo | Logged-in follows come from AS; demo follows route to visitor home. |
@@ -52,9 +52,9 @@ This document records the currently implemented client features and whether each
 
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
-| Create group | Home plus menu, `group_creation_flow.dart` | Real | Uses accepted AS contacts and opens the created Matrix room. |
+| Create group | Home plus menu, `group_creation_flow.dart` | Real | Uses accepted AS contacts, calls AS group invite for selected contacts after creation, and opens the created Matrix room. |
 | Group list | `/groups`, `groups_list_page.dart` | Real | Uses AS bootstrap groups and excludes stale direct metadata. Pending group invitations remain in `/requests` until accepted and projected into bootstrap groups. Existing group member invitations are sent as direct-chat cards after the owner node records invited MXIDs; card joins are accepted only for recorded invitees. |
-| Group chat | `/group/:roomId`, `group_chat_page.dart` | Real | Matrix timeline with AS product send path, media outbox, mentions, quote, recall/delete where supported. |
+| Group chat | `/group/:roomId`, `group_chat_page.dart` | Real | Matrix timeline with Matrix SDK text send, media outbox, mentions, quote, recall/delete where supported. |
 | Group detail/info/manage | `/group-detail/:roomId`, `/group-info/:roomId`, `/group-manage/:roomId` | Real | Uses AS group metadata for invite policy, profile, member management, leave/dissolve flows. |
 | Missing group handling | `group_chat_page.dart` | Real | Missing room page keeps a usable back button; recovery is only attempted when AS bootstrap confirms the group. |
 
@@ -66,7 +66,7 @@ This document records the currently implemented client features and whether each
 | Channel search | `/channels/search`, `channel_search_page.dart` | Real | Uses AS public search. Matrix room id lookup stays on the configured AS; remote node inference is not allowed. |
 | Create channel | Home plus menu / channel FAB, `create_channel_sheet.dart` | Real | Calls AS create; owner semantics belong to portal owner. |
 | Channel detail/join | `/channel/:id/detail`, `channel_detail_info_page.dart` | Real | Join request handles `pending`, `invite`, and `joined`. UI opens chat/detail only after joined projection. |
-| Channel chat | `/channel/:id/conversation`, `group_chat_page.dart` | Real | Chat channels are Matrix rooms with channel metadata; joined members send text through AS `rooms/{roomId}/send`, so Matrix power-level quirks do not block normal text channel speech. Sending is still blocked until AS/Matrix membership is `joined`. |
+| Channel chat | `/channel/:id/conversation`, `group_chat_page.dart` | Real | Chat channels are Matrix rooms with channel metadata; joined members send normal text through Matrix SDK and server ProductPolicy enforces the send gate. Sending is still blocked until AS/Matrix membership is `joined`. |
 | Channel posts | `/channel/:id`, `/channel/:id/post/create`, `/channel/:id/post/:postId` | Partial | UI and local post store exist; confirm production AS persistence before relying on cross-device post state. |
 | Channel review | `/channels/review`, `ChannelReviewPage` | Real + demo | Logged-in owners/admins load pending members from AS; unauthenticated demo shows local review samples. Approval now returns `invite` until Matrix join projection. |
 | Channel management | `/channels/manage`, `/channels/manage/:channelId` | Partial | Management UI exists; server-side enforcement depends on AS channel metadata endpoints. |
@@ -77,7 +77,7 @@ This document records the currently implemented client features and whether each
 |---|---|---|---|
 | Direct voice/video call | `/call/:roomId`, `/video-call/:roomId`, `call_page.dart` | Partial | UI and AS call sessions are implemented; full behavior depends on platform media permissions and Matrix/VoIP runtime. |
 | Group voice/video call | `/group-call/:roomId`, `/group-video-call/:roomId`, `group_call_page.dart` | Partial | Group call lifecycle, invite selection, AS call history merge, and autotest routing exist. Platform media remains runtime-dependent. |
-| Media send/download | `chat_media_send_flow.dart`, `product_room_media_send_flow.dart` | Real + local | Uses Matrix upload/download plus AS product metadata where needed; local outbox records failures. |
+| Media send/download | `chat_media_send_flow.dart`, `product_room_media_send_flow.dart` | Real + local | Uses Matrix upload/download and Matrix `m.room.message` send for normal chat media; local outbox records failures. Channel media compatibility calls preserve Matrix media `msgtype` separately from Direxio product classification. |
 | Thumbnail/media cache | `matrix_media_cache_provider.dart`, `media_thumbnail_cache_provider.dart` | Real + local | Local cache optimization only; server media remains canonical. |
 
 ## Search, Profile, And Personal Space

@@ -32,6 +32,7 @@ import '../chat/chat_message_cards.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
+import '../chat/chat_scroll_metrics.dart';
 import '../chat/chat_media_warmup.dart';
 import '../chat/chat_media_send_flow.dart';
 import '../chat/chat_timeline_items.dart';
@@ -163,6 +164,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _readMarkerQueued = false;
   bool _thumbnailWarmupInFlight = false;
   bool _historyRequestInFlight = false;
+  bool _asHistoryRestoreInFlight = false;
+  bool _asHistoryRestoreAttempted = false;
   bool _missingRoomSyncStarted = false;
   bool _missingRoomSyncFailed = false;
   StreamSubscription<SyncUpdate>? _roomSyncSub;
@@ -178,6 +181,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Set<String> _joiningChannelShareIds = {};
   final Map<String, AsCallSession> _asCallSessionCache = {};
   final Set<String> _loadingAsCallIds = {};
+  List<AsUnreadMessage> _asSyncedHistoryMessages = const [];
   // s-chat 视觉状态
   bool _showPlusPanel = false;
   bool _showEmojiPanel = false;
@@ -243,7 +247,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     if (_ensureQuotedEventVisible(trimmed)) return;
     final index = _messageListIndexes[trimmed];
-    if (index == null || !_messageScrollCtrl.hasClients) {
+    if (index == null ||
+        chatScrollPositionWithDimensions(_messageScrollCtrl) == null) {
       _showQuotedMessageUnavailable();
       return;
     }
@@ -269,7 +274,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     int index, {
     bool showUnavailable = true,
   }) async {
-    final position = _messageScrollCtrl.position;
+    final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
+    if (position == null) {
+      if (showUnavailable) _showQuotedMessageUnavailable();
+      return;
+    }
     final estimate = (index * 88.0).clamp(
       position.minScrollExtent,
       position.maxScrollExtent,
@@ -305,7 +314,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return;
     }
     final index = _messageListIndexes[eventId];
-    if (index != null && _messageScrollCtrl.hasClients) {
+    if (index != null &&
+        chatScrollPositionWithDimensions(_messageScrollCtrl) != null) {
       _pendingTargetEventId = null;
       _targetEventScrollTimer?.cancel();
       unawaited(
@@ -380,8 +390,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (!mounted) return;
       if (_pendingAutoScrollTimelineItemKey != newestItemKey) return;
       _pendingAutoScrollTimelineItemKey = null;
-      if (!_messageScrollCtrl.hasClients) return;
-      final position = _messageScrollCtrl.position;
+      final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
+      if (position == null) return;
       final target = position.maxScrollExtent;
       _lastAutoScrolledTimelineItemKey = newestItemKey;
       if ((position.pixels - target).abs() < 1) return;
@@ -401,8 +411,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _pendingViewportScrollToBottom = false;
-      if (!_messageScrollCtrl.hasClients) return;
-      final position = _messageScrollCtrl.position;
+      final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
+      if (position == null) return;
       final target = position.maxScrollExtent;
       if ((position.pixels - target).abs() < 1) return;
       unawaited(
@@ -492,7 +502,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _removeRecoveredUnreadTimelineDuplicates();
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
-    if (tl != null) unawaited(_backfillLocalStoredHistory(tl));
+    if (tl != null) unawaited(_backfillLocalHistoryThenRestoreAs(tl));
   }
 
   bool _isKnownConversationRoom(AsSyncCacheState syncCache) {
@@ -636,6 +646,56 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     unawaited(_markCurrentTimelineRead());
   }
 
+  Future<void> _backfillLocalHistoryThenRestoreAs(Timeline timeline) async {
+    await _backfillLocalStoredHistory(timeline);
+    await _restoreInitialAsHistoryIfEmpty(timeline);
+  }
+
+  Future<void> _restoreInitialAsHistoryIfEmpty(Timeline timeline) async {
+    if (_asHistoryRestoreAttempted || _asHistoryRestoreInFlight) return;
+    if (visibleMessageCountForChatOpenHistory(timeline.events) > 0) return;
+    if (_asSyncedHistoryMessages.isNotEmpty) return;
+    _asHistoryRestoreAttempted = true;
+    _asHistoryRestoreInFlight = true;
+    try {
+      final result = await ref.read(asClientProvider).syncMessages(
+            roomId: widget.roomId,
+          );
+      if (!mounted) return;
+      final messages = result.rooms
+          .where((room) => room.roomId.trim() == widget.roomId.trim())
+          .expand((room) => room.messages)
+          .where((message) => message.eventId.trim().isNotEmpty)
+          .toList(growable: false);
+      if (messages.isEmpty) return;
+      setState(() {
+        _asSyncedHistoryMessages = _mergeAsSyncedHistoryMessages(
+          _asSyncedHistoryMessages,
+          messages,
+        );
+      });
+      _scheduleTimelineThumbnailWarmup();
+      unawaited(_markCurrentTimelineRead());
+    } on Object catch (e) {
+      debugPrint('private initial AS sync.messages failed: $e');
+    } finally {
+      _asHistoryRestoreInFlight = false;
+    }
+  }
+
+  List<AsUnreadMessage> _mergeAsSyncedHistoryMessages(
+    Iterable<AsUnreadMessage> current,
+    Iterable<AsUnreadMessage> incoming,
+  ) {
+    final byEventId = <String, AsUnreadMessage>{};
+    for (final message in current.followedBy(incoming)) {
+      final eventId = message.eventId.trim();
+      if (eventId.isEmpty) continue;
+      byEventId[eventId] = message;
+    }
+    return byEventId.values.toList(growable: false);
+  }
+
   Future<void> _requestOlderMessages() async {
     if (_historyRequestInFlight) return;
     if (!shouldRequestHistoricalMessages(
@@ -761,8 +821,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         timeline == null ? null : latestSyncedMessageEvent(timeline);
     final recoveredMarker =
         markerEvent == null ? _latestRecoveredUnreadMessage() : null;
+    final asHistoryMarker = markerEvent == null && recoveredMarker == null
+        ? _latestAsSyncedHistoryMessage()
+        : null;
     final readAt = markerEvent?.originServerTs ??
         recoveredMarker?.timestamp ??
+        asHistoryMarker?.timestamp ??
         DateTime.now().toUtc();
     final changed = markRoomLocallyRead(room);
     ref.read(asSyncCacheProvider.notifier).update(
@@ -791,17 +855,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           unawaited(_clearRecoveredUnreadForRoom());
         }));
       } else {
-        if (recoveredMarker != null) {
+        final fallbackMarker = recoveredMarker ?? asHistoryMarker;
+        if (fallbackMarker != null) {
           unawaited(
-            _syncAsReadMarkerForRecovered(room, recoveredMarker).then((synced) {
+            _syncAsReadMarkerForRecovered(room, fallbackMarker).then((synced) {
               if (!synced) return;
               ref.read(asSyncCacheProvider.notifier).update(
                     (state) => state.withRoomUnreadCleared(
                       room.id,
-                      readAt: recoveredMarker.timestamp,
+                      readAt: fallbackMarker.timestamp,
                     ),
                   );
-              unawaited(_clearRecoveredUnreadForRoom());
+              if (recoveredMarker != null) {
+                unawaited(_clearRecoveredUnreadForRoom());
+              }
             }),
           );
         }
@@ -852,6 +919,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final messages = ref
         .read(asSyncCacheProvider)
         .unreadMessagesForRoom(widget.roomId)
+        .where((message) => message.eventId.isNotEmpty)
+        .toList();
+    if (messages.isEmpty) return null;
+    messages.sort((a, b) {
+      final at = a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bt = b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return at.compareTo(bt);
+    });
+    return messages.last;
+  }
+
+  AsUnreadMessage? _latestAsSyncedHistoryMessage() {
+    final messages = _asSyncedHistoryMessages
         .where((message) => message.eventId.isNotEmpty)
         .toList();
     if (messages.isEmpty) return null;
@@ -949,11 +1029,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (isPortalAgentDirectRoom(room)) {
         await room.sendTextEvent(text, inReplyTo: replyTo);
       } else if (_isProductDirectRoomForChat(room, syncCache)) {
-        final eventId = await ref.read(asClientProvider).sendRoomMessage(
-              room.id,
-              text,
-              replyToEventId: replyTo?.eventId,
-            );
+        final eventId = await _sendProductDirectText(room, text, replyTo);
         _rememberLocalReplyPreview(eventId, replyTo);
         try {
           await ref.read(matrixClientProvider).oneShotSync();
@@ -1094,8 +1170,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         attachment: attachment,
         sendAttachment: createProductRoomMediaSender(
           matrixClient: ref.read(matrixClientProvider),
-          asClient: ref.read(asClientProvider),
-          roomId: widget.roomId,
+          roomId: room.id,
         ),
         thumbnailCacheFuture: null,
         onStarted: () => _addPendingFileUpload(attachment),
@@ -1300,11 +1375,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
     if (ok != true || !mounted) return;
     try {
-      await ref.read(asClientProvider).recallRoomMessage(
-            roomId: widget.roomId,
-            eventId: event.eventId,
-            reason: '撤回消息',
-          );
+      await event.redactEvent(reason: '撤回消息');
+      try {
+        await ref.read(matrixClientProvider).oneShotSync();
+      } on Object catch (e) {
+        debugPrint('post-redaction Matrix sync failed: $e');
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('消息已撤回')),
@@ -2010,7 +2086,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _retryingOutboxIds.add(item.id);
     try {
       final matrixClient = ref.read(matrixClientProvider);
-      final asClient = ref.read(asClientProvider);
       final attachment = switch (item.messageKind) {
         LocalOutboxMessageKind.image => ChatMediaAttachment.image(
             name: item.filename.isEmpty ? 'image.jpg' : item.filename,
@@ -2048,8 +2123,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         attachment: attachment,
         sendAttachment: createProductRoomMediaSender(
           matrixClient: matrixClient,
-          asClient: asClient,
-          roomId: widget.roomId,
+          roomId: room.id,
         ),
         thumbnailCacheFuture:
             item.messageKind == LocalOutboxMessageKind.image ||
@@ -2088,7 +2162,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (isPortalAgentDirectRoom(room)) {
         await room.sendTextEvent(text);
       } else if (_isProductDirectRoomForChat(room, syncCache)) {
-        await ref.read(asClientProvider).sendRoomMessage(room.id, text);
+        await _sendProductDirectText(room, text, null);
         try {
           await ref.read(matrixClientProvider).oneShotSync();
         } on Object catch (e) {
@@ -2107,6 +2181,31 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } finally {
       _retryingOutboxIds.remove(item.id);
     }
+  }
+
+  Future<String> _sendProductDirectText(
+    Room room,
+    String text,
+    Event? replyTo,
+  ) {
+    final content = <String, Object?>{
+      'msgtype': MessageTypes.Text,
+      'body': text,
+      if (replyTo?.eventId.trim().isNotEmpty ?? false)
+        'reply_to': replyTo!.eventId,
+      if (replyTo?.eventId.trim().isNotEmpty ?? false)
+        'm.relates_to': {
+          'm.in_reply_to': {
+            'event_id': replyTo!.eventId,
+          },
+        },
+    };
+    return room.client.sendMessage(
+      room.id,
+      EventTypes.Message,
+      room.client.generateUniqueTransactionId(),
+      content,
+    );
   }
 
   Set<String> _deliveredOutboxMediaIds(
@@ -2281,7 +2380,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           mergeRecoveredUnreadEvents(
             room: room,
             timelineEvents: timelineEvents,
-            recoveredMessages: syncCache.unreadMessagesForRoom(widget.roomId),
+            recoveredMessages: [
+              ...syncCache.unreadMessagesForRoom(widget.roomId),
+              ..._asSyncedHistoryMessages,
+            ],
           ),
           eventId: (event) => event.eventId,
           originServerTs: (event) =>
@@ -2490,11 +2592,36 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     ),
                   )
                 : timelineItems.isEmpty && topSystemNoticeText == null
-                    ? Center(
-                        child: Text(
-                          '开始你们的第一条消息',
-                          style: AppTheme.sans(size: 13, color: t.textMute),
-                        ),
+                    ? LayoutBuilder(
+                        builder: (context, constraints) {
+                          final emptyHeight = math.max(
+                            0.0,
+                            constraints.maxHeight - messagePadding.vertical,
+                          );
+                          return RefreshIndicator(
+                            color: t.accent,
+                            onRefresh: _requestOlderMessages,
+                            child: ListView(
+                              controller: _messageScrollCtrl,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: messagePadding,
+                              children: [
+                                SizedBox(
+                                  height: emptyHeight,
+                                  child: Center(
+                                    child: Text(
+                                      '开始你们的第一条消息',
+                                      style: AppTheme.sans(
+                                        size: 13,
+                                        color: t.textMute,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       )
                     : ChatTimelineListMotion(
                         itemCount: timelineItems.length +

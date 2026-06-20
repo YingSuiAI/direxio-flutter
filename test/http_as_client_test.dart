@@ -93,32 +93,32 @@ void main() {
     expect(eventId, r'$sent');
   });
 
-  test('syncMessages uses unified P2P query action', () async {
+  test('syncMessages uses cursor-only unified P2P query action', () async {
+    var call = 0;
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
+        call++;
         expect(request.method, 'POST');
         expect(request.url.path, '/_p2p/query');
         expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(jsonDecode(request.body), {
-          'action': 'sync.messages',
-          'params': {
-            'room_id': '!agent:p2p-im.com',
-            'page': '2',
-            'page_size': '3',
-          },
+        final decoded = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(decoded['action'], 'sync.messages');
+        expect(decoded['params'], {
+          'room_id': '!agent:p2p-im.com',
+          if (call == 2) 'cursor': 'cursor-1',
         });
         return _jsonResponse(
           {
             'synced_at': '2026-06-19T10:00:00Z',
-            'page': 2,
-            'page_size': 3,
+            'has_more_messages': call == 1,
+            if (call == 1) 'next_cursor': 'cursor-1',
             'rooms': [
               {
                 'room_id': '!agent:p2p-im.com',
-                'has_more_messages': true,
-                'next_message_page': 3,
+                'has_more_messages': call == 1,
+                if (call == 1) 'next_message_cursor': 'room-cursor-1',
                 'messages': [
                   {
                     'event_id': r'$event',
@@ -141,16 +141,21 @@ void main() {
 
     final result = await client.syncMessages(
       roomId: '!agent:p2p-im.com',
-      page: 2,
-      pageSize: 3,
+    );
+    final next = await client.syncMessages(
+      roomId: '!agent:p2p-im.com',
+      cursor: result.nextCursor,
     );
 
-    expect(result.page, 2);
-    expect(result.pageSize, 3);
+    expect(call, 2);
+    expect(result.hasMoreMessages, isTrue);
+    expect(result.nextCursor, 'cursor-1');
     expect(result.rooms.single.hasMoreMessages, isTrue);
-    expect(result.rooms.single.nextMessagePage, 3);
+    expect(result.rooms.single.nextMessageCursor, 'room-cursor-1');
     expect(result.rooms.single.messages.single.eventId, r'$event');
     expect(result.rooms.single.messages.single.content, 'hello');
+    expect(next.hasMoreMessages, isFalse);
+    expect(next.nextCursor, isNull);
   });
 
   test('changePortalPassword uses unified portal password action', () async {
@@ -977,6 +982,64 @@ void main() {
     expect(eventId, r'$video');
   });
 
+  test('sendRoomMediaMessage preserves channel media product metadata',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/rooms/!channel%3Ap2p-im.com/send-media');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['message_type'], 'channel_comment');
+        expect(body['msgtype'], 'm.image');
+        expect(body['channel_id'], 'ch_1');
+        expect(body['post_id'], 'post_1');
+        expect(body['reply_to_comment_id'], 'comment_parent');
+        expect(body['reply_to_author_mxid'], '@alice:p2p-im.com');
+        expect(body['mentions'], [
+          {'user_id': '@bob:p2p-im.com', 'display_name': 'Bob'},
+        ]);
+        expect(jsonDecode(body['mentions_json'] as String), [
+          {'user_id': '@bob:p2p-im.com', 'display_name': 'Bob'},
+        ]);
+        expect(jsonDecode(body['media_json'] as String), {
+          'msgtype': 'm.image',
+          'body': 'photo.png',
+          'filename': 'photo.png',
+          'url': 'mxc://p2p-im.com/photo',
+          'mimetype': 'image/png',
+          'size': 1234,
+          'w': 640,
+          'h': 360,
+        });
+        return http.Response(jsonEncode({'event_id': r'$channel-media'}), 200);
+      }),
+    );
+
+    final eventId = await client.sendRoomMediaMessage(
+      roomId: '!channel:p2p-im.com',
+      msgType: 'm.image',
+      messageType: 'channel_comment',
+      channelId: 'ch_1',
+      postId: 'post_1',
+      replyToCommentId: 'comment_parent',
+      replyToAuthorMxid: '@alice:p2p-im.com',
+      mentions: const [
+        {'user_id': '@bob:p2p-im.com', 'display_name': 'Bob'},
+      ],
+      body: 'photo.png',
+      filename: 'photo.png',
+      mediaUrl: 'mxc://p2p-im.com/photo',
+      mimeType: 'image/png',
+      size: 1234,
+      width: 640,
+      height: 360,
+    );
+
+    expect(eventId, r'$channel-media');
+  });
+
   test('createCall posts call session request through AS', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),
@@ -1422,6 +1485,48 @@ void main() {
     expect(group.roomId, '!group:p2p-im.com');
     expect(group.memberCount, 2);
     expect(group.invitedCount, 1);
+  });
+
+  test('inviteGroupMembers accepts members-only invite response', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(jsonDecode(request.body), {
+          'action': 'groups.invite',
+          'params': {
+            'room_id': '!group:p2p-im.com',
+            'invite': ['@owner:dm1.direxio.ai'],
+          },
+        });
+        return _jsonResponse(
+          {
+            'members': [
+              {
+                'room_id': '!group:p2p-im.com',
+                'user_mxid': '@owner:dm1.direxio.ai',
+                'display_name': 'owner',
+                'membership': 'invite',
+                'status': 'invite',
+              },
+            ],
+            'status': 'ok',
+          },
+          200,
+        );
+      }),
+    );
+
+    final group = await client.inviteGroupMembers(
+      roomId: '!group:p2p-im.com',
+      invite: const ['@owner:dm1.direxio.ai'],
+    );
+
+    expect(group.roomId, '!group:p2p-im.com');
+    expect(group.invitedCount, 1);
+    expect(group.status, 'ok');
   });
 
   test('removeGroupMember posts member removal through AS', () async {
@@ -2227,6 +2332,78 @@ void main() {
     expect(status.storeMode, 'database');
     expect(status.projectorStarted, isTrue);
     expect(status.allHealthy, isTrue);
+  });
+
+  test('portal status parses policy index and event stream readiness', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(jsonDecode(request.body), {
+          'action': 'portal.status',
+          'params': <String, Object?>{},
+        });
+        return http.Response(
+          jsonEncode({
+            'initialized': true,
+            'user_id': '@owner:example.com',
+            'homeserver': 'https://example.com',
+            'store_mode': 'database',
+            'projector_started': true,
+            'policy_index_mode': 'matrix_state',
+            'policy_index_ready': false,
+            'event_stream_ready': true,
+          }),
+          200,
+        );
+      }),
+    );
+
+    final status = await client.getPortalStatus();
+
+    expect(status.policyIndexMode, 'matrix_state');
+    expect(status.policyIndexReady, isFalse);
+    expect(status.eventStreamReady, isTrue);
+    expect(status.allHealthy, isFalse);
+  });
+
+  test('streamEvents uses P2P SSE endpoint with replay cursor', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/_p2p/events');
+        expect(request.url.queryParameters, {'since': '41'});
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(request.headers['Accept'], 'text/event-stream');
+        expect(request.headers['Last-Event-ID'], '40');
+        return http.Response(
+          [
+            'id: 42',
+            'event: room.message.projected',
+            r'data: {"seq":42,"type":"room.message.projected","room_id":"!room:example.com","event_id":"$event","payload":{"message_type":"text"},"created_at":"2026-06-20T00:00:00Z"}',
+            '',
+          ].join('\n'),
+          200,
+          headers: {'content-type': 'text/event-stream; charset=utf-8'},
+        );
+      }),
+    );
+
+    final events = await client.streamEvents(
+      since: 41,
+      lastEventId: '40',
+    ).toList();
+
+    expect(events, hasLength(1));
+    expect(events.single.seq, 42);
+    expect(events.single.type, 'room.message.projected');
+    expect(events.single.roomId, '!room:example.com');
+    expect(events.single.eventId, r'$event');
+    expect(events.single.payload['message_type'], 'text');
   });
 
   test('changePortalPassword posts password payload to AS admin API', () async {

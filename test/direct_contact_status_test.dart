@@ -70,6 +70,32 @@ void main() {
     expect(isIncomingDirectContactInvite(room), isTrue);
   });
 
+  test('native direct profile invite counts as new friend request', () {
+    final room = _nativeDirectProfileRoom(
+      roomMembership: Membership.invite,
+      requesterMxid: '@alice:example.com',
+      targetMxid: '@owner:example.com',
+    );
+
+    expect(room.isDirectChat, isFalse);
+    expect(productDirectPeerMxid(room), '@alice:example.com');
+    expect(isProductDirectContactRoom(room), isTrue);
+    expect(isIncomingDirectContactInvite(room), isTrue);
+    expect(productDirectPeerDisplayName(room), 'Alice');
+    expect(productDirectPeerAvatarUrl(room), 'mxc://example.com/alice');
+    expect(productDirectPeerDomain(room), 'example.com');
+  });
+
+  test('native direct profile resolves outgoing target peer', () {
+    final room = _nativeDirectProfileRoom(
+      requesterMxid: '@owner:example.com',
+      targetMxid: '@alice:example.com',
+    );
+
+    expect(productDirectPeerMxid(room), '@alice:example.com');
+    expect(productDirectPeerDisplayName(room), isNull);
+  });
+
   test('portal agent direct chat is messageable but not a normal contact', () {
     const agentMxid = '@agent:example.com';
     final room = _directRoom(
@@ -175,6 +201,51 @@ Room _productDirectRoom({
       senderId: peerMxid,
       stateKey: peerMxid,
       content: {'membership': peerMembership.name},
+    ),
+  );
+  return room;
+}
+
+Room _nativeDirectProfileRoom({
+  Membership roomMembership = Membership.join,
+  required String requesterMxid,
+  required String targetMxid,
+}) {
+  final client = Client('PortalIMNativeDirectContactTest')
+    ..setUserId('@owner:example.com');
+  final room = Room(
+    id: '!room:example.com',
+    client: client,
+    membership: roomMembership,
+  );
+
+  client.rooms.add(room);
+  room.setState(
+    StrippedStateEvent(
+      type: 'io.direxio.room.profile',
+      senderId: requesterMxid,
+      stateKey: '',
+      content: {
+        'room_type': 'io.direxio.room.direct',
+        'name': 'Alice',
+        'visibility': 'private',
+        'join_policy': 'invite',
+        'invite_policy': 'owner',
+        'requester_mxid': requesterMxid,
+        'target_mxid': targetMxid,
+        'display_name': 'Alice',
+        'avatar_url': 'mxc://example.com/alice',
+        'domain': 'example.com',
+        'dissolved': false,
+      },
+    ),
+  );
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: targetMxid,
+      stateKey: targetMxid,
+      content: {'membership': roomMembership.name},
     ),
   );
   return room;

@@ -98,4 +98,5 @@ flutter:
     - assets/live_ring.wav
     - assets/images/
     - assets/icons/
+    - assets/fonts/
     - assets/resources/

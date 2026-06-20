@@ -11,15 +11,19 @@ import 'core/theme/app_theme.dart';
 import 'l10n/app_localizations.dart';
 import 'presentation/providers/app_locale_provider.dart';
 import 'presentation/providers/app_theme_provider.dart';
+import 'presentation/providers/as_event_stream_provider.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/bi_analytics_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
 
+const _appFontAsset = 'assets/fonts/NotoSansSC-Variable.ttf';
+
 bool _sessionExpiredDialogShowing = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _warmAppFonts();
   // Web 上禁用浏览器原生右键菜单（翻译/检查等），让我们自己的
   // chat-ctx / msg-ctx 菜单不被遮挡。
   if (kIsWeb) {
@@ -40,6 +44,12 @@ void main() async {
   );
 }
 
+Future<void> _warmAppFonts() async {
+  final loader = FontLoader(AppTheme.fontFamily)
+    ..addFont(rootBundle.load(_appFontAsset));
+  await loader.load();
+}
+
 class PortalApp extends ConsumerWidget {
   const PortalApp({super.key});
 
@@ -48,6 +58,7 @@ class PortalApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     final localeState = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeProvider);
+    ref.watch(asEventStreamRefreshProvider);
     ref.watch(messageSoundControllerProvider);
     ref.listen<int>(sessionExpiredNoticeProvider, (previous, next) {
       if (previous == null || next <= previous) return;

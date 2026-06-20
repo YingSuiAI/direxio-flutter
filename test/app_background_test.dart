@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/presentation/chat/chat_glass_background.dart';
@@ -9,12 +9,28 @@ import 'package:portal_app/presentation/widgets/m3/glass_header.dart';
 import 'package:portal_app/presentation/widgets/m3/m3_bottom_nav.dart';
 
 void main() {
-  setUpAll(() {
-    GoogleFonts.config.allowRuntimeFetching = false;
-  });
-
   test('app scaffold background is transparent for full-screen image', () {
     expect(AppTheme.light.scaffoldBackgroundColor, Colors.transparent);
+  });
+
+  test('app font uses the bundled Noto Sans SC family', () {
+    final regular = AppTheme.sans();
+    final semibold = AppTheme.sans(weight: FontWeight.w600);
+
+    expect(regular.fontFamily, 'NotoSansSC');
+    expect(regular.fontFamilyFallback, contains('Noto Sans CJK SC'));
+    expect(semibold.fontFamily, 'NotoSansSC');
+    expect(semibold.fontWeight, FontWeight.w600);
+  });
+
+  testWidgets('bundled Noto Sans SC variable font is available',
+      (tester) async {
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+
+    expect(
+      manifest.listAssets(),
+      contains('assets/fonts/NotoSansSC-Variable.ttf'),
+    );
   });
 
   testWidgets('app glass background is not duplicated by chat backgrounds',

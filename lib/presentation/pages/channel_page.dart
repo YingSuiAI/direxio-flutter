@@ -34,6 +34,8 @@ class ChannelPage extends ConsumerStatefulWidget {
 class _ChannelPageState extends ConsumerState<ChannelPage> {
   bool _multiSelect = false;
   final Set<String> _selected = {};
+  bool _bootstrapRecoveryAttempted = false;
+  bool _bootstrapRecoveryInFlight = false;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +50,11 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
         onCancelSelection: _cancelSelection,
         onForward: () => _forwardRealChannelSelection(realChannel),
       );
+    }
+
+    if (_shouldRecoverRealChannel(ref, widget.channelId)) {
+      unawaited(_recoverRealChannel());
+      return const _ChannelLoadingScaffold();
     }
 
     final channel = MockChannels.byId(widget.channelId);
@@ -113,6 +120,45 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
         ],
       ),
     );
+  }
+
+  bool _shouldRecoverRealChannel(WidgetRef ref, String channelId) {
+    if (_bootstrapRecoveryInFlight || _bootstrapRecoveryAttempted) {
+      return false;
+    }
+    final auth = ref.watch(authStateNotifierProvider).valueOrNull;
+    if (auth?.isLoggedIn != true) return false;
+    final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
+    if (_bootstrapHasChannel(bootstrap, channelId)) return false;
+    return true;
+  }
+
+  Future<void> _recoverRealChannel() async {
+    if (_bootstrapRecoveryInFlight) return;
+    _bootstrapRecoveryInFlight = true;
+    _bootstrapRecoveryAttempted = true;
+    try {
+      final repository = ref.read(asBootstrapRepositoryProvider);
+      final currentUserId = ref.read(matrixClientProvider).userID;
+      final cached = await repository.readCached();
+      if (!mounted) return;
+      if (cached != null && asBootstrapBelongsToUser(cached, currentUserId)) {
+        ref.read(asSyncCacheProvider.notifier).update(
+              (state) => state.copyWith(bootstrap: cached),
+            );
+        if (_bootstrapHasChannel(cached, widget.channelId)) return;
+      }
+      final bootstrap = await repository.refresh();
+      if (!mounted) return;
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.copyWith(bootstrap: bootstrap),
+          );
+    } on Object catch (e) {
+      debugPrint('channel bootstrap recovery failed: $e');
+    } finally {
+      _bootstrapRecoveryInFlight = false;
+      if (mounted) setState(() {});
+    }
   }
 
   void _enterMultiSelect(String key) {
@@ -232,6 +278,39 @@ ChannelInboxItem? _findRealChannel(WidgetRef ref, String channelId) {
     if (channel.id == channelId || channel.roomId == channelId) return channel;
   }
   return null;
+}
+
+bool _bootstrapHasChannel(AsSyncBootstrap? bootstrap, String channelId) {
+  final trimmed = channelId.trim();
+  if (trimmed.isEmpty || bootstrap == null) return false;
+  for (final channel in bootstrap.channels) {
+    if (channel.channelId.trim() == trimmed ||
+        channel.roomId.trim() == trimmed) {
+      return true;
+    }
+  }
+  return false;
+}
+
+class _ChannelLoadingScaffold extends StatelessWidget {
+  const _ChannelLoadingScaffold();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _channelPageBackground(context),
+      body: Column(
+        children: [
+          GlassHeader.detail(title: '频道'),
+          Expanded(
+            child: Center(
+              child: CircularProgressIndicator(color: context.tk.accent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 String? _domainFromRoomId(String roomId) {
@@ -361,55 +440,60 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
             ],
           ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
-              children: [
-                if (posts.isNotEmpty) ...[
-                  const _ChannelIntroPill(),
-                  const SizedBox(height: 20),
-                ],
-                if (postsAsync.isLoading && postsAsync.valueOrNull == null)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 48),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (posts.isNotEmpty)
-                  for (final post in posts)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _RealChannelPostCard(
-                        channel: channel,
-                        post: post,
-                        onOpen: () => context.push(
-                          '/channel/${Uri.encodeComponent(channel.id)}'
-                          '/post/${Uri.encodeComponent(_realPostKey(post))}',
-                        ),
-                        onReaction: () async {
-                          await ref
-                              .read(asClientProvider)
-                              .toggleChannelPostReaction(
-                                channel.id,
-                                _realPostKey(post),
-                              );
-                          await ref
-                              .read(channelPostsProvider(channel.id).notifier)
-                              .refresh(silent: true);
-                        },
-                        onRecall: _canRecallPost(channel, post)
-                            ? () => _recallPost(channel, post)
-                            : null,
-                      ),
+            child: RefreshIndicator(
+              color: context.tk.accent,
+              onRefresh: _refreshChannelInfo,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
+                children: [
+                  if (posts.isNotEmpty) ...[
+                    const _ChannelIntroPill(),
+                    const SizedBox(height: 20),
+                  ],
+                  if (postsAsync.isLoading && postsAsync.valueOrNull == null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 48),
+                      child: Center(child: CircularProgressIndicator()),
                     )
-                else
-                  const Padding(
-                    padding: EdgeInsets.only(top: 72),
-                    child: _ChannelEmptyState(
-                      icon: Symbols.campaign,
-                      title: '还没有频道内容',
-                      subtitle: '发布后会显示在这里',
+                  else if (posts.isNotEmpty)
+                    for (final post in posts)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _RealChannelPostCard(
+                          channel: channel,
+                          post: post,
+                          onOpen: () => context.push(
+                            '/channel/${Uri.encodeComponent(channel.id)}'
+                            '/post/${Uri.encodeComponent(_realPostKey(post))}',
+                          ),
+                          onReaction: () async {
+                            await ref
+                                .read(asClientProvider)
+                                .toggleChannelPostReaction(
+                                  channel.id,
+                                  _realPostKey(post),
+                                );
+                            await ref
+                                .read(channelPostsProvider(channel.id).notifier)
+                                .refresh(silent: true);
+                          },
+                          onRecall: _canRecallPost(channel, post)
+                              ? () => _recallPost(channel, post)
+                              : null,
+                        ),
+                      )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.only(top: 72),
+                      child: _ChannelEmptyState(
+                        icon: Symbols.campaign,
+                        title: '还没有频道内容',
+                        subtitle: '发布后会显示在这里',
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
           if (widget.multiSelect)
@@ -421,6 +505,15 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _refreshChannelInfo() async {
+    final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
+    if (!mounted) return;
+    ref.read(asSyncCacheProvider.notifier).update(
+          (state) => state.copyWith(bootstrap: bootstrap),
+        );
+    await ref.read(channelPostsProvider(widget.channel.id).notifier).refresh();
   }
 
   void _markLatestPostRead(

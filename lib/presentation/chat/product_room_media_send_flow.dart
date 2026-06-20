@@ -15,12 +15,19 @@ String productSendFailureMessage(Object error) {
       error.message == 'peer deleted contact') {
     return '对方已删除联系人关系，消息未送达';
   }
+  if (error is MatrixException &&
+      (error.errorMessage == 'peer deleted contact' ||
+          error.toString().contains('peer deleted contact'))) {
+    return '对方已删除联系人关系，消息未送达';
+  }
+  if (error.toString().contains('peer deleted contact')) {
+    return '对方已删除联系人关系，消息未送达';
+  }
   return '发送失败：$error';
 }
 
 ChatMediaAttachmentSender createProductRoomMediaSender({
   required Client matrixClient,
-  required AsClient asClient,
   required String roomId,
 }) {
   return createProductChatMediaSender(
@@ -47,20 +54,24 @@ ChatMediaAttachmentSender createProductRoomMediaSender({
       int height = 0,
       int durationMs = 0,
     }) {
-      return asClient.sendRoomMediaMessage(
-        roomId: roomId,
-        msgType: msgType,
-        body: body,
-        filename: filename,
-        mediaUrl: mediaUrl,
-        mimeType: mimeType,
-        size: size,
-        thumbnailUrl: thumbnailUrl,
-        thumbnailMimeType: thumbnailMimeType,
-        thumbnailSize: thumbnailSize,
-        width: width,
-        height: height,
-        durationMs: durationMs,
+      return matrixClient.sendMessage(
+        roomId,
+        EventTypes.Message,
+        matrixClient.generateUniqueTransactionId(),
+        matrixMediaMessageContent(
+          msgType: msgType,
+          body: body,
+          filename: filename,
+          mediaUrl: mediaUrl,
+          mimeType: mimeType,
+          size: size,
+          thumbnailUrl: thumbnailUrl,
+          thumbnailMimeType: thumbnailMimeType,
+          thumbnailSize: thumbnailSize,
+          width: width,
+          height: height,
+          durationMs: durationMs,
+        ),
       );
     },
     oneShotSync: matrixClient.oneShotSync,
@@ -68,6 +79,43 @@ ChatMediaAttachmentSender createProductRoomMediaSender({
       debugPrint('chat media oneShotSync failed: $error');
     },
   );
+}
+
+Map<String, Object?> matrixMediaMessageContent({
+  required String msgType,
+  required String body,
+  required String filename,
+  required String mediaUrl,
+  String mimeType = '',
+  int size = 0,
+  String thumbnailUrl = '',
+  String thumbnailMimeType = '',
+  int thumbnailSize = 0,
+  int width = 0,
+  int height = 0,
+  int durationMs = 0,
+}) {
+  final info = <String, Object?>{
+    if (mimeType.trim().isNotEmpty) 'mimetype': mimeType.trim(),
+    if (size > 0) 'size': size,
+    if (width > 0) 'w': width,
+    if (height > 0) 'h': height,
+    if (durationMs > 0) 'duration': durationMs,
+    if (thumbnailUrl.trim().isNotEmpty) 'thumbnail_url': thumbnailUrl.trim(),
+    if (thumbnailSize > 0 || thumbnailMimeType.trim().isNotEmpty)
+      'thumbnail_info': {
+        if (thumbnailMimeType.trim().isNotEmpty)
+          'mimetype': thumbnailMimeType.trim(),
+        if (thumbnailSize > 0) 'size': thumbnailSize,
+      },
+  };
+  return {
+    'msgtype': msgType.trim().isEmpty ? MessageTypes.File : msgType.trim(),
+    'body': body.trim().isEmpty ? filename.trim() : body.trim(),
+    if (filename.trim().isNotEmpty) 'filename': filename.trim(),
+    'url': mediaUrl.trim(),
+    if (info.isNotEmpty) 'info': info,
+  };
 }
 
 Future<void> writeSentMediaThumbnail(

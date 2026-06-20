@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/presentation/chat/chat_media_send_flow.dart';
 
 void main() {
-  test('sends selected image through Matrix media upload then AS route',
+  test('sends selected image through Matrix media upload then product route',
       () async {
     final calls = <String>[];
 
@@ -51,7 +51,7 @@ void main() {
     ]);
   });
 
-  test('sends group media through the same AS product route', () async {
+  test('sends group media through the same product route', () async {
     String? sentRoomId;
     String? sentMsgType;
 
@@ -92,7 +92,7 @@ void main() {
     expect(sentMsgType, 'm.file');
   });
 
-  test('sends voice recordings as AS file media with audio metadata', () async {
+  test('sends voice recordings as Matrix audio media with metadata', () async {
     String? sentMsgType;
     String? sentMimeType;
     int? sentDurationMs;
@@ -134,7 +134,7 @@ void main() {
     );
 
     expect(result.eventId, r'$voice');
-    expect(sentMsgType, 'm.file');
+    expect(sentMsgType, 'm.audio');
     expect(sentMimeType, 'audio/mp4');
     expect(sentDurationMs, 2460);
   });
@@ -166,7 +166,7 @@ void main() {
           int height = 0,
           int durationMs = 0,
         }) async {
-          fail('AS send-media must not be called after upload failure');
+          fail('product media send must not be called after upload failure');
         },
         oneShotSync: () async {},
       ),
@@ -216,7 +216,7 @@ void main() {
     expect(syncFailure, isA<StateError>());
   });
 
-  test('sends selected video as Matrix video through AS route', () async {
+  test('sends selected video as Matrix video through product route', () async {
     final calls = <String>[];
 
     final result = await sendProductChatMedia(
@@ -261,7 +261,8 @@ void main() {
     ]);
   });
 
-  test('sends selected video thumbnail metadata through AS route', () async {
+  test('sends selected video thumbnail metadata through product route',
+      () async {
     final calls = <String>[];
 
     final result = await sendProductChatMedia(
@@ -342,7 +343,7 @@ void main() {
           int height = 0,
           int durationMs = 0,
         }) async {
-          fail('AS send-media must not be called after upload failure');
+          fail('product media send must not be called after upload failure');
         },
         oneShotSync: () async {},
       ),

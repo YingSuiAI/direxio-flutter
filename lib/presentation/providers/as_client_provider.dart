@@ -24,7 +24,7 @@ final asClientProvider = Provider<AsClient>((ref) {
           .refreshPortalSessionForAsAdminToken(),
       onAuthenticationFailed: () => ref
           .read(authStateNotifierProvider.notifier)
-          .expireSessionDueInvalidToken(),
+          .expireSessionDueInvalidTokenIfCurrent(portalToken),
     );
   }
   debugPrint(
@@ -37,9 +37,12 @@ final asClientProvider = Provider<AsClient>((ref) {
     onAuthenticationRefresh: () => ref
         .read(authStateNotifierProvider.notifier)
         .refreshPortalSessionForAsAdminToken(),
-    onAuthenticationFailed: () => ref
-        .read(authStateNotifierProvider.notifier)
-        .expireSessionDueInvalidToken(),
+    onAuthenticationFailed: () {
+      final failedToken = client.accessToken?.trim() ?? '';
+      return ref
+          .read(authStateNotifierProvider.notifier)
+          .expireSessionDueInvalidTokenIfCurrent(failedToken);
+    },
   );
 });
 

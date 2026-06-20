@@ -86,12 +86,15 @@ Change:
   - `homeserver`
   - `store_mode`
   - `projector_started`
+  - `policy_index_mode`
+  - `policy_index_ready`
+  - `event_stream_ready`
 - Legacy `dendrite` / `federation` / `agent` health subtrees are not guaranteed.
 
 Frontend alignment:
 
 - `PortalStatus` accepts both legacy and unified response shapes.
-- `PortalStatus.allHealthy` treats the unified shape as healthy only when initialized, user id, homeserver, store mode, and projector state are usable.
+- `PortalStatus.allHealthy` treats the unified shape as healthy only when initialized, user id, homeserver, store mode, projector state, policy index, and event stream are usable. `policy_index_mode` is diagnostic: production Matrix transport normally reports `matrix_state` and ready, while unavailable test/degraded modes may report false.
 - Existing tests cover the unified response.
 
 ### Bootstrap And Privacy
@@ -111,6 +114,24 @@ Frontend alignment:
 
 ## 2026-06-20 Client Follow-Up
 
+### `sync.messages` Cursor Pagination
+
+Change:
+
+- `POST /_p2p/query` action `sync.messages` is now cursor-only.
+- Requests no longer accept `page`, `page_size`, or `limit`; sending any of those fields returns `400`.
+- First-page requests omit `cursor` or send an empty cursor.
+- Follow-up requests send the previous response `next_cursor`.
+- Each response returns at most 50 messages and includes top-level `has_more_messages` plus optional `next_cursor`.
+- Room entries no longer include `next_message_page`; room entries may include `next_message_cursor`.
+
+Frontend alignment:
+
+- `AsClient.syncMessages` and `HttpAsClient.syncMessages` now accept optional `cursor` instead of `page` / `pageSize`.
+- `AsSyncMessages` parses top-level `hasMoreMessages` and `nextCursor`.
+- `AsSyncMessagesRoom` parses `nextMessageCursor` instead of `nextMessagePage`.
+- Focused HTTP client coverage asserts first-page calls omit `cursor`, follow-up calls send `cursor`, and no old page/limit fields are emitted.
+
 ### Pending Group Invitations
 
 Frontend alignment:
@@ -128,13 +149,46 @@ Frontend alignment:
 - The Matrix message payload carries `msgtype: "p2p.group.invite.v1"`, `group_room_id`, `group_name`, `inviter_mxid`, optional `inviter_display_name`, and `direct_room_id`.
 - `POST /_as/groups/{roomId}/join` rejects invite-card joins with `403` when the joining MXID does not have a recorded group invite.
 
+### Group Invite Response
+
+Frontend alignment:
+
+- `groups.invite` may return `status: "ok"` plus `members[]` without a top-level `room_id`.
+- `HttpAsClient.inviteGroupMembers` treats that response as successful and derives the group room id from the request path while using `members.length` as the recorded invite count.
+
 ### Channel Text Messages
 
 Frontend alignment:
 
-- `/channel/:id/conversation` sends text through existing `POST /_as/rooms/{roomId}/send` instead of direct Matrix `sendTextEvent`.
-- Joined channel members are allowed to type/send when AS bootstrap says their `member_status` is `joined`; Matrix `m.room.message` power level is no longer used as the frontend text-send gate.
+- Private chat, group chat, and `/channel/:id/conversation` normal text/media messages send through Matrix SDK `m.room.message`.
+- Normal message recall uses Matrix redaction. Local delete/hide still uses the AS product-local visibility API because it is not a server-side redaction.
+- New direct invites are recognized from native `io.direxio.room.profile` state with `room_type=io.direxio.room.direct`, `requester_mxid`, and `target_mxid`; the client no longer assumes new direct invite stripped state contains legacy `p2p.contact.request`.
+- Joined channel members are allowed to type/send when AS bootstrap says their `member_status` is `joined`; Matrix ProductPolicy is the authoritative server-side send gate.
+- Group/channel Matrix message content preserves product mention metadata as `mentions` and `mentions_json`. Reply sends Matrix `m.relates_to` and keeps `reply_to` as a product compatibility field.
 - `invite` and `pending` channel member statuses still block sending until Matrix/AS projection confirms `joined`.
+
+### P2P Event Stream
+
+Change:
+
+- `GET /_p2p/events?since=<seq>` is available as an authenticated SSE refresh stream.
+- `Last-Event-ID` is supported for replay after reconnect.
+- Event data includes `seq`, `type`, optional `room_id` / `event_id`, `payload`, and `created_at`.
+
+Frontend alignment:
+
+- `HttpAsClient.streamEvents` opens the SSE endpoint with bearer auth and parses SSE records into `AsEventStreamEvent`.
+- `asEventStreamRefreshProvider` starts after login, reconnects with the latest seq, and treats events as refresh hints.
+- Message/redaction events trigger Matrix one-shot sync, bootstrap refresh, and recovered-unread overlay refresh; other product events refresh Matrix and bootstrap state.
+
+### Channel Post / Comment Matrix Content
+
+Frontend alignment:
+
+- Compatibility facade calls remain available for existing channel post/comment product flows.
+- When a future client path sends channel posts/comments directly through Matrix SDK, it must include `p2p_kind=channel_post` or `p2p_kind=channel_comment`.
+- For channel media post/comment content, Matrix `msgtype` remains the media type such as `m.image`, `m.video`, or `m.file`; Direxio classification is carried by `p2p_kind=channel_post` / `p2p_kind=channel_comment`.
+- Channel comments must include `post_id`; channel post/comment media must include `media_json`; product fields such as `channel_id`, `comment_id`, `reply_to_comment_id`, `reply_to_author_mxid`, `mentions`, and `mentions_json` should be preserved in Matrix event content. `HttpAsClient.sendRoomMediaMessage` now preserves those optional fields for compatibility facade calls while leaving ordinary media sends unchanged.
 
 ### Concrete Room History Restore
 
@@ -147,12 +201,10 @@ Frontend alignment:
 
 Change:
 
-- `sync.messages.limit` is accepted as an alias for `page_size`.
 - `calls.active` filters all terminal states.
 
 Frontend alignment:
 
-- Current `HttpAsClient.syncMessages` continues to send `page_size`; no frontend contract change required.
 - Existing active call flows rely on AS active-call filtering and do not need client-side terminal-state patching.
 
 ## Maintenance Rule

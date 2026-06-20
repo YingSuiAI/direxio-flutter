@@ -110,6 +110,44 @@ class _StoredRestoreInitFailsClient extends Client {
   }
 }
 
+class _NoSyncInitClient extends Client {
+  _NoSyncInitClient(
+    super.clientName, {
+    required super.httpClient,
+  });
+
+  String? _testDeviceId;
+  String? _testDeviceName;
+
+  @override
+  String? get deviceID => _testDeviceId ?? super.deviceID;
+
+  @override
+  String? get deviceName => _testDeviceName ?? super.deviceName;
+
+  @override
+  Future<void> init({
+    String? newToken,
+    DateTime? newTokenExpiresAt,
+    String? newRefreshToken,
+    Uri? newHomeserver,
+    String? newUserID,
+    String? newDeviceName,
+    String? newDeviceID,
+    String? newOlmAccount,
+    bool waitForFirstSync = true,
+    bool waitUntilLoadCompletedLoaded = true,
+    void Function()? onMigration,
+  }) async {
+    homeserver = newHomeserver;
+    accessToken = newToken;
+    if (newUserID != null) setUserId(newUserID);
+    _testDeviceId = newDeviceID;
+    _testDeviceName = newDeviceName;
+    onLoginStateChanged.add(LoginState.loggedIn);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -214,6 +252,12 @@ void main() {
     final container = ProviderContainer(
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
+    final authSub = container.listen(
+      authStateNotifierProvider,
+      (_, __) {},
+      fireImmediately: true,
+    );
+    addTearDown(authSub.close);
     addTearDown(container.dispose);
     addTearDown(() {
       if (!syncCompleter.isCompleted) {
@@ -443,48 +487,73 @@ void main() {
     );
   });
 
-  test('expires stale stored Matrix token instead of portal auto login',
-      () async {
+  test('refreshes stale stored Matrix token from saved portal login', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'stale-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
       AuthStateNotifier.accessTokenKey: 'admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'portal-token',
+      AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
     });
     final authHeaders = <String>[];
     final requestPaths = <String>[];
     final requestActions = <String>[];
-    final client = Client(
+    late MatrixTokenRefreshingHttpClient refreshingClient;
+    final client = _NoSyncInitClient(
       'AuthStoredStaleMatrixTokenRefreshTest',
-      httpClient: MockClient((request) async {
-        requestPaths.add(request.url.path);
-        authHeaders.add(request.headers['authorization'] ?? '');
-        if (request.url.path == '/_p2p/command' ||
-            request.url.path == '/_p2p/query') {
-          final body = jsonDecode(request.body) as Map<String, dynamic>;
-          requestActions.add(body['action'] as String);
-        }
-        if (request.url.path == '/_matrix/client/versions') {
-          return http.Response('{"versions":["v1.1"]}', 200);
-        }
-        if (request.url.path == '/_matrix/client/v3/login') {
-          return http.Response(
-            '{"flows":[{"type":"m.login.password"}]}',
-            200,
-          );
-        }
-        if (request.url.path == '/_matrix/client/v3/account/whoami') {
-          return http.Response(
-            '{"errcode":"M_UNKNOWN_TOKEN","error":"Unknown token"}',
-            401,
-          );
-        }
-        if (request.url.path == '/_matrix/client/v3/sync') {
-          return http.Response('{"next_batch":"s0","rooms":{}}', 200);
-        }
-        return http.Response('{}', 404);
-      }),
+      httpClient: refreshingClient = MatrixTokenRefreshingHttpClient(
+        inner: MockClient((request) async {
+          requestPaths.add(request.url.path);
+          authHeaders.add(request.headers['authorization'] ?? '');
+          if (request.url.path == '/_p2p/command' ||
+              request.url.path == '/_p2p/query') {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            requestActions.add(body['action'] as String);
+          }
+          final authAction = _p2pAction(request, 'portal.auth');
+          if (authAction != null) {
+            expect(authAction['params'], {
+              'password': 'portal-token',
+              'device_id': 'DEVICE1',
+            });
+            return http.Response(
+              '{"access_token":"fresh-token",'
+              '"user_id":"@owner:example.com",'
+              '"homeserver":"https://example.com",'
+              '"device_id":"DEVICE1",'
+              '"profile_initialized":true}',
+              200,
+            );
+          }
+          if (request.url.path == '/_matrix/client/versions') {
+            return http.Response('{"versions":["v1.1"]}', 200);
+          }
+          if (request.url.path == '/_matrix/client/v3/login') {
+            return http.Response(
+              '{"flows":[{"type":"m.login.password"}]}',
+              200,
+            );
+          }
+          if (request.url.path == '/_matrix/client/v3/account/whoami') {
+            if (request.headers['authorization'] == 'Bearer fresh-token') {
+              return http.Response(
+                '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+                200,
+              );
+            }
+            return http.Response(
+              '{"errcode":"M_UNKNOWN_TOKEN","error":"Unknown token"}',
+              401,
+            );
+          }
+          if (request.url.path == '/_matrix/client/v3/sync') {
+            return http.Response('{"next_batch":"s0","rooms":{}}', 200);
+          }
+          return http.Response('{}', 404);
+        }),
+      ),
     );
 
     final container = ProviderContainer(
@@ -497,20 +566,27 @@ void main() {
         .read(authStateNotifierProvider.future)
         .timeout(const Duration(milliseconds: 1000));
     final deadline = DateTime.now().add(const Duration(seconds: 1));
-    while ((container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn ??
-            true) &&
+    while (client.accessToken != 'fresh-token' &&
         DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
-    expect(
-      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
-      isNot(true),
-    );
-    expect(requestActions, isNot(contains('portal.auth')));
-    expect(container.read(sessionExpiredNoticeProvider), greaterThan(0));
+    expect(refreshingClient.refreshAccessToken, isNotNull);
+    expect(client.accessToken, 'fresh-token');
+    expect(requestActions, contains('portal.auth'));
+    expect(container.read(sessionExpiredNoticeProvider), 0);
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_token'),
-      isNull,
+      'fresh-token',
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
+      'fresh-token',
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
+      'portal-token',
     );
   });
 
@@ -634,7 +710,8 @@ void main() {
     addTearDown(authSub.close);
     addTearDown(container.dispose);
     addTearDown(client.clear);
-    await container.read(authStateNotifierProvider.future);
+    final initialAuth = await container.read(authStateNotifierProvider.future);
+    expect(initialAuth.isLoggedIn, isTrue);
 
     final bootstrap = await container.read(asClientProvider).syncBootstrap();
 
@@ -785,7 +862,8 @@ void main() {
     );
     addTearDown(container.dispose);
     addTearDown(client.clear);
-    await container.read(authStateNotifierProvider.future);
+    final initialAuth = await container.read(authStateNotifierProvider.future);
+    expect(initialAuth.isLoggedIn, isTrue);
 
     await container
         .read(authStateNotifierProvider.notifier)
@@ -2010,9 +2088,63 @@ void main() {
     expect(client.accessToken, 'new-token');
     expect(
       container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
-      isTrue,
+      isNot(false),
     );
     expect(container.read(sessionExpiredNoticeProvider), 0);
+  });
+
+  test('stale AS admin token failure does not expire refreshed session',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'fresh-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'fresh-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final client = _NoSyncInitClient(
+      'AuthStaleAsAdminFailureIgnoredTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .expireSessionDueInvalidTokenIfCurrent('old-token');
+
+    expect(
+      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isNot(false),
+    );
+    expect(container.read(sessionExpiredNoticeProvider), 0);
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      'fresh-token',
+    );
   });
 
   test('logout preserves Matrix device store for same device login', () async {

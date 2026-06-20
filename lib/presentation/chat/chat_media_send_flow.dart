@@ -437,10 +437,7 @@ Future<ChatMediaSendResult> sendProductChatMedia({
 }
 
 String _asSendMediaMsgType(ChatMediaAttachment attachment) {
-  return switch (attachment.kind) {
-    ChatMediaKind.audio => 'm.file',
-    _ => attachment.msgType,
-  };
+  return attachment.msgType;
 }
 
 String _videoThumbnailFilename(String videoName) {

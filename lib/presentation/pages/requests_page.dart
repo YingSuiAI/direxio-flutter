@@ -857,15 +857,16 @@ List<_FriendSearchResult> _searchResultsForQuery({
   }
 
   for (final room in invites) {
-    final mxid = room.directChatMatrixID ??
+    final mxid = productDirectPeerMxid(room) ??
         room.getState(EventTypes.RoomCreate)?.senderId ??
         '';
+    final profileName = productDirectPeerDisplayName(room);
     add(
       mxid: mxid,
       displayName: contactDisplayNameFromIdentity(
         mxid: mxid,
-        displayName: room.getLocalizedDisplayname(),
-        domain: domainFromMxid(mxid),
+        displayName: profileName ?? room.getLocalizedDisplayname(),
+        domain: productDirectPeerDomain(room) ?? domainFromMxid(mxid),
         fallback: room.getLocalizedDisplayname(),
       ),
       seed: mxid,
@@ -901,6 +902,11 @@ String? _avatarUrlForContact(Client client, AsSyncContact contact) {
 String? _avatarUrlForRoomPeer(Room? room, String mxid) {
   final peerId = mxid.trim();
   if (room == null || peerId.isEmpty) return null;
+  final nativeAvatarUrl = productDirectPeerMxid(room) == peerId
+      ? productDirectPeerAvatarUrl(room)
+      : null;
+  final resolvedNativeAvatar = avatarHttpUrl(room.client, nativeAvatarUrl);
+  if (resolvedNativeAvatar != null) return resolvedNativeAvatar;
   final member = room.unsafeGetUserFromMemoryOrFallback(peerId);
   return matrixContentHttpUrl(room.client, member.avatarUrl);
 }
@@ -1140,13 +1146,14 @@ class _PendingSection extends StatelessWidget {
     }
     for (var i = 0; i < invites.length; i++) {
       final room = invites[i];
-      final inviterId = room.directChatMatrixID ??
+      final inviterId = productDirectPeerMxid(room) ??
           room.getState(EventTypes.RoomCreate)?.senderId ??
           '';
+      final profileName = productDirectPeerDisplayName(room);
       final name = contactDisplayNameFromIdentity(
         mxid: inviterId,
-        displayName: room.getLocalizedDisplayname(),
-        domain: domainFromMxid(inviterId),
+        displayName: profileName ?? room.getLocalizedDisplayname(),
+        domain: productDirectPeerDomain(room) ?? domainFromMxid(inviterId),
         fallback: room.getLocalizedDisplayname(),
       );
       rows.add(

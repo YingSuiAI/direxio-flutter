@@ -402,6 +402,9 @@ class PortalStatus {
     this.homeserver = '',
     this.storeMode = '',
     this.projectorStarted,
+    this.policyIndexMode = '',
+    this.policyIndexReady,
+    this.eventStreamReady,
   });
 
   /// "connected" / "disconnected"
@@ -422,6 +425,9 @@ class PortalStatus {
   final String homeserver;
   final String storeMode;
   final bool? projectorStarted;
+  final String policyIndexMode;
+  final bool? policyIndexReady;
+  final bool? eventStreamReady;
 
   factory PortalStatus.fromJson(Map<String, dynamic> j) => PortalStatus(
         dendrite: j['dendrite'] as String? ?? 'unknown',
@@ -433,6 +439,9 @@ class PortalStatus {
         homeserver: j['homeserver'] as String? ?? '',
         storeMode: j['store_mode'] as String? ?? '',
         projectorStarted: _parseNullableBool(j['projector_started']),
+        policyIndexMode: j['policy_index_mode'] as String? ?? '',
+        policyIndexReady: _parseNullableBool(j['policy_index_ready']),
+        eventStreamReady: _parseNullableBool(j['event_stream_ready']),
       );
 
   bool get allHealthy {
@@ -443,13 +452,47 @@ class PortalStatus {
         userId.trim().isNotEmpty ||
         homeserver.trim().isNotEmpty ||
         storeMode.trim().isNotEmpty ||
-        projectorStarted != null;
+        projectorStarted != null ||
+        policyIndexMode.trim().isNotEmpty ||
+        policyIndexReady != null ||
+        eventStreamReady != null;
     if (!hasUnifiedFields) return legacyHealthy;
     return initialized != false &&
         userId.trim().isNotEmpty &&
         homeserver.trim().isNotEmpty &&
         storeMode.trim().isNotEmpty &&
-        projectorStarted != false;
+        projectorStarted != false &&
+        policyIndexReady != false &&
+        eventStreamReady != false;
+  }
+}
+
+class AsEventStreamEvent {
+  const AsEventStreamEvent({
+    required this.seq,
+    required this.type,
+    required this.createdAt,
+    this.roomId = '',
+    this.eventId = '',
+    this.payload = const {},
+  });
+
+  final int seq;
+  final String type;
+  final String roomId;
+  final String eventId;
+  final Map<String, dynamic> payload;
+  final DateTime? createdAt;
+
+  factory AsEventStreamEvent.fromJson(Map<String, dynamic> json) {
+    return AsEventStreamEvent(
+      seq: _parseInt(json['seq']),
+      type: json['type'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
+      eventId: json['event_id'] as String? ?? '',
+      payload: (json['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+      createdAt: _parseDateTime(json['created_at']),
+    );
   }
 }
 
@@ -759,6 +802,31 @@ class AsSyncRoomSummary {
       visibility: visibility,
       joinPolicy: joinPolicy,
       commentsEnabled: commentsEnabled,
+      channelType: channelType,
+      role: role,
+      memberStatus: memberStatus,
+      memberCount: memberCount,
+      pendingJoinCount: pendingJoinCount,
+    );
+  }
+
+  AsSyncRoomSummary withCommentsEnabled(bool enabled) {
+    return AsSyncRoomSummary(
+      channelId: channelId,
+      roomId: roomId,
+      homeDomain: homeDomain,
+      name: name,
+      avatarUrl: avatarUrl,
+      unreadCount: unreadCount,
+      lastActivityAt: lastActivityAt,
+      description: description,
+      topic: topic,
+      isOwned: isOwned,
+      tags: tags,
+      invitePolicy: invitePolicy,
+      visibility: visibility,
+      joinPolicy: joinPolicy,
+      commentsEnabled: enabled,
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
@@ -1412,23 +1480,21 @@ class AsSyncUnread {
 class AsSyncMessages {
   const AsSyncMessages({
     required this.syncedAt,
-    required this.page,
-    required this.pageSize,
+    required this.hasMoreMessages,
     required this.rooms,
+    this.nextCursor,
   });
 
   final DateTime syncedAt;
-  final int page;
-  final int pageSize;
+  final bool hasMoreMessages;
+  final String? nextCursor;
   final List<AsSyncMessagesRoom> rooms;
 
   factory AsSyncMessages.fromJson(Map<String, dynamic> json) {
-    final page = _parseInt(json['page']);
-    final pageSize = _parseInt(json['page_size']);
     return AsSyncMessages(
       syncedAt: _parseDateTime(json['synced_at']) ?? DateTime.now().toUtc(),
-      page: page <= 0 ? 1 : page,
-      pageSize: pageSize <= 0 ? 20 : pageSize,
+      hasMoreMessages: _parseNullableBool(json['has_more_messages']) ?? false,
+      nextCursor: _parseOptionalString(json['next_cursor']),
       rooms: _parseList(json['rooms'], AsSyncMessagesRoom.fromJson),
     );
   }
@@ -1439,20 +1505,20 @@ class AsSyncMessagesRoom {
     required this.roomId,
     required this.messages,
     required this.hasMoreMessages,
-    this.nextMessagePage,
+    this.nextMessageCursor,
   });
 
   final String roomId;
   final List<AsUnreadMessage> messages;
   final bool hasMoreMessages;
-  final int? nextMessagePage;
+  final String? nextMessageCursor;
 
   factory AsSyncMessagesRoom.fromJson(Map<String, dynamic> json) {
     return AsSyncMessagesRoom(
       roomId: json['room_id'] as String? ?? '',
       messages: _parseList(json['messages'], AsUnreadMessage.fromJson),
       hasMoreMessages: _parseNullableBool(json['has_more_messages']) ?? false,
-      nextMessagePage: _parseOptionalPositiveInt(json['next_message_page']),
+      nextMessageCursor: _parseOptionalString(json['next_message_cursor']),
     );
   }
 }
@@ -1555,15 +1621,22 @@ abstract class AsClient {
   /// GET /_as/sync/unread?limit_per_room=
   Future<AsSyncUnread> syncUnread({int limitPerRoom = 200});
 
-  /// GET /_as/sync/messages?room_id=&page=&page_size=
+  /// POST /_p2p/query action sync.messages with optional cursor.
   Future<AsSyncMessages> syncMessages({
     String roomId = '',
-    int page = 1,
-    int pageSize = 20,
+    String? cursor,
     int fromTs = 0,
     int toTs = 0,
   }) {
     throw AsClientException('syncMessages is not supported by this client');
+  }
+
+  /// GET /_p2p/events?since= SSE refresh stream.
+  Stream<AsEventStreamEvent> streamEvents({
+    int? since,
+    String? lastEventId,
+  }) {
+    throw AsClientException('streamEvents is not supported by this client');
   }
 
   /// §5.1 GET /_as/search?q=&room_id=&limit=
@@ -1716,6 +1789,14 @@ abstract class AsClient {
     required String body,
     required String filename,
     required String mediaUrl,
+    String messageType = '',
+    String channelId = '',
+    String postId = '',
+    String commentId = '',
+    String replyToCommentId = '',
+    String replyToAuthorMxid = '',
+    List<Map<String, String>> mentions = const [],
+    Map<String, Object?> media = const {},
     String mimeType = '',
     int size = 0,
     String thumbnailUrl = '',
@@ -2032,11 +2113,6 @@ int _parseInt(Object? value) {
   return 0;
 }
 
-int? _parseOptionalPositiveInt(Object? value) {
-  final parsed = _parseInt(value);
-  return parsed <= 0 ? null : parsed;
-}
-
 bool? _parseNullableBool(Object? value) {
   if (value is bool) return value;
   if (value is num) return value != 0;
@@ -2046,6 +2122,12 @@ bool? _parseNullableBool(Object? value) {
     if (normalized == 'false' || normalized == '0') return false;
   }
   return null;
+}
+
+String? _parseOptionalString(Object? value) {
+  if (value is! String) return null;
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
 }
 
 String _parseChannelDisplayName(Map<String, dynamic> json) {

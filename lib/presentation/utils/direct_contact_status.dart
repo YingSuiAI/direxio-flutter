@@ -4,6 +4,8 @@ import '../../data/well_known_service.dart';
 import 'contact_identity_label.dart';
 
 const productRoomKindEventType = 'p2p.room.kind';
+const nativeRoomProfileEventType = 'io.direxio.room.profile';
+const nativeDirectRoomType = 'io.direxio.room.direct';
 
 String? serverNameFromMxid(String? mxid) {
   if (mxid == null) return null;
@@ -37,6 +39,8 @@ bool _summaryLooksLikeAgentDirectRoom(Room room, String agentMxid) {
 String? productDirectPeerMxid(Room room) {
   final directMxid = room.directChatMatrixID;
   if (directMxid != null && directMxid.isNotEmpty) return directMxid;
+  final nativePeerMxid = _nativeDirectPeerMxid(room);
+  if (nativePeerMxid != null) return nativePeerMxid;
   if (_productRoomKind(room) != 'direct') return null;
   final self = room.client.userID;
   final memberStates = room.states[EventTypes.RoomMember]?.values ??
@@ -49,6 +53,30 @@ String? productDirectPeerMxid(Room room) {
   final creator = room.getState(EventTypes.RoomCreate)?.senderId;
   if (creator != null && creator != self) return creator;
   return null;
+}
+
+String? productDirectPeerDisplayName(Room room) {
+  final peerMxid = productDirectPeerMxid(room);
+  final profile = _nativeDirectProfile(room);
+  if (peerMxid == null || profile == null) return null;
+  if (_profileString(profile, 'requester_mxid') != peerMxid) return null;
+  return _profileString(profile, 'display_name');
+}
+
+String? productDirectPeerAvatarUrl(Room room) {
+  final peerMxid = productDirectPeerMxid(room);
+  final profile = _nativeDirectProfile(room);
+  if (peerMxid == null || profile == null) return null;
+  if (_profileString(profile, 'requester_mxid') != peerMxid) return null;
+  return _profileString(profile, 'avatar_url');
+}
+
+String? productDirectPeerDomain(Room room) {
+  final peerMxid = productDirectPeerMxid(room);
+  final profile = _nativeDirectProfile(room);
+  if (peerMxid == null || profile == null) return null;
+  if (_profileString(profile, 'requester_mxid') != peerMxid) return null;
+  return _profileString(profile, 'domain');
 }
 
 Membership? directChatPeerMembership(Room room) {
@@ -85,6 +113,7 @@ bool isProductDirectContactRoom(
 }) {
   if (isPortalAgentDirectRoom(room, agentMxid: agentMxid)) return false;
   if (acceptedRoomIds.contains(room.id)) return true;
+  if (_nativeDirectProfile(room) != null) return true;
   if (_productRoomKind(room) == 'direct') return true;
   return room.isDirectChat;
 }
@@ -135,4 +164,38 @@ bool canSendDirectChatMessage(
 String _productRoomKind(Room room) {
   final raw = room.getState(productRoomKindEventType)?.content['kind'];
   return raw is String ? raw.trim() : '';
+}
+
+Map<String, dynamic>? _nativeDirectProfile(Room room) {
+  final content = room.getState(nativeRoomProfileEventType)?.content;
+  if (content == null) return null;
+  final roomType = _profileString(content, 'room_type');
+  if (roomType != nativeDirectRoomType) return null;
+  return content;
+}
+
+String? _nativeDirectPeerMxid(Room room) {
+  final profile = _nativeDirectProfile(room);
+  if (profile == null) return null;
+  final self = room.client.userID?.trim();
+  final requester = _profileString(profile, 'requester_mxid');
+  final target = _profileString(profile, 'target_mxid');
+  if (self != null && self.isNotEmpty) {
+    if (requester == self && target != null && target.isNotEmpty) {
+      return target;
+    }
+    if (target == self && requester != null && requester.isNotEmpty) {
+      return requester;
+    }
+  }
+  if (requester != null && requester.isNotEmpty) return requester;
+  if (target != null && target.isNotEmpty) return target;
+  return null;
+}
+
+String? _profileString(Map<String, dynamic> content, String key) {
+  final value = content[key];
+  if (value is! String) return null;
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
 }

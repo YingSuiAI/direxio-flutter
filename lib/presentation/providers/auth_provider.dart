@@ -369,11 +369,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
           if (refreshed != null) return refreshed;
         }
+        final latestPortalToken =
+            await _storage.read(key: AuthStateNotifier.accessTokenKey) ??
+                storedPortalToken;
         return AuthState(
           isLoggedIn: true,
           userId: client.userID ?? userId,
           homeserver: (client.homeserver ?? homeserverUri).toString(),
-          portalToken: storedPortalToken,
+          portalToken: latestPortalToken,
           requiresProfileSetup: storedProfileInitialized == false,
         );
       } catch (e) {
@@ -922,6 +925,15 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   }
 
   Future<String?> refreshPortalSessionForAsAdminToken() async {
+    final restored = await _refreshPortalSessionFromStoredLogin();
+    if (restored == null || _sessionExpiredLocally) return null;
+    if (_isMounted) {
+      state = AsyncData(restored);
+    }
+    return restored.portalToken;
+  }
+
+  Future<AuthState?> _refreshPortalSessionFromStoredLogin() async {
     if (_sessionExpiredLocally) return null;
     final client = ref.read(matrixClientProvider);
     final auth = state.valueOrNull;
@@ -933,16 +945,79 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final portalToken = auth?.portalToken ??
         await _storage.read(key: AuthStateNotifier.accessTokenKey) ??
         await _storage.read(key: lastLoginPortalTokenKey);
-    final restored = await _restorePortalSession(
+    return _restorePortalSession(
       client,
       homeserver: homeserver.toString(),
       portalToken: portalToken,
     );
-    if (restored == null || _sessionExpiredLocally) return null;
-    if (_isMounted) {
-      state = AsyncData(restored);
+  }
+
+  Future<AuthState?> _refreshMatrixAccessTokenForHttpRetry() async {
+    if (_sessionExpiredLocally) return null;
+    final client = ref.read(matrixClientProvider);
+    final auth = state.valueOrNull;
+    final homeserver = client.homeserver ??
+        Uri.tryParse(auth?.homeserver ?? '') ??
+        Uri.tryParse(await _storage.read(key: 'matrix_homeserver') ?? '') ??
+        Uri.tryParse(await _storage.read(key: lastLoginHomeserverKey) ?? '');
+    if (homeserver == null) return null;
+    final loginPortalToken =
+        (await _storage.read(key: lastLoginPortalTokenKey))?.trim();
+    final portalToken = (loginPortalToken?.isNotEmpty ?? false)
+        ? loginPortalToken!
+        : (auth?.portalToken ??
+                await _storage.read(key: AuthStateNotifier.accessTokenKey))
+            ?.trim();
+    if (portalToken == null || portalToken.isEmpty) return null;
+    final deviceId = client.deviceID ??
+        await _storage.read(key: 'matrix_device_id') ??
+        _createDeviceId();
+    final session = await HttpAsClient.authenticatePortal(
+      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+      portalToken: portalToken,
+      deviceId: deviceId,
+      httpClient: _rawHttpClient(client),
+    );
+    final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
+    final effectiveUserId = session.userId.trim().isNotEmpty
+        ? session.userId
+        : client.userID ?? await _storage.read(key: 'matrix_user_id') ?? '';
+    if (effectiveUserId.isEmpty) return null;
+    final effectiveDeviceId = _preferredSessionDeviceId(session, deviceId);
+    final currentUserId = client.userID?.trim() ?? '';
+    if (currentUserId.isNotEmpty && currentUserId != effectiveUserId) {
+      return null;
     }
-    return restored.portalToken;
+    client.homeserver = matrixUri;
+    client.accessToken = session.accessToken;
+    await client.database?.updateClient(
+      matrixUri.toString(),
+      session.accessToken,
+      null,
+      null,
+      effectiveUserId,
+      effectiveDeviceId,
+      client.deviceName ?? 'PortalIM',
+      client.prevBatch,
+      client.encryption?.pickledOlmAccount,
+    );
+    await _persistSession(
+      client,
+      matrixUri,
+      portalToken: session.accessToken,
+      deviceId: effectiveDeviceId,
+      userId: effectiveUserId,
+      profileInitialized: _sessionProfileInitialized(session),
+      loginPortalToken: portalToken,
+    );
+    await _loadChatClearState();
+    return AuthState(
+      isLoggedIn: true,
+      userId: effectiveUserId,
+      homeserver: matrixUri.toString(),
+      portalToken: session.accessToken,
+      requiresProfileSetup: _sessionProfileInitialized(session) == false,
+    );
   }
 
   Future<void> changePortalPassword({
@@ -1870,6 +1945,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   void _configureMatrixTokenFailureHandler(Client client) {
     final httpClient = _matrixTokenRefreshingHttpClient(client);
     if (httpClient == null) return;
+    httpClient.refreshAccessToken = () async {
+      final restored = await _refreshMatrixAccessTokenForHttpRetry();
+      if (restored == null || _sessionExpiredLocally) return null;
+      unawaited(Future<void>.delayed(Duration.zero, () {
+        if (_isMounted && !_sessionExpiredLocally && state.hasValue) {
+          state = AsyncData(restored);
+        }
+      }));
+      return restored.portalToken;
+    };
     httpClient.onAuthenticationFailed = () async {
       await expireSessionDueInvalidToken();
     };

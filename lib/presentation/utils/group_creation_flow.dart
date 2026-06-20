@@ -75,6 +75,12 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
           avatarUrl: pickedAvatarUrl,
         );
     final roomId = group.roomId;
+    if (result.inviteMxids.isNotEmpty) {
+      await ref.read(asClientProvider).inviteGroupMembers(
+            roomId: roomId,
+            invite: result.inviteMxids,
+          );
+    }
     _ensureOptimisticGroupRoom(
       client,
       roomId: roomId,

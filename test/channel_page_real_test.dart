@@ -1234,6 +1234,128 @@ void main() {
     expect(find.text('已解除全员禁言'), findsOneWidget);
   });
 
+  testWidgets('owned channel info mute switch reflects bootstrap mute state',
+      (tester) async {
+    final asClient = _ChannelInfoMembersAsClient();
+    final matrixClient = Client('ChannelInfoMuteStateTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          commentsEnabled: false,
+          memberCount: 1,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(_ownerSwitchFinder());
+    await tester.pumpAndSettle();
+
+    expect(asClient.unmutedChannelId, 'ch_real');
+    expect(asClient.mutedChannelId, isNull);
+  });
+
+  testWidgets('owned channel info mute switch updates cached channel state',
+      (tester) async {
+    final asClient = _ChannelInfoMembersAsClient();
+    final matrixClient = Client('ChannelInfoMuteCacheTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 1,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(_ownerSwitchFinder());
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ChannelInfoPage)),
+    );
+    expect(asClient.mutedChannelId, 'ch_real');
+    expect(
+      container
+          .read(asSyncCacheProvider)
+          .bootstrap!
+          .channels
+          .single
+          .commentsEnabled,
+      isFalse,
+    );
+  });
+
   testWidgets('channel owner does not see report action from role',
       (tester) async {
     final matrixClient = Client('ChannelOwnerNoReportTest')

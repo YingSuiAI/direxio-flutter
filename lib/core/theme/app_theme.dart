@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'design_tokens.dart';
 
 /// Material 3 主题（对齐 Agent P2P 设计稿）。
 /// 字体统一 Noto Sans SC（思源黑体）——中英文全覆盖，各端渲染一致。
 class AppTheme {
+  static const fontFamily = 'NotoSansSC';
+  static const fontFamilyFallback = [
+    'Noto Sans CJK SC',
+    'Microsoft YaHei',
+    'PingFang SC',
+    'Heiti SC',
+    'Arial Unicode MS',
+    'sans-serif',
+  ];
+
   static ThemeData light = _buildTheme(PortalTokens.light, Brightness.light);
   static ThemeData dark = _buildTheme(PortalTokens.dark, Brightness.dark);
 
@@ -14,20 +23,13 @@ class AppTheme {
     FontWeight? fontWeight,
     double letterSpacing = 0,
   }) {
-    if (!GoogleFonts.config.allowRuntimeFetching) {
-      return TextStyle(
-        fontSize: fontSize,
-        color: color,
-        fontWeight: fontWeight ?? FontWeight.w400,
-        letterSpacing: letterSpacing,
-        fontFamilyFallback: const ['NotoSansSC'],
-      );
-    }
-    return GoogleFonts.notoSansSc(
+    return TextStyle(
       fontSize: fontSize,
       color: color,
       fontWeight: fontWeight ?? FontWeight.w400,
       letterSpacing: letterSpacing,
+      fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
     );
   }
 
@@ -52,10 +54,11 @@ class AppTheme {
       canvasColor: t.bg,
       dividerColor: t.border,
       extensions: [t],
-      textTheme: (GoogleFonts.config.allowRuntimeFetching
-              ? GoogleFonts.notoSansScTextTheme(base.textTheme)
-              : base.textTheme)
-          .apply(bodyColor: t.text, displayColor: t.text),
+      textTheme: base.textTheme.apply(
+        fontFamily: fontFamily,
+        bodyColor: t.text,
+        displayColor: t.text,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: t.bg,
         foregroundColor: t.text,

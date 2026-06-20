@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // [AsClient] 的 Mock 实现。
 //
 // 真实 App 注入点已经切到 HttpAsClient；本类保留给本地 UI / 单测兜底使用。
@@ -91,18 +93,24 @@ class MockAsClient implements AsClient {
   @override
   Future<AsSyncMessages> syncMessages({
     String roomId = '',
-    int page = 1,
-    int pageSize = 20,
+    String? cursor,
     int fromTs = 0,
     int toTs = 0,
   }) async {
     await Future.delayed(_latency);
     return AsSyncMessages(
       syncedAt: DateTime.now().toUtc(),
-      page: page,
-      pageSize: pageSize,
+      hasMoreMessages: false,
       rooms: const [],
     );
+  }
+
+  @override
+  Stream<AsEventStreamEvent> streamEvents({
+    int? since,
+    String? lastEventId,
+  }) {
+    return Completer<AsEventStreamEvent>().future.asStream();
   }
 
   @override
@@ -423,6 +431,14 @@ class MockAsClient implements AsClient {
     required String body,
     required String filename,
     required String mediaUrl,
+    String messageType = '',
+    String channelId = '',
+    String postId = '',
+    String commentId = '',
+    String replyToCommentId = '',
+    String replyToAuthorMxid = '',
+    List<Map<String, String>> mentions = const [],
+    Map<String, Object?> media = const {},
     String mimeType = '',
     int size = 0,
     String thumbnailUrl = '',

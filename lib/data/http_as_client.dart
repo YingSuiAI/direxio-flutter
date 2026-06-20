@@ -194,22 +194,91 @@ class HttpAsClient implements AsClient {
   @override
   Future<AsSyncMessages> syncMessages({
     String roomId = '',
-    int page = 1,
-    int pageSize = 20,
+    String? cursor,
     int fromTs = 0,
     int toTs = 0,
   }) async {
+    final normalizedCursor = cursor?.trim() ?? '';
     final body = await _getJson(
       'sync/messages',
       queryParameters: {
         if (roomId.trim().isNotEmpty) 'room_id': roomId.trim(),
-        'page': page.toString(),
-        'page_size': pageSize.toString(),
+        if (normalizedCursor.isNotEmpty) 'cursor': normalizedCursor,
         if (fromTs > 0) 'from_ts': fromTs.toString(),
         if (toTs > 0) 'to_ts': toTs.toString(),
       },
     );
     return AsSyncMessages.fromJson(body);
+  }
+
+  @override
+  Stream<AsEventStreamEvent> streamEvents({
+    int? since,
+    String? lastEventId,
+  }) async* {
+    if (!_isUnifiedBase(_baseUri)) {
+      throw AsClientException('SSE event stream requires a /_p2p base URI');
+    }
+    final queryParameters = <String, String>{
+      if (since != null && since > 0) 'since': since.toString(),
+    };
+    final uri = _resolve(
+      'events',
+      queryParameters: queryParameters.isEmpty ? null : queryParameters,
+    );
+    final request = http.Request('GET', uri);
+    request.headers['Authorization'] = 'Bearer $_portalToken';
+    request.headers['Accept'] = 'text/event-stream';
+    final replayId = lastEventId?.trim() ?? '';
+    if (replayId.isNotEmpty) {
+      request.headers['Last-Event-ID'] = replayId;
+    }
+
+    final stopwatch = Stopwatch()..start();
+    late http.StreamedResponse streamed;
+    try {
+      streamed = await _http.send(request).timeout(_timeout);
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      ApiLogger.failure(
+        service: 'AS events',
+        method: 'GET',
+        uri: uri,
+        elapsed: stopwatch.elapsed,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+    stopwatch.stop();
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      final response = await http.Response.fromStream(streamed);
+      ApiLogger.response(
+        service: 'AS events',
+        method: 'GET',
+        uri: uri,
+        statusCode: response.statusCode,
+        elapsed: stopwatch.elapsed,
+        responseBody: response.body,
+      );
+      if (_isAuthenticationFailureResponse(response)) {
+        await _onAuthenticationFailed?.call();
+      }
+      throw AsClientException(
+        _extractErrorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+    ApiLogger.response(
+      service: 'AS events',
+      method: 'GET',
+      uri: uri,
+      statusCode: streamed.statusCode,
+      elapsed: stopwatch.elapsed,
+    );
+    yield* _decodeSseEvents(
+      streamed.stream.transform(utf8.decoder).transform(const LineSplitter()),
+    );
   }
 
   @override
@@ -678,6 +747,14 @@ class HttpAsClient implements AsClient {
     required String body,
     required String filename,
     required String mediaUrl,
+    String messageType = '',
+    String channelId = '',
+    String postId = '',
+    String commentId = '',
+    String replyToCommentId = '',
+    String replyToAuthorMxid = '',
+    List<Map<String, String>> mentions = const [],
+    Map<String, Object?> media = const {},
     String mimeType = '',
     int size = 0,
     String thumbnailUrl = '',
@@ -687,12 +764,44 @@ class HttpAsClient implements AsClient {
     int height = 0,
     int durationMs = 0,
   }) async {
+    final normalizedMentions = _normalizedMentionPayload(mentions);
+    final mediaJson = media.isNotEmpty
+        ? media
+        : _mediaJsonPayload(
+            msgType: msgType,
+            body: body,
+            filename: filename,
+            mediaUrl: mediaUrl,
+            mimeType: mimeType,
+            size: size,
+            thumbnailUrl: thumbnailUrl,
+            thumbnailMimeType: thumbnailMimeType,
+            thumbnailSize: thumbnailSize,
+            width: width,
+            height: height,
+            durationMs: durationMs,
+          );
     final response = await _requestJson(
       'POST',
       'rooms/${Uri.encodeComponent(roomId)}/send-media',
       body: {
         'msgtype': msgType.trim(),
         'body': body.trim(),
+        if (messageType.trim().isNotEmpty)
+          'message_type': messageType.trim(),
+        if (channelId.trim().isNotEmpty) 'channel_id': channelId.trim(),
+        if (postId.trim().isNotEmpty) 'post_id': postId.trim(),
+        if (commentId.trim().isNotEmpty) 'comment_id': commentId.trim(),
+        if (replyToCommentId.trim().isNotEmpty)
+          'reply_to_comment_id': replyToCommentId.trim(),
+        if (replyToAuthorMxid.trim().isNotEmpty)
+          'reply_to_author_mxid': replyToAuthorMxid.trim(),
+        if (normalizedMentions.isNotEmpty) ...{
+          'mentions': normalizedMentions,
+          'mentions_json': jsonEncode(normalizedMentions),
+        },
+        if (messageType.trim().isNotEmpty && mediaJson.isNotEmpty)
+          'media_json': jsonEncode(mediaJson),
         if (filename.trim().isNotEmpty) 'filename': filename.trim(),
         'url': mediaUrl.trim(),
         if (mimeType.trim().isNotEmpty) 'mime_type': mimeType.trim(),
@@ -1450,7 +1559,21 @@ class HttpAsClient implements AsClient {
     );
     final group = AsGroupResult.fromJson(body);
     if (group.roomId.isEmpty) {
-      throw AsClientException('AS invite group response is missing room_id');
+      final fallbackRoomId = roomId.trim();
+      final rawMembers = body['members'] as List? ?? const [];
+      final status = body['status'] as String? ?? group.status;
+      if (fallbackRoomId.isEmpty || rawMembers.isEmpty) {
+        throw AsClientException('AS invite group response is missing room_id');
+      }
+      return AsGroupResult(
+        roomId: fallbackRoomId,
+        name: group.name,
+        memberCount: group.memberCount,
+        invitedCount: rawMembers.whereType<Map>().length,
+        role: group.role,
+        status: status,
+        invitePolicy: group.invitePolicy,
+      );
     }
     return group;
   }
@@ -2195,6 +2318,37 @@ List<Map<String, String>> _normalizedMentionPayload(
   ];
 }
 
+Map<String, Object?> _mediaJsonPayload({
+  required String msgType,
+  required String body,
+  required String filename,
+  required String mediaUrl,
+  required String mimeType,
+  required int size,
+  required String thumbnailUrl,
+  required String thumbnailMimeType,
+  required int thumbnailSize,
+  required int width,
+  required int height,
+  required int durationMs,
+}) {
+  return {
+    'msgtype': msgType.trim(),
+    'body': body.trim(),
+    if (filename.trim().isNotEmpty) 'filename': filename.trim(),
+    'url': mediaUrl.trim(),
+    if (mimeType.trim().isNotEmpty) 'mimetype': mimeType.trim(),
+    if (size > 0) 'size': size,
+    if (thumbnailUrl.trim().isNotEmpty) 'thumbnail_url': thumbnailUrl.trim(),
+    if (thumbnailMimeType.trim().isNotEmpty)
+      'thumbnail_mimetype': thumbnailMimeType.trim(),
+    if (thumbnailSize > 0) 'thumbnail_size': thumbnailSize,
+    if (width > 0) 'w': width,
+    if (height > 0) 'h': height,
+    if (durationMs > 0) 'duration': durationMs,
+  };
+}
+
 Map<String, Object?> _remoteNodeParams(Uri? remoteNodeBaseUri) {
   final value = remoteNodeBaseUri?.toString().trim() ?? '';
   if (value.isEmpty) return const {};
@@ -2561,4 +2715,59 @@ String _normalizedChannelType(String value) {
     'chat' || '聊天' => 'chat',
     _ => 'post',
   };
+}
+
+Stream<AsEventStreamEvent> _decodeSseEvents(Stream<String> lines) async* {
+  var eventName = '';
+  var eventId = '';
+  final dataLines = <String>[];
+
+  AsEventStreamEvent? buildEvent() {
+    if (dataLines.isEmpty) return null;
+    final rawData = dataLines.join('\n');
+    dataLines.clear();
+    final name = eventName;
+    final id = eventId;
+    eventName = '';
+    eventId = '';
+
+    final decoded = jsonDecode(rawData);
+    if (decoded is! Map<String, dynamic>) return null;
+    final fromJson = AsEventStreamEvent.fromJson(decoded);
+    final fallbackSeq = int.tryParse(id) ?? 0;
+    return AsEventStreamEvent(
+      seq: fromJson.seq > 0 ? fromJson.seq : fallbackSeq,
+      type: fromJson.type.isNotEmpty ? fromJson.type : name,
+      roomId: fromJson.roomId,
+      eventId: fromJson.eventId,
+      payload: fromJson.payload,
+      createdAt: fromJson.createdAt,
+    );
+  }
+
+  await for (final line in lines) {
+    if (line.isEmpty) {
+      final event = buildEvent();
+      if (event != null) yield event;
+      continue;
+    }
+    if (line.startsWith(':')) continue;
+    final separator = line.indexOf(':');
+    final field = separator == -1 ? line : line.substring(0, separator);
+    var value = separator == -1 ? '' : line.substring(separator + 1);
+    if (value.startsWith(' ')) value = value.substring(1);
+    switch (field) {
+      case 'event':
+        eventName = value;
+        break;
+      case 'id':
+        eventId = value;
+        break;
+      case 'data':
+        dataLines.add(value);
+        break;
+    }
+  }
+  final trailing = buildEvent();
+  if (trailing != null) yield trailing;
 }

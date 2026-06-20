@@ -17,6 +17,7 @@ import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/core/theme/design_tokens.dart';
 import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/channel_post_store.dart';
 import 'package:portal_app/data/chat_clear_state_store.dart';
 import 'package:portal_app/data/conversation_preferences_store.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
@@ -61,6 +62,7 @@ import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
+import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart';
 import 'package:portal_app/presentation/providers/conversation_preferences_provider.dart';
 import 'package:portal_app/presentation/providers/friend_request_read_provider.dart';
@@ -268,21 +270,27 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
+  Stream<AsEventStreamEvent> streamEvents({
+    int? since,
+    String? lastEventId,
+  }) {
+    return Completer<AsEventStreamEvent>().future.asStream();
+  }
+
+  @override
   Future<AsSyncUnread> syncUnread({int limitPerRoom = 200}) async =>
       AsSyncUnread(syncedAt: DateTime.now().toUtc(), rooms: const []);
 
   @override
   Future<AsSyncMessages> syncMessages({
     String roomId = '',
-    int page = 1,
-    int pageSize = 20,
+    String? cursor,
     int fromTs = 0,
     int toTs = 0,
   }) async =>
       AsSyncMessages(
         syncedAt: DateTime.now().toUtc(),
-        page: page,
-        pageSize: pageSize,
+        hasMoreMessages: false,
         rooms: const [],
       );
 
@@ -885,6 +893,14 @@ class _EmptyAsClient implements AsClient {
     required String body,
     required String filename,
     required String mediaUrl,
+    String messageType = '',
+    String channelId = '',
+    String postId = '',
+    String commentId = '',
+    String replyToCommentId = '',
+    String replyToAuthorMxid = '',
+    List<Map<String, String>> mentions = const [],
+    Map<String, Object?> media = const {},
     String mimeType = '',
     int size = 0,
     String thumbnailUrl = '',
@@ -1566,6 +1582,9 @@ class _TrackingAsClient extends _EmptyAsClient {
   int unmuteGroupCalls = 0;
   String? unmutedGroupRoomId;
   int listCallsCount = 0;
+  int syncMessagesCalls = 0;
+  String? syncedMessagesRoomId;
+  AsSyncMessages? syncMessagesResult;
   List<AsChannel> userPublicChannels = const [];
   String? requestedUserPublicChannelsUserId;
   Uri? requestedUserPublicChannelsBaseUri;
@@ -1758,6 +1777,18 @@ class _TrackingAsClient extends _EmptyAsClient {
   }
 
   @override
+  Future<AsSyncMessages> syncMessages({
+    String roomId = '',
+    String? cursor,
+    int fromTs = 0,
+    int toTs = 0,
+  }) async {
+    syncMessagesCalls++;
+    syncedMessagesRoomId = roomId;
+    return syncMessagesResult ?? await super.syncMessages();
+  }
+
+  @override
   Future<AsGroupResult> createGroup({
     required String name,
     required List<String> invite,
@@ -1906,6 +1937,50 @@ class _MemoryAsBootstrapStore implements AsBootstrapStore {
   @override
   Future<void> write(AsSyncBootstrap bootstrap) async {
     value = bootstrap;
+  }
+}
+
+class _MemoryChannelPostStore implements ChannelPostStore {
+  final posts = <String, AsChannelPost>{};
+
+  @override
+  Future<List<AsChannelPost>> readChannel(String channelId) async {
+    final trimmed = channelId.trim();
+    return posts.values
+        .where((post) => post.channelId.trim() == trimmed)
+        .toList(growable: false)
+      ..sort((a, b) => b.originServerTs.compareTo(a.originServerTs));
+  }
+
+  @override
+  Future<void> upsertChannel(
+    String channelId,
+    Iterable<AsChannelPost> nextPosts,
+  ) async {
+    final trimmed = channelId.trim();
+    posts.removeWhere((_, post) => post.channelId.trim() == trimmed);
+    for (final post in nextPosts) {
+      await upsertPost(post);
+    }
+  }
+
+  @override
+  Future<void> upsertPost(AsChannelPost post) async {
+    final key = '${post.channelId}:${post.postId}:${post.eventId}';
+    posts[key] = post;
+  }
+
+  @override
+  Future<void> removePost(String channelId, String postId) async {
+    final trimmedChannel = channelId.trim();
+    final trimmedPost = postId.trim();
+    posts.removeWhere((_, post) {
+      if (post.channelId.trim() != trimmedChannel) return false;
+      if (post.postId.trim().isNotEmpty) {
+        return post.postId.trim() == trimmedPost;
+      }
+      return post.eventId.trim() == trimmedPost;
+    });
   }
 }
 
@@ -2376,21 +2451,27 @@ class _GroupChatHarness {
     required this.client,
     required this.asClient,
     required this.bootstrapStore,
+    this.sentMatrixEvents = const [],
+    this.matrixRedactionPaths = const [],
   });
 
   final Client client;
   final _TrackingAsClient asClient;
   final _MemoryAsBootstrapStore bootstrapStore;
+  final List<Map<String, dynamic>> sentMatrixEvents;
+  final List<String> matrixRedactionPaths;
 }
 
 class _DirectChatHarness {
   const _DirectChatHarness({
     required this.client,
     required this.asClient,
+    this.matrixRedactionPaths = const [],
   });
 
   final Client client;
   final _TrackingAsClient asClient;
+  final List<String> matrixRedactionPaths;
 }
 
 Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
@@ -2405,9 +2486,27 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   bool loggedInAuth = false,
   GoRouter? router,
 }) async {
+  final sentMatrixEvents = <Map<String, dynamic>>[];
+  final matrixRedactionPaths = <String>[];
   final client = Client(
     'PortalIMGroupActionTest',
     httpClient: MockClient((request) async {
+      if (request.url.path.contains('/redact/')) {
+        matrixRedactionPaths.add(request.url.path);
+        return http.Response(
+          r'{"event_id":"$group-redaction"}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
+      if (request.url.path.contains('/send/m.room.message/')) {
+        sentMatrixEvents.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response(
+          r'{"event_id":"$group-sent"}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
       return http.Response(
         '{"next_batch":"s1","rooms":{}}',
         200,
@@ -2483,6 +2582,8 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
       client: client,
       asClient: asClient,
       bootstrapStore: bootstrapStore,
+      sentMatrixEvents: sentMatrixEvents,
+      matrixRedactionPaths: matrixRedactionPaths,
     );
   }
 
@@ -2519,6 +2620,8 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
     client: client,
     asClient: asClient,
     bootstrapStore: bootstrapStore,
+    sentMatrixEvents: sentMatrixEvents,
+    matrixRedactionPaths: matrixRedactionPaths,
   );
 }
 
@@ -2533,9 +2636,18 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
   List<LocalOutboxItem> initialOutboxItems = const [],
   bool sendPeerEvent = true,
 }) async {
+  final matrixRedactionPaths = <String>[];
   final client = Client(
     'PortalIMDirectActionTest',
     httpClient: MockClient((request) async {
+      if (request.url.path.contains('/redact/')) {
+        matrixRedactionPaths.add(request.url.path);
+        return http.Response(
+          r'{"event_id":"$direct-redaction"}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
       return http.Response(
         '{"next_batch":"s1","rooms":{}}',
         200,
@@ -2593,7 +2705,11 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
   await tester.pumpAndSettle();
 
   if (!sendPeerEvent) {
-    return _DirectChatHarness(client: client, asClient: asClient);
+    return _DirectChatHarness(
+      client: client,
+      asClient: asClient,
+      matrixRedactionPaths: matrixRedactionPaths,
+    );
   }
 
   await client.handleSync(
@@ -2624,7 +2740,11 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
   );
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 50));
-  return _DirectChatHarness(client: client, asClient: asClient);
+  return _DirectChatHarness(
+    client: client,
+    asClient: asClient,
+    matrixRedactionPaths: matrixRedactionPaths,
+  );
 }
 
 Room _addHeroSummaryRoom(
@@ -4978,7 +5098,7 @@ void main() {
     router.push('/group/${Uri.encodeComponent('!missing:p2p-im.com')}');
     await tester.pumpAndSettle();
 
-    expect(find.text('群组不存在'), findsOneWidget);
+    expect(find.text('群聊不存在'), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
 
@@ -7287,6 +7407,12 @@ void main() {
       asClient.createdGroupInvites,
       ['@alice:p2p-liyanan.com', '@bob:p2p-liyanan.com'],
     );
+    expect(asClient.inviteGroupMembersCalls, 1);
+    expect(asClient.invitedGroupRoomId, '!new-group:p2p-im.com');
+    expect(
+      asClient.invitedGroupMembers,
+      ['@alice:p2p-liyanan.com', '@bob:p2p-liyanan.com'],
+    );
     expect(asClient.syncBootstrapCalls, 1);
     final createdRoom = client.getRoomById('!new-group:p2p-im.com');
     expect(createdRoom, isNotNull);
@@ -8234,11 +8360,20 @@ void main() {
     expect(find.text('已更新添加成员权限'), findsOneWidget);
   });
 
-  testWidgets('group chat text send uses AS room send endpoint',
+  testWidgets('group chat text send uses Matrix SDK room send endpoint',
       (tester) async {
+    var matrixSendCalls = 0;
     final client = Client(
       'PortalIMGroupTextSendAsTest',
       httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          matrixSendCalls++;
+          return http.Response(
+            r'{"event_id":"$group-message"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
           200,
@@ -8294,14 +8429,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), '群聊走 AS');
+    await tester.enterText(find.byType(TextField), '群聊走 Matrix');
     await tester.pump();
     await tester.tap(find.text('发送'));
     await tester.pump(const Duration(seconds: 3));
 
-    expect(asClient.sendRoomMessageCalls, 1);
-    expect(asClient.sentRoomId, '!group:p2p-im.com');
-    expect(asClient.sentContent, '群聊走 AS');
+    expect(asClient.sendRoomMessageCalls, 0);
+    expect(matrixSendCalls, 1);
   });
 
   testWidgets('channel conversation text input is enabled for joined channel',
@@ -8384,10 +8518,96 @@ void main() {
     await tester.tap(find.text('发送'));
     await tester.pump(const Duration(seconds: 3));
 
-    expect(asClient.sendRoomMessageCalls, 1);
-    expect(asClient.sentRoomId, '!channel:p2p-im.com');
-    expect(asClient.sentContent, '频道消息');
-    expect(matrixSendCalls, 0);
+    expect(asClient.sendRoomMessageCalls, 0);
+    expect(matrixSendCalls, 1);
+  });
+
+  testWidgets('channel conversation opened with channel id uses cached room id',
+      (tester) async {
+    var matrixSendCalls = 0;
+    final client = Client(
+      'PortalIMChannelConversationChannelIdRouteTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          matrixSendCalls++;
+          return http.Response(
+            r'{"event_id":"$cached-channel-message"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!cached-channel:p2p-im.com',
+      name: '缓存文字频道',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_cached_chat',
+          roomId: '!cached-channel:p2p-im.com',
+          name: '缓存文字频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypeChat,
+          tags: ['文字'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(
+            roomId: 'ch_cached_chat',
+            channelId: 'ch_cached_chat',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('缓存文字频道'), findsOneWidget);
+    expect(find.text('频道不存在'), findsNothing);
+
+    await tester.enterText(find.byType(TextField), '频道缓存消息');
+    await tester.pump();
+    await tester.tap(find.text('发送'));
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(asClient.sendRoomMessageCalls, 0);
+    expect(matrixSendCalls, 1);
   });
 
   testWidgets(
@@ -8469,13 +8689,20 @@ void main() {
     expect(matrixSendCalls, 0);
   });
 
-  testWidgets('joined channel sends through AS despite Matrix power level',
+  testWidgets('joined channel sends through Matrix SDK under ProductPolicy',
       (tester) async {
+    _mockAudioRecorderPlugins(tester);
+    var matrixSendCalls = 0;
     final client = Client(
       'PortalIMMutedChannelTextSendTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
-          throw StateError('channel text should not use Matrix send endpoint');
+          matrixSendCalls++;
+          return http.Response(
+            r'{"event_id":"$channel-product-policy-message"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
         }
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -8553,10 +8780,13 @@ void main() {
     await tester.tap(find.text('发送'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pump();
 
-    expect(asClient.sendRoomMessageCalls, 1);
-    expect(asClient.sentRoomId, '!muted-channel:p2p-im.com');
-    expect(asClient.sentContent, '禁言消息');
+    expect(asClient.sendRoomMessageCalls, 0);
+    expect(matrixSendCalls, 1);
     expect(outboxStore.items, isEmpty);
   });
 
@@ -8894,9 +9124,18 @@ void main() {
 
   testWidgets('group chat @ mention picker inserts member and sends metadata',
       (tester) async {
+    Map<String, dynamic>? sentMatrixContent;
     final client = Client(
       'PortalIMGroupMentionSendTest',
       httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          sentMatrixContent = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(
+            r'{"event_id":"$group-mention-message"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
           200,
@@ -8967,14 +9206,15 @@ void main() {
     await tester.tap(find.text('发送'));
     await tester.pump(const Duration(seconds: 3));
 
-    expect(asClient.sendRoomMessageCalls, 1);
-    expect(asClient.sentContent, '@Alice hello');
-    expect(asClient.sentMentions, [
+    expect(asClient.sendRoomMessageCalls, 0);
+    expect(sentMatrixContent?['body'], '@Alice hello');
+    expect(sentMatrixContent?['mentions'], [
       {
         'user_id': '@alice:p2p-im.com',
         'display_name': 'Alice',
       },
     ]);
+    expect(sentMatrixContent?['mentions_json'], isA<String>());
   });
 
   testWidgets('channel chat @ mention picker excludes portal agent',
@@ -9120,6 +9360,63 @@ void main() {
     expect(timelineFilter['limit'], 0);
     expect(find.text('正在恢复群聊...'), findsNothing);
     expect(find.text('群聊同步超时，请检查网络后重试'), findsNothing);
+  });
+
+  testWidgets('empty group chat can pull to load server history',
+      (tester) async {
+    const roomId = '!empty-group:p2p-im.com';
+    final client = Client('PortalIMEmptyGroupPullHistoryTest')
+      ..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'matrix-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '空群聊',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '空群聊',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('还没有消息'), findsOneWidget);
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+    expect(find.byType(Scrollable), findsWidgets);
   });
 
   testWidgets('group chat header opens active group call from title capsule',
@@ -9611,7 +9908,8 @@ void main() {
     expect(find.text('引用'), findsOneWidget);
   });
 
-  testWidgets('group chat recalls own message through AS', (tester) async {
+  testWidgets('group chat recalls own message through Matrix redaction',
+      (tester) async {
     final harness = await _pumpGroupChatWithTextEvent(
       tester,
       eventId: r'$group-own-text',
@@ -9626,10 +9924,10 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '撤回'));
     await tester.pumpAndSettle();
 
-    expect(harness.asClient.recallRoomMessageCalls, 1);
-    expect(harness.asClient.recalledRoomId, '!group:p2p-im.com');
-    expect(harness.asClient.recalledEventId, r'$group-own-text');
-    expect(harness.asClient.recallRoomMessageReason, '撤回消息');
+    expect(harness.asClient.recallRoomMessageCalls, 0);
+    expect(harness.matrixRedactionPaths, hasLength(1));
+    expect(harness.matrixRedactionPaths.single,
+        contains('/redact/%24group-own-text/'));
   });
 
   testWidgets('group chat long press exposes local outbox actions',
@@ -9765,9 +10063,9 @@ void main() {
     });
     await tester.pump();
 
-    expect(harness.asClient.sentRoomId, '!group:p2p-im.com');
-    expect(harness.asClient.sentContent, '引用后的回复');
-    expect(harness.asClient.sentReplyToEventId, r'$group-text');
+    expect(harness.asClient.sendRoomMessageCalls, 0);
+    expect(harness.sentMatrixEvents.single['body'], contains('引用后的回复'));
+    expect(harness.sentMatrixEvents.single['reply_to'], r'$group-text');
     expect(find.byIcon(Symbols.reply), findsNothing);
 
     await harness.client.handleSync(
@@ -9780,7 +10078,7 @@ void main() {
                 events: [
                   MatrixEvent(
                     type: EventTypes.Message,
-                    eventId: 'event',
+                    eventId: r'$group-sent',
                     roomId: '!group:p2p-im.com',
                     senderId: '@owner:p2p-im.com',
                     originServerTs: DateTime.utc(2026, 5, 30, 10, 1),
@@ -10529,6 +10827,62 @@ void main() {
         find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);
     expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
     expect(find.textContaining('后端部署清单已更新'), findsWidgets);
+  });
+
+  testWidgets('channel detail restores real channel from cached bootstrap',
+      (tester) async {
+    final client = Client('PortalIMCachedChannelDetailTest')
+      ..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_cached',
+          roomId: '!cached-channel:p2p-im.com',
+          name: '缓存频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypePost,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final bootstrapStore = _MemoryAsBootstrapStore()..value = bootstrap;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider
+              .overrideWithValue(_StaticBootstrapAsClient(bootstrap)),
+          asSyncCacheProvider.overrideWith((ref) => const AsSyncCacheState()),
+          asBootstrapStoreProvider.overrideWith((ref) async => bootstrapStore),
+          channelPostStoreProvider.overrideWith(
+            (ref) async => _MemoryChannelPostStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPage(channelId: 'ch_cached'),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('缓存频道'), findsOneWidget);
+    expect(find.text('频道不存在'), findsNothing);
   });
 
   testWidgets('joined dissolved channel is hidden from channel list',
@@ -13028,7 +13382,8 @@ void main() {
     expect(find.text('引用'), findsOneWidget);
   });
 
-  testWidgets('private chat recalls own message through AS', (tester) async {
+  testWidgets('private chat recalls own message through Matrix redaction',
+      (tester) async {
     final harness = await _pumpDirectChatWithPeerTextEvent(
       tester,
       eventId: r'$direct-own-text',
@@ -13043,10 +13398,10 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '撤回'));
     await tester.pumpAndSettle();
 
-    expect(harness.asClient.recallRoomMessageCalls, 1);
-    expect(harness.asClient.recalledRoomId, '!direct:p2p-im.com');
-    expect(harness.asClient.recalledEventId, r'$direct-own-text');
-    expect(harness.asClient.recallRoomMessageReason, '撤回消息');
+    expect(harness.asClient.recallRoomMessageCalls, 0);
+    expect(harness.matrixRedactionPaths, hasLength(1));
+    expect(harness.matrixRedactionPaths.single,
+        contains('/redact/%24direct-own-text/'));
   });
 
   testWidgets('private chat long press exposes local outbox actions',
@@ -13391,6 +13746,171 @@ void main() {
     expect(find.text('端对端加密'), findsNothing);
   });
 
+  testWidgets('empty private chat restores first server history page',
+      (tester) async {
+    final client = Client('PortalIMEmptyPrivatePullHistoryTest')
+      ..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'matrix-token';
+    _addTestRoom(
+      client,
+      roomId: '!empty-private:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@alice:p2p-im.com',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [
+        AsSyncRoomSummary(
+          roomId: '!empty-private:p2p-im.com',
+          name: 'Alice',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!empty-private:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient()
+      ..syncMessagesResult = AsSyncMessages(
+        syncedAt: DateTime.utc(2026, 6, 20, 10),
+        hasMoreMessages: false,
+        rooms: [
+          AsSyncMessagesRoom(
+            roomId: '!empty-private:p2p-im.com',
+            hasMoreMessages: false,
+            messages: [
+              AsUnreadMessage(
+                eventId: r'$as-history-1',
+                senderId: '@alice:p2p-im.com',
+                senderName: 'Alice',
+                content: '重新登录后恢复的消息',
+                messageType: MessageTypes.Text,
+                timestamp: DateTime.utc(2026, 6, 20, 9, 59),
+              ),
+            ],
+          ),
+        ],
+      );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!empty-private:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(asClient.syncMessagesCalls, 1);
+    expect(asClient.syncedMessagesRoomId, '!empty-private:p2p-im.com');
+    expect(find.text('重新登录后恢复的消息'), findsOneWidget);
+    expect(find.text('开始你们的第一条消息'), findsNothing);
+  });
+
+  testWidgets('accepted private chat text send uses Matrix SDK',
+      (tester) async {
+    var matrixSendCalls = 0;
+    final client = Client(
+      'PortalIMAcceptedPrivateMatrixSendTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          matrixSendCalls++;
+          return http.Response(
+            r'{"event_id":"$private-message"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'matrix-token';
+    _addTestRoom(
+      client,
+      roomId: '!accepted:p2p-im.com',
+      roomMembership: Membership.join,
+      directPeerMxid: '@alice:p2p-im.com',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!accepted:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: '!accepted:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '私聊走 Matrix');
+    await tester.pump();
+    await tester.tap(find.text('发送'));
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(asClient.sendRoomMessageCalls, 0);
+    expect(matrixSendCalls, 1);
+  });
+
   testWidgets('chat waits for Matrix room load when AS knows conversation',
       (tester) async {
     const roomId = '!alice:p2p-im.com';
@@ -13461,8 +13981,26 @@ void main() {
 
   testWidgets('private chat shows friendly failure when peer deleted contact',
       (tester) async {
-    final client = Client('PortalIMPeerDeletedSendTest')
-      ..setUserId('@owner:p2p-im.com');
+    _mockAudioRecorderPlugins(tester);
+    final client = Client(
+      'PortalIMPeerDeletedSendTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          return http.Response(
+            '{"errcode":"M_FORBIDDEN","error":"peer deleted contact"}',
+            403,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'matrix-token';
     _addTestRoom(
       client,
       roomId: '!alice:p2p-im.com',
@@ -13513,6 +14051,10 @@ void main() {
     await tester.enterText(find.byType(TextField), 'hello');
     await tester.pump();
     await tester.tap(find.text('发送'));
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
     await tester.pump();
 
     expect(find.text('对方已删除联系人关系，消息未送达'), findsOneWidget);

@@ -636,10 +636,7 @@ GoRouter appRouter(Ref ref) {
         path: '/channel/:channelId/conversation',
         pageBuilder: (_, state) {
           final channelId = state.pathParameters['channelId']!;
-          final roomId = _channelConversationRoomId(
-            ref,
-            channelId,
-          );
+          final roomId = _channelConversationRoomId(ref, channelId);
           return _pageForLocation(
             '/group/${Uri.encodeComponent(roomId)}',
             GroupChatPage(

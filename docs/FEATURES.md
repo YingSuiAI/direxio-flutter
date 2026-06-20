@@ -53,7 +53,7 @@ This document records the currently implemented client features and whether each
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
 | Create group | Home plus menu, `group_creation_flow.dart` | Real | Uses accepted AS contacts and opens the created Matrix room. |
-| Group list | `/groups`, `groups_list_page.dart` | Real | Uses AS bootstrap groups and excludes stale direct metadata. Pending group invitations remain in `/requests` until accepted and projected into bootstrap groups. |
+| Group list | `/groups`, `groups_list_page.dart` | Real | Uses AS bootstrap groups and excludes stale direct metadata. Pending group invitations remain in `/requests` until accepted and projected into bootstrap groups. Existing group member invitations are sent as direct-chat cards after the owner node records invited MXIDs; card joins are accepted only for recorded invitees. |
 | Group chat | `/group/:roomId`, `group_chat_page.dart` | Real | Matrix timeline with AS product send path, media outbox, mentions, quote, recall/delete where supported. |
 | Group detail/info/manage | `/group-detail/:roomId`, `/group-info/:roomId`, `/group-manage/:roomId` | Real | Uses AS group metadata for invite policy, profile, member management, leave/dissolve flows. |
 | Missing group handling | `group_chat_page.dart` | Real | Missing room page keeps a usable back button; recovery is only attempted when AS bootstrap confirms the group. |

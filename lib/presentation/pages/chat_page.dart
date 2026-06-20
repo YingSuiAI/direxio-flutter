@@ -1565,6 +1565,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         Membership.join;
   }
 
+  String _joinGroupInviteFailureMessage(Object error) {
+    if (error is AsClientException && error.statusCode == 403) {
+      return '你未被邀请或邀请已失效';
+    }
+    return '加入群聊失败: $error';
+  }
+
   Future<void> _joinGroupInvite(GroupInviteContent invite) async {
     final eventId = invite.inviteEventId.trim();
     if (eventId.isNotEmpty && _joiningGroupInviteEventIds.contains(eventId)) {
@@ -1586,7 +1593,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加入群聊失败：$e')),
+        SnackBar(content: Text(_joinGroupInviteFailureMessage(e))),
       );
     } finally {
       if (eventId.isNotEmpty && mounted) {

@@ -120,6 +120,14 @@ Frontend alignment:
 - Accepting the invite calls `POST /_as/groups/{roomId}/join`, then runs one Matrix one-shot sync and refreshes bootstrap.
 - The Home contacts badge now includes pending group invites and channel notices, not only friend requests.
 
+### Group Invite Cards
+
+Frontend alignment:
+
+- Existing group member invitations now record invitees on the owner node and send `message_type: "group_invite"` through `POST /_as/rooms/{directRoomId}/send`.
+- The Matrix message payload carries `msgtype: "p2p.group.invite.v1"`, `group_room_id`, `group_name`, `inviter_mxid`, optional `inviter_display_name`, and `direct_room_id`.
+- `POST /_as/groups/{roomId}/join` rejects invite-card joins with `403` when the joining MXID does not have a recorded group invite.
+
 ### Channel Text Messages
 
 Frontend alignment:

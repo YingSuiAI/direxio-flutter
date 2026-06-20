@@ -2222,6 +2222,155 @@ Room _addNamedGroupRoom(
   return room;
 }
 
+class _RecoveringGroupRoomClient extends Client {
+  _RecoveringGroupRoomClient({
+    required this.recoveryRoomId,
+    required this.recoveryUserId,
+  }) : super('PortalIMGroupChatMissingRoomRecoveryTest') {
+    setUserId(recoveryUserId);
+  }
+
+  final String recoveryRoomId;
+  final String recoveryUserId;
+  final syncRequests =
+      <({String? filter, bool? fullState, String? since, int? timeout})>[];
+
+  @override
+  Future<SyncUpdate> sync({
+    String? filter,
+    String? since,
+    bool? fullState,
+    PresenceType? setPresence,
+    int? timeout,
+  }) async {
+    syncRequests.add((
+      filter: filter,
+      fullState: fullState,
+      since: since,
+      timeout: timeout,
+    ));
+    return SyncUpdate(
+      nextBatch: 's-full-state',
+      rooms: RoomsUpdate(
+        join: {
+          recoveryRoomId: JoinedRoomUpdate(
+            state: [
+              MatrixEvent(
+                type: EventTypes.RoomMember,
+                eventId: r'$self-member',
+                senderId: recoveryUserId,
+                stateKey: recoveryUserId,
+                originServerTs: DateTime.fromMillisecondsSinceEpoch(
+                  1780000000000,
+                ),
+                content: const {'membership': 'join'},
+              ),
+              MatrixEvent(
+                type: EventTypes.RoomName,
+                eventId: r'$room-name',
+                senderId: recoveryUserId,
+                stateKey: '',
+                originServerTs: DateTime.fromMillisecondsSinceEpoch(
+                  1780000000001,
+                ),
+                content: const {'name': '真实群'},
+              ),
+              MatrixEvent(
+                type: EventTypes.RoomCreate,
+                eventId: r'$room-create',
+                senderId: recoveryUserId,
+                stateKey: '',
+                originServerTs: DateTime.fromMillisecondsSinceEpoch(
+                  1780000000002,
+                ),
+                content: {'creator': recoveryUserId},
+              ),
+            ],
+            timeline: TimelineUpdate(events: const [], prevBatch: 't0'),
+          ),
+        },
+      ),
+    );
+  }
+}
+
+class _RecoveringDirectRoomClient extends Client {
+  _RecoveringDirectRoomClient({
+    required this.recoveryRoomId,
+    required this.ownerMxid,
+    required this.peerMxid,
+  }) : super('PortalIMMissingRoomRecoveryTest') {
+    setUserId(ownerMxid);
+  }
+
+  final String recoveryRoomId;
+  final String ownerMxid;
+  final String peerMxid;
+  final syncRequests =
+      <({String? filter, bool? fullState, String? since, int? timeout})>[];
+
+  @override
+  Future<SyncUpdate> sync({
+    String? filter,
+    String? since,
+    bool? fullState,
+    PresenceType? setPresence,
+    int? timeout,
+  }) async {
+    syncRequests.add((
+      filter: filter,
+      fullState: fullState,
+      since: since,
+      timeout: timeout,
+    ));
+    return SyncUpdate(
+      nextBatch: 's-direct-full-state',
+      rooms: RoomsUpdate(
+        join: {
+          recoveryRoomId: JoinedRoomUpdate(
+            state: [
+              MatrixEvent(
+                type: EventTypes.RoomMember,
+                eventId: r'$owner-member',
+                senderId: ownerMxid,
+                stateKey: ownerMxid,
+                originServerTs: DateTime.fromMillisecondsSinceEpoch(
+                  1780000000000,
+                ),
+                content: const {'membership': 'join'},
+              ),
+              MatrixEvent(
+                type: EventTypes.RoomMember,
+                eventId: r'$peer-member',
+                senderId: peerMxid,
+                stateKey: peerMxid,
+                originServerTs: DateTime.fromMillisecondsSinceEpoch(
+                  1780000000001,
+                ),
+                content: const {
+                  'membership': 'join',
+                  'displayname': 'Alice',
+                },
+              ),
+              MatrixEvent(
+                type: EventTypes.RoomCreate,
+                eventId: r'$direct-create',
+                senderId: ownerMxid,
+                stateKey: '',
+                originServerTs: DateTime.fromMillisecondsSinceEpoch(
+                  1780000000002,
+                ),
+                content: {'creator': ownerMxid},
+              ),
+            ],
+            timeline: TimelineUpdate(events: const [], prevBatch: 't0'),
+          ),
+        },
+      ),
+    );
+  }
+}
+
 class _GroupChatHarness {
   const _GroupChatHarness({
     required this.client,
@@ -8900,16 +9049,20 @@ void main() {
 
   testWidgets('group chat recovers when Matrix room cache is missing',
       (tester) async {
-    final client = Client('PortalIMGroupChatMissingRoomRecoveryTest')
-      ..setUserId('@owner:p2p-im.com');
+    const roomId = '!group:p2p-im.com';
+    const userId = '@owner:p2p-im.com';
+    final client = _RecoveringGroupRoomClient(
+      recoveryRoomId: roomId,
+      recoveryUserId: userId,
+    );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 30, 8),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      user: const AsSyncUser(userId: userId),
       rooms: const [],
       contacts: const [],
       groups: const [
         AsSyncRoomSummary(
-          roomId: '!group:p2p-im.com',
+          roomId: roomId,
           name: '真实群',
           avatarUrl: '',
           unreadCount: 0,
@@ -8924,23 +9077,37 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const GroupChatPage(roomId: '!group:p2p-im.com'),
+          home: const GroupChatPage(roomId: roomId),
         ),
       ),
     );
     await tester.pump();
 
     expect(find.text('真实群'), findsOneWidget);
-    expect(find.text('正在恢复群聊...'), findsOneWidget);
     expect(find.text('这个群聊暂时无法打开'), findsNothing);
 
-    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+
+    expect(client.getRoomById(roomId), isNotNull);
+    expect(client.syncRequests, isNotEmpty);
+    expect(client.syncRequests.single.fullState, isTrue);
+    expect(client.syncRequests.single.since, isNull);
+    expect(client.syncRequests.single.timeout, 0);
+    final filter =
+        jsonDecode(client.syncRequests.single.filter!) as Map<String, Object?>;
+    final roomFilter = filter['room']! as Map<String, Object?>;
+    final timelineFilter = roomFilter['timeline']! as Map<String, Object?>;
+    expect(roomFilter['rooms'], [roomId]);
+    expect(timelineFilter['limit'], 0);
+    expect(find.text('正在恢复群聊...'), findsNothing);
+    expect(find.text('群聊同步超时，请检查网络后重试'), findsNothing);
   });
 
   testWidgets('group chat header opens active group call from title capsule',
@@ -13214,18 +13381,24 @@ void main() {
 
   testWidgets('chat waits for Matrix room load when AS knows conversation',
       (tester) async {
-    final client = Client('PortalIMMissingRoomRecoveryTest')
-      ..setUserId('@owner:p2p-im.com');
+    const roomId = '!alice:p2p-im.com';
+    const ownerMxid = '@owner:p2p-im.com';
+    const peerMxid = '@alice:p2p-im.com';
+    final client = _RecoveringDirectRoomClient(
+      recoveryRoomId: roomId,
+      ownerMxid: ownerMxid,
+      peerMxid: peerMxid,
+    );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 12, 9),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      user: const AsSyncUser(userId: ownerMxid),
       rooms: const [],
       contacts: const [
         AsSyncContact(
-          userId: '@alice:p2p-im.com',
+          userId: peerMxid,
           displayName: 'Alice',
           avatarUrl: '',
-          roomId: '!alice:p2p-im.com',
+          roomId: roomId,
           domain: 'p2p-im.com',
           status: 'accepted',
         ),
@@ -13248,7 +13421,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const ChatPage(roomId: '!alice:p2p-im.com'),
+          home: const ChatPage(roomId: roomId),
         ),
       ),
     );
@@ -13256,9 +13429,21 @@ void main() {
     expect(find.text('正在同步会话'), findsOneWidget);
     expect(find.text('会话不存在'), findsNothing);
 
-    await tester.pump(const Duration(seconds: 13));
-    await tester.pump();
-    expect(find.text('会话同步超时，请检查网络后重试'), findsOneWidget);
+    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+
+    expect(client.getRoomById(roomId), isNotNull);
+    expect(client.syncRequests, isNotEmpty);
+    expect(client.syncRequests.single.fullState, isTrue);
+    expect(client.syncRequests.single.since, isNull);
+    expect(client.syncRequests.single.timeout, 0);
+    final filter =
+        jsonDecode(client.syncRequests.single.filter!) as Map<String, Object?>;
+    final roomFilter = filter['room']! as Map<String, Object?>;
+    final timelineFilter = roomFilter['timeline']! as Map<String, Object?>;
+    expect(roomFilter['rooms'], [roomId]);
+    expect(timelineFilter['limit'], 0);
+    expect(find.text('正在同步会话'), findsNothing);
+    expect(find.text('会话同步超时，请检查网络后重试'), findsNothing);
     expect(find.text('会话不存在'), findsNothing);
   });
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -286,6 +287,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   bool _historyRequestInFlight = false;
   bool _roomRecoveryInFlight = false;
   bool _roomRecoveryAttempted = false;
+  bool _roomRecoveryFailed = false;
   final Set<String> _warmedThumbnailEventIds = {};
   final Set<String> _favoritingEventIds = {};
   final Set<String> _retryingOutboxIds = {};
@@ -1059,6 +1061,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (_roomRecoveryAttempted && !force) return;
     _roomRecoveryInFlight = true;
     _roomRecoveryAttempted = true;
+    _roomRecoveryFailed = false;
     try {
       var syncCache = ref.read(asSyncCacheProvider);
       var group = _groupSummary(syncCache);
@@ -1078,7 +1081,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       }
       if (group == null && !force) return;
       try {
-        await ref.read(matrixClientProvider).oneShotSync();
+        await _syncMissingGroupRoomFromServer();
       } on Object catch (e) {
         debugPrint('group chat Matrix room recovery sync failed: $e');
       }
@@ -1087,11 +1090,45 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         setState(() => _loading = true);
         await _initTimeline();
       } else {
-        setState(() {});
+        setState(() => _roomRecoveryFailed = true);
       }
     } finally {
       _roomRecoveryInFlight = false;
     }
+  }
+
+  Future<void> _syncMissingGroupRoomFromServer() async {
+    final client = ref.read(matrixClientProvider);
+    final filter = jsonEncode({
+      'room': {
+        'rooms': [widget.roomId],
+        'timeline': {'limit': 0},
+      },
+    });
+    final syncResp = await client
+        .sync(
+          filter: filter,
+          fullState: true,
+          timeout: 0,
+          setPresence: client.syncPresence,
+        )
+        .timeout(const Duration(seconds: 12));
+    final database = client.database;
+    if (database != null) {
+      await database.transaction(() async {
+        await client.handleSync(syncResp, direction: Direction.f);
+      });
+    } else {
+      await client.handleSync(syncResp, direction: Direction.f);
+    }
+  }
+
+  void _retryMissingGroupRoomRecovery() {
+    setState(() {
+      _roomRecoveryAttempted = false;
+      _roomRecoveryFailed = false;
+    });
+    unawaited(_recoverMissingGroupRoom(force: true));
   }
 
   Future<void> _loadLocalAsCallHistory() async {
@@ -2288,10 +2325,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       final t = context.tk;
       final syncCache = ref.watch(asSyncCacheProvider);
       final group = _groupSummary(syncCache);
-      final canRecover = group != null;
+      final knownGroup = group != null;
+      final recovering = knownGroup && !_roomRecoveryFailed;
       final title =
           group?.name.trim().isNotEmpty == true ? group!.name.trim() : '群聊';
-      if (canRecover) {
+      if (recovering) {
         unawaited(_recoverMissingGroupRoom());
       }
       return Scaffold(
@@ -2301,7 +2339,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: ChatCapsuleHeader(
-                  title: canRecover ? title : '群组不存在',
+                  title: knownGroup ? title : '群组不存在',
                   onBack: () => unawaited(_popGroupChatOrHome(context)),
                   actions: const [],
                 ),
@@ -2311,7 +2349,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (canRecover) ...[
+                      if (recovering) ...[
                         SizedBox(
                           width: 18,
                           height: 18,
@@ -2323,15 +2361,17 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                         const SizedBox(height: 12),
                       ],
                       Text(
-                        canRecover ? '正在恢复群聊...' : '这个群聊暂时无法打开',
+                        recovering
+                            ? '正在恢复群聊...'
+                            : knownGroup
+                                ? '群聊同步超时，请检查网络后重试'
+                                : '这个群聊暂时无法打开',
                         style: AppTheme.sans(size: 15, color: t.textMute),
                       ),
-                      if (!canRecover) ...[
+                      if (!recovering) ...[
                         const SizedBox(height: 12),
                         TextButton(
-                          onPressed: () => unawaited(
-                            _recoverMissingGroupRoom(force: true),
-                          ),
+                          onPressed: _retryMissingGroupRoomRecovery,
                           child: const Text('重试'),
                         ),
                       ],

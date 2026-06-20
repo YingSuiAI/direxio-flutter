@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -525,10 +526,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   Future<void> _syncMissingRoom() async {
     try {
-      await ref
-          .read(matrixClientProvider)
-          .oneShotSync()
-          .timeout(const Duration(seconds: 12));
+      await _syncMissingRoomFromServer();
     } catch (e) {
       debugPrint('missing chat room sync failed: $e');
     }
@@ -539,6 +537,32 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
     if (mounted) {
       setState(() => _missingRoomSyncFailed = true);
+    }
+  }
+
+  Future<void> _syncMissingRoomFromServer() async {
+    final client = ref.read(matrixClientProvider);
+    final filter = jsonEncode({
+      'room': {
+        'rooms': [widget.roomId],
+        'timeline': {'limit': 0},
+      },
+    });
+    final syncResp = await client
+        .sync(
+          filter: filter,
+          fullState: true,
+          timeout: 0,
+          setPresence: client.syncPresence,
+        )
+        .timeout(const Duration(seconds: 12));
+    final database = client.database;
+    if (database != null) {
+      await database.transaction(() async {
+        await client.handleSync(syncResp, direction: Direction.f);
+      });
+    } else {
+      await client.handleSync(syncResp, direction: Direction.f);
     }
   }
 

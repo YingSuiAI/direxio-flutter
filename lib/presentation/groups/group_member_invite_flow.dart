@@ -31,16 +31,55 @@ Future<void> showInviteGroupMembersFlow(
   if (selected == null || selected.isEmpty || !context.mounted) return;
 
   try {
-    final result = await ref.read(asClientProvider).inviteGroupMembers(
-          roomId: trimmedRoomId,
-          invite: selected,
+    final selectedContacts = [
+      for (final contact in candidates)
+        if (selected.contains(contact.userId.trim())) contact,
+    ];
+    final sendableContacts = selectedContacts
+        .where((contact) => contact.roomId.trim().isNotEmpty)
+        .toList(growable: false);
+    final skippedCount = selectedContacts.length - sendableContacts.length;
+    final asClient = ref.read(asClientProvider);
+    var recordedCount = 0;
+    if (sendableContacts.isNotEmpty) {
+      final result = await asClient.inviteGroupMembers(
+        roomId: trimmedRoomId,
+        invite: [
+          for (final contact in sendableContacts) contact.userId.trim(),
+        ],
+      );
+      recordedCount = result.invitedCount;
+    }
+    var sentCount = 0;
+    var failedCount = 0;
+    final groupName = _groupInviteRoomName(ref, trimmedRoomId);
+    final inviterMxid =
+        ref.read(asSyncCacheProvider).bootstrap?.user.userId ?? '';
+    for (final contact in sendableContacts) {
+      try {
+        await asClient.sendGroupInviteMessage(
+          directRoomId: contact.roomId.trim(),
+          groupRoomId: trimmedRoomId,
+          groupName: groupName,
+          inviterMxid: inviterMxid,
         );
+        sentCount++;
+      } on Object {
+        failedCount++;
+      }
+    }
     unawaited(_refreshBootstrapAfterInvite(ref));
     if (!context.mounted) return;
-    final count = result.invitedCount;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(count > 0 ? '已发送 $count 个群邀请' : '所选联系人已在群聊中'),
+        content: Text(
+          _groupInviteResultMessage(
+            sentCount: sentCount,
+            skippedCount: skippedCount,
+            failedCount: failedCount,
+            recordedCount: recordedCount,
+          ),
+        ),
       ),
     );
   } on Object catch (e) {
@@ -49,6 +88,31 @@ Future<void> showInviteGroupMembersFlow(
       SnackBar(content: Text(_groupInviteFailureMessage(e))),
     );
   }
+}
+
+String _groupInviteRoomName(WidgetRef ref, String roomId) {
+  final syncCache = ref.read(asSyncCacheProvider);
+  for (final group in syncCache.bootstrap?.groups ?? const []) {
+    if (group.roomId.trim() == roomId.trim() && group.name.trim().isNotEmpty) {
+      return group.name.trim();
+    }
+  }
+  return '群聊';
+}
+
+String _groupInviteResultMessage({
+  required int sentCount,
+  required int skippedCount,
+  required int failedCount,
+  required int recordedCount,
+}) {
+  if (sentCount == 0 && recordedCount == 0 && skippedCount == 0) {
+    return '所选联系人已在群聊中';
+  }
+  final parts = <String>['已发送 $sentCount 个群邀请卡片'];
+  if (skippedCount > 0) parts.add('$skippedCount 个联系人缺少私聊，已跳过');
+  if (failedCount > 0) parts.add('$failedCount 个发送失败');
+  return parts.join('，');
 }
 
 String _groupInviteFailureMessage(Object error) {

@@ -1527,6 +1527,10 @@ class _TrackingAsClient extends _EmptyAsClient {
   String? sentContent;
   String? sentReplyToEventId;
   List<Map<String, String>> sentMentions = const [];
+  int sendGroupInviteMessageCalls = 0;
+  List<String> sentGroupInviteDirectRoomIds = const [];
+  List<String> sentGroupInviteGroupRoomIds = const [];
+  List<String> sentGroupInviteGroupNames = const [];
   int createGroupCalls = 0;
   String? createdGroupName;
   String? createdGroupAvatarUrl;
@@ -1717,6 +1721,30 @@ class _TrackingAsClient extends _EmptyAsClient {
     sentRoomId = roomId;
     sentContent = body;
     return 'channel-share-event';
+  }
+
+  @override
+  Future<String> sendGroupInviteMessage({
+    required String directRoomId,
+    required String groupRoomId,
+    required String groupName,
+    required String inviterMxid,
+    String inviterDisplayName = '',
+  }) async {
+    sendGroupInviteMessageCalls++;
+    sentGroupInviteDirectRoomIds = [
+      ...sentGroupInviteDirectRoomIds,
+      directRoomId,
+    ];
+    sentGroupInviteGroupRoomIds = [
+      ...sentGroupInviteGroupRoomIds,
+      groupRoomId,
+    ];
+    sentGroupInviteGroupNames = [
+      ...sentGroupInviteGroupNames,
+      groupName,
+    ];
+    return 'group-invite-card-event-$sendGroupInviteMessageCalls';
   }
 
   @override
@@ -7317,7 +7345,11 @@ void main() {
     expect(asClient.inviteGroupMembersCalls, 1);
     expect(asClient.invitedGroupRoomId, '!group:p2p-im.com');
     expect(asClient.invitedGroupMembers, ['@carol:p2p-carol.com']);
-    expect(find.text('已发送 1 个群邀请'), findsOneWidget);
+    expect(asClient.sendGroupInviteMessageCalls, 1);
+    expect(asClient.sentGroupInviteDirectRoomIds, ['!carol:p2p-im.com']);
+    expect(asClient.sentGroupInviteGroupRoomIds, ['!group:p2p-im.com']);
+    expect(asClient.sentGroupInviteGroupNames, ['真实群']);
+    expect(find.text('已发送 1 个群邀请卡片'), findsOneWidget);
   });
 
   testWidgets('group info invite button posts member invites through AS',
@@ -7394,6 +7426,8 @@ void main() {
     expect(asClient.inviteGroupMembersCalls, 1);
     expect(asClient.invitedGroupRoomId, '!group:p2p-im.com');
     expect(asClient.invitedGroupMembers, ['@carol:p2p-carol.com']);
+    expect(asClient.sendGroupInviteMessageCalls, 1);
+    expect(asClient.sentGroupInviteDirectRoomIds, ['!carol:p2p-im.com']);
   });
 
   testWidgets('group info shows management only to group owner',

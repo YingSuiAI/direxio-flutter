@@ -90,7 +90,7 @@ void main() {
     expect(find.text('申请加入'), findsOneWidget);
   });
 
-  testWidgets('channel search lets current backend proxy Matrix room id lookup',
+  testWidgets('channel search passes remote node URL for Matrix room id lookup',
       (tester) async {
     final asClient = _ChannelSearchAsClient();
     await tester.pumpWidget(
@@ -112,6 +112,10 @@ void main() {
 
     expect(asClient.requestedPublicRoomId, '!ch_product:dendrite-a:8448');
     expect(asClient.requestedPublicRoomBaseUri, isNull);
+    expect(
+      asClient.requestedPublicRoomRemoteNodeBaseUri,
+      Uri.parse('http://127.0.0.1:18008/_p2p'),
+    );
     expect(asClient.publicSearchCallCount, 0);
   });
 
@@ -139,6 +143,10 @@ void main() {
 
     expect(asClient.requestedPublicRoomId, '!ch_product:dendrite-a:8448');
     expect(asClient.requestedPublicRoomBaseUri, isNull);
+    expect(
+      asClient.requestedPublicRoomRemoteNodeBaseUri,
+      Uri.parse('http://127.0.0.1:18008/_p2p'),
+    );
     expect(find.text('接口返回频道'), findsOneWidget);
 
     await tester.tap(find.text('申请加入'));
@@ -146,6 +154,10 @@ void main() {
     await tester.pump();
 
     expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
+    expect(
+      asClient.joinedRemoteNodeBaseUri,
+      Uri.parse('https://p2p-im.com/_p2p'),
+    );
     expect(find.text('待审核'), findsOneWidget);
     expect(find.textContaining('加入频道失败'), findsNothing);
   });
@@ -227,6 +239,8 @@ class _ChannelSearchAsClient extends MockAsClient {
   String? joinedRoomId;
   String? requestedPublicRoomId;
   Uri? requestedPublicRoomBaseUri;
+  Uri? requestedPublicRoomRemoteNodeBaseUri;
+  Uri? joinedRemoteNodeBaseUri;
   String? lastPublicSearchQuery;
   Uri? lastPublicSearchBaseUri;
   int? publicRoomErrorStatus;
@@ -260,8 +274,10 @@ class _ChannelSearchAsClient extends MockAsClient {
     String roomId, {
     String shareToken = '',
     AsChannel? discoveredChannel,
+    Uri? remoteNodeBaseUri,
   }) async {
     joinedRoomId = roomId;
+    joinedRemoteNodeBaseUri = remoteNodeBaseUri;
     return const AsChannel(
       channelId: 'ch_product',
       roomId: '!ch_product:p2p-im.com',
@@ -279,9 +295,11 @@ class _ChannelSearchAsClient extends MockAsClient {
   Future<AsChannel> getPublicChannelByRoomId(
     String roomId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     requestedPublicRoomId = roomId;
     requestedPublicRoomBaseUri = baseUri;
+    requestedPublicRoomRemoteNodeBaseUri = remoteNodeBaseUri;
     final errorStatus = publicRoomErrorStatus;
     if (errorStatus != null) {
       throw AsClientException('not found', statusCode: errorStatus);

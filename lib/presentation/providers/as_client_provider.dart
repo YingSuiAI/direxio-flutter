@@ -10,7 +10,7 @@ import 'auth_provider.dart';
 /// Global AS Admin API client.
 ///
 /// It reuses the active Matrix session's homeserver and the persisted AS
-/// `admin_access_token`, matching p2p-matrix-as Admin API authentication.
+/// `access_token`, matching p2p-matrix-as Admin API authentication.
 final asClientProvider = Provider<AsClient>((ref) {
   final client = ref.watch(matrixClientProvider);
   final portalToken =
@@ -28,7 +28,7 @@ final asClientProvider = Provider<AsClient>((ref) {
     );
   }
   debugPrint(
-    'asClientProvider missing admin_access_token; falling back to Matrix '
+    'asClientProvider missing access_token; falling back to Matrix '
     'access token for AS Admin API. This will fail on AS v2 with '
     'M_UNKNOWN_TOKEN.',
   );

@@ -170,8 +170,7 @@ void main() {
         });
         return http.Response(
           jsonEncode({
-            'matrix_access_token': 'matrix-token',
-            'admin_access_token': 'admin-token',
+            'access_token': 'access-token',
             'initialized': true,
             'password_initialized': true,
             'profile_initialized': true,
@@ -190,8 +189,7 @@ void main() {
       deviceId: 'DEVICE1',
     );
 
-    expect(session.matrixAccessToken, 'matrix-token');
-    expect(session.adminAccessToken, 'admin-token');
+    expect(session.accessToken, 'access-token');
     expect(session.initialized, isTrue);
     expect(session.passwordInitialized, isTrue);
     expect(session.alreadyInitialized, isTrue);
@@ -457,17 +455,17 @@ void main() {
     var refreshCount = 0;
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'old-admin-token',
+      portalToken: 'old-access-token',
       onAuthenticationRefresh: () {
         refreshCount++;
-        return 'new-admin-token';
+        return 'new-access-token';
       },
       httpClient: MockClient((request) async {
         authorizations.add(request.headers['Authorization'] ?? '');
-        if (request.headers['Authorization'] == 'Bearer old-admin-token') {
+        if (request.headers['Authorization'] == 'Bearer old-access-token') {
           return _jsonResponse({'error': 'M_UNKNOWN_TOKEN'}, 401);
         }
-        expect(request.headers['Authorization'], 'Bearer new-admin-token');
+        expect(request.headers['Authorization'], 'Bearer new-access-token');
         expect(jsonDecode(request.body)['action'], 'sync.bootstrap');
         return _jsonResponse(
           {
@@ -489,8 +487,8 @@ void main() {
     expect(bootstrap.user.userId, '@owner:example.com');
     expect(refreshCount, 1);
     expect(authorizations, [
-      'Bearer old-admin-token',
-      'Bearer new-admin-token',
+      'Bearer old-access-token',
+      'Bearer new-access-token',
     ]);
   });
 
@@ -2160,7 +2158,7 @@ void main() {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
       portalToken: 'admin-token',
-      matrixAccessTokenForDebug: 'matrix-token',
+      accessTokenForDebug: 'matrix-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'PUT');
         expect(request.url.path, '/_as/portal/password');
@@ -2172,8 +2170,7 @@ void main() {
         });
         return http.Response(
           jsonEncode({
-            'matrix_access_token': 'new-matrix-token',
-            'admin_access_token': 'new-admin-token',
+            'access_token': 'new-access-token',
             'initialized': true,
             'password_initialized': true,
             'profile_initialized': true,
@@ -2189,8 +2186,7 @@ void main() {
       deviceId: 'DEVICE1',
     );
 
-    expect(session.matrixAccessToken, 'new-matrix-token');
-    expect(session.adminAccessToken, 'new-admin-token');
+    expect(session.accessToken, 'new-access-token');
     expect(session.userId, isEmpty);
     expect(session.homeserver, isEmpty);
     expect(session.initialized, isTrue);
@@ -2403,6 +2399,46 @@ void main() {
     expect(channel.roomId, '!channel:dendrite-a:8448');
   });
 
+  test('getPublicChannelByRoomId passes remote node base URL as params',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://local.example/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.toString(), 'https://local.example/_p2p/query');
+        expect(request.headers['Authorization'], isNull);
+        expect(jsonDecode(request.body), {
+          'action': 'channels.public.get',
+          'params': {
+            'channel_id': '!remote:remote.example',
+            'room_id': '!remote:remote.example',
+            'remote_node_base_url': 'https://remote.example/_p2p',
+          },
+        });
+        return _jsonResponse(
+          {
+            'channel_id': 'ch_remote',
+            'room_id': '!remote:remote.example',
+            'home_domain': 'remote.example',
+            'name': '远端公开频道',
+            'visibility': 'public',
+            'join_policy': 'open',
+            'comments_enabled': true,
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.getPublicChannelByRoomId(
+      '!remote:remote.example',
+      remoteNodeBaseUri: Uri.parse('https://remote.example/_p2p'),
+    );
+
+    expect(channel.channelId, 'ch_remote');
+  });
+
   test('getUserPublicChannels calls public user endpoint without auth',
       () async {
     final client = HttpAsClient(
@@ -2609,6 +2645,48 @@ void main() {
 
     expect(channel.channelId, 'ch_remote');
     expect(channel.memberStatus, asChannelMemberStatusInvite);
+  });
+
+  test('joinChannelByRoomId passes remote node base URL as params', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://local.example/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.toString(), 'https://local.example/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        final envelope = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(envelope['action'], 'channels.public.join_request');
+        expect(envelope['params'], {
+          'channel_id': '!remote:remote.example',
+          'room_id': '!remote:remote.example',
+          'remote_node_base_url': 'https://remote.example/_p2p',
+        });
+        return _jsonResponse(
+          {
+            'status': 'pending',
+            'channel': {
+              'channel_id': 'ch_remote',
+              'room_id': '!remote:remote.example',
+              'home_domain': 'remote.example',
+              'name': '远端公开频道',
+              'visibility': 'public',
+              'join_policy': 'approval',
+              'comments_enabled': true,
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.joinChannelByRoomId(
+      '!remote:remote.example',
+      remoteNodeBaseUri: Uri.parse('https://remote.example/_p2p'),
+    );
+
+    expect(channel.channelId, 'ch_remote');
+    expect(channel.memberStatus, asChannelMemberStatusPending);
   });
 
   test('getChannelMembers reads pending approval requests', () async {
@@ -3430,8 +3508,7 @@ void main() {
         });
         return http.Response(
           jsonEncode({
-            'matrix_access_token': 'matrix-access-token',
-            'admin_access_token': 'admin-access-token',
+            'access_token': 'matrix-access-token',
             'user_id': '@owner:example.com',
             'homeserver': 'https://example.com',
             'agent_room_id': '!agent:example.com',
@@ -3444,8 +3521,7 @@ void main() {
       }),
     );
 
-    expect(session.matrixAccessToken, 'matrix-access-token');
-    expect(session.adminAccessToken, 'admin-access-token');
+    expect(session.accessToken, 'matrix-access-token');
     expect(session.userId, '@owner:example.com');
     expect(session.homeserver, 'https://example.com');
     expect(session.deviceId, isNull);
@@ -3470,8 +3546,7 @@ void main() {
         });
         return http.Response(
           jsonEncode({
-            'matrix_access_token': 'bootstrapped-matrix-token',
-            'admin_access_token': 'bootstrapped-admin-token',
+            'access_token': 'bootstrapped-access-token',
             'user_id': '@owner:example.com',
             'homeserver': 'https://example.com',
             'initialized': true,
@@ -3483,8 +3558,7 @@ void main() {
       }),
     );
 
-    expect(session.matrixAccessToken, 'bootstrapped-matrix-token');
-    expect(session.adminAccessToken, 'bootstrapped-admin-token');
+    expect(session.accessToken, 'bootstrapped-access-token');
     expect(session.initialized, isTrue);
     expect(session.passwordInitialized, isFalse);
     expect(session.profileInitialized, isFalse);

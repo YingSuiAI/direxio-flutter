@@ -62,9 +62,11 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
     });
     try {
       if (looksLikeMatrixRoomId(query)) {
-        final channel = await ref
-            .read(asClientProvider)
-            .getPublicChannelByRoomId(query.trim());
+        final channel =
+            await ref.read(asClientProvider).getPublicChannelByRoomId(
+                  query.trim(),
+                  remoteNodeBaseUri: publicBaseUriForMatrixRoomId(query),
+                );
         if (!mounted || serial != _serial) return;
         setState(() {
           _results = [channel];
@@ -107,6 +109,7 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       final joined = await ref.read(asClientProvider).joinChannelByRoomId(
             roomId,
             discoveredChannel: channel,
+            remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
           );
       setState(() {
         _results = [

@@ -51,6 +51,7 @@ class _RelationshipAsClient extends Fake implements AsClient {
   Future<AsChannel> getPublicChannelByRoomId(
     String roomId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     requestedPublicRoomId = roomId;
     return publicChannels.firstWhere(

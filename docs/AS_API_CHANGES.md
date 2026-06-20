@@ -4,6 +4,33 @@ Last updated: 2026-06-20
 
 This document records frontend-impacting AS/Admin API changes. It is the client-side companion to the server work recorded in Codex thread `019edf7c-54fa-7ba3-a8f8-99c8dac1e838`.
 
+## 2026-06-20 Request-Provided Remote Nodes And Unified Token
+
+### Public Remote Channel Lookup
+
+Change:
+
+- Public remote channel lookup no longer uses a server-side remote-node env table.
+- Requests for remote Matrix room IDs must pass `remote_node_base_url` with the owner node's `/_p2p` base URL.
+- The backend validates `room_id` and `remote_node_base_url`; missing or invalid remote URL returns `400`.
+
+Frontend alignment:
+
+- `HttpAsClient.getPublicChannelByRoomId` and `joinChannelByRoomId` accept `remoteNodeBaseUri` and send it as `remote_node_base_url`.
+- Public-channel search/detail/join flows derive `remoteNodeBaseUri` from the searched Matrix room ID and include it in lookup/join requests.
+
+### Portal Session Token
+
+Change:
+
+- `portal.bootstrap`, `portal.auth`, and `portal.password` return only `access_token`.
+- `admin_access_token` and `matrix_access_token` are removed and are not parsed by the client.
+
+Frontend alignment:
+
+- `AsPortalSession` stores a single `accessToken`.
+- Matrix SDK login/session setup and protected P2P API bearer auth both use that same token.
+
 ## 2026-06-19 Server Sync
 
 Server reference:
@@ -17,14 +44,14 @@ Server reference:
 
 Change:
 
-- Public remote channel lookup now requires explicit server configuration through `P2P_REMOTE_NODE_BASE_URLS`.
+- Public remote channel lookup now requires `remote_node_base_url` in the request.
 - TLS verification is enabled by default.
-- The client must not infer a remote AS base URL from a Matrix `room_id` server name.
+- The client supplies the target node `/_p2p` base URL for remote Matrix room IDs.
 
 Frontend alignment:
 
-- `ChannelSearchPage` keeps Matrix room-id lookup on the configured AS client.
-- Widget coverage now asserts no implicit `https://{room_id_server}/_p2p` base URI is generated.
+- `ChannelSearchPage` includes `remote_node_base_url` for Matrix room-id lookup.
+- Widget coverage asserts the derived remote node base URI is passed to lookup and join requests.
 
 ### Channel Join / Approval Status
 

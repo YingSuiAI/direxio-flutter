@@ -1,9 +1,9 @@
 // AS Admin API 客户端 —— 对应 INTERFACE_SPEC.md §5 / §6
 //
 // Matrix 标准协议不覆盖的能力（消息搜索、Agent 配置、关注系统、Portal 状态）
-// 由 p2p-matrix-as 的 Admin API 补齐，端点统一走 `https://{domain}/_as/` 前缀。
-// Admin API 使用 AS `admin_access_token` 作为 Bearer；Matrix SDK 自身继续使用
-// Matrix `matrix_access_token`。
+// 由 p2p-matrix-as 的 Admin API 补齐，端点统一走 `https://{domain}/_p2p/`
+// 前缀。当前后端统一返回 `access_token`，P2P API 和 Matrix SDK 使用同一个
+// 用户 token。
 //
 // 本文件只定义抽象接口与数据模型；真实 HTTP 实现在 http_as_client.dart。
 
@@ -37,8 +37,7 @@ const asChannelTypePost = 'post';
 
 class AsPortalSession {
   const AsPortalSession({
-    required this.matrixAccessToken,
-    required this.adminAccessToken,
+    required this.accessToken,
     required this.userId,
     required this.homeserver,
     this.deviceId,
@@ -52,8 +51,7 @@ class AsPortalSession {
     this.initializationCompleted,
   });
 
-  final String matrixAccessToken;
-  final String adminAccessToken;
+  final String accessToken;
   final String userId;
   final String homeserver;
   final String? deviceId;
@@ -68,8 +66,7 @@ class AsPortalSession {
 
   factory AsPortalSession.fromJson(Map<String, dynamic> json) {
     return AsPortalSession(
-      matrixAccessToken: json['matrix_access_token'] as String? ?? '',
-      adminAccessToken: json['admin_access_token'] as String? ?? '',
+      accessToken: json['access_token'] as String? ?? '',
       userId: json['user_id'] as String? ?? '',
       homeserver: json['homeserver'] as String? ?? '',
       deviceId: json['device_id'] as String?,
@@ -1537,7 +1534,7 @@ class AsClientException implements Exception {
 
 /// p2p-matrix-as 的 Admin API 客户端。
 ///
-/// 所有实现都用 `admin_access_token` 做认证（Bearer）。
+/// 所有实现都用 `access_token` 做认证（Bearer）。
 abstract class AsClient {
   /// GET /_as/profile
   Future<OwnerProfile> getOwnerProfile();
@@ -1797,7 +1794,11 @@ abstract class AsClient {
   Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri});
 
   /// GET /_as/public/channels/{roomId}
-  Future<AsChannel> getPublicChannelByRoomId(String roomId, {Uri? baseUri});
+  Future<AsChannel> getPublicChannelByRoomId(
+    String roomId, {
+    Uri? baseUri,
+    Uri? remoteNodeBaseUri,
+  });
 
   /// GET /_as/users/{userId}/public-channels
   Future<List<AsChannel>> getUserPublicChannels(String userId, {Uri? baseUri});
@@ -1810,6 +1811,7 @@ abstract class AsClient {
     String roomId, {
     String shareToken = '',
     AsChannel? discoveredChannel,
+    Uri? remoteNodeBaseUri,
   });
 
   /// POST /_as/channels/{channelId}/join

@@ -11,6 +11,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../channel/channel_inbox_data.dart';
 import '../chat/chat_record_forwarding.dart';
+import '../channel/public_channel_target.dart';
 import '../mock/mock_channels.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
@@ -546,7 +547,10 @@ class _PublicChannelScaffoldState
     final trimmed = id.trim();
     final client = ref.read(asClientProvider);
     if (_looksLikeMatrixRoomId(trimmed)) {
-      return client.getPublicChannelByRoomId(trimmed);
+      return client.getPublicChannelByRoomId(
+        trimmed,
+        remoteNodeBaseUri: publicBaseUriForMatrixRoomId(trimmed),
+      );
     }
     return client.getPublicChannel(trimmed);
   }
@@ -620,6 +624,7 @@ class _PublicChannelScaffoldState
       var joined = await asClient.joinChannelByRoomId(
         roomId,
         discoveredChannel: channel,
+        remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
       );
       if (joined.memberStatus == asChannelMemberStatusInvite) {
         final channelId = joined.channelId.trim().isEmpty

@@ -455,6 +455,7 @@ class _EmptyAsClient implements AsClient {
   Future<AsChannel> getPublicChannelByRoomId(
     String roomId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     lastPublicChannelLookupBaseUri = baseUri;
     return AsChannel(
@@ -480,6 +481,7 @@ class _EmptyAsClient implements AsClient {
     String roomId, {
     String shareToken = '',
     AsChannel? discoveredChannel,
+    Uri? remoteNodeBaseUri,
   }) async =>
       AsChannel(
         channelId: discoveredChannel?.channelId ?? roomId,
@@ -1586,11 +1588,16 @@ class _TrackingAsClient extends _EmptyAsClient {
   Future<AsChannel> getPublicChannelByRoomId(
     String roomId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     requestedPublicChannelRoomId = roomId;
     final channel = userPublicChannels.where((item) => item.roomId == roomId);
     if (channel.isNotEmpty) return channel.first;
-    return super.getPublicChannelByRoomId(roomId, baseUri: baseUri);
+    return super.getPublicChannelByRoomId(
+      roomId,
+      baseUri: baseUri,
+      remoteNodeBaseUri: remoteNodeBaseUri,
+    );
   }
 
   @override

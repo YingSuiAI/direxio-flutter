@@ -21,6 +21,7 @@ import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/recovered_unread_store_provider.dart';
 import '../channel/channel_share.dart';
+import '../channel/public_channel_target.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
@@ -1604,6 +1605,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final joined = await ref.read(asClientProvider).joinChannelByRoomId(
             roomId,
             discoveredChannel: payload.asDiscoveredChannel,
+            remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
           );
       if (isAsChannelMemberJoined(joined.memberStatus)) {
         await _refreshBootstrapAfterVisibilityMutation();

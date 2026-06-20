@@ -669,6 +669,7 @@ class MockAsClient implements AsClient {
   Future<AsChannel> getPublicChannelByRoomId(
     String roomId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     await Future.delayed(_latency);
     final trimmedRoomId = roomId.trim();
@@ -716,6 +717,7 @@ class MockAsClient implements AsClient {
     String roomId, {
     String shareToken = '',
     AsChannel? discoveredChannel,
+    Uri? remoteNodeBaseUri,
   }) async {
     await Future.delayed(_latency);
     final trimmedRoomId = roomId.trim();

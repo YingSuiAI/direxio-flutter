@@ -181,7 +181,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'admin-token',
+      AuthStateNotifier.accessTokenKey: 'admin-token',
     });
     final syncCompleter = Completer<http.Response>();
     final requestPaths = <String>[];
@@ -239,7 +239,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'admin-token',
+      AuthStateNotifier.accessTokenKey: 'admin-token',
       AuthStateNotifier.profileInitializedKey: 'true',
     });
     final client = Client(
@@ -279,7 +279,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'stored-admin-token',
+      AuthStateNotifier.accessTokenKey: 'stored-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
       AuthStateNotifier.profileInitializedKey: 'false',
     });
@@ -288,8 +288,7 @@ void main() {
       httpClient: MockClient((request) async {
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token",'
-            '"admin_access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -342,7 +341,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'admin-token',
+      AuthStateNotifier.accessTokenKey: 'admin-token',
     });
     final stalledNetwork = Completer<http.Response>();
     final client = Client(
@@ -377,7 +376,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'admin-token',
+      AuthStateNotifier.accessTokenKey: 'admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'portal-token',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
     });
@@ -391,8 +390,7 @@ void main() {
             'device_id': 'DEVICE1',
           });
           return http.Response(
-            '{"matrix_access_token":"fresh-token",'
-            '"admin_access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -424,7 +422,7 @@ void main() {
     expect(auth.isLoggedIn, isTrue);
     expect(auth.userId, '@owner:example.com');
     expect(auth.homeserver, 'https://example.com');
-    expect(auth.portalToken, 'fresh-admin-token');
+    expect(auth.portalToken, 'fresh-token');
     expect(client.accessToken, 'fresh-token');
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_token'),
@@ -440,8 +438,8 @@ void main() {
     );
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.adminAccessTokenKey),
-      'fresh-admin-token',
+          .read(key: AuthStateNotifier.accessTokenKey),
+      'fresh-token',
     );
   });
 
@@ -452,7 +450,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'admin-token',
+      AuthStateNotifier.accessTokenKey: 'admin-token',
     });
     final authHeaders = <String>[];
     final requestPaths = <String>[];
@@ -562,7 +560,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
       AuthStateNotifier.profileInitializedKey: 'true',
     });
@@ -585,8 +583,7 @@ void main() {
             'device_id': 'DEVICE1',
           });
           return http.Response(
-            '{"matrix_access_token":"matrix-token",'
-            '"admin_access_token":"new-admin-token",'
+            '{"access_token":"matrix-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -604,7 +601,7 @@ void main() {
               headers: {'content-type': 'application/json'},
             );
           }
-          expect(authorization, 'Bearer new-admin-token');
+          expect(authorization, 'Bearer matrix-token');
           return http.Response(
             '{"synced_at":"2026-06-20T00:00:00Z",'
             '"user":{"user_id":"@owner:example.com"},'
@@ -644,7 +641,7 @@ void main() {
     expect(bootstrap.user.userId, '@owner:example.com');
     expect(seenAuthorizations, [
       'Bearer old-admin-token',
-      'Bearer new-admin-token',
+      'Bearer matrix-token',
     ]);
     expect(
         requestActions,
@@ -655,13 +652,13 @@ void main() {
         ]));
     expect(
       container.read(authStateNotifierProvider).valueOrNull?.portalToken,
-      'new-admin-token',
+      'matrix-token',
     );
     expect(
       await const FlutterSecureStorage().read(
-        key: AuthStateNotifier.adminAccessTokenKey,
+        key: AuthStateNotifier.accessTokenKey,
       ),
-      'new-admin-token',
+      'matrix-token',
     );
   });
 
@@ -684,7 +681,7 @@ void main() {
             'device_id': 'DEVICE1',
           });
           return http.Response(
-            '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
+            '{"access_token":"fresh-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
             200,
           );
@@ -709,7 +706,7 @@ void main() {
     expect(auth.isLoggedIn, isTrue);
     expect(auth.userId, '@owner:example.com');
     expect(auth.homeserver, 'https://example.com');
-    expect(auth.portalToken, 'fresh-admin-token');
+    expect(auth.portalToken, 'fresh-token');
     expect(client.accessToken, 'fresh-token');
     expect(requestPaths, contains('/_p2p/command'));
     expect(
@@ -743,8 +740,7 @@ void main() {
         if (request.url.path == '/_p2p/command' &&
             body['action'] == 'portal.auth') {
           return http.Response(
-            '{"matrix_access_token":"fresh-matrix-token",'
-            '"admin_access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-matrix-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
             '"agent_room_id":"!agent:example.com"}',
@@ -797,10 +793,10 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.portalToken, 'fresh-admin-token');
+    expect(auth?.portalToken, 'fresh-matrix-token');
     expect(auth?.requiresProfileSetup, isFalse);
     expect(client.accessToken, 'fresh-matrix-token');
-    expect(authHeaders['profile.get'], 'Bearer fresh-admin-token');
+    expect(authHeaders['profile.get'], 'Bearer fresh-matrix-token');
     expect(authHeaders['/_matrix/client/v3/sync'], 'Bearer fresh-matrix-token');
     expect(
       requestPaths.indexOf('/_p2p/command'),
@@ -823,7 +819,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
+            '{"access_token":"fresh-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
             '"profile_initialized":false}',
             200,
@@ -875,7 +871,7 @@ void main() {
 
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.portalToken, 'fresh-admin-token');
+    expect(auth?.portalToken, 'fresh-token');
   });
 
   test('portal login resolves device id from Matrix token owner', () async {
@@ -885,7 +881,7 @@ void main() {
       httpClient: MockClient((request) async {
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
+            '{"access_token":"fresh-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com"}',
             200,
           );
@@ -949,7 +945,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'OLDDEVICE',
-      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
     });
     final client = Client(
@@ -964,7 +960,7 @@ void main() {
             }
             expect(params, {'password': '12345678', 'device_id': 'OLDDEVICE'});
             return http.Response(
-              '{"matrix_access_token":"new-token","admin_access_token":"new-admin-token","user_id":"@owner:example.com",'
+              '{"access_token":"new-token","user_id":"@owner:example.com",'
               '"homeserver":"https://example.com","device_id":"OLDDEVICE"}',
               200,
             );
@@ -1040,7 +1036,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
+            '{"access_token":"fresh-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
             '"profile_initialized":false}',
             200,
@@ -1100,7 +1096,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
+            '{"access_token":"fresh-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
             200,
           );
@@ -1165,8 +1161,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token",'
-            '"admin_access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -1234,8 +1229,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token",'
-            '"admin_access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -1303,8 +1297,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token",'
-            '"admin_access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -1369,8 +1362,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token",'
-            '"admin_access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -1443,8 +1435,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token",'
-            '"admin_access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -1515,8 +1506,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.auth') != null) {
           return http.Response(
-            '{"matrix_access_token":"fresh-token",'
-            '"admin_access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -1593,23 +1583,21 @@ void main() {
               'device_id': requestedDeviceId,
             });
             return http.Response(
-              '{"matrix_access_token":"fresh-token","admin_access_token":"fresh-admin-token","user_id":"@owner:example.com",'
+              '{"access_token":"fresh-token","user_id":"@owner:example.com",'
               '"homeserver":"https://example.com","device_id":"$requestedDeviceId"}',
               200,
             );
           }
           if (body['action'] == 'portal.password') {
             expect(request.method, 'POST');
-            expect(
-                request.headers['Authorization'], 'Bearer fresh-admin-token');
+            expect(request.headers['Authorization'], 'Bearer fresh-token');
             expect(body['params'], {
               'old_password': '11111111',
               'new_password': '22222222',
               'device_id': bootstrapDeviceId,
             });
             return http.Response(
-              '{"matrix_access_token":"changed-matrix-token",'
-              '"admin_access_token":"changed-admin-token",'
+              '{"access_token":"changed-matrix-token",'
               '"device_id":"$bootstrapDeviceId"}',
               200,
             );
@@ -1663,7 +1651,7 @@ void main() {
     expect(auth?.isLoggedIn, isTrue);
     expect(auth?.userId, '@owner:example.com');
     expect(auth?.homeserver, 'https://example.com');
-    expect(auth?.portalToken, 'changed-admin-token');
+    expect(auth?.portalToken, 'changed-matrix-token');
     expect(client.accessToken, 'changed-matrix-token');
     expect(
       requestActions.indexOf('portal.bootstrap'),
@@ -1671,8 +1659,8 @@ void main() {
     );
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.adminAccessTokenKey),
-      'changed-admin-token',
+          .read(key: AuthStateNotifier.accessTokenKey),
+      'changed-matrix-token',
     );
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_device_id'),
@@ -1688,7 +1676,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
       AuthStateNotifier.profileInitializedKey: 'false',
     });
@@ -1710,8 +1698,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.password') != null) {
           return http.Response(
-            '{"matrix_access_token":"new-token",'
-            '"admin_access_token":"new-admin-token",'
+            '{"access_token":"new-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
             200,
@@ -1774,7 +1761,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
       AuthStateNotifier.profileInitializedKey: 'true',
     });
@@ -1789,8 +1776,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.password') != null) {
           return http.Response(
-            '{"matrix_access_token":"new-token",'
-            '"admin_access_token":"new-admin-token",'
+            '{"access_token":"new-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1"}',
             200,
@@ -1849,7 +1835,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
       AuthStateNotifier.profileInitializedKey: 'false',
     });
@@ -1864,8 +1850,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.password') != null) {
           return http.Response(
-            '{"matrix_access_token":"new-token",'
-            '"admin_access_token":"new-admin-token",'
+            '{"access_token":"new-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -1928,7 +1913,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
       AuthStateNotifier.profileInitializedKey: 'true',
     });
@@ -1951,8 +1936,7 @@ void main() {
         }
         if (_p2pAction(request, 'portal.password') != null) {
           return http.Response(
-            '{"matrix_access_token":"new-token",'
-            '"admin_access_token":"new-admin-token",'
+            '{"access_token":"new-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
@@ -2037,7 +2021,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.adminAccessTokenKey: 'current-admin-token',
+      AuthStateNotifier.accessTokenKey: 'current-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
     });
@@ -2101,7 +2085,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@alice:example.com',
       'matrix_device_id': 'DEVICE_A',
-      AuthStateNotifier.adminAccessTokenKey: 'alice-admin-token',
+      AuthStateNotifier.accessTokenKey: 'alice-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'alicepass',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
     });
@@ -2113,8 +2097,7 @@ void main() {
           final params = authAction['params'] as Map<String, dynamic>;
           expect(params['password'], 'bobpass12');
           return http.Response(
-            '{"matrix_access_token":"bob-token",'
-            '"admin_access_token":"bob-admin-token",'
+            '{"access_token":"bob-token",'
             '"user_id":"@bob:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE_B"}',
@@ -2196,7 +2179,7 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
     expect(auth?.userId, '@bob:example.com');
-    expect(auth?.portalToken, 'bob-admin-token');
+    expect(auth?.portalToken, 'bob-token');
     expect(client.userID, '@bob:example.com');
     expect(client.accessToken, 'bob-token');
     expect(client.deviceID, 'DEVICE_B');
@@ -2208,7 +2191,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'OLDDEVICE',
-      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
     });
     final client = Client(
@@ -2250,8 +2233,7 @@ void main() {
             'device_id': 'OLDDEVICE',
           });
           return http.Response(
-            '{"matrix_access_token":"changed-matrix-token",'
-            '"admin_access_token":"changed-admin-token",'
+            '{"access_token":"changed-matrix-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"OLDDEVICE"}',
             200,
@@ -2304,8 +2286,7 @@ void main() {
           final params = authAction['params'] as Map<String, dynamic>;
           requestedDevices.add(params['device_id'] as String);
           return http.Response(
-            '{"matrix_access_token":"token-${requestedDevices.length}",'
-            '"admin_access_token":"admin-${requestedDevices.length}",'
+            '{"access_token":"token-${requestedDevices.length}",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"${params['device_id']}",'
@@ -2373,7 +2354,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE_A',
-      AuthStateNotifier.adminAccessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
       AuthStateNotifier.profileInitializedKey: 'true',
     });
@@ -2404,8 +2385,7 @@ void main() {
           expect(params['old_password'], '11111111');
           expect(params['new_password'], '12345678');
           return http.Response(
-            '{"matrix_access_token":"token-1",'
-            '"admin_access_token":"admin-1",'
+            '{"access_token":"token-1",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"${params['device_id']}",'
@@ -2419,8 +2399,7 @@ void main() {
           expect(params['password'], '12345678');
           requestedDevices.add(params['device_id'] as String);
           return http.Response(
-            '{"matrix_access_token":"token-2",'
-            '"admin_access_token":"admin-2",'
+            '{"access_token":"token-2",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"${params['device_id']}",'
@@ -2498,7 +2477,7 @@ void main() {
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE_A',
-      AuthStateNotifier.adminAccessTokenKey: 'admin-a',
+      AuthStateNotifier.accessTokenKey: 'admin-a',
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass12',
     });
     final clientA = Client(
@@ -2517,8 +2496,7 @@ void main() {
             });
             matrixDevicesByToken['token-a-new'] = 'DEVICE_A';
             return http.Response(
-              '{"matrix_access_token":"token-a-new",'
-              '"admin_access_token":"admin-a-new",'
+              '{"access_token":"token-a-new",'
               '"user_id":"@owner:example.com",'
               '"homeserver":"https://example.com","device_id":"DEVICE_A"}',
               200,
@@ -2576,8 +2554,7 @@ void main() {
               ..clear()
               ..['token-b'] = deviceB!;
             return http.Response(
-              '{"matrix_access_token":"token-b",'
-              '"admin_access_token":"admin-b",'
+              '{"access_token":"token-b",'
               '"user_id":"@owner:example.com",'
               '"homeserver":"https://example.com","device_id":"$deviceB"}',
               200,

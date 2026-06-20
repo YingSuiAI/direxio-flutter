@@ -26,6 +26,7 @@ import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/recovered_unread_store_provider.dart';
 import '../providers/voice_call_provider.dart';
 import '../channel/channel_share.dart';
+import '../channel/public_channel_target.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_attachment_panel.dart';
@@ -518,6 +519,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       final joined = await ref.read(asClientProvider).joinChannelByRoomId(
             roomId,
             discoveredChannel: payload.asDiscoveredChannel,
+            remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
           );
       if (isAsChannelMemberJoined(joined.memberStatus)) {
         await _refreshBootstrapAfterVisibilityMutation();
@@ -1549,11 +1551,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final isChannelConversation = widget.channelId?.trim().isNotEmpty ?? false;
     if (isChannelConversation) {
       return ref.read(asClientProvider).sendRoomMessage(
-        room.id,
-        text,
-        replyToEventId: replyTo?.eventId,
-        mentions: mentions,
-      );
+            room.id,
+            text,
+            replyToEventId: replyTo?.eventId,
+            mentions: mentions,
+          );
     }
     return ref.read(asClientProvider).sendRoomMessage(
           room.id,

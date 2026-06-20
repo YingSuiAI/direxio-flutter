@@ -17,14 +17,14 @@ class HttpAsClient implements AsClient {
     String? portalToken,
     String? accessToken,
     String authSource = 'portal_token',
-    String? matrixAccessTokenForDebug,
+    String? accessTokenForDebug,
     FutureOr<String?> Function()? onAuthenticationRefresh,
     FutureOr<void> Function()? onAuthenticationFailed,
     http.Client? httpClient,
   })  : _baseUri = _normalizeBaseUri(baseUri),
         _portalToken = _requireToken(portalToken ?? accessToken),
         _authSource = authSource,
-        _matrixAccessTokenForDebug = matrixAccessTokenForDebug,
+        _accessTokenForDebug = accessTokenForDebug,
         _onAuthenticationRefresh = onAuthenticationRefresh,
         _onAuthenticationFailed = onAuthenticationFailed,
         _http = httpClient ?? http.Client();
@@ -44,7 +44,7 @@ class HttpAsClient implements AsClient {
       baseUri: baseUri ?? defaultAdminBaseUri(homeserver),
       portalToken: portalToken,
       authSource: 'portal_token',
-      matrixAccessTokenForDebug: client.accessToken,
+      accessTokenForDebug: client.accessToken,
       onAuthenticationRefresh: onAuthenticationRefresh,
       onAuthenticationFailed: onAuthenticationFailed,
       httpClient: client.httpClient,
@@ -67,8 +67,8 @@ class HttpAsClient implements AsClient {
     return HttpAsClient(
       baseUri: baseUri ?? defaultAdminBaseUri(homeserver),
       accessToken: token,
-      authSource: 'matrix_access_token',
-      matrixAccessTokenForDebug: token,
+      authSource: 'access_token',
+      accessTokenForDebug: token,
       onAuthenticationRefresh: onAuthenticationRefresh,
       onAuthenticationFailed: onAuthenticationFailed,
       httpClient: client.httpClient,
@@ -78,7 +78,7 @@ class HttpAsClient implements AsClient {
   final Uri _baseUri;
   String _portalToken;
   final String? _authSource;
-  final String? _matrixAccessTokenForDebug;
+  final String? _accessTokenForDebug;
   final FutureOr<String?> Function()? _onAuthenticationRefresh;
   final FutureOr<void> Function()? _onAuthenticationFailed;
   final http.Client _http;
@@ -798,7 +798,7 @@ class HttpAsClient implements AsClient {
       'auth_source=$_authSourceLabel '
       'authorization_present=${_portalToken.trim().isNotEmpty} '
       'bearer=true '
-      'admin_access_token_length=${_portalToken.trim().length} '
+      'access_token_length=${_portalToken.trim().length} '
       'old_password_length=${oldPassword.trim().length} '
       'new_password_length=${newPassword.trim().length} '
       'params=${jsonEncode(_passwordChangeLogJson(requestBody))}',
@@ -821,10 +821,9 @@ class HttpAsClient implements AsClient {
       rethrow;
     }
     final session = AsPortalSession.fromJson(response);
-    if (session.matrixAccessToken.isEmpty || session.adminAccessToken.isEmpty) {
+    if (session.accessToken.isEmpty) {
       throw AsClientException(
-        'AS password response is missing matrix_access_token, '
-        'or admin_access_token',
+        'AS password response is missing access_token',
       );
     }
     ApiLogger.info(
@@ -918,10 +917,12 @@ class HttpAsClient implements AsClient {
   Future<AsChannel> getPublicChannelByRoomId(
     String roomId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     final body = await _getPublicJson(
       'public/channels/${_encodeStrictPathComponent(roomId.trim())}',
       baseUri: baseUri,
+      extraParams: _remoteNodeParams(remoteNodeBaseUri),
     );
     return AsChannel.fromJson(body);
   }
@@ -963,10 +964,12 @@ class HttpAsClient implements AsClient {
     String roomId, {
     String shareToken = '',
     AsChannel? discoveredChannel,
+    Uri? remoteNodeBaseUri,
   }) async {
     final trimmedRoomId = roomId.trim();
     final requestBody = <String, Object?>{
       if (shareToken.trim().isNotEmpty) 'share_token': shareToken.trim(),
+      ..._remoteNodeParams(remoteNodeBaseUri),
       ..._discoveredChannelJoinBody(discoveredChannel),
     };
     final body = await _requestJson(
@@ -1568,20 +1571,26 @@ class HttpAsClient implements AsClient {
     String path, {
     Uri? baseUri,
     Map<String, String>? queryParameters,
+    Map<String, Object?>? extraParams,
   }) async {
     final normalizedBase = _normalizeBaseUri(baseUri ?? _baseUri);
     final unified = _isUnifiedBase(normalizedBase);
+    final publicQueryParameters = unified
+        ? queryParameters
+        : _mergeQueryParameters(queryParameters, extraParams);
     final uri = unified
         ? _resolveAgainst(normalizedBase, 'query')
         : _resolveAgainst(
             normalizedBase,
             path,
-            queryParameters: queryParameters,
+            queryParameters: publicQueryParameters,
           );
+    final unifiedParams = _actionParams(path, queryParameters: queryParameters)
+      ..addAll(extraParams ?? const <String, Object?>{});
     final requestBody = unified
         ? jsonEncode({
             'action': _actionFor('GET', path),
-            'params': _actionParams(path, queryParameters: queryParameters),
+            'params': unifiedParams,
           })
         : null;
     final stopwatch = Stopwatch()..start();
@@ -1701,7 +1710,7 @@ class HttpAsClient implements AsClient {
       });
       if (method == 'POST' && path == 'contacts/requests') {
         final authorization = request.headers['Authorization'] ?? '';
-        final matrixAccessToken = _matrixAccessTokenForDebug?.trim() ?? '';
+        final accessToken = _accessTokenForDebug?.trim() ?? '';
         ApiLogger.info(
           '[AS admin] friend request auth '
           'authorization_present=${authorization.isNotEmpty} '
@@ -1709,10 +1718,10 @@ class HttpAsClient implements AsClient {
           'auth_source=$_authSourceLabel '
           'portal_token_present=${_portalToken.trim().isNotEmpty} '
           'portal_token_length=${_portalToken.length} '
-          'matrix_access_token_present=${matrixAccessToken.isNotEmpty} '
-          'matrix_access_token_length=${matrixAccessToken.length} '
-          'authorization_matches_matrix_access_token='
-          '${authorization == 'Bearer $matrixAccessToken'} '
+          'access_token_for_debug_present=${accessToken.isNotEmpty} '
+          'access_token_for_debug_length=${accessToken.length} '
+          'authorization_matches_access_token_for_debug='
+          '${authorization == 'Bearer $accessToken'} '
           'target=${_friendRequestTarget(body)}',
         );
       }
@@ -1821,7 +1830,7 @@ class HttpAsClient implements AsClient {
     }
     if (method == 'POST' && path == 'contacts/requests') {
       final authorization = request.headers['Authorization'] ?? '';
-      final matrixAccessToken = _matrixAccessTokenForDebug?.trim() ?? '';
+      final accessToken = _accessTokenForDebug?.trim() ?? '';
       ApiLogger.info(
         '[AS admin] friend request auth '
         'authorization_present=${authorization.isNotEmpty} '
@@ -1829,10 +1838,10 @@ class HttpAsClient implements AsClient {
         'auth_source=$_authSourceLabel '
         'portal_token_present=${_portalToken.trim().isNotEmpty} '
         'portal_token_length=${_portalToken.length} '
-        'matrix_access_token_present=${matrixAccessToken.isNotEmpty} '
-        'matrix_access_token_length=${matrixAccessToken.length} '
-        'authorization_matches_matrix_access_token='
-        '${authorization == 'Bearer $matrixAccessToken'} '
+        'access_token_for_debug_present=${accessToken.isNotEmpty} '
+        'access_token_for_debug_length=${accessToken.length} '
+        'authorization_matches_access_token_for_debug='
+        '${authorization == 'Bearer $accessToken'} '
         'target=${_friendRequestTarget(body)}',
       );
     }
@@ -2102,13 +2111,11 @@ class HttpAsClient implements AsClient {
       throw error;
     }
     final session = AsPortalSession.fromJson(decoded);
-    if (session.matrixAccessToken.isEmpty ||
-        session.adminAccessToken.isEmpty ||
+    if (session.accessToken.isEmpty ||
         session.userId.isEmpty ||
         session.homeserver.isEmpty) {
       final error = AsClientException(
-        'AS auth response is missing matrix_access_token, '
-        'admin_access_token, user_id, or homeserver',
+        'AS auth response is missing access_token, user_id, or homeserver',
         statusCode: response.statusCode,
       );
       ApiLogger.failure(
@@ -2146,6 +2153,27 @@ List<Map<String, String>> _normalizedMentionPayload(
             'display_name': (mention['display_name']?.toString() ?? '').trim(),
         },
   ];
+}
+
+Map<String, Object?> _remoteNodeParams(Uri? remoteNodeBaseUri) {
+  final value = remoteNodeBaseUri?.toString().trim() ?? '';
+  if (value.isEmpty) return const {};
+  return {'remote_node_base_url': value};
+}
+
+Map<String, String>? _mergeQueryParameters(
+  Map<String, String>? queryParameters,
+  Map<String, Object?>? extraParams,
+) {
+  if (extraParams == null || extraParams.isEmpty) return queryParameters;
+  final merged = <String, String>{
+    if (queryParameters != null) ...queryParameters,
+  };
+  for (final entry in extraParams.entries) {
+    final value = entry.value?.toString().trim() ?? '';
+    if (value.isNotEmpty) merged[entry.key] = value;
+  }
+  return merged;
 }
 
 String _actionFor(String method, String path) {
@@ -2461,10 +2489,8 @@ Map<String, dynamic> _passwordChangeLogJson(Map<String, String> body) {
 
 Map<String, dynamic> _portalSessionLogJson(AsPortalSession session) {
   return {
-    'matrix_access_token_present': session.matrixAccessToken.isNotEmpty,
-    'matrix_access_token_length': session.matrixAccessToken.length,
-    'admin_access_token_present': session.adminAccessToken.isNotEmpty,
-    'admin_access_token_length': session.adminAccessToken.length,
+    'access_token_present': session.accessToken.isNotEmpty,
+    'access_token_length': session.accessToken.length,
     'user_id': session.userId,
     'homeserver': session.homeserver,
     'device_id': session.deviceId,

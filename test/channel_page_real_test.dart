@@ -231,7 +231,7 @@ void main() {
   });
 
   testWidgets(
-      'channel detail lets current backend proxy local dual node room id',
+      'channel detail passes remote node URL for local dual node room id',
       (tester) async {
     final asClient = _PublicChannelAsClient();
 
@@ -1891,6 +1891,7 @@ class _PublicChannelAsClient extends MockAsClient {
   Future<AsChannel> getPublicChannelByRoomId(
     String roomId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     requestedRoomId = roomId;
     requestedRoomBaseUri = baseUri;
@@ -1912,6 +1913,7 @@ class _PublicChannelAsClient extends MockAsClient {
     String roomId, {
     String shareToken = '',
     AsChannel? discoveredChannel,
+    Uri? remoteNodeBaseUri,
   }) async {
     joinRequestRoomId = roomId;
     return const AsChannel(

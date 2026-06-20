@@ -9,7 +9,9 @@ import '../../data/as_client.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/auth_provider.dart';
 import '../utils/contact_identity_label.dart';
+import 'group_invite_content.dart';
 
 Future<void> showInviteGroupMembersFlow(
   BuildContext context,
@@ -55,18 +57,29 @@ Future<void> showInviteGroupMembersFlow(
     final groupName = _groupInviteRoomName(ref, trimmedRoomId);
     final inviterMxid =
         ref.read(asSyncCacheProvider).bootstrap?.user.userId ?? '';
+    final matrixClient = ref.read(matrixClientProvider);
     for (final contact in sendableContacts) {
       try {
-        await asClient.sendGroupInviteMessage(
-          directRoomId: contact.roomId.trim(),
-          groupRoomId: trimmedRoomId,
-          groupName: groupName,
-          inviterMxid: inviterMxid,
-        );
+        final directRoomId = contact.roomId.trim();
+        final directRoom = matrixClient.getRoomById(directRoomId);
+        if (directRoom == null) {
+          throw StateError('目标私聊未同步到本地');
+        }
+        await directRoom.sendEvent({
+          'msgtype': GroupInviteContent.msgTypeV1,
+          'body': '邀请加入群聊\n$groupName',
+          'group_room_id': trimmedRoomId,
+          'group_name': groupName,
+          if (inviterMxid.trim().isNotEmpty) 'inviter_mxid': inviterMxid,
+          'direct_room_id': directRoomId,
+        });
         sentCount++;
       } on Object {
         failedCount++;
       }
+    }
+    if (sentCount > 0) {
+      unawaited(matrixClient.oneShotSync());
     }
     unawaited(_refreshBootstrapAfterInvite(ref));
     if (!context.mounted) return;

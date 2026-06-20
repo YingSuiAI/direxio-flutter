@@ -1,5 +1,5 @@
 // 全局搜索。
-// 消息全文走 AsClient /_as/search；联系人、群聊、频道走本地缓存索引。
+// 消息全文走 Matrix /search；联系人、群聊、频道走本地缓存索引。
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,13 +7,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
-import '../../data/as_client.dart';
+import '../../data/matrix_message_search_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../channel/channel_inbox_data.dart';
-import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/matrix_message_clients_provider.dart';
 import '../mock/mock_channels.dart';
 import '../mock/mock_data.dart';
 import '../groups/group_invite_content.dart';
@@ -81,16 +81,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _results = _dedupeResults([
         ...localResults,
         ...remoteMessageResults
-            .where((result) => !_isGroupInviteSearchContent(result.content))
+            .where((result) => !_isGroupInviteSearchContent(result.body))
             .map((result) => _GlobalSearchResult.remoteMessage(result, client)),
       ]);
     });
   }
 
-  Future<List<AsSearchResult>> _remoteMessageResults(String query) async {
+  Future<List<MatrixMessageSearchResult>> _remoteMessageResults(
+    String query,
+  ) async {
     try {
-      final as = ref.read(asClientProvider);
-      return as.search(query, limit: _messageSearchLimit);
+      return await ref
+          .read(matrixMessageSearchClientProvider)
+          .search(query, limit: _messageSearchLimit);
     } catch (_) {
       return const [];
     }
@@ -386,15 +389,21 @@ class _GlobalSearchResult {
   });
 
   factory _GlobalSearchResult.remoteMessage(
-    AsSearchResult result,
+    MatrixMessageSearchResult result,
     Client client,
   ) {
     final room = client.getRoomById(result.roomId);
     final encodedRoomId = Uri.encodeComponent(result.roomId);
+    var senderName = result.senderId.trim();
+    if (room != null && senderName.isNotEmpty) {
+      final member = room.unsafeGetUserFromMemoryOrFallback(senderName);
+      final displayName = member.calcDisplayname().trim();
+      if (displayName.isNotEmpty) senderName = displayName;
+    }
     return _GlobalSearchResult(
       type: _SearchResultType.message,
-      title: result.senderName.isEmpty ? '消息' : result.senderName,
-      subtitle: result.content,
+      title: senderName.isEmpty ? '消息' : senderName,
+      subtitle: result.body,
       route: room == null || room.isDirectChat
           ? '/chat/$encodedRoomId'
           : '/group/$encodedRoomId',

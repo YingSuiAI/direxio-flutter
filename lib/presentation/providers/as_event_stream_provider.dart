@@ -15,7 +15,6 @@ typedef AsEventStreamOpener = Stream<AsEventStreamEvent> Function({
 });
 
 typedef AsBootstrapRefresh = Future<AsSyncBootstrap> Function();
-typedef AsUnreadRefresh = Future<AsSyncUnread> Function({int limitPerRoom});
 typedef MatrixConversationRefresh = Future<void> Function();
 
 final asEventStreamRefreshProvider =
@@ -30,16 +29,9 @@ final asEventStreamRefreshProvider =
     openEvents: asClient.streamEvents,
     syncMatrixConversations: matrixClient.oneShotSync,
     loadBootstrap: bootstrapRepository.refresh,
-    loadUnread: ({int limitPerRoom = 200}) =>
-        asClient.syncUnread(limitPerRoom: limitPerRoom),
     onBootstrapLoaded: (bootstrap) {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
-          );
-    },
-    onUnreadRecovered: (unread) {
-      ref.read(asSyncCacheProvider.notifier).update(
-            (state) => state.mergeUnread(unread),
           );
     },
     onError: (error, stackTrace) {
@@ -58,26 +50,20 @@ class AsEventStreamRefreshController {
     required AsEventStreamOpener openEvents,
     required MatrixConversationRefresh syncMatrixConversations,
     required AsBootstrapRefresh loadBootstrap,
-    required AsUnreadRefresh loadUnread,
     required void Function(AsSyncBootstrap bootstrap) onBootstrapLoaded,
-    required void Function(AsSyncUnread unread) onUnreadRecovered,
     void Function(Object error, StackTrace stackTrace)? onError,
     Duration reconnectDelay = const Duration(seconds: 3),
   })  : _openEvents = openEvents,
         _syncMatrixConversations = syncMatrixConversations,
         _loadBootstrap = loadBootstrap,
-        _loadUnread = loadUnread,
         _onBootstrapLoaded = onBootstrapLoaded,
-        _onUnreadRecovered = onUnreadRecovered,
         _onError = onError,
         _reconnectDelay = reconnectDelay;
 
   final AsEventStreamOpener _openEvents;
   final MatrixConversationRefresh _syncMatrixConversations;
   final AsBootstrapRefresh _loadBootstrap;
-  final AsUnreadRefresh _loadUnread;
   final void Function(AsSyncBootstrap bootstrap) _onBootstrapLoaded;
-  final void Function(AsSyncUnread unread) _onUnreadRecovered;
   final void Function(Object error, StackTrace stackTrace)? _onError;
   final Duration _reconnectDelay;
 
@@ -86,7 +72,6 @@ class AsEventStreamRefreshController {
   var _started = false;
   var _refreshInFlight = false;
   var _refreshQueued = false;
-  var _lastRefreshNeedsUnread = false;
   int _lastSeq = 0;
 
   int get lastSeq => _lastSeq;
@@ -131,8 +116,6 @@ class AsEventStreamRefreshController {
 
   void _handleEvent(AsEventStreamEvent event) {
     if (event.seq > _lastSeq) _lastSeq = event.seq;
-    _lastRefreshNeedsUnread =
-        _lastRefreshNeedsUnread || _eventNeedsUnreadRefresh(event.type);
     if (_refreshInFlight) {
       _refreshQueued = true;
       return;
@@ -145,15 +128,9 @@ class AsEventStreamRefreshController {
     try {
       do {
         _refreshQueued = false;
-        final needsUnread = _lastRefreshNeedsUnread;
-        _lastRefreshNeedsUnread = false;
         await _syncMatrixConversations();
         final bootstrap = await _loadBootstrap();
         _onBootstrapLoaded(bootstrap);
-        if (needsUnread) {
-          final unread = await _loadUnread();
-          _onUnreadRecovered(unread);
-        }
       } while (_refreshQueued);
     } catch (error, stackTrace) {
       _onError?.call(error, stackTrace);
@@ -161,9 +138,4 @@ class AsEventStreamRefreshController {
       _refreshInFlight = false;
     }
   }
-}
-
-bool _eventNeedsUnreadRefresh(String type) {
-  return type == 'room.message.projected' ||
-      type == 'room.redaction.projected';
 }

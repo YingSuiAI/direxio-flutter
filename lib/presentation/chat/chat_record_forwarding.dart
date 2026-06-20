@@ -8,7 +8,6 @@ import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
-import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 
@@ -376,25 +375,13 @@ Future<void> sendChatRecordToTarget(
   required ChatRecordForwardTarget target,
   required ChatRecordPayload payload,
 }) async {
-  if (target.sendViaAs) {
-    await ref.read(asClientProvider).sendChatRecordMessage(
-          roomId: target.roomId,
-          body: payload.body,
-          title: payload.title,
-          sourceRoomId: payload.sourceRoomId,
-          sourceRoomType: payload.sourceRoomType,
-          itemCount: payload.itemCount,
-          items: payload.items,
-        );
-    await ref.read(matrixClientProvider).oneShotSync();
-    return;
-  }
-
-  final room = ref.read(matrixClientProvider).getRoomById(target.roomId);
+  final matrixClient = ref.read(matrixClientProvider);
+  final room = matrixClient.getRoomById(target.roomId);
   if (room == null) {
     throw StateError('目标会话未同步到本地');
   }
   await room.sendEvent(payload.matrixContent);
+  await matrixClient.oneShotSync();
 }
 
 class ChatRecordSelectionBar extends StatelessWidget {

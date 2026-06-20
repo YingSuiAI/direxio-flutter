@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -37,17 +35,14 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
   String? _success;
   Map<String, dynamic>? _resolved;
   String _query = '';
-  Timer? _resolveDebounce;
 
   @override
   void dispose() {
-    _resolveDebounce?.cancel();
     _domainCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _resolve() async {
-    _resolveDebounce?.cancel();
     final portalUrl = _normalizePortalUrlInput(_domainCtrl.text);
     if (portalUrl.isEmpty) return;
     final l10n = AppLocalizations.of(context);
@@ -106,18 +101,6 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
     }
   }
 
-  void _scheduleResolveIfPortalQuery(String value) {
-    _resolveDebounce?.cancel();
-    final portalUrl = _normalizePortalUrlInput(value);
-    if (!_looksLikePortalDomain(portalUrl)) return;
-    _resolveDebounce = Timer(
-      const Duration(milliseconds: 250),
-      () {
-        if (mounted && !_loading) unawaited(_resolve());
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -150,7 +133,6 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                             _success = null;
                             _resolved = null;
                           });
-                          _scheduleResolveIfPortalQuery(value);
                         },
                         onSubmitted: (_) => _resolve(),
                       ),
@@ -175,7 +157,13 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                             ),
                           ),
                         )
-                      else if (_query.trim().isNotEmpty)
+                      else if (_query.trim().isNotEmpty &&
+                          (_mockAuthEnabled ||
+                              !(ref
+                                      .watch(authStateNotifierProvider)
+                                      .valueOrNull
+                                      ?.isLoggedIn ??
+                                  false)))
                         _SearchResultList(
                           query: _query,
                           results: _demoSearchResults(_query),
@@ -324,13 +312,6 @@ String _normalizePortalUrlInput(String input) {
       .trim()
       .replaceAll(RegExp(r'^https?://', caseSensitive: false), '')
       .replaceAll(RegExp(r'/+$'), '');
-}
-
-bool _looksLikePortalDomain(String value) {
-  final trimmed = value.trim();
-  return trimmed.contains('.') &&
-      !trimmed.contains(RegExp(r'\s')) &&
-      !trimmed.startsWith('@');
 }
 
 MockConversation? _mockContactByPortalUrl(String portalUrl) {

@@ -23,11 +23,10 @@ import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
+import '../providers/matrix_message_clients_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
-import '../providers/recovered_unread_store_provider.dart';
 import '../providers/voice_call_provider.dart';
 import '../channel/channel_share.dart';
-import '../channel/public_channel_target.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_attachment_panel.dart';
@@ -57,7 +56,6 @@ import '../utils/chat_event_attachment.dart';
 import '../utils/direct_contact_status.dart';
 import 'group_call_member_select_page.dart';
 import '../utils/read_marker_sync.dart';
-import '../utils/recovered_unread_events.dart';
 import '../utils/message_preview.dart';
 import '../utils/room_read_state.dart';
 import '../utils/chat_file_actions.dart';
@@ -308,6 +306,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   bool _mentionSheetOpen = false;
   bool _suppressMentionTrigger = false;
   final Set<String> _selected = {};
+  final Set<String> _locallyHiddenEventIds = {};
   final Map<String, String> _atUserMap = {};
   Event? _replyTo;
   final Map<String, _GroupQuotedMessagePreview> _localReplyPreviews = {};
@@ -518,10 +517,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     try {
       final roomId = payload.roomId.trim();
       if (roomId.isEmpty) throw StateError('频道 room_id 为空');
-      final joined = await ref.read(asClientProvider).joinChannelByRoomId(
-            roomId,
+      final channelId = payload.channelId.trim();
+      final joined = await ref.read(asClientProvider).joinChannel(
+            channelId.isEmpty ? roomId : channelId,
+            roomId: roomId,
+            grantId: payload.grantId,
+            shareRoomId: payload.shareRoomId,
             discoveredChannel: payload.asDiscoveredChannel,
-            remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
           );
       if (isAsChannelMemberJoined(joined.memberStatus)) {
         await _refreshBootstrapAfterVisibilityMutation();
@@ -967,7 +969,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (!_isChannelConversation) {
         _scheduleAsCallHistoryReloadForTimeline();
       }
-      _removeRecoveredUnreadTimelineDuplicates();
       _scheduleTimelineThumbnailWarmup();
       unawaited(_markCurrentTimelineRead());
     }
@@ -983,7 +984,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       debugPrint('getTimeline failed: $e');
     }
     if (mounted) setState(() => _loading = false);
-    _removeRecoveredUnreadTimelineDuplicates();
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
     final tl = _timeline;
@@ -1296,11 +1296,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final timeline = _timeline;
     if (room == null || timeline == null) return;
     final markerEvent = latestSyncedMessageEvent(timeline);
-    final recoveredMarker =
-        markerEvent == null ? _latestRecoveredUnreadMessage() : null;
-    final readAt = markerEvent?.originServerTs ??
-        recoveredMarker?.timestamp ??
-        DateTime.now().toUtc();
+    final readAt = markerEvent?.originServerTs ?? DateTime.now().toUtc();
     final changed = markRoomLocallyRead(room);
     ref.read(asSyncCacheProvider.notifier).update(
           (state) => state.withRoomUnreadCleared(room.id, readAt: readAt),
@@ -1323,23 +1319,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                   readAt: markerEvent.originServerTs,
                 ),
               );
-          unawaited(_clearRecoveredUnreadForRoom());
         }));
-      } else {
-        if (recoveredMarker != null) {
-          unawaited(
-            _syncAsReadMarkerForRecovered(room, recoveredMarker).then((synced) {
-              if (!synced) return;
-              ref.read(asSyncCacheProvider.notifier).update(
-                    (state) => state.withRoomUnreadCleared(
-                      room.id,
-                      readAt: recoveredMarker.timestamp,
-                    ),
-                  );
-              unawaited(_clearRecoveredUnreadForRoom());
-            }),
-          );
-        }
       }
     } on Object catch (e) {
       debugPrint('setReadMarker failed: $e');
@@ -1363,82 +1343,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (e) {
       debugPrint('AS read marker sync failed: $e');
       return false;
-    }
-  }
-
-  Future<bool> _syncAsReadMarkerForRecovered(
-    Room room,
-    AsUnreadMessage message,
-  ) async {
-    try {
-      await ref.read(asClientProvider).updateReadMarker(
-            room.id,
-            message.eventId,
-            message.timestamp ?? DateTime.now().toUtc(),
-          );
-      return true;
-    } on Object catch (e) {
-      debugPrint('AS recovered read marker sync failed: $e');
-      return false;
-    }
-  }
-
-  AsUnreadMessage? _latestRecoveredUnreadMessage() {
-    final messages = ref
-        .read(asSyncCacheProvider)
-        .unreadMessagesForRoom(_resolvedRoomId)
-        .where((message) => message.eventId.isNotEmpty)
-        .toList();
-    if (messages.isEmpty) return null;
-    messages.sort((a, b) {
-      final at = a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bt = b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return at.compareTo(bt);
-    });
-    return messages.last;
-  }
-
-  void _removeRecoveredUnreadTimelineDuplicates() {
-    final timeline = _timeline;
-    if (timeline == null) return;
-    final timelineEventIds = timeline.events
-        .where((event) => event.eventId.isNotEmpty)
-        .map((event) => event.eventId)
-        .toSet();
-    if (timelineEventIds.isEmpty) return;
-    final duplicateIds = ref
-        .read(asSyncCacheProvider)
-        .unreadMessagesForRoom(_resolvedRoomId)
-        .where((message) => timelineEventIds.contains(message.eventId))
-        .map((message) => message.eventId)
-        .toSet();
-    if (duplicateIds.isEmpty) return;
-    ref.read(asSyncCacheProvider.notifier).update(
-          (state) => state.withoutUnreadEvents(duplicateIds),
-        );
-    unawaited(_removePersistedRecoveredUnreadEvents(duplicateIds));
-  }
-
-  Future<void> _removePersistedRecoveredUnreadEvents(
-      Set<String> eventIds) async {
-    try {
-      final store = await ref.read(recoveredUnreadStoreProvider.future);
-      await store.removeEvents(eventIds);
-    } on Object catch (e) {
-      debugPrint('remove recovered unread duplicates failed: $e');
-    }
-  }
-
-  Future<void> _clearRecoveredUnreadForRoom() async {
-    final roomId = _resolvedRoomId;
-    ref.read(asSyncCacheProvider.notifier).update(
-          (state) => state.withoutUnreadRoom(roomId),
-        );
-    try {
-      final store = await ref.read(recoveredUnreadStoreProvider.future);
-      await store.removeRoom(roomId);
-    } on Object catch (e) {
-      debugPrint('clear recovered unread room failed: $e');
     }
   }
 
@@ -2173,16 +2077,19 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final eventId = event.eventId.trim();
     if (eventId.isEmpty) return;
     try {
-      await ref.read(asClientProvider).deleteRoomMessage(
-            roomId: widget.roomId,
-            eventId: eventId,
-          );
+      await ref.read(matrixMessageVisibilityClientProvider).hideEvents(
+        roomId: widget.roomId,
+        eventIds: [eventId],
+      );
       if (!mounted) return;
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withDeletedMessage(widget.roomId, eventId),
           );
       unawaited(_refreshBootstrapAfterVisibilityMutation());
-      setState(() => _selected.remove(eventId));
+      setState(() {
+        _locallyHiddenEventIds.add(eventId);
+        _selected.remove(eventId);
+      });
     } on Object catch (err) {
       debugPrint('delete group message for me failed: $err');
       if (!mounted) return;
@@ -2454,17 +2361,19 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final activeTimelineGroupCall = isChannelConversation
         ? null
         : activeGroupCallEntryForTimeline(rawTimelineEvents);
-    final events = syncCache.chatVisibilityPolicyForRoom(activeRoomId).filter(
-          mergeRecoveredUnreadEvents(
-            room: room,
-            timelineEvents: timelineEvents,
-            recoveredMessages: syncCache.unreadMessagesForRoom(activeRoomId),
-          ),
+    final events = syncCache
+        .chatVisibilityPolicyForRoom(activeRoomId)
+        .filter(
+          timelineEvents,
           eventId: (event) => event.eventId,
           originServerTs: (event) =>
               event.originServerTs.millisecondsSinceEpoch,
           redacted: (event) => event.redacted,
-        );
+        )
+        .where((event) {
+      final id = event.eventId.trim();
+      return id.isEmpty || !_locallyHiddenEventIds.contains(id);
+    }).toList(growable: false);
     final pendingOutbox = ref
         .watch(localOutboxProvider)
         .itemsForConversation(

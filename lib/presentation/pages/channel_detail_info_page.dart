@@ -160,7 +160,12 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
   }
 
   Future<ChannelInfoData>? _loadPublicDetail() {
-    final roomId = widget.sharePayload?.roomId.trim() ??
+    final sharePayload = widget.sharePayload;
+    if (sharePayload != null &&
+        sharePayload.visibility.trim() == asChannelVisibilityPrivate) {
+      return Future.value(channelInfoDataFromSharePayload(sharePayload));
+    }
+    final roomId = sharePayload?.roomId.trim() ??
         (_looksLikeMatrixRoomId(widget.channelId)
             ? widget.channelId.trim()
             : '');
@@ -181,13 +186,21 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
     if (roomId.isEmpty && channelId.isEmpty) return;
     setState(() => _joining = true);
     try {
-      final joined = await ref.read(asClientProvider).joinChannelByRoomId(
-            roomId.isEmpty ? channelId : roomId,
-            discoveredChannel: widget.sharePayload?.asDiscoveredChannel,
-            remoteNodeBaseUri: publicBaseUriForMatrixRoomId(
-              roomId.isEmpty ? channelId : roomId,
-            ),
-          );
+      final sharePayload = widget.sharePayload;
+      final joined = sharePayload == null
+          ? await ref.read(asClientProvider).joinChannelByRoomId(
+                roomId.isEmpty ? channelId : roomId,
+                remoteNodeBaseUri: publicBaseUriForMatrixRoomId(
+                  roomId.isEmpty ? channelId : roomId,
+                ),
+              )
+          : await ref.read(asClientProvider).joinChannel(
+                channelId.isEmpty ? roomId : channelId,
+                roomId: roomId,
+                grantId: sharePayload.grantId,
+                shareRoomId: sharePayload.shareRoomId,
+                discoveredChannel: sharePayload.asDiscoveredChannel,
+              );
       if (isAsChannelMemberJoined(joined.memberStatus)) {
         final bootstrap =
             await ref.read(asBootstrapRepositoryProvider).refresh();

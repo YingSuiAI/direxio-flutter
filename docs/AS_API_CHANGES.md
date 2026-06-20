@@ -4,6 +4,26 @@ Last updated: 2026-06-20
 
 This document records frontend-impacting AS/Admin API changes. It is the client-side companion to the server work recorded in Codex thread `019edf7c-54fa-7ba3-a8f8-99c8dac1e838`.
 
+## 2026-06-20 Final Message Contract Alignment
+
+Change:
+
+- P2P ordinary message/search/backup actions are removed, not deprecated compatibility entries: `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
+- Ordinary text/media send, incremental sync/unread, history, search, and recall use Matrix Client-Server APIs: room send, `/sync`, `/rooms/{roomId}/messages`, `/search`, and Matrix redaction.
+- Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomId}/local_delete` with either `{ "event_ids": [...] }` or `{ "clear": true }`. It hides events only for the current user's local Matrix read path and is not a redaction.
+- Ordinary `m.room.message` is not projected into P2P message tables. Only Matrix messages with `p2p_kind=channel_post` or `p2p_kind=channel_comment` project into channel product post/comment tables.
+- Room classification must come from product metadata (`contacts.list`, `groups.list`, `channels.list`, bootstrap contacts/groups/channels/pending) and Matrix `io.direxio.room.profile`, not from message content.
+- Channel share cards create an invite grant first with `channels.invite_grant.create`, passing `channel_id` or `room_id` plus `share_room_id`; the receiver joins with `channels.join` using `grant_id` and `share_room_id`.
+
+Frontend alignment:
+
+- Removed ordinary message/search/backup methods and models from `AsClient`, `HttpAsClient`, and `MockAsClient`.
+- Added Matrix boundary clients for message search and local visibility delete/clear.
+- Private, group, and channel conversation search now use Matrix `/search` for message hits.
+- Direct/group/channel message send and card send use Matrix room events; group invite cards are no longer sent through AS `rooms.send`.
+- Channel share cards create an AS invite grant, then send the share card as a Matrix room message containing `grant_id` and `share_room_id`.
+- App warmup, event-stream refresh, chat pages, and home lists no longer use recovered unread or AS history message recovery.
+
 ## 2026-06-20 Request-Provided Remote Nodes And Unified Token
 
 ### Public Remote Channel Lookup
@@ -110,27 +130,9 @@ Frontend alignment:
 - Channel list still uses `AsSyncBootstrap.channels` as the primary logged-in source.
 - Empty real bootstrap channels produce a real empty state instead of mock channels.
 - Client privacy rule remains: no `last_message` or historical read bodies in `/_as/sync/bootstrap`.
-- Recovered unread remains overlay-only and is not written to Matrix SDK persistent timeline.
+- Unread, history, search, and ordinary message recall stay on Matrix Client-Server APIs.
 
 ## 2026-06-20 Client Follow-Up
-
-### `sync.messages` Cursor Pagination
-
-Change:
-
-- `POST /_p2p/query` action `sync.messages` is now cursor-only.
-- Requests no longer accept `page`, `page_size`, or `limit`; sending any of those fields returns `400`.
-- First-page requests omit `cursor` or send an empty cursor.
-- Follow-up requests send the previous response `next_cursor`.
-- Each response returns at most 50 messages and includes top-level `has_more_messages` plus optional `next_cursor`.
-- Room entries no longer include `next_message_page`; room entries may include `next_message_cursor`.
-
-Frontend alignment:
-
-- `AsClient.syncMessages` and `HttpAsClient.syncMessages` now accept optional `cursor` instead of `page` / `pageSize`.
-- `AsSyncMessages` parses top-level `hasMoreMessages` and `nextCursor`.
-- `AsSyncMessagesRoom` parses `nextMessageCursor` instead of `nextMessagePage`.
-- Focused HTTP client coverage asserts first-page calls omit `cursor`, follow-up calls send `cursor`, and no old page/limit fields are emitted.
 
 ### Pending Group Invitations
 
@@ -145,7 +147,7 @@ Frontend alignment:
 
 Frontend alignment:
 
-- Existing group member invitations now record invitees on the owner node and send `message_type: "group_invite"` through `POST /_as/rooms/{directRoomId}/send`.
+- Existing group member invitations record invitees on the owner node, then send `msgtype: "p2p.group.invite.v1"` through the Matrix direct room.
 - The Matrix message payload carries `msgtype: "p2p.group.invite.v1"`, `group_room_id`, `group_name`, `inviter_mxid`, optional `inviter_display_name`, and `direct_room_id`.
 - `POST /_as/groups/{roomId}/join` rejects invite-card joins with `403` when the joining MXID does not have a recorded group invite.
 
@@ -161,7 +163,7 @@ Frontend alignment:
 Frontend alignment:
 
 - Private chat, group chat, and `/channel/:id/conversation` normal text/media messages send through Matrix SDK `m.room.message`.
-- Normal message recall uses Matrix redaction. Local delete/hide still uses the AS product-local visibility API because it is not a server-side redaction.
+- Normal message recall uses Matrix redaction. Local delete/hide uses the Matrix `io.direxio` local delete extension because it is not a server-side redaction.
 - New direct invites are recognized from native `io.direxio.room.profile` state with `room_type=io.direxio.room.direct`, `requester_mxid`, and `target_mxid`; the client no longer assumes new direct invite stripped state contains legacy `p2p.contact.request`.
 - Joined channel members are allowed to type/send when AS bootstrap says their `member_status` is `joined`; Matrix ProductPolicy is the authoritative server-side send gate.
 - Group/channel Matrix message content preserves product mention metadata as `mentions` and `mentions_json`. Reply sends Matrix `m.relates_to` and keeps `reply_to` as a product compatibility field.
@@ -179,7 +181,7 @@ Frontend alignment:
 
 - `HttpAsClient.streamEvents` opens the SSE endpoint with bearer auth and parses SSE records into `AsEventStreamEvent`.
 - `asEventStreamRefreshProvider` starts after login, reconnects with the latest seq, and treats events as refresh hints.
-- Message/redaction events trigger Matrix one-shot sync, bootstrap refresh, and recovered-unread overlay refresh; other product events refresh Matrix and bootstrap state.
+- Event-stream records are refresh hints: the client runs Matrix one-shot sync and AS bootstrap refresh. Ordinary message unread recovery is handled by Matrix, not AS.
 
 ### Channel Post / Comment Matrix Content
 
@@ -188,7 +190,7 @@ Frontend alignment:
 - Compatibility facade calls remain available for existing channel post/comment product flows.
 - When a future client path sends channel posts/comments directly through Matrix SDK, it must include `p2p_kind=channel_post` or `p2p_kind=channel_comment`.
 - For channel media post/comment content, Matrix `msgtype` remains the media type such as `m.image`, `m.video`, or `m.file`; Direxio classification is carried by `p2p_kind=channel_post` / `p2p_kind=channel_comment`.
-- Channel comments must include `post_id`; channel post/comment media must include `media_json`; product fields such as `channel_id`, `comment_id`, `reply_to_comment_id`, `reply_to_author_mxid`, `mentions`, and `mentions_json` should be preserved in Matrix event content. `HttpAsClient.sendRoomMediaMessage` now preserves those optional fields for compatibility facade calls while leaving ordinary media sends unchanged.
+- Channel comments must include `post_id`; channel post/comment media must include `media_json`; product fields such as `channel_id`, `comment_id`, `reply_to_comment_id`, `reply_to_author_mxid`, `mentions`, and `mentions_json` should be preserved in Matrix event content.
 
 ### Concrete Room History Restore
 

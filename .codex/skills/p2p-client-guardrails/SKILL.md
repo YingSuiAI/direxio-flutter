@@ -35,7 +35,11 @@ Keep the product rule intact: one person, one node, one owner. Agent/service acc
 
 Use Matrix SDK for Matrix-native behavior: login session, rooms, timeline, membership, media, profile avatar/display name, read markers, and Matrix message state.
 
-Use AS Admin API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, unread recovery overlay, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and product search.
+Use AS Admin API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
+
+Do not add or restore P2P ordinary message/search/backup action clients. Removed actions include `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
+
+Ordinary message send, media send, unread, history, message search, and recall belong to Matrix Client-Server APIs. Local delete/clear belongs to the Matrix `io.direxio` local delete extension.
 
 Do not silently fall back to mock data after login. A real empty state is better than fake data. Mock data belongs only in unauthenticated demos, explicit tests, or temporary UI scaffolding.
 

@@ -12,13 +12,13 @@ import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
 import '../channel/create_channel_sheet.dart';
 import '../providers/as_bootstrap_store_provider.dart';
-import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/friend_request_read_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
+import '../providers/matrix_message_clients_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../mock/mock_data.dart';
 import '../../data/as_client.dart';
@@ -573,6 +573,7 @@ String _homeTabTitle(AppLocalizations? l10n, int index) {
 
 int _homeUnreadTotal(Client client, AsSyncCacheState syncCache) {
   final unreadByRoomId = <String, int>{};
+
   void merge(String roomId, int count) {
     final trimmed = roomId.trim();
     if (trimmed.isEmpty || count <= 0) return;
@@ -595,9 +596,6 @@ int _homeUnreadTotal(Client client, AsSyncCacheState syncCache) {
   for (final group
       in syncCache.bootstrap?.groups ?? const <AsSyncRoomSummary>[]) {
     merge(group.roomId, group.unreadCount);
-  }
-  for (final unreadRoom in syncCache.unread?.rooms ?? const <AsUnreadRoom>[]) {
-    merge(unreadRoom.roomId, unreadRoom.messages.length);
   }
   return unreadByRoomId.values.fold<int>(0, (total, count) => total + count);
 }
@@ -1503,10 +1501,16 @@ class _ChatList extends ConsumerWidget {
     for (final group in syncCache.bootstrap?.groups ?? const []) {
       final roomId = group.roomId.trim();
       if (roomId.isEmpty || !asGroupRoomIds.contains(roomId)) continue;
+      if (group.memberStatus.trim().isNotEmpty &&
+          !isAsChannelMemberJoined(group.memberStatus)) {
+        continue;
+      }
+      final matrixRoom = client.getRoomById(roomId);
+      if (matrixRoom?.membership != Membership.join) continue;
       visibleConversations.add(
         _VisibleConversation.group(
           group,
-          client.getRoomById(roomId),
+          matrixRoom,
           asRoomSummariesByRoomId[roomId],
         ),
       );
@@ -1630,7 +1634,6 @@ Future<void> _deleteHomeConversation(
 ) async {
   final trimmed = roomId.trim();
   if (trimmed.isEmpty) return;
-  final asClient = ref.read(asClientProvider);
   final authNotifier = ref.read(authStateNotifierProvider.notifier);
   final preferences = ref.read(conversationPreferencesProvider.notifier);
   final hidden = ref.read(_homeHiddenConversationIdsProvider.notifier);
@@ -1673,11 +1676,7 @@ Future<void> _deleteHomeConversation(
   if (ok != true) return;
   try {
     final clearedBeforeTs = DateTime.now().toUtc().millisecondsSinceEpoch + 1;
-    await asClient.deleteRoomMessagesByRange(
-      roomId: trimmed,
-      fromTs: 0,
-      toTs: clearedBeforeTs,
-    );
+    await ref.read(matrixMessageVisibilityClientProvider).clearRoom(trimmed);
     _hideHomeConversationWithNotifiers(preferences, hidden, trimmed);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1933,12 +1932,12 @@ int _conversationUnreadCount(
   final asRoomUnread = conversation.roomSummary?.unreadCount ?? 0;
   if (asRoomUnread > 0) return asRoomUnread;
 
-  final recoveredUnread =
-      syncCache.unreadMessagesForRoom(conversation.roomId).length;
-  if (recoveredUnread > 0) return recoveredUnread;
+  final matrixUnread = conversationUnreadCount(
+    matrixUnreadCount: room?.notificationCount ?? 0,
+  );
+  if (matrixUnread > 0) return matrixUnread;
 
-  return conversationUnreadCount(
-      matrixUnreadCount: room?.notificationCount ?? 0);
+  return 0;
 }
 
 bool _needsAsClassification(Room room, String? agentMxid) {

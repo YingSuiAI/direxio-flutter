@@ -42,6 +42,8 @@ Normalize member status through `AsChannel` / `AsChannelMember`, and treat only 
 
 For `/channel/:id/conversation`, normal text/media messages send through Matrix SDK when the user is joined. Product policy remains the server-side send gate.
 
+For channel share/invite cards, call `channels.invite_grant.create` first with `channel_id` or `room_id` plus `share_room_id`. Send the card through Matrix with the returned `grant_id`; card joins call `channels.join` with `grant_id` and `share_room_id`.
+
 ## Implementation Pattern
 
 Keep reusable channel data shaping outside route pages when shared or testable, for example `lib/presentation/channel/channel_inbox_data.dart`.

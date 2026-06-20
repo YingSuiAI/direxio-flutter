@@ -8,9 +8,9 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../chat/chat_glass_background.dart';
 import '../mock/mock_data.dart';
-import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/matrix_message_clients_provider.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
@@ -184,16 +184,11 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     );
     if (ok != true) return;
     try {
-      final clearedBeforeTs =
-          DateTime.now().toUtc().millisecondsSinceEpoch + 1;
-      await ref.read(asClientProvider).deleteRoomMessagesByRange(
-            roomId: widget.roomId,
-            fromTs: 0,
-            toTs: clearedBeforeTs,
-          );
+      final clearedBeforeTs = DateTime.now().toUtc().millisecondsSinceEpoch + 1;
       await ref
-          .read(authStateNotifierProvider.notifier)
-          .clearRoomChatHistory(
+          .read(matrixMessageVisibilityClientProvider)
+          .clearRoom(widget.roomId);
+      await ref.read(authStateNotifierProvider.notifier).clearRoomChatHistory(
             widget.roomId,
             clearedBeforeTs: clearedBeforeTs,
           );

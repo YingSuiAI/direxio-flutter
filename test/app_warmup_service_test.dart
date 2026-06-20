@@ -5,7 +5,6 @@ import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_call_session_store.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/channel_post_store.dart';
-import 'package:portal_app/data/recovered_unread_store.dart';
 import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
 
 class _NoopAvatarPreloader implements AvatarPreloader {
@@ -51,58 +50,30 @@ void main() {
     expect(syncCalls, 1);
   });
 
-  test(
-      'warmup starts unread and bootstrap in parallel, then applies unread first',
-      () async {
+  test('warmup starts Matrix sync and bootstrap in parallel', () async {
     final events = <String>[];
-    final unreadCompleter = Completer<AsSyncUnread>();
+    final syncCompleter = Completer<void>();
     final bootstrapCompleter = Completer<AsSyncBootstrap>();
+    final client = Client('PortalIMWarmupTest')..accessToken = 'token';
     final service = AppWarmupService(
-      client: Client('PortalIMWarmupTest'),
+      client: client,
       avatarPreloader: _NoopAvatarPreloader(),
       loadCurrentUserProfile: () async => null,
-      loadUnread: ({int limitPerRoom = 200}) {
-        events.add('unread-start:$limitPerRoom');
-        return unreadCompleter.future;
+      syncMatrixConversations: () {
+        events.add('matrix-sync-start');
+        return syncCompleter.future;
       },
       loadBootstrap: () {
         events.add('bootstrap-start');
         return bootstrapCompleter.future;
       },
-      onUnreadRecovered: (_) => events.add('unread-apply'),
       onBootstrapLoaded: (_) => events.add('bootstrap-apply'),
     );
 
     final warmup = service.warmup();
     await Future<void>.delayed(Duration.zero);
 
-    expect(events, ['unread-start:200', 'bootstrap-start']);
-
-    unreadCompleter.complete(AsSyncUnread(
-      syncedAt: DateTime.parse('2026-05-25T10:00:00Z'),
-      rooms: const [
-        AsUnreadRoom(
-          roomId: '!room:example.com',
-          messages: [
-            AsUnreadMessage(
-              eventId: r'$unread',
-              senderId: '@alice:example.com',
-              senderName: 'Alice',
-              content: 'offline unread',
-              messageType: 'text',
-              timestamp: null,
-            ),
-          ],
-        ),
-      ],
-    ));
-    await Future<void>.delayed(Duration.zero);
-
-    expect(events, [
-      'unread-start:200',
-      'bootstrap-start',
-      'unread-apply',
-    ]);
+    expect(events, ['bootstrap-start', 'matrix-sync-start']);
 
     bootstrapCompleter.complete(AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-05-25T10:00:01Z'),
@@ -113,13 +84,13 @@ void main() {
       channels: const [],
       pending: const AsSyncPending.empty(),
     ));
+    syncCompleter.complete();
 
     await warmup;
 
     expect(events, [
-      'unread-start:200',
       'bootstrap-start',
-      'unread-apply',
+      'matrix-sync-start',
       'bootstrap-apply',
     ]);
   });
@@ -169,54 +140,6 @@ void main() {
     expect(avatarPreloader.urls, contains('https://cdn.example.com/test.png'));
   });
 
-  test('warmup applies persisted unread before network recovery', () async {
-    final events = <String>[];
-    final cachedCompleter = Completer<AsSyncUnread?>();
-    final networkCompleter = Completer<AsSyncUnread>();
-    final store = _FakeRecoveredUnreadStore(
-      readUnread: () {
-        events.add('cache-read');
-        return cachedCompleter.future;
-      },
-      mergeUnread: (unread) async {
-        events.add('cache-merge:${unread.rooms.first.messages.first.eventId}');
-        return unread;
-      },
-    );
-    final service = AppWarmupService(
-      client: Client('PortalIMWarmupCacheTest'),
-      avatarPreloader: _NoopAvatarPreloader(),
-      loadCurrentUserProfile: () async => null,
-      recoveredUnreadStore: store,
-      loadUnread: ({int limitPerRoom = 200}) {
-        events.add('network-start');
-        return networkCompleter.future;
-      },
-      onUnreadRecovered: (unread) {
-        events.add('apply:${unread.rooms.first.messages.first.eventId}');
-      },
-    );
-
-    final warmup = service.warmup();
-    await Future<void>.delayed(Duration.zero);
-    expect(events, ['cache-read', 'network-start']);
-
-    cachedCompleter.complete(_unread(r'$cached'));
-    await Future<void>.delayed(Duration.zero);
-    expect(events, ['cache-read', 'network-start', r'apply:$cached']);
-
-    networkCompleter.complete(_unread(r'$network'));
-    await warmup;
-
-    expect(events, [
-      'cache-read',
-      'network-start',
-      r'apply:$cached',
-      r'cache-merge:$network',
-      r'apply:$network',
-    ]);
-  });
-
   test('warmup applies cached bootstrap before slow network bootstrap',
       () async {
     final events = <String>[];
@@ -258,8 +181,7 @@ void main() {
     ]);
   });
 
-  test('warmup preloads local thumbnails for unread and recent image rooms',
-      () async {
+  test('warmup preloads local thumbnails for recent image rooms', () async {
     final client = Client('PortalIMWarmupMediaTest')
       ..setUserId('@owner:p2p-im.com');
     final room = Room(
@@ -286,37 +208,11 @@ void main() {
       avatarPreloader: _NoopAvatarPreloader(),
       mediaThumbnailPreloader: thumbnails,
       loadCurrentUserProfile: () async => null,
-      loadUnread: ({int limitPerRoom = 200}) async => AsSyncUnread(
-        syncedAt: DateTime.parse('2026-05-25T10:00:00Z'),
-        rooms: const [
-          AsUnreadRoom(
-            roomId: '!room:p2p-im.com',
-            messages: [
-              AsUnreadMessage(
-                eventId: r'$unread-image',
-                senderId: '@peer:p2p-im.com',
-                senderName: 'Peer',
-                content: 'offline image',
-                messageType: MessageTypes.Image,
-                timestamp: null,
-              ),
-              AsUnreadMessage(
-                eventId: r'$unread-text',
-                senderId: '@peer:p2p-im.com',
-                senderName: 'Peer',
-                content: 'offline text',
-                messageType: MessageTypes.Text,
-                timestamp: null,
-              ),
-            ],
-          ),
-        ],
-      ),
     );
 
     await service.warmup();
 
-    expect(thumbnails.eventIds, [r'$unread-image', r'$last-image']);
+    expect(thumbnails.eventIds, [r'$last-image']);
   });
 
   test('warmup preloads missing or non-terminal AS call sessions', () async {
@@ -432,49 +328,6 @@ void main() {
       ['post_ch_old'],
     );
   });
-}
-
-AsSyncUnread _unread(String eventId) {
-  return AsSyncUnread(
-    syncedAt: DateTime.parse('2026-05-25T10:00:00Z'),
-    rooms: [
-      AsUnreadRoom(
-        roomId: '!room:example.com',
-        messages: [
-          AsUnreadMessage(
-            eventId: eventId,
-            senderId: '@alice:example.com',
-            senderName: 'Alice',
-            content: 'offline unread',
-            messageType: 'text',
-            timestamp: null,
-          ),
-        ],
-      ),
-    ],
-  );
-}
-
-class _FakeRecoveredUnreadStore implements RecoveredUnreadStore {
-  _FakeRecoveredUnreadStore({
-    required this.readUnread,
-    required this.mergeUnread,
-  });
-
-  final Future<AsSyncUnread?> Function() readUnread;
-  final Future<AsSyncUnread> Function(AsSyncUnread unread) mergeUnread;
-
-  @override
-  Future<AsSyncUnread?> read() => readUnread();
-
-  @override
-  Future<AsSyncUnread> merge(AsSyncUnread unread) => mergeUnread(unread);
-
-  @override
-  Future<void> removeEvents(Iterable<String> eventIds) async {}
-
-  @override
-  Future<void> removeRoom(String roomId) async {}
 }
 
 class _MemoryAsCallSessionStore implements AsCallSessionStore {

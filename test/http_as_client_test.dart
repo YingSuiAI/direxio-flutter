@@ -31,133 +31,6 @@ void main() {
     expect(base.toString(), 'https://im.jkmf.top/_p2p');
   });
 
-  test('search uses unified P2P query action with portal bearer token',
-      () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_p2p/query');
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(jsonDecode(request.body), {
-          'action': 'search',
-          'params': {'q': 'hello', 'limit': '30'},
-        });
-        return http.Response(
-          jsonEncode({
-            'results': [
-              {
-                'event_id': r'$event',
-                'room_id': '!room:example.com',
-                'sender_name': 'Alice',
-                'content': 'hello world',
-                'timestamp': '2026-05-20T10:30:00Z',
-              },
-            ],
-          }),
-          200,
-        );
-      }),
-    );
-
-    final results = await client.search('hello', limit: 30);
-
-    expect(results, hasLength(1));
-    expect(results.single.eventId, r'$event');
-  });
-
-  test('sendRoomMessage uses unified P2P command action', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_p2p/command');
-        expect(jsonDecode(request.body), {
-          'action': 'rooms.send',
-          'params': {
-            'room_id': '!alice:p2p-im.com',
-            'content': 'hello',
-          },
-        });
-        return http.Response(jsonEncode({'event_id': r'$sent'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendRoomMessage(
-      '!alice:p2p-im.com',
-      'hello',
-    );
-
-    expect(eventId, r'$sent');
-  });
-
-  test('syncMessages uses cursor-only unified P2P query action', () async {
-    var call = 0;
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        call++;
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_p2p/query');
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        final decoded = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(decoded['action'], 'sync.messages');
-        expect(decoded['params'], {
-          'room_id': '!agent:p2p-im.com',
-          if (call == 2) 'cursor': 'cursor-1',
-        });
-        return _jsonResponse(
-          {
-            'synced_at': '2026-06-19T10:00:00Z',
-            'has_more_messages': call == 1,
-            if (call == 1) 'next_cursor': 'cursor-1',
-            'rooms': [
-              {
-                'room_id': '!agent:p2p-im.com',
-                'has_more_messages': call == 1,
-                if (call == 1) 'next_message_cursor': 'room-cursor-1',
-                'messages': [
-                  {
-                    'event_id': r'$event',
-                    'room_id': '!agent:p2p-im.com',
-                    'sender_id': '@owner:p2p-im.com',
-                    'sender_name': '我',
-                    'content': 'hello',
-                    'message_type': 'text',
-                    'origin_server_ts': 1781813000000,
-                    'timestamp': '2026-06-19T10:00:00Z',
-                  }
-                ],
-              }
-            ],
-          },
-          200,
-        );
-      }),
-    );
-
-    final result = await client.syncMessages(
-      roomId: '!agent:p2p-im.com',
-    );
-    final next = await client.syncMessages(
-      roomId: '!agent:p2p-im.com',
-      cursor: result.nextCursor,
-    );
-
-    expect(call, 2);
-    expect(result.hasMoreMessages, isTrue);
-    expect(result.nextCursor, 'cursor-1');
-    expect(result.rooms.single.hasMoreMessages, isTrue);
-    expect(result.rooms.single.nextMessageCursor, 'room-cursor-1');
-    expect(result.rooms.single.messages.single.eventId, r'$event');
-    expect(result.rooms.single.messages.single.content, 'hello');
-    expect(next.hasMoreMessages, isFalse);
-    expect(next.nextCursor, isNull);
-  });
-
   test('changePortalPassword uses unified portal password action', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),
@@ -342,64 +215,6 @@ void main() {
     expect(seen, hasLength(3));
   });
 
-  test('contact backup helpers use unified API actions', () async {
-    final backup = {
-      'version': 1,
-      'contacts': [
-        {
-          'peer_mxid': '@alice:p2p-im.com',
-          'room_id': '!alice:p2p-im.com',
-          'status': 'accepted'
-        },
-      ],
-      'messages': [],
-    };
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        switch (body['action']) {
-          case 'contacts.export':
-            expect(request.url.path, '/_p2p/command');
-            expect(body['params'], isEmpty);
-            return http.Response(
-              jsonEncode({
-                'filename': 'contacts-backup-test.json',
-                'contacts_count': 1,
-                'messages_count': 0,
-                'backup': backup,
-              }),
-              200,
-            );
-          case 'contacts.download':
-            expect(request.url.path, '/_p2p/query');
-            expect(body['params'], {'filename': 'contacts-backup-test.json'});
-            return http.Response(jsonEncode({'backup': backup}), 200);
-          case 'contacts.import':
-            expect(request.url.path, '/_p2p/command');
-            expect(body['params'], {'backup': backup});
-            return http.Response(
-              jsonEncode({'contacts_imported': 1, 'messages_imported': 0}),
-              200,
-            );
-          default:
-            fail('unexpected action ${body['action']}');
-        }
-      }),
-    );
-
-    expect((await client.exportContactsBackup())['contacts_count'], 1);
-    expect(
-      (await client
-          .downloadContactsBackup('contacts-backup-test.json'))['backup'],
-      backup,
-    );
-    expect((await client.importContactsBackup(backup))['contacts_imported'], 1);
-  });
-
   test('maps legacy channel intro field to description', () {
     final summary = AsSyncRoomSummary.fromJson({
       'channel_id': 'ch_intro',
@@ -418,41 +233,6 @@ void main() {
 
     expect(summary.description, '频道介绍字段');
     expect(channel.description, '频道介绍字段');
-  });
-
-  test('search calls AS admin API with portal bearer token', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'GET');
-        expect(request.url.path, '/_as/search');
-        expect(request.url.queryParameters['q'], 'hello');
-        expect(request.url.queryParameters['limit'], '30');
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        return http.Response(
-          jsonEncode({
-            'results': [
-              {
-                'event_id': r'$event',
-                'room_id': '!room:example.com',
-                'sender_name': 'Alice',
-                'content': 'hello world',
-                'timestamp': '2026-05-20T10:30:00Z',
-              },
-            ],
-          }),
-          200,
-        );
-      }),
-    );
-
-    final results = await client.search('hello', limit: 30);
-
-    expect(results, hasLength(1));
-    expect(results.single.eventId, r'$event');
-    expect(results.single.roomId, '!room:example.com');
-    expect(results.single.content, 'hello world');
   });
 
   test('AS M_UNKNOWN_TOKEN refreshes token and retries once', () async {
@@ -825,219 +605,6 @@ void main() {
     expect(seen.url.path, '/_as/contacts/requests/!alice%3Ap2p-im.com/reject');
     expect(contact.roomId, '!alice:p2p-im.com');
     expect(contact.status, 'rejected');
-  });
-
-  test('sendRoomMessage posts content through AS product route', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_as/rooms/!alice%3Ap2p-im.com/send');
-        expect(jsonDecode(request.body), {'content': 'hello'});
-        return http.Response(jsonEncode({'event_id': r'$sent'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendRoomMessage(
-      '!alice:p2p-im.com',
-      'hello',
-    );
-
-    expect(eventId, r'$sent');
-  });
-
-  test('sendRoomMessage includes reply target when present', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_as/rooms/!alice%3Ap2p-im.com/send');
-        expect(jsonDecode(request.body), {
-          'content': 'hello',
-          'reply_to': r'$quoted',
-        });
-        return http.Response(jsonEncode({'event_id': r'$sent'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendRoomMessage(
-      '!alice:p2p-im.com',
-      'hello',
-      replyToEventId: r'$quoted',
-    );
-
-    expect(eventId, r'$sent');
-  });
-
-  test('sendRoomMessage posts mention metadata when present', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_as/rooms/!group%3Ap2p-im.com/send');
-        expect(jsonDecode(request.body), {
-          'content': '@Alice hello',
-          'message_type': 'at_text',
-          'mentions': [
-            {
-              'user_id': '@alice:p2p-im.com',
-              'display_name': 'Alice',
-            },
-          ],
-        });
-        return http.Response(jsonEncode({'event_id': r'$sent'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendRoomMessage(
-      '!group:p2p-im.com',
-      '@Alice hello',
-      mentions: const [
-        {
-          'user_id': '@alice:p2p-im.com',
-          'display_name': 'Alice',
-        },
-      ],
-    );
-
-    expect(eventId, r'$sent');
-  });
-
-  test('sendRoomMediaMessage posts media through AS product route', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_as/rooms/!alice%3Ap2p-im.com/send-media');
-        expect(jsonDecode(request.body), {
-          'msgtype': 'm.image',
-          'body': 'avatar.png',
-          'filename': 'avatar.png',
-          'url': 'mxc://p2p-im.com/media',
-          'mime_type': 'image/png',
-          'size': 1234,
-        });
-        return http.Response(jsonEncode({'event_id': r'$media'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendRoomMediaMessage(
-      roomId: '!alice:p2p-im.com',
-      msgType: 'm.image',
-      body: 'avatar.png',
-      filename: 'avatar.png',
-      mediaUrl: 'mxc://p2p-im.com/media',
-      mimeType: 'image/png',
-      size: 1234,
-    );
-
-    expect(eventId, r'$media');
-  });
-
-  test('sendRoomMediaMessage posts video thumbnail metadata', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_as/rooms/!alice%3Ap2p-im.com/send-media');
-        expect(jsonDecode(request.body), {
-          'msgtype': 'm.video',
-          'body': 'clip.mov',
-          'filename': 'clip.mov',
-          'url': 'mxc://p2p-im.com/video',
-          'mime_type': 'video/quicktime',
-          'size': 4567,
-          'thumbnail_url': 'mxc://p2p-im.com/thumb',
-          'thumbnail_mime_type': 'image/jpeg',
-          'thumbnail_size': 321,
-          'width': 640,
-          'height': 360,
-          'duration_ms': 2100,
-        });
-        return http.Response(jsonEncode({'event_id': r'$video'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendRoomMediaMessage(
-      roomId: '!alice:p2p-im.com',
-      msgType: 'm.video',
-      body: 'clip.mov',
-      filename: 'clip.mov',
-      mediaUrl: 'mxc://p2p-im.com/video',
-      mimeType: 'video/quicktime',
-      size: 4567,
-      thumbnailUrl: 'mxc://p2p-im.com/thumb',
-      thumbnailMimeType: 'image/jpeg',
-      thumbnailSize: 321,
-      width: 640,
-      height: 360,
-      durationMs: 2100,
-    );
-
-    expect(eventId, r'$video');
-  });
-
-  test('sendRoomMediaMessage preserves channel media product metadata',
-      () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_as/rooms/!channel%3Ap2p-im.com/send-media');
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body['message_type'], 'channel_comment');
-        expect(body['msgtype'], 'm.image');
-        expect(body['channel_id'], 'ch_1');
-        expect(body['post_id'], 'post_1');
-        expect(body['reply_to_comment_id'], 'comment_parent');
-        expect(body['reply_to_author_mxid'], '@alice:p2p-im.com');
-        expect(body['mentions'], [
-          {'user_id': '@bob:p2p-im.com', 'display_name': 'Bob'},
-        ]);
-        expect(jsonDecode(body['mentions_json'] as String), [
-          {'user_id': '@bob:p2p-im.com', 'display_name': 'Bob'},
-        ]);
-        expect(jsonDecode(body['media_json'] as String), {
-          'msgtype': 'm.image',
-          'body': 'photo.png',
-          'filename': 'photo.png',
-          'url': 'mxc://p2p-im.com/photo',
-          'mimetype': 'image/png',
-          'size': 1234,
-          'w': 640,
-          'h': 360,
-        });
-        return http.Response(jsonEncode({'event_id': r'$channel-media'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendRoomMediaMessage(
-      roomId: '!channel:p2p-im.com',
-      msgType: 'm.image',
-      messageType: 'channel_comment',
-      channelId: 'ch_1',
-      postId: 'post_1',
-      replyToCommentId: 'comment_parent',
-      replyToAuthorMxid: '@alice:p2p-im.com',
-      mentions: const [
-        {'user_id': '@bob:p2p-im.com', 'display_name': 'Bob'},
-      ],
-      body: 'photo.png',
-      filename: 'photo.png',
-      mediaUrl: 'mxc://p2p-im.com/photo',
-      mimeType: 'image/png',
-      size: 1234,
-      width: 640,
-      height: 360,
-    );
-
-    expect(eventId, r'$channel-media');
   });
 
   test('createCall posts call session request through AS', () async {
@@ -1613,6 +1180,86 @@ void main() {
     );
   });
 
+  test('createChannelInviteGrant posts unified grant action with channel id',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'channels.invite_grant.create',
+          'params': {
+            'channel_id': 'ch1',
+            'share_room_id': '!dm:p2p-im.com',
+            'reason': 'share_card',
+          },
+        });
+        return _jsonResponse(
+          {
+            'grant_id': 'grant_1',
+            'channel_id': 'ch1',
+            'room_id': '!channel:p2p-im.com',
+            'share_room_id': '!dm:p2p-im.com',
+            'status': 'active',
+          },
+          200,
+        );
+      }),
+    );
+
+    final grant = await client.createChannelInviteGrant(
+      channelId: ' ch1 ',
+      shareRoomId: ' !dm:p2p-im.com ',
+      reason: ' share_card ',
+    );
+
+    expect(grant.grantId, 'grant_1');
+    expect(grant.channelId, 'ch1');
+    expect(grant.roomId, '!channel:p2p-im.com');
+    expect(grant.shareRoomId, '!dm:p2p-im.com');
+    expect(grant.status, 'active');
+  });
+
+  test('createChannelInviteGrant accepts room id without channel id', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(jsonDecode(request.body), {
+          'action': 'channels.invite_grant.create',
+          'params': {
+            'room_id': '!channel:p2p-im.com',
+            'share_room_id': '!dm:p2p-im.com',
+          },
+        });
+        return _jsonResponse(
+          {
+            'grant': {
+              'id': 'grant_2',
+              'room_id': '!channel:p2p-im.com',
+              'share_room_id': '!dm:p2p-im.com',
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final grant = await client.createChannelInviteGrant(
+      roomId: ' !channel:p2p-im.com ',
+      shareRoomId: ' !dm:p2p-im.com ',
+    );
+
+    expect(grant.grantId, 'grant_2');
+    expect(grant.roomId, '!channel:p2p-im.com');
+    expect(grant.shareRoomId, '!dm:p2p-im.com');
+  });
+
   test('group mute APIs post expected AS endpoints', () async {
     final expectedPaths = [
       '/_as/groups/!group%3Ap2p-im.com/mute',
@@ -2083,173 +1730,6 @@ void main() {
     await expectLater(client.deleteFavorite(7), completes);
   });
 
-  test('sendChatRecordMessage posts chat record metadata through AS', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_as/rooms/!room%3Ap2p-im.com/send');
-        expect(jsonDecode(request.body), {
-          'content': '聊天记录\n与 Alice 的聊天记录\n共 1 条消息',
-          'message_type': 'chat_record',
-          'chat_record': {
-            'title': '与 Alice 的聊天记录',
-            'source_room_id': '!alice:p2p-im.com',
-            'source_room_type': 'direct',
-            'item_count': 1,
-            'items': [
-              {
-                'sender_name': 'Alice',
-                'body': '第一条',
-                'message_type': 'text',
-                'origin_server_ts': 1779685200000,
-              },
-            ],
-          },
-        });
-        return http.Response(jsonEncode({'event_id': r'$record'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendChatRecordMessage(
-      roomId: '!room:p2p-im.com',
-      body: '聊天记录\n与 Alice 的聊天记录\n共 1 条消息',
-      title: '与 Alice 的聊天记录',
-      sourceRoomId: '!alice:p2p-im.com',
-      sourceRoomType: 'direct',
-      itemCount: 1,
-      items: const [
-        {
-          'sender_name': 'Alice',
-          'body': '第一条',
-          'message_type': 'text',
-          'origin_server_ts': 1779685200000,
-        },
-      ],
-    );
-
-    expect(eventId, r'$record');
-  });
-
-  test('sendChannelShareMessage posts channel metadata through AS', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_as/rooms/!room%3Ap2p-im.com/send');
-        expect(jsonDecode(request.body), {
-          'content': '频道分享\n产品公告',
-          'message_type': 'channel_share',
-          'channel_share': {
-            'channel_id': 'ch_product',
-            'room_id': '!channel:p2p-im.com',
-            'home_domain': 'p2p-im.com',
-            'name': '产品公告',
-            'description': '只发布重要产品更新',
-            'visibility': 'public',
-            'join_policy': 'open',
-            'channel_type': 'post',
-            'comments_enabled': true,
-            'tags': ['产品'],
-          },
-        });
-        return http.Response(jsonEncode({'event_id': r'$share'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendChannelShareMessage(
-      roomId: '!room:p2p-im.com',
-      body: '频道分享\n产品公告',
-      channel: const AsChannelShareDraft(
-        channelId: 'ch_product',
-        roomId: '!channel:p2p-im.com',
-        homeDomain: 'p2p-im.com',
-        name: '产品公告',
-        description: '只发布重要产品更新',
-        tags: ['产品'],
-      ),
-    );
-
-    expect(eventId, r'$share');
-  });
-
-  test('sendGroupInviteMessage posts group invite card through AS', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_as/rooms/!dm%3Ap2p-im.com/send');
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(jsonDecode(request.body), {
-          'content': '邀请加入群聊\n产品群',
-          'message_type': 'group_invite',
-          'group_invite': {
-            'msgtype': 'p2p.group.invite.v1',
-            'group_room_id': '!group:p2p-im.com',
-            'group_name': '产品群',
-            'inviter_mxid': '@owner:p2p-im.com',
-            'inviter_display_name': 'Owner',
-            'direct_room_id': '!dm:p2p-im.com',
-          },
-        });
-        return http.Response(jsonEncode({'event_id': r'$group-invite'}), 200);
-      }),
-    );
-
-    final eventId = await client.sendGroupInviteMessage(
-      directRoomId: '!dm:p2p-im.com',
-      groupRoomId: '!group:p2p-im.com',
-      groupName: '产品群',
-      inviterMxid: '@owner:p2p-im.com',
-      inviterDisplayName: 'Owner',
-    );
-
-    expect(eventId, r'$group-invite');
-  });
-
-  test('sendGroupInviteMessage rejects empty direct room id', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((_) async {
-        fail('request should not be sent for empty direct room id');
-      }),
-    );
-
-    expect(
-      () => client.sendGroupInviteMessage(
-        directRoomId: ' ',
-        groupRoomId: '!group:p2p-im.com',
-        groupName: '产品群',
-        inviterMxid: '@owner:p2p-im.com',
-      ),
-      throwsArgumentError,
-    );
-  });
-
-  test('sendGroupInviteMessage rejects empty group room id', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((_) async {
-        fail('request should not be sent for empty group room id');
-      }),
-    );
-
-    expect(
-      () => client.sendGroupInviteMessage(
-        directRoomId: '!dm:p2p-im.com',
-        groupRoomId: ' ',
-        groupName: '产品群',
-        inviterMxid: '@owner:p2p-im.com',
-      ),
-      throwsArgumentError,
-    );
-  });
-
   test('deleteContact removes a contact through AS product route', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),
@@ -2334,7 +1814,8 @@ void main() {
     expect(status.allHealthy, isTrue);
   });
 
-  test('portal status parses policy index and event stream readiness', () async {
+  test('portal status parses policy index and event stream readiness',
+      () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
@@ -2383,8 +1864,8 @@ void main() {
         return http.Response(
           [
             'id: 42',
-            'event: room.message.projected',
-            r'data: {"seq":42,"type":"room.message.projected","room_id":"!room:example.com","event_id":"$event","payload":{"message_type":"text"},"created_at":"2026-06-20T00:00:00Z"}',
+            'event: sync.bootstrap.changed',
+            r'data: {"seq":42,"type":"sync.bootstrap.changed","room_id":"!room:example.com","event_id":"$event","payload":{"reason":"contacts"},"created_at":"2026-06-20T00:00:00Z"}',
             '',
           ].join('\n'),
           200,
@@ -2393,17 +1874,19 @@ void main() {
       }),
     );
 
-    final events = await client.streamEvents(
-      since: 41,
-      lastEventId: '40',
-    ).toList();
+    final events = await client
+        .streamEvents(
+          since: 41,
+          lastEventId: '40',
+        )
+        .toList();
 
     expect(events, hasLength(1));
     expect(events.single.seq, 42);
-    expect(events.single.type, 'room.message.projected');
+    expect(events.single.type, 'sync.bootstrap.changed');
     expect(events.single.roomId, '!room:example.com');
     expect(events.single.eventId, r'$event');
-    expect(events.single.payload['message_type'], 'text');
+    expect(events.single.payload['reason'], 'contacts');
   });
 
   test('changePortalPassword posts password payload to AS admin API', () async {
@@ -2799,6 +2282,51 @@ void main() {
 
     expect(channel.memberStatus, 'pending');
     expect(channel.joinPolicy, 'approval');
+  });
+
+  test('joinChannel sends room, grant, and share room params for invite grant',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        final envelope = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(envelope['action'], 'channels.join');
+        expect(envelope['params'], {
+          'channel_id': 'ch_private',
+          'room_id': '!private:example.com',
+          'grant_id': 'grant-1',
+          'share_room_id': '!direct:example.com',
+        });
+        return _jsonResponse(
+          {
+            'channel': {
+              'channel_id': 'ch_private',
+              'room_id': '!private:example.com',
+              'home_domain': 'example.com',
+              'name': '私密频道',
+              'visibility': 'private',
+              'join_policy': 'invite',
+              'comments_enabled': true,
+              'member_status': 'joined',
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.joinChannel(
+      'ch_private',
+      roomId: '!private:example.com',
+      grantId: 'grant-1',
+      shareRoomId: '!direct:example.com',
+    );
+
+    expect(channel.memberStatus, asChannelMemberStatusJoined);
   });
 
   test('joinChannelByRoomId posts room_id to public join request endpoint',
@@ -3612,137 +3140,6 @@ void main() {
     expect(bootstrap.contacts.single.domain, 'p2p-liyanan.com');
     expect(bootstrap.contacts.single.status, 'accepted');
     expect(bootstrap.contacts.single.visibleAfterTs, 1770000000123);
-  });
-
-  test('syncUnread requests unread-only recovery with limit', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'GET');
-        expect(request.url.path, '/_as/sync/unread');
-        expect(request.url.queryParameters['limit_per_room'], '20');
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        return http.Response(
-          jsonEncode({
-            'synced_at': '2026-05-25T10:00:00Z',
-            'rooms': [
-              {
-                'room_id': '!room:example.com',
-                'messages': [
-                  {
-                    'event_id': r'$unread',
-                    'sender_id': '@alice:example.com',
-                    'sender_name': 'Alice',
-                    'content': 'offline unread',
-                    'message_type': 'text',
-                    'timestamp': '2026-05-25T09:58:00Z',
-                  }
-                ],
-              }
-            ],
-          }),
-          200,
-        );
-      }),
-    );
-
-    final unread = await client.syncUnread(limitPerRoom: 20);
-
-    expect(unread.rooms.single.roomId, '!room:example.com');
-    expect(unread.rooms.single.messages.single.eventId, r'$unread');
-    expect(unread.rooms.single.messages.single.content, 'offline unread');
-  });
-
-  test('deleteRoomMessage uses AS private visibility endpoint', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(
-          request.url.path,
-          '/_as/rooms/!room%3Aexample.com/messages/delete',
-        );
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(jsonDecode(request.body), {'event_id': r'$event/with/slash'});
-        return http.Response(
-          jsonEncode({
-            'room_id': '!room:example.com',
-            'event_id': r'$event/with/slash',
-          }),
-          200,
-        );
-      }),
-    );
-
-    await expectLater(
-      client.deleteRoomMessage(
-        roomId: '!room:example.com',
-        eventId: r'$event/with/slash',
-      ),
-      completes,
-    );
-  });
-
-  test('deleteRoomMessagesByRange uses unified room clear action', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_p2p/command');
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(jsonDecode(request.body), {
-          'action': 'rooms.messages.delete_range',
-          'params': {
-            'room_id': '!room:example.com',
-            'from_ts': 0,
-            'to_ts': 1781839000000,
-          },
-        });
-        return http.Response(jsonEncode({'status': 'ok'}), 200);
-      }),
-    );
-
-    await expectLater(
-      client.deleteRoomMessagesByRange(
-        roomId: '!room:example.com',
-        fromTs: 0,
-        toTs: 1781839000000,
-      ),
-      completes,
-    );
-  });
-
-  test('recallRoomMessage uses unified room recall action', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_p2p/command');
-        expect(request.headers['Authorization'], 'Bearer portal-token');
-        expect(jsonDecode(request.body), {
-          'action': 'rooms.messages.recall',
-          'params': {
-            'room_id': '!room:example.com',
-            'event_id': r'$event:example.com',
-            'reason': '撤回消息',
-          },
-        });
-        return http.Response(jsonEncode({'status': 'ok'}), 200);
-      }),
-    );
-
-    await expectLater(
-      client.recallRoomMessage(
-        roomId: '!room:example.com',
-        eventId: r'$event:example.com',
-        reason: '撤回消息',
-      ),
-      completes,
-    );
   });
 
   test('authenticatePortal posts password to auth', () async {

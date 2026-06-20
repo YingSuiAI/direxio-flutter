@@ -82,65 +82,11 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<AsSyncUnread> syncUnread({int limitPerRoom = 200}) async {
-    await Future.delayed(_latency);
-    return AsSyncUnread(
-      syncedAt: DateTime.now().toUtc(),
-      rooms: const [],
-    );
-  }
-
-  @override
-  Future<AsSyncMessages> syncMessages({
-    String roomId = '',
-    String? cursor,
-    int fromTs = 0,
-    int toTs = 0,
-  }) async {
-    await Future.delayed(_latency);
-    return AsSyncMessages(
-      syncedAt: DateTime.now().toUtc(),
-      hasMoreMessages: false,
-      rooms: const [],
-    );
-  }
-
-  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,
   }) {
     return Completer<AsEventStreamEvent>().future.asStream();
-  }
-
-  @override
-  Future<List<AsSearchResult>> search(
-    String query, {
-    String? roomId,
-    int limit = 20,
-  }) async {
-    await Future.delayed(_latency);
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) return [];
-    final results = <AsSearchResult>[];
-    for (final conv in MockData.conversations) {
-      if (roomId != null && conv.id != roomId) continue;
-      for (final m in conv.messages) {
-        if (m.text.toLowerCase().contains(q)) {
-          results.add(
-            AsSearchResult(
-              eventId: 'mock_evt_${results.length}',
-              roomId: conv.id,
-              senderName: m.isMe ? '我' : conv.name,
-              content: m.text,
-              timestamp: m.time,
-            ),
-          );
-          if (results.length >= limit) return results;
-        }
-      }
-    }
-    return results;
   }
 
   @override
@@ -349,107 +295,6 @@ class MockAsClient implements AsClient {
       roomId: roomId,
       status: 'accepted',
     );
-  }
-
-  @override
-  Future<void> deleteRoomMessage({
-    required String roomId,
-    required String eventId,
-  }) async {
-    await Future.delayed(_latency);
-  }
-
-  @override
-  Future<void> recallRoomMessage({
-    required String roomId,
-    required String eventId,
-    String reason = '撤回消息',
-  }) async {
-    await Future.delayed(_latency);
-  }
-
-  @override
-  Future<void> deleteRoomMessagesByRange({
-    required String roomId,
-    required int fromTs,
-    required int toTs,
-  }) async {
-    await Future.delayed(_latency);
-  }
-
-  @override
-  Future<String> sendRoomMessage(
-    String roomId,
-    String content, {
-    String? replyToEventId,
-    List<Map<String, String>> mentions = const [],
-  }) async {
-    await Future.delayed(_latency);
-    return 'mock-event';
-  }
-
-  @override
-  Future<String> sendChatRecordMessage({
-    required String roomId,
-    required String body,
-    required String title,
-    required String sourceRoomId,
-    required String sourceRoomType,
-    required int itemCount,
-    List<Map<String, Object?>> items = const [],
-  }) async {
-    await Future.delayed(_latency);
-    return 'mock-chat-record-event';
-  }
-
-  @override
-  Future<String> sendChannelShareMessage({
-    required String roomId,
-    required String body,
-    required AsChannelShareDraft channel,
-  }) async {
-    await Future.delayed(_latency);
-    return 'mock-channel-share-event';
-  }
-
-  @override
-  Future<String> sendGroupInviteMessage({
-    required String directRoomId,
-    required String groupRoomId,
-    required String groupName,
-    required String inviterMxid,
-    String inviterDisplayName = '',
-  }) async {
-    await Future.delayed(_latency);
-    return 'mock-group-invite-event';
-  }
-
-  @override
-  Future<String> sendRoomMediaMessage({
-    required String roomId,
-    required String msgType,
-    required String body,
-    required String filename,
-    required String mediaUrl,
-    String messageType = '',
-    String channelId = '',
-    String postId = '',
-    String commentId = '',
-    String replyToCommentId = '',
-    String replyToAuthorMxid = '',
-    List<Map<String, String>> mentions = const [],
-    Map<String, Object?> media = const {},
-    String mimeType = '',
-    int size = 0,
-    String thumbnailUrl = '',
-    String thumbnailMimeType = '',
-    int thumbnailSize = 0,
-    int width = 0,
-    int height = 0,
-    int durationMs = 0,
-  }) async {
-    await Future.delayed(_latency);
-    return 'mock-media-event';
   }
 
   @override
@@ -744,6 +589,8 @@ class MockAsClient implements AsClient {
   Future<AsChannel> joinChannelByRoomId(
     String roomId, {
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
   }) async {
@@ -811,7 +658,10 @@ class MockAsClient implements AsClient {
   @override
   Future<AsChannel> joinChannel(
     String channelId, {
+    String roomId = '',
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
   }) async {
     await Future.delayed(_latency);
@@ -900,6 +750,39 @@ class MockAsClient implements AsClient {
         ),
       );
     }
+  }
+
+  @override
+  Future<AsChannelInviteGrant> createChannelInviteGrant({
+    String channelId = '',
+    String roomId = '',
+    required String shareRoomId,
+    String grantId = '',
+    String reason = '',
+  }) async {
+    await Future.delayed(_latency);
+    final key = channelId.trim().isNotEmpty ? channelId.trim() : roomId.trim();
+    final channel = _channels[key] ??
+        AsChannel(
+          channelId: key,
+          roomId: roomId.trim().isEmpty ? '!$key:mock.local' : roomId.trim(),
+          name: '频道',
+          homeDomain: 'mock.local',
+          visibility: asChannelVisibilityPrivate,
+          joinPolicy: asChannelJoinPolicyInvite,
+          commentsEnabled: true,
+        );
+    return AsChannelInviteGrant(
+      grantId: grantId.trim().isEmpty
+          ? 'mock-grant-${DateTime.now().microsecondsSinceEpoch}'
+          : grantId.trim(),
+      roomId: channel.roomId,
+      channelId: channel.channelId,
+      shareRoomId: shareRoomId.trim(),
+      status: 'created',
+      channel: channel,
+      members: _channelMembers[key] ?? const [],
+    );
   }
 
   @override

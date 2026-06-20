@@ -23,6 +23,8 @@ class ChannelSharePayload {
   const ChannelSharePayload({
     required this.channelId,
     required this.roomId,
+    this.grantId = '',
+    this.shareRoomId = '',
     required this.homeDomain,
     required this.name,
     this.description = '',
@@ -36,6 +38,8 @@ class ChannelSharePayload {
 
   final String channelId;
   final String roomId;
+  final String grantId;
+  final String shareRoomId;
   final String homeDomain;
   final String name;
   final String description;
@@ -53,6 +57,8 @@ class ChannelSharePayload {
   AsChannelShareDraft get asDraft => AsChannelShareDraft(
         channelId: channelId,
         roomId: roomId,
+        grantId: grantId,
+        shareRoomId: shareRoomId,
         homeDomain: homeDomain,
         name: displayName,
         description: description,
@@ -183,6 +189,8 @@ bool _channelShareIsJoined(
 ChannelSharePayload channelSharePayloadFromChannel({
   required String channelId,
   required String roomId,
+  String grantId = '',
+  String shareRoomId = '',
   required String homeDomain,
   required String name,
   String description = '',
@@ -196,6 +204,8 @@ ChannelSharePayload channelSharePayloadFromChannel({
   return ChannelSharePayload(
     channelId: channelId,
     roomId: roomId,
+    grantId: grantId,
+    shareRoomId: shareRoomId,
     homeDomain: homeDomain,
     name: name,
     description: description,
@@ -227,6 +237,8 @@ ChannelSharePayload? channelSharePayloadFromContent(
   return ChannelSharePayload(
     channelId: channelId,
     roomId: roomId,
+    grantId: _stringValue(raw['grant_id']).trim(),
+    shareRoomId: _stringValue(raw['share_room_id']).trim(),
     homeDomain: _stringValue(raw['home_domain']).trim(),
     name: name,
     description: _stringValue(raw['description']).trim(),
@@ -270,13 +282,53 @@ Future<bool> showAndShareChannel(
     builder: (ctx) => _ChannelShareTargetSheet(targets: targets),
   );
   if (target == null) return false;
-  await ref.read(asClientProvider).sendChannelShareMessage(
-        roomId: target.roomId,
-        body: payload.body,
-        channel: payload.asDraft,
-      );
-  await ref.read(matrixClientProvider).oneShotSync();
+  final asClient = ref.read(asClientProvider);
+  final grant = await asClient.createChannelInviteGrant(
+    channelId: payload.channelId,
+    roomId: payload.roomId,
+    shareRoomId: target.roomId,
+  );
+  final sharedPayload = _channelSharePayloadWithGrant(
+    payload,
+    grantId: grant.grantId,
+    shareRoomId: grant.shareRoomId.isEmpty ? target.roomId : grant.shareRoomId,
+  );
+  final matrixClient = ref.read(matrixClientProvider);
+  final room = matrixClient.getRoomById(target.roomId);
+  if (room == null) {
+    throw StateError('目标会话未同步到本地');
+  }
+  await room.sendEvent({
+    'msgtype': MessageTypes.Text,
+    'body': sharedPayload.body,
+    'message_type': channelShareMessageType,
+    chatRecordMatrixMarkerKey: channelShareMessageType,
+    channelShareMatrixPayloadKey: sharedPayload.asDraft.toJson(),
+  });
+  await matrixClient.oneShotSync();
   return true;
+}
+
+ChannelSharePayload _channelSharePayloadWithGrant(
+  ChannelSharePayload payload, {
+  required String grantId,
+  required String shareRoomId,
+}) {
+  return ChannelSharePayload(
+    channelId: payload.channelId,
+    roomId: payload.roomId,
+    grantId: grantId,
+    shareRoomId: shareRoomId,
+    homeDomain: payload.homeDomain,
+    name: payload.name,
+    description: payload.description,
+    avatarUrl: payload.avatarUrl,
+    visibility: payload.visibility,
+    joinPolicy: payload.joinPolicy,
+    commentsEnabled: payload.commentsEnabled,
+    channelType: payload.channelType,
+    tags: payload.tags,
+  );
 }
 
 class ChannelSharePreviewCard extends StatelessWidget {

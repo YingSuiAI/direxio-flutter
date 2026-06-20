@@ -9,23 +9,19 @@ import '../../data/as_call_session_store.dart';
 import '../../data/as_client.dart';
 import '../../data/channel_post_store.dart';
 import '../../data/media_thumbnail_cache.dart';
-import '../../data/recovered_unread_store.dart';
 import 'as_client_provider.dart';
 import 'as_bootstrap_store_provider.dart';
 import 'as_call_session_store_provider.dart';
 import 'as_sync_cache_provider.dart';
 import '../chat/call_timeline_events.dart';
 import '../utils/avatar_url.dart';
-import '../utils/message_history_policy.dart';
 import 'auth_provider.dart';
 import 'channel_provider.dart';
 import 'media_thumbnail_cache_provider.dart';
 import 'profile_provider.dart';
-import 'recovered_unread_store_provider.dart';
 
 typedef AsBootstrapLoader = Future<AsSyncBootstrap> Function();
 typedef CachedAsBootstrapLoader = Future<AsSyncBootstrap?> Function();
-typedef AsUnreadLoader = Future<AsSyncUnread> Function({int limitPerRoom});
 typedef AsCallSessionLoader = Future<AsCallSession> Function(String callId);
 typedef AsChannelPostsLoader = Future<List<AsChannelPost>> Function(
   String channelId, {
@@ -121,8 +117,6 @@ final appWarmupServiceProvider = Provider<AppWarmupService>((ref) {
     syncMatrixConversations: () => ref.read(matrixClientProvider).oneShotSync(),
     loadCachedBootstrap: bootstrapRepository.readCached,
     loadBootstrap: bootstrapRepository.refresh,
-    loadUnread: ({int limitPerRoom = 200}) =>
-        asClient.syncUnread(limitPerRoom: limitPerRoom),
     callSessionStore: DeferredAsCallSessionStore(
       () => ref.read(asCallSessionStoreProvider.future),
     ),
@@ -132,17 +126,9 @@ final appWarmupServiceProvider = Provider<AppWarmupService>((ref) {
     ),
     loadChannelPosts: (channelId, {int limit = 50}) =>
         asClient.getChannelPosts(channelId, limit: limit),
-    recoveredUnreadStore: DeferredRecoveredUnreadStore(
-      () => ref.read(recoveredUnreadStoreProvider.future),
-    ),
     onBootstrapLoaded: (bootstrap) {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
-          );
-    },
-    onUnreadRecovered: (unread) {
-      ref.read(asSyncCacheProvider.notifier).update(
-            (state) => state.mergeUnread(unread),
           );
     },
   );
@@ -166,15 +152,12 @@ class AppWarmupService {
     this.syncMatrixConversations,
     this.loadBootstrap,
     this.loadCachedBootstrap,
-    this.loadUnread,
-    this.recoveredUnreadStore,
     this.callSessionStore,
     this.loadCallSession,
     this.channelPostStore,
     this.loadChannelPosts,
     this.loadRecentRoomEvents,
     this.onBootstrapLoaded,
-    this.onUnreadRecovered,
     this.maxRoomAvatars = 20,
     this.maxMediaThumbnails = 40,
     this.maxCallSessions = 20,
@@ -184,7 +167,6 @@ class AppWarmupService {
     this.preloadConcurrency = 3,
     this.profileTimeout = const Duration(seconds: 6),
     this.syncTimeout = const Duration(seconds: 10),
-    this.unreadLimitPerRoom = 200,
   });
 
   final Client client;
@@ -194,15 +176,12 @@ class AppWarmupService {
   final MatrixConversationSync? syncMatrixConversations;
   final AsBootstrapLoader? loadBootstrap;
   final CachedAsBootstrapLoader? loadCachedBootstrap;
-  final AsUnreadLoader? loadUnread;
-  final RecoveredUnreadStore? recoveredUnreadStore;
   final AsCallSessionStore? callSessionStore;
   final AsCallSessionLoader? loadCallSession;
   final ChannelPostStore? channelPostStore;
   final AsChannelPostsLoader? loadChannelPosts;
   final RecentRoomEventsLoader? loadRecentRoomEvents;
   final void Function(AsSyncBootstrap bootstrap)? onBootstrapLoaded;
-  final void Function(AsSyncUnread unread)? onUnreadRecovered;
   final int maxRoomAvatars;
   final int maxMediaThumbnails;
   final int maxCallSessions;
@@ -212,19 +191,14 @@ class AppWarmupService {
   final int preloadConcurrency;
   final Duration profileTimeout;
   final Duration syncTimeout;
-  final int unreadLimitPerRoom;
 
   Future<void> warmup() async {
-    final cachedUnreadFuture = _loadCachedUnreadRecovery();
     final cachedBootstrapFuture = _loadCachedBootstrapMetadata();
-    final unreadFuture = _loadUnreadRecovery();
     final bootstrapFuture = _loadBootstrapMetadata();
     final profileFuture = _loadProfile();
     final matrixSyncFuture = _syncMatrixConversations();
 
-    final cachedUnread = await cachedUnreadFuture;
     final cachedBootstrap = await cachedBootstrapFuture;
-    final unread = await unreadFuture;
     final bootstrap = await bootstrapFuture ?? cachedBootstrap;
     final profile = await profileFuture;
     await matrixSyncFuture;
@@ -246,50 +220,10 @@ class AppWarmupService {
 
     await Future.wait([
       _preload(urls),
-      _preloadMediaThumbnails(_mediaThumbnailEventIds(
-        cachedUnread: cachedUnread,
-        unread: unread,
-      )),
+      _preloadMediaThumbnails(_mediaThumbnailEventIds()),
       _prewarmCallSessions(),
       _prewarmChannelPosts(bootstrap),
     ]);
-  }
-
-  Future<AsSyncUnread?> _loadUnreadRecovery() async {
-    final loader = loadUnread;
-    if (loader == null ||
-        !shouldRequestHistoricalMessages(
-          MessageHistoryLoadTrigger.unreadRecovery,
-        )) {
-      return null;
-    }
-    try {
-      var unread =
-          await loader(limitPerRoom: unreadLimitPerRoom).timeout(syncTimeout);
-      final store = recoveredUnreadStore;
-      if (store != null && _hasUnreadMessages(unread)) {
-        unread = await store.merge(unread);
-      }
-      onUnreadRecovered?.call(unread);
-      return unread;
-    } catch (e) {
-      debugPrint('app warmup unread recovery failed: $e');
-      return null;
-    }
-  }
-
-  Future<AsSyncUnread?> _loadCachedUnreadRecovery() async {
-    final store = recoveredUnreadStore;
-    if (store == null) return null;
-    try {
-      final unread = await store.read();
-      if (unread == null || !_hasUnreadMessages(unread)) return null;
-      onUnreadRecovered?.call(unread);
-      return unread;
-    } catch (e) {
-      debugPrint('app warmup cached unread recovery failed: $e');
-      return null;
-    }
   }
 
   Future<AsSyncBootstrap?> _loadCachedBootstrapMetadata() async {
@@ -514,22 +448,12 @@ class AppWarmupService {
     return events;
   }
 
-  Iterable<String> _mediaThumbnailEventIds({
-    AsSyncUnread? cachedUnread,
-    AsSyncUnread? unread,
-  }) sync* {
+  Iterable<String> _mediaThumbnailEventIds() sync* {
     final yielded = <String>{};
     void emit(String eventId) {
       final trimmed = eventId.trim();
       if (trimmed.isEmpty || yielded.contains(trimmed)) return;
       yielded.add(trimmed);
-    }
-
-    for (final message in [
-      ...?cachedUnread?.rooms.expand((room) => room.messages),
-      ...?unread?.rooms.expand((room) => room.messages),
-    ]) {
-      if (_isImageMessageType(message.messageType)) emit(message.eventId);
     }
 
     for (final room in _recentJoinedRooms()) {
@@ -544,15 +468,6 @@ class AppWarmupService {
   void _addUnique(List<String> urls, String? url) {
     if (url == null || url.trim().isEmpty || urls.contains(url)) return;
     urls.add(url);
-  }
-
-  bool _hasUnreadMessages(AsSyncUnread unread) {
-    return unread.rooms.any((room) => room.messages.isNotEmpty);
-  }
-
-  bool _isImageMessageType(String value) {
-    final normalized = value.trim().toLowerCase();
-    return normalized == 'image' || normalized == MessageTypes.Image;
   }
 
   bool _isImageEvent(Event event) {

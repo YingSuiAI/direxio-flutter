@@ -2034,6 +2034,8 @@ class _PublicChannelAsClient extends MockAsClient {
   Future<AsChannel> joinChannelByRoomId(
     String roomId, {
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
   }) async {
@@ -2056,7 +2058,10 @@ class _PublicChannelAsClient extends MockAsClient {
   @override
   Future<AsChannel> joinChannel(
     String channelId, {
+    String roomId = '',
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
   }) async {
     joinProjectionChannelId = channelId;

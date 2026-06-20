@@ -96,6 +96,56 @@ void main() {
     );
   });
 
+  test('hides invite and pending channels from the main channel inbox', () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-20T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_joined',
+          roomId: '!joined:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '已加入频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+        AsSyncRoomSummary(
+          channelId: 'ch_invite',
+          roomId: '!invite:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '邀请频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusInvite,
+        ),
+        AsSyncRoomSummary(
+          channelId: 'ch_pending',
+          roomId: '!pending:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '待审核频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusPending,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    expect(items.map((item) => item.id), ['ch_joined']);
+  });
+
   test('treats bootstrap owner role as owned channel', () {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),

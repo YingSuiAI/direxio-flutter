@@ -19,7 +19,11 @@ If the change also touches `lib/presentation/`, load `p2p-client-presentation-m3
 
 Keep `lib/data/as_client.dart` as the interface contract. Update `HttpAsClient`, `MockAsClient`, focused tests, and docs together.
 
-Use AS Admin API only for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, unread recovery overlay, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and product search.
+Use AS Admin API only for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
+
+Do not add or restore P2P ordinary message/search/backup action clients. These actions are removed, not deprecated compatibility paths: `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
+
+Ordinary message send, media send, history, unread, message search, and recall must use Matrix Client-Server APIs. Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both.
 
 Do not add duplicate list APIs or duplicate client flows. If data already arrives through `/_as/sync/bootstrap`, prefer extending that contract and the client model.
 
@@ -51,6 +55,8 @@ Treat only `isAsChannelMemberJoined(status)` as joined.
 Public remote channel lookup must use explicitly configured AS remotes or request-provided remote base URLs. Do not infer a remote AS URL from a Matrix `room_id` domain unless the current contract document explicitly says to derive and pass a concrete remote base URL.
 
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
+
+Channel share/invite cards must create `channels.invite_grant.create` before sending the Matrix share card. Join from the card sends `grant_id` and `share_room_id` to `channels.join`.
 
 ## Verification
 

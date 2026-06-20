@@ -233,10 +233,69 @@ void main() {
     expect(find.text('ID:!ch_product:p2p-im.com'), findsOneWidget);
     expect(find.text('接口返回频道说明'), findsOneWidget);
   });
+
+  testWidgets('private channel share joins with grant without public lookup',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    const payload = ChannelSharePayload(
+      channelId: 'ch_private',
+      roomId: '!private:p2p-im.com',
+      grantId: 'grant-1',
+      shareRoomId: '!direct:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '私密频道',
+      description: '邀请可见',
+      visibility: asChannelVisibilityPrivate,
+      joinPolicy: asChannelJoinPolicyInvite,
+    );
+    final router = GoRouter(
+      initialLocation: '/channel/ch_private/detail',
+      routes: [
+        GoRoute(
+          path: '/channel/:channelId/detail',
+          builder: (_, state) => ChannelDetailInfoPage(
+            channelId: state.pathParameters['channelId']!,
+            sharePayload: payload,
+            showJoinButton: true,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedPublicRoomId, isNull);
+    expect(find.text('私密频道'), findsOneWidget);
+
+    await tester.tap(find.text('申请加入'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(asClient.joinedChannelId, 'ch_private');
+    expect(asClient.joinedChannelRoomId, '!private:p2p-im.com');
+    expect(asClient.joinedGrantId, 'grant-1');
+    expect(asClient.joinedShareRoomId, '!direct:p2p-im.com');
+    expect(asClient.joinedRoomId, isNull);
+  });
 }
 
 class _ChannelSearchAsClient extends MockAsClient {
   String? joinedRoomId;
+  String? joinedChannelId;
+  String? joinedChannelRoomId;
+  String? joinedGrantId;
+  String? joinedShareRoomId;
   String? requestedPublicRoomId;
   Uri? requestedPublicRoomBaseUri;
   Uri? requestedPublicRoomRemoteNodeBaseUri;
@@ -273,6 +332,8 @@ class _ChannelSearchAsClient extends MockAsClient {
   Future<AsChannel> joinChannelByRoomId(
     String roomId, {
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
   }) async {
@@ -286,6 +347,32 @@ class _ChannelSearchAsClient extends MockAsClient {
       description: '只发布重要产品更新',
       visibility: asChannelVisibilityPublic,
       joinPolicy: asChannelJoinPolicyApproval,
+      commentsEnabled: true,
+      memberStatus: asChannelMemberStatusPending,
+    );
+  }
+
+  @override
+  Future<AsChannel> joinChannel(
+    String channelId, {
+    String roomId = '',
+    String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
+    AsChannel? discoveredChannel,
+  }) async {
+    joinedChannelId = channelId;
+    joinedChannelRoomId = roomId;
+    joinedGrantId = grantId;
+    joinedShareRoomId = shareRoomId;
+    return AsChannel(
+      channelId: channelId,
+      roomId: roomId,
+      homeDomain: 'p2p-im.com',
+      name: '私密频道',
+      description: '邀请可见',
+      visibility: asChannelVisibilityPrivate,
+      joinPolicy: asChannelJoinPolicyInvite,
       commentsEnabled: true,
       memberStatus: asChannelMemberStatusPending,
     );

@@ -1,6 +1,6 @@
 // AS Admin API 客户端 —— 对应 INTERFACE_SPEC.md §5 / §6
 //
-// Matrix 标准协议不覆盖的能力（消息搜索、Agent 配置、关注系统、Portal 状态）
+// Matrix 标准协议不覆盖的能力（Agent 配置、关注系统、Portal 状态）
 // 由 p2p-matrix-as 的 Admin API 补齐，端点统一走 `https://{domain}/_p2p/`
 // 前缀。当前后端统一返回 `access_token`，P2P API 和 Matrix SDK 使用同一个
 // 用户 token。
@@ -81,30 +81,6 @@ class AsPortalSession {
           _parseNullableBool(json['initialization_completed']),
     );
   }
-}
-
-/// §5.1 消息搜索单条结果
-class AsSearchResult {
-  const AsSearchResult({
-    required this.eventId,
-    required this.roomId,
-    required this.senderName,
-    required this.content,
-    required this.timestamp,
-  });
-  final String eventId;
-  final String roomId;
-  final String senderName;
-  final String content;
-  final DateTime timestamp;
-
-  factory AsSearchResult.fromJson(Map<String, dynamic> j) => AsSearchResult(
-        eventId: j['event_id'] as String,
-        roomId: j['room_id'] as String,
-        senderName: j['sender_name'] as String? ?? '',
-        content: j['content'] as String? ?? '',
-        timestamp: DateTime.parse(j['timestamp'] as String),
-      );
 }
 
 /// §5.2 Agent 配置
@@ -955,6 +931,8 @@ class AsChannelShareDraft {
   const AsChannelShareDraft({
     required this.channelId,
     required this.roomId,
+    this.grantId = '',
+    this.shareRoomId = '',
     required this.homeDomain,
     required this.name,
     this.description = '',
@@ -968,6 +946,8 @@ class AsChannelShareDraft {
 
   final String channelId;
   final String roomId;
+  final String grantId;
+  final String shareRoomId;
   final String homeDomain;
   final String name;
   final String description;
@@ -982,6 +962,8 @@ class AsChannelShareDraft {
     return {
       'channel_id': channelId.trim(),
       'room_id': roomId.trim(),
+      if (grantId.trim().isNotEmpty) 'grant_id': grantId.trim(),
+      if (shareRoomId.trim().isNotEmpty) 'share_room_id': shareRoomId.trim(),
       if (homeDomain.trim().isNotEmpty) 'home_domain': homeDomain.trim(),
       'name': name.trim(),
       if (description.trim().isNotEmpty) 'description': description.trim(),
@@ -993,6 +975,60 @@ class AsChannelShareDraft {
       'tags':
           tags.map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toList(),
     };
+  }
+}
+
+class AsChannelInviteGrant {
+  const AsChannelInviteGrant({
+    required this.grantId,
+    required this.roomId,
+    required this.channelId,
+    required this.shareRoomId,
+    this.status = '',
+    this.channel,
+    this.members = const [],
+  });
+
+  final String grantId;
+  final String roomId;
+  final String channelId;
+  final String shareRoomId;
+  final String status;
+  final AsChannel? channel;
+  final List<AsChannelMember> members;
+
+  factory AsChannelInviteGrant.fromJson(Map<String, dynamic> json) {
+    final channelJson =
+        (json['channel'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final grantJson =
+        (json['grant'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final rawMembers = json['members'] as List? ?? const [];
+    final grantId = _firstString(json, const ['grant_id', 'id']);
+    final nestedGrantId = _firstString(grantJson, const ['grant_id', 'id']);
+    final shareRoomId = _firstString(json, const [
+      'share_room_id',
+      'via_room_id',
+    ]);
+    final nestedShareRoomId = _firstString(grantJson, const [
+      'share_room_id',
+      'via_room_id',
+    ]);
+    return AsChannelInviteGrant(
+      grantId: grantId.isNotEmpty ? grantId : nestedGrantId,
+      roomId: _firstString(json, const ['room_id']).isNotEmpty
+          ? _firstString(json, const ['room_id'])
+          : _firstString(grantJson, const ['room_id']),
+      channelId: _firstString(json, const ['channel_id']).isNotEmpty
+          ? _firstString(json, const ['channel_id'])
+          : _firstString(grantJson, const ['channel_id']),
+      shareRoomId: shareRoomId.isNotEmpty ? shareRoomId : nestedShareRoomId,
+      status: json['status'] as String? ?? '',
+      channel: channelJson.isEmpty ? null : AsChannel.fromJson(channelJson),
+      members: rawMembers
+          .whereType<Map>()
+          .map((item) => AsChannelMember.fromJson(item.cast<String, dynamic>()))
+          .toList(growable: false),
+    );
   }
 }
 
@@ -1445,148 +1481,6 @@ class AsSyncPendingItem {
   }
 }
 
-/// Unread-only message recovery from `GET /_as/sync/unread`.
-class AsSyncUnread {
-  const AsSyncUnread({
-    required this.syncedAt,
-    required this.rooms,
-  });
-
-  final DateTime syncedAt;
-  final List<AsUnreadRoom> rooms;
-
-  factory AsSyncUnread.fromJson(Map<String, dynamic> json) {
-    return AsSyncUnread(
-      syncedAt: _parseDateTime(json['synced_at']) ?? DateTime.now().toUtc(),
-      rooms: _parseList(json['rooms'], AsUnreadRoom.fromJson),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'synced_at': syncedAt.toUtc().toIso8601String(),
-      'rooms': rooms.map((room) => room.toJson()).toList(),
-    };
-  }
-
-  List<AsUnreadMessage> messagesForRoom(String roomId) {
-    for (final room in rooms) {
-      if (room.roomId == roomId) return room.messages;
-    }
-    return const [];
-  }
-}
-
-class AsSyncMessages {
-  const AsSyncMessages({
-    required this.syncedAt,
-    required this.hasMoreMessages,
-    required this.rooms,
-    this.nextCursor,
-  });
-
-  final DateTime syncedAt;
-  final bool hasMoreMessages;
-  final String? nextCursor;
-  final List<AsSyncMessagesRoom> rooms;
-
-  factory AsSyncMessages.fromJson(Map<String, dynamic> json) {
-    return AsSyncMessages(
-      syncedAt: _parseDateTime(json['synced_at']) ?? DateTime.now().toUtc(),
-      hasMoreMessages: _parseNullableBool(json['has_more_messages']) ?? false,
-      nextCursor: _parseOptionalString(json['next_cursor']),
-      rooms: _parseList(json['rooms'], AsSyncMessagesRoom.fromJson),
-    );
-  }
-}
-
-class AsSyncMessagesRoom {
-  const AsSyncMessagesRoom({
-    required this.roomId,
-    required this.messages,
-    required this.hasMoreMessages,
-    this.nextMessageCursor,
-  });
-
-  final String roomId;
-  final List<AsUnreadMessage> messages;
-  final bool hasMoreMessages;
-  final String? nextMessageCursor;
-
-  factory AsSyncMessagesRoom.fromJson(Map<String, dynamic> json) {
-    return AsSyncMessagesRoom(
-      roomId: json['room_id'] as String? ?? '',
-      messages: _parseList(json['messages'], AsUnreadMessage.fromJson),
-      hasMoreMessages: _parseNullableBool(json['has_more_messages']) ?? false,
-      nextMessageCursor: _parseOptionalString(json['next_message_cursor']),
-    );
-  }
-}
-
-class AsUnreadRoom {
-  const AsUnreadRoom({
-    required this.roomId,
-    required this.messages,
-  });
-
-  final String roomId;
-  final List<AsUnreadMessage> messages;
-
-  factory AsUnreadRoom.fromJson(Map<String, dynamic> json) {
-    return AsUnreadRoom(
-      roomId: json['room_id'] as String? ?? '',
-      messages: _parseList(json['messages'], AsUnreadMessage.fromJson),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'room_id': roomId,
-      'messages': messages.map((message) => message.toJson()).toList(),
-    };
-  }
-}
-
-class AsUnreadMessage {
-  const AsUnreadMessage({
-    required this.eventId,
-    required this.senderId,
-    required this.senderName,
-    required this.content,
-    required this.messageType,
-    required this.timestamp,
-  });
-
-  final String eventId;
-  final String senderId;
-  final String senderName;
-  final String content;
-  final String messageType;
-  final DateTime? timestamp;
-
-  factory AsUnreadMessage.fromJson(Map<String, dynamic> json) {
-    return AsUnreadMessage(
-      eventId: json['event_id'] as String? ?? '',
-      senderId: json['sender_id'] as String? ?? '',
-      senderName: json['sender_name'] as String? ?? '',
-      content: json['content'] as String? ?? '',
-      messageType: json['message_type'] as String? ?? 'text',
-      timestamp: _parseDateTime(json['timestamp']),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'event_id': eventId,
-      'sender_id': senderId,
-      'sender_name': senderName,
-      'content': content,
-      'message_type': messageType,
-      'timestamp': timestamp?.toUtc().toIso8601String(),
-    };
-  }
-}
-
 /// AS API 调用失败
 class AsClientException implements Exception {
   AsClientException(this.message, {this.statusCode});
@@ -1618,19 +1512,6 @@ abstract class AsClient {
   /// GET /_as/sync/bootstrap
   Future<AsSyncBootstrap> syncBootstrap();
 
-  /// GET /_as/sync/unread?limit_per_room=
-  Future<AsSyncUnread> syncUnread({int limitPerRoom = 200});
-
-  /// POST /_p2p/query action sync.messages with optional cursor.
-  Future<AsSyncMessages> syncMessages({
-    String roomId = '',
-    String? cursor,
-    int fromTs = 0,
-    int toTs = 0,
-  }) {
-    throw AsClientException('syncMessages is not supported by this client');
-  }
-
   /// GET /_p2p/events?since= SSE refresh stream.
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
@@ -1638,13 +1519,6 @@ abstract class AsClient {
   }) {
     throw AsClientException('streamEvents is not supported by this client');
   }
-
-  /// §5.1 GET /_as/search?q=&room_id=&limit=
-  Future<List<AsSearchResult>> search(
-    String query, {
-    String? roomId,
-    int limit = 20,
-  });
 
   /// §5.2 GET /_as/agent/config
   Future<AgentConfig> getAgentConfig();
@@ -1716,95 +1590,6 @@ abstract class AsClient {
     required String roomId,
     required String displayName,
     String domain = '',
-  });
-
-  /// POST /_as/rooms/{roomId}/messages/delete
-  ///
-  /// Hides one message for the current portal owner only. This must not use
-  /// Matrix redaction because redaction is visible to the whole room.
-  Future<void> deleteRoomMessage({
-    required String roomId,
-    required String eventId,
-  });
-
-  /// POST /_as/rooms/{roomId}/messages/{eventId}/recall
-  ///
-  /// Recalls one message for every room member through Matrix redaction.
-  /// This is intentionally separate from local delete.
-  Future<void> recallRoomMessage({
-    required String roomId,
-    required String eventId,
-    String reason = '撤回消息',
-  });
-
-  /// POST /_as/rooms/{roomId}/messages/delete-range
-  ///
-  /// Deletes room messages in a timestamp range for the current portal owner
-  /// only. Unlike recall, this must not be broadcast to other room members.
-  Future<void> deleteRoomMessagesByRange({
-    required String roomId,
-    required int fromTs,
-    required int toTs,
-  });
-
-  /// POST /_as/rooms/{roomId}/send
-  Future<String> sendRoomMessage(
-    String roomId,
-    String content, {
-    String? replyToEventId,
-    List<Map<String, String>> mentions = const [],
-  });
-
-  /// POST /_as/rooms/{roomId}/send with message_type=chat_record
-  Future<String> sendChatRecordMessage({
-    required String roomId,
-    required String body,
-    required String title,
-    required String sourceRoomId,
-    required String sourceRoomType,
-    required int itemCount,
-    List<Map<String, Object?>> items = const [],
-  });
-
-  /// POST /_as/rooms/{roomId}/send with message_type=channel_share
-  Future<String> sendChannelShareMessage({
-    required String roomId,
-    required String body,
-    required AsChannelShareDraft channel,
-  });
-
-  /// POST /_as/rooms/{directRoomId}/send with message_type=group_invite.
-  Future<String> sendGroupInviteMessage({
-    required String directRoomId,
-    required String groupRoomId,
-    required String groupName,
-    required String inviterMxid,
-    String inviterDisplayName = '',
-  });
-
-  /// POST /_as/rooms/{roomId}/send-media
-  Future<String> sendRoomMediaMessage({
-    required String roomId,
-    required String msgType,
-    required String body,
-    required String filename,
-    required String mediaUrl,
-    String messageType = '',
-    String channelId = '',
-    String postId = '',
-    String commentId = '',
-    String replyToCommentId = '',
-    String replyToAuthorMxid = '',
-    List<Map<String, String>> mentions = const [],
-    Map<String, Object?> media = const {},
-    String mimeType = '',
-    int size = 0,
-    String thumbnailUrl = '',
-    String thumbnailMimeType = '',
-    int thumbnailSize = 0,
-    int width = 0,
-    int height = 0,
-    int durationMs = 0,
   });
 
   /// POST /_as/calls
@@ -1900,6 +1685,8 @@ abstract class AsClient {
   Future<AsChannel> joinChannelByRoomId(
     String roomId, {
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
   });
@@ -1907,7 +1694,10 @@ abstract class AsClient {
   /// POST /_as/channels/{channelId}/join
   Future<AsChannel> joinChannel(
     String channelId, {
+    String roomId = '',
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
   });
 
@@ -1927,6 +1717,19 @@ abstract class AsClient {
   Future<void> inviteChannelMembers({
     required String channelId,
     required List<String> invite,
+  });
+
+  /// POST /_p2p/command action channels.invite_grant.create.
+  ///
+  /// Creates a share grant for sending a Matrix channel share card into a
+  /// direct/group room. The card receiver later joins with grant_id +
+  /// share_room_id.
+  Future<AsChannelInviteGrant> createChannelInviteGrant({
+    String channelId = '',
+    String roomId = '',
+    required String shareRoomId,
+    String grantId = '',
+    String reason = '',
   });
 
   /// POST /_as/channels/{channelId}/join-requests/{userMxid}/approve
@@ -2122,12 +1925,6 @@ bool? _parseNullableBool(Object? value) {
     if (normalized == 'false' || normalized == '0') return false;
   }
   return null;
-}
-
-String? _parseOptionalString(Object? value) {
-  if (value is! String) return null;
-  final trimmed = value.trim();
-  return trimmed.isEmpty ? null : trimmed;
 }
 
 String _parseChannelDisplayName(Map<String, dynamic> json) {

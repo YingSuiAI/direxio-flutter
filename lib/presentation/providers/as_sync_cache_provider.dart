@@ -1,13 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
-import '../../data/recovered_unread_store.dart';
 import '../utils/chat_visibility_policy.dart';
 
 class AsSyncCacheState {
   const AsSyncCacheState({
     this.bootstrap,
-    this.unread,
     this.localContactStatusesByRoomId = const {},
     this.localContactEntriesByRoomId = const {},
     this.localDeletedEventIdsByRoomId = const {},
@@ -17,7 +15,6 @@ class AsSyncCacheState {
   });
 
   final AsSyncBootstrap? bootstrap;
-  final AsSyncUnread? unread;
   final Map<String, String> localContactStatusesByRoomId;
   final Map<String, ContactEntry> localContactEntriesByRoomId;
   final Map<String, Set<String>> localDeletedEventIdsByRoomId;
@@ -47,9 +44,7 @@ class AsSyncCacheState {
 
   Map<String, String> get contactStatusesByRoomId {
     final statuses = <String, String>{};
-    final shadowedPeerIds = _localContactPeerIds;
-    for (final contact in bootstrap?.contacts ?? const <AsSyncContact>[]) {
-      if (shadowedPeerIds.contains(contact.userId.trim())) continue;
+    for (final contact in contacts) {
       final roomId = contact.roomId.trim();
       final status = contact.status.trim();
       if (roomId.isNotEmpty && status.isNotEmpty) {
@@ -57,34 +52,56 @@ class AsSyncCacheState {
       }
     }
     statuses.addAll(localContactStatusesByRoomId);
-    for (final entry in localContactEntriesByRoomId.entries) {
-      final roomId = entry.key.trim();
-      final status = entry.value.status.trim();
-      if (roomId.isNotEmpty && status.isNotEmpty) {
-        statuses[roomId] = status;
-      }
-    }
     return statuses;
   }
 
   List<AsSyncContact> get contacts {
-    final items = <AsSyncContact>[];
+    final byPeer = <String, AsSyncContact>{};
+    final peerOrder = <String>[];
+    final byRoomNoPeer = <String, AsSyncContact>{};
+    final roomOrder = <String>[];
     final shadowedPeerIds = _localContactPeerIds;
-    for (final contact in bootstrap?.contacts ?? const <AsSyncContact>[]) {
+
+    void addContact(AsSyncContact contact) {
       final userId = contact.userId.trim();
       final roomId = contact.roomId.trim();
       final status = contact.status.trim();
-      if (userId.isEmpty || roomId.isEmpty || status.isEmpty) continue;
-      if (shadowedPeerIds.contains(userId)) continue;
-      items.add(contact);
+      if (userId.isEmpty || roomId.isEmpty || status.isEmpty) return;
+      if (userId.isNotEmpty) {
+        final current = byPeer[userId];
+        if (current == null) {
+          peerOrder.add(userId);
+          byPeer[userId] = contact;
+          return;
+        }
+        byPeer[userId] = _preferredContact(current, contact);
+        return;
+      }
+      final current = byRoomNoPeer[roomId];
+      if (current == null) {
+        roomOrder.add(roomId);
+        byRoomNoPeer[roomId] = contact;
+        return;
+      }
+      byRoomNoPeer[roomId] = _preferredContact(current, contact);
+    }
+
+    for (final contact in bootstrap?.contacts ?? const <AsSyncContact>[]) {
+      if (shadowedPeerIds.contains(contact.userId.trim())) continue;
+      addContact(contact);
     }
     for (final contact in localContactEntriesByRoomId.values) {
-      final userId = contact.peerMxid.trim();
-      final roomId = contact.roomId.trim();
-      final status = contact.status.trim();
-      if (userId.isEmpty || roomId.isEmpty || status.isEmpty) continue;
-      items.add(_localEntryToSyncContact(contact));
+      addContact(_localEntryToSyncContact(contact));
     }
+    final peerRooms = byPeer.values
+        .map((contact) => contact.roomId.trim())
+        .where((roomId) => roomId.isNotEmpty)
+        .toSet();
+    final items = [
+      for (final peer in peerOrder) byPeer[peer]!,
+      for (final roomId in roomOrder)
+        if (!peerRooms.contains(roomId)) byRoomNoPeer[roomId]!,
+    ];
     return List.unmodifiable(items);
   }
 
@@ -149,13 +166,7 @@ class AsSyncCacheState {
   AsSyncContact? contactForRoom(String roomId) {
     final trimmed = roomId.trim();
     if (trimmed.isEmpty) return null;
-    final localEntry = localContactEntriesByRoomId[trimmed];
-    if (localEntry != null) {
-      return _localEntryToSyncContact(localEntry);
-    }
-    final shadowedPeerIds = _localContactPeerIds;
-    for (final contact in bootstrap?.contacts ?? const <AsSyncContact>[]) {
-      if (shadowedPeerIds.contains(contact.userId.trim())) continue;
+    for (final contact in contacts) {
       if (contact.roomId == trimmed) {
         return contact;
       }
@@ -171,13 +182,8 @@ class AsSyncCacheState {
   AsSyncContact? contactForUserId(String userId) {
     final trimmed = userId.trim();
     if (trimmed.isEmpty) return null;
-    for (final contact in localContactEntriesByRoomId.values) {
-      if (contact.peerMxid.trim() == trimmed) {
-        return _localEntryToSyncContact(contact);
-      }
-    }
-    for (final contact in bootstrap?.contacts ?? const <AsSyncContact>[]) {
-      if (contact.userId == trimmed) {
+    for (final contact in contacts) {
+      if (contact.userId.trim() == trimmed) {
         return contact;
       }
     }
@@ -191,7 +197,6 @@ class AsSyncCacheState {
 
   AsSyncCacheState copyWith({
     AsSyncBootstrap? bootstrap,
-    AsSyncUnread? unread,
     Map<String, String>? localContactStatusesByRoomId,
     Map<String, ContactEntry>? localContactEntriesByRoomId,
     Map<String, Set<String>>? localDeletedEventIdsByRoomId,
@@ -250,7 +255,6 @@ class AsSyncCacheState {
     }
     return AsSyncCacheState(
       bootstrap: nextBootstrap,
-      unread: unread ?? this.unread,
       localContactStatusesByRoomId: Map.unmodifiable(nextLocalStatuses),
       localContactEntriesByRoomId: Map.unmodifiable(nextLocalEntries),
       localDeletedEventIdsByRoomId: _freezeDeletedMap(
@@ -347,10 +351,6 @@ class AsSyncCacheState {
     );
   }
 
-  List<AsUnreadMessage> unreadMessagesForRoom(String roomId) {
-    return unread?.messagesForRoom(roomId) ?? const [];
-  }
-
   ChatVisibilityPolicy chatVisibilityPolicyForRoom(String roomId) {
     final contact = contactForRoom(roomId);
     final deletedEventIds = <String>{
@@ -369,7 +369,7 @@ class AsSyncCacheState {
 
   AsSyncCacheState withAllChatsClearedBefore(int timestamp) {
     if (timestamp <= localClearedBeforeTs) return this;
-    return copyWith(localClearedBeforeTs: timestamp, unread: _emptyUnread());
+    return copyWith(localClearedBeforeTs: timestamp);
   }
 
   AsSyncCacheState withRoomClearedBefore(String roomId, int timestamp) {
@@ -379,10 +379,7 @@ class AsSyncCacheState {
     if (timestamp <= current) return this;
     final next = Map<String, int>.from(localRoomClearedBeforeTs)
       ..[trimmed] = timestamp;
-    return copyWith(
-      localRoomClearedBeforeTs: next,
-      unread: _unreadWithoutRoom(unread, trimmed),
-    );
+    return copyWith(localRoomClearedBeforeTs: next);
   }
 
   AsSyncCacheState withDeletedMessage(String roomId, String eventId) {
@@ -395,24 +392,6 @@ class AsSyncCacheState {
     }
     next.putIfAbsent(trimmedRoomId, () => <String>{}).add(trimmedEventId);
     return copyWith(localDeletedEventIdsByRoomId: next);
-  }
-
-  AsSyncCacheState mergeUnread(AsSyncUnread nextUnread) {
-    return copyWith(unread: mergeRecoveredUnread(unread, nextUnread));
-  }
-
-  AsSyncCacheState withoutUnreadEvents(Iterable<String> eventIds) {
-    final current = unread;
-    if (current == null) return this;
-    final ids = eventIds.where((id) => id.isNotEmpty).toSet();
-    if (ids.isEmpty) return this;
-    return copyWith(unread: removeRecoveredUnreadEvents(current, ids));
-  }
-
-  AsSyncCacheState withoutUnreadRoom(String roomId) {
-    final current = unread;
-    if (current == null || roomId.isEmpty) return this;
-    return copyWith(unread: removeRecoveredUnreadRoom(current, roomId));
   }
 
   AsSyncCacheState withRoomUnreadCleared(String roomId, {DateTime? readAt}) {
@@ -600,21 +579,32 @@ class AsSyncCacheState {
   }
 }
 
-AsSyncUnread _emptyUnread() {
-  return AsSyncUnread(syncedAt: DateTime.now().toUtc(), rooms: const []);
-}
-
-AsSyncUnread? _unreadWithoutRoom(AsSyncUnread? unread, String roomId) {
-  if (unread == null) return null;
-  return AsSyncUnread(
-    syncedAt: unread.syncedAt,
-    rooms: unread.rooms
-        .where((room) => room.roomId.trim() != roomId)
-        .toList(growable: false),
-  );
-}
-
 int _maxInt(int a, int b) => a >= b ? a : b;
+
+AsSyncContact _preferredContact(AsSyncContact current, AsSyncContact next) {
+  final currentRank = _contactStatusRank(current.status);
+  final nextRank = _contactStatusRank(next.status);
+  if (nextRank > currentRank) return next;
+  if (nextRank < currentRank) return current;
+  return next;
+}
+
+int _contactStatusRank(String status) {
+  switch (status.trim()) {
+    case 'accepted':
+      return 4;
+    case 'pending_inbound':
+    case 'pending_outbound':
+      return 3;
+    case 'rejected_outbound':
+    case 'rejected_inbound':
+      return 2;
+    case 'deleted':
+      return 1;
+    default:
+      return 0;
+  }
+}
 
 final asSyncCacheProvider = StateProvider<AsSyncCacheState>((ref) {
   return const AsSyncCacheState();

@@ -13,6 +13,8 @@ void main() {
       channelShareMatrixPayloadKey: {
         'channel_id': 'ch_product',
         'room_id': '!channel:p2p-im.com',
+        'grant_id': 'grant-1',
+        'share_room_id': '!direct:p2p-im.com',
         'home_domain': 'p2p-im.com',
         'name': '产品公告',
         'description': '只发布重要产品更新',
@@ -26,6 +28,8 @@ void main() {
     expect(payload, isNotNull);
     expect(payload!.channelId, 'ch_product');
     expect(payload.roomId, '!channel:p2p-im.com');
+    expect(payload.grantId, 'grant-1');
+    expect(payload.shareRoomId, '!direct:p2p-im.com');
     expect(payload.displayName, '产品公告');
     expect(payload.asDraft.toJson()['channel_id'], 'ch_product');
   });

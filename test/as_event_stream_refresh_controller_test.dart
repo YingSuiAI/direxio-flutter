@@ -5,13 +5,11 @@ import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/providers/as_event_stream_provider.dart';
 
 void main() {
-  test('event stream refreshes Matrix, bootstrap, and unread state', () async {
+  test('events refresh Matrix sync and bootstrap metadata', () async {
     final streams = <StreamController<AsEventStreamEvent>>[];
     var matrixSyncCalls = 0;
     var bootstrapCalls = 0;
-    var unreadCalls = 0;
     final loadedBootstraps = <AsSyncBootstrap>[];
-    final loadedUnread = <AsSyncUnread>[];
 
     final controller = AsEventStreamRefreshController(
       openEvents: ({int? since, String? lastEventId}) {
@@ -26,22 +24,17 @@ void main() {
         bootstrapCalls++;
         return _bootstrap();
       },
-      loadUnread: ({int limitPerRoom = 200}) async {
-        unreadCalls++;
-        return _unread();
-      },
       onBootstrapLoaded: loadedBootstraps.add,
-      onUnreadRecovered: loadedUnread.add,
       reconnectDelay: const Duration(milliseconds: 5),
     );
 
     controller.start();
     streams.single.add(AsEventStreamEvent(
       seq: 10,
-      type: 'room.message.projected',
+      type: 'contact.request.created',
       roomId: '!room:example.com',
       eventId: r'$event',
-      payload: const {'message_type': 'text'},
+      payload: const {'status': 'pending'},
       createdAt: DateTime.utc(2026, 6, 20),
     ));
     await Future<void>.delayed(Duration.zero);
@@ -49,9 +42,60 @@ void main() {
 
     expect(matrixSyncCalls, 1);
     expect(bootstrapCalls, 1);
-    expect(unreadCalls, 1);
     expect(loadedBootstraps, hasLength(1));
-    expect(loadedUnread, hasLength(1));
+    expect(controller.lastSeq, 10);
+
+    await controller.stop();
+  });
+
+  test('events queued during refresh run one follow-up refresh', () async {
+    final streams = <StreamController<AsEventStreamEvent>>[];
+    final syncCompleter = Completer<void>();
+    var matrixSyncCalls = 0;
+    var bootstrapCalls = 0;
+
+    final controller = AsEventStreamRefreshController(
+      openEvents: ({int? since, String? lastEventId}) {
+        final stream = StreamController<AsEventStreamEvent>();
+        streams.add(stream);
+        return stream.stream;
+      },
+      syncMatrixConversations: () {
+        matrixSyncCalls++;
+        return matrixSyncCalls == 1 ? syncCompleter.future : Future.value();
+      },
+      loadBootstrap: () async {
+        bootstrapCalls++;
+        return _bootstrap();
+      },
+      onBootstrapLoaded: (_) {},
+      reconnectDelay: const Duration(milliseconds: 5),
+    );
+
+    controller.start();
+    streams.single.add(AsEventStreamEvent(
+      seq: 10,
+      type: 'contact.request.created',
+      createdAt: DateTime.utc(2026, 6, 20),
+    ));
+    await Future<void>.delayed(Duration.zero);
+    streams.single.add(AsEventStreamEvent(
+      seq: 11,
+      type: 'group.member.changed',
+      createdAt: DateTime.utc(2026, 6, 20),
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(matrixSyncCalls, 1);
+    expect(bootstrapCalls, 0);
+
+    syncCompleter.complete();
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(matrixSyncCalls, 2);
+    expect(bootstrapCalls, 2);
+    expect(controller.lastSeq, 11);
 
     await controller.stop();
   });
@@ -69,9 +113,7 @@ void main() {
       },
       syncMatrixConversations: () async {},
       loadBootstrap: () async => _bootstrap(),
-      loadUnread: ({int limitPerRoom = 200}) async => _unread(),
       onBootstrapLoaded: (_) {},
-      onUnreadRecovered: (_) {},
       reconnectDelay: const Duration(milliseconds: 5),
     );
 
@@ -104,12 +146,5 @@ AsSyncBootstrap _bootstrap() {
     groups: const [],
     channels: const [],
     pending: const AsSyncPending.empty(),
-  );
-}
-
-AsSyncUnread _unread() {
-  return AsSyncUnread(
-    syncedAt: DateTime.utc(2026, 6, 20),
-    rooms: const [],
   );
 }

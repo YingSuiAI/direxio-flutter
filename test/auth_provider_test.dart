@@ -151,7 +151,7 @@ class _NoSyncInitClient extends Client {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('portal session token refresh requires clean Matrix init', () {
+  test('portal session token refresh preserves Matrix cache identity', () {
     expect(
       portalSessionNeedsCleanMatrixInit(
         currentAccessToken: 'old-token',
@@ -162,6 +162,45 @@ void main() {
         nextUserId: '@owner:example.com',
         nextDeviceId: 'DEVICE1',
         nextHomeserver: Uri.parse('https://example.com'),
+      ),
+      isFalse,
+    );
+    expect(
+      portalSessionNeedsCleanMatrixInit(
+        currentAccessToken: 'old-token',
+        currentUserId: '@owner:example.com',
+        currentDeviceId: 'DEVICE1',
+        currentHomeserver: Uri.parse('https://example.com'),
+        nextAccessToken: 'new-token',
+        nextUserId: '@other:example.com',
+        nextDeviceId: 'DEVICE1',
+        nextHomeserver: Uri.parse('https://example.com'),
+      ),
+      isTrue,
+    );
+    expect(
+      portalSessionNeedsCleanMatrixInit(
+        currentAccessToken: 'old-token',
+        currentUserId: '@owner:example.com',
+        currentDeviceId: 'DEVICE1',
+        currentHomeserver: Uri.parse('https://example.com'),
+        nextAccessToken: 'new-token',
+        nextUserId: '@owner:example.com',
+        nextDeviceId: 'DEVICE2',
+        nextHomeserver: Uri.parse('https://example.com'),
+      ),
+      isTrue,
+    );
+    expect(
+      portalSessionNeedsCleanMatrixInit(
+        currentAccessToken: 'old-token',
+        currentUserId: '@owner:example.com',
+        currentDeviceId: 'DEVICE1',
+        currentHomeserver: Uri.parse('https://example.com'),
+        nextAccessToken: 'new-token',
+        nextUserId: '@owner:example.com',
+        nextDeviceId: 'DEVICE1',
+        nextHomeserver: Uri.parse('https://matrix.example.com'),
       ),
       isTrue,
     );
@@ -2147,6 +2186,72 @@ void main() {
     );
   });
 
+  test('session expiry keeps login secret for startup restore retry', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'expired-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'expired-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final client = _NoSyncInitClient(
+      'AuthSessionExpiryPreservesLoginSecretTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .expireSessionDueInvalidToken();
+
+    expect(
+      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isFalse,
+    );
+    expect(
+        await const FlutterSecureStorage().read(key: 'matrix_token'), isNull);
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
+      isNull,
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
+      '11111111',
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.profileInitializedKey),
+      'true',
+    );
+  });
+
   test('logout preserves Matrix device store for same device login', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'current-token',
@@ -2205,7 +2310,12 @@ void main() {
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
-      '12345678',
+      isNull,
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.profileInitializedKey),
+      isNull,
     );
   });
 
@@ -2479,7 +2589,7 @@ void main() {
     expect(client.deviceID, requestedDevices[1]);
   });
 
-  test('password change retries auth with a fresh device when key upload fails',
+  test('password change updates same-device token without clean Matrix init',
       () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'old-token',
@@ -2578,11 +2688,10 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
     expect(auth?.requiresProfileSetup, isFalse);
-    expect(requestedDevices, hasLength(2));
+    expect(requestedDevices, ['DEVICE_A']);
     expect(requestedDevices[0], 'DEVICE_A');
-    expect(requestedDevices[1], isNot('DEVICE_A'));
-    expect(client.accessToken, 'token-2');
-    expect(client.deviceID, requestedDevices[1]);
+    expect(client.accessToken, 'token-1');
+    expect(client.deviceID, 'DEVICE_A');
   });
 
   test('new device login uses its own device and old device expires', () async {

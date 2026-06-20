@@ -22,6 +22,8 @@ import 'package:portal_app/data/chat_clear_state_store.dart';
 import 'package:portal_app/data/conversation_preferences_store.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
+import 'package:portal_app/data/matrix_message_search_client.dart';
+import 'package:portal_app/data/matrix_message_visibility_client.dart';
 import 'package:portal_app/presentation/channel/create_channel_sheet.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
@@ -67,6 +69,7 @@ import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart
 import 'package:portal_app/presentation/providers/conversation_preferences_provider.dart';
 import 'package:portal_app/presentation/providers/friend_request_read_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
+import 'package:portal_app/presentation/providers/matrix_message_clients_provider.dart';
 import 'package:portal_app/presentation/providers/profile_provider.dart';
 import 'package:portal_app/presentation/providers/voice_call_provider.dart';
 import 'package:portal_app/presentation/chat/cached_thumbnail_image.dart';
@@ -278,31 +281,6 @@ class _EmptyAsClient implements AsClient {
   }
 
   @override
-  Future<AsSyncUnread> syncUnread({int limitPerRoom = 200}) async =>
-      AsSyncUnread(syncedAt: DateTime.now().toUtc(), rooms: const []);
-
-  @override
-  Future<AsSyncMessages> syncMessages({
-    String roomId = '',
-    String? cursor,
-    int fromTs = 0,
-    int toTs = 0,
-  }) async =>
-      AsSyncMessages(
-        syncedAt: DateTime.now().toUtc(),
-        hasMoreMessages: false,
-        rooms: const [],
-      );
-
-  @override
-  Future<List<AsSearchResult>> search(
-    String query, {
-    String? roomId,
-    int limit = 20,
-  }) async =>
-      const [];
-
-  @override
   Future<List<AsChannelCommentHistory>> getMyChannelComments({
     int limit = 50,
   }) async =>
@@ -489,6 +467,8 @@ class _EmptyAsClient implements AsClient {
   Future<AsChannel> joinChannelByRoomId(
     String roomId, {
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
   }) async =>
@@ -504,7 +484,10 @@ class _EmptyAsClient implements AsClient {
   @override
   Future<AsChannel> joinChannel(
     String channelId, {
+    String roomId = '',
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
   }) async =>
       AsChannel(
@@ -828,91 +811,6 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
-  Future<void> deleteRoomMessage({
-    required String roomId,
-    required String eventId,
-  }) async {}
-
-  @override
-  Future<void> recallRoomMessage({
-    required String roomId,
-    required String eventId,
-    String reason = '撤回消息',
-  }) async {}
-
-  @override
-  Future<void> deleteRoomMessagesByRange({
-    required String roomId,
-    required int fromTs,
-    required int toTs,
-  }) async {}
-
-  @override
-  Future<String> sendRoomMessage(
-    String roomId,
-    String content, {
-    String? replyToEventId,
-    List<Map<String, String>> mentions = const [],
-  }) async =>
-      'event';
-
-  @override
-  Future<String> sendChatRecordMessage({
-    required String roomId,
-    required String body,
-    required String title,
-    required String sourceRoomId,
-    required String sourceRoomType,
-    required int itemCount,
-    List<Map<String, Object?>> items = const [],
-  }) async =>
-      'chat-record-event';
-
-  @override
-  Future<String> sendChannelShareMessage({
-    required String roomId,
-    required String body,
-    required AsChannelShareDraft channel,
-  }) async =>
-      'channel-share-event';
-
-  @override
-  Future<String> sendGroupInviteMessage({
-    required String directRoomId,
-    required String groupRoomId,
-    required String groupName,
-    required String inviterMxid,
-    String inviterDisplayName = '',
-  }) =>
-      Completer<String>().future;
-
-  @override
-  Future<String> sendRoomMediaMessage({
-    required String roomId,
-    required String msgType,
-    required String body,
-    required String filename,
-    required String mediaUrl,
-    String messageType = '',
-    String channelId = '',
-    String postId = '',
-    String commentId = '',
-    String replyToCommentId = '',
-    String replyToAuthorMxid = '',
-    List<Map<String, String>> mentions = const [],
-    Map<String, Object?> media = const {},
-    String mimeType = '',
-    int size = 0,
-    String thumbnailUrl = '',
-    String thumbnailMimeType = '',
-    int thumbnailSize = 0,
-    int width = 0,
-    int height = 0,
-    int durationMs = 0,
-  }) async =>
-      'media-event';
-
-  @override
   Future<AsGroupResult> createGroup({
     required String name,
     required List<String> invite,
@@ -1010,6 +908,22 @@ class _EmptyAsClient implements AsClient {
   Future<void> dissolveGroup(String roomId) async {}
 
   @override
+  Future<AsChannelInviteGrant> createChannelInviteGrant({
+    String channelId = '',
+    String roomId = '',
+    required String shareRoomId,
+    String grantId = '',
+    String reason = '',
+  }) async =>
+      AsChannelInviteGrant(
+        grantId: grantId.trim().isEmpty ? 'grant-test' : grantId.trim(),
+        roomId: roomId.trim(),
+        channelId: channelId.trim(),
+        shareRoomId: shareRoomId.trim(),
+        status: 'active',
+      );
+
+  @override
   Future<void> updateReadMarker(
     String roomId,
     String eventId,
@@ -1020,20 +934,6 @@ class _EmptyAsClient implements AsClient {
   Future<AgentConfig> updateAgentConfig(AgentConfig config) async => config;
 }
 
-class _SearchResultsAsClient extends _EmptyAsClient {
-  _SearchResultsAsClient(this.results);
-
-  final List<AsSearchResult> results;
-
-  @override
-  Future<List<AsSearchResult>> search(
-    String query, {
-    String? roomId,
-    int limit = 20,
-  }) async =>
-      results;
-}
-
 class _ReadMarkerFailingAsClient extends _EmptyAsClient {
   @override
   Future<void> updateReadMarker(
@@ -1042,6 +942,53 @@ class _ReadMarkerFailingAsClient extends _EmptyAsClient {
     DateTime timestamp,
   ) async {
     throw StateError('keep recovered notice visible for test');
+  }
+}
+
+class _StaticMatrixMessageSearchClient extends MatrixMessageSearchClient {
+  _StaticMatrixMessageSearchClient(this.results)
+      : super(Client('StaticMatrixMessageSearchClient'));
+
+  final List<MatrixMessageSearchResult> results;
+
+  @override
+  Future<List<MatrixMessageSearchResult>> search(
+    String query, {
+    String? roomId,
+    Iterable<String> roomIds = const [],
+    int limit = 20,
+  }) async =>
+      results;
+}
+
+class _RecordingMatrixMessageVisibilityClient
+    extends MatrixMessageVisibilityClient {
+  _RecordingMatrixMessageVisibilityClient()
+      : super(Client('RecordingMatrixMessageVisibilityClient'));
+
+  int clearCalls = 0;
+  final hiddenEventIdsByRoom = <String, List<String>>{};
+
+  @override
+  Future<MatrixLocalDeleteResult> clearRoom(String roomId) async {
+    clearCalls++;
+    return MatrixLocalDeleteResult(roomId: roomId.trim(), clear: true);
+  }
+
+  @override
+  Future<MatrixLocalDeleteResult> hideEvents({
+    required String roomId,
+    required Iterable<String> eventIds,
+  }) async {
+    final ids = eventIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+    hiddenEventIdsByRoom[roomId.trim()] = [
+      ...?hiddenEventIdsByRoom[roomId.trim()],
+      ...ids,
+    ];
+    return MatrixLocalDeleteResult(roomId: roomId.trim(), hiddenEventIds: ids);
   }
 }
 
@@ -1068,18 +1015,6 @@ class _StatefulPendingContactAsClient extends _EmptyAsClient {
       displayName: displayName,
       domain: domain,
     );
-  }
-}
-
-class _PeerDeletedAsClient extends _EmptyAsClient {
-  @override
-  Future<String> sendRoomMessage(
-    String roomId,
-    String content, {
-    String? replyToEventId,
-    List<Map<String, String>> mentions = const [],
-  }) async {
-    throw AsClientException('peer deleted contact', statusCode: 403);
   }
 }
 
@@ -1528,26 +1463,6 @@ class _TrackingAsClient extends _EmptyAsClient {
   String? updatedContactRoomId;
   String? updatedContactDisplayName;
   String? updatedContactDomain;
-  int deleteRoomMessageCalls = 0;
-  String? deletedRoomMessageRoomId;
-  String? deletedRoomMessageEventId;
-  int recallRoomMessageCalls = 0;
-  String? recalledRoomId;
-  String? recalledEventId;
-  String? recallRoomMessageReason;
-  int deleteRoomMessagesByRangeCalls = 0;
-  String? deletedRoomMessagesByRangeRoomId;
-  int? deletedRoomMessagesByRangeFromTs;
-  int? deletedRoomMessagesByRangeToTs;
-  int sendRoomMessageCalls = 0;
-  String? sentRoomId;
-  String? sentContent;
-  String? sentReplyToEventId;
-  List<Map<String, String>> sentMentions = const [];
-  int sendGroupInviteMessageCalls = 0;
-  List<String> sentGroupInviteDirectRoomIds = const [];
-  List<String> sentGroupInviteGroupRoomIds = const [];
-  List<String> sentGroupInviteGroupNames = const [];
   int createGroupCalls = 0;
   String? createdGroupName;
   String? createdGroupAvatarUrl;
@@ -1582,9 +1497,6 @@ class _TrackingAsClient extends _EmptyAsClient {
   int unmuteGroupCalls = 0;
   String? unmutedGroupRoomId;
   int listCallsCount = 0;
-  int syncMessagesCalls = 0;
-  String? syncedMessagesRoomId;
-  AsSyncMessages? syncMessagesResult;
   List<AsChannel> userPublicChannels = const [];
   String? requestedUserPublicChannelsUserId;
   Uri? requestedUserPublicChannelsBaseUri;
@@ -1667,125 +1579,12 @@ class _TrackingAsClient extends _EmptyAsClient {
   }
 
   @override
-  Future<void> deleteRoomMessage({
-    required String roomId,
-    required String eventId,
-  }) async {
-    deleteRoomMessageCalls++;
-    deletedRoomMessageRoomId = roomId;
-    deletedRoomMessageEventId = eventId;
-  }
-
-  @override
-  Future<void> recallRoomMessage({
-    required String roomId,
-    required String eventId,
-    String reason = '撤回消息',
-  }) async {
-    recallRoomMessageCalls++;
-    recalledRoomId = roomId;
-    recalledEventId = eventId;
-    recallRoomMessageReason = reason;
-  }
-
-  @override
-  Future<void> deleteRoomMessagesByRange({
-    required String roomId,
-    required int fromTs,
-    required int toTs,
-  }) async {
-    deleteRoomMessagesByRangeCalls++;
-    deletedRoomMessagesByRangeRoomId = roomId;
-    deletedRoomMessagesByRangeFromTs = fromTs;
-    deletedRoomMessagesByRangeToTs = toTs;
-  }
-
-  @override
-  Future<String> sendRoomMessage(
-    String roomId,
-    String content, {
-    String? replyToEventId,
-    List<Map<String, String>> mentions = const [],
-  }) async {
-    sendRoomMessageCalls++;
-    sentRoomId = roomId;
-    sentContent = content;
-    sentReplyToEventId = replyToEventId;
-    sentMentions = List.unmodifiable(mentions);
-    return 'event';
-  }
-
-  @override
-  Future<String> sendChatRecordMessage({
-    required String roomId,
-    required String body,
-    required String title,
-    required String sourceRoomId,
-    required String sourceRoomType,
-    required int itemCount,
-    List<Map<String, Object?>> items = const [],
-  }) async {
-    sendRoomMessageCalls++;
-    sentRoomId = roomId;
-    sentContent = body;
-    return 'chat-record-event';
-  }
-
-  @override
-  Future<String> sendChannelShareMessage({
-    required String roomId,
-    required String body,
-    required AsChannelShareDraft channel,
-  }) async {
-    sendRoomMessageCalls++;
-    sentRoomId = roomId;
-    sentContent = body;
-    return 'channel-share-event';
-  }
-
-  @override
-  Future<String> sendGroupInviteMessage({
-    required String directRoomId,
-    required String groupRoomId,
-    required String groupName,
-    required String inviterMxid,
-    String inviterDisplayName = '',
-  }) async {
-    sendGroupInviteMessageCalls++;
-    sentGroupInviteDirectRoomIds = [
-      ...sentGroupInviteDirectRoomIds,
-      directRoomId,
-    ];
-    sentGroupInviteGroupRoomIds = [
-      ...sentGroupInviteGroupRoomIds,
-      groupRoomId,
-    ];
-    sentGroupInviteGroupNames = [
-      ...sentGroupInviteGroupNames,
-      groupName,
-    ];
-    return 'group-invite-card-event-$sendGroupInviteMessageCalls';
-  }
-
-  @override
   Future<List<AsCallSession>> listCalls({
     required String roomId,
     int limit = 50,
   }) async {
     listCallsCount++;
     return const [];
-  }
-
-  @override
-  Future<AsSyncMessages> syncMessages({
-    String roomId = '',
-    String? cursor,
-    int fromTs = 0,
-    int toTs = 0,
-  }) async {
-    syncMessagesCalls++;
-    syncedMessagesRoomId = roomId;
-    return syncMessagesResult ?? await super.syncMessages();
   }
 
   @override
@@ -2451,15 +2250,19 @@ class _GroupChatHarness {
     required this.client,
     required this.asClient,
     required this.bootstrapStore,
+    required this.visibilityClient,
     this.sentMatrixEvents = const [],
     this.matrixRedactionPaths = const [],
+    this.matrixLocalDeleteBodies = const [],
   });
 
   final Client client;
   final _TrackingAsClient asClient;
   final _MemoryAsBootstrapStore bootstrapStore;
+  final _RecordingMatrixMessageVisibilityClient visibilityClient;
   final List<Map<String, dynamic>> sentMatrixEvents;
   final List<String> matrixRedactionPaths;
+  final List<Map<String, dynamic>> matrixLocalDeleteBodies;
 }
 
 class _DirectChatHarness {
@@ -2467,11 +2270,13 @@ class _DirectChatHarness {
     required this.client,
     required this.asClient,
     this.matrixRedactionPaths = const [],
+    this.matrixLocalDeleteBodies = const [],
   });
 
   final Client client;
   final _TrackingAsClient asClient;
   final List<String> matrixRedactionPaths;
+  final List<Map<String, dynamic>> matrixLocalDeleteBodies;
 }
 
 Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
@@ -2488,9 +2293,24 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
 }) async {
   final sentMatrixEvents = <Map<String, dynamic>>[];
   final matrixRedactionPaths = <String>[];
+  final matrixLocalDeleteBodies = <Map<String, dynamic>>[];
+  final visibilityClient = _RecordingMatrixMessageVisibilityClient();
   final client = Client(
     'PortalIMGroupActionTest',
     httpClient: MockClient((request) async {
+      if (request.url.path.endsWith('/local_delete')) {
+        matrixLocalDeleteBodies.add(
+          (jsonDecode(request.body) as Map).cast<String, dynamic>(),
+        );
+        return http.Response(
+          jsonEncode({
+            'room_id': roomId,
+            'hidden_event_ids': [eventId]
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
       if (request.url.path.contains('/redact/')) {
         matrixRedactionPaths.add(request.url.path);
         return http.Response(
@@ -2551,6 +2371,9 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
         asClientProvider.overrideWithValue(asClient),
+        matrixMessageVisibilityClientProvider.overrideWithValue(
+          visibilityClient,
+        ),
         asBootstrapRepositoryProvider.overrideWithValue(
           AsBootstrapRepository(
             loadBootstrap: asClient.syncBootstrap,
@@ -2582,8 +2405,10 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
       client: client,
       asClient: asClient,
       bootstrapStore: bootstrapStore,
+      visibilityClient: visibilityClient,
       sentMatrixEvents: sentMatrixEvents,
       matrixRedactionPaths: matrixRedactionPaths,
+      matrixLocalDeleteBodies: matrixLocalDeleteBodies,
     );
   }
 
@@ -2620,8 +2445,10 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
     client: client,
     asClient: asClient,
     bootstrapStore: bootstrapStore,
+    visibilityClient: visibilityClient,
     sentMatrixEvents: sentMatrixEvents,
     matrixRedactionPaths: matrixRedactionPaths,
+    matrixLocalDeleteBodies: matrixLocalDeleteBodies,
   );
 }
 
@@ -2637,9 +2464,23 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
   bool sendPeerEvent = true,
 }) async {
   final matrixRedactionPaths = <String>[];
+  final matrixLocalDeleteBodies = <Map<String, dynamic>>[];
   final client = Client(
     'PortalIMDirectActionTest',
     httpClient: MockClient((request) async {
+      if (request.url.path.endsWith('/local_delete')) {
+        matrixLocalDeleteBodies.add(
+          (jsonDecode(request.body) as Map).cast<String, dynamic>(),
+        );
+        return http.Response(
+          jsonEncode({
+            'room_id': roomId,
+            'hidden_event_ids': [eventId]
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
       if (request.url.path.contains('/redact/')) {
         matrixRedactionPaths.add(request.url.path);
         return http.Response(
@@ -2709,6 +2550,7 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
       client: client,
       asClient: asClient,
       matrixRedactionPaths: matrixRedactionPaths,
+      matrixLocalDeleteBodies: matrixLocalDeleteBodies,
     );
   }
 
@@ -2744,6 +2586,7 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
     client: client,
     asClient: asClient,
     matrixRedactionPaths: matrixRedactionPaths,
+    matrixLocalDeleteBodies: matrixLocalDeleteBodies,
   );
 }
 
@@ -3087,7 +2930,8 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
@@ -3719,7 +3563,7 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
   });
 
-  testWidgets('messages render AS joined group before Matrix room hydrates',
+  testWidgets('messages hide AS group until Matrix room is joined',
       (tester) async {
     final client = Client('PortalIMAsJoinedGroupOnlyHomeListTest')
       ..setUserId('@owner:p2p-im.com');
@@ -3760,10 +3604,10 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('产品测试群'), findsOneWidget);
-    expect(find.text('群聊已创建，等待同步'), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
-    expect(find.text('还没有会话'), findsNothing);
+    expect(find.text('产品测试群'), findsNothing);
+    expect(find.text('群聊已创建，等待同步'), findsNothing);
+    expect(find.text('3'), findsNothing);
+    expect(find.text('还没有会话'), findsOneWidget);
     expect(find.textContaining('Group with'), findsNothing);
   });
 
@@ -4332,8 +4176,19 @@ void main() {
   testWidgets('chat info clear room history writes room clear boundary',
       (tester) async {
     const roomId = '!owner:p2p-im.com';
-    final client = Client('PortalIMChatInfoClearHistoryTest')
-      ..setUserId('@owner:p2p-im.com');
+    final client = Client(
+      'PortalIMChatInfoClearHistoryTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
     _addUndirectedJoinedRoom(
       client,
       roomId: roomId,
@@ -4360,6 +4215,7 @@ void main() {
     );
     final clearStore = _MemoryChatClearStateStore();
     final asClient = _TrackingAsClient();
+    final visibilityClient = _RecordingMatrixMessageVisibilityClient();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -4368,6 +4224,9 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(asClient),
+          matrixMessageVisibilityClientProvider.overrideWithValue(
+            visibilityClient,
+          ),
           chatClearStateStoreProvider.overrideWith((ref) async => clearStore),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
@@ -4387,14 +4246,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '清空'));
     await tester.pumpAndSettle();
 
-    expect(clearStore.roomClearedBeforeTs[roomId], greaterThan(0));
-    expect(asClient.deleteRoomMessagesByRangeCalls, 1);
-    expect(asClient.deletedRoomMessagesByRangeRoomId, roomId);
-    expect(asClient.deletedRoomMessagesByRangeFromTs, 0);
-    expect(
-      asClient.deletedRoomMessagesByRangeToTs,
-      clearStore.roomClearedBeforeTs[roomId],
-    );
+    expect(visibilityClient.clearCalls, 1);
   });
 
   testWidgets('home starts app warmup on launch', (tester) async {
@@ -5683,85 +5535,6 @@ void main() {
     );
   });
 
-  testWidgets('chat list shows recovered offline unread badge', (tester) async {
-    const roomId = '!offline-unread:p2p-im.com';
-    final client = Client('PortalIMHomeRecoveredUnreadBadgeTest')
-      ..setUserId('@owner:p2p-im.com');
-    _addUndirectedJoinedRoom(
-      client,
-      roomId: roomId,
-      peerMxid: '@alice:p2p-im.com',
-      peerName: 'Alice',
-    );
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 18, 8),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: '@alice:p2p-im.com',
-          displayName: 'Alice',
-          avatarUrl: '',
-          roomId: roomId,
-          domain: 'p2p-im.com',
-          status: 'accepted',
-        ),
-      ],
-      groups: const [],
-      channels: const [],
-      pending: const AsSyncPending.empty(),
-    );
-    final unread = AsSyncUnread(
-      syncedAt: DateTime.utc(2026, 6, 18, 8, 1),
-      rooms: const [
-        AsUnreadRoom(
-          roomId: roomId,
-          messages: [
-            AsUnreadMessage(
-              eventId: r'$offline-message',
-              senderId: '@alice:p2p-im.com',
-              senderName: 'Alice',
-              content: '离线消息',
-              messageType: MessageTypes.Text,
-              timestamp: null,
-            ),
-          ],
-        ),
-      ],
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-          appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap, unread: unread),
-          ),
-          localOutboxStoreProvider.overrideWith(
-            (ref) async => _MemoryLocalOutboxStore(),
-          ),
-        ],
-        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('消息(1)'), findsOneWidget);
-    final row = find.ancestor(
-      of: find.text('Alice'),
-      matching: find.byWidgetPredicate(
-        (widget) => widget.runtimeType.toString() == '_ConvRow',
-      ),
-    );
-    expect(row, findsOneWidget);
-    expect(find.descendant(of: row, matching: find.text('1')), findsOneWidget);
-  });
-
   testWidgets('viewing new friends clears unread badges but keeps request',
       (tester) async {
     final client = Client('PortalIMFriendRequestReadBadgeTest')
@@ -6547,7 +6320,7 @@ void main() {
     expect(find.text('她的动态'), findsOneWidget);
   });
 
-  testWidgets('add contact searches portal url and opens detail',
+  testWidgets('add contact resolves portal url only after submit',
       (tester) async {
     final client = Client(
       'PortalIMAddContactTest',
@@ -6603,7 +6376,20 @@ void main() {
     expect(find.text('搜索'), findsOneWidget);
 
     await tester.tap(find.byType(TextField));
-    await tester.enterText(find.byType(TextField), 'Alice');
+    await tester.enterText(find.byType(TextField), 'alice.portal.local');
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is RichText && widget.text.toPlainText() == 'Alice Chen',
+      ),
+      findsNothing,
+    );
+
+    tester.widget<TextField>(find.byType(TextField)).onSubmitted?.call(
+          'alice.portal.local',
+        );
     await tester.pumpAndSettle();
 
     expect(
@@ -7622,14 +7408,45 @@ void main() {
 
   testWidgets('group detail invites accepted non-members through AS',
       (tester) async {
-    final client = Client('PortalIMGroupDetailInviteAsTest')
-      ..setUserId('@owner:p2p-im.com');
+    var matrixInviteCardSends = 0;
+    final client = Client(
+      'PortalIMGroupDetailInviteAsTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          matrixInviteCardSends++;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['msgtype'], 'p2p.group.invite.v1');
+          expect(body['group_room_id'], '!group:p2p-im.com');
+          expect(body['group_name'], '真实群');
+          expect(body['direct_room_id'], '!carol:p2p-im.com');
+          return http.Response(
+            r'{"event_id":"$group-invite-card"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
     _addNamedGroupRoom(
       client,
       roomId: '!group:p2p-im.com',
       name: '真实群',
       creatorMxid: '@owner:p2p-im.com',
       members: const {'@alice:p2p-liyanan.com': 'Alice'},
+    );
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!carol:p2p-im.com',
+      peerMxid: '@carol:p2p-carol.com',
+      peerName: 'Carol',
     );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 30, 9),
@@ -7707,23 +7524,50 @@ void main() {
     expect(asClient.inviteGroupMembersCalls, 1);
     expect(asClient.invitedGroupRoomId, '!group:p2p-im.com');
     expect(asClient.invitedGroupMembers, ['@carol:p2p-carol.com']);
-    expect(asClient.sendGroupInviteMessageCalls, 1);
-    expect(asClient.sentGroupInviteDirectRoomIds, ['!carol:p2p-im.com']);
-    expect(asClient.sentGroupInviteGroupRoomIds, ['!group:p2p-im.com']);
-    expect(asClient.sentGroupInviteGroupNames, ['真实群']);
-    expect(find.text('已发送 1 个群邀请卡片'), findsOneWidget);
+    expect(matrixInviteCardSends, 1);
   });
 
   testWidgets('group info invite button posts member invites through AS',
       (tester) async {
-    final client = Client('PortalIMGroupInfoInviteAsTest')
-      ..setUserId('@owner:p2p-im.com');
+    var matrixInviteCardSends = 0;
+    final client = Client(
+      'PortalIMGroupInfoInviteAsTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          matrixInviteCardSends++;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['msgtype'], 'p2p.group.invite.v1');
+          expect(body['group_room_id'], '!group:p2p-im.com');
+          expect(body['group_name'], '真实群');
+          expect(body['direct_room_id'], '!carol:p2p-im.com');
+          return http.Response(
+            r'{"event_id":"$group-invite-card"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
     _addNamedGroupRoom(
       client,
       roomId: '!group:p2p-im.com',
       name: '真实群',
       creatorMxid: '@owner:p2p-im.com',
       members: const {'@alice:p2p-liyanan.com': 'Alice'},
+    );
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!carol:p2p-im.com',
+      peerMxid: '@carol:p2p-carol.com',
+      peerName: 'Carol',
     );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 15, 9),
@@ -7788,8 +7632,7 @@ void main() {
     expect(asClient.inviteGroupMembersCalls, 1);
     expect(asClient.invitedGroupRoomId, '!group:p2p-im.com');
     expect(asClient.invitedGroupMembers, ['@carol:p2p-carol.com']);
-    expect(asClient.sendGroupInviteMessageCalls, 1);
-    expect(asClient.sentGroupInviteDirectRoomIds, ['!carol:p2p-im.com']);
+    expect(matrixInviteCardSends, 1);
   });
 
   testWidgets('group detail reports roomless invite contacts as skipped',
@@ -7868,7 +7711,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.inviteGroupMembersCalls, 0);
-    expect(asClient.sendGroupInviteMessageCalls, 0);
     expect(find.text('已发送 0 个群邀请卡片，1 个联系人缺少私聊，已跳过'), findsOneWidget);
   });
 
@@ -7998,6 +7840,7 @@ void main() {
     );
     final clearStore = _MemoryChatClearStateStore();
     final asClient = _TrackingAsClient();
+    final visibilityClient = _RecordingMatrixMessageVisibilityClient();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -8006,6 +7849,9 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(asClient),
+          matrixMessageVisibilityClientProvider.overrideWithValue(
+            visibilityClient,
+          ),
           chatClearStateStoreProvider.overrideWith((ref) async => clearStore),
         ],
         child: MaterialApp(
@@ -8051,13 +7897,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '清空'));
     await tester.pumpAndSettle();
     expect(clearStore.roomClearedBeforeTs['!group:p2p-im.com'], greaterThan(0));
-    expect(asClient.deleteRoomMessagesByRangeCalls, 1);
-    expect(asClient.deletedRoomMessagesByRangeRoomId, '!group:p2p-im.com');
-    expect(asClient.deletedRoomMessagesByRangeFromTs, 0);
-    expect(
-      asClient.deletedRoomMessagesByRangeToTs,
-      clearStore.roomClearedBeforeTs['!group:p2p-im.com'],
-    );
+    expect(visibilityClient.clearCalls, 1);
     expect(
       container
           .read(asSyncCacheProvider)
@@ -8434,7 +8274,6 @@ void main() {
     await tester.tap(find.text('发送'));
     await tester.pump(const Duration(seconds: 3));
 
-    expect(asClient.sendRoomMessageCalls, 0);
     expect(matrixSendCalls, 1);
   });
 
@@ -8518,7 +8357,6 @@ void main() {
     await tester.tap(find.text('发送'));
     await tester.pump(const Duration(seconds: 3));
 
-    expect(asClient.sendRoomMessageCalls, 0);
     expect(matrixSendCalls, 1);
   });
 
@@ -8606,7 +8444,6 @@ void main() {
     await tester.tap(find.text('发送'));
     await tester.pump(const Duration(seconds: 3));
 
-    expect(asClient.sendRoomMessageCalls, 0);
     expect(matrixSendCalls, 1);
   });
 
@@ -8785,7 +8622,6 @@ void main() {
     });
     await tester.pump();
 
-    expect(asClient.sendRoomMessageCalls, 0);
     expect(matrixSendCalls, 1);
     expect(outboxStore.items, isEmpty);
   });
@@ -9206,7 +9042,6 @@ void main() {
     await tester.tap(find.text('发送'));
     await tester.pump(const Duration(seconds: 3));
 
-    expect(asClient.sendRoomMessageCalls, 0);
     expect(sentMatrixContent?['body'], '@Alice hello');
     expect(sentMatrixContent?['mentions'], [
       {
@@ -9924,7 +9759,6 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '撤回'));
     await tester.pumpAndSettle();
 
-    expect(harness.asClient.recallRoomMessageCalls, 0);
     expect(harness.matrixRedactionPaths, hasLength(1));
     expect(harness.matrixRedactionPaths.single,
         contains('/redact/%24group-own-text/'));
@@ -10063,7 +9897,6 @@ void main() {
     });
     await tester.pump();
 
-    expect(harness.asClient.sendRoomMessageCalls, 0);
     expect(harness.sentMatrixEvents.single['body'], contains('引用后的回复'));
     expect(harness.sentMatrixEvents.single['reply_to'], r'$group-text');
     expect(find.byIcon(Symbols.reply), findsNothing);
@@ -10208,7 +10041,8 @@ void main() {
     expect(find.byTooltip('删除'), findsOneWidget);
   });
 
-  testWidgets('group chat delete hides message through AS', (tester) async {
+  testWidgets('group chat delete hides message through Matrix local delete',
+      (tester) async {
     final harness = await _pumpGroupChatWithTextEvent(tester);
 
     await tester.longPress(find.text('群聊长按消息'));
@@ -10216,9 +10050,9 @@ void main() {
     await tester.tap(find.text('删除'));
     await tester.pumpAndSettle();
 
-    expect(harness.asClient.deleteRoomMessageCalls, 1);
-    expect(harness.asClient.deletedRoomMessageRoomId, '!group:p2p-im.com');
-    expect(harness.asClient.deletedRoomMessageEventId, r'$group-text');
+    expect(harness.visibilityClient.hiddenEventIdsByRoom['!group:p2p-im.com'], [
+      r'$group-text',
+    ]);
     expect(find.text('群聊长按消息'), findsNothing);
   });
 
@@ -10312,14 +10146,25 @@ void main() {
     expect(find.textContaining('已删除'), findsOneWidget);
   });
 
-  testWidgets('home conversation delete clears AS room history after confirm',
+  testWidgets(
+      'home conversation delete clears Matrix local history after confirm',
       (tester) async {
-    final client = Client('PortalIMHomeDeleteConversationAsTest')
+    final client = Client(
+      'PortalIMHomeDeleteConversationMatrixTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
       ..setUserId('@owner:p2p-im.com')
       ..homeserver = Uri.parse('https://p2p-im.com')
       ..accessToken = 'matrix-token';
     final asClient = _TrackingAsClient();
     final clearStore = _MemoryChatClearStateStore();
+    final visibilityClient = _RecordingMatrixMessageVisibilityClient();
     const roomId = '!direct:p2p-im.com';
     const conversationKey = ValueKey('home_conversation_$roomId');
     final bootstrap = AsSyncBootstrap(
@@ -10350,6 +10195,9 @@ void main() {
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
           asClientProvider.overrideWithValue(asClient),
+          matrixMessageVisibilityClientProvider.overrideWithValue(
+            visibilityClient,
+          ),
           chatClearStateStoreProvider.overrideWith((ref) async => clearStore),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
@@ -10372,13 +10220,8 @@ void main() {
     await tester.tap(find.text('删除').last);
     await tester.pumpAndSettle();
 
-    expect(asClient.deleteRoomMessagesByRangeCalls, 1);
-    expect(asClient.deletedRoomMessagesByRangeRoomId, roomId);
-    expect(asClient.deletedRoomMessagesByRangeFromTs, 0);
-    expect(
-      asClient.deletedRoomMessagesByRangeToTs,
-      clearStore.roomClearedBeforeTs[roomId],
-    );
+    expect(visibilityClient.clearCalls, 1);
+    expect(clearStore.roomClearedBeforeTs[roomId], isNotNull);
     expect(find.textContaining('删除聊天记录失败'), findsNothing);
     expect(find.textContaining('已删除'), findsOneWidget);
     expect(find.byKey(conversationKey), findsNothing);
@@ -12048,15 +11891,16 @@ void main() {
         overrides: [
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-          asClientProvider.overrideWithValue(
-            _SearchResultsAsClient(
+          matrixMessageSearchClientProvider.overrideWithValue(
+            _StaticMatrixMessageSearchClient(
               [
-                AsSearchResult(
+                MatrixMessageSearchResult(
                   eventId: r'$remote-group-invite',
                   roomId: '!invite-direct:example.com',
-                  senderName: 'Alice Chen',
-                  content: '邀请进群 hidden-invite-needle',
+                  senderId: '@alice:example.com',
+                  body: '邀请进群 hidden-invite-needle',
                   timestamp: DateTime(2026, 5, 25, 11),
+                  messageType: 'p2p.group.invite.v1',
                 ),
               ],
             ),
@@ -13398,7 +13242,6 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '撤回'));
     await tester.pumpAndSettle();
 
-    expect(harness.asClient.recallRoomMessageCalls, 0);
     expect(harness.matrixRedactionPaths, hasLength(1));
     expect(harness.matrixRedactionPaths.single,
         contains('/redact/%24direct-own-text/'));
@@ -13676,11 +13519,22 @@ void main() {
       (tester) async {
     final client = Client('PortalIMSystemNoticeChatTest')
       ..setUserId('@owner:p2p-im.com');
-    _addUndirectedJoinedRoom(
+    final room = _addUndirectedJoinedRoom(
       client,
       roomId: '!accepted:p2p-im.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'owner',
+    );
+    room.lastEvent = Event(
+      room: room,
+      eventId: r'$accepted-notice',
+      senderId: '@owner:p2p-liyanan.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 5, 27, 16, 10),
+      content: const {
+        'msgtype': MessageTypes.Notice,
+        'body': '你们已成为好友，现在可以开始聊天了',
+      },
     );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 27, 16),
@@ -13700,25 +13554,6 @@ void main() {
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
-    final unread = AsSyncUnread(
-      syncedAt: DateTime.utc(2026, 5, 27, 16, 10),
-      rooms: [
-        AsUnreadRoom(
-          roomId: '!accepted:p2p-im.com',
-          messages: [
-            AsUnreadMessage(
-              eventId: r'$accepted-notice',
-              senderId: '@owner:p2p-liyanan.com',
-              senderName: 'owner',
-              content: '你们已成为好友，现在可以开始聊天了',
-              messageType: MessageTypes.Notice,
-              timestamp: DateTime.utc(2026, 5, 27, 16, 10),
-            ),
-          ],
-        ),
-      ],
-    );
-
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -13727,12 +13562,39 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(_ReadMarkerFailingAsClient()),
           asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap, unread: unread),
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
           home: const ChatPage(roomId: '!accepted:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-accepted-notice',
+        rooms: RoomsUpdate(
+          join: {
+            '!accepted:p2p-im.com': JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: r'$accepted-notice',
+                    roomId: '!accepted:p2p-im.com',
+                    senderId: '@owner:p2p-liyanan.com',
+                    originServerTs: DateTime.utc(2026, 5, 27, 16, 10),
+                    content: const {
+                      'msgtype': MessageTypes.Notice,
+                      'body': '你们已成为好友，现在可以开始聊天了',
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
         ),
       ),
     );
@@ -13744,91 +13606,6 @@ void main() {
     final noticeText = tester.widget<Text>(noticeFinder);
     expect(noticeText.style?.fontSize, 11);
     expect(find.text('端对端加密'), findsNothing);
-  });
-
-  testWidgets('empty private chat restores first server history page',
-      (tester) async {
-    final client = Client('PortalIMEmptyPrivatePullHistoryTest')
-      ..setUserId('@owner:p2p-im.com');
-    client.homeserver = Uri.parse('https://p2p-im.com');
-    client.accessToken = 'matrix-token';
-    _addTestRoom(
-      client,
-      roomId: '!empty-private:p2p-im.com',
-      roomMembership: Membership.join,
-      directPeerMxid: '@alice:p2p-im.com',
-    );
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 20),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      rooms: const [
-        AsSyncRoomSummary(
-          roomId: '!empty-private:p2p-im.com',
-          name: 'Alice',
-          avatarUrl: '',
-          unreadCount: 0,
-          lastActivityAt: null,
-        ),
-      ],
-      contacts: const [
-        AsSyncContact(
-          userId: '@alice:p2p-im.com',
-          displayName: 'Alice',
-          avatarUrl: '',
-          roomId: '!empty-private:p2p-im.com',
-          domain: 'p2p-im.com',
-          status: 'accepted',
-        ),
-      ],
-      groups: const [],
-      channels: const [],
-      pending: const AsSyncPending.empty(),
-    );
-    final asClient = _TrackingAsClient()
-      ..syncMessagesResult = AsSyncMessages(
-        syncedAt: DateTime.utc(2026, 6, 20, 10),
-        hasMoreMessages: false,
-        rooms: [
-          AsSyncMessagesRoom(
-            roomId: '!empty-private:p2p-im.com',
-            hasMoreMessages: false,
-            messages: [
-              AsUnreadMessage(
-                eventId: r'$as-history-1',
-                senderId: '@alice:p2p-im.com',
-                senderName: 'Alice',
-                content: '重新登录后恢复的消息',
-                messageType: MessageTypes.Text,
-                timestamp: DateTime.utc(2026, 6, 20, 9, 59),
-              ),
-            ],
-          ),
-        ],
-      );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
-          asClientProvider.overrideWithValue(asClient),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const ChatPage(roomId: '!empty-private:p2p-im.com'),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(asClient.syncMessagesCalls, 1);
-    expect(asClient.syncedMessagesRoomId, '!empty-private:p2p-im.com');
-    expect(find.text('重新登录后恢复的消息'), findsOneWidget);
-    expect(find.text('开始你们的第一条消息'), findsNothing);
   });
 
   testWidgets('accepted private chat text send uses Matrix SDK',
@@ -13907,7 +13684,6 @@ void main() {
     await tester.tap(find.text('发送'));
     await tester.pump(const Duration(seconds: 3));
 
-    expect(asClient.sendRoomMessageCalls, 0);
     expect(matrixSendCalls, 1);
   });
 
@@ -14032,7 +13808,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
-          asClientProvider.overrideWithValue(_PeerDeletedAsClient()),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -14103,7 +13879,6 @@ void main() {
 
     expect(find.text('等待对方接受后才能发送消息'), findsOneWidget);
     expect(find.byIcon(Symbols.arrow_upward), findsNothing);
-    expect(asClient.sendRoomMessageCalls, 0);
   });
 
   testWidgets('private chat blocks unclassified one-to-one rooms omitted by AS',
@@ -14148,7 +13923,6 @@ void main() {
 
     expect(find.text('等待对方接受后才能发送消息'), findsOneWidget);
     expect(find.byIcon(Symbols.arrow_upward), findsNothing);
-    expect(asClient.sendRoomMessageCalls, 0);
   });
 
   testWidgets('private chat blocks rejected direct rooms with joined peer',
@@ -14202,7 +13976,6 @@ void main() {
 
     expect(find.text('等待对方接受后才能发送消息'), findsOneWidget);
     expect(find.byIcon(Symbols.arrow_upward), findsNothing);
-    expect(asClient.sendRoomMessageCalls, 0);
   });
 
   testWidgets('login page hides setup shortcuts below login', (tester) async {

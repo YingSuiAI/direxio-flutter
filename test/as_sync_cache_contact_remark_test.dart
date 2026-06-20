@@ -99,4 +99,80 @@ void main() {
       '!accepted:example.com',
     );
   });
+
+  test('contacts dedupe by peer mxid and prefer accepted direct room', () {
+    final state = AsSyncCacheState(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        rooms: const [],
+        contacts: const [
+          AsSyncContact(
+            userId: '@bob:example.com',
+            displayName: 'owner',
+            avatarUrl: '',
+            roomId: '!request:example.com',
+            domain: 'example.com',
+            status: 'pending_outbound',
+          ),
+          AsSyncContact(
+            userId: '@bob:example.com',
+            displayName: 'Bobby',
+            avatarUrl: 'mxc://example/bobby',
+            roomId: '!accepted:example.com',
+            domain: 'example.com',
+            status: 'accepted',
+          ),
+        ],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    expect(state.contacts, hasLength(1));
+    expect(state.contacts.single.roomId, '!accepted:example.com');
+    expect(state.contacts.single.displayName, 'Bobby');
+    expect(state.acceptedDirectRoomIds, {'!accepted:example.com'});
+    expect(state.nonAcceptedContactRoomIds, isEmpty);
+    expect(state.contactForRoom('!request:example.com'), isNull);
+    expect(state.contactForUserId('@bob:example.com')?.roomId,
+        '!accepted:example.com');
+  });
+
+  test('contacts dedupe exact room duplicates and keep latest display metadata',
+      () {
+    final state = AsSyncCacheState(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        rooms: const [],
+        contacts: const [
+          AsSyncContact(
+            userId: '@alice:example.com',
+            displayName: 'owner',
+            avatarUrl: '',
+            roomId: '!alice:example.com',
+            domain: 'example.com',
+            status: 'accepted',
+          ),
+          AsSyncContact(
+            userId: '@alice:example.com',
+            displayName: 'Alice Chen',
+            avatarUrl: 'mxc://example/alice',
+            roomId: '!alice:example.com',
+            domain: 'example.com',
+            status: 'accepted',
+          ),
+        ],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    expect(state.contacts, hasLength(1));
+    expect(state.contacts.single.displayName, 'Alice Chen');
+    expect(state.contacts.single.avatarUrl, 'mxc://example/alice');
+  });
 }

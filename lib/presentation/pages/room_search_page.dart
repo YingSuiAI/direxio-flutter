@@ -1,4 +1,4 @@
-// 会话内搜索。优先走 AS 的 room_id 搜索，离线/失败时使用本地 Matrix 缓存。
+// 会话内搜索。优先使用本地 Matrix 缓存，随后追加 Matrix /search 结果。
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -10,9 +10,9 @@ import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
-import '../../data/as_client.dart';
-import '../providers/as_client_provider.dart';
+import '../../data/matrix_message_search_client.dart';
 import '../providers/auth_provider.dart';
+import '../providers/matrix_message_clients_provider.dart';
 import '../widgets/m3/m3_search_field.dart';
 
 const double _roomSearchToolbarHeight = 62;
@@ -79,14 +79,17 @@ class _RoomSearchPageState extends ConsumerState<RoomSearchPage> {
 
   Future<List<_RoomSearchResult>> _remoteResults(String query) async {
     try {
-      final results = await ref.read(asClientProvider).search(
+      final results = await ref.read(matrixMessageSearchClientProvider).search(
             query,
             roomId: widget.roomId,
             limit: _limit,
           );
-      return results.map(_RoomSearchResult.remote).toList(growable: false);
+      final client = ref.read(matrixClientProvider);
+      return results
+          .map((result) => _RoomSearchResult.remote(result, client))
+          .toList(growable: false);
     } catch (error) {
-      debugPrint('room remote search failed: $error');
+      debugPrint('room Matrix search failed: $error');
       return const [];
     }
   }
@@ -239,11 +242,21 @@ class _RoomSearchResult {
     required this.timestamp,
   });
 
-  factory _RoomSearchResult.remote(AsSearchResult result) {
+  factory _RoomSearchResult.remote(
+    MatrixMessageSearchResult result,
+    Client client,
+  ) {
+    final room = client.getRoomById(result.roomId);
+    var senderName = result.senderId.trim();
+    if (room != null && senderName.isNotEmpty) {
+      final member = room.unsafeGetUserFromMemoryOrFallback(senderName);
+      final displayName = member.calcDisplayname().trim();
+      if (displayName.isNotEmpty) senderName = displayName;
+    }
     return _RoomSearchResult(
       eventId: result.eventId,
-      senderName: result.senderName.isEmpty ? '消息' : result.senderName,
-      content: result.content,
+      senderName: senderName.isEmpty ? '消息' : senderName,
+      content: result.body,
       timestamp: result.timestamp,
     );
   }

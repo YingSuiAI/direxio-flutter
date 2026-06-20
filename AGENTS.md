@@ -44,7 +44,7 @@ lib/
 ## Data Boundaries
 
 - Use Matrix SDK for Matrix-native behavior: login session, rooms, timeline, membership, media, profile avatar/display name, read markers, and Matrix message state.
-- Use AS Admin API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal token auth, unread recovery overlay, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and product search.
+- Use AS Admin API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal token auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
 - AS Admin API calls use the portal token as bearer auth. Matrix access tokens are for Matrix SDK/Matrix API behavior. Do not conflate the two token types.
 - Do not create duplicate list APIs or duplicate client flows. If data already arrives through `/_as/sync/bootstrap`, prefer extending that contract and the client model.
 - Logged-in views must prefer real Matrix/AS data. Mock data is allowed only for unauthenticated demos, explicit tests, or temporary UI scaffolding.
@@ -53,6 +53,9 @@ lib/
 ## Current AS Contract Rules
 
 - `/_as/sync/bootstrap` is metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields to bootstrap.
+- P2P ordinary message/search/backup actions are removed, not compatibility entries: `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
+- Ordinary message send, media send, history, unread, message search, and recall use Matrix Client-Server APIs.
+- Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both. It hides only the current user's local Matrix read path and is not a redaction.
 - Public remote channel lookup must use explicitly configured AS remotes. Do not infer a remote AS URL from a Matrix `room_id` domain.
 - Channel member status must be normalized through `AsChannel` / `AsChannelMember` helpers:
   - `join`, `joined` -> `joined`
@@ -61,6 +64,7 @@ lib/
   - `reject`, `rejected` -> `rejected`
 - Treat only `isAsChannelMemberJoined(status)` as joined. `invite` and `pending` are waiting states and must not unlock channel sending.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
+- Channel invite/share cards first create `channels.invite_grant.create` with `channel_id` or `room_id` plus `share_room_id`; receivers call `channels.join` with `grant_id` and `share_room_id`.
 - When the AS contract changes, update `AsClient`, `HttpAsClient`, `MockAsClient`, focused tests, and `docs/AS_API_CHANGES.md` together.
 
 ## Architecture
@@ -83,8 +87,7 @@ lib/
 ## Privacy Rules
 
 - New-device bootstrap must not load historical read message bodies.
-- Recovered unread is an overlay, not canonical history. Merge by stable `event_id` and never render duplicates.
-- Do not write recovered unread into Matrix SDK persistent timeline unless a separate privacy design explicitly approves it.
+- Unread and message history come from Matrix `/sync` and `/rooms/{roomID}/messages`, not AS bootstrap or P2P action facades.
 - Local clear/delete/hide actions must not imply server deletion unless the AS/Matrix API call actually deletes server state.
 
 ## Channel Rules

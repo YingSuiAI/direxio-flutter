@@ -26,7 +26,6 @@ import 'local_created_channels_provider.dart';
 import 'local_message_order_provider.dart';
 import 'local_outbox_provider.dart';
 import 'media_thumbnail_cache_provider.dart';
-import 'recovered_unread_store_provider.dart';
 
 part 'auth_provider.g.dart';
 
@@ -207,7 +206,6 @@ bool portalSessionNeedsCleanMatrixInit({
   required String nextDeviceId,
   required Uri nextHomeserver,
 }) {
-  final currentToken = currentAccessToken?.trim() ?? '';
   final currentUser = currentUserId?.trim() ?? '';
   final currentDevice = currentDeviceId?.trim() ?? '';
   final currentHost = currentHomeserver == null
@@ -215,15 +213,15 @@ bool portalSessionNeedsCleanMatrixInit({
       : '${currentHomeserver.scheme.toLowerCase()}://'
           '${currentHomeserver.host.toLowerCase()}'
           '${currentHomeserver.hasPort ? ':${currentHomeserver.port}' : ''}';
-  final nextToken = nextAccessToken.trim();
   final nextUser = nextUserId.trim();
   final nextDevice = nextDeviceId.trim();
   final nextHost = '${nextHomeserver.scheme.toLowerCase()}://'
       '${nextHomeserver.host.toLowerCase()}'
       '${nextHomeserver.hasPort ? ':${nextHomeserver.port}' : ''}';
 
-  return currentToken != nextToken ||
-      currentUser != nextUser ||
+  // Token refresh is only a credential update. Clearing Matrix here drops the
+  // SDK's local room/message cache, so clean init is limited to identity moves.
+  return currentUser != nextUser ||
       currentDevice != nextDevice ||
       currentHost != nextHost;
 }
@@ -1729,7 +1727,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         ref.invalidate(chatClearStateStoreProvider);
         ref.invalidate(friendRequestReadProvider);
         ref.invalidate(friendRequestReadStoreProvider);
-        ref.invalidate(recoveredUnreadStoreProvider);
         ref.invalidate(asCallSessionStoreProvider);
         ref.invalidate(channelPostStoreProvider);
         ref.invalidate(localCreatedChannelsProvider);
@@ -1780,16 +1777,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           (state) => state.withAllChatsClearedBefore(clearedBeforeTs),
         );
 
-    try {
-      final unreadStore = await ref.read(recoveredUnreadStoreProvider.future);
-      final unread = await unreadStore.read();
-      for (final room in unread?.rooms ?? const <AsUnreadRoom>[]) {
-        await unreadStore.removeRoom(room.roomId);
-      }
-    } catch (e) {
-      debugPrint('clear recovered unread cache failed: $e');
-    }
-
     await _deleteSupportFiles(const [
       'portal_im_recovered_unread.json',
       'portal_im_pending_media_uploads.json',
@@ -1812,7 +1799,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     ref.invalidate(localMessageOrderProvider);
     ref.invalidate(localMessageOrderStoreProvider);
     ref.invalidate(mediaThumbnailCacheProvider);
-    ref.invalidate(recoveredUnreadStoreProvider);
   }
 
   Future<void> clearRoomChatHistory(
@@ -1828,20 +1814,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     ref.read(asSyncCacheProvider.notifier).update(
           (state) => state.withRoomClearedBefore(trimmed, clearBefore),
         );
-    try {
-      final unreadStore = await ref.read(recoveredUnreadStoreProvider.future);
-      await unreadStore.removeRoom(trimmed);
-    } catch (e) {
-      debugPrint('clear room recovered unread cache failed: $e');
-    }
   }
 
   Future<void> logout() async {
     final client = ref.read(matrixClientProvider);
     final lastHomeserver = await _storage.read(key: lastLoginHomeserverKey) ??
         await _storage.read(key: 'matrix_homeserver');
-    final lastPortalToken = await _storage.read(key: lastLoginPortalTokenKey) ??
-        await _storage.read(key: AuthStateNotifier.accessTokenKey);
     await _logoutMatrixSessionPreservingStore(client);
     await _clearUserScopedLocalState(
       client,
@@ -1853,12 +1831,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       await _storage.write(
         key: lastLoginHomeserverKey,
         value: lastHomeserver.trim(),
-      );
-    }
-    if (lastPortalToken != null && lastPortalToken.trim().isNotEmpty) {
-      await _storage.write(
-        key: lastLoginPortalTokenKey,
-        value: lastPortalToken.trim(),
       );
     }
     state = const AsyncData(AuthState(isLoggedIn: false));
@@ -1934,8 +1906,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _storage.delete(key: 'matrix_user_id');
     await _storage.delete(key: 'matrix_device_id');
     await _storage.delete(key: AuthStateNotifier.accessTokenKey);
-    await _storage.delete(key: lastLoginPortalTokenKey);
-    await _storage.delete(key: profileInitializedKey);
     ref.read(sessionExpiredNoticeProvider.notifier).state++;
     if (publishState) {
       state = const AsyncData(AuthState(isLoggedIn: false));

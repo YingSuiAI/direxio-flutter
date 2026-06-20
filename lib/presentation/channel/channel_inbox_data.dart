@@ -382,12 +382,8 @@ bool _isChannelOwnerRole(String role) {
 }
 
 bool _channelListMemberStatusVisible(String status) {
-  final normalized = status.trim().toLowerCase();
-  return normalized != 'left' &&
-      normalized != 'removed' &&
-      normalized != 'dissolved' &&
-      normalized != 'deleted' &&
-      normalized != 'closed';
+  final normalized = status.trim();
+  return normalized.isEmpty || isAsChannelMemberJoined(normalized);
 }
 
 String _channelPreviewText(String value) {

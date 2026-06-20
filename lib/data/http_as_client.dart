@@ -183,35 +183,6 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Future<AsSyncUnread> syncUnread({int limitPerRoom = 200}) async {
-    final body = await _getJson(
-      'sync/unread',
-      queryParameters: {'limit_per_room': limitPerRoom.toString()},
-    );
-    return AsSyncUnread.fromJson(body);
-  }
-
-  @override
-  Future<AsSyncMessages> syncMessages({
-    String roomId = '',
-    String? cursor,
-    int fromTs = 0,
-    int toTs = 0,
-  }) async {
-    final normalizedCursor = cursor?.trim() ?? '';
-    final body = await _getJson(
-      'sync/messages',
-      queryParameters: {
-        if (roomId.trim().isNotEmpty) 'room_id': roomId.trim(),
-        if (normalizedCursor.isNotEmpty) 'cursor': normalizedCursor,
-        if (fromTs > 0) 'from_ts': fromTs.toString(),
-        if (toTs > 0) 'to_ts': toTs.toString(),
-      },
-    );
-    return AsSyncMessages.fromJson(body);
-  }
-
-  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,
@@ -279,26 +250,6 @@ class HttpAsClient implements AsClient {
     yield* _decodeSseEvents(
       streamed.stream.transform(utf8.decoder).transform(const LineSplitter()),
     );
-  }
-
-  @override
-  Future<List<AsSearchResult>> search(
-    String query, {
-    String? roomId,
-    int limit = 20,
-  }) async {
-    final body = await _getJson(
-      'search',
-      queryParameters: {
-        'q': query,
-        if (roomId != null && roomId.isNotEmpty) 'room_id': roomId,
-        'limit': limit.toString(),
-      },
-    );
-    final raw = body['results'] as List<dynamic>? ?? const [];
-    return raw
-        .map((item) => AsSearchResult.fromJson(item as Map<String, dynamic>))
-        .toList(growable: false);
   }
 
   @override
@@ -554,270 +505,6 @@ class HttpAsClient implements AsClient {
       allowedStatusCodes: const {200},
     );
     return ContactEntry.fromJson(body);
-  }
-
-  Future<Map<String, dynamic>> exportContactsBackup() {
-    return _requestJson(
-      'POST',
-      'contacts/export',
-      allowedStatusCodes: const {200},
-    );
-  }
-
-  Future<Map<String, dynamic>> downloadContactsBackup(String filename) {
-    return _getJson('contacts/export/${Uri.encodeComponent(filename)}');
-  }
-
-  Future<Map<String, dynamic>> importContactsBackup(
-    Map<String, Object?> backup,
-  ) {
-    return _requestJson(
-      'POST',
-      'contacts/import',
-      body: {'backup': backup},
-      allowedStatusCodes: const {200},
-    );
-  }
-
-  @override
-  Future<void> deleteRoomMessage({
-    required String roomId,
-    required String eventId,
-  }) async {
-    await _requestJson(
-      'POST',
-      'rooms/${Uri.encodeComponent(roomId)}/messages/delete',
-      body: {'event_id': eventId.trim()},
-      allowedStatusCodes: const {200, 201, 204},
-    );
-  }
-
-  @override
-  Future<void> recallRoomMessage({
-    required String roomId,
-    required String eventId,
-    String reason = '撤回消息',
-  }) async {
-    await _requestJson(
-      'POST',
-      'rooms/${Uri.encodeComponent(roomId)}/messages/'
-          '${Uri.encodeComponent(eventId)}/recall',
-      body: {
-        'event_id': eventId.trim(),
-        'reason': reason.trim().isEmpty ? '撤回消息' : reason.trim(),
-      },
-      allowedStatusCodes: const {200, 201, 204},
-    );
-  }
-
-  @override
-  Future<void> deleteRoomMessagesByRange({
-    required String roomId,
-    required int fromTs,
-    required int toTs,
-  }) async {
-    await _requestJson(
-      'POST',
-      'rooms/${Uri.encodeComponent(roomId)}/messages/delete-range',
-      body: {
-        'from_ts': fromTs < 0 ? 0 : fromTs,
-        'to_ts': toTs < 0 ? 0 : toTs,
-      },
-      allowedStatusCodes: const {200, 201, 204},
-    );
-  }
-
-  @override
-  Future<String> sendRoomMessage(
-    String roomId,
-    String content, {
-    String? replyToEventId,
-    List<Map<String, String>> mentions = const [],
-  }) async {
-    final replyTo = replyToEventId?.trim();
-    final normalizedMentions = _normalizedMentionPayload(mentions);
-    final body = await _requestJson(
-      'POST',
-      'rooms/${Uri.encodeComponent(roomId)}/send',
-      body: {
-        'content': content,
-        if (replyTo != null && replyTo.isNotEmpty) 'reply_to': replyTo,
-        if (normalizedMentions.isNotEmpty) ...{
-          'message_type': 'at_text',
-          'mentions': normalizedMentions,
-        },
-      },
-      allowedStatusCodes: const {200},
-    );
-    return body['event_id'] as String? ?? '';
-  }
-
-  @override
-  Future<String> sendChatRecordMessage({
-    required String roomId,
-    required String body,
-    required String title,
-    required String sourceRoomId,
-    required String sourceRoomType,
-    required int itemCount,
-    List<Map<String, Object?>> items = const [],
-  }) async {
-    final response = await _requestJson(
-      'POST',
-      'rooms/${Uri.encodeComponent(roomId)}/send',
-      body: {
-        'content': body.trim(),
-        'message_type': 'chat_record',
-        'chat_record': {
-          'title': title.trim(),
-          'source_room_id': sourceRoomId.trim(),
-          'source_room_type': sourceRoomType.trim(),
-          'item_count': itemCount,
-          'items': items,
-        },
-      },
-      allowedStatusCodes: const {200},
-    );
-    return response['event_id'] as String? ?? '';
-  }
-
-  @override
-  Future<String> sendChannelShareMessage({
-    required String roomId,
-    required String body,
-    required AsChannelShareDraft channel,
-  }) async {
-    final response = await _requestJson(
-      'POST',
-      'rooms/${Uri.encodeComponent(roomId)}/send',
-      body: {
-        'content': body.trim(),
-        'message_type': 'channel_share',
-        'channel_share': channel.toJson(),
-      },
-      allowedStatusCodes: const {200},
-    );
-    return response['event_id'] as String? ?? '';
-  }
-
-  @override
-  Future<String> sendGroupInviteMessage({
-    required String directRoomId,
-    required String groupRoomId,
-    required String groupName,
-    required String inviterMxid,
-    String inviterDisplayName = '',
-  }) async {
-    final trimmedDirectRoomId = directRoomId.trim();
-    final trimmedGroupRoomId = groupRoomId.trim();
-    if (trimmedDirectRoomId.isEmpty) {
-      throw ArgumentError.value(directRoomId, 'directRoomId', 'is required');
-    }
-    if (trimmedGroupRoomId.isEmpty) {
-      throw ArgumentError.value(groupRoomId, 'groupRoomId', 'is required');
-    }
-    final trimmedGroupName =
-        groupName.trim().isEmpty ? '群聊' : groupName.trim();
-    final response = await _requestJson(
-      'POST',
-      'rooms/${Uri.encodeComponent(trimmedDirectRoomId)}/send',
-      body: {
-        'content': '邀请加入群聊\n$trimmedGroupName',
-        'message_type': 'group_invite',
-        'group_invite': {
-          'msgtype': 'p2p.group.invite.v1',
-          'group_room_id': trimmedGroupRoomId,
-          'group_name': trimmedGroupName,
-          if (inviterMxid.trim().isNotEmpty)
-            'inviter_mxid': inviterMxid.trim(),
-          if (inviterDisplayName.trim().isNotEmpty)
-            'inviter_display_name': inviterDisplayName.trim(),
-          'direct_room_id': trimmedDirectRoomId,
-        },
-      },
-      allowedStatusCodes: const {200},
-    );
-    return response['event_id'] as String? ?? '';
-  }
-
-  @override
-  Future<String> sendRoomMediaMessage({
-    required String roomId,
-    required String msgType,
-    required String body,
-    required String filename,
-    required String mediaUrl,
-    String messageType = '',
-    String channelId = '',
-    String postId = '',
-    String commentId = '',
-    String replyToCommentId = '',
-    String replyToAuthorMxid = '',
-    List<Map<String, String>> mentions = const [],
-    Map<String, Object?> media = const {},
-    String mimeType = '',
-    int size = 0,
-    String thumbnailUrl = '',
-    String thumbnailMimeType = '',
-    int thumbnailSize = 0,
-    int width = 0,
-    int height = 0,
-    int durationMs = 0,
-  }) async {
-    final normalizedMentions = _normalizedMentionPayload(mentions);
-    final mediaJson = media.isNotEmpty
-        ? media
-        : _mediaJsonPayload(
-            msgType: msgType,
-            body: body,
-            filename: filename,
-            mediaUrl: mediaUrl,
-            mimeType: mimeType,
-            size: size,
-            thumbnailUrl: thumbnailUrl,
-            thumbnailMimeType: thumbnailMimeType,
-            thumbnailSize: thumbnailSize,
-            width: width,
-            height: height,
-            durationMs: durationMs,
-          );
-    final response = await _requestJson(
-      'POST',
-      'rooms/${Uri.encodeComponent(roomId)}/send-media',
-      body: {
-        'msgtype': msgType.trim(),
-        'body': body.trim(),
-        if (messageType.trim().isNotEmpty)
-          'message_type': messageType.trim(),
-        if (channelId.trim().isNotEmpty) 'channel_id': channelId.trim(),
-        if (postId.trim().isNotEmpty) 'post_id': postId.trim(),
-        if (commentId.trim().isNotEmpty) 'comment_id': commentId.trim(),
-        if (replyToCommentId.trim().isNotEmpty)
-          'reply_to_comment_id': replyToCommentId.trim(),
-        if (replyToAuthorMxid.trim().isNotEmpty)
-          'reply_to_author_mxid': replyToAuthorMxid.trim(),
-        if (normalizedMentions.isNotEmpty) ...{
-          'mentions': normalizedMentions,
-          'mentions_json': jsonEncode(normalizedMentions),
-        },
-        if (messageType.trim().isNotEmpty && mediaJson.isNotEmpty)
-          'media_json': jsonEncode(mediaJson),
-        if (filename.trim().isNotEmpty) 'filename': filename.trim(),
-        'url': mediaUrl.trim(),
-        if (mimeType.trim().isNotEmpty) 'mime_type': mimeType.trim(),
-        if (size > 0) 'size': size,
-        if (thumbnailUrl.trim().isNotEmpty)
-          'thumbnail_url': thumbnailUrl.trim(),
-        if (thumbnailMimeType.trim().isNotEmpty)
-          'thumbnail_mime_type': thumbnailMimeType.trim(),
-        if (thumbnailSize > 0) 'thumbnail_size': thumbnailSize,
-        if (width > 0) 'width': width,
-        if (height > 0) 'height': height,
-        if (durationMs > 0) 'duration_ms': durationMs,
-      },
-      allowedStatusCodes: const {200},
-    );
-    return response['event_id'] as String? ?? '';
   }
 
   @override
@@ -1112,12 +799,16 @@ class HttpAsClient implements AsClient {
   Future<AsChannel> joinChannelByRoomId(
     String roomId, {
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
   }) async {
     final trimmedRoomId = roomId.trim();
     final requestBody = <String, Object?>{
       if (shareToken.trim().isNotEmpty) 'share_token': shareToken.trim(),
+      if (grantId.trim().isNotEmpty) 'grant_id': grantId.trim(),
+      if (shareRoomId.trim().isNotEmpty) 'share_room_id': shareRoomId.trim(),
       ..._remoteNodeParams(remoteNodeBaseUri),
       ..._discoveredChannelJoinBody(discoveredChannel),
     };
@@ -1133,11 +824,17 @@ class HttpAsClient implements AsClient {
   @override
   Future<AsChannel> joinChannel(
     String channelId, {
+    String roomId = '',
     String shareToken = '',
+    String grantId = '',
+    String shareRoomId = '',
     AsChannel? discoveredChannel,
   }) async {
     final requestBody = <String, Object?>{
+      if (roomId.trim().isNotEmpty) 'room_id': roomId.trim(),
       if (shareToken.trim().isNotEmpty) 'share_token': shareToken.trim(),
+      if (grantId.trim().isNotEmpty) 'grant_id': grantId.trim(),
+      if (shareRoomId.trim().isNotEmpty) 'share_room_id': shareRoomId.trim(),
       ..._discoveredChannelJoinBody(discoveredChannel),
     };
     final body = await _requestJson(
@@ -1221,6 +918,38 @@ class HttpAsClient implements AsClient {
       },
       allowedStatusCodes: const {200},
     );
+  }
+
+  @override
+  Future<AsChannelInviteGrant> createChannelInviteGrant({
+    String channelId = '',
+    String roomId = '',
+    required String shareRoomId,
+    String grantId = '',
+    String reason = '',
+  }) async {
+    final trimmedChannelId = channelId.trim();
+    final trimmedRoomId = roomId.trim();
+    final trimmedShareRoomId = shareRoomId.trim();
+    if (trimmedChannelId.isEmpty && trimmedRoomId.isEmpty) {
+      throw ArgumentError('channelId or roomId is required');
+    }
+    if (trimmedShareRoomId.isEmpty) {
+      throw ArgumentError.value(shareRoomId, 'shareRoomId', 'is required');
+    }
+    final body = await _requestJson(
+      'POST',
+      'channels/invite-grants',
+      body: {
+        if (trimmedChannelId.isNotEmpty) 'channel_id': trimmedChannelId,
+        if (trimmedRoomId.isNotEmpty) 'room_id': trimmedRoomId,
+        'share_room_id': trimmedShareRoomId,
+        if (grantId.trim().isNotEmpty) 'grant_id': grantId.trim(),
+        if (reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+      allowedStatusCodes: const {200},
+    );
+    return AsChannelInviteGrant.fromJson(body);
   }
 
   @override
@@ -2318,37 +2047,6 @@ List<Map<String, String>> _normalizedMentionPayload(
   ];
 }
 
-Map<String, Object?> _mediaJsonPayload({
-  required String msgType,
-  required String body,
-  required String filename,
-  required String mediaUrl,
-  required String mimeType,
-  required int size,
-  required String thumbnailUrl,
-  required String thumbnailMimeType,
-  required int thumbnailSize,
-  required int width,
-  required int height,
-  required int durationMs,
-}) {
-  return {
-    'msgtype': msgType.trim(),
-    'body': body.trim(),
-    if (filename.trim().isNotEmpty) 'filename': filename.trim(),
-    'url': mediaUrl.trim(),
-    if (mimeType.trim().isNotEmpty) 'mimetype': mimeType.trim(),
-    if (size > 0) 'size': size,
-    if (thumbnailUrl.trim().isNotEmpty) 'thumbnail_url': thumbnailUrl.trim(),
-    if (thumbnailMimeType.trim().isNotEmpty)
-      'thumbnail_mimetype': thumbnailMimeType.trim(),
-    if (thumbnailSize > 0) 'thumbnail_size': thumbnailSize,
-    if (width > 0) 'w': width,
-    if (height > 0) 'h': height,
-    if (durationMs > 0) 'duration': durationMs,
-  };
-}
-
 Map<String, Object?> _remoteNodeParams(Uri? remoteNodeBaseUri) {
   final value = remoteNodeBaseUri?.toString().trim() ?? '';
   if (value.isEmpty) return const {};
@@ -2425,6 +2123,9 @@ String _actionFor(String method, String path) {
     return 'users.public_channels';
   }
   if (segments.isNotEmpty && segments[0] == 'channels') {
+    if (method == 'POST' && clean == 'channels/invite-grants') {
+      return 'channels.invite_grant.create';
+    }
     if (segments.length == 2 && method == 'PUT') return 'channels.update';
     if (segments.length == 2 && method == 'POST') return 'channels.join';
     if (segments.length == 3 && segments[2] == 'join') return 'channels.join';
@@ -2434,6 +2135,9 @@ String _actionFor(String method, String path) {
     }
     if (segments.length == 3 && segments[2] == 'invite') {
       return 'channels.invite';
+    }
+    if (segments.length == 3 && segments[2] == 'invite-grants') {
+      return 'channels.invite_grant.create';
     }
     if (segments.length == 3 && segments[2] == 'members') {
       return 'channels.members';
@@ -2503,27 +2207,12 @@ String _actionFor(String method, String path) {
   if (method == 'GET' && clean == 'profile') return 'profile.get';
   if (method == 'PUT' && clean == 'profile') return 'profile.update';
   if (method == 'GET' && clean == 'sync/bootstrap') return 'sync.bootstrap';
-  if (method == 'GET' && clean == 'sync/unread') return 'sync.unread';
-  if (method == 'GET' && clean == 'sync/messages') return 'sync.messages';
   if (method == 'PUT' && clean == 'sync/read-marker') return 'sync.read_marker';
-  if (method == 'GET' && clean == 'search') return 'search';
   if (method == 'GET' && clean == 'portal/status') return 'portal.status';
   if (method == 'POST' && clean == 'portal/setup') return 'portal.setup';
   if (method == 'PUT' && clean == 'portal/password') return 'portal.password';
   if (method == 'POST' && clean == 'reports') return 'reports.submit';
   if (method == 'GET' && clean == 'contacts') return 'contacts.list';
-  if (method == 'POST' && clean == 'contacts/export') {
-    return 'contacts.export';
-  }
-  if (method == 'GET' &&
-      segments.length >= 3 &&
-      segments[0] == 'contacts' &&
-      segments[1] == 'export') {
-    return 'contacts.download';
-  }
-  if (method == 'POST' && clean == 'contacts/import') {
-    return 'contacts.import';
-  }
   if (method == 'POST' && clean == 'contacts/requests') {
     return 'contacts.request';
   }
@@ -2541,20 +2230,6 @@ String _actionFor(String method, String path) {
   if (segments.length >= 2 && segments[0] == 'contacts') {
     if (method == 'PUT') return 'contacts.update';
     return 'contacts.delete';
-  }
-  if (segments.length >= 3 &&
-      segments[0] == 'rooms' &&
-      segments[2] == 'messages') {
-    if (segments.length >= 5) return 'rooms.messages.recall';
-    return 'rooms.messages.${segments.last.replaceAll('-', '_')}';
-  }
-  if (segments.length == 3 && segments[0] == 'rooms' && segments[2] == 'send') {
-    return 'rooms.send';
-  }
-  if (segments.length == 3 &&
-      segments[0] == 'rooms' &&
-      segments[2] == 'send-media') {
-    return 'rooms.send_media';
   }
   return clean.replaceAll('/', '.').replaceAll('-', '_');
 }
@@ -2581,7 +2256,8 @@ Map<String, Object?> _actionParams(
   if (segments.length >= 2 &&
       segments[0] == 'channels' &&
       !(segments.length == 2 && segments[1] == 'join') &&
-      segments[1] != 'me') {
+      segments[1] != 'me' &&
+      segments[1] != 'invite-grants') {
     params['channel_id'] = Uri.decodeComponent(segments[1]);
   }
   if (segments.length >= 3 &&

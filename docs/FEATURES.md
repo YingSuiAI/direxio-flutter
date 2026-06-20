@@ -28,12 +28,11 @@ This document records the currently implemented client features and whether each
 | Home tabs | `/home`, `home_page.dart` | Real + demo | Logged-in messages/contacts/channels use real Matrix/AS data. Unauthenticated demo uses `MockData`. |
 | Direct conversation list | `home_page.dart` | Real | Accepted contacts come from AS bootstrap; current display name/avatar prefer Matrix room member state. |
 | Agent/system room | `chat_page.dart`, `agentStatusProvider` | Real + local | Agent is a system conversation, not a normal contact. Header reflects AS connection state. |
-| Direct chat timeline | `/chat/:roomId`, `chat_page.dart` | Real | Uses Matrix room/timeline for native text, media, and redaction behavior, and AS where product-layer extensions are needed. Opening a concrete chat may request the first visible history page; bootstrap stays metadata-only. |
-| Group/channel chat timeline | `/group/:roomId`, `/channel/:id/conversation`, `group_chat_page.dart` | Real | Supports Matrix timeline, Matrix SDK text/media send, quote/reply metadata, mentions, local outbox, redaction/delete where supported, and read state. Opening a concrete room may request the first visible history page; bootstrap stays metadata-only. |
-| Reply/quote rendering | `group_chat_page.dart` | Real | Sends `reply_to` through AS and renders Matrix/AS reply fallbacks. |
-| Message privacy clearing | `chat_clear_state_provider.dart`, `matrix_privacy_sync.dart` | Real + local | Local clear/hide state is preserved without deleting server messages. |
-| Recovered unread overlay | `recovered_unread_store_provider.dart` | Real + local | Recovered unread is overlay-only and merged by stable event id. It is not written into Matrix persistent timeline. |
-| Room search | `/room-search/:roomId` | Real | Searches within a room where backed by AS search data. |
+| Direct chat timeline | `/chat/:roomId`, `chat_page.dart` | Real | Uses Matrix room/timeline for text, media, unread, history, redaction, and local delete behavior; bootstrap stays metadata-only. |
+| Group/channel chat timeline | `/group/:roomId`, `/channel/:id/conversation`, `group_chat_page.dart` | Real | Supports Matrix timeline, Matrix SDK text/media send, quote/reply metadata, mentions, local outbox, redaction/local delete, and read state. Bootstrap stays metadata-only. |
+| Reply/quote rendering | `group_chat_page.dart` | Real | Sends Matrix `m.relates_to` reply metadata and keeps product-compatible quote fields in Matrix content. |
+| Message privacy clearing | `chat_clear_state_provider.dart`, `matrix_message_visibility_client.dart` | Real + local | Calls Matrix `io.direxio` local delete/clear and records local clear boundaries without redacting server messages. |
+| Room search | `/room-search/:roomId` | Real | Searches room messages through Matrix `/search`. |
 
 ## Contacts, Follows, And Requests
 
@@ -77,14 +76,14 @@ This document records the currently implemented client features and whether each
 |---|---|---|---|
 | Direct voice/video call | `/call/:roomId`, `/video-call/:roomId`, `call_page.dart` | Partial | UI and AS call sessions are implemented; full behavior depends on platform media permissions and Matrix/VoIP runtime. |
 | Group voice/video call | `/group-call/:roomId`, `/group-video-call/:roomId`, `group_call_page.dart` | Partial | Group call lifecycle, invite selection, AS call history merge, and autotest routing exist. Platform media remains runtime-dependent. |
-| Media send/download | `chat_media_send_flow.dart`, `product_room_media_send_flow.dart` | Real + local | Uses Matrix upload/download and Matrix `m.room.message` send for normal chat media; local outbox records failures. Channel media compatibility calls preserve Matrix media `msgtype` separately from Direxio product classification. |
+| Media send/download | `chat_media_send_flow.dart`, `product_room_media_send_flow.dart` | Real + local | Uses Matrix upload/download and Matrix `m.room.message` send for normal chat media; local outbox records failures. Channel post/comment product content must carry `p2p_kind=channel_post` or `p2p_kind=channel_comment` when projected. |
 | Thumbnail/media cache | `matrix_media_cache_provider.dart`, `media_thumbnail_cache_provider.dart` | Real + local | Local cache optimization only; server media remains canonical. |
 
 ## Search, Profile, And Personal Space
 
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
-| Global search | `/search`, `search_page.dart` | Real | Uses AS search contracts and routes hits to chat/group/channel detail as applicable. |
+| Global search | `/search`, `search_page.dart` | Real | Uses Matrix `/search` for message hits and local Matrix/AS metadata for contacts, groups, and channels. |
 | Owner profile | `/me/profile`, `profile_info_page.dart` | Real | Updates AS owner profile and best-effort Matrix display name/avatar. AS update is not rolled back if Matrix sync is unavailable. |
 | Me tab | Home tab 4, `me_home_tab.dart` | Real + demo | Shows profile, UID QR entry, owned channel entry, and dynamic timeline. Personal-space feed uses provider data. |
 | QR code | `/me/qr`, `me_qr_page.dart` | Real | Shows current owner/domain identity for sharing. |
@@ -98,5 +97,6 @@ This document records the currently implemented client features and whether each
 As of this update:
 
 - `flutter analyze --no-pub` passes.
-- Full `flutter test --no-pub --reporter=json` failure extraction is empty.
-- Targeted tests were added/updated for AS channel member status normalization, unified `portal.status`, WellKnown Matrix HTTP wrapper, channel invite blocking, profile/contact refresh, and group quote behavior.
+- `flutter test --no-pub` passes, 844 tests.
+- Focused contract/UI checks pass: `test/channel_page_real_test.dart test/channel_inbox_data_test.dart test/http_as_client_test.dart`, `test/widget_test.dart --plain-name channel`, and `test/widget_test.dart --plain-name "global search"`.
+- Targeted tests cover Matrix message search/local delete clients, channel invite grants, channel member status normalization, channel send gating, profile/contact refresh, group invite cards, group quote behavior, friend/contact deletion, group/channel member management, channel mute, and group/channel leave or dissolve flows.

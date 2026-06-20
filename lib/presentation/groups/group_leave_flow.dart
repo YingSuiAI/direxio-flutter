@@ -23,9 +23,7 @@ Future<void> dissolveGroupThroughAs(WidgetRef ref, String roomId) async {
 
 Future<void> _removeGroupLocally(WidgetRef ref, String roomId) async {
   ref.read(asSyncCacheProvider.notifier).update(
-        (state) => state.withoutGroup(roomId).withoutUnreadRoom(
-              roomId,
-            ),
+        (state) => state.withoutGroup(roomId),
       );
   try {
     final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();

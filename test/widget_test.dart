@@ -46,6 +46,7 @@ import 'package:portal_app/presentation/pages/group_detail_page.dart';
 import 'package:portal_app/presentation/pages/group_info_page.dart';
 import 'package:portal_app/presentation/pages/group_manage_page.dart';
 import 'package:portal_app/presentation/pages/groups_list_page.dart';
+import 'package:portal_app/presentation/groups/group_member_invite_flow.dart';
 import 'package:portal_app/presentation/pages/me_account_page.dart';
 import 'package:portal_app/presentation/pages/me_home_tab.dart';
 import 'package:portal_app/presentation/pages/me_menu_page.dart';
@@ -2733,6 +2734,43 @@ void main() {
     expect(state.contactStatusForRoom('!new:p2p-im.com'), 'accepted');
     expect(state.contactForRoom('!new:p2p-im.com')?.displayName, 'Yanan');
     expect(state.acceptedDirectRoomIds, {'!new:p2p-im.com'});
+  });
+
+  test('group member invite candidates prefer sendable duplicate contacts', () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@carol:p2p-carol.com',
+          displayName: 'Carol',
+          avatarUrl: '',
+          roomId: '',
+          domain: 'p2p-carol.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    const localCarol = ContactEntry(
+      peerMxid: '@carol:p2p-carol.com',
+      displayName: 'Carol',
+      domain: 'p2p-carol.com',
+      roomId: '!carol:p2p-im.com',
+      status: 'accepted',
+    );
+
+    final state =
+        AsSyncCacheState(bootstrap: bootstrap).withContactEntry(localCarol);
+
+    final candidates = groupMemberInviteCandidates(state, const {});
+
+    expect(candidates, hasLength(1));
+    expect(candidates.single.userId, '@carol:p2p-carol.com');
+    expect(candidates.single.roomId, '!carol:p2p-im.com');
   });
 
   testWidgets('messages home header does not duplicate the me avatar shortcut',

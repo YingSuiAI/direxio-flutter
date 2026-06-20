@@ -136,8 +136,8 @@ List<AsSyncContact> groupMemberInviteCandidates(
   final seen = <String>{};
   final out = <AsSyncContact>[];
   final rawContacts = <AsSyncContact>[
-    ...?syncCache.bootstrap?.contacts,
     ...syncCache.contacts,
+    ...?syncCache.bootstrap?.contacts,
   ];
   for (final contact in rawContacts) {
     final mxid = contact.userId.trim();

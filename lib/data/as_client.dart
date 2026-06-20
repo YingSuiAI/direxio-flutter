@@ -1700,6 +1700,15 @@ abstract class AsClient {
     required AsChannelShareDraft channel,
   });
 
+  /// POST /_as/rooms/{directRoomId}/send with message_type=group_invite.
+  Future<String> sendGroupInviteMessage({
+    required String directRoomId,
+    required String groupRoomId,
+    required String groupName,
+    required String inviterMxid,
+    String inviterDisplayName = '',
+  });
+
   /// POST /_as/rooms/{roomId}/send-media
   Future<String> sendRoomMediaMessage({
     required String roomId,

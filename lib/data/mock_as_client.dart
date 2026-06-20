@@ -405,6 +405,18 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<String> sendGroupInviteMessage({
+    required String directRoomId,
+    required String groupRoomId,
+    required String groupName,
+    required String inviterMxid,
+    String inviterDisplayName = '',
+  }) async {
+    await Future.delayed(_latency);
+    return 'mock-group-invite-event';
+  }
+
+  @override
   Future<String> sendRoomMediaMessage({
     required String roomId,
     required String msgType,

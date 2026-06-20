@@ -2070,6 +2070,41 @@ void main() {
     expect(eventId, r'$share');
   });
 
+  test('sendGroupInviteMessage posts group invite card through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_as/rooms/!dm%3Ap2p-im.com/send');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'content': '邀请加入群聊\n产品群',
+          'message_type': 'group_invite',
+          'group_invite': {
+            'msgtype': 'p2p.group.invite.v1',
+            'group_room_id': '!group:p2p-im.com',
+            'group_name': '产品群',
+            'inviter_mxid': '@owner:p2p-im.com',
+            'inviter_display_name': 'Owner',
+            'direct_room_id': '!dm:p2p-im.com',
+          },
+        });
+        return http.Response(jsonEncode({'event_id': r'$group-invite'}), 200);
+      }),
+    );
+
+    final eventId = await client.sendGroupInviteMessage(
+      directRoomId: '!dm:p2p-im.com',
+      groupRoomId: '!group:p2p-im.com',
+      groupName: '产品群',
+      inviterMxid: '@owner:p2p-im.com',
+      inviterDisplayName: 'Owner',
+    );
+
+    expect(eventId, r'$group-invite');
+  });
+
   test('deleteContact removes a contact through AS product route', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),

@@ -632,6 +632,40 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<String> sendGroupInviteMessage({
+    required String directRoomId,
+    required String groupRoomId,
+    required String groupName,
+    required String inviterMxid,
+    String inviterDisplayName = '',
+  }) async {
+    final trimmedDirectRoomId = directRoomId.trim();
+    final trimmedGroupRoomId = groupRoomId.trim();
+    final trimmedGroupName =
+        groupName.trim().isEmpty ? '群聊' : groupName.trim();
+    final response = await _requestJson(
+      'POST',
+      'rooms/${Uri.encodeComponent(trimmedDirectRoomId)}/send',
+      body: {
+        'content': '邀请加入群聊\n$trimmedGroupName',
+        'message_type': 'group_invite',
+        'group_invite': {
+          'msgtype': 'p2p.group.invite.v1',
+          'group_room_id': trimmedGroupRoomId,
+          'group_name': trimmedGroupName,
+          if (inviterMxid.trim().isNotEmpty)
+            'inviter_mxid': inviterMxid.trim(),
+          if (inviterDisplayName.trim().isNotEmpty)
+            'inviter_display_name': inviterDisplayName.trim(),
+          'direct_room_id': trimmedDirectRoomId,
+        },
+      },
+      allowedStatusCodes: const {200},
+    );
+    return response['event_id'] as String? ?? '';
+  }
+
+  @override
   Future<String> sendRoomMediaMessage({
     required String roomId,
     required String msgType,

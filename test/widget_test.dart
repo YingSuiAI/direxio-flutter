@@ -6720,6 +6720,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const AddContactPage(),
         ),
       ),
@@ -6754,6 +6757,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           initialRoute: '/verify',
           routes: {
             '/': (_) => const Scaffold(body: Text('上一页')),
@@ -6804,6 +6810,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const AddContactVerificationPage(
             userId: '@owner:dendrite-b:8448',
             displayName: 'Owner B',
@@ -6837,6 +6846,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.dark,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const AddContactVerificationPage(
             userId: '@alice:portal.local',
             displayName: 'Alice Chen',

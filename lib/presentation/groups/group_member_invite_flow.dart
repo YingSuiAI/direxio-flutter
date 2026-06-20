@@ -135,9 +135,15 @@ List<AsSyncContact> groupMemberInviteCandidates(
       .toSet();
   final seen = <String>{};
   final out = <AsSyncContact>[];
+  final mergedMxids = {
+    for (final contact in syncCache.contacts)
+      if (contact.userId.trim().isNotEmpty) contact.userId.trim(),
+  };
   final rawContacts = <AsSyncContact>[
     ...syncCache.contacts,
-    ...?syncCache.bootstrap?.contacts,
+    for (final contact
+        in syncCache.bootstrap?.contacts ?? const <AsSyncContact>[])
+      if (!mergedMxids.contains(contact.userId.trim())) contact,
   ];
   for (final contact in rawContacts) {
     final mxid = contact.userId.trim();

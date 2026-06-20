@@ -2773,6 +2773,43 @@ void main() {
     expect(candidates.single.roomId, '!carol:p2p-im.com');
   });
 
+  test(
+      'group member invite candidates hide bootstrap contact shadowed by pending duplicate',
+      () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20, 11),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@carol:p2p-carol.com',
+          displayName: 'Carol',
+          avatarUrl: '',
+          roomId: '!old-carol:p2p-im.com',
+          domain: 'p2p-carol.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    const pendingCarol = ContactEntry(
+      peerMxid: '@carol:p2p-carol.com',
+      displayName: 'Carol',
+      domain: 'p2p-carol.com',
+      roomId: '!carol:p2p-im.com',
+      status: 'pending_outbound',
+    );
+
+    final state =
+        AsSyncCacheState(bootstrap: bootstrap).withContactEntry(pendingCarol);
+
+    final candidates = groupMemberInviteCandidates(state, const {});
+
+    expect(candidates, isEmpty);
+  });
+
   testWidgets('messages home header does not duplicate the me avatar shortcut',
       (tester) async {
     final client = Client('PortalIMTest');

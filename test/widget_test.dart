@@ -7430,6 +7430,86 @@ void main() {
     expect(asClient.sentGroupInviteDirectRoomIds, ['!carol:p2p-im.com']);
   });
 
+  testWidgets('group detail reports roomless invite contacts as skipped',
+      (tester) async {
+    final client = Client('PortalIMGroupDetailInviteRoomlessTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-liyanan.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 20, 9),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@roomless:p2p-roomless.com',
+          displayName: 'Roomless',
+          avatarUrl: '',
+          roomId: '',
+          domain: 'p2p-roomless.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupDetailPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('邀请'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('添加群成员'), findsOneWidget);
+    expect(find.text('Roomless'), findsOneWidget);
+
+    await tester.tap(find.text('Roomless'));
+    await tester.pump();
+    await tester.tap(find.text('发送邀请'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.inviteGroupMembersCalls, 0);
+    expect(asClient.sendGroupInviteMessageCalls, 0);
+    expect(find.text('已发送 0 个群邀请卡片，1 个联系人缺少私聊，已跳过'), findsOneWidget);
+  });
+
   testWidgets('group info shows management only to group owner',
       (tester) async {
     final memberClient = Client('PortalIMGroupInfoMemberManageTest')

@@ -135,9 +135,16 @@ List<AsSyncContact> groupMemberInviteCandidates(
       .toSet();
   final seen = <String>{};
   final out = <AsSyncContact>[];
-  for (final contact in syncCache.acceptedContacts) {
+  final rawContacts = <AsSyncContact>[
+    ...?syncCache.bootstrap?.contacts,
+    ...syncCache.contacts,
+  ];
+  for (final contact in rawContacts) {
     final mxid = contact.userId.trim();
-    if (mxid.isEmpty || existing.contains(mxid) || !seen.add(mxid)) {
+    if (mxid.isEmpty ||
+        contact.status.trim() != 'accepted' ||
+        existing.contains(mxid) ||
+        !seen.add(mxid)) {
       continue;
     }
     out.add(contact);

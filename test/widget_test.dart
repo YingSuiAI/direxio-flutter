@@ -3769,6 +3769,7 @@ void main() {
       (tester) async {
     final client = Client('PortalIMCachedHomeConversationListTest')
       ..setUserId('@owner:p2p-im.com');
+    final conversationCompleter = Completer<List<AsConversation>>();
     final snapshotStore = _MemoryHomeConversationSnapshotStore(
       HomeConversationSnapshot(
         userId: '@owner:p2p-im.com',
@@ -3805,7 +3806,9 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(
+            _CompletingConversationsAsClient(conversationCompleter),
+          ),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -3825,7 +3828,7 @@ void main() {
     expect(find.text('还没有会话'), findsNothing);
   });
 
-  testWidgets('messages merge live updates into cached home conversations',
+  testWidgets('messages prune stale cached conversations after ProductCore',
       (tester) async {
     final client = Client('PortalIMCachedHomeConversationMergeTest')
       ..setUserId('@owner:p2p-im.com');
@@ -3910,15 +3913,15 @@ void main() {
     expect(find.text('Yanan'), findsWidgets);
     expect(find.text('旧消息A'), findsOneWidget);
     expect(find.text('9'), findsOneWidget);
-    expect(find.text('缓存B'), findsOneWidget);
-    expect(find.text('缓存B消息'), findsOneWidget);
+    expect(find.text('缓存B'), findsNothing);
+    expect(find.text('缓存B消息'), findsNothing);
     expect(find.text('还没有会话'), findsNothing);
 
     await tester.pump();
     final persisted = snapshotStore.snapshot;
     expect(
       persisted?.entries.map((entry) => entry.roomId),
-      containsAll(['!a:p2p-im.com', '!b:p2p-im.com']),
+      ['!a:p2p-im.com'],
     );
     final updated = persisted!.entries.firstWhere(
       (entry) => entry.roomId == '!a:p2p-im.com',

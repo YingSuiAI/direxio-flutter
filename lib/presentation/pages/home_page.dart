@@ -1575,6 +1575,7 @@ class _ChatList extends ConsumerWidget {
           ? cachedConversations
           : const <HomeConversationSnapshotEntry>[],
       renderedConversations: renderedConversations,
+      includeCachedOnlyEntries: !productConversationsAsync.hasValue,
       pinnedConversationIds: pinnedConversationIds,
     );
 
@@ -1737,20 +1738,27 @@ _RenderedHomeConversation _renderHomeConversation({
 List<HomeConversationSnapshotEntry> _mergedHomeConversationEntries({
   required List<HomeConversationSnapshotEntry> cachedEntries,
   required List<_RenderedHomeConversation> renderedConversations,
+  required bool includeCachedOnlyEntries,
   required Set<String> pinnedConversationIds,
 }) {
   final byRoomId = <String, HomeConversationSnapshotEntry>{};
-  for (final entry in cachedEntries) {
-    final roomId = entry.roomId.trim();
-    if (roomId.isEmpty || byRoomId.containsKey(roomId)) continue;
-    byRoomId[roomId] = entry;
+  if (includeCachedOnlyEntries) {
+    for (final entry in cachedEntries) {
+      final roomId = entry.roomId.trim();
+      if (roomId.isEmpty || byRoomId.containsKey(roomId)) continue;
+      byRoomId[roomId] = entry;
+    }
   }
+  final cachedByRoomId = {
+    for (final entry in cachedEntries)
+      if (entry.roomId.trim().isNotEmpty) entry.roomId.trim(): entry,
+  };
   for (final rendered in renderedConversations) {
     final roomId = rendered.conversation.roomId.trim();
     if (roomId.isEmpty) continue;
     byRoomId[roomId] = _snapshotEntryFromRenderedConversation(
       rendered,
-      previous: byRoomId[roomId],
+      previous: cachedByRoomId[roomId],
     );
   }
   final entries = byRoomId.values.toList();

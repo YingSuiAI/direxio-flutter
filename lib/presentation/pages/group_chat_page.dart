@@ -58,9 +58,11 @@ import '../call/voice_call_controller.dart';
 import '../groups/group_invite_join_flow.dart';
 import '../utils/avatar_url.dart';
 import '../utils/chat_event_attachment.dart';
+import '../utils/conversation_capability_policy.dart';
 import '../utils/direct_contact_status.dart';
 import 'group_call_member_select_page.dart';
 import '../utils/message_preview.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
@@ -74,6 +76,11 @@ Future<void> _popGroupChatOrHome(BuildContext context) async {
   if (!context.mounted || didPop) return;
   context.go('/home');
 }
+
+const _memberConversationKinds = {
+  asConversationKindGroup,
+  asConversationKindChannel,
+};
 
 Color _groupBubbleColor(PortalTokens t,
     {required bool isMe, bool selected = false}) {
@@ -389,7 +396,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   Future<void> _startVoiceRecordingAsync() async {
     final room = _room;
     if (room == null) return;
-    if (!_canSendGroupMessage(room, ref.read(asSyncCacheProvider))) {
+    final capabilityPolicy = _groupCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      ref.read(asSyncCacheProvider),
+    );
+    if (!capabilityPolicy.canSendMedia) {
       _showGroupCannotSendToast(context);
       return;
     }
@@ -445,6 +458,16 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   Future<void> _sendVoiceRecording(ChatVoiceRecording recording) async {
     final room = _room;
     if (room == null) return;
+    final capabilityPolicy = _groupCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      ref.read(asSyncCacheProvider),
+    );
+    if (!capabilityPolicy.canSendMedia) {
+      _showGroupCannotSendToast(context);
+      return;
+    }
     final attachment = ChatMediaAttachment.audio(
       name: recording.filename,
       bytes: recording.bytes,
@@ -1376,6 +1399,16 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (text.isEmpty) return;
     final room = _room;
     if (room == null) return;
+    final capabilityPolicy = _groupCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      ref.read(asSyncCacheProvider),
+    );
+    if (!capabilityPolicy.canSendText) {
+      _showGroupCannotSendToast(context);
+      return;
+    }
     final replyTo = _replyTo;
     final mentions = _mentionsForText(text);
     _msgCtrl.clear();
@@ -1495,6 +1528,21 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         ) ??
         false;
     return isJoinedAsGroup;
+  }
+
+  ConversationCapabilityPolicy _groupCapabilityPolicy(
+    Iterable<AsConversation> productConversations,
+    Room room,
+    AsSyncCacheState syncCache,
+  ) {
+    return conversationCapabilityPolicy(
+      conversation: productConversationForRoom(
+        productConversations,
+        room.id,
+        kinds: _memberConversationKinds,
+      ),
+      fallbackCanSend: _canSendGroupMessage(room, syncCache),
+    );
   }
 
   bool _isJoinedChannelConversation(Room room, AsSyncCacheState syncCache) {
@@ -1669,7 +1717,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (_retryingOutboxIds.contains(item.id)) return;
     final room = _room;
     if (room == null) return;
-    if (!_canSendGroupMessage(room, ref.read(asSyncCacheProvider))) {
+    final capabilityPolicy = _groupCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      ref.read(asSyncCacheProvider),
+    );
+    if (!capabilityPolicy.canSendMedia) {
       _showGroupCannotSendToast(context);
       return;
     }
@@ -1757,7 +1811,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (_retryingOutboxIds.contains(item.id)) return;
     final room = _room;
     if (room == null) return;
-    if (!_canSendGroupMessage(room, ref.read(asSyncCacheProvider))) {
+    final capabilityPolicy = _groupCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      ref.read(asSyncCacheProvider),
+    );
+    if (!capabilityPolicy.canSendText) {
       _showGroupCannotSendToast(context);
       return;
     }
@@ -2341,7 +2401,17 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
     _scheduleScrollToLatest(newestTimelineItemKey);
-    final canSendMessages = _canSendGroupMessage(room, syncCache);
+    final productConversations =
+        ref.watch(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final capabilityPolicy = _groupCapabilityPolicy(
+      productConversations,
+      room,
+      syncCache,
+    );
+    final canSendMessages = capabilityPolicy.canSendText;
+    final canSendMedia = capabilityPolicy.canSendMedia;
+    final canStartCall = capabilityPolicy.canCall;
     final canQueueChannelTextFailure =
         !canSendMessages && _isJoinedChannelConversation(room, syncCache);
     final myId = ref.read(matrixClientProvider).userID;
@@ -2429,13 +2499,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                             icon: Symbols.call,
                             tooltip: '语音通话',
                             color: t.accent,
-                            onTap: () => context.push(
-                              groupCallInviteRoute(
-                                roomId: activeRoomId,
-                                roomName: name,
-                                callType: ProductCallType.voice,
-                              ),
-                            ),
+                            onTap: canStartCall
+                                ? () => context.push(
+                                      groupCallInviteRoute(
+                                        roomId: activeRoomId,
+                                        roomName: name,
+                                        callType: ProductCallType.voice,
+                                      ),
+                                    )
+                                : () => _showGroupCannotSendToast(context),
                           ),
                         ChatCapsuleAction(
                           icon: Symbols.more_vert,
@@ -3080,7 +3152,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                 ChatCapsuleInputBar(
                   ctrl: _msgCtrl,
                   onSend: _send,
-                  onPlus: canSendMessages
+                  onPlus: canSendMedia
                       ? _togglePlus
                       : () => _showGroupCannotSendToast(context),
                   onEmoji: canSendMessages
@@ -3099,7 +3171,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                 ChatAttachmentPanel(
                   room: room,
                   roomId: activeRoomId,
-                  canSend: canSendMessages,
+                  canSend: canSendMedia,
                   useAsProductMedia: true,
                   onClose: () => setState(() => _showPlusPanel = false),
                   onCannotSend: _showGroupCannotSendToast,

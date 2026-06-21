@@ -50,6 +50,7 @@ import '../groups/group_invite_card.dart';
 import '../groups/group_invite_content.dart';
 import '../groups/group_invite_join_flow.dart';
 import '../utils/contact_display_name.dart';
+import '../utils/conversation_capability_policy.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/avatar_url.dart';
 import '../utils/chat_event_attachment.dart';
@@ -114,6 +115,26 @@ bool _canSendRoomMessage(Room room, AsSyncCacheState syncCache) {
   }
   return syncCache.isPendingContactRoom(room.id) &&
       joinedPersonPeerMxid(room) != null;
+}
+
+const _privateConversationKinds = {
+  asConversationKindDirect,
+  asConversationKindAgent,
+};
+
+ConversationCapabilityPolicy _privateRoomCapabilityPolicy(
+  Iterable<AsConversation> productConversations,
+  Room room,
+  AsSyncCacheState syncCache,
+) {
+  return conversationCapabilityPolicy(
+    conversation: productConversationForRoom(
+      productConversations,
+      room.id,
+      kinds: _privateConversationKinds,
+    ),
+    fallbackCanSend: _canSendRoomMessage(room, syncCache),
+  );
 }
 
 bool _isPeerTyping(Room room, String peerMxid) {
@@ -724,7 +745,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (room == null) return;
     final replyTo = _replyTo;
     final syncCache = ref.read(asSyncCacheProvider);
-    if (!_canSendRoomMessage(room, syncCache)) {
+    final capabilityPolicy = _privateRoomCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      syncCache,
+    );
+    if (!capabilityPolicy.canSendText) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('对方接受好友请求后才能发送消息')),
       );
@@ -815,7 +842,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Future<void> _startVoiceRecordingAsync() async {
     final room = _room;
     if (room == null) return;
-    if (!_canSendRoomMessage(room, ref.read(asSyncCacheProvider))) {
+    final syncCache = ref.read(asSyncCacheProvider);
+    final capabilityPolicy = _privateRoomCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      syncCache,
+    );
+    if (!capabilityPolicy.canSendMedia) {
       _showPendingContactToast(context);
       return;
     }
@@ -879,6 +913,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       durationMs: recording.durationMs,
     );
     final syncCache = ref.read(asSyncCacheProvider);
+    final capabilityPolicy = _privateRoomCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      syncCache,
+    );
+    if (!capabilityPolicy.canSendMedia) {
+      _showPendingContactToast(context);
+      return;
+    }
     setState(() => _replyTo = null);
     if (_isProductDirectRoomForChat(room, syncCache) &&
         !isPortalAgentDirectRoom(room)) {
@@ -1797,7 +1841,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (_retryingOutboxIds.contains(item.id)) return;
     final room = _room;
     if (room == null) return;
-    if (!_canSendRoomMessage(room, ref.read(asSyncCacheProvider))) {
+    final capabilityPolicy = _privateRoomCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      ref.read(asSyncCacheProvider),
+    );
+    if (!capabilityPolicy.canSendMedia) {
       _showPendingContactToast(context);
       return;
     }
@@ -1891,7 +1941,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (_retryingOutboxIds.contains(item.id)) return;
     final room = _room;
     if (room == null) return;
-    if (!_canSendRoomMessage(room, ref.read(asSyncCacheProvider))) {
+    final capabilityPolicy = _privateRoomCapabilityPolicy(
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[],
+      room,
+      ref.read(asSyncCacheProvider),
+    );
+    if (!capabilityPolicy.canSendText) {
       _showPendingContactToast(context);
       return;
     }
@@ -2199,7 +2255,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         productDirectPeerMxid(room) ?? joinedPeerMxid ?? contact?.userId ?? '';
     final isAgent = isPortalAgentDirectRoom(room);
     final isProductDirect = _isProductDirectRoomForChat(room, syncCache);
-    final canSendMessages = _canSendRoomMessage(room, syncCache);
+    final productConversations =
+        ref.watch(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final capabilityPolicy = _privateRoomCapabilityPolicy(
+      productConversations,
+      room,
+      syncCache,
+    );
+    final canSendMessages = capabilityPolicy.canSendText;
+    final canSendMedia = capabilityPolicy.canSendMedia;
+    final canStartCall = capabilityPolicy.canCall;
     final isWaitingForAccept = isProductDirect && !isAgent && !canSendMessages;
     final name = isAgent
         ? 'Agent'
@@ -2305,7 +2371,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             icon: Symbols.call,
                             tooltip: '语音通话',
                             color: t.accent,
-                            onTap: canSendMessages
+                            onTap: canStartCall
                                 ? () => context.push(
                                       _privateVoiceCallRoute(
                                         widget.roomId,
@@ -3195,7 +3261,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 ChatCapsuleInputBar(
                   ctrl: _msgCtrl,
                   onSend: _send,
-                  onPlus: canSendMessages
+                  onPlus: canSendMedia
                       ? _togglePlus
                       : () => _showPendingContactToast(context),
                   onEmoji: canSendMessages
@@ -3213,7 +3279,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 ChatAttachmentPanel(
                   room: room,
                   roomId: widget.roomId,
-                  canSend: canSendMessages,
+                  canSend: canSendMedia,
                   useAsProductMedia: isProductDirect && !isAgent,
                   onClose: () => setState(() => _showPlusPanel = false),
                   onCannotSend: _showPendingContactToast,
@@ -3233,7 +3299,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   onVoiceCall: isAgent
                       ? null
                       : () {
-                          if (!canSendMessages) {
+                          if (!canStartCall) {
                             _showPendingContactToast(context);
                             return;
                           }
@@ -3249,7 +3315,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   onVideoCall: isAgent
                       ? null
                       : () {
-                          if (!canSendMessages) {
+                          if (!canStartCall) {
                             _showPendingContactToast(context);
                             return;
                           }

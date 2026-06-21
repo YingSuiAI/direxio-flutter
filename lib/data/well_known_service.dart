@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'api_logger.dart';
-import 'local_dev_node.dart';
+import 'local_endpoint_resolver.dart';
 
 //// `/.well-known/portal/owner.json` 的解析结果
 class PortalOwner {
@@ -92,10 +92,15 @@ class WellKnownResult {
 
 //// 域名发现。可注入自定义 [http.Client]（默认复用调用方传入的，便于测试 / 复用 matrix SDK 的 client）。
 class WellKnownService {
-  WellKnownService({http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+  WellKnownService({
+    http.Client? httpClient,
+    LocalEndpointResolver? localEndpointResolver,
+  })  : _http = httpClient ?? http.Client(),
+        _localEndpointResolver =
+            localEndpointResolver ?? LocalEndpointResolver.environment;
 
   final http.Client _http;
+  final LocalEndpointResolver _localEndpointResolver;
 
   static const _timeout = Duration(seconds: 8);
 
@@ -106,7 +111,7 @@ class WellKnownService {
 
   Uri _wellKnownUri(String domain, String path) {
     final d = _normalizeDomain(domain);
-    final localUri = localDevNodeHttpUriForServerName(d, path: path);
+    final localUri = _localEndpointResolver.httpUriForServerName(d, path: path);
     if (localUri != null) return localUri;
     return Uri.parse('https://$d$path');
   }

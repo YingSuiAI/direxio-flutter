@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
+import 'package:portal_app/data/local_endpoint_resolver.dart';
 import 'package:portal_app/data/well_known_service.dart';
 
 void main() {
@@ -68,47 +69,51 @@ void main() {
     expect(result.owner?.displayName, 'Alice Chen');
   });
 
-  test('discover owner maps local multi-node server names to loopback ports',
-      () async {
+  test('discover owner uses configured local endpoint mapping', () async {
     final requestedUris = <Uri>[];
     final service = WellKnownService(
+      localEndpointResolver:
+          LocalEndpointResolver.parse('node-b.test:8448=127.0.0.1:28008'),
       httpClient: MockClient((request) async {
         requestedUris.add(request.url);
         return http.Response(
-          '{"matrix_user_id":"@owner:dendrite-b:8448","display_name":"Owner B"}',
+          '{"matrix_user_id":"@owner:node-b.test:8448","display_name":"Owner B"}',
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }),
     );
 
-    final result = await service.discoverOwner('dendrite-b:8448');
+    final result = await service.discoverOwner('node-b.test:8448');
 
     expect(result.availability, PortalAvailability.online);
-    expect(result.owner?.matrixUserId, '@owner:dendrite-b:8448');
+    expect(result.owner?.matrixUserId, '@owner:node-b.test:8448');
     expect(requestedUris, [
       Uri.parse('http://127.0.0.1:28008/.well-known/portal/owner.json'),
     ]);
   });
 
-  test('discover owner maps the third local node to its loopback port',
+  test('discover owner maps configured federation port to local HTTP port',
       () async {
     final requestedUris = <Uri>[];
     final service = WellKnownService(
+      localEndpointResolver: LocalEndpointResolver.parse(
+        'container.internal:38448=127.0.0.1:38008',
+      ),
       httpClient: MockClient((request) async {
         requestedUris.add(request.url);
         return http.Response(
-          '{"matrix_user_id":"@owner:dendrite-c:8448","display_name":"Owner C"}',
+          '{"matrix_user_id":"@owner:container.internal:38448","display_name":"Owner C"}',
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }),
     );
 
-    final result = await service.discoverOwner('dendrite-c:8448');
+    final result = await service.discoverOwner('container.internal:38448');
 
     expect(result.availability, PortalAvailability.online);
-    expect(result.owner?.matrixUserId, '@owner:dendrite-c:8448');
+    expect(result.owner?.matrixUserId, '@owner:container.internal:38448');
     expect(requestedUris, [
       Uri.parse('http://127.0.0.1:38008/.well-known/portal/owner.json'),
     ]);

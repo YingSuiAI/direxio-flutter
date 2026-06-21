@@ -3589,15 +3589,15 @@ void main() {
   testWidgets('messages render AS joined group before Matrix room hydrates',
       (tester) async {
     final client = Client('PortalIMAsJoinedGroupOnlyHomeListTest')
-      ..setUserId('@owner:p2p-im.com');
+      ..setUserId('@owner:example.test');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 21, 11),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      user: const AsSyncUser(userId: '@owner:example.test'),
       rooms: const [],
       contacts: const [],
       groups: const [
         AsSyncRoomSummary(
-          roomId: '!bca:p2p-im.com',
+          roomId: '!bca:example.test',
           name: 'BCA',
           avatarUrl: '',
           unreadCount: 0,
@@ -3635,19 +3635,19 @@ void main() {
   testWidgets('messages prefer direct contact over stale group for same room',
       (tester) async {
     final client = Client('PortalIMDirectContactOverStaleGroupHomeListTest')
-      ..setUserId('@owner:p2p-im.com');
-    const roomId = '!direct:p2p-im.com';
+      ..setUserId('@owner:example.test');
+    const roomId = '!direct:example.test';
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 21, 12),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      user: const AsSyncUser(userId: '@owner:example.test'),
       rooms: const [],
       contacts: const [
         AsSyncContact(
-          userId: '@peer:p2p-im.com',
+          userId: '@peer:example.test',
           displayName: 'C Direct',
           avatarUrl: '',
           roomId: roomId,
-          domain: 'p2p-im.com',
+          domain: 'example.test',
           status: 'accepted',
         ),
       ],
@@ -7329,19 +7329,19 @@ void main() {
   testWidgets('groups list excludes stale AS group for accepted contact room',
       (tester) async {
     final client = Client('PortalIMGroupsExcludeStaleAsGroupForDirectTest')
-      ..setUserId('@owner:p2p-im.com');
-    const roomId = '!direct:p2p-im.com';
+      ..setUserId('@owner:example.test');
+    const roomId = '!direct:example.test';
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 21, 12),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      user: const AsSyncUser(userId: '@owner:example.test'),
       rooms: const [],
       contacts: const [
         AsSyncContact(
-          userId: '@peer:p2p-im.com',
+          userId: '@peer:example.test',
           displayName: 'C Direct',
           avatarUrl: '',
           roomId: roomId,
-          domain: 'p2p-im.com',
+          domain: 'example.test',
           status: 'accepted',
         ),
       ],

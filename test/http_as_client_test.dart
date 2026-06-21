@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/http_as_client.dart';
+import 'package:portal_app/data/local_endpoint_resolver.dart';
 
 http.Response _jsonResponse(Map<String, dynamic> body, int statusCode) {
   return http.Response.bytes(
@@ -31,12 +32,17 @@ void main() {
     expect(base.toString(), 'https://im.jkmf.top/_p2p');
   });
 
-  test('maps local multi-node aliases to reachable P2P API ports', () {
+  test('maps configured local endpoints to reachable P2P API ports', () {
+    final endpoints = LocalEndpointResolver.parse(
+      'node-a.test=127.0.0.1:18008,node-c.test=127.0.0.1:38008',
+    );
     final base = HttpAsClient.defaultAdminBaseUri(
-      Uri.parse('https://dendrite-a'),
+      Uri.parse('https://node-a.test'),
+      localEndpointResolver: endpoints,
     );
     final cBase = HttpAsClient.defaultAdminBaseUri(
-      Uri.parse('https://dendrite-c'),
+      Uri.parse('https://node-c.test'),
+      localEndpointResolver: endpoints,
     );
 
     expect(base.toString(), 'http://127.0.0.1:18008/_p2p');

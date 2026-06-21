@@ -52,10 +52,10 @@ void main() {
 
     final roomId = await joinGroupInviteThroughAs(
       invite: const GroupInviteContent(
-        groupRoomId: '!group:p2p-im.com',
+        groupRoomId: '!group:example.test',
         groupName: '产品测试群',
       ),
-      currentDirectRoomId: '!dm:p2p-im.com',
+      currentDirectRoomId: '!dm:example.test',
       joinGroup: ({
         required roomId,
         required groupName,
@@ -65,7 +65,7 @@ void main() {
       }) async {
         calls.add('join');
         return const AsGroupResult(
-          roomId: '!joined:p2p-im.com',
+          roomId: '!joined:example.test',
           name: '产品测试群',
           memberCount: 2,
           invitedCount: 0,
@@ -78,12 +78,13 @@ void main() {
         if (syncCount == 2) joined = true;
       },
       refreshBootstrap: () async => calls.add('refresh'),
-      hasJoinedMatrixRoom: (roomId) => joined && roomId == '!joined:p2p-im.com',
+      hasJoinedMatrixRoom: (roomId) =>
+          joined && roomId == '!joined:example.test',
       roomSyncInterval: Duration.zero,
       roomSyncTimeout: const Duration(milliseconds: 50),
     );
 
-    expect(roomId, '!joined:p2p-im.com');
+    expect(roomId, '!joined:example.test');
     expect(calls, ['join', 'sync', 'refresh', 'sync', 'refresh']);
   });
 

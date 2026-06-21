@@ -12,7 +12,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sqflite/sqflite.dart' as sqlite;
 import '../../data/as_client.dart';
 import '../../data/http_as_client.dart';
-import '../../data/local_dev_node.dart';
+import '../../data/local_endpoint_resolver.dart';
 import '../../data/matrix_privacy_sync.dart';
 import '../../data/matrix_token_refreshing_http_client.dart';
 import '../../data/well_known_service.dart';
@@ -114,12 +114,17 @@ class _ActivatedPortalSession {
   final String deviceId;
 }
 
-Uri _resolveClientHomeserver(Uri inputUri, String asHomeserver) {
-  final localDevInput = localDevNodeHttpUriForUri(inputUri);
+Uri _resolveClientHomeserver(
+  Uri inputUri,
+  String asHomeserver, {
+  LocalEndpointResolver? localEndpointResolver,
+}) {
+  final resolver = localEndpointResolver ?? LocalEndpointResolver.environment;
+  final localDevInput = resolver.httpUriForUri(inputUri);
   if (localDevInput != null) return localDevInput;
   final parsed = Uri.tryParse(asHomeserver);
   if (parsed == null || parsed.host.isEmpty) return inputUri;
-  final localDevSession = localDevNodeHttpUriForUri(parsed);
+  final localDevSession = resolver.httpUriForUri(parsed);
   if (localDevSession != null) return localDevSession;
   if (_isLocalHost(inputUri.host)) {
     return inputUri;
@@ -131,8 +136,16 @@ Uri _resolveClientHomeserver(Uri inputUri, String asHomeserver) {
 }
 
 @visibleForTesting
-Uri resolveClientHomeserverForSession(Uri inputUri, String asHomeserver) =>
-    _resolveClientHomeserver(inputUri, asHomeserver);
+Uri resolveClientHomeserverForSession(
+  Uri inputUri,
+  String asHomeserver, {
+  LocalEndpointResolver? localEndpointResolver,
+}) =>
+    _resolveClientHomeserver(
+      inputUri,
+      asHomeserver,
+      localEndpointResolver: localEndpointResolver,
+    );
 
 bool _isLocalHost(String host) {
   return host == 'localhost' ||

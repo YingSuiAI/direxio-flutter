@@ -182,4 +182,50 @@ void main() {
     registry.seed(const ['event-c']);
     expect(registry.contains('event-c'), isFalse);
   });
+
+  test('timeline list motion only animates concrete newer messages', () {
+    expect(
+      shouldAnimateTimelineListForUpdate(
+        initialized: true,
+        oldItemCount: 2,
+        newItemCount: 3,
+        oldNewestItemKey: 'event-a',
+        newNewestItemKey: 'event-b',
+      ),
+      isTrue,
+    );
+
+    expect(
+      shouldAnimateTimelineListForUpdate(
+        initialized: true,
+        oldItemCount: 2,
+        newItemCount: 3,
+        oldNewestItemKey: 'event-a',
+        newNewestItemKey: 'event-a',
+      ),
+      isFalse,
+    );
+
+    expect(
+      shouldAnimateTimelineListForUpdate(
+        initialized: true,
+        oldItemCount: 2,
+        newItemCount: 2,
+        oldNewestItemKey: 'event-a',
+        newNewestItemKey: 'event-b',
+      ),
+      isFalse,
+    );
+
+    expect(
+      shouldAnimateTimelineListForUpdate(
+        initialized: false,
+        oldItemCount: 0,
+        newItemCount: 10,
+        oldNewestItemKey: null,
+        newNewestItemKey: 'event-a',
+      ),
+      isFalse,
+    );
+  });
 }

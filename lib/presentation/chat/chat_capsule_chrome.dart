@@ -297,11 +297,13 @@ class _ChatTimelineListMotionState extends State<ChatTimelineListMotion>
   @override
   void didUpdateWidget(covariant ChatTimelineListMotion oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final hasNewNewest = widget.newestItemKey != null &&
-        widget.newestItemKey != oldWidget.newestItemKey;
-    final itemCountIncreased = widget.itemCount > oldWidget.itemCount;
-    if (!_initialized) return;
-    if (hasNewNewest && itemCountIncreased) {
+    if (shouldAnimateTimelineListForUpdate(
+      initialized: _initialized,
+      oldItemCount: oldWidget.itemCount,
+      newItemCount: widget.itemCount,
+      oldNewestItemKey: oldWidget.newestItemKey,
+      newNewestItemKey: widget.newestItemKey,
+    )) {
       if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
         _controller.value = 1;
       } else {
@@ -335,6 +337,18 @@ class _ChatTimelineListMotionState extends State<ChatTimelineListMotion>
       child: widget.child,
     );
   }
+}
+
+bool shouldAnimateTimelineListForUpdate({
+  required bool initialized,
+  required int oldItemCount,
+  required int newItemCount,
+  required Object? oldNewestItemKey,
+  required Object? newNewestItemKey,
+}) {
+  if (!initialized) return false;
+  if (newNewestItemKey == null) return false;
+  return newNewestItemKey != oldNewestItemKey && newItemCount > oldItemCount;
 }
 
 Widget chatMessageEntrance({

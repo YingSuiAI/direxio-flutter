@@ -6,7 +6,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
-import '../mock/mock_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
@@ -17,11 +16,6 @@ import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
 
 const _groupsToolbarHeight = 62.0;
-
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
 
 /// `s-groups-list` — 群聊列表 (index.html L1566-1643)
 ///
@@ -40,9 +34,6 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
   Widget build(BuildContext context) {
     final t = context.tk;
     final client = ref.watch(matrixClientProvider);
-    final isLoggedIn =
-        ref.watch(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
-    final useMockGroups = _mockAuthEnabled || !isLoggedIn;
     final syncCache = ref.watch(asSyncCacheProvider);
     final productConversationsAsync = ref.watch(productConversationsProvider);
     final productConversations =
@@ -54,72 +45,53 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
         .toSet();
 
     final items = <_GroupItem>[];
-    if (!useMockGroups) {
-      final groupsByRoomId = {
-        for (final group in syncCache.bootstrap?.groups ?? const [])
-          if (group.roomId.trim().isNotEmpty) group.roomId.trim(): group,
-      };
-      final groupConversations = [
-        for (final conversation in productConversations)
-          if (conversation.isGroup) conversation,
-      ]..sort((a, b) {
-          final ta = a.lastActivityAt?.millisecondsSinceEpoch ?? 0;
-          final tb = b.lastActivityAt?.millisecondsSinceEpoch ?? 0;
-          return tb.compareTo(ta);
-        });
-      for (final conversation in groupConversations) {
-        final roomId = conversation.roomId.trim();
-        if (roomId.isEmpty) continue;
-        if (directContactRoomIds.contains(roomId)) continue;
-        final group = groupsByRoomId[roomId];
-        final room = client.getRoomById(roomId);
-        final lastEvent = room?.lastEvent;
-        final lastActivityAt = lastEvent?.originServerTs ??
-            group?.lastActivityAt ??
-            conversation.lastActivityAt;
-        final productTitle = conversation.title.trim();
-        final groupName = group?.name.trim() ?? '';
-        items.add(
-          _GroupItem(
-            id: roomId,
-            name: (groupRemarkNames[roomId]?.trim().isNotEmpty ?? false)
-                ? groupRemarkNames[roomId]!.trim()
-                : productTitle.isNotEmpty
-                    ? productTitle
-                    : groupName.isNotEmpty
-                        ? groupName
-                        : room?.getLocalizedDisplayname() ?? '群聊',
-            preview: lastEvent == null
-                ? _previewText(group?.topic ?? '')
-                : roomEventPreviewText(lastEvent, isAgent: false),
-            time: lastActivityAt == null
-                ? ''
-                : _formatTime(lastActivityAt.millisecondsSinceEpoch),
-            unread: (group?.unreadCount ?? 0) > 0
-                ? group!.unreadCount
-                : room?.notificationCount ?? 0,
-            isOwner: group?.isOwned ?? false,
-            productConversation: conversation,
-          ),
-        );
-      }
-    } else {
-      final mocks = MockData.groupConversations;
-      for (final c in mocks) {
-        final last = c.lastMessage;
-        items.add(
-          _GroupItem(
-            id: c.id,
-            name: c.name,
-            preview: _previewText(last?.text ?? ''),
-            time: last == null
-                ? ''
-                : _formatTime(last.time.millisecondsSinceEpoch),
-            unread: c.unread,
-            isOwner: c.isOwnerGroup,
-          ),
-        );
-      }
+    final groupsByRoomId = {
+      for (final group in syncCache.bootstrap?.groups ?? const [])
+        if (group.roomId.trim().isNotEmpty) group.roomId.trim(): group,
+    };
+    final groupConversations = [
+      for (final conversation in productConversations)
+        if (conversation.isGroup) conversation,
+    ]..sort((a, b) {
+        final ta = a.lastActivityAt?.millisecondsSinceEpoch ?? 0;
+        final tb = b.lastActivityAt?.millisecondsSinceEpoch ?? 0;
+        return tb.compareTo(ta);
+      });
+    for (final conversation in groupConversations) {
+      final roomId = conversation.roomId.trim();
+      if (roomId.isEmpty) continue;
+      if (directContactRoomIds.contains(roomId)) continue;
+      final group = groupsByRoomId[roomId];
+      final room = client.getRoomById(roomId);
+      final lastEvent = room?.lastEvent;
+      final lastActivityAt = lastEvent?.originServerTs ??
+          group?.lastActivityAt ??
+          conversation.lastActivityAt;
+      final productTitle = conversation.title.trim();
+      final groupName = group?.name.trim() ?? '';
+      items.add(
+        _GroupItem(
+          id: roomId,
+          name: (groupRemarkNames[roomId]?.trim().isNotEmpty ?? false)
+              ? groupRemarkNames[roomId]!.trim()
+              : productTitle.isNotEmpty
+                  ? productTitle
+                  : groupName.isNotEmpty
+                      ? groupName
+                      : room?.getLocalizedDisplayname() ?? '群聊',
+          preview: lastEvent == null
+              ? _previewText(group?.topic ?? '')
+              : roomEventPreviewText(lastEvent, isAgent: false),
+          time: lastActivityAt == null
+              ? ''
+              : _formatTime(lastActivityAt.millisecondsSinceEpoch),
+          unread: (group?.unreadCount ?? 0) > 0
+              ? group!.unreadCount
+              : room?.notificationCount ?? 0,
+          isOwner: group?.isOwned ?? false,
+          productConversation: conversation,
+        ),
+      );
     }
 
     final filtered = _query.isEmpty
@@ -145,7 +117,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
             child: filtered.isEmpty
                 ? Center(
                     child: Text(
-                      productConversationsAsync.isLoading && !useMockGroups
+                      productConversationsAsync.isLoading
                           ? '正在同步群聊'
                           : _query.isEmpty
                               ? '还没有群聊'

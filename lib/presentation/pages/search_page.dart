@@ -17,7 +17,6 @@ import '../providers/auth_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../mock/mock_channels.dart';
-import '../mock/mock_data.dart';
 import '../groups/group_invite_content.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
@@ -194,55 +193,38 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           return text.isNotEmpty && text.contains(q);
         });
 
-    if (client.rooms.isEmpty) {
-      for (final c in MockData.conversations) {
-        if (c.id == 'mock_aibot') continue;
-        final isContact = c.mxid.startsWith('@');
-        final isGroup = c.isGroup || c.mxid.startsWith('!');
-        if (!containsAny([c.name, c.mxid, c.subtitle])) continue;
-        results.add(
-          _GlobalSearchResult.local(
-            type: isGroup ? _SearchResultType.group : _SearchResultType.contact,
-            title: c.name,
-            subtitle: isContact ? c.mxid : c.subtitle,
-          ),
-        );
-      }
-    } else {
-      final syncCache = ref.read(asSyncCacheProvider);
-      for (final room in client.rooms) {
-        if (room.membership != Membership.join) continue;
-        final productConversation = productConversationForRoom(
-          productConversations,
-          room.id,
-        );
-        if (productConversation == null) continue;
-        final route = productConversationRoute(productConversation);
-        if (route == null) continue;
+    final syncCache = ref.read(asSyncCacheProvider);
+    for (final room in client.rooms) {
+      if (room.membership != Membership.join) continue;
+      final productConversation = productConversationForRoom(
+        productConversations,
+        room.id,
+      );
+      if (productConversation == null) continue;
+      final route = productConversationRoute(productConversation);
+      if (route == null) continue;
 
-        final acceptedContact = syncCache.acceptedContactForRoom(room.id);
-        final peerMxid = productDirectPeerMxid(room) ?? acceptedContact?.userId;
-        final memberName = directPeerMemberDisplayName(room, peerMxid);
-        final name = contactDisplayNameFromIdentity(
-          mxid: peerMxid ?? '',
-          displayName: memberName.isNotEmpty
-              ? memberName
-              : acceptedContact?.displayName ?? '',
-          domain: acceptedContact?.domain ?? '',
-          fallback: room.getLocalizedDisplayname(),
-        );
-        if (!containsAny([name, peerMxid, room.id])) continue;
-        final isContact = productConversation.isDirect;
-        results.add(
-          _GlobalSearchResult.local(
-            type:
-                isContact ? _SearchResultType.contact : _SearchResultType.group,
-            title: name,
-            subtitle: isContact ? (peerMxid ?? room.id) : '群聊',
-            route: route,
-          ),
-        );
-      }
+      final acceptedContact = syncCache.acceptedContactForRoom(room.id);
+      final peerMxid = productDirectPeerMxid(room) ?? acceptedContact?.userId;
+      final memberName = directPeerMemberDisplayName(room, peerMxid);
+      final name = contactDisplayNameFromIdentity(
+        mxid: peerMxid ?? '',
+        displayName: memberName.isNotEmpty
+            ? memberName
+            : acceptedContact?.displayName ?? '',
+        domain: acceptedContact?.domain ?? '',
+        fallback: room.getLocalizedDisplayname(),
+      );
+      if (!containsAny([name, peerMxid, room.id])) continue;
+      final isContact = productConversation.isDirect;
+      results.add(
+        _GlobalSearchResult.local(
+          type: isContact ? _SearchResultType.contact : _SearchResultType.group,
+          title: name,
+          subtitle: isContact ? (peerMxid ?? room.id) : '群聊',
+          route: route,
+        ),
+      );
     }
 
     final bootstrap = ref.read(asSyncCacheProvider).bootstrap;

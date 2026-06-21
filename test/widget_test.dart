@@ -3033,7 +3033,7 @@ void main() {
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Agent'), findsNothing);
     expect(find.text('正在同步消息'), findsOneWidget);
@@ -4823,11 +4823,12 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     for (final title in ['消息', '通讯录']) {
       if (title != '消息') {
@@ -5454,7 +5455,8 @@ void main() {
     expect(find.text('HomeRoot'), findsOneWidget);
   });
 
-  testWidgets('mock contacts show exactly three friends', (tester) async {
+  testWidgets('contacts empty state does not render mock friends',
+      (tester) async {
     final client = Client('PortalIMTest');
 
     await tester.pumpWidget(
@@ -5473,14 +5475,12 @@ void main() {
     await tester.pump();
 
     expect(find.text('ID/昵称/邮箱'), findsOneWidget);
-    expect(find.text('A'), findsWidgets);
-    expect(find.text('B'), findsWidgets);
-    expect(find.text('D'), findsWidgets);
-    expect(find.text('Alice Chen'), findsOneWidget);
-    expect(find.text('Bob Smith'), findsOneWidget);
-    expect(find.text('Dave Lee'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsNothing);
+    expect(find.text('Bob Smith'), findsNothing);
+    expect(find.text('Dave Lee'), findsNothing);
     expect(find.text('Eve Wang'), findsNothing);
     expect(find.text('Jack'), findsNothing);
+    expect(find.text('还没有联系人'), findsOneWidget);
   });
 
   testWidgets('contacts use Matrix member avatar when AS avatar is empty',
@@ -7469,25 +7469,32 @@ void main() {
     await client.dispose(closeDatabase: false);
   });
 
-  testWidgets('mock groups show three groups with one owner badge',
+  testWidgets('groups empty state does not render mock group list',
       (tester) async {
+    final client = Client('PortalIMGroupsNoMockListTest');
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
       ),
     );
     await tester.pump();
 
-    expect(find.text('P2P IM 核心群'), findsOneWidget);
-    expect(find.text('产品设计组'), findsOneWidget);
-    expect(find.text('Agent 创作小组'), findsOneWidget);
-    expect(find.text('群主'), findsOneWidget);
+    expect(find.text('P2P IM 核心群'), findsNothing);
+    expect(find.text('产品设计组'), findsNothing);
+    expect(find.text('Agent 创作小组'), findsNothing);
+    expect(find.text('群主'), findsNothing);
+    expect(find.text('还没有群聊'), findsOneWidget);
   });
 
-  testWidgets('mock groups do not open chat routes', (tester) async {
+  testWidgets('groups empty state does not expose mock group routes',
+      (tester) async {
+    final client = Client('PortalIMGroupsNoMockRouteTest');
     final router = GoRouter(
       initialLocation: '/groups',
       routes: [
@@ -7503,6 +7510,8 @@ void main() {
       ProviderScope(
         overrides: [
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -7512,11 +7521,9 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('产品设计组'));
-    await tester.pumpAndSettle();
-
     expect(find.text('opened-chat'), findsNothing);
-    expect(find.text('产品设计组'), findsOneWidget);
+    expect(find.text('产品设计组'), findsNothing);
+    expect(find.text('还没有群聊'), findsOneWidget);
   });
 
   testWidgets('groups list excludes AS accepted undirected direct contacts',
@@ -10948,15 +10955,19 @@ void main() {
     expect(find.text('群聊长按消息'), findsNothing);
   });
 
-  testWidgets('mock auth build ignores cached login for contacts',
+  testWidgets('home empty state does not render mock conversations or contacts',
       (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
+    final client = Client('PortalIMHomeNoMockListsTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 16),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
     );
-    if (!mockAuthEnabled) return;
-
-    final client = Client('PortalIMTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -10965,77 +10976,27 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dave Lee'), findsNothing);
+    expect(find.text('Agent'), findsNothing);
+    expect(find.text('还没有会话'), findsOneWidget);
 
     await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
     expect(find.text('ID/昵称/邮箱'), findsOneWidget);
-    expect(find.text('Alice Chen'), findsOneWidget);
-  });
-
-  testWidgets('mock auth build shows mock conversations despite cached login',
-      (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (!mockAuthEnabled) return;
-
-    final client = Client('PortalIMTest');
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-        ],
-        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Dave Lee'), findsOneWidget);
-    expect(find.text('Agent'), findsOneWidget);
-  });
-
-  testWidgets('home conversation long press delete hides row', (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (!mockAuthEnabled) return;
-
-    final client = Client('PortalIMHomeDeleteConversationTest');
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-        ],
-        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Dave Lee'), findsOneWidget);
-
-    await tester.longPress(find.text('Dave Lee'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('删除聊天'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Dave Lee'), findsNothing);
-    expect(find.textContaining('已删除'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsNothing);
+    expect(find.text('还没有联系人'), findsOneWidget);
   });
 
   testWidgets(
@@ -11119,9 +11080,19 @@ void main() {
     expect(find.byKey(conversationKey), findsNothing);
   });
 
-  testWidgets('home mock conversations do not open chat routes',
+  testWidgets('home empty state does not expose mock chat rows',
       (tester) async {
-    final client = Client('PortalIMHomeMockNoOpenTest');
+    final client = Client('PortalIMHomeMockNoOpenTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 16),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
@@ -11137,8 +11108,14 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -11146,13 +11123,11 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
-
-    await tester.tap(find.text('Alice Chen'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Alice Chen'), findsNothing);
     expect(find.text('opened-chat'), findsNothing);
-    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('还没有会话'), findsOneWidget);
   });
 
   testWidgets('chat route rejects mock conversation ids', (tester) async {
@@ -11173,30 +11148,25 @@ void main() {
     expect(find.text('Dave Lee'), findsNothing);
   });
 
-  testWidgets('mock auth build ignores cached login for groups',
+  testWidgets('groups list empty state does not render mock groups',
       (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (!mockAuthEnabled) return;
-
     final client = Client('PortalIMTest');
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
       ),
     );
     await tester.pump();
 
-    expect(find.text('P2P IM 核心群'), findsOneWidget);
-    expect(find.text('群主'), findsOneWidget);
+    expect(find.text('P2P IM 核心群'), findsNothing);
+    expect(find.text('群主'), findsNothing);
+    expect(find.text('还没有群聊'), findsOneWidget);
   });
 
   testWidgets('mock auth build shows mock channels despite cached login',
@@ -11958,7 +11928,7 @@ void main() {
     expect(detailTitle.style?.letterSpacing, 0);
   });
 
-  testWidgets('global search includes contacts groups and channels',
+  testWidgets('global search excludes mock contacts and groups',
       (tester) async {
     final client = Client('PortalIMTest');
 
@@ -11976,16 +11946,17 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Alice');
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
-    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsNothing);
+    expect(find.text('没有找到包含「Alice」的内容'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), '产品');
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
-    expect(find.text('产品设计组'), findsOneWidget);
+    expect(find.text('产品设计组'), findsNothing);
     expect(find.text('P2P IM 官方'), findsOneWidget);
   });
 
-  testWidgets('global search mock contacts do not open chat routes',
+  testWidgets('global search does not expose mock contact routes',
       (tester) async {
     final client = Client('PortalIMSearchMockNoOpenTest');
     final router = GoRouter(
@@ -12016,11 +11987,10 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Alice');
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
-    await tester.tap(find.text('Alice Chen'));
-    await tester.pumpAndSettle();
 
+    expect(find.text('Alice Chen'), findsNothing);
     expect(find.text('opened-chat'), findsNothing);
-    expect(find.text('Alice Chen'), findsOneWidget);
+    expect(find.text('没有找到包含「Alice」的内容'), findsOneWidget);
   });
 
   testWidgets('global search opens channel detail results', (tester) async {

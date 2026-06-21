@@ -23,7 +23,6 @@ import '../providers/local_outbox_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../widgets/portal_avatar.dart';
-import '../mock/mock_data.dart';
 import '../../data/as_client.dart';
 import '../../data/home_conversation_snapshot_store.dart';
 import '../../data/local_outbox_store.dart';
@@ -1420,7 +1419,6 @@ class _ChatList extends ConsumerWidget {
     final rooms = client.rooms;
     final authState = ref.watch(authStateNotifierProvider);
     final isAuthLoading = authState.isLoading && authState.valueOrNull == null;
-    final isLoggedIn = authState.valueOrNull?.isLoggedIn ?? false;
     final currentUserId = client.userID ?? authState.valueOrNull?.userId;
     final syncCache = asSyncCacheForUser(
       ref.watch(asSyncCacheProvider),
@@ -1450,44 +1448,6 @@ class _ChatList extends ConsumerWidget {
         icon: Symbols.sync,
         title: '正在同步消息',
         subtitle: '请稍候',
-      );
-    }
-
-    // 未登录时展示 mock 会话用于演示；已登录则始终走真数据，
-    // rooms 为空也显示真实空态，不回退 mock。
-    if (_mockAuthEnabled || !isLoggedIn) {
-      final convs = MockData.conversations.where((conversation) {
-        return !hiddenConversationIds.contains(conversation.id);
-      }).toList()
-        ..sort((a, b) {
-          final aPinned = pinnedConversationIds.contains(a.id);
-          final bPinned = pinnedConversationIds.contains(b.id);
-          if (aPinned != bPinned) return aPinned ? -1 : 1;
-          return 0;
-        });
-      return ListView.builder(
-        padding: const EdgeInsets.only(top: 4, bottom: 96),
-        itemCount: convs.length,
-        itemBuilder: (context, i) {
-          final c = convs[i];
-          final last = c.lastMessage;
-          final isAgent = c.id == 'mock_aibot';
-          return _ConvRow(
-            key: ValueKey('home_conversation_${c.id}'),
-            name: isAgent ? 'Agent' : c.name,
-            lastMessage: previewText(last?.text ?? c.subtitle),
-            time: last == null ? '' : DateFormat('HH:mm').format(last.time),
-            unread: c.unread,
-            isAgent: isAgent,
-            isGroup: c.isGroup,
-            avatarUrl: c.avatarUrl,
-            isPinned: pinnedConversationIds.contains(c.id),
-            onTap: null,
-            onTogglePin: () => _toggleHomeConversationPin(ref, c.id),
-            onHide: () => hideHomeConversation(ref, c.id),
-            onDelete: () => hideHomeConversation(ref, c.id),
-          );
-        },
       );
     }
 
@@ -2590,48 +2550,31 @@ class _ContactList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isLoggedIn =
-        ref.watch(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
-    final useMockContacts = _mockAuthEnabled || !isLoggedIn;
     final syncCache = ref.watch(asSyncCacheProvider);
     final friendRequestReadState = ref.watch(friendRequestReadProvider);
     final acceptedContacts = syncCache.acceptedContacts;
     final pendingInvites = friendRequestReadState.unreadCountForRoomIds(
       _pendingFriendRequestRoomIds(client: client, syncCache: syncCache),
     );
-    // 通讯录里只放"个人联系人"。Mock 数据里群组（mxid 以 # / ! 起头）和 AI bot
-    // 排除——群组归「群聊」入口管。
-    final mockContacts = MockData.friendContacts;
-
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
     );
-    final contacts = useMockContacts
-        ? mockContacts
-            .map(
-              (contact) => _ContactListEntry(
-                name: contact.name,
-                mxid: contact.mxid,
-                avatarUrl: contact.avatarUrl,
-              ),
-            )
-            .toList()
-        : acceptedContacts.map((contact) {
-            final peerMxid = contact.userId.trim();
-            final room = client.getRoomById(contact.roomId.trim());
-            final contactName = contact.displayName.trim();
-            final memberName = directPeerMemberDisplayName(room, peerMxid);
-            return _ContactListEntry(
-              name: contactDisplayNameFromIdentity(
-                mxid: peerMxid,
-                displayName: contactName.isNotEmpty ? contactName : memberName,
-                domain: contact.domain,
-              ),
-              mxid: peerMxid,
-              avatarUrl: _contactListAvatarUrl(client, contact),
-            );
-          }).toList();
+    final contacts = acceptedContacts.map((contact) {
+      final peerMxid = contact.userId.trim();
+      final room = client.getRoomById(contact.roomId.trim());
+      final contactName = contact.displayName.trim();
+      final memberName = directPeerMemberDisplayName(room, peerMxid);
+      return _ContactListEntry(
+        name: contactDisplayNameFromIdentity(
+          mxid: peerMxid,
+          displayName: contactName.isNotEmpty ? contactName : memberName,
+          domain: contact.domain,
+        ),
+        mxid: peerMxid,
+        avatarUrl: _contactListAvatarUrl(client, contact),
+      );
+    }).toList();
     final groupedContacts = _groupContactsByInitial(contacts);
     final sectionKeys = groupedContacts.keys.toList()
       ..sort((a, b) {

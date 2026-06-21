@@ -43,4 +43,67 @@ void main() {
     expect(controller.failed, isFalse);
     expect(controller.begin(), isTrue);
   });
+
+  test('runAttempt owns recovery result state transitions', () async {
+    final controller = ChatRoomRecoveryController();
+    var calls = 0;
+
+    final recovered = await controller.runAttempt(
+      attempt: () async {
+        calls++;
+        return true;
+      },
+    );
+
+    expect(recovered, ChatRoomRecoveryAttemptResult.recovered);
+    expect(calls, 1);
+    expect(controller.inFlight, isFalse);
+    expect(controller.attempted, isFalse);
+    expect(controller.failed, isFalse);
+
+    final failed = await controller.runAttempt(
+      attempt: () async {
+        calls++;
+        return false;
+      },
+    );
+    final skipped = await controller.runAttempt(
+      attempt: () async {
+        calls++;
+        return true;
+      },
+    );
+
+    expect(failed, ChatRoomRecoveryAttemptResult.failed);
+    expect(skipped, ChatRoomRecoveryAttemptResult.skipped);
+    expect(calls, 2);
+    expect(controller.inFlight, isFalse);
+    expect(controller.attempted, isTrue);
+    expect(controller.failed, isTrue);
+
+    final forced = await controller.runAttempt(
+      force: true,
+      attempt: () async {
+        calls++;
+        return true;
+      },
+    );
+
+    expect(forced, ChatRoomRecoveryAttemptResult.recovered);
+    expect(calls, 3);
+    expect(controller.failed, isFalse);
+  });
+
+  test('runAttempt records failed state when recovery throws', () async {
+    final controller = ChatRoomRecoveryController();
+
+    final result = await controller.runAttempt(
+      attempt: () async => throw StateError('sync failed'),
+    );
+
+    expect(result, ChatRoomRecoveryAttemptResult.failed);
+    expect(controller.inFlight, isFalse);
+    expect(controller.attempted, isTrue);
+    expect(controller.failed, isTrue);
+  });
 }

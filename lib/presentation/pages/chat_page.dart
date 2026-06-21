@@ -485,8 +485,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _ensureMissingRoomSync() {
-    if (!_missingRoomRecovery.begin()) return;
-    unawaited(_syncMissingRoom());
+    unawaited(_recoverMissingRoom());
   }
 
   void _retryMissingRoomSync() {
@@ -494,21 +493,23 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _ensureMissingRoomSync();
   }
 
-  Future<void> _syncMissingRoom() async {
-    try {
-      await _syncMissingRoomFromServer();
-    } catch (e) {
-      debugPrint('missing chat room sync failed: $e');
-    }
+  Future<void> _recoverMissingRoom() async {
+    final result = await _missingRoomRecovery.runAttempt(
+      attempt: () async {
+        try {
+          await _syncMissingRoomFromServer();
+        } catch (e) {
+          debugPrint('missing chat room sync failed: $e');
+        }
+        return mounted && _room != null;
+      },
+    );
     if (!mounted) return;
-    if (_room != null) {
-      _missingRoomRecovery.finish(recovered: true);
+    if (result == ChatRoomRecoveryAttemptResult.recovered) {
       if (_timeline == null) await _initTimeline();
       return;
     }
-    if (mounted) {
-      setState(() => _missingRoomRecovery.finish(recovered: false));
-    }
+    if (result == ChatRoomRecoveryAttemptResult.failed) setState(() {});
   }
 
   Future<void> _syncMissingRoomFromServer() async {

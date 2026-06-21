@@ -1,3 +1,9 @@
+enum ChatRoomRecoveryAttemptResult {
+  skipped,
+  recovered,
+  failed,
+}
+
 class ChatRoomRecoveryController {
   bool _inFlight = false;
   bool _attempted = false;
@@ -28,6 +34,23 @@ class ChatRoomRecoveryController {
 
   void retry() {
     reset();
+  }
+
+  Future<ChatRoomRecoveryAttemptResult> runAttempt({
+    bool force = false,
+    required Future<bool> Function() attempt,
+  }) async {
+    if (!begin(force: force)) return ChatRoomRecoveryAttemptResult.skipped;
+    try {
+      final recovered = await attempt();
+      finish(recovered: recovered);
+      return recovered
+          ? ChatRoomRecoveryAttemptResult.recovered
+          : ChatRoomRecoveryAttemptResult.failed;
+    } on Object {
+      finish(recovered: false);
+      return ChatRoomRecoveryAttemptResult.failed;
+    }
   }
 
   void reset() {

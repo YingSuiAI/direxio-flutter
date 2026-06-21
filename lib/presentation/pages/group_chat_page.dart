@@ -1004,59 +1004,55 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   Future<void> _recoverMissingGroupRoom({bool force = false}) async {
-    if (!_roomRecovery.begin(force: force)) return;
-    try {
-      var syncCache = ref.read(asSyncCacheProvider);
-      var summary = _conversationSummary(syncCache);
-      if (summary == null && syncCache.bootstrap == null) {
-        try {
-          final bootstrap =
-              await ref.read(asBootstrapRepositoryProvider).refresh();
-          if (!mounted) return;
-          ref.read(asSyncCacheProvider.notifier).update(
-                (state) => state.copyWith(bootstrap: bootstrap),
-              );
-          syncCache = ref.read(asSyncCacheProvider);
-          summary = _conversationSummary(syncCache);
-        } on Object catch (e) {
-          debugPrint('group chat bootstrap recovery failed: $e');
+    final result = await _roomRecovery.runAttempt(
+      force: force,
+      attempt: () async {
+        var syncCache = ref.read(asSyncCacheProvider);
+        var summary = _conversationSummary(syncCache);
+        if (summary == null && syncCache.bootstrap == null) {
+          try {
+            final bootstrap =
+                await ref.read(asBootstrapRepositoryProvider).refresh();
+            if (!mounted) return false;
+            ref.read(asSyncCacheProvider.notifier).update(
+                  (state) => state.copyWith(bootstrap: bootstrap),
+                );
+            syncCache = ref.read(asSyncCacheProvider);
+            summary = _conversationSummary(syncCache);
+          } on Object catch (e) {
+            debugPrint('group chat bootstrap recovery failed: $e');
+          }
         }
-      }
-      if (summary == null && !force) return;
-      final recoveryRoomId = summary?.roomId.trim().isNotEmpty == true
-          ? summary!.roomId.trim()
-          : _resolvedRoomId;
-      await waitForJoinedGroupMatrixRoom(
-        roomId: recoveryRoomId,
-        oneShotSync: () => _syncMissingGroupRoomFromServer(recoveryRoomId),
-        refreshBootstrap: _refreshBootstrapForRoomRecovery,
-        hasJoinedMatrixRoom: (roomId) {
-          if (!mounted) return false;
-          return ref
-                  .read(matrixClientProvider)
-                  .getRoomById(roomId)
-                  ?.membership ==
-              Membership.join;
-        },
-        timeout: const Duration(seconds: 45),
-        interval: const Duration(seconds: 2),
-      );
-      if (!mounted) return;
-      if (_room != null) {
-        _roomRecovery.finish(recovered: true);
-        setState(() => _loading = true);
-        await _initTimeline();
-      } else {
-        setState(() => _roomRecovery.finish(recovered: false));
-      }
-    } finally {
-      if (_roomRecovery.inFlight) {
-        if (mounted) {
-          setState(() => _roomRecovery.finish(recovered: false));
-        } else {
-          _roomRecovery.finish(recovered: false);
-        }
-      }
+        if (summary == null && !force) return false;
+        final recoveryRoomId = summary?.roomId.trim().isNotEmpty == true
+            ? summary!.roomId.trim()
+            : _resolvedRoomId;
+        await waitForJoinedGroupMatrixRoom(
+          roomId: recoveryRoomId,
+          oneShotSync: () => _syncMissingGroupRoomFromServer(recoveryRoomId),
+          refreshBootstrap: _refreshBootstrapForRoomRecovery,
+          hasJoinedMatrixRoom: (roomId) {
+            if (!mounted) return false;
+            return ref
+                    .read(matrixClientProvider)
+                    .getRoomById(roomId)
+                    ?.membership ==
+                Membership.join;
+          },
+          timeout: const Duration(seconds: 45),
+          interval: const Duration(seconds: 2),
+        );
+        return mounted && _room != null;
+      },
+    );
+    if (!mounted) return;
+    if (result == ChatRoomRecoveryAttemptResult.recovered) {
+      setState(() => _loading = true);
+      await _initTimeline();
+      return;
+    }
+    if (result == ChatRoomRecoveryAttemptResult.failed) {
+      setState(() {});
     }
   }
 

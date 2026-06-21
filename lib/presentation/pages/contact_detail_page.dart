@@ -12,7 +12,6 @@ import 'package:share_plus/share_plus.dart';
 import '../../data/as_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
-import '../mock/mock_data.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -103,7 +102,6 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       peerMxid: userId,
       roomId: acceptedContactForUser?.roomId ?? room?.id ?? '',
     );
-    final mock = room == null ? MockData.byMxid(userId) : null;
     final canOpenChat = canUseRealRoom && directProductConversation != null;
     final acceptedContact = acceptedContactForUser ??
         (room == null ? null : syncCache.acceptedContactForRoom(room.id));
@@ -120,18 +118,17 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
               peerMemberName,
               acceptedContact?.displayName,
               room?.getLocalizedDisplayname(),
-              mock?.name,
             ]),
       domain: acceptedContact?.domain ?? domain,
-      fallback: mock?.name ?? userId,
+      fallback: userId,
     );
     final avatarUrl = isSelf
-        ? profileAvatarHttpUrl(currentUserProfile, client) ?? MockAvatars.me
+        ? profileAvatarHttpUrl(currentUserProfile, client)
         : (room == null
-                ? mock?.avatarUrl
+                ? null
                 : matrixContentHttpUrl(client, peerMember?.avatarUrl)) ??
             avatarHttpUrl(client, acceptedContact?.avatarUrl);
-    final roomId = room?.id ?? mock?.id;
+    final roomId = room?.id;
     final preferenceKey = roomId ?? userId;
     final mutedConversationIds = ref.watch(mutedConversationIdsProvider);
     final muted = mutedConversationIds.contains(preferenceKey);

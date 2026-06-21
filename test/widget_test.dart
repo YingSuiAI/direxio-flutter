@@ -12324,6 +12324,27 @@ void main() {
     expect(copied?.text, 'portal.local');
   });
 
+  testWidgets('contact detail without room does not hydrate mock profile',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactDetailPage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('alice'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsNothing);
+    final avatar = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 60)
+        .single;
+    expect(avatar.imageUrl, isNull);
+  });
+
   testWidgets('contact detail persists message mute toggle after re-entry',
       (tester) async {
     const roomId = '!contact-mute:p2p-im.com';

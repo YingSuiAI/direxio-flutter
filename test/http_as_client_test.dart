@@ -85,6 +85,10 @@ void main() {
                   'send': true,
                   'invite': false,
                   'manage_members': false,
+                  'rename': false,
+                  'remove_members': false,
+                  'leave': false,
+                  'delete': true,
                 },
               }
             ],
@@ -111,6 +115,10 @@ void main() {
     expect(conversations.single.canSend, isTrue);
     expect(conversations.single.canInvite, isFalse);
     expect(conversations.single.canManageMembers, isFalse);
+    expect(conversations.single.canRename, isFalse);
+    expect(conversations.single.canRemoveMembers, isFalse);
+    expect(conversations.single.canLeave, isFalse);
+    expect(conversations.single.canDelete, isTrue);
     expect(
       conversations.single.lastActivityAt,
       DateTime.fromMillisecondsSinceEpoch(1781942406000, isUtc: true),

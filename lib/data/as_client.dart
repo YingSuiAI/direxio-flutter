@@ -591,6 +591,10 @@ class AsConversation {
   bool get canSend => capabilities.send;
   bool get canInvite => capabilities.invite;
   bool get canManageMembers => capabilities.manageMembers;
+  bool get canRename => capabilities.rename;
+  bool get canRemoveMembers => capabilities.removeMembers;
+  bool get canLeave => capabilities.leave;
+  bool get canDelete => capabilities.delete;
 
   factory AsConversation.fromJson(Map<String, dynamic> json) {
     return AsConversation(
@@ -626,12 +630,20 @@ class AsConversationCapabilities {
     this.send = false,
     this.invite = false,
     this.manageMembers = false,
+    this.rename = false,
+    this.removeMembers = false,
+    this.leave = false,
+    this.delete = false,
   });
 
   final bool open;
   final bool send;
   final bool invite;
   final bool manageMembers;
+  final bool rename;
+  final bool removeMembers;
+  final bool leave;
+  final bool delete;
 
   factory AsConversationCapabilities.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const AsConversationCapabilities();
@@ -640,6 +652,10 @@ class AsConversationCapabilities {
       send: json['send'] == true,
       invite: json['invite'] == true,
       manageMembers: json['manage_members'] == true,
+      rename: json['rename'] == true,
+      removeMembers: json['remove_members'] == true,
+      leave: json['leave'] == true,
+      delete: json['delete'] == true,
     );
   }
 }

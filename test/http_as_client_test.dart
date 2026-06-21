@@ -83,6 +83,8 @@ void main() {
                 'capabilities': {
                   'open': true,
                   'send': true,
+                  'send_media': true,
+                  'call': true,
                   'invite': false,
                   'manage_members': false,
                   'rename': false,
@@ -113,6 +115,8 @@ void main() {
     expect(conversations.single.hydrationState, 'ready');
     expect(conversations.single.canOpen, isTrue);
     expect(conversations.single.canSend, isTrue);
+    expect(conversations.single.canSendMedia, isTrue);
+    expect(conversations.single.canCall, isTrue);
     expect(conversations.single.canInvite, isFalse);
     expect(conversations.single.canManageMembers, isFalse);
     expect(conversations.single.canRename, isFalse);

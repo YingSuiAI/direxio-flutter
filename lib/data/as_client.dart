@@ -627,6 +627,8 @@ class AsConversation {
   bool get isAgent => kind == asConversationKindAgent;
   bool get canOpen => capabilities.open;
   bool get canSend => capabilities.send;
+  bool get canSendMedia => capabilities.sendMedia;
+  bool get canCall => capabilities.call;
   bool get canInvite => capabilities.invite;
   bool get canManageMembers => capabilities.manageMembers;
   bool get canRename => capabilities.rename;
@@ -666,6 +668,8 @@ class AsConversationCapabilities {
   const AsConversationCapabilities({
     this.open = false,
     this.send = false,
+    this.sendMedia = false,
+    this.call = false,
     this.invite = false,
     this.manageMembers = false,
     this.rename = false,
@@ -676,6 +680,8 @@ class AsConversationCapabilities {
 
   final bool open;
   final bool send;
+  final bool sendMedia;
+  final bool call;
   final bool invite;
   final bool manageMembers;
   final bool rename;
@@ -688,6 +694,8 @@ class AsConversationCapabilities {
     return AsConversationCapabilities(
       open: json['open'] == true,
       send: json['send'] == true,
+      sendMedia: json['send_media'] == true,
+      call: json['call'] == true,
       invite: json['invite'] == true,
       manageMembers: json['manage_members'] == true,
       rename: json['rename'] == true,

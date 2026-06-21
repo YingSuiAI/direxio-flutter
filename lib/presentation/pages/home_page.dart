@@ -69,7 +69,7 @@ const _bottomSearchIconSize = 48.0;
 const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
 
 final asBootstrapLiveRefreshIntervalProvider = Provider<Duration?>(
-  (ref) => const Duration(seconds: 10),
+  (ref) => null,
 );
 
 bool _homeDark(BuildContext context) {
@@ -159,10 +159,12 @@ class _HomePageState extends ConsumerState<HomePage>
       agentMxid: agentMxid,
     );
     _showHiddenHomeConversationsWithUnread(client, syncCache);
-    _scheduleAsBootstrapRefreshIfNeeded(
-      refreshExisting: true,
-      force: needsClassification || hasPendingInvite,
-    );
+    if (needsClassification || hasPendingInvite) {
+      _scheduleAsBootstrapRefreshIfNeeded(
+        refreshExisting: true,
+        force: true,
+      );
+    }
     final nextSignature = _homeSyncSignature(client);
     if (nextSignature == _lastHomeSyncSignature) return;
     _lastHomeSyncSignature = nextSignature;

@@ -138,10 +138,10 @@ Frontend alignment:
 
 Frontend alignment:
 
-- `/_as/sync/bootstrap.pending.group_invites[]` is now treated as actionable pending group invitations on the New Friends page.
-- Each pending group invite uses `id` as the Matrix room id and `title` as the group display name.
-- Accepting the invite calls `POST /_as/groups/{roomId}/join`, then runs one Matrix one-shot sync and refreshes bootstrap.
-- The Home contacts badge now includes pending group invites and channel notices, not only friend requests.
+- `/_as/sync/bootstrap.pending.group_invites[]` is not surfaced as a New Friends/contact reminder.
+- Group invitations use the same user flow as channel invitations: show a card in the direct chat and let the receiver join from that card.
+- Joining from a group invite card calls `POST /_as/groups/{roomId}/join`, then runs one Matrix one-shot sync and refreshes bootstrap.
+- The Home contacts badge counts friend/contact requests only; group and channel invitations do not trigger a contacts badge.
 
 ### Group Invite Cards
 

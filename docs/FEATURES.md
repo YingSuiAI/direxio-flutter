@@ -42,7 +42,7 @@ This document records the currently implemented client features and whether each
 | Contacts tab | `home_page.dart` | Real + demo | Logged-in contacts come from AS bootstrap; demo uses mock contacts. |
 | Add contact | `/add-contact`, `add_contact_page.dart` | Real | Resolves portal domain/URL queries and opens detail or verification flow. If owner well-known still returns the default localpart name, the client queries Matrix profile once as a display-name fallback. |
 | Contact detail and verification | `/add-contact/detail/:userId`, `/add-contact/verify/:userId` | Real + demo | Sends AS contact requests; unauthenticated examples use mock identities. |
-| Friend/group/channel pending requests | `/requests`, `requests_page.dart` | Real | Uses AS pending state and Matrix native direct profile metadata; new direct invites do not require legacy `p2p.contact.request`. AS `pending.group_invites` are discoverable from the New Friends entry and can be accepted through AS group join. |
+| Friend pending requests | `/requests`, `requests_page.dart` | Real | Uses AS pending friend state and Matrix native direct profile metadata; new direct invites do not require legacy `p2p.contact.request`. Group invitations are handled as direct-chat invite cards, not as New Friends/contact reminders. |
 | Visitor home | `/contact-home/:userId`, `contact_home_page.dart` | Real + demo | Shows follow state, friend state, public channels, and dynamics. Demo data is used only when not logged in. |
 | Delete contact | `contact_home_page.dart`, `contact_detail_page.dart` | Real | Calls AS delete, removes local Matrix room immediately, then refreshes bootstrap best-effort. |
 | Follows list | `/follows`, `follows_list_page.dart` | Real + demo | Logged-in follows come from AS; demo follows route to visitor home. |
@@ -53,7 +53,7 @@ This document records the currently implemented client features and whether each
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
 | Create group | Home plus menu, `group_creation_flow.dart` | Real | Uses accepted AS contacts, calls AS group invite for selected contacts after creation, and opens the created Matrix room. |
-| Group list | `/groups`, `groups_list_page.dart` | Real | Uses AS bootstrap groups and excludes stale direct metadata. Pending group invitations remain in `/requests` until accepted and projected into bootstrap groups. Existing group member invitations are sent as direct-chat cards after the owner node records invited MXIDs; card joins are accepted only for recorded invitees. |
+| Group list | `/groups`, `groups_list_page.dart` | Real | Uses AS bootstrap groups and excludes stale direct metadata. Group member invitations are sent as direct-chat cards after the owner node records invited MXIDs; card joins are accepted only for recorded invitees and appear in the group list after join projection. |
 | Group chat | `/group/:roomId`, `group_chat_page.dart` | Real | Matrix timeline with Matrix SDK text send, media outbox, mentions, quote, recall/delete where supported. |
 | Group detail/info/manage | `/group-detail/:roomId`, `/group-info/:roomId`, `/group-manage/:roomId` | Real | Uses AS group metadata for invite policy, profile, member management, leave/dissolve flows. |
 | Missing group handling | `group_chat_page.dart` | Real | Missing room page keeps a usable back button; recovery is only attempted when AS bootstrap confirms the group. |

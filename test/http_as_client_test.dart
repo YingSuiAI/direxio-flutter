@@ -31,6 +31,18 @@ void main() {
     expect(base.toString(), 'https://im.jkmf.top/_p2p');
   });
 
+  test('maps local multi-node aliases to reachable P2P API ports', () {
+    final base = HttpAsClient.defaultAdminBaseUri(
+      Uri.parse('https://dendrite-a'),
+    );
+    final cBase = HttpAsClient.defaultAdminBaseUri(
+      Uri.parse('https://dendrite-c'),
+    );
+
+    expect(base.toString(), 'http://127.0.0.1:18008/_p2p');
+    expect(cBase.toString(), 'http://127.0.0.1:38008/_p2p');
+  });
+
   test('changePortalPassword uses unified portal password action', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),

@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'api_logger.dart';
+import 'local_dev_node.dart';
 
 //// `/.well-known/portal/owner.json` 的解析结果
 class PortalOwner {
@@ -105,15 +106,8 @@ class WellKnownService {
 
   Uri _wellKnownUri(String domain, String path) {
     final d = _normalizeDomain(domain);
-    final localPort = _localDualNodeHttpPort(d);
-    if (localPort != null) {
-      return Uri(
-        scheme: 'http',
-        host: '127.0.0.1',
-        port: localPort,
-        path: path,
-      );
-    }
+    final localUri = localDevNodeHttpUriForServerName(d, path: path);
+    if (localUri != null) return localUri;
     return Uri.parse('https://$d$path');
   }
 
@@ -251,13 +245,4 @@ http.Client _effectiveClient(http.Client client) {
     // Not a Matrix SDK timeout wrapper.
   }
   return client;
-}
-
-int? _localDualNodeHttpPort(String domain) {
-  final host = Uri.tryParse('matrix://$domain')?.host.toLowerCase();
-  return switch (host) {
-    'dendrite-a' => 18008,
-    'dendrite-b' => 28008,
-    _ => null,
-  };
 }

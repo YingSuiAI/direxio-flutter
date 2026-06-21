@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import 'api_logger.dart';
 import 'as_client.dart';
+import 'local_dev_node.dart';
 
 /// HTTP implementation for the p2p-matrix-as Admin API.
 ///
@@ -86,6 +87,11 @@ class HttpAsClient implements AsClient {
   static const _timeout = Duration(seconds: 10);
 
   static Uri defaultAdminBaseUri(Uri homeserver) {
+    final localDevNodeUri = localDevNodeHttpUriForUri(
+      homeserver,
+      path: '/_p2p',
+    );
+    if (localDevNodeUri != null) return localDevNodeUri;
     final host = homeserver.host;
     return Uri(
       scheme: homeserver.scheme.isEmpty ? 'https' : homeserver.scheme,

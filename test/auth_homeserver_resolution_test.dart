@@ -13,6 +13,20 @@ void main() {
     expect(resolved.toString(), 'http://127.0.0.1:18008');
   });
 
+  test('local multi-node alias resolves to simulator-reachable homeserver', () {
+    final resolved = resolveClientHomeserverForSession(
+      Uri.parse('https://dendrite-a'),
+      'https://host.docker.internal:18448',
+    );
+    final cResolved = resolveClientHomeserverForSession(
+      Uri.parse('https://dendrite-c'),
+      'https://host.docker.internal:38448',
+    );
+
+    expect(resolved.toString(), 'http://127.0.0.1:18008');
+    expect(cResolved.toString(), 'http://127.0.0.1:38008');
+  });
+
   test('local login keeps input port when AS returns localhost without port',
       () {
     final resolved = resolveClientHomeserverForSession(

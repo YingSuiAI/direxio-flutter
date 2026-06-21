@@ -12,6 +12,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sqflite/sqflite.dart' as sqlite;
 import '../../data/as_client.dart';
 import '../../data/http_as_client.dart';
+import '../../data/local_dev_node.dart';
 import '../../data/matrix_privacy_sync.dart';
 import '../../data/matrix_token_refreshing_http_client.dart';
 import '../../data/well_known_service.dart';
@@ -114,8 +115,12 @@ class _ActivatedPortalSession {
 }
 
 Uri _resolveClientHomeserver(Uri inputUri, String asHomeserver) {
+  final localDevInput = localDevNodeHttpUriForUri(inputUri);
+  if (localDevInput != null) return localDevInput;
   final parsed = Uri.tryParse(asHomeserver);
   if (parsed == null || parsed.host.isEmpty) return inputUri;
+  final localDevSession = localDevNodeHttpUriForUri(parsed);
+  if (localDevSession != null) return localDevSession;
   if (_isLocalHost(inputUri.host)) {
     return inputUri;
   }
@@ -264,6 +269,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   DateTime? _lastMatrixTokenAppliedAt;
   bool _lastPortalRestoreNonRetryableFailure = false;
   bool _lastMatrixRefreshNonRetryableFailure = false;
+  String? _portalRestoreInFlightKey;
+  Future<AuthState?>? _portalRestoreInFlight;
 
   @override
   Future<AuthState> build() async {
@@ -1308,6 +1315,33 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String? homeserver,
     required String? portalToken,
   }) async {
+    final restoreKey =
+        '${homeserver?.trim() ?? ''}|${portalToken?.trim() ?? ''}';
+    final inFlight = _portalRestoreInFlight;
+    if (inFlight != null && _portalRestoreInFlightKey == restoreKey) {
+      return inFlight;
+    }
+    late final Future<AuthState?> future;
+    future = _restorePortalSessionUncoalesced(
+      client,
+      homeserver: homeserver,
+      portalToken: portalToken,
+    ).whenComplete(() {
+      if (identical(_portalRestoreInFlight, future)) {
+        _portalRestoreInFlight = null;
+        _portalRestoreInFlightKey = null;
+      }
+    });
+    _portalRestoreInFlightKey = restoreKey;
+    _portalRestoreInFlight = future;
+    return future;
+  }
+
+  Future<AuthState?> _restorePortalSessionUncoalesced(
+    Client client, {
+    required String? homeserver,
+    required String? portalToken,
+  }) async {
     _lastPortalRestoreNonRetryableFailure = false;
     final cleanPortalToken = portalToken?.trim() ?? '';
     if (cleanPortalToken.isEmpty) return null;
@@ -1321,53 +1355,70 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
     try {
       final requestedDeviceId = await _localMatrixDeviceId(client);
-      final session = await HttpAsClient.authenticatePortal(
+      var session = await HttpAsClient.authenticatePortal(
         baseUri: HttpAsClient.defaultAdminBaseUri(homeserverUri),
         portalToken: authPortalToken,
         deviceId: requestedDeviceId,
         httpClient: client.httpClient,
       );
-      final effectivePortalToken = session.accessToken.trim();
-      final matrixUri = _resolveClientHomeserver(
+      var effectivePortalToken = session.accessToken.trim();
+      var matrixUri = _resolveClientHomeserver(
         homeserverUri,
         session.homeserver,
       );
-      final deviceId = await _resolveSessionDeviceId(
+      var deviceId = await _resolveSessionDeviceId(
         httpClient: client.httpClient,
         homeserver: matrixUri,
         accessToken: session.accessToken,
         sessionDeviceId: session.deviceId,
         storedDeviceId: await _storage.read(key: 'matrix_device_id'),
       );
-      if (client.onLoginStateChanged.value == LoginState.loggedIn) {
-        await _applyRefreshedSession(
+      var profileInitialized = _sessionProfileInitialized(session);
+      try {
+        if (client.onLoginStateChanged.value == LoginState.loggedIn) {
+          await _applyRefreshedSession(
+            client,
+            matrixUri,
+            session,
+            portalToken: effectivePortalToken,
+            deviceId: deviceId,
+            loginPortalToken: authPortalToken,
+            profileInitialized: profileInitialized,
+          );
+        } else {
+          await _initMatrixSessionWithKeyUploadRetry(
+            client,
+            accessToken: session.accessToken,
+            userId: session.userId,
+            homeserver: matrixUri,
+            deviceId: deviceId,
+          );
+          await _persistSession(
+            client,
+            matrixUri,
+            portalToken: effectivePortalToken,
+            deviceId: deviceId,
+            userId: session.userId,
+            profileInitialized: profileInitialized,
+            loginPortalToken: authPortalToken,
+          );
+        }
+      } catch (e) {
+        if (!_isUploadKeyFailure(e)) rethrow;
+        final recovered = await _authenticateFreshDeviceAfterUploadKeyFailure(
           client,
-          matrixUri,
-          session,
-          portalToken: effectivePortalToken,
-          deviceId: deviceId,
-          loginPortalToken: authPortalToken,
-        );
-      } else {
-        final profileInitialized = _sessionProfileInitialized(session);
-        await _initMatrixSessionWithKeyUploadRetry(
-          client,
-          accessToken: session.accessToken,
-          userId: session.userId,
           homeserver: matrixUri,
-          deviceId: deviceId,
+          loginPassword: authPortalToken,
+          fallbackUserId: session.userId,
+          profileInitialized: profileInitialized ?? true,
+          logContext: 'portal restore',
         );
-        await _persistSession(
-          client,
-          matrixUri,
-          portalToken: effectivePortalToken,
-          deviceId: deviceId,
-          userId: session.userId,
-          profileInitialized: profileInitialized,
-          loginPortalToken: authPortalToken,
-        );
+        session = recovered.session;
+        matrixUri = recovered.homeserver;
+        deviceId = recovered.deviceId;
+        effectivePortalToken = session.accessToken.trim();
+        profileInitialized = _sessionProfileInitialized(session);
       }
-      final profileInitialized = _sessionProfileInitialized(session);
       await _loadChatClearState();
       return AuthState(
         isLoggedIn: true,

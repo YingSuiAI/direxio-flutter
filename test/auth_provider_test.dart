@@ -148,6 +148,48 @@ class _NoSyncInitClient extends Client {
   }
 }
 
+class _UploadKeyFailsForTokensClient extends _NoSyncInitClient {
+  _UploadKeyFailsForTokensClient(
+    super.clientName, {
+    required super.httpClient,
+    required this.failingTokens,
+  });
+
+  final Set<String> failingTokens;
+
+  @override
+  Future<void> init({
+    String? newToken,
+    DateTime? newTokenExpiresAt,
+    String? newRefreshToken,
+    Uri? newHomeserver,
+    String? newUserID,
+    String? newDeviceName,
+    String? newDeviceID,
+    String? newOlmAccount,
+    bool waitForFirstSync = true,
+    bool waitUntilLoadCompletedLoaded = true,
+    void Function()? onMigration,
+  }) async {
+    if (newToken != null && failingTokens.contains(newToken)) {
+      throw 'Upload key failed';
+    }
+    return super.init(
+      newToken: newToken,
+      newTokenExpiresAt: newTokenExpiresAt,
+      newRefreshToken: newRefreshToken,
+      newHomeserver: newHomeserver,
+      newUserID: newUserID,
+      newDeviceName: newDeviceName,
+      newDeviceID: newDeviceID,
+      newOlmAccount: newOlmAccount,
+      waitForFirstSync: waitForFirstSync,
+      waitUntilLoadCompletedLoaded: waitUntilLoadCompletedLoaded,
+      onMigration: onMigration,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -2697,6 +2739,141 @@ void main() {
     expect(requestedDevices[0], isNot(requestedDevices[1]));
     expect(client.accessToken, 'token-2');
     expect(client.deviceID, requestedDevices[1]);
+  });
+
+  test(
+      'stored portal restore retries with a fresh device when key upload fails',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'stored-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'OLDDEVICE',
+      AuthStateNotifier.accessTokenKey: 'stale-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final requestedDevices = <String>[];
+    final client = _UploadKeyFailsForTokensClient(
+      'AuthStoredRestoreUploadKeyRetryTest',
+      failingTokens: {'stored-token', 'token-1'},
+      httpClient: MockClient((request) async {
+        final authAction = _p2pAction(request, 'portal.auth');
+        if (authAction != null) {
+          final params = authAction['params'] as Map<String, dynamic>;
+          final deviceId = params['device_id'] as String;
+          requestedDevices.add(deviceId);
+          return http.Response(
+            '{"access_token":"token-${requestedDevices.length}",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"$deviceId",'
+            '"setup_completed":true}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          final authorization = request.headers['authorization'] ?? '';
+          final token = authorization.replaceFirst('Bearer ', '');
+          final suffix = token.split('-').last;
+          final index = int.tryParse(suffix) ?? 1;
+          final device = requestedDevices[index - 1];
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"$device"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    final auth = await container.read(authStateNotifierProvider.future);
+
+    expect(auth.isLoggedIn, isTrue);
+    expect(auth.requiresProfileSetup, isFalse);
+    expect(requestedDevices, hasLength(2));
+    expect(requestedDevices.first, 'OLDDEVICE');
+    expect(requestedDevices.last, isNot('OLDDEVICE'));
+    expect(client.accessToken, 'token-2');
+    expect(client.deviceID, requestedDevices.last);
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_device_id'),
+      requestedDevices.last,
+    );
+  });
+
+  test('portal session restore coalesces concurrent refreshes', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'stored-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE_A',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    var portalAuthCalls = 0;
+    final client = _NoSyncInitClient(
+      'AuthPortalRestoreSingleFlightTest',
+      httpClient: MockClient((request) async {
+        final authAction = _p2pAction(request, 'portal.auth');
+        if (authAction != null) {
+          portalAuthCalls++;
+          final params = authAction['params'] as Map<String, dynamic>;
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          return http.Response(
+            '{"access_token":"token-$portalAuthCalls",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"${params['device_id']}",'
+            '"setup_completed":true}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE_A"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+    portalAuthCalls = 0;
+
+    final notifier = container.read(authStateNotifierProvider.notifier);
+    final tokens = await Future.wait([
+      notifier.refreshPortalSessionForAsAdminToken(),
+      notifier.refreshPortalSessionForAsAdminToken(),
+    ]);
+
+    expect(portalAuthCalls, 1);
+    expect(tokens, ['token-1', 'token-1']);
   });
 
   test('password change updates same-device token without clean Matrix init',

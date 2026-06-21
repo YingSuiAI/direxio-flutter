@@ -1,3 +1,5 @@
+import '../../data/local_dev_node.dart';
+
 bool looksLikeMatrixRoomId(String value) {
   final trimmed = value.trim();
   return trimmed.startsWith('!') && trimmed.contains(':');
@@ -26,8 +28,12 @@ Uri? publicBaseUriForServerName(String serverName) {
   final host = hostAndPort.first.trim();
   if (host.isEmpty) return null;
   final port = hostAndPort.length >= 2 ? int.tryParse(hostAndPort[1]) : null;
-  final localDualNodeBaseUri = _localDualNodeBaseUri(host, port);
-  if (localDualNodeBaseUri != null) return localDualNodeBaseUri;
+  final localDevNodeBaseUri = localDevNodeHttpUriForHost(
+    host,
+    port: port,
+    path: '/_p2p',
+  );
+  if (localDevNodeBaseUri != null) return localDevNodeBaseUri;
   final localHost = host == 'localhost' ||
       host == '127.0.0.1' ||
       host == '::1' ||
@@ -37,23 +43,6 @@ Uri? publicBaseUriForServerName(String serverName) {
     scheme: localHost ? 'http' : 'https',
     host: host,
     port: port,
-    path: '/_p2p',
-  );
-}
-
-Uri? _localDualNodeBaseUri(String host, int? port) {
-  final normalized = host.trim().toLowerCase();
-  if (port != null && port != 8008 && port != 8448) return null;
-  final hostPort = switch (normalized) {
-    'dendrite-a' => 18008,
-    'dendrite-b' => 28008,
-    _ => null,
-  };
-  if (hostPort == null) return null;
-  return Uri(
-    scheme: 'http',
-    host: '127.0.0.1',
-    port: hostPort,
     path: '/_p2p',
   );
 }

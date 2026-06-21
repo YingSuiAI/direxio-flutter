@@ -550,6 +550,7 @@ class AsConversation {
     required this.avatarUrl,
     this.peerMxid = '',
     this.lastEventId = '',
+    this.lastMessage = '',
     this.lastActivityAt,
     this.projectionState = '',
     this.projectionReason = '',
@@ -570,6 +571,7 @@ class AsConversation {
   final String title;
   final String avatarUrl;
   final String lastEventId;
+  final String lastMessage;
   final DateTime? lastActivityAt;
   final String projectionState;
   final String projectionReason;
@@ -601,6 +603,7 @@ class AsConversation {
       title: json['title'] as String? ?? '',
       avatarUrl: json['avatar_url'] as String? ?? '',
       lastEventId: json['last_event_id'] as String? ?? '',
+      lastMessage: json['last_message'] as String? ?? '',
       lastActivityAt: _parseUnixMillisDateTime(json['last_activity_at']),
       projectionState: json['projection_state'] as String? ?? '',
       projectionReason: json['projection_reason'] as String? ?? '',

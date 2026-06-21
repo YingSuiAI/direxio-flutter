@@ -72,6 +72,7 @@ void main() {
                 'title': 'Alice',
                 'avatar_url': 'mxc://avatar',
                 'last_event_id': r'$event',
+                'last_message': 'server preview',
                 'last_activity_at': 1781942406000,
                 'projection_state': 'ready',
                 'member_count': 2,
@@ -100,6 +101,7 @@ void main() {
     expect(conversations.single.kind, asConversationKindDirect);
     expect(conversations.single.peerMxid, '@alice:p2p-im.com');
     expect(conversations.single.title, 'Alice');
+    expect(conversations.single.lastMessage, 'server preview');
     expect(conversations.single.memberCount, 2);
     expect(conversations.single.membership, 'join');
     expect(conversations.single.relationshipStatus, 'accepted');

@@ -1470,6 +1470,7 @@ class _ChatList extends ConsumerWidget {
     }
     for (final conversation in productConversations) {
       if (conversation.isChannel) continue;
+      if (!conversation.canOpen) continue;
       final roomId = conversation.roomId.trim();
       addVisibleConversation(
         _VisibleConversation.product(
@@ -2050,6 +2051,8 @@ String _conversationPreviewTextForConversation(
     isAgent: conversation.isAgent,
   );
   if (text.isNotEmpty) return text;
+  final productLastMessage = conversation.product?.lastMessage.trim() ?? '';
+  if (productLastMessage.isNotEmpty) return productLastMessage;
   return '';
 }
 

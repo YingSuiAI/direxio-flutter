@@ -3735,6 +3735,60 @@ void main() {
     expect(find.text('还没有会话'), findsNothing);
   });
 
+  testWidgets('messages use ProductCore preview before Matrix room hydrates',
+      (tester) async {
+    final client = Client('PortalIMAsConversationPreviewHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final asClient = _ConversationListAsClient(
+      [
+        AsConversation(
+          conversationId: 'conv_preview',
+          roomId: '!preview:p2p-im.com',
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          title: 'B Bash Smoke',
+          avatarUrl: '',
+          lastMessage: 'server side latest message',
+          lastActivityAt: DateTime.utc(2026, 6, 22, 11),
+          relationshipStatus: 'accepted',
+          capabilities: const AsConversationCapabilities(open: true),
+        ),
+      ],
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 22, 11),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('B Bash Smoke'), findsWidgets);
+    expect(find.text('server side latest message'), findsOneWidget);
+    expect(find.text('还没有会话'), findsNothing);
+  });
+
   testWidgets('messages render ProductCore group before Matrix room hydrates',
       (tester) async {
     final client = Client('PortalIMAsJoinedGroupOnlyHomeListTest')
@@ -3780,6 +3834,68 @@ void main() {
     await tester.pump();
 
     expect(find.text('BCA'), findsWidgets);
+    expect(find.text('还没有会话'), findsNothing);
+  });
+
+  testWidgets('messages hide ProductCore conversations that cannot open',
+      (tester) async {
+    final client = Client('PortalIMHiddenPendingProductConversationTest')
+      ..setUserId('@owner:p2p-im.com');
+    final asClient = _ConversationListAsClient(
+      const [
+        AsConversation(
+          conversationId: 'conv_active',
+          roomId: '!active:p2p-im.com',
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          title: 'Active B',
+          avatarUrl: '',
+          relationshipStatus: 'accepted',
+          capabilities: AsConversationCapabilities(open: true),
+        ),
+        AsConversation(
+          conversationId: 'conv_pending',
+          roomId: '!pending:p2p-im.com',
+          kind: asConversationKindDirect,
+          lifecycle: 'pending',
+          title: 'Pending B',
+          avatarUrl: '',
+          relationshipStatus: 'pending_outbound',
+          capabilities: AsConversationCapabilities(open: false),
+        ),
+      ],
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 22, 11),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Active B'), findsWidgets);
+    expect(find.text('Pending B'), findsNothing);
     expect(find.text('还没有会话'), findsNothing);
   });
 
@@ -4056,6 +4172,7 @@ void main() {
         title: 'Yanan',
         avatarUrl: '',
         lastActivityAt: liveAt,
+        capabilities: const AsConversationCapabilities(open: true),
       ),
     ]);
 

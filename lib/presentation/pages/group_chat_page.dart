@@ -26,6 +26,7 @@ import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import '../providers/voice_call_provider.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_share.dart';
@@ -543,10 +544,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         );
         if (!mounted || !projected) return;
       }
-      context.push(
-        channelShareOpenRoute(ref.read(asSyncCacheProvider), payload),
-        extra: payload,
-      );
+      context.push(channelShareJoinedRoute(payload, joined), extra: payload);
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3113,6 +3111,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                                             asSyncCacheProvider,
                                                           ),
                                                           channelSharePayload,
+                                                          productConversations: ref
+                                                                  .read(
+                                                                    productConversationsProvider,
+                                                                  )
+                                                                  .valueOrNull ??
+                                                              const [],
                                                         ),
                                                         extra:
                                                             channelSharePayload,

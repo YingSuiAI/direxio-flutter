@@ -36,7 +36,8 @@ AsConversation? productDirectConversationForPeer(
   return null;
 }
 
-String? productConversationRoute(AsConversation conversation) {
+String? productConversationRoute(AsConversation? conversation) {
+  if (conversation == null) return null;
   final roomId = conversation.roomId.trim();
   if (roomId.isEmpty) return null;
   if (!conversation.canOpen) return null;

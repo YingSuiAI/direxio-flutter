@@ -58,6 +58,12 @@ Public remote channel lookup must use explicitly configured AS remotes or reques
 
 Channel share/invite cards must create `channels.invite_grant.create` before sending the Matrix share card. Join from the card sends `grant_id` and `share_room_id` to `channels.join`.
 
+`groups.join` and `channels.join` may return top-level ProductCore `conversation`.
+Preserve it on `AsGroupResult.productConversation` or
+`AsChannel.productConversation`, and open chat routes from that conversation.
+Do not reconstruct a post-join chat route from channel id, room id, group name,
+or member count when the ProductCore conversation is missing or not openable.
+
 ## Verification
 
 Run:

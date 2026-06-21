@@ -20,6 +20,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
 import '../utils/contact_identity_label.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/glass_header.dart';
 import 'channel_info_page.dart';
 
@@ -807,10 +808,8 @@ void _openJoinedPublicChannel(
     context.go('/channel/$encodedChannelId');
     return;
   }
-  final name =
-      joined.name.trim().isEmpty ? fallback.name.trim() : joined.name.trim();
-  final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
-  context.go('/channel/$encodedChannelId/conversation$query');
+  final route = productConversationRoute(joined.productConversation);
+  if (route != null) context.go(route);
 }
 
 class _PublicChannelJoinBar extends StatelessWidget {

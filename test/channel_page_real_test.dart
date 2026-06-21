@@ -188,7 +188,7 @@ void main() {
           ),
         ),
         GoRoute(
-          path: '/channel/:channelId/conversation',
+          path: '/group/:roomId',
           builder: (_, __) => const Scaffold(body: Text('conversation-opened')),
         ),
       ],
@@ -2077,6 +2077,15 @@ class _PublicChannelAsClient extends MockAsClient {
       commentsEnabled: true,
       role: asChannelRoleMember,
       memberStatus: asChannelMemberStatusJoined,
+      productConversation: AsConversation(
+        conversationId: 'conv_channel',
+        roomId: '!ch_public:p2p-im.com',
+        kind: asConversationKindChannel,
+        lifecycle: 'active',
+        title: '公开频道',
+        avatarUrl: '',
+        capabilities: AsConversationCapabilities(open: true),
+      ),
     );
   }
 }

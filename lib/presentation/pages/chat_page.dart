@@ -19,6 +19,7 @@ import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import '../providers/profile_provider.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_share.dart';
@@ -58,6 +59,7 @@ import '../utils/read_marker_sync.dart';
 import '../utils/chat_time_format.dart';
 import '../utils/message_history_policy.dart';
 import '../utils/message_preview.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../utils/room_read_state.dart';
 import '../widgets/agent_message_body.dart';
 import '../widgets/async_image_preview.dart';
@@ -1538,7 +1540,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       setState(() => _joiningGroupInviteEventIds.add(eventId));
     }
     try {
-      final roomId = await joinGroupInviteThroughAs(
+      final group = await joinGroupInviteThroughAs(
         invite: invite,
         currentDirectRoomId: widget.roomId,
         joinGroup: ref.read(asClientProvider).joinGroup,
@@ -1547,7 +1549,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         hasJoinedMatrixRoom: _isJoinedGroupRoom,
       );
       if (!mounted) return;
-      context.push('/group/${Uri.encodeComponent(roomId)}');
+      final route = productConversationRoute(group.productConversation);
+      if (route == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('群聊正在同步，请稍后重试')),
+        );
+        return;
+      }
+      context.push(route);
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1590,10 +1599,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
         if (!mounted || !projected) return;
       }
-      context.push(
-        channelShareOpenRoute(ref.read(asSyncCacheProvider), payload),
-        extra: payload,
-      );
+      context.push(channelShareJoinedRoute(payload, joined), extra: payload);
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2964,6 +2970,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                                       asSyncCacheProvider,
                                                     ),
                                                     channelSharePayload,
+                                                    productConversations: ref
+                                                            .read(
+                                                              productConversationsProvider,
+                                                            )
+                                                            .valueOrNull ??
+                                                        const [],
                                                   ),
                                                   extra: channelSharePayload,
                                                 ),

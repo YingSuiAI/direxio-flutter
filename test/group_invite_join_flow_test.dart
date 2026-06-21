@@ -7,7 +7,7 @@ void main() {
   test('joins group invite through AS then syncs and refreshes bootstrap',
       () async {
     final calls = <String>[];
-    final roomId = await joinGroupInviteThroughAs(
+    final group = await joinGroupInviteThroughAs(
       invite: const GroupInviteContent(
         groupRoomId: '!group:p2p-im.com',
         groupName: '产品测试群',
@@ -31,13 +31,23 @@ void main() {
           memberCount: 2,
           invitedCount: 0,
           role: 'member',
+          productConversation: AsConversation(
+            conversationId: 'conv_group',
+            roomId: '!joined:p2p-im.com',
+            kind: asConversationKindGroup,
+            lifecycle: 'active',
+            title: '产品测试群',
+            avatarUrl: '',
+            capabilities: AsConversationCapabilities(open: true),
+          ),
         );
       },
       oneShotSync: () async => calls.add('sync'),
       refreshBootstrap: () async => calls.add('refresh'),
     );
 
-    expect(roomId, '!joined:p2p-im.com');
+    expect(group.roomId, '!joined:p2p-im.com');
+    expect(group.productConversation?.conversationId, 'conv_group');
     expect(calls, [
       r'join:!group:p2p-im.com:产品测试群:@alice:p2p-liyanan.com:$invite:!dm:p2p-im.com',
       'sync',
@@ -50,7 +60,7 @@ void main() {
     var syncCount = 0;
     var joined = false;
 
-    final roomId = await joinGroupInviteThroughAs(
+    final group = await joinGroupInviteThroughAs(
       invite: const GroupInviteContent(
         groupRoomId: '!group:example.test',
         groupName: '产品测试群',
@@ -84,12 +94,12 @@ void main() {
       roomSyncTimeout: const Duration(milliseconds: 50),
     );
 
-    expect(roomId, '!joined:example.test');
+    expect(group.roomId, '!joined:example.test');
     expect(calls, ['join', 'sync', 'refresh', 'sync', 'refresh']);
   });
 
   test('falls back to invite room id when AS returns empty room id', () async {
-    final roomId = await joinGroupInviteThroughAs(
+    final group = await joinGroupInviteThroughAs(
       invite: const GroupInviteContent(
         groupRoomId: '!group:p2p-im.com',
         groupName: '产品测试群',
@@ -116,6 +126,6 @@ void main() {
       refreshBootstrap: () async {},
     );
 
-    expect(roomId, '!group:p2p-im.com');
+    expect(group.roomId, '!group:p2p-im.com');
   });
 }

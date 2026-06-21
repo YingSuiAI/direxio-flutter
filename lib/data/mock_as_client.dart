@@ -487,6 +487,11 @@ class MockAsClient implements AsClient {
       memberCount: 1,
       tags: tags,
       latestActivityAt: DateTime.now().toUtc(),
+      productConversation: _mockProductConversation(
+        roomId: '!$id:mock.local',
+        kind: asConversationKindChannel,
+        title: name.trim().isEmpty ? '未命名频道' : name.trim(),
+      ),
     );
     _channels[id] = channel;
     _channelMembers[id] = [
@@ -639,6 +644,11 @@ class MockAsClient implements AsClient {
       pendingJoinCount: existing.pendingJoinCount,
       tags: existing.tags,
       latestActivityAt: existing.latestActivityAt,
+      productConversation: _mockProductConversation(
+        roomId: existing.roomId,
+        kind: asConversationKindChannel,
+        title: existing.name,
+      ),
     );
     _channels[key] = invited;
     _channelMembers.putIfAbsent(key, () => []);
@@ -700,6 +710,11 @@ class MockAsClient implements AsClient {
       pendingJoinCount: existing.pendingJoinCount,
       tags: existing.tags,
       latestActivityAt: existing.latestActivityAt,
+      productConversation: _mockProductConversation(
+        roomId: existing.roomId,
+        kind: asConversationKindChannel,
+        title: existing.name,
+      ),
     );
     _channels[channelId] = joined;
     _channelMembers.putIfAbsent(channelId, () => []);
@@ -1295,6 +1310,11 @@ class MockAsClient implements AsClient {
       name: groupName.trim().isEmpty ? '群聊' : groupName.trim(),
       memberCount: 2,
       role: 'member',
+      productConversation: _mockProductConversation(
+        roomId: roomId,
+        kind: asConversationKindGroup,
+        title: groupName.trim().isEmpty ? '群聊' : groupName.trim(),
+      ),
     );
   }
 
@@ -1314,6 +1334,28 @@ class MockAsClient implements AsClient {
   ) async {
     await Future.delayed(_latency);
   }
+}
+
+AsConversation _mockProductConversation({
+  required String roomId,
+  required String kind,
+  required String title,
+}) {
+  final trimmedRoomId = roomId.trim();
+  return AsConversation(
+    conversationId: '${kind}_${trimmedRoomId.hashCode}',
+    roomId: trimmedRoomId,
+    kind: kind,
+    lifecycle: 'active',
+    title: title.trim(),
+    avatarUrl: '',
+    capabilities: const AsConversationCapabilities(
+      open: true,
+      send: true,
+      invite: true,
+      manageMembers: true,
+    ),
+  );
 }
 
 List<String> _normalizedMockStringList(Iterable<String> values) {

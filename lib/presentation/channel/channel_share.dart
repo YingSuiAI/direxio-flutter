@@ -14,6 +14,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/portal_avatar.dart';
 
 const channelShareMessageType = 'channel_share';
@@ -87,20 +88,23 @@ class ChannelSharePayload {
 
 String channelShareOpenRoute(
   AsSyncCacheState syncCache,
-  ChannelSharePayload payload,
-) {
+  ChannelSharePayload payload, {
+  Iterable<AsConversation> productConversations = const [],
+}) {
   final channelId = payload.channelId.trim();
   final roomId = payload.roomId.trim();
   final routeId = channelId.isEmpty ? roomId : channelId;
   final encodedRouteId = Uri.encodeComponent(routeId);
   if (_channelShareIsJoined(syncCache, payload)) {
-    final nameQuery = payload.displayName.trim().isEmpty
-        ? ''
-        : '?name=${Uri.encodeQueryComponent(payload.displayName)}';
-    final path = _channelShareIsPostType(payload)
-        ? '/channel/$encodedRouteId'
-        : '/channel/$encodedRouteId/conversation$nameQuery';
-    return path;
+    if (_channelShareIsPostType(payload)) return '/channel/$encodedRouteId';
+    final productRoute = productConversationRoute(
+      productConversationForRoom(
+        productConversations,
+        roomId,
+        kinds: const {asConversationKindChannel},
+      ),
+    );
+    if (productRoute != null) return productRoute;
   }
   return '/channel/$encodedRouteId/detail';
 }
@@ -130,35 +134,9 @@ String channelShareJoinedRoute(
   if (_channelShareIsPostType(payload)) {
     return '/channel/$encodedId';
   }
-  final name = _readableChannelShareName(
-    joined.name,
-    fallback: payload.displayName,
-    channelId: channelId,
-    roomId: joined.roomId.trim().isEmpty ? payload.roomId : joined.roomId,
-  );
-  final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
-  return '/channel/$encodedId/conversation$query';
-}
-
-String _readableChannelShareName(
-  String name, {
-  required String fallback,
-  required String channelId,
-  required String roomId,
-}) {
-  bool readable(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return false;
-    if (trimmed == channelId.trim()) return false;
-    if (trimmed == roomId.trim()) return false;
-    return !(trimmed.startsWith('!') && trimmed.contains(':'));
-  }
-
-  final trimmed = name.trim();
-  if (readable(trimmed)) return trimmed;
-  final fallbackName = fallback.trim();
-  if (readable(fallbackName)) return fallbackName;
-  return '';
+  final productRoute = productConversationRoute(joined.productConversation);
+  if (productRoute != null) return productRoute;
+  return '/channel/$encodedId/detail';
 }
 
 bool _channelShareIsPostType(ChannelSharePayload payload) {

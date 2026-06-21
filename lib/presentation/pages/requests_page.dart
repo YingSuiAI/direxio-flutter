@@ -14,6 +14,7 @@ import '../widgets/portal_avatar.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../../data/as_client.dart';
 import '../../data/well_known_service.dart';
 import '../../core/theme/design_tokens.dart';
@@ -250,7 +251,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         _notice = '已加入群聊';
         _noticeIsError = false;
       });
-      context.push('/group/${Uri.encodeComponent(joinedRoomId)}');
+      final route = productConversationRoute(group.productConversation);
+      if (route == null) {
+        setState(() {
+          _notice = '群聊正在同步，请稍后重试';
+          _noticeIsError = false;
+        });
+        return;
+      }
+      context.push(route);
     } catch (e) {
       if (mounted) {
         setState(() {

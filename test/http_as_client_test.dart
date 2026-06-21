@@ -1084,6 +1084,14 @@ void main() {
             'name': '产品测试群',
             'member_count': 2,
             'role': 'member',
+            'conversation': {
+              'conversation_id': 'conv_group',
+              'matrix_room_id': '!group:p2p-im.com',
+              'kind': 'group',
+              'lifecycle': 'active',
+              'title': '产品测试群',
+              'capabilities': {'open': true},
+            },
           }),
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
@@ -1102,6 +1110,8 @@ void main() {
     expect(group.roomId, '!group:p2p-im.com');
     expect(group.role, 'member');
     expect(group.memberCount, 2);
+    expect(group.productConversation?.conversationId, 'conv_group');
+    expect(group.productConversation?.canOpen, isTrue);
   });
 
   test('inviteGroupMembers posts existing group invites through AS', () async {
@@ -2397,6 +2407,14 @@ void main() {
               'comments_enabled': true,
               'member_status': 'joined',
             },
+            'conversation': {
+              'conversation_id': 'conv_channel',
+              'matrix_room_id': '!private:example.com',
+              'kind': 'channel',
+              'lifecycle': 'active',
+              'title': '私密频道',
+              'capabilities': {'open': true},
+            },
           },
           200,
         );
@@ -2411,6 +2429,8 @@ void main() {
     );
 
     expect(channel.memberStatus, asChannelMemberStatusJoined);
+    expect(channel.productConversation?.conversationId, 'conv_channel');
+    expect(channel.productConversation?.roomId, '!private:example.com');
   });
 
   test('joinChannelByRoomId posts room_id to public join request endpoint',

@@ -220,8 +220,60 @@ void main() {
     );
 
     expect(
+      channelShareOpenRoute(
+        joined,
+        payload,
+        productConversations: const [
+          AsConversation(
+            conversationId: 'conv_channel',
+            roomId: '!channel:p2p-im.com',
+            kind: asConversationKindChannel,
+            lifecycle: 'active',
+            title: '产品公告',
+            avatarUrl: '',
+            capabilities: AsConversationCapabilities(open: true),
+          ),
+        ],
+      ),
+      '/group/!channel%3Ap2p-im.com?conversation=conv_channel',
+    );
+  });
+
+  test('channel share route returns detail when joined chat lacks ProductCore',
+      () {
+    const payload = ChannelSharePayload(
+      channelId: 'ch_product',
+      roomId: '!channel:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '产品公告',
+      description: '只发布重要产品更新',
+    );
+    final joined = AsSyncCacheState(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: const [
+          AsSyncRoomSummary(
+            channelId: 'ch_product',
+            roomId: '!channel:p2p-im.com',
+            homeDomain: 'p2p-im.com',
+            name: '产品公告',
+            avatarUrl: '',
+            unreadCount: 0,
+            lastActivityAt: null,
+            memberStatus: asChannelMemberStatusJoined,
+          ),
+        ],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    expect(
       channelShareOpenRoute(joined, payload),
-      '/channel/ch_product/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
+      '/channel/ch_product/detail',
     );
   });
 
@@ -290,11 +342,41 @@ void main() {
       homeDomain: 'p2p-im.com',
       name: 'ch_product',
       memberStatus: asChannelMemberStatusJoined,
+      productConversation: AsConversation(
+        conversationId: 'conv_channel',
+        roomId: '!channel:p2p-im.com',
+        kind: asConversationKindChannel,
+        lifecycle: 'active',
+        title: '产品公告',
+        avatarUrl: '',
+        capabilities: AsConversationCapabilities(open: true),
+      ),
     );
 
     expect(
       channelShareJoinedRoute(payload, joined),
-      '/channel/ch_product/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
+      '/group/!channel%3Ap2p-im.com?conversation=conv_channel',
+    );
+  });
+
+  test('channel share joined route returns detail without ProductCore', () {
+    const payload = ChannelSharePayload(
+      channelId: 'ch_product',
+      roomId: '!channel:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '产品公告',
+    );
+    const joined = AsChannel(
+      channelId: 'ch_product',
+      roomId: '!channel:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '产品公告',
+      memberStatus: asChannelMemberStatusJoined,
+    );
+
+    expect(
+      channelShareJoinedRoute(payload, joined),
+      '/channel/ch_product/detail',
     );
   });
 

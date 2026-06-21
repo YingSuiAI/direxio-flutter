@@ -641,6 +641,17 @@ class AsConversationCapabilities {
   }
 }
 
+AsConversation? _parseConversation(Object? value) {
+  final json = (value as Map?)?.cast<String, dynamic>();
+  if (json == null || json.isEmpty) return null;
+  final conversation = AsConversation.fromJson(json);
+  if (conversation.conversationId.trim().isEmpty &&
+      conversation.roomId.trim().isEmpty) {
+    return null;
+  }
+  return conversation;
+}
+
 class AsSyncUser {
   const AsSyncUser({required this.userId});
 
@@ -961,6 +972,7 @@ class AsChannel {
     this.pendingJoinCount = 0,
     this.tags = const [],
     this.latestActivityAt,
+    this.productConversation,
   });
 
   final String channelId;
@@ -979,6 +991,7 @@ class AsChannel {
   final int pendingJoinCount;
   final List<String> tags;
   final DateTime? latestActivityAt;
+  final AsConversation? productConversation;
 
   factory AsChannel.fromJson(Map<String, dynamic> json) {
     return AsChannel(
@@ -1007,6 +1020,7 @@ class AsChannel {
       tags: _parseStringList(json['tags']),
       latestActivityAt:
           _parseDateTime(json['last_activity_at'] ?? json['created_at']),
+      productConversation: _parseConversation(json['conversation']),
     );
   }
 
@@ -1391,6 +1405,7 @@ class AsGroupResult {
     this.role = '',
     this.status = '',
     this.invitePolicy = groupInvitePolicyAllMembers,
+    this.productConversation,
   });
 
   final String roomId;
@@ -1400,6 +1415,7 @@ class AsGroupResult {
   final String role;
   final String status;
   final String invitePolicy;
+  final AsConversation? productConversation;
 
   factory AsGroupResult.fromJson(Map<String, dynamic> json) {
     return AsGroupResult(
@@ -1412,6 +1428,7 @@ class AsGroupResult {
       invitePolicy: _normalizeGroupInvitePolicy(
         json['invite_policy'] as String? ?? '',
       ),
+      productConversation: _parseConversation(json['conversation']),
     );
   }
 }

@@ -11,7 +11,7 @@ typedef JoinGroupInviteRequest = Future<AsGroupResult> Function({
 
 typedef HasJoinedMatrixRoom = bool Function(String roomId);
 
-Future<String> joinGroupInviteThroughAs({
+Future<AsGroupResult> joinGroupInviteThroughAs({
   required GroupInviteContent invite,
   required String currentDirectRoomId,
   required JoinGroupInviteRequest joinGroup,
@@ -21,7 +21,7 @@ Future<String> joinGroupInviteThroughAs({
   Duration roomSyncTimeout = const Duration(seconds: 20),
   Duration roomSyncInterval = const Duration(seconds: 2),
 }) async {
-  final group = await joinGroup(
+  final joined = await joinGroup(
     roomId: invite.groupRoomId,
     groupName: invite.groupName,
     inviterMxid: invite.inviterMxid,
@@ -29,11 +29,24 @@ Future<String> joinGroupInviteThroughAs({
     directRoomId:
         invite.directRoomId.isEmpty ? currentDirectRoomId : invite.directRoomId,
   );
-  final joinedRoomId = group.roomId.isEmpty ? invite.groupRoomId : group.roomId;
+  final joinedRoomId =
+      joined.roomId.isEmpty ? invite.groupRoomId : joined.roomId;
+  final group = joined.roomId.isEmpty
+      ? AsGroupResult(
+          roomId: joinedRoomId,
+          name: joined.name,
+          memberCount: joined.memberCount,
+          invitedCount: joined.invitedCount,
+          role: joined.role,
+          status: joined.status,
+          invitePolicy: joined.invitePolicy,
+          productConversation: joined.productConversation,
+        )
+      : joined;
   if (hasJoinedMatrixRoom == null) {
     await oneShotSync();
     await refreshBootstrap();
-    return joinedRoomId;
+    return group;
   }
   await waitForJoinedGroupMatrixRoom(
     roomId: joinedRoomId,
@@ -43,7 +56,7 @@ Future<String> joinGroupInviteThroughAs({
     timeout: roomSyncTimeout,
     interval: roomSyncInterval,
   );
-  return joinedRoomId;
+  return group;
 }
 
 Future<bool> waitForJoinedGroupMatrixRoom({

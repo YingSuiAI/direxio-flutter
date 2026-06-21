@@ -1873,8 +1873,13 @@ class HttpAsClient implements AsClient {
     Map<String, dynamic> body, {
     bool statusBelongsToCurrentUser = false,
   }) {
-    final channelJson =
-        (body['channel'] as Map?)?.cast<String, dynamic>() ?? body;
+    final channelJson = <String, dynamic>{
+      ...((body['channel'] as Map?)?.cast<String, dynamic>() ?? body),
+    };
+    final conversationJson = body['conversation'];
+    if (conversationJson != null) {
+      channelJson['conversation'] = conversationJson;
+    }
     if (statusBelongsToCurrentUser) {
       final currentStatus = channelJson['member_status'];
       final envelopeStatus = body['status'];

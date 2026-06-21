@@ -16,6 +16,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 
@@ -230,18 +231,14 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
         context.push('/channel/$encodedChannelId');
         return;
       }
-      final joinedName = _readableChannelName(
-        joined.name,
-        channelId: joinedChannelId,
-        roomId: joined.roomId,
-        fallback: channel.name,
-      );
-      final query = joinedName.isEmpty
-          ? ''
-          : '?name=${Uri.encodeQueryComponent(joinedName)}';
-      context.push(
-        '/channel/$encodedChannelId/conversation$query',
-      );
+      final route = productConversationRoute(joined.productConversation);
+      if (route == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('频道正在同步，请稍后重试')),
+        );
+        return;
+      }
+      context.push(route);
     } catch (err) {
       if (!mounted) return;
       setState(() => _joining = false);
@@ -258,27 +255,6 @@ String _channelJoinWaitingText(String _) {
 
 bool _looksLikeMatrixRoomId(String value) {
   return value.trim().startsWith('!') && value.contains(':');
-}
-
-String _readableChannelName(
-  String name, {
-  required String channelId,
-  required String roomId,
-  required String fallback,
-}) {
-  bool readable(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return false;
-    if (trimmed == channelId.trim()) return false;
-    if (trimmed == roomId.trim()) return false;
-    return !_looksLikeMatrixRoomId(trimmed);
-  }
-
-  final trimmed = name.trim();
-  if (readable(trimmed)) return trimmed;
-  final fallbackName = fallback.trim();
-  if (readable(fallbackName)) return fallbackName;
-  return '';
 }
 
 class _ChannelIdRow extends StatelessWidget {

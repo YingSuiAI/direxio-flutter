@@ -90,6 +90,7 @@ This document records the currently implemented client features and whether each
 | QR code | `/me/qr`, `me_qr_page.dart` | Real | Shows current owner/domain identity for sharing. |
 | Favorites/likes/comments/drafts/history | `/me/*`, `me_menu_page.dart` | Partial | Pages and local/mock content exist. AS-backed favorites/comments/reactions exist in `AsClient`; verify backend persistence before marking every list fully real. |
 | Notifications/settings | `/settings`, `/me/notifications` | Real + local | Preferences are local Riverpod/local-store state unless backed by a platform service. |
+| Android offline push | `push_notification_provider.dart`, Matrix `/pushers/set` | Partial | Android registers the FCM token as a Matrix HTTP pusher after login with `app_id=io.direxio.app.android`. Production defaults to `https://push.direxio.ai/_matrix/push/v1/notify`; use `--dart-define=DIREXIO_PUSH_GATEWAY_URL=http://<LAN-IP>:5000/_matrix/push/v1/notify` only for local gateway testing. |
 | Theme/language | `app_theme_provider.dart`, `app_locale_provider.dart` | Local | User preference state; UI follows Material 3 tokens. |
 | MCP permissions | `/mcp-permission`, `/mcp-permission/:agentId` | Demo/local | Mock permission/policy stores exist for UI flow. Server-backed Agent/MCP policy should be verified before production use. |
 

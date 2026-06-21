@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -15,6 +18,7 @@ import 'presentation/providers/as_event_stream_provider.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/bi_analytics_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
+import 'presentation/providers/push_notification_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
 import 'presentation/widgets/user_action_debounce.dart';
 
@@ -24,6 +28,10 @@ bool _sessionExpiredDialogShowing = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (_androidFcmSupported) {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
   await _warmAppFonts();
   // Web 上禁用浏览器原生右键菜单（翻译/检查等），让我们自己的
   // chat-ctx / msg-ctx 菜单不被遮挡。
@@ -45,6 +53,17 @@ void main() async {
   );
 }
 
+bool get _androidFcmSupported {
+  return !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+}
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (_androidFcmSupported) {
+    await Firebase.initializeApp();
+  }
+}
+
 Future<void> _warmAppFonts() async {
   final loader = FontLoader(AppTheme.fontFamily)
     ..addFont(rootBundle.load(_appFontAsset));
@@ -61,6 +80,7 @@ class PortalApp extends ConsumerWidget {
     final themeMode = ref.watch(appThemeProvider);
     ref.watch(asEventStreamRefreshProvider);
     ref.watch(messageSoundControllerProvider);
+    ref.watch(pushNotificationBootstrapProvider);
     ref.listen<int>(sessionExpiredNoticeProvider, (previous, next) {
       if (previous == null || next <= previous) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {

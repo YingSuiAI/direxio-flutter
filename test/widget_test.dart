@@ -7004,6 +7004,7 @@ void main() {
   testWidgets('add contact detail opens chat for accepted contact',
       (tester) async {
     const roomId = '!alice-chat:p2p-im.com';
+    const conversationId = 'conv_alice_chat';
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 16, 12),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -7037,7 +7038,8 @@ void main() {
         GoRoute(
           path: '/chat/:roomId',
           builder: (_, state) => Text(
-            'chat:${state.pathParameters['roomId']}',
+            'chat:${state.pathParameters['roomId']};'
+            'conversation:${state.uri.queryParameters['conversation']}',
             textDirection: TextDirection.ltr,
           ),
         ),
@@ -7052,6 +7054,22 @@ void main() {
         authStateNotifierProvider.overrideWith(_LoggedInAuthStateNotifier.new),
         asSyncCacheProvider.overrideWith(
           (ref) => AsSyncCacheState(bootstrap: bootstrap),
+        ),
+        asClientProvider.overrideWithValue(
+          _ConversationListAsClient(
+            const [
+              AsConversation(
+                conversationId: conversationId,
+                roomId: roomId,
+                kind: asConversationKindDirect,
+                lifecycle: 'active',
+                peerMxid: '@alice:portal.local',
+                title: 'Alice Chen',
+                avatarUrl: '',
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ],
+          ),
         ),
         conversationPreferencesStoreProvider.overrideWith(
           (ref) async => preferencesStore,
@@ -7082,7 +7100,10 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '发消息'));
     await tester.pumpAndSettle();
 
-    expect(find.text('chat:$roomId'), findsOneWidget);
+    expect(
+      find.text('chat:$roomId;conversation:$conversationId'),
+      findsOneWidget,
+    );
     expect(
       container.read(homeHiddenConversationIdsProvider),
       isNot(contains(roomId)),

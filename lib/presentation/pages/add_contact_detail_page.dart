@@ -5,11 +5,14 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../mock/mock_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import '../utils/contact_identity_label.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/portal_avatar.dart';
 
 class AddContactDetailPage extends ConsumerStatefulWidget {
@@ -42,20 +45,31 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
     );
   }
 
-  void _openAcceptedChat(String roomId) {
-    final trimmed = roomId.trim();
-    if (trimmed.isEmpty) {
+  void _openAcceptedChat(AsConversation conversation) {
+    final roomId = conversation.roomId.trim();
+    final route = productConversationRoute(conversation);
+    if (roomId.isEmpty || route == null) {
       _toast(context, '打开聊天失败: 缺少会话信息');
       return;
     }
-    showHomeConversation(ref, trimmed);
-    context.go('/chat/${Uri.encodeComponent(trimmed)}');
+    showHomeConversation(ref, roomId);
+    context.go(route);
   }
 
   @override
   Widget build(BuildContext context) {
     final acceptedContact =
         ref.watch(asSyncCacheProvider).acceptedContactForUserId(widget.userId);
+    final productConversations =
+        ref.watch(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final acceptedConversation = acceptedContact == null
+        ? null
+        : productDirectConversationForPeer(
+            productConversations,
+            peerMxid: widget.userId,
+            roomId: acceptedContact.roomId,
+          );
     final isAcceptedContact = acceptedContact != null;
     final profile = _profileForAddContact(
       widget.userId,
@@ -90,7 +104,9 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
                     const SizedBox(height: 24),
                     _DetailActionRow(
                       onMessage: isAcceptedContact
-                          ? () => _openAcceptedChat(acceptedContact.roomId)
+                          ? acceptedConversation == null
+                              ? () => _toast(context, '聊天会话同步中，请稍后重试')
+                              : () => _openAcceptedChat(acceptedConversation)
                           : _openVerification,
                       onVoice: () =>
                           _toast(context, l10n.addContactVoiceAfterAdding),
@@ -124,7 +140,9 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
                   : l10n.contactSendMessage,
               onTap: !isAcceptedContact
                   ? _openVerification
-                  : () => _openAcceptedChat(acceptedContact.roomId),
+                  : acceptedConversation == null
+                      ? () => _toast(context, '聊天会话同步中，请稍后重试')
+                      : () => _openAcceptedChat(acceptedConversation),
             ),
           ],
         ),

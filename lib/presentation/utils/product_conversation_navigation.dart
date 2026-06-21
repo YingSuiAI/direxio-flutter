@@ -1,0 +1,53 @@
+import '../../data/as_client.dart';
+
+AsConversation? productConversationForRoom(
+  Iterable<AsConversation> conversations,
+  String roomId, {
+  Set<String>? kinds,
+}) {
+  final targetRoomId = roomId.trim();
+  if (targetRoomId.isEmpty) return null;
+  for (final conversation in conversations) {
+    if (conversation.roomId.trim() != targetRoomId) continue;
+    if (kinds != null && !kinds.contains(conversation.kind)) continue;
+    return conversation;
+  }
+  return null;
+}
+
+AsConversation? productDirectConversationForPeer(
+  Iterable<AsConversation> conversations, {
+  required String peerMxid,
+  String roomId = '',
+}) {
+  final targetPeer = peerMxid.trim();
+  final targetRoomId = roomId.trim();
+  for (final conversation in conversations) {
+    if (!conversation.isDirect) continue;
+    if (targetRoomId.isNotEmpty && conversation.roomId.trim() == targetRoomId) {
+      return conversation;
+    }
+    if (targetPeer.isNotEmpty && conversation.peerMxid.trim() == targetPeer) {
+      return conversation;
+    }
+  }
+  return null;
+}
+
+String? productConversationRoute(AsConversation conversation) {
+  final roomId = conversation.roomId.trim();
+  if (roomId.isEmpty) return null;
+  final base = switch (conversation.kind) {
+    asConversationKindDirect || asConversationKindAgent => '/chat',
+    asConversationKindGroup || asConversationKindChannel => '/group',
+    _ => '',
+  };
+  if (base.isEmpty) return null;
+  final route = '$base/${Uri.encodeComponent(roomId)}';
+  final conversationId = conversation.conversationId.trim();
+  if (conversationId.isEmpty) return route;
+  final query = Uri(
+    queryParameters: {'conversation': conversationId},
+  ).query;
+  return '$route?$query';
+}

@@ -28,6 +28,11 @@ Use `AsSyncBootstrap.channels` as the primary logged-in source for channel lists
 
 Search, channel tab, channel detail, and channel chat must use the same channel identity source when logged in.
 
+`/channel/:id/conversation` may use bootstrap channel metadata only to map a
+channel id to its Matrix room id. It must still resolve an active ProductCore
+channel conversation before opening chat; do not fall back to treating the raw
+channel id as a Matrix room id.
+
 Public remote channel lookup must use configured or contract-provided AS remotes. Do not guess a remote AS endpoint from a Matrix room id domain unless the contract explicitly requires a derived `remote_node_base_url`.
 
 ## Membership And Sending

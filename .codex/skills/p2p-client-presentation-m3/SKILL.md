@@ -48,6 +48,12 @@ conversation truth: prune cached-only rooms, and use the snapshot only to fill
 same-room preview, avatar, and unread fields during Matrix hydration. Do not
 show stale cached conversations that ProductCore no longer returns.
 
+Logged-in conversation entry points must open chats from ProductCore
+conversations. Use the ProductCore `conversation_id` plus `matrix_room_id` to
+build routes, and map route type from ProductCore `kind`; do not let contact
+detail, home rows, group lists, or channel conversation routes infer direct vs
+group from raw Matrix rooms or bootstrap-only metadata.
+
 User operation buttons and tap targets are covered by the root
 `UserActionDebounce` 500ms pointer debounce. Keep new app entry builders wrapped
 by it instead of adding one-off duplicate request guards to individual buttons.

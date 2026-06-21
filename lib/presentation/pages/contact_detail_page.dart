@@ -19,11 +19,13 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/report_reason_dialog.dart';
 
@@ -67,6 +69,9 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final t = context.tk;
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
+    final productConversations =
+        ref.watch(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
     final userId = widget.userId;
@@ -93,9 +98,15 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
           agentMxid: agentMxid,
           acceptedRoomIds: acceptedRoomIds,
         );
+    final directProductConversation = productDirectConversationForPeer(
+      productConversations,
+      peerMxid: userId,
+      roomId: acceptedContactForUser?.roomId ?? room?.id ?? '',
+    );
     final mock = room == null ? MockData.byMxid(userId) : null;
     final canUseMock = room == null && mock != null;
-    final canOpenChat = canUseRealRoom || canUseMock;
+    final canOpenChat =
+        (canUseRealRoom && directProductConversation != null) || canUseMock;
     final acceptedContact = acceptedContactForUser ??
         (room == null ? null : syncCache.acceptedContactForRoom(room.id));
     final domain = domainFromMxid(userId);
@@ -159,7 +170,13 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     const SizedBox(height: 24),
                     _QuickActionGrid(
                       onMessage: canOpenChat && roomId != null
-                          ? () => _openChat(roomId)
+                          ? () {
+                              if (canUseMock) {
+                                _openMockChat(roomId);
+                                return;
+                              }
+                              _openProductChat(directProductConversation!);
+                            }
                           : null,
                       showCallActions: true,
                       onVoice: room != null
@@ -255,7 +272,15 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     );
   }
 
-  void _openChat(String roomId) {
+  void _openProductChat(AsConversation conversation) {
+    final roomId = conversation.roomId.trim();
+    final route = productConversationRoute(conversation);
+    if (roomId.isEmpty || route == null) return;
+    showHomeConversation(ref, roomId);
+    context.go(route);
+  }
+
+  void _openMockChat(String roomId) {
     final trimmed = roomId.trim();
     if (trimmed.isEmpty) return;
     showHomeConversation(ref, trimmed);

@@ -54,6 +54,9 @@ import '../../presentation/pages/mcp_permission_page.dart';
 import '../../presentation/pages/mcp_policy_edit_page.dart';
 import '../../presentation/providers/as_sync_cache_provider.dart';
 import '../../presentation/providers/auth_provider.dart';
+import '../../presentation/providers/product_conversations_provider.dart';
+import '../../presentation/utils/product_conversation_navigation.dart';
+import '../../data/as_client.dart';
 import '../../data/setup_payload.dart';
 
 part 'app_router.g.dart';
@@ -69,9 +72,9 @@ const _callAutotestEnabled = bool.fromEnvironment(
 const _callAutotestInitialRouteFileName = 'p2p_initial_route.txt';
 String? _pendingCallAutotestInitialRoute;
 
-String _channelConversationRoomId(Ref ref, String rawChannelId) {
+String? _channelConversationRoomId(WidgetRef ref, String rawChannelId) {
   final channelId = rawChannelId.trim();
-  if (channelId.isEmpty) return rawChannelId;
+  if (channelId.isEmpty) return null;
   final channels =
       ref.read(asSyncCacheProvider).bootstrap?.channels ?? const [];
   for (final channel in channels) {
@@ -81,7 +84,69 @@ String _channelConversationRoomId(Ref ref, String rawChannelId) {
       return roomId;
     }
   }
-  return channelId;
+  return null;
+}
+
+class _ChannelConversationRoutePage extends ConsumerWidget {
+  const _ChannelConversationRoutePage({
+    required this.channelId,
+    this.channelName,
+  });
+
+  final String channelId;
+  final String? channelName;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final conversationsAsync = ref.watch(productConversationsProvider);
+    return conversationsAsync.when(
+      data: (conversations) {
+        final byRoomId = productConversationForRoom(
+          conversations,
+          channelId,
+          kinds: const {asConversationKindChannel},
+        );
+        final resolvedRoomId = _channelConversationRoomId(ref, channelId);
+        final conversation = byRoomId ??
+            (resolvedRoomId == null
+                ? null
+                : productConversationForRoom(
+                    conversations,
+                    resolvedRoomId,
+                    kinds: const {asConversationKindChannel},
+                  ));
+        if (conversation == null) {
+          return const _RouteStatePage(message: '频道会话同步中，请稍后重试');
+        }
+        return GroupChatPage(
+          roomId: conversation.roomId.trim(),
+          channelId: channelId,
+          channelName: channelName,
+        );
+      },
+      loading: () => const _RouteStatePage(message: '正在同步频道会话'),
+      error: (_, __) => const _RouteStatePage(message: '频道会话同步失败，请稍后重试'),
+    );
+  }
+}
+
+class _RouteStatePage extends StatelessWidget {
+  const _RouteStatePage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.tk.bg,
+      body: Center(
+        child: Text(
+          message,
+          style: AppTheme.sans(size: 15, color: context.tk.textMute),
+        ),
+      ),
+    );
+  }
 }
 
 enum PortalRouteTransition { slide, chatEntranceOnly }
@@ -636,11 +701,9 @@ GoRouter appRouter(Ref ref) {
         path: '/channel/:channelId/conversation',
         pageBuilder: (_, state) {
           final channelId = state.pathParameters['channelId']!;
-          final roomId = _channelConversationRoomId(ref, channelId);
           return _pageForLocation(
-            '/group/${Uri.encodeComponent(roomId)}',
-            GroupChatPage(
-              roomId: roomId,
+            state.matchedLocation,
+            _ChannelConversationRoutePage(
               channelId: channelId,
               channelName: state.uri.queryParameters['name'],
             ),

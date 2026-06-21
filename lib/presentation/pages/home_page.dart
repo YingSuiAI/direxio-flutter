@@ -11,7 +11,6 @@ import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
 import '../channel/create_channel_sheet.dart';
-import '../providers/as_client_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -22,6 +21,7 @@ import '../providers/home_hidden_conversations_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../mock/mock_data.dart';
 import '../../data/as_client.dart';
@@ -37,6 +37,7 @@ import '../call/voice_call_display_name.dart';
 import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/app_glass_background.dart';
 import '../widgets/m3/m3_search_field.dart';
 import '../utils/contact_display_name.dart';
@@ -72,17 +73,6 @@ const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
 final asBootstrapLiveRefreshIntervalProvider = Provider<Duration?>(
   (ref) => const Duration(seconds: 10),
 );
-
-final asConversationListProvider =
-    FutureProvider.autoDispose<List<AsConversation>>((ref) async {
-  final conversations = await ref.watch(asClientProvider).listConversations();
-  return [
-    for (final conversation in conversations)
-      if (conversation.roomId.trim().isNotEmpty &&
-          conversation.lifecycle != 'deleted')
-        conversation,
-  ];
-});
 
 bool _homeDark(BuildContext context) {
   return Theme.of(context).brightness == Brightness.dark;
@@ -178,7 +168,7 @@ class _HomePageState extends ConsumerState<HomePage>
     final nextSignature = _homeSyncSignature(client);
     if (nextSignature == _lastHomeSyncSignature) return;
     _lastHomeSyncSignature = nextSignature;
-    ref.invalidate(asConversationListProvider);
+    ref.invalidate(productConversationsProvider);
     setState(() {});
   }
 
@@ -428,7 +418,7 @@ class _HomePageState extends ConsumerState<HomePage>
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
           );
-      ref.invalidate(asConversationListProvider);
+      ref.invalidate(productConversationsProvider);
       if (mounted) setState(() {});
     } catch (e) {
       _lastBootstrapRefreshUserId = refreshUserId;
@@ -1442,9 +1432,14 @@ class _ChatList extends ConsumerWidget {
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final outbox = ref.watch(localOutboxProvider);
     final messageOrder = ref.watch(localMessageOrderProvider);
-    final productConversationsAsync = ref.watch(asConversationListProvider);
+    final productConversationsAsync = ref.watch(productConversationsProvider);
     final productConversations =
         productConversationsAsync.valueOrNull ?? const <AsConversation>[];
+    final productConversationsByRoomId = {
+      for (final conversation in productConversations)
+        if (conversation.roomId.trim().isNotEmpty)
+          conversation.roomId.trim(): conversation,
+    };
     final asRoomSummariesByRoomId = <String, AsSyncRoomSummary>{
       for (final room in syncCache.bootstrap?.rooms ?? const [])
         if (room.roomId.trim().isNotEmpty) room.roomId.trim(): room,
@@ -1612,6 +1607,7 @@ class _ChatList extends ConsumerWidget {
     return _HomeConversationEntryList(
       entries: displayConversations,
       pinnedConversationIds: pinnedConversationIds,
+      productConversationsByRoomId: productConversationsByRoomId,
     );
   }
 }
@@ -1620,10 +1616,12 @@ class _HomeConversationEntryList extends ConsumerWidget {
   const _HomeConversationEntryList({
     required this.entries,
     required this.pinnedConversationIds,
+    required this.productConversationsByRoomId,
   });
 
   final List<HomeConversationSnapshotEntry> entries;
   final Set<String> pinnedConversationIds;
+  final Map<String, AsConversation> productConversationsByRoomId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1634,6 +1632,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
         final entry = entries[i];
         final roomId = entry.roomId.trim();
         final name = entry.name.trim().isEmpty ? roomId : entry.name.trim();
+        final productConversation = productConversationsByRoomId[roomId];
         return _ConvRow(
           key: ValueKey('home_conversation_$roomId'),
           name: name,
@@ -1644,9 +1643,12 @@ class _HomeConversationEntryList extends ConsumerWidget {
           isGroup: entry.isGroup,
           avatarUrl: entry.avatarUrl.trim().isEmpty ? null : entry.avatarUrl,
           isPinned: pinnedConversationIds.contains(roomId),
-          onTap: () => entry.isGroup
-              ? context.push('/group/${Uri.encodeComponent(roomId)}')
-              : context.push('/chat/${Uri.encodeComponent(roomId)}'),
+          onTap: () {
+            final route = productConversation == null
+                ? null
+                : productConversationRoute(productConversation);
+            if (route != null) context.push(route);
+          },
           onTogglePin: () => _toggleHomeConversationPin(ref, roomId),
           onHide: () => hideHomeConversation(ref, roomId),
           onDelete: () => _deleteHomeConversation(context, ref, roomId, name),

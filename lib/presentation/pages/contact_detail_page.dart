@@ -192,19 +192,21 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                                     '/room-search/${Uri.encodeComponent(roomId)}',
                                   ),
                     ),
-                    const SizedBox(height: 26),
-                    _ContactSettingRow(
-                      label: '设置备注',
-                      onTap: () => _showRemarkDialog(
-                        context,
-                        userId: userId,
-                        roomId: acceptedContact?.roomId ?? roomId ?? '',
-                        domain: acceptedContact?.domain ?? domain,
-                        currentName: displayName,
+                    if (!isSelf) ...[
+                      const SizedBox(height: 26),
+                      _ContactSettingRow(
+                        label: '设置备注',
+                        onTap: () => _showRemarkDialog(
+                          context,
+                          userId: userId,
+                          roomId: acceptedContact?.roomId ?? roomId ?? '',
+                          domain: acceptedContact?.domain ?? domain,
+                          currentName: displayName,
+                        ),
                       ),
-                    ),
+                    ],
                     if (!hideRecommendFriend) ...[
-                      const SizedBox(height: 16),
+                      SizedBox(height: isSelf ? 26 : 16),
                       _ContactSettingRow(
                         label: '推荐给朋友',
                         onTap: () => _shareContact(displayName, userId),

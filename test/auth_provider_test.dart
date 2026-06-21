@@ -2247,6 +2247,55 @@ void main() {
     );
   });
 
+  test('transient portal refresh failure preserves stored login session',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'cached-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'cached-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'portal-pass',
+      AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final client = _NoSyncInitClient(
+      'AuthTransientPortalRefreshPreservesSessionTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.auth') != null) {
+          return http.Response('{"error":"temporarily unavailable"}', 503);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    await container.read(authStateNotifierProvider.future);
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .expireSessionDueInvalidTokenIfCurrent('cached-token');
+
+    expect(
+      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isTrue,
+    );
+    expect(container.read(sessionExpiredNoticeProvider), 0);
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      'cached-token',
+    );
+  });
+
   test('session expiry keeps login secret for startup restore retry', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'expired-token',

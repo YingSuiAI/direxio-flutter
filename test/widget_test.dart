@@ -21,6 +21,7 @@ import 'package:portal_app/data/channel_post_store.dart';
 import 'package:portal_app/data/chat_clear_state_store.dart';
 import 'package:portal_app/data/conversation_preferences_store.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
+import 'package:portal_app/data/home_conversation_snapshot_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/data/matrix_message_search_client.dart';
 import 'package:portal_app/data/matrix_message_visibility_client.dart';
@@ -68,6 +69,7 @@ import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart';
 import 'package:portal_app/presentation/providers/conversation_preferences_provider.dart';
 import 'package:portal_app/presentation/providers/friend_request_read_provider.dart';
+import 'package:portal_app/presentation/providers/home_conversation_snapshot_provider.dart';
 import 'package:portal_app/presentation/providers/home_hidden_conversations_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 import 'package:portal_app/presentation/providers/matrix_message_clients_provider.dart';
@@ -1411,6 +1413,26 @@ class _MemoryConversationPreferencesStore
   @override
   Future<void> write(ConversationPreferencesData data) async {
     this.data = data;
+  }
+}
+
+class _MemoryHomeConversationSnapshotStore
+    implements HomeConversationSnapshotStore {
+  _MemoryHomeConversationSnapshotStore([this.snapshot]);
+
+  HomeConversationSnapshot? snapshot;
+
+  @override
+  Future<HomeConversationSnapshot?> read() async => snapshot;
+
+  @override
+  Future<void> write(HomeConversationSnapshot snapshot) async {
+    this.snapshot = snapshot;
+  }
+
+  @override
+  Future<void> clear() async {
+    snapshot = null;
   }
 }
 
@@ -3562,6 +3584,168 @@ void main() {
     expect(find.text('7'), findsOneWidget);
     expect(find.text('还没有会话'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('messages render cached home conversations before rooms hydrate',
+      (tester) async {
+    final client = Client('PortalIMCachedHomeConversationListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final snapshotStore = _MemoryHomeConversationSnapshotStore(
+      HomeConversationSnapshot(
+        userId: '@owner:p2p-im.com',
+        updatedAt: DateTime.utc(2026, 6, 21, 10),
+        entries: [
+          HomeConversationSnapshotEntry(
+            roomId: '!cached-direct:p2p-im.com',
+            name: '缓存联系人',
+            lastMessage: '本地缓存消息',
+            previewTs: DateTime.utc(2026, 6, 21, 10).millisecondsSinceEpoch,
+            unread: 4,
+            isGroup: false,
+            isAgent: false,
+            avatarUrl: 'https://cdn.example.com/cached.png',
+          ),
+        ],
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          homeConversationSnapshotStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('缓存联系人'), findsOneWidget);
+    expect(find.text('本地缓存消息'), findsOneWidget);
+    expect(find.text('4'), findsOneWidget);
+    expect(find.text('还没有会话'), findsNothing);
+  });
+
+  testWidgets('messages merge live updates into cached home conversations',
+      (tester) async {
+    final client = Client('PortalIMCachedHomeConversationMergeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final liveAt = DateTime.utc(2026, 6, 21, 12);
+    final snapshotStore = _MemoryHomeConversationSnapshotStore(
+      HomeConversationSnapshot(
+        userId: '@owner:p2p-im.com',
+        updatedAt: DateTime.utc(2026, 6, 21, 10),
+        entries: [
+          HomeConversationSnapshotEntry(
+            roomId: '!a:p2p-im.com',
+            name: '旧联系人A',
+            lastMessage: '旧消息A',
+            previewTs: DateTime.utc(2026, 6, 21, 10).millisecondsSinceEpoch,
+            unread: 1,
+            isGroup: false,
+            isAgent: false,
+          ),
+          HomeConversationSnapshotEntry(
+            roomId: '!b:p2p-im.com',
+            name: '缓存B',
+            lastMessage: '缓存B消息',
+            previewTs: DateTime.utc(2026, 6, 21, 9).millisecondsSinceEpoch,
+            unread: 2,
+            isGroup: false,
+            isAgent: false,
+          ),
+        ],
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: liveAt,
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: [
+        AsSyncRoomSummary(
+          roomId: '!a:p2p-im.com',
+          name: 'Yanan',
+          avatarUrl: '',
+          unreadCount: 9,
+          lastActivityAt: liveAt,
+        ),
+      ],
+      contacts: const [
+        AsSyncContact(
+          userId: '@yanan:p2p-im.com',
+          displayName: 'Yanan',
+          avatarUrl: '',
+          roomId: '!a:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          homeConversationSnapshotStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Yanan'), findsWidgets);
+    expect(find.text('旧消息A'), findsOneWidget);
+    expect(find.text('9'), findsOneWidget);
+    expect(find.text('缓存B'), findsOneWidget);
+    expect(find.text('缓存B消息'), findsOneWidget);
+    expect(find.text('还没有会话'), findsNothing);
+
+    await tester.pump();
+    final persisted = snapshotStore.snapshot;
+    expect(
+      persisted?.entries.map((entry) => entry.roomId),
+      containsAll(['!a:p2p-im.com', '!b:p2p-im.com']),
+    );
+    final updated = persisted!.entries.firstWhere(
+      (entry) => entry.roomId == '!a:p2p-im.com',
+    );
+    expect(updated.name, 'Yanan');
+    expect(updated.lastMessage, '旧消息A');
+    expect(updated.unread, 9);
+    expect(updated.previewTs, liveAt.millisecondsSinceEpoch);
   });
 
   testWidgets('messages hide AS group until Matrix room is joined',
@@ -11426,6 +11610,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Owner'), findsOneWidget);
+    expect(find.text('设置备注'), findsNothing);
     expect(find.text('删除好友'), findsNothing);
   });
 

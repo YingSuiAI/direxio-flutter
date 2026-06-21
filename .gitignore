@@ -10,6 +10,12 @@ build/
 *.freezed.dart
 flutter_*.log
 
+# Local agent/tool and release outputs
+.codegraph/
+.codex-remote-attachments/
+devtools_options.yaml
+dist/
+
 # Android
 **/android/**/gradle-wrapper.jar
 **/android/.gradle

@@ -262,6 +262,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   bool _sessionExpiredLocally = false;
   bool _isMounted = false;
   DateTime? _lastMatrixTokenAppliedAt;
+  bool _lastPortalRestoreNonRetryableFailure = false;
+  bool _lastMatrixRefreshNonRetryableFailure = false;
 
   @override
   Future<AuthState> build() async {
@@ -975,6 +977,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<AuthState?> _refreshMatrixAccessTokenForHttpRetry() async {
     if (_sessionExpiredLocally) return null;
+    _lastMatrixRefreshNonRetryableFailure = false;
     final client = ref.read(matrixClientProvider);
     final auth = state.valueOrNull;
     final homeserver = client.homeserver ??
@@ -993,12 +996,23 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final deviceId = client.deviceID ??
         await _storage.read(key: 'matrix_device_id') ??
         _createDeviceId();
-    final session = await HttpAsClient.authenticatePortal(
-      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
-      portalToken: portalToken,
-      deviceId: deviceId,
-      httpClient: _rawHttpClient(client),
-    );
+    final AsPortalSession session;
+    try {
+      session = await HttpAsClient.authenticatePortal(
+        baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+        portalToken: portalToken,
+        deviceId: deviceId,
+        httpClient: _rawHttpClient(client),
+      );
+    } catch (e) {
+      _lastMatrixRefreshNonRetryableFailure =
+          _isNonRetryablePortalAuthFailure(e);
+      final action = _lastMatrixRefreshNonRetryableFailure
+          ? 'will expire session'
+          : 'keeping session';
+      debugPrint('Matrix access token refresh failed; $action: $e');
+      return null;
+    }
     final matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
     final effectiveUserId = session.userId.trim().isNotEmpty
         ? session.userId
@@ -1294,6 +1308,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String? homeserver,
     required String? portalToken,
   }) async {
+    _lastPortalRestoreNonRetryableFailure = false;
     final cleanPortalToken = portalToken?.trim() ?? '';
     if (cleanPortalToken.isEmpty) return null;
     final homeserverUri = Uri.tryParse(homeserver?.trim() ?? '');
@@ -1362,6 +1377,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         requiresProfileSetup: profileInitialized == false,
       );
     } catch (e) {
+      _lastPortalRestoreNonRetryableFailure =
+          _isNonRetryablePortalAuthFailure(e);
       debugPrint('portal token restore failed: $e');
       return null;
     }
@@ -1390,8 +1407,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       if (refreshed != null && refreshed.userId == expectedUserId) {
         return;
       }
-      await _expireSessionDueInvalidToken(client);
-      throw StateError('账号在其他设备登录，请重新登录');
+      if (_lastPortalRestoreNonRetryableFailure) {
+        await _expireSessionDueInvalidToken(client);
+        throw StateError('账号在其他设备登录，请重新登录');
+      }
+      throw StateError(
+          'Matrix access token refresh unavailable; keeping session');
     }
 
     final cleanPortalToken = portalToken?.trim() ?? '';
@@ -1672,6 +1693,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     return error is MatrixException && error.errcode == 'M_UNKNOWN_TOKEN';
   }
 
+  bool _isNonRetryablePortalAuthFailure(Object error) {
+    if (error is! AsClientException) return false;
+    final statusCode = error.statusCode;
+    if (statusCode == null) return false;
+    if (statusCode == 408 || statusCode == 429) return false;
+    return statusCode >= 400 && statusCode < 500;
+  }
+
   /// §3.1 / §7 步骤 3：调 owner.json，确认 Portal 在该域名部署。
   /// 404 → 抛 [PortalNotDeployedException]，让 UI 给出明确提示。
   Future<void> _assertPortalDeployed(String host) async {
@@ -1796,6 +1825,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       'portal_im_friend_request_read.json',
       'portal_im_channel_posts.json',
       'portal_im_chat_clear_state.json',
+      'portal_im_home_conversations.json',
     ]);
   }
 
@@ -1920,6 +1950,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<void> expireSessionDueInvalidToken() async {
     final client = ref.read(matrixClientProvider);
+    if (await _preserveSessionForRetryAfterMatrixAuthFailure()) return;
     await _expireSessionDueInvalidToken(client);
   }
 
@@ -1942,7 +1973,50 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       );
       return;
     }
+    if (await _preserveSessionForRetryAfterMatrixAuthFailure()) return;
     await _expireSessionDueInvalidToken(client);
+  }
+
+  Future<bool> _preserveSessionForRetryAfterMatrixAuthFailure() async {
+    if (_sessionExpiredLocally) return false;
+    final refreshed = await _refreshMatrixAccessTokenForHttpRetry();
+    if (refreshed != null && !_sessionExpiredLocally) {
+      if (_isMounted) state = AsyncData(refreshed);
+      return true;
+    }
+    if (_lastMatrixRefreshNonRetryableFailure ||
+        _lastPortalRestoreNonRetryableFailure) {
+      return false;
+    }
+    if (await _hasStoredSessionRestoreCredentials()) {
+      debugPrint(
+        'Matrix token rejected but restore credentials remain; keeping session for retry',
+      );
+      return true;
+    }
+    return false;
+  }
+
+  Future<bool> _hasStoredSessionRestoreCredentials() async {
+    final values = await Future.wait<String?>([
+      _storage.read(key: 'matrix_token'),
+      _storage.read(key: 'matrix_homeserver'),
+      _storage.read(key: 'matrix_user_id'),
+      _storage.read(key: AuthStateNotifier.accessTokenKey),
+      _storage.read(key: lastLoginHomeserverKey),
+      _storage.read(key: lastLoginPortalTokenKey),
+    ]);
+    final matrixToken = values[0]?.trim() ?? '';
+    final matrixHomeserver = values[1]?.trim() ?? '';
+    final matrixUserId = values[2]?.trim() ?? '';
+    final portalToken = values[3]?.trim() ?? '';
+    final lastHomeserver = values[4]?.trim() ?? '';
+    final lastPortalToken = values[5]?.trim() ?? '';
+    return (matrixToken.isNotEmpty &&
+            matrixHomeserver.isNotEmpty &&
+            matrixUserId.isNotEmpty) ||
+        (lastHomeserver.isNotEmpty && lastPortalToken.isNotEmpty) ||
+        (matrixHomeserver.isNotEmpty && portalToken.isNotEmpty);
   }
 
   Future<void> _expireSessionDueInvalidToken(

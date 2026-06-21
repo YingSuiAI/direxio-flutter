@@ -16,6 +16,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/friend_request_read_provider.dart';
+import '../providers/home_conversation_snapshot_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
@@ -23,6 +24,7 @@ import '../providers/matrix_message_clients_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../mock/mock_data.dart';
 import '../../data/as_client.dart';
+import '../../data/home_conversation_snapshot_store.dart';
 import '../../data/local_outbox_store.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
@@ -1429,6 +1431,7 @@ class _ChatList extends ConsumerWidget {
       currentUserId,
     );
     final hiddenConversationIds = ref.watch(homeHiddenConversationIdsProvider);
+    final cachedSnapshot = ref.watch(homeConversationSnapshotProvider);
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final outbox = ref.watch(localOutboxProvider);
@@ -1564,7 +1567,40 @@ class _ChatList extends ConsumerWidget {
       for (final conversation in sortedConversations)
         if (!hiddenConversationIds.contains(conversation.roomId)) conversation,
     ];
-    if (filteredConversations.isEmpty) {
+    final renderedConversations = [
+      for (final conversation in filteredConversations)
+        _renderHomeConversation(
+          client: client,
+          syncCache: syncCache,
+          outbox: outbox,
+          messageOrder: messageOrder,
+          groupRemarkNames: groupRemarkNames,
+          conversation: conversation,
+        ),
+    ];
+    final cacheReady = cachedSnapshot.hasValue || !cachedSnapshot.isLoading;
+    final cachedConversations = _cachedHomeConversationEntriesForUser(
+      cachedSnapshot.valueOrNull,
+      userId: currentUserId,
+      hiddenConversationIds: hiddenConversationIds,
+      pinnedConversationIds: pinnedConversationIds,
+    );
+    final displayConversations = _mergedHomeConversationEntries(
+      cachedEntries: cacheReady
+          ? cachedConversations
+          : const <HomeConversationSnapshotEntry>[],
+      renderedConversations: renderedConversations,
+      pinnedConversationIds: pinnedConversationIds,
+    );
+
+    if (displayConversations.isEmpty) {
+      if (!cacheReady && syncCache.bootstrap == null) {
+        return const _Empty(
+          icon: Symbols.sync,
+          title: '正在读取本地消息',
+          subtitle: '请稍候',
+        );
+      }
       return const _Empty(
         icon: Symbols.chat_bubble,
         title: '还没有会话',
@@ -1572,85 +1608,251 @@ class _ChatList extends ConsumerWidget {
       );
     }
 
+    if (cacheReady) {
+      _persistHomeConversationEntries(
+        ref,
+        userId: currentUserId,
+        entries: displayConversations,
+      );
+    }
+
+    return _HomeConversationEntryList(
+      entries: displayConversations,
+      pinnedConversationIds: pinnedConversationIds,
+    );
+  }
+}
+
+class _HomeConversationEntryList extends ConsumerWidget {
+  const _HomeConversationEntryList({
+    required this.entries,
+    required this.pinnedConversationIds,
+  });
+
+  final List<HomeConversationSnapshotEntry> entries;
+  final Set<String> pinnedConversationIds;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
-      itemCount: filteredConversations.length,
+      itemCount: entries.length,
       itemBuilder: (context, i) {
-        final conversation = filteredConversations[i];
-        final room = conversation.room;
-        final lastEvent = room?.lastEvent;
-        final visibilityPolicy =
-            syncCache.chatVisibilityPolicyForRoom(conversation.roomId);
-        final visibleLastEvent = lastEvent != null &&
-                visibilityPolicy.allows(
-                  eventId: lastEvent.eventId,
-                  originServerTs:
-                      lastEvent.originServerTs.millisecondsSinceEpoch,
-                  redacted: lastEvent.redacted,
-                )
-            ? lastEvent
-            : null;
-        final failedOutbox =
-            _latestFailedMediaOutboxForConversation(outbox, conversation);
-        final lastEventSortTime = visibleLastEvent == null
-            ? null
-            : messageOrder.entryForEvent(visibleLastEvent.eventId)?.createdAt;
-        final previewTime = _conversationPreviewTimeForConversation(
-          conversation,
-          lastEvent: visibleLastEvent,
-          latestFailedOutbox: failedOutbox,
-          lastEventSortTime: lastEventSortTime,
-          cleared: visibilityPolicy.clearedBeforeTs > 0 &&
-              visibleLastEvent == null &&
-              failedOutbox == null,
-        );
-        final lastMessage = _conversationPreviewTextForConversation(
-          conversation,
-          lastEvent: visibleLastEvent,
-          latestFailedOutbox: failedOutbox,
-          lastEventSortTime: lastEventSortTime,
-          cleared: visibilityPolicy.clearedBeforeTs > 0 &&
-              visibleLastEvent == null &&
-              failedOutbox == null,
-        );
-        final displayName = conversation.isAgent
-            ? 'Agent'
-            : _conversationDisplayName(
-                conversation,
-                groupRemarkNames: groupRemarkNames,
-              );
+        final entry = entries[i];
+        final roomId = entry.roomId.trim();
+        final name = entry.name.trim().isEmpty ? roomId : entry.name.trim();
         return _ConvRow(
-          key: ValueKey('home_conversation_${conversation.roomId}'),
-          name: displayName,
-          lastMessage: lastMessage,
-          time: previewTime == null
-              ? ''
-              : _formatConvTime(previewTime.millisecondsSinceEpoch),
-          unread: _conversationUnreadCount(conversation, room, syncCache),
-          isAgent: conversation.isAgent,
-          isGroup: conversation.isGroup,
-          avatarUrl: _conversationAvatarUrl(client, conversation, room),
-          isPinned: pinnedConversationIds.contains(conversation.roomId),
-          onTap: () => conversation.isGroup
-              ? context
-                  .push('/group/${Uri.encodeComponent(conversation.roomId)}')
-              : context
-                  .push('/chat/${Uri.encodeComponent(conversation.roomId)}'),
-          onTogglePin: () => _toggleHomeConversationPin(
-            ref,
-            conversation.roomId,
-          ),
-          onHide: () => hideHomeConversation(ref, conversation.roomId),
-          onDelete: () => _deleteHomeConversation(
-            context,
-            ref,
-            conversation.roomId,
-            displayName,
-          ),
+          key: ValueKey('home_conversation_$roomId'),
+          name: name,
+          lastMessage: entry.lastMessage,
+          time: entry.previewTs <= 0 ? '' : _formatConvTime(entry.previewTs),
+          unread: entry.unread,
+          isAgent: entry.isAgent,
+          isGroup: entry.isGroup,
+          avatarUrl: entry.avatarUrl.trim().isEmpty ? null : entry.avatarUrl,
+          isPinned: pinnedConversationIds.contains(roomId),
+          onTap: () => entry.isGroup
+              ? context.push('/group/${Uri.encodeComponent(roomId)}')
+              : context.push('/chat/${Uri.encodeComponent(roomId)}'),
+          onTogglePin: () => _toggleHomeConversationPin(ref, roomId),
+          onHide: () => hideHomeConversation(ref, roomId),
+          onDelete: () => _deleteHomeConversation(context, ref, roomId, name),
         );
       },
     );
   }
+}
+
+class _RenderedHomeConversation {
+  const _RenderedHomeConversation({
+    required this.conversation,
+    required this.name,
+    required this.lastMessage,
+    required this.previewTime,
+    required this.unread,
+    required this.avatarUrl,
+  });
+
+  final _VisibleConversation conversation;
+  final String name;
+  final String lastMessage;
+  final DateTime? previewTime;
+  final int unread;
+  final String? avatarUrl;
+}
+
+_RenderedHomeConversation _renderHomeConversation({
+  required Client client,
+  required AsSyncCacheState syncCache,
+  required LocalOutboxState outbox,
+  required LocalMessageOrderState messageOrder,
+  required Map<String, String> groupRemarkNames,
+  required _VisibleConversation conversation,
+}) {
+  final room = conversation.room;
+  final lastEvent = room?.lastEvent;
+  final visibilityPolicy = syncCache.chatVisibilityPolicyForRoom(
+    conversation.roomId,
+  );
+  final visibleLastEvent = lastEvent != null &&
+          visibilityPolicy.allows(
+            eventId: lastEvent.eventId,
+            originServerTs: lastEvent.originServerTs.millisecondsSinceEpoch,
+            redacted: lastEvent.redacted,
+          )
+      ? lastEvent
+      : null;
+  final failedOutbox = _latestFailedMediaOutboxForConversation(
+    outbox,
+    conversation,
+  );
+  final lastEventSortTime = visibleLastEvent == null
+      ? null
+      : messageOrder.entryForEvent(visibleLastEvent.eventId)?.createdAt;
+  final cleared = visibilityPolicy.clearedBeforeTs > 0 &&
+      visibleLastEvent == null &&
+      failedOutbox == null;
+  final previewTime = _conversationPreviewTimeForConversation(
+    conversation,
+    lastEvent: visibleLastEvent,
+    latestFailedOutbox: failedOutbox,
+    lastEventSortTime: lastEventSortTime,
+    cleared: cleared,
+  );
+  final lastMessage = _conversationPreviewTextForConversation(
+    conversation,
+    lastEvent: visibleLastEvent,
+    latestFailedOutbox: failedOutbox,
+    lastEventSortTime: lastEventSortTime,
+    cleared: cleared,
+  );
+  final displayName = conversation.isAgent
+      ? 'Agent'
+      : _conversationDisplayName(
+          conversation,
+          groupRemarkNames: groupRemarkNames,
+        );
+  return _RenderedHomeConversation(
+    conversation: conversation,
+    name: displayName,
+    lastMessage: lastMessage,
+    previewTime: previewTime,
+    unread: _conversationUnreadCount(conversation, room, syncCache),
+    avatarUrl: _conversationAvatarUrl(client, conversation, room),
+  );
+}
+
+List<HomeConversationSnapshotEntry> _mergedHomeConversationEntries({
+  required List<HomeConversationSnapshotEntry> cachedEntries,
+  required List<_RenderedHomeConversation> renderedConversations,
+  required Set<String> pinnedConversationIds,
+}) {
+  final byRoomId = <String, HomeConversationSnapshotEntry>{};
+  for (final entry in cachedEntries) {
+    final roomId = entry.roomId.trim();
+    if (roomId.isEmpty || byRoomId.containsKey(roomId)) continue;
+    byRoomId[roomId] = entry;
+  }
+  for (final rendered in renderedConversations) {
+    final roomId = rendered.conversation.roomId.trim();
+    if (roomId.isEmpty) continue;
+    byRoomId[roomId] = _snapshotEntryFromRenderedConversation(
+      rendered,
+      previous: byRoomId[roomId],
+    );
+  }
+  final entries = byRoomId.values.toList();
+  _sortHomeConversationEntries(entries, pinnedConversationIds);
+  return List.unmodifiable(entries);
+}
+
+HomeConversationSnapshotEntry _snapshotEntryFromRenderedConversation(
+  _RenderedHomeConversation rendered, {
+  HomeConversationSnapshotEntry? previous,
+}) {
+  final roomId = rendered.conversation.roomId.trim();
+  final name = rendered.name.trim().isNotEmpty
+      ? rendered.name
+      : previous?.name ?? roomId;
+  final liveLastMessage = rendered.lastMessage.trim();
+  final liveAvatar = rendered.avatarUrl?.trim() ?? '';
+  return HomeConversationSnapshotEntry(
+    roomId: roomId,
+    name: name,
+    lastMessage: liveLastMessage.isNotEmpty
+        ? rendered.lastMessage
+        : previous?.lastMessage ?? rendered.lastMessage,
+    previewTs: rendered.previewTime?.millisecondsSinceEpoch ??
+        previous?.previewTs ??
+        0,
+    unread: _renderedConversationHasUnreadSignal(rendered)
+        ? rendered.unread
+        : previous?.unread ?? rendered.unread,
+    isGroup: rendered.conversation.isGroup,
+    isAgent: rendered.conversation.isAgent,
+    avatarUrl:
+        liveAvatar.isNotEmpty ? rendered.avatarUrl! : previous?.avatarUrl ?? '',
+  );
+}
+
+bool _renderedConversationHasUnreadSignal(_RenderedHomeConversation rendered) {
+  final conversation = rendered.conversation;
+  return rendered.unread > 0 ||
+      conversation.room != null ||
+      conversation.roomSummary != null ||
+      conversation.group != null;
+}
+
+List<HomeConversationSnapshotEntry> _cachedHomeConversationEntriesForUser(
+  HomeConversationSnapshot? snapshot, {
+  required String? userId,
+  required Set<String> hiddenConversationIds,
+  required Set<String> pinnedConversationIds,
+}) {
+  final expectedUserId = userId?.trim() ?? '';
+  if (snapshot == null ||
+      expectedUserId.isEmpty ||
+      snapshot.userId.trim() != expectedUserId) {
+    return const [];
+  }
+  final entries = [
+    for (final entry in snapshot.entries)
+      if (entry.roomId.trim().isNotEmpty &&
+          !hiddenConversationIds.contains(entry.roomId.trim()))
+        entry,
+  ];
+  _sortHomeConversationEntries(entries, pinnedConversationIds);
+  return List.unmodifiable(entries);
+}
+
+void _sortHomeConversationEntries(
+  List<HomeConversationSnapshotEntry> entries,
+  Set<String> pinnedConversationIds,
+) {
+  entries.sort((a, b) {
+    final aPinned = pinnedConversationIds.contains(a.roomId.trim());
+    final bPinned = pinnedConversationIds.contains(b.roomId.trim());
+    if (aPinned != bPinned) return aPinned ? -1 : 1;
+    if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
+    return b.previewTs.compareTo(a.previewTs);
+  });
+}
+
+void _persistHomeConversationEntries(
+  WidgetRef ref, {
+  required String? userId,
+  required List<HomeConversationSnapshotEntry> entries,
+}) {
+  final owner = userId?.trim() ?? '';
+  if (owner.isEmpty || entries.isEmpty) return;
+  persistHomeConversationSnapshot(
+    ref,
+    HomeConversationSnapshot(
+      userId: owner,
+      updatedAt: DateTime.now().toUtc(),
+      entries: entries,
+    ),
+  );
 }
 
 Future<void> _deleteHomeConversation(

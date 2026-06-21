@@ -16,6 +16,7 @@ import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/bi_analytics_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
+import 'presentation/widgets/user_action_debounce.dart';
 
 const _appFontAsset = 'assets/fonts/NotoSansSC-Variable.ttf';
 
@@ -105,7 +106,9 @@ class PortalApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       builder: (context, child) {
-        return AppGlassBackground(child: child ?? const SizedBox.shrink());
+        return UserActionDebounce(
+          child: AppGlassBackground(child: child ?? const SizedBox.shrink()),
+        );
       },
     );
   }

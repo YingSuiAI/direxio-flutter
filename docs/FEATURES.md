@@ -15,18 +15,19 @@ This document records the currently implemented client features and whether each
 
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
-| App restore and redirect | `/restore`, `auth_provider.dart`, `app_router.dart` | Real | Restores Matrix session plus portal token. Transient SDK/network restore failures keep stored credentials and present a retryable logged-in shell; only confirmed token rejection expires the session. Newly refreshed Matrix tokens have a short retry window so stale in-flight 401s do not immediately send the user to login. |
+| App restore and redirect | `/restore`, `auth_provider.dart`, `app_router.dart` | Real | Restores Matrix session plus portal token. Transient SDK/network/portal refresh failures keep stored credentials and present a retryable logged-in shell; Matrix token rejection plus non-retryable AS auth 4xx expires the session. Newly refreshed Matrix tokens have a short retry window so stale in-flight 401s do not immediately send the user to login. |
 | Portal discovery | `well_known_service.dart`, `/login`, `/setup/*` | Real | Uses owner well-known discovery and supports Matrix SDK HTTP wrapper clients. |
 | Portal setup and first profile | `/init`, `/setup/scan`, `/setup/password` | Real | Completes owner setup through AS, then moves to home. |
 | Token boundary | `as_client_provider.dart`, `matrix_token_refreshing_http_client.dart` | Real | Portal token is for AS Admin API; Matrix access token is for Matrix API only. Fallbacks are logged as warnings and should not be relied on. |
 | Bootstrap cache | `as_bootstrap_store.dart`, `as_sync_cache_provider.dart` | Real + local | Caches AS bootstrap metadata and validates it belongs to the current user. |
+| User action debounce | `PortalApp`, `user_action_debounce.dart` | Local | App-level pointer debounce blocks repeat taps for 500ms after a primary tap, preventing duplicate button-triggered API requests across pages, dialogs, and sheets. |
 
 ## Home, Messages, And Chat
 
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
 | Home tabs | `/home`, `home_page.dart` | Real + demo | Logged-in messages/contacts/channels use real Matrix/AS data. Unauthenticated demo uses `MockData`. |
-| Direct conversation list | `home_page.dart` | Real + local | Accepted contacts come from AS bootstrap; current display name/avatar prefer Matrix room member state. Locally hidden rows reappear when opened from contact detail or when new unread activity arrives. |
+| Direct conversation list | `home_page.dart`, `home_conversation_snapshot_store.dart` | Real + local | Accepted contacts come from AS bootstrap; current display name/avatar prefer Matrix room member state. The home conversation list writes a local snapshot and renders it while Matrix rooms hydrate after app restart, then Matrix/AS incremental updates replace the cached row state. Locally hidden rows reappear when opened from contact detail or when new unread activity arrives. |
 | Agent/system room | `chat_page.dart`, `agentStatusProvider` | Real + local | Agent is a system conversation, not a normal contact. Header reflects AS connection state. |
 | Direct chat timeline | `/chat/:roomId`, `chat_page.dart` | Real | Uses Matrix room/timeline for text, media, unread, history, redaction, and local delete behavior; opening a concrete chat may request the first Matrix history page to refill the local SQLite timeline. Bootstrap stays metadata-only. |
 | Group/channel chat timeline | `/group/:roomId`, `/channel/:id/conversation`, `group_chat_page.dart` | Real | Supports Matrix timeline, Matrix SDK text/media send, quote/reply metadata, mentions, local outbox, redaction/local delete, and read state. Opening a concrete group/channel conversation may request the first Matrix history page to refill the local SQLite timeline. Bootstrap stays metadata-only. |

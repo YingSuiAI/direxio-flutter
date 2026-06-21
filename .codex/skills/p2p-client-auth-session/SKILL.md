@@ -30,6 +30,11 @@ expire the session because of stale in-flight Matrix 401s from the old token.
 Use the current-token check and the short recent-token retry window before
 sending the user back to login.
 
+When a Matrix token rejection triggers portal-token refresh, do not clear local
+session state if the portal refresh fails due to timeout, network, or 5xx
+server errors. Keep the stored Matrix/portal credentials and retry later; only
+non-retryable AS auth rejection such as 4xx should expire the restored session.
+
 ## Implementation Pattern
 
 Keep route guards and redirect behavior in `lib/core/router/`.

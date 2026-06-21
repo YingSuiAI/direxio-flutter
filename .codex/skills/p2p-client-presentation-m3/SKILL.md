@@ -41,6 +41,15 @@ Keep local UI-only state in a provider/store with a clear name, not in AS models
 
 Use Matrix SDK and AS providers as the sources of logged-in data. Mock data is only for unauthenticated demos, explicit tests, or temporary scaffolding.
 
+The logged-in home conversation list must render a local conversation snapshot
+while Matrix rooms hydrate after app restart. Do not show an empty home message
+list just because `client.rooms` has not finished loading; use Matrix/AS sync as
+incremental updates that replace the cached snapshot.
+
+User operation buttons and tap targets are covered by the root
+`UserActionDebounce` 500ms pointer debounce. Keep new app entry builders wrapped
+by it instead of adding one-off duplicate request guards to individual buttons.
+
 ## Verification
 
 Run:

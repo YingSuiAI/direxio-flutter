@@ -1503,6 +1503,7 @@ class _NeverListChannelsWithConversationsAsClient
 class _TrackingAsClient extends _EmptyAsClient {
   int createContactRequestCalls = 0;
   String? createdContactMxid;
+  String? createdContactDisplayName;
   String? createdContactDomain;
   int deleteContactCalls = 0;
   String? deletedContactRoomId;
@@ -1558,6 +1559,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   }) async {
     createContactRequestCalls++;
     createdContactMxid = mxid;
+    createdContactDisplayName = displayName;
     createdContactDomain = domain;
     return ContactEntry(
       peerMxid: mxid,
@@ -6746,11 +6748,14 @@ void main() {
     expect(find.text('我的群组'), findsOneWidget);
   });
 
-  testWidgets('follows list renders contact avatars', (tester) async {
+  testWidgets('follows list renders AS entries without mock avatars',
+      (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_FollowsAsClient()),
         ],
         child:
             MaterialApp(theme: AppTheme.light, home: const FollowsListPage()),
@@ -6762,12 +6767,31 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is PortalAvatar &&
-            widget.seed == '@alice:portal.local' &&
-            widget.imageUrl == MockAvatars.alice,
+            widget.seed == 'alice.portal.local' &&
+            widget.imageUrl == null,
       ),
       findsOneWidget,
     );
+    expect(find.text('Alice Chen'), findsOneWidget);
     expect(find.byIcon(Symbols.person_check), findsNothing);
+  });
+
+  testWidgets('follows list does not render mock entries while logged out',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_FollowsAsClient()),
+        ],
+        child:
+            MaterialApp(theme: AppTheme.light, home: const FollowsListPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice Chen'), findsNothing);
+    expect(find.text('还没有关注'), findsOneWidget);
   });
 
   testWidgets('tapping a followed user opens visitor home', (tester) async {
@@ -6777,8 +6801,9 @@ void main() {
         GoRoute(path: '/follows', builder: (_, __) => const FollowsListPage()),
         GoRoute(
           path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
-            userId: state.pathParameters['userId']!,
+          builder: (_, state) => Text(
+            'home:${state.pathParameters['userId']}',
+            textDirection: TextDirection.ltr,
           ),
         ),
         GoRoute(
@@ -6801,7 +6826,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_FollowsAsClient()),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -6814,9 +6841,7 @@ void main() {
     await tester.tap(find.text('Alice Chen'));
     await tester.pumpAndSettle();
 
-    expect(find.text('主页'), findsOneWidget);
-    expect(find.text('alice.portal.local'), findsOneWidget);
-    expect(find.text('她的动态'), findsOneWidget);
+    expect(find.text('home:@owner:alice.portal.local'), findsOneWidget);
   });
 
   testWidgets('add contact resolves portal url only after submit',
@@ -7025,6 +7050,71 @@ void main() {
     expect(searchMaterial.color, PortalTokens.light.surfaceHover);
   });
 
+  testWidgets(
+      'add contact search does not render demo results while logged out',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'ben');
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('benjamin'), findsNothing);
+    expect(find.byKey(const ValueKey('add_contact_result_row')), findsNothing);
+  });
+
+  testWidgets('add contact submit does not resolve mock portal owners',
+      (tester) async {
+    final client = Client(
+      'PortalIMAddContactNoMockOwnerTest',
+      httpClient: MockClient((request) async {
+        expect(request.url.toString(),
+            'https://alice.portal.local/.well-known/portal/owner.json');
+        return http.Response('not found', 404);
+      }),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'alice.portal.local');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice Chen'), findsNothing);
+    expect(find.text('@alice:portal.local'), findsNothing);
+    expect(find.text('该域名不是产品用户'), findsOneWidget);
+
+    await client.dispose(closeDatabase: false);
+  });
+
   testWidgets('add contact detail opens chat for accepted contact',
       (tester) async {
     const roomId = '!alice-chat:p2p-im.com';
@@ -7211,6 +7301,37 @@ void main() {
     expect(avatar.imageUrl, 'https://cdn.example.com/alice.png');
   });
 
+  testWidgets('add contact detail does not hydrate mock profile',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactDetailPage(
+            userId: '@alice:portal.local',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('alice'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsNothing);
+    final avatar = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 60)
+        .single;
+    expect(avatar.imageUrl, isNull);
+  });
+
   testWidgets('add contact rejects domains without portal owner discovery',
       (tester) async {
     final asClient = _TrackingAsClient();
@@ -7345,6 +7466,44 @@ void main() {
     expect(asClient.createContactRequestCalls, 1);
     expect(asClient.createdContactMxid, '@owner:dendrite-b:8448');
     expect(asClient.createdContactDomain, 'dendrite-b:8448');
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('add contact verification does not send mock display names',
+      (tester) async {
+    final asClient = _TrackingAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactVerificationPage(
+            userId: '@alice:portal.local',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('发送申请'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(asClient.createContactRequestCalls, 1);
+    expect(asClient.createdContactMxid, '@alice:portal.local');
+    expect(asClient.createdContactDisplayName, 'alice');
+    expect(asClient.createdContactDomain, 'portal.local');
     await tester.pumpAndSettle();
   });
 

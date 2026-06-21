@@ -6,39 +6,18 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
-import '../mock/mock_data.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
-
 final _followsProvider = FutureProvider.autoDispose<List<FollowEntry>>((ref) {
   final isLoggedIn =
       ref.watch(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
-  if (_mockAuthEnabled || !isLoggedIn) {
-    return Future.value(_mockFollows());
-  }
+  if (!isLoggedIn) return Future.value(const <FollowEntry>[]);
   return ref.watch(asClientProvider).getFollows();
 });
-
-List<FollowEntry> _mockFollows() {
-  final contacts = MockData.friendContacts;
-  return [
-    for (var i = 0; i < contacts.length; i++)
-      FollowEntry(
-        domain: MockData.contactHomeByMxid(contacts[i].mxid)?.domain ??
-            contacts[i].mxid,
-        name: contacts[i].name,
-        followedAt: DateTime.utc(2026, 5, 26 - i, 8),
-      ),
-  ];
-}
 
 class FollowsListPage extends ConsumerWidget {
   const FollowsListPage({super.key});
@@ -104,16 +83,14 @@ class _FollowTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mockContact = _mockContactForFollow(item);
-    final homeUserId = _homeUserIdForFollow(item, mockContact);
+    final homeUserId = _homeUserIdForFollow(item);
     return GlassListTile(
       onTap: () => context.push(
         '/contact-home/${Uri.encodeComponent(homeUserId)}',
       ),
       leading: PortalAvatar(
-        seed: mockContact?.mxid ?? item.domain,
+        seed: item.domain,
         size: 48,
-        imageUrl: mockContact?.avatarUrl,
       ),
       title: item.name.isEmpty ? item.domain : item.name,
       subtitle: item.followedAt == null
@@ -123,8 +100,7 @@ class _FollowTile extends StatelessWidget {
   }
 }
 
-String _homeUserIdForFollow(FollowEntry item, MockConversation? mockContact) {
-  if (mockContact != null) return mockContact.mxid;
+String _homeUserIdForFollow(FollowEntry item) {
   if (item.domain.startsWith('@') && item.domain.contains(':')) {
     return item.domain;
   }
@@ -133,18 +109,6 @@ String _homeUserIdForFollow(FollowEntry item, MockConversation? mockContact) {
       .replaceAll(RegExp(r'^https?://', caseSensitive: false), '')
       .replaceAll(RegExp(r'/+$'), '');
   return '@owner:$domain';
-}
-
-MockConversation? _mockContactForFollow(FollowEntry item) {
-  for (final contact in MockData.friendContacts) {
-    final home = MockData.contactHomeByMxid(contact.mxid);
-    if (contact.name == item.name ||
-        contact.mxid == item.domain ||
-        home?.domain == item.domain) {
-      return contact;
-    }
-  }
-  return null;
 }
 
 String _formatFollowDate(DateTime value) {

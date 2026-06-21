@@ -13,14 +13,9 @@ import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/avatar_url.dart';
-import '../mock/mock_data.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/m3_search_field.dart';
 
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
 const _addContactToolbarHeight = 48.0;
 const _addContactSearchGap = 12.0;
 
@@ -57,22 +52,6 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
       _resolved = null;
     });
     try {
-      final authState = ref.read(authStateNotifierProvider);
-      final isLoggedIn = authState.valueOrNull?.isLoggedIn ?? false;
-      final authResolved = authState.hasValue;
-      final mockContact = _mockContactByPortalUrl(portalUrl);
-      if ((_mockAuthEnabled || (!isLoggedIn && authResolved)) &&
-          mockContact != null) {
-        setState(() {
-          _resolved = {
-            'mxid': mockContact.mxid,
-            'display_name': mockContact.name,
-            'avatar_url': mockContact.avatarUrl,
-          };
-        });
-        return;
-      }
-
       // §2.2 域名发现：调 .well-known/portal/owner.json
       final client = ref.read(matrixClientProvider);
       final wk = WellKnownService(httpClient: client.httpClient);
@@ -165,24 +144,6 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                               _resolved!['mxid'] as String,
                               _resolved!['display_name'] as String,
                               avatarUrl: _resolved!['avatar_url'] as String?,
-                            ),
-                          ),
-                        )
-                      else if (_query.trim().isNotEmpty &&
-                          (_mockAuthEnabled ||
-                              !(ref
-                                      .watch(authStateNotifierProvider)
-                                      .valueOrNull
-                                      ?.isLoggedIn ??
-                                  false)))
-                        _SearchResultList(
-                          query: _query,
-                          results: _demoSearchResults(_query),
-                          onTap: (result) => context.push(
-                            _addContactDetailRoute(
-                              result.mxid,
-                              result.displayName,
-                              avatarUrl: result.avatarUrl,
                             ),
                           ),
                         )
@@ -382,35 +343,6 @@ String _normalizePortalUrlInput(String input) {
       .trim()
       .replaceAll(RegExp(r'^https?://', caseSensitive: false), '')
       .replaceAll(RegExp(r'/+$'), '');
-}
-
-MockConversation? _mockContactByPortalUrl(String portalUrl) {
-  for (final contact in MockData.friendContacts) {
-    final home = MockData.contactHomeByMxid(contact.mxid);
-    if (home?.domain == portalUrl || contact.mxid == portalUrl) {
-      return contact;
-    }
-  }
-  return null;
-}
-
-List<_SearchResult> _demoSearchResults(String query) {
-  final needle = query.trim().toLowerCase();
-  if (needle.isEmpty) return const [];
-  final results = <_SearchResult>[
-    const _SearchResult(displayName: 'benjamin', mxid: '@benjamin:p2p-im.com'),
-    const _SearchResult(displayName: 'benjamin', mxid: '@benjamin2:p2p-im.com'),
-    for (final contact in MockData.friendContacts)
-      _SearchResult(
-        displayName: contact.name,
-        mxid: contact.mxid,
-        avatarUrl: contact.avatarUrl,
-      ),
-  ];
-  return results
-      .where((result) => result.displayName.toLowerCase().contains(needle))
-      .take(8)
-      .toList(growable: false);
 }
 
 class _SearchResult {

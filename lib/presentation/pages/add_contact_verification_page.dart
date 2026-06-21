@@ -6,16 +6,10 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
-import '../mock/mock_data.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/contact_identity_label.dart';
-
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
 
 class AddContactVerificationPage extends ConsumerStatefulWidget {
   const AddContactVerificationPage({
@@ -51,7 +45,7 @@ class _AddContactVerificationPageState
     try {
       final isLoggedIn =
           (await ref.read(authStateNotifierProvider.future)).isLoggedIn;
-      if (!_mockAuthEnabled && isLoggedIn) {
+      if (isLoggedIn) {
         final contact = await ref.read(asClientProvider).createContactRequest(
               mxid: widget.userId,
               displayName: profile.name,
@@ -370,15 +364,14 @@ class _AddContactProfile {
 }
 
 _AddContactProfile _profileForAddContact(String userId, String? displayName) {
-  final home = MockData.contactHomeByMxid(userId);
   final domain = domainFromMxid(userId);
   final name = contactDisplayNameFromIdentity(
     mxid: userId,
-    displayName: displayName ?? home?.displayName ?? '',
-    domain: home?.domain ?? domain,
+    displayName: displayName ?? '',
+    domain: domain,
     fallback: displayName ?? userId,
   );
-  return _AddContactProfile(name: name, domain: home?.domain ?? domain);
+  return _AddContactProfile(name: name, domain: domain);
 }
 
 String _requestSentText(BuildContext context) {

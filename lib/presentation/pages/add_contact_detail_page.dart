@@ -7,7 +7,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
-import '../mock/mock_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
 import '../providers/product_conversations_provider.dart';
@@ -170,21 +169,18 @@ _AddContactProfile _profileForAddContact(
   String? displayName, {
   String? avatarUrl,
 }) {
-  final home = MockData.contactHomeByMxid(userId);
   final domain = domainFromMxid(userId);
   final name = contactDisplayNameFromIdentity(
     mxid: userId,
-    displayName: displayName ?? home?.displayName ?? '',
-    domain: home?.domain ?? domain,
+    displayName: displayName ?? '',
+    domain: domain,
     fallback: displayName ?? userId,
   );
   return _AddContactProfile(
     name: name,
     uid: _uidFromUserId(userId),
-    domain: home?.domain ?? domain,
-    avatarUrl: avatarUrl?.trim().isNotEmpty == true
-        ? avatarUrl!.trim()
-        : home?.avatarUrl,
+    domain: domain,
+    avatarUrl: avatarUrl?.trim().isNotEmpty == true ? avatarUrl!.trim() : null,
   );
 }
 

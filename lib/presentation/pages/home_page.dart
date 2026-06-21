@@ -11,6 +11,7 @@ import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
 import '../channel/create_channel_sheet.dart';
+import '../providers/as_client_provider.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -71,6 +72,17 @@ const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
 final asBootstrapLiveRefreshIntervalProvider = Provider<Duration?>(
   (ref) => const Duration(seconds: 10),
 );
+
+final asConversationListProvider =
+    FutureProvider.autoDispose<List<AsConversation>>((ref) async {
+  final conversations = await ref.watch(asClientProvider).listConversations();
+  return [
+    for (final conversation in conversations)
+      if (conversation.roomId.trim().isNotEmpty &&
+          conversation.lifecycle != 'deleted')
+        conversation,
+  ];
+});
 
 bool _homeDark(BuildContext context) {
   return Theme.of(context).brightness == Brightness.dark;
@@ -166,6 +178,7 @@ class _HomePageState extends ConsumerState<HomePage>
     final nextSignature = _homeSyncSignature(client);
     if (nextSignature == _lastHomeSyncSignature) return;
     _lastHomeSyncSignature = nextSignature;
+    ref.invalidate(asConversationListProvider);
     setState(() {});
   }
 
@@ -415,6 +428,7 @@ class _HomePageState extends ConsumerState<HomePage>
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
           );
+      ref.invalidate(asConversationListProvider);
       if (mounted) setState(() {});
     } catch (e) {
       _lastBootstrapRefreshUserId = refreshUserId;
@@ -484,11 +498,7 @@ class _HomePageState extends ConsumerState<HomePage>
               builder: (ctx, c) {
                 final wide = c.maxWidth >= 900;
                 final pane = switch (_tab) {
-                  0 => _ChatList(
-                      client: client,
-                      onNeedsBootstrapRefresh:
-                          _scheduleAsBootstrapRefreshIfNeeded,
-                    ),
+                  0 => _ChatList(client: client),
                   1 => _ContactList(client: client),
                   2 => const ChannelExplorePage(),
                   _ => MePage(client: client),
@@ -1412,12 +1422,8 @@ class _GroupAvatarGrid extends StatelessWidget {
 }
 
 class _ChatList extends ConsumerWidget {
-  const _ChatList({
-    required this.client,
-    required this.onNeedsBootstrapRefresh,
-  });
+  const _ChatList({required this.client});
   final Client client;
-  final VoidCallback onNeedsBootstrapRefresh;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1436,14 +1442,9 @@ class _ChatList extends ConsumerWidget {
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final outbox = ref.watch(localOutboxProvider);
     final messageOrder = ref.watch(localMessageOrderProvider);
-    final directContactRoomIds = syncCache.acceptedContacts
-        .map((contact) => contact.roomId.trim())
-        .where((roomId) => roomId.isNotEmpty)
-        .toSet();
-    final asGroupRoomIds = (syncCache.bootstrap?.groups ?? const [])
-        .map((group) => group.roomId.trim())
-        .where((roomId) => roomId.isNotEmpty)
-        .toSet();
+    final productConversationsAsync = ref.watch(asConversationListProvider);
+    final productConversations =
+        productConversationsAsync.valueOrNull ?? const <AsConversation>[];
     final asRoomSummariesByRoomId = <String, AsSyncRoomSummary>{
       for (final room in syncCache.bootstrap?.rooms ?? const [])
         if (room.roomId.trim().isNotEmpty) room.roomId.trim(): room,
@@ -1495,18 +1496,15 @@ class _ChatList extends ConsumerWidget {
       );
     }
 
-    final agentMxid = portalAgentMxidForClient(client);
-    if (syncCache.bootstrap == null &&
-        rooms.any((room) => _needsAsClassification(room, agentMxid))) {
-      onNeedsBootstrapRefresh();
-      return const _Empty(
-        icon: Symbols.sync,
-        title: '正在同步联系人信息',
-        subtitle: '请稍候',
-      );
+    final visibleConversations = <_VisibleConversation>[];
+    final visibleRoomIds = <String>{};
+    void addVisibleConversation(_VisibleConversation conversation) {
+      final roomId = conversation.roomId.trim();
+      if (roomId.isEmpty || !visibleRoomIds.add(roomId)) return;
+      visibleConversations.add(conversation);
     }
 
-    final visibleConversations = <_VisibleConversation>[];
+    final agentMxid = portalAgentMxidForClient(client);
     final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
     var fallbackAgentShown = false;
     for (final room in rooms) {
@@ -1518,33 +1516,16 @@ class _ChatList extends ConsumerWidget {
           if (fallbackAgentShown) continue;
           fallbackAgentShown = true;
         }
-        visibleConversations.add(_VisibleConversation.agent(room));
+        addVisibleConversation(_VisibleConversation.agent(room));
       }
     }
-    for (final contact in syncCache.acceptedContacts) {
-      final roomId = contact.roomId.trim();
-      if (roomId.isEmpty) continue;
-      visibleConversations.add(
-        _VisibleConversation.contact(
-          contact,
+    for (final conversation in productConversations) {
+      if (conversation.isChannel) continue;
+      final roomId = conversation.roomId.trim();
+      addVisibleConversation(
+        _VisibleConversation.product(
+          conversation,
           client.getRoomById(roomId),
-          asRoomSummariesByRoomId[roomId],
-        ),
-      );
-    }
-    for (final group in syncCache.bootstrap?.groups ?? const []) {
-      final roomId = group.roomId.trim();
-      if (roomId.isEmpty || !asGroupRoomIds.contains(roomId)) continue;
-      if (directContactRoomIds.contains(roomId)) continue;
-      if (group.memberStatus.trim().isNotEmpty &&
-          !isAsChannelMemberJoined(group.memberStatus)) {
-        continue;
-      }
-      final matrixRoom = client.getRoomById(roomId);
-      visibleConversations.add(
-        _VisibleConversation.group(
-          group,
-          matrixRoom,
           asRoomSummariesByRoomId[roomId],
         ),
       );
@@ -1598,6 +1579,13 @@ class _ChatList extends ConsumerWidget {
     );
 
     if (displayConversations.isEmpty) {
+      if (productConversationsAsync.isLoading && productConversations.isEmpty) {
+        return const _Empty(
+          icon: Symbols.sync,
+          title: '正在同步消息',
+          subtitle: '请稍候',
+        );
+      }
       if (!cacheReady && syncCache.bootstrap == null) {
         return const _Empty(
           icon: Symbols.sync,
@@ -1803,8 +1791,8 @@ bool _renderedConversationHasUnreadSignal(_RenderedHomeConversation rendered) {
   final conversation = rendered.conversation;
   return rendered.unread > 0 ||
       conversation.room != null ||
-      conversation.roomSummary != null ||
-      conversation.group != null;
+      conversation.product != null ||
+      conversation.roomSummary != null;
 }
 
 List<HomeConversationSnapshotEntry> _cachedHomeConversationEntriesForUser(
@@ -1940,8 +1928,7 @@ class _VisibleConversation {
   const _VisibleConversation._({
     required this.roomId,
     this.room,
-    this.contact,
-    this.group,
+    this.product,
     this.roomSummary,
     this.isAgent = false,
     this.isGroup = false,
@@ -1951,42 +1938,27 @@ class _VisibleConversation {
     return _VisibleConversation._(roomId: room.id, room: room, isAgent: true);
   }
 
-  factory _VisibleConversation.contact(
-    AsSyncContact contact,
+  factory _VisibleConversation.product(
+    AsConversation conversation,
     Room? room, [
     AsSyncRoomSummary? roomSummary,
   ]) {
     return _VisibleConversation._(
-      roomId: contact.roomId.trim(),
+      roomId: conversation.roomId.trim(),
       room: room,
-      contact: contact,
+      product: conversation,
       roomSummary: roomSummary,
-    );
-  }
-
-  factory _VisibleConversation.group(
-    AsSyncRoomSummary group,
-    Room? room, [
-    AsSyncRoomSummary? roomSummary,
-  ]) {
-    return _VisibleConversation._(
-      roomId: group.roomId.trim(),
-      room: room,
-      group: group,
-      roomSummary: roomSummary,
-      isGroup: true,
+      isAgent: conversation.isAgent,
+      isGroup: conversation.isGroup,
     );
   }
 
   final String roomId;
   final Room? room;
-  final AsSyncContact? contact;
-  final AsSyncRoomSummary? group;
+  final AsConversation? product;
   final AsSyncRoomSummary? roomSummary;
   final bool isAgent;
   final bool isGroup;
-
-  bool get isContact => contact != null && !isGroup && !isAgent;
 }
 
 String? _conversationAvatarUrl(
@@ -1995,14 +1967,12 @@ String? _conversationAvatarUrl(
   Room? room,
 ) {
   if (conversation.isAgent) return null;
+  final productAvatar = avatarHttpUrl(client, conversation.product?.avatarUrl);
   if (conversation.isGroup) {
-    return avatarHttpUrl(client, conversation.group?.avatarUrl) ??
-        (room == null ? null : roomAvatarHttpUrl(room));
+    return productAvatar ?? (room == null ? null : roomAvatarHttpUrl(room));
   }
 
-  final contact = conversation.contact;
-  return _directPeerMemberAvatarUrl(client, room, contact?.userId) ??
-      avatarHttpUrl(client, contact?.avatarUrl) ??
+  return productAvatar ??
       avatarHttpUrl(client, conversation.roomSummary?.avatarUrl) ??
       (room == null ? null : roomAvatarHttpUrl(room));
 }
@@ -2063,29 +2033,12 @@ String _conversationDisplayName(
   _VisibleConversation conversation, {
   Map<String, String> groupRemarkNames = const {},
 }) {
-  final group = conversation.group;
   if (conversation.isGroup) {
     final remark = groupRemarkNames[conversation.roomId]?.trim() ?? '';
     if (remark.isNotEmpty) return remark;
   }
-  if (group != null) {
-    final name = group.name.trim();
-    if (name.isNotEmpty) return name;
-  }
-  final contact = conversation.contact;
-  if (contact != null) {
-    final contactName = contact.displayName.trim();
-    final memberName =
-        directPeerMemberDisplayName(conversation.room, contact.userId);
-    final matrixName =
-        memberName == localpartFromMxid(contact.userId) ? '' : memberName;
-    final label = contactDisplayNameFromIdentity(
-      mxid: contact.userId,
-      displayName: matrixName.isNotEmpty ? matrixName : contactName,
-      domain: contact.domain,
-    );
-    if (label.isNotEmpty) return label;
-  }
+  final productTitle = conversation.product?.title.trim() ?? '';
+  if (productTitle.isNotEmpty) return productTitle;
   return conversation.room?.getLocalizedDisplayname() ?? '';
 }
 
@@ -2104,8 +2057,6 @@ String _conversationPreviewTextForConversation(
     isAgent: conversation.isAgent,
   );
   if (text.isNotEmpty) return text;
-  final topic = conversation.group?.topic.trim() ?? '';
-  if (topic.isNotEmpty) return previewText(topic);
   return '';
 }
 
@@ -2123,8 +2074,8 @@ DateTime? _conversationPreviewTimeForConversation(
     lastEventSortTime: lastEventSortTime,
   );
   if (previewTime != null) return previewTime;
-  return conversation.roomSummary?.lastActivityAt ??
-      conversation.group?.lastActivityAt;
+  return conversation.product?.lastActivityAt ??
+      conversation.roomSummary?.lastActivityAt;
 }
 
 bool _isAgentRoom(Room room, String? agentMxid) {
@@ -2136,9 +2087,6 @@ int _conversationUnreadCount(
   Room? room,
   AsSyncCacheState syncCache,
 ) {
-  final groupUnread = conversation.group?.unreadCount ?? 0;
-  if (conversation.isGroup && groupUnread > 0) return groupUnread;
-
   final asRoomUnread = conversation.roomSummary?.unreadCount ?? 0;
   if (asRoomUnread > 0) return asRoomUnread;
 
@@ -2148,13 +2096,6 @@ int _conversationUnreadCount(
   if (matrixUnread > 0) return matrixUnread;
 
   return 0;
-}
-
-bool _needsAsClassification(Room room, String? agentMxid) {
-  if (room.membership != Membership.join) return false;
-  if (_isAgentRoom(room, agentMxid)) return false;
-  if (room.isDirectChat) return true;
-  return isProductDirectContactRoom(room, agentMxid: agentMxid);
 }
 
 bool _hasUnclassifiedJoinedRooms({

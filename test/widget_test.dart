@@ -276,6 +276,9 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
+  Future<List<AsConversation>> listConversations() async => const [];
+
+  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,
@@ -993,6 +996,15 @@ class _RecordingMatrixMessageVisibilityClient
     ];
     return MatrixLocalDeleteResult(roomId: roomId.trim(), hiddenEventIds: ids);
   }
+}
+
+class _ConversationListAsClient extends _EmptyAsClient {
+  _ConversationListAsClient(this.conversations);
+
+  final List<AsConversation> conversations;
+
+  @override
+  Future<List<AsConversation>> listConversations() async => conversations;
 }
 
 class _StatefulPendingContactAsClient extends _EmptyAsClient {
@@ -1854,13 +1866,15 @@ class _FollowsAsClient extends _EmptyAsClient {
       ];
 }
 
-class _CompletingBootstrapAsClient extends _EmptyAsClient {
-  _CompletingBootstrapAsClient(this.bootstrapCompleter);
+class _CompletingConversationsAsClient extends _EmptyAsClient {
+  _CompletingConversationsAsClient(this.conversationCompleter);
 
-  final Completer<AsSyncBootstrap> bootstrapCompleter;
+  final Completer<List<AsConversation>> conversationCompleter;
 
   @override
-  Future<AsSyncBootstrap> syncBootstrap() => bootstrapCompleter.future;
+  Future<List<AsConversation>> listConversations() {
+    return conversationCompleter.future;
+  }
 }
 
 class _StaticBootstrapAsClient extends _EmptyAsClient {
@@ -1906,6 +1920,21 @@ class _RefreshingBootstrapAsClient extends _EmptyAsClient {
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
+  }
+
+  @override
+  Future<List<AsConversation>> listConversations() async {
+    if (syncBootstrapCalls < 2) return const [];
+    return const [
+      AsConversation(
+        conversationId: 'conv_current',
+        roomId: '!accepted:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Yanan',
+        avatarUrl: '',
+      ),
+    ];
   }
 }
 
@@ -2996,25 +3025,18 @@ void main() {
     expect(find.text('正在同步消息'), findsOneWidget);
   });
 
-  testWidgets('messages wait for AS metadata before rendering undirected rooms',
+  testWidgets(
+      'messages wait for ProductCore conversations before rendering rooms',
       (tester) async {
     final client = Client('PortalIMUndirectedRoomMetadataTest')
       ..setUserId('@owner:p2p-im.com');
-    final room = _addUndirectedJoinedRoom(
+    _addUndirectedJoinedRoom(
       client,
       roomId: '!owner:p2p-im.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'owner',
     );
-    room.setState(
-      StrippedStateEvent(
-        type: 'p2p.room.kind',
-        senderId: '@owner:p2p-im.com',
-        stateKey: '',
-        content: {'kind': 'direct'},
-      ),
-    );
-    final bootstrapCompleter = Completer<AsSyncBootstrap>();
+    final conversationCompleter = Completer<List<AsConversation>>();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3024,7 +3046,7 @@ void main() {
               .overrideWith(_MemberLoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           asClientProvider.overrideWithValue(
-            _CompletingBootstrapAsClient(bootstrapCompleter),
+            _CompletingConversationsAsClient(conversationCompleter),
           ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
@@ -3034,28 +3056,18 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('Group with'), findsNothing);
-    expect(find.text('正在同步联系人信息'), findsOneWidget);
+    expect(find.text('正在同步消息'), findsOneWidget);
 
-    bootstrapCompleter.complete(
-      AsSyncBootstrap(
-        syncedAt: DateTime.utc(2026, 5, 26, 10),
-        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-        rooms: const [],
-        contacts: const [
-          AsSyncContact(
-            userId: '@owner:p2p-liyanan.com',
-            displayName: 'owner',
-            avatarUrl: '',
-            roomId: '!owner:p2p-im.com',
-            domain: 'p2p-liyanan.com',
-            status: 'accepted',
-          ),
-        ],
-        groups: const [],
-        channels: const [],
-        pending: const AsSyncPending.empty(),
+    conversationCompleter.complete(const [
+      AsConversation(
+        conversationId: 'conv_owner',
+        roomId: '!owner:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'owner',
+        avatarUrl: '',
       ),
-    );
+    ]);
     await tester.pump();
     await tester.pump();
 
@@ -3063,7 +3075,7 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
   });
 
-  testWidgets('messages conversation avatar prefers fresh Matrix member avatar',
+  testWidgets('messages conversation avatar uses ProductCore avatar',
       (tester) async {
     final client = Client('PortalIMConversationAsAvatarTest')
       ..setUserId('@owner:p2p-im.com');
@@ -3074,24 +3086,16 @@ void main() {
       peerName: 'Yanan',
       peerAvatarUrl: 'https://matrix.example.com/yanan.png',
     );
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 3, 10),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: '@owner:p2p-liyanan.com',
-          displayName: 'Yanan',
-          avatarUrl: 'https://as-cache.example.com/yanan.png',
-          roomId: '!owner:p2p-im.com',
-          domain: 'p2p-liyanan.com',
-          status: 'accepted',
-        ),
-      ],
-      groups: const [],
-      channels: const [],
-      pending: const AsSyncPending.empty(),
-    );
+    final asClient = _ConversationListAsClient(const [
+      AsConversation(
+        conversationId: 'conv_owner',
+        roomId: '!owner:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Yanan',
+        avatarUrl: 'https://product.example.com/yanan.png',
+      ),
+    ]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3101,11 +3105,7 @@ void main() {
               .overrideWith(_MemberLoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider
-              .overrideWithValue(_StaticBootstrapAsClient(bootstrap)),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
+          asClientProvider.overrideWithValue(asClient),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
@@ -3119,13 +3119,13 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 42 &&
-            widget.imageUrl == 'https://matrix.example.com/yanan.png',
+            widget.imageUrl == 'https://product.example.com/yanan.png',
       ),
       findsOneWidget,
     );
   });
 
-  testWidgets('messages update contact avatar after Matrix member sync',
+  testWidgets('messages keeps ProductCore avatar after Matrix member sync',
       (tester) async {
     final client = Client('PortalIMConversationAvatarSyncTest')
       ..setUserId('@owner:p2p-im.com');
@@ -3136,24 +3136,16 @@ void main() {
       peerName: 'Yanan',
       peerAvatarUrl: 'https://matrix.example.com/old.png',
     );
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 3, 10),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: '@owner:p2p-liyanan.com',
-          displayName: 'Yanan',
-          avatarUrl: 'https://as-cache.example.com/yanan.png',
-          roomId: '!owner:p2p-im.com',
-          domain: 'p2p-liyanan.com',
-          status: 'accepted',
-        ),
-      ],
-      groups: const [],
-      channels: const [],
-      pending: const AsSyncPending.empty(),
-    );
+    final asClient = _ConversationListAsClient(const [
+      AsConversation(
+        conversationId: 'conv_owner',
+        roomId: '!owner:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Yanan',
+        avatarUrl: 'https://product.example.com/yanan.png',
+      ),
+    ]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3163,11 +3155,7 @@ void main() {
               .overrideWith(_MemberLoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider
-              .overrideWithValue(_StaticBootstrapAsClient(bootstrap)),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
+          asClientProvider.overrideWithValue(asClient),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
@@ -3179,7 +3167,7 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 42 &&
-            widget.imageUrl == 'https://matrix.example.com/old.png',
+            widget.imageUrl == 'https://product.example.com/yanan.png',
       ),
       findsOneWidget,
     );
@@ -3204,11 +3192,11 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 42 &&
-            widget.imageUrl == 'https://matrix.example.com/new.png',
+            widget.imageUrl == 'https://product.example.com/yanan.png',
       ),
       findsOneWidget,
     );
-    expect(find.text('Yanan 新昵称'), findsAtLeastNWidgets(1));
+    expect(find.text('Yanan 新昵称'), findsNothing);
   });
 
   testWidgets('messages contact conversation does not show online dot',
@@ -3222,24 +3210,16 @@ void main() {
       peerName: 'Yanan',
       peerAvatarUrl: 'https://matrix.example.com/yanan.png',
     );
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 3, 10),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: '@owner:p2p-liyanan.com',
-          displayName: 'Yanan',
-          avatarUrl: 'https://as-cache.example.com/yanan.png',
-          roomId: '!owner:p2p-im.com',
-          domain: 'p2p-liyanan.com',
-          status: 'accepted',
-        ),
-      ],
-      groups: const [],
-      channels: const [],
-      pending: const AsSyncPending.empty(),
-    );
+    final asClient = _ConversationListAsClient(const [
+      AsConversation(
+        conversationId: 'conv_owner',
+        roomId: '!owner:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Yanan',
+        avatarUrl: '',
+      ),
+    ]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3249,10 +3229,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
+          asClientProvider.overrideWithValue(asClient),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
@@ -3275,24 +3252,16 @@ void main() {
       peerMxid: peerMxid,
       peerName: 'Yanan',
     );
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 3, 10),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: peerMxid,
-          displayName: 'Yanan',
-          avatarUrl: '',
-          roomId: roomId,
-          domain: 'p2p-liyanan.com',
-          status: 'accepted',
-        ),
-      ],
-      groups: const [],
-      channels: const [],
-      pending: const AsSyncPending.empty(),
-    );
+    final asClient = _ConversationListAsClient(const [
+      AsConversation(
+        conversationId: 'conv_owner',
+        roomId: roomId,
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Yanan',
+        avatarUrl: '',
+      ),
+    ]);
     final clearAfterLastEvent =
         room.lastEvent!.originServerTs.millisecondsSinceEpoch + 1;
 
@@ -3304,10 +3273,9 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(
-              bootstrap: bootstrap,
               localRoomClearedBeforeTs: {roomId: clearAfterLastEvent},
             ),
           ),
@@ -3321,7 +3289,7 @@ void main() {
     expect(find.text('friend flow accepted message'), findsNothing);
   });
 
-  testWidgets('messages conversation avatar falls back to Matrix peer avatar',
+  testWidgets('messages conversation avatar uses ProductCore fallback avatar',
       (tester) async {
     final client = Client('PortalIMConversationMatrixAvatarTest')
       ..setUserId('@owner:p2p-im.com');
@@ -3332,24 +3300,16 @@ void main() {
       peerName: 'Yanan',
       peerAvatarUrl: 'https://matrix.example.com/yanan.png',
     );
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 3, 10),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: '@owner:p2p-liyanan.com',
-          displayName: 'Yanan',
-          avatarUrl: '',
-          roomId: '!owner:p2p-im.com',
-          domain: 'p2p-liyanan.com',
-          status: 'accepted',
-        ),
-      ],
-      groups: const [],
-      channels: const [],
-      pending: const AsSyncPending.empty(),
-    );
+    final asClient = _ConversationListAsClient(const [
+      AsConversation(
+        conversationId: 'conv_owner',
+        roomId: '!owner:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Yanan',
+        avatarUrl: 'https://product.example.com/fallback.png',
+      ),
+    ]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3359,10 +3319,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
+          asClientProvider.overrideWithValue(asClient),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
@@ -3374,7 +3331,7 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 42 &&
-            widget.imageUrl == 'https://matrix.example.com/yanan.png',
+            widget.imageUrl == 'https://product.example.com/fallback.png',
       ),
       findsOneWidget,
     );
@@ -3531,10 +3488,22 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
   });
 
-  testWidgets('messages render AS accepted contact before Matrix room hydrates',
+  testWidgets('messages render ProductCore direct before Matrix room hydrates',
       (tester) async {
     final client = Client('PortalIMAsAcceptedContactOnlyHomeListTest')
       ..setUserId('@owner:p2p-im.com');
+    final asClient = _ConversationListAsClient(
+      const [
+        AsConversation(
+          conversationId: 'conv_current',
+          roomId: '!current:p2p-im.com',
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          title: 'Yanan',
+          avatarUrl: '',
+        ),
+      ],
+    );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 28, 11),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -3547,16 +3516,7 @@ void main() {
           lastActivityAt: null,
         ),
       ],
-      contacts: const [
-        AsSyncContact(
-          userId: '@owner:p2p-liyanan.com',
-          displayName: 'Yanan',
-          avatarUrl: '',
-          roomId: '!current:p2p-im.com',
-          domain: 'p2p-liyanan.com',
-          status: 'accepted',
-        ),
-      ],
+      contacts: const [],
       groups: const [],
       channels: const [],
       pending: const AsSyncPending.empty(),
@@ -3570,7 +3530,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -3586,26 +3546,68 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
   });
 
-  testWidgets('messages render AS joined group before Matrix room hydrates',
+  testWidgets(
+      'messages render ProductCore conversations before Matrix room hydrates',
+      (tester) async {
+    final client = Client('PortalIMProductCoreConversationHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final asClient = _ConversationListAsClient(
+      const [
+        AsConversation(
+          conversationId: 'conv_direct',
+          roomId: '!product-direct:p2p-im.com',
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          title: 'Product Alice',
+          avatarUrl: '',
+          lastActivityAt: null,
+          projectionState: 'ready',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Product Alice'), findsWidgets);
+    expect(find.text('还没有会话'), findsNothing);
+  });
+
+  testWidgets('messages render ProductCore group before Matrix room hydrates',
       (tester) async {
     final client = Client('PortalIMAsJoinedGroupOnlyHomeListTest')
       ..setUserId('@owner:example.test');
+    final asClient = _ConversationListAsClient(
+      const [
+        AsConversation(
+          conversationId: 'conv_bca',
+          roomId: '!bca:example.test',
+          kind: asConversationKindGroup,
+          lifecycle: 'active',
+          title: 'BCA',
+          avatarUrl: '',
+        ),
+      ],
+    );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 21, 11),
       user: const AsSyncUser(userId: '@owner:example.test'),
       rooms: const [],
       contacts: const [],
-      groups: const [
-        AsSyncRoomSummary(
-          roomId: '!bca:example.test',
-          name: 'BCA',
-          avatarUrl: '',
-          unreadCount: 0,
-          lastActivityAt: null,
-          memberStatus: asChannelMemberStatusJoined,
-          memberCount: 3,
-        ),
-      ],
+      groups: const [],
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
@@ -3618,7 +3620,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -3637,20 +3639,23 @@ void main() {
     final client = Client('PortalIMDirectContactOverStaleGroupHomeListTest')
       ..setUserId('@owner:example.test');
     const roomId = '!direct:example.test';
+    final asClient = _ConversationListAsClient(
+      const [
+        AsConversation(
+          conversationId: 'conv_direct',
+          roomId: roomId,
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          title: 'C Direct',
+          avatarUrl: '',
+        ),
+      ],
+    );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 21, 12),
       user: const AsSyncUser(userId: '@owner:example.test'),
       rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: '@peer:example.test',
-          displayName: 'C Direct',
-          avatarUrl: '',
-          roomId: roomId,
-          domain: 'example.test',
-          status: 'accepted',
-        ),
-      ],
+      contacts: const [],
       groups: const [
         AsSyncRoomSummary(
           roomId: roomId,
@@ -3687,7 +3692,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -3813,20 +3818,22 @@ void main() {
           lastActivityAt: liveAt,
         ),
       ],
-      contacts: const [
-        AsSyncContact(
-          userId: '@yanan:p2p-im.com',
-          displayName: 'Yanan',
-          avatarUrl: '',
-          roomId: '!a:p2p-im.com',
-          domain: 'p2p-im.com',
-          status: 'accepted',
-        ),
-      ],
+      contacts: const [],
       groups: const [],
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
+    final asClient = _ConversationListAsClient([
+      AsConversation(
+        conversationId: 'conv_a',
+        roomId: '!a:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Yanan',
+        avatarUrl: '',
+        lastActivityAt: liveAt,
+      ),
+    ]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3836,7 +3843,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -4144,20 +4151,21 @@ void main() {
       syncedAt: DateTime.utc(2026, 5, 27, 10),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
       rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: '@owner:p2p-liyanan.com',
-          displayName: 'Yanan',
-          avatarUrl: '',
-          roomId: '!canonical:p2p-liyanan.com',
-          domain: 'p2p-liyanan.com',
-          status: 'accepted',
-        ),
-      ],
+      contacts: const [],
       groups: const [],
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
+    final asClient = _ConversationListAsClient(const [
+      AsConversation(
+        conversationId: 'conv_canonical',
+        roomId: '!canonical:p2p-liyanan.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Yanan',
+        avatarUrl: '',
+      ),
+    ]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -4167,7 +4175,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -4264,6 +4272,16 @@ void main() {
         status: 'accepted',
       ),
     );
+    final asClient = _ConversationListAsClient(const [
+      AsConversation(
+        conversationId: 'conv_new',
+        roomId: '!new:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Yanan',
+        avatarUrl: '',
+      ),
+    ]);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -4273,7 +4291,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith((ref) => syncState),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),

@@ -49,6 +49,50 @@ void main() {
     expect(cBase.toString(), 'http://127.0.0.1:38008/_p2p');
   });
 
+  test('listConversations uses unified conversations query action', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(jsonDecode(request.body), {
+          'action': 'conversations.list',
+          'params': <String, Object?>{},
+        });
+        return http.Response(
+          jsonEncode({
+            'conversations': [
+              {
+                'conversation_id': 'conv_1',
+                'matrix_room_id': '!dm:p2p-im.com',
+                'kind': 'direct',
+                'lifecycle': 'active',
+                'title': 'Alice',
+                'avatar_url': 'mxc://avatar',
+                'last_event_id': r'$event',
+                'last_activity_at': 1781942406000,
+                'projection_state': 'ready',
+              }
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final conversations = await client.listConversations();
+
+    expect(conversations, hasLength(1));
+    expect(conversations.single.roomId, '!dm:p2p-im.com');
+    expect(conversations.single.kind, asConversationKindDirect);
+    expect(conversations.single.title, 'Alice');
+    expect(
+      conversations.single.lastActivityAt,
+      DateTime.fromMillisecondsSinceEpoch(1781942406000, isUtc: true),
+    );
+  });
+
   test('changePortalPassword uses unified portal password action', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),

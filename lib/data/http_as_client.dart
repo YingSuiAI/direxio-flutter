@@ -191,6 +191,14 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<List<AsConversation>> listConversations() async {
+    final body = await _getJson('conversations');
+    return _parseConversations(
+      body['conversations'] ?? body['results'] ?? body,
+    );
+  }
+
+  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,
@@ -1853,6 +1861,14 @@ class HttpAsClient implements AsClient {
         .toList(growable: false);
   }
 
+  static List<AsConversation> _parseConversations(Object? value) {
+    final raw = value as List? ?? const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => AsConversation.fromJson(item.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
   static AsChannel _parseChannelEnvelope(
     Map<String, dynamic> body, {
     bool statusBelongsToCurrentUser = false,
@@ -2215,6 +2231,9 @@ String _actionFor(String method, String path) {
   if (method == 'GET' && clean == 'profile') return 'profile.get';
   if (method == 'PUT' && clean == 'profile') return 'profile.update';
   if (method == 'GET' && clean == 'sync/bootstrap') return 'sync.bootstrap';
+  if (method == 'GET' && clean == 'conversations') {
+    return 'conversations.list';
+  }
   if (method == 'PUT' && clean == 'sync/read-marker') return 'sync.read_marker';
   if (method == 'GET' && clean == 'portal/status') return 'portal.status';
   if (method == 'POST' && clean == 'portal/setup') return 'portal.setup';

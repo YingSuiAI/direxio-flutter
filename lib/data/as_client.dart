@@ -535,6 +535,58 @@ class AsSyncBootstrap {
   }
 }
 
+const asConversationKindDirect = 'direct';
+const asConversationKindGroup = 'group';
+const asConversationKindChannel = 'channel';
+const asConversationKindAgent = 'agent';
+
+class AsConversation {
+  const AsConversation({
+    required this.conversationId,
+    required this.roomId,
+    required this.kind,
+    required this.lifecycle,
+    required this.title,
+    required this.avatarUrl,
+    this.lastEventId = '',
+    this.lastActivityAt,
+    this.projectionState = '',
+    this.projectionReason = '',
+  });
+
+  final String conversationId;
+  final String roomId;
+  final String kind;
+  final String lifecycle;
+  final String title;
+  final String avatarUrl;
+  final String lastEventId;
+  final DateTime? lastActivityAt;
+  final String projectionState;
+  final String projectionReason;
+
+  bool get isDirect => kind == asConversationKindDirect;
+  bool get isGroup => kind == asConversationKindGroup;
+  bool get isChannel => kind == asConversationKindChannel;
+  bool get isAgent => kind == asConversationKindAgent;
+
+  factory AsConversation.fromJson(Map<String, dynamic> json) {
+    return AsConversation(
+      conversationId: json['conversation_id'] as String? ?? '',
+      roomId:
+          json['matrix_room_id'] as String? ?? json['room_id'] as String? ?? '',
+      kind: json['kind'] as String? ?? '',
+      lifecycle: json['lifecycle'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      avatarUrl: json['avatar_url'] as String? ?? '',
+      lastEventId: json['last_event_id'] as String? ?? '',
+      lastActivityAt: _parseUnixMillisDateTime(json['last_activity_at']),
+      projectionState: json['projection_state'] as String? ?? '',
+      projectionReason: json['projection_reason'] as String? ?? '',
+    );
+  }
+}
+
 class AsSyncUser {
   const AsSyncUser({required this.userId});
 
@@ -1512,6 +1564,9 @@ abstract class AsClient {
   /// GET /_as/sync/bootstrap
   Future<AsSyncBootstrap> syncBootstrap();
 
+  /// GET /_p2p/conversations
+  Future<List<AsConversation>> listConversations() async => const [];
+
   /// GET /_p2p/events?since= SSE refresh stream.
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
@@ -1907,6 +1962,14 @@ abstract class AsClient {
 DateTime? _parseDateTime(Object? value) {
   if (value is! String || value.isEmpty) return null;
   return DateTime.tryParse(value)?.toUtc();
+}
+
+DateTime? _parseUnixMillisDateTime(Object? value) {
+  final millis = _parseInt(value);
+  if (millis > 0) {
+    return DateTime.fromMillisecondsSinceEpoch(millis, isUtc: true);
+  }
+  return _parseDateTime(value);
 }
 
 int _parseInt(Object? value) {

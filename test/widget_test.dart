@@ -9944,6 +9944,20 @@ void main() {
     expect(find.text('群聊同步超时，请检查网络后重试'), findsNothing);
   });
 
+  testWidgets('group chat rows do not use private-mismatched entrance motion',
+      (tester) async {
+    await _pumpGroupChatWithTextEvent(
+      tester,
+      eventId: r'$group-opened-history',
+      body: '历史消息',
+    );
+
+    expect(
+      find.byKey(const ValueKey(r'group_message_enter_$group-opened-history')),
+      findsNothing,
+    );
+  });
+
   testWidgets('empty group chat can pull to load server history',
       (tester) async {
     const roomId = '!empty-group:p2p-im.com';

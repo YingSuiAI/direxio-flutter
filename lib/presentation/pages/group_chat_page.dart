@@ -298,6 +298,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   final Set<String> _downloadedFileEventIds = {};
   final Set<String> _joiningChannelShareIds = {};
   final Map<String, AsCallSession> _roomAsCallHistory = {};
+  final ChatInitialEntranceRegistry _initialTimelineEntrances =
+      ChatInitialEntranceRegistry();
+  Timer? _initialTimelineEntranceTimer;
   Timer? _asCallHistoryReloadTimer;
   bool _roomAsCallHistoryRefreshing = false;
   bool _multiSelect = false;
@@ -706,6 +709,18 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   void _pruneMessageAnchors() {
     _messageAnchorKeys.removeWhere(
       (eventId, _) => !_messageListIndexes.containsKey(eventId),
+    );
+  }
+
+  void _seedInitialTimelineEntrances(List<Object> keys) {
+    if (!_initialTimelineEntrances.seed(keys)) return;
+    _initialTimelineEntranceTimer?.cancel();
+    _initialTimelineEntranceTimer = Timer(
+      ChatInitialEntranceRegistry.closeDelay,
+      () {
+        _initialTimelineEntrances.close();
+        if (mounted) setState(() {});
+      },
     );
   }
 
@@ -1396,6 +1411,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   @override
   void dispose() {
     _timeline?.cancelSubscriptions();
+    _initialTimelineEntranceTimer?.cancel();
     _targetEventScrollTimer?.cancel();
     _asCallHistoryReloadTimer?.cancel();
     _flashingMessageTimer?.cancel();
@@ -2429,8 +2445,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       for (final item in timelineItems) _timelineItemKey(item),
     ];
     final displayTimelineItems = timelineItems.reversed.toList(growable: false);
+    final displayTimelineItemKeys = timelineItemKeys.reversed.toList(
+      growable: false,
+    );
     _syncMessageListIndexes(displayTimelineItems);
     _pruneMessageAnchors();
+    _seedInitialTimelineEntrances(timelineItemKeys);
     _scheduleTargetEventScroll();
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
@@ -2599,6 +2619,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                             padding: messagePadding,
                             itemCount: timelineItems.length,
                             itemBuilder: (context, i) {
+                              final itemKey = displayTimelineItemKeys[i];
                               final contextMenuPlacement =
                                   _messageContextMenuPlacement(
                                 i,
@@ -2615,7 +2636,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                   key: ValueKey('group_message_enter_$id'),
                                   isMe: isMe,
                                   index: i,
-                                  enabled: false,
+                                  enabled: _initialTimelineEntrances
+                                      .contains(itemKey),
                                   child: anchorKey == null
                                       ? _MessageJumpFlash(
                                           flashing: flashing,

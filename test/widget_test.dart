@@ -4633,6 +4633,30 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
   });
 
+  testWidgets('chat info rejects mock conversation ids', (tester) async {
+    final client = Client('PortalIMChatInfoRejectMockTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatInfoPage(roomId: 'mock_dave'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('会话不存在'), findsOneWidget);
+    expect(find.text('Dave Lee'), findsNothing);
+    expect(find.text('查找聊天记录'), findsNothing);
+  });
+
   testWidgets('chat info clear room history writes room clear boundary',
       (tester) async {
     const roomId = '!owner:p2p-im.com';
@@ -8107,6 +8131,30 @@ void main() {
     expect(find.text('群管理'), findsNothing);
     expect(find.text('群公告'), findsNothing);
     expect(find.text('设置当前聊天背景'), findsNothing);
+  });
+
+  testWidgets('group detail rejects mock group ids', (tester) async {
+    final client = Client('PortalIMGroupDetailRejectMockTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupDetailPage(roomId: 'mock_core_group'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('群组不存在'), findsOneWidget);
+    expect(find.text('聊天信息(6)'), findsNothing);
+    expect(find.text('Alice'), findsNothing);
   });
 
   testWidgets('group detail keeps management visible for group owner',
@@ -12690,63 +12738,6 @@ void main() {
     expect(client.getRoomById('!alice:p2p-im.com'), isNull);
     expect(find.text('messages-home'), findsOneWidget);
     expect(find.text('会话不存在'), findsNothing);
-  });
-
-  testWidgets('contact visitor home follow button toggles locally',
-      (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const ContactHomePage(userId: '@alice:portal.local'),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    final followButton =
-        find.byKey(const ValueKey('contact_home_follow_button'));
-    final addButton =
-        find.byKey(const ValueKey('contact_home_add_friend_button'));
-    expect(followButton, findsOneWidget);
-    expect(addButton, findsOneWidget);
-    expect(find.descendant(of: followButton, matching: find.text('关注')),
-        findsOneWidget);
-    expect(find.descendant(of: addButton, matching: find.text('加好友')),
-        findsOneWidget);
-    expect(tester.getTopLeft(addButton).dy,
-        greaterThan(tester.getTopLeft(followButton).dy));
-
-    await tester.tap(followButton);
-    await tester.pump();
-
-    expect(find.descendant(of: followButton, matching: find.text('取关')),
-        findsOneWidget);
-  });
-
-  testWidgets('contact visitor home add friend button marks requested locally',
-      (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const ContactHomePage(userId: '@alice:portal.local'),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    final addButton =
-        find.byKey(const ValueKey('contact_home_add_friend_button'));
-    expect(find.descendant(of: addButton, matching: find.text('加好友')),
-        findsOneWidget);
-
-    await tester.tap(addButton);
-    await tester.pump();
-
-    expect(find.descendant(of: addButton, matching: find.text('已申请')),
-        findsOneWidget);
-    expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
   });
 
   testWidgets('global search includes locally cached Matrix messages',

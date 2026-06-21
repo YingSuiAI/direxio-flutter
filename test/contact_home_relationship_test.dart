@@ -125,6 +125,39 @@ class _RelationshipAsClient extends Fake implements AsClient {
 }
 
 void main() {
+  testWidgets('mock-only contact home is not a product profile',
+      (tester) async {
+    final client = Client('ContactHomeRejectMockOnlyTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_RelationshipAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) =>
+                AsSyncCacheState(bootstrap: _bootstrap(contacts: const [])),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactHomePage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('联系人主页不存在'), findsOneWidget);
+    expect(find.text('Alice Chen'), findsNothing);
+    expect(
+        find.byKey(const ValueKey('contact_home_follow_button')), findsNothing);
+    expect(find.byKey(const ValueKey('contact_home_add_friend_button')),
+        findsNothing);
+  });
+
   testWidgets('real contact without mock profile still renders visitor header',
       (tester) async {
     final client = Client('ContactHomeRealFallbackTest')
@@ -375,8 +408,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.deletedContacts, ['!alice:p2p-im.com']);
-    expect(find.descendant(of: friendButton, matching: find.text('加好友')),
-        findsOneWidget);
+    expect(find.text('联系人主页不存在'), findsOneWidget);
+    expect(find.byKey(const ValueKey('contact_home_add_friend_button')),
+        findsNothing);
   });
 
   testWidgets('followed visitor home shows unfollow and removes via AS',
@@ -401,8 +435,20 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
-            (ref) =>
-                AsSyncCacheState(bootstrap: _bootstrap(contacts: const [])),
+            (ref) => AsSyncCacheState(
+              bootstrap: _bootstrap(
+                contacts: const [
+                  AsSyncContact(
+                    userId: '@alice:portal.local',
+                    displayName: 'Alice Chen',
+                    avatarUrl: '',
+                    roomId: '!alice:p2p-im.com',
+                    domain: 'alice.portal.local',
+                    status: 'pending_outbound',
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
         child: MaterialApp(

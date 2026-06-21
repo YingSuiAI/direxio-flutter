@@ -5,7 +5,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
-import '../mock/mock_data.dart';
 import '../groups/group_leave_flow.dart';
 import '../groups/group_member_invite_flow.dart';
 import '../providers/auth_provider.dart';
@@ -38,17 +37,15 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
-    final currentNickname = _currentUserNickname(room, client.userID);
-    // 找不到真房间时回退 mock（产品设计组等以 mock_ 起头）。
-    final mock = room == null ? MockData.byId(widget.roomId) : null;
-    if (room == null && mock == null) {
+    if (room == null) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
         body: Center(child: Text('群组不存在')),
       );
     }
 
-    final realMembers = room?.getParticipants() ?? const <User>[];
+    final currentNickname = _currentUserNickname(room, client.userID);
+    final realMembers = room.getParticipants();
     final existingMemberMxids = realMembers
         .map((member) => member.id.trim())
         .where((mxid) => mxid.isNotEmpty)
@@ -56,12 +53,10 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     final members = _buildMemberStripData(
       realMembers,
       client: client,
-      padWithMocks: room == null,
     );
-    final memberCount =
-        realMembers.isEmpty ? members.length : realMembers.length;
-    final canManageGroup = room == null || _canManageGroup(room);
-    final canDissolveGroup = room != null && _canDissolveGroup(room);
+    final memberCount = realMembers.length;
+    final canManageGroup = _canManageGroup(room);
+    final canDissolveGroup = _canDissolveGroup(room);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -104,7 +99,7 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                           context,
                           currentName: groupRemark.isNotEmpty
                               ? groupRemark
-                              : room?.getLocalizedDisplayname() ?? '',
+                              : room.getLocalizedDisplayname(),
                         ),
                       ),
                     ],
@@ -140,13 +135,11 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                         label: '我在本群昵称',
                         trailingText:
                             currentNickname.isEmpty ? null : currentNickname,
-                        onTap: room == null
-                            ? () {}
-                            : () => _showMyGroupNicknameDialog(
-                                  context,
-                                  room: room,
-                                  currentName: currentNickname,
-                                ),
+                        onTap: () => _showMyGroupNicknameDialog(
+                          context,
+                          room: room,
+                          currentName: currentNickname,
+                        ),
                       ),
                       _Divider(),
                       _RowSwitch(
@@ -192,7 +185,6 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
   List<_Member> _buildMemberStripData(
     List<User> real, {
     required Client client,
-    required bool padWithMocks,
   }) {
     final palette = <Color>[
       context.tk.accent, // A —— primary
@@ -210,23 +202,16 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
       Color(0xFFFFFFFF),
       Color(0xFFFFFFFF),
     ];
-    const mockNames = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank'];
-
     final out = <_Member>[];
-    final count = padWithMocks ? 6 : real.length;
-    for (var i = 0; i < count; i++) {
-      final name = i < real.length
-          ? (real[i].displayName ?? real[i].id.replaceFirst('@', ''))
-          : mockNames[i];
+    for (var i = 0; i < real.length; i++) {
+      final name = real[i].displayName ?? real[i].id.replaceFirst('@', '');
       out.add(
         _Member(
           initial: name.characters.first.toUpperCase(),
           name: name,
-          avatarUrl: i < real.length
-              ? matrixContentHttpUrl(client, real[i].avatarUrl)
-              : null,
-          bg: palette[i],
-          fg: onColors[i],
+          avatarUrl: matrixContentHttpUrl(client, real[i].avatarUrl),
+          bg: palette[i % palette.length],
+          fg: onColors[i % onColors.length],
         ),
       );
     }

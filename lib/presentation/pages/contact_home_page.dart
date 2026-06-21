@@ -8,7 +8,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
-import '../mock/mock_data.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -17,11 +16,6 @@ import '../utils/contact_identity_label.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
-
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
 
 enum _FriendButtonState { none, pending, accepted }
 
@@ -67,14 +61,7 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     });
   }
 
-  bool get _useMockRelationship {
-    final isLoggedIn =
-        ref.read(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
-    return _mockAuthEnabled || !isLoggedIn;
-  }
-
-  Future<void> _loadRelationshipState(MockContactHome home) async {
-    if (_useMockRelationship) return;
+  Future<void> _loadRelationshipState(_ContactHomeData home) async {
     try {
       final asClient = ref.read(asClientProvider);
       final bootstrap = ref.read(asSyncCacheProvider).bootstrap ??
@@ -102,7 +89,7 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     }
   }
 
-  Future<void> _toggleFollow(MockContactHome home) async {
+  Future<void> _toggleFollow(_ContactHomeData home) async {
     if (_followBusy) return;
     final next = !_following;
 
@@ -112,13 +99,11 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     });
 
     try {
-      if (!_useMockRelationship) {
-        final asClient = ref.read(asClientProvider);
-        if (next) {
-          await asClient.addFollow(home.domain);
-        } else {
-          await asClient.removeFollow(home.domain);
-        }
+      final asClient = ref.read(asClientProvider);
+      if (next) {
+        await asClient.addFollow(home.domain);
+      } else {
+        await asClient.removeFollow(home.domain);
       }
     } catch (e) {
       if (!mounted) return;
@@ -131,7 +116,7 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     }
   }
 
-  Future<void> _onFriendAction(MockContactHome home) async {
+  Future<void> _onFriendAction(_ContactHomeData home) async {
     if (_friendActionBusy) return;
     switch (_friendState) {
       case _FriendButtonState.accepted:
@@ -145,24 +130,21 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     }
   }
 
-  Future<void> _sendFriendRequest(MockContactHome home) async {
+  Future<void> _sendFriendRequest(_ContactHomeData home) async {
     setState(() => _friendActionBusy = true);
 
     try {
-      var restored = false;
-      if (!_useMockRelationship) {
-        final contact = await ref.read(asClientProvider).createContactRequest(
-              mxid: home.userId,
-              displayName: home.displayName,
-              domain: home.domain,
-            );
-        restored = contact.status.trim() == 'accepted';
-        ref.read(asSyncCacheProvider.notifier).update(
-              (state) => state.withContactEntry(contact),
-            );
-        await ref.read(matrixClientProvider).oneShotSync();
-        await _refreshBootstrapFromAs();
-      }
+      final contact = await ref.read(asClientProvider).createContactRequest(
+            mxid: home.userId,
+            displayName: home.displayName,
+            domain: home.domain,
+          );
+      final restored = contact.status.trim() == 'accepted';
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.withContactEntry(contact),
+          );
+      await ref.read(matrixClientProvider).oneShotSync();
+      await _refreshBootstrapFromAs();
       if (!mounted) return;
       setState(() {
         _friendState =
@@ -184,7 +166,7 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     }
   }
 
-  Future<void> _confirmAndDeleteFriend(MockContactHome home) async {
+  Future<void> _confirmAndDeleteFriend(_ContactHomeData home) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -208,7 +190,7 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     await _deleteFriend(home);
   }
 
-  Future<void> _deleteFriend(MockContactHome home) async {
+  Future<void> _deleteFriend(_ContactHomeData home) async {
     final roomId = _acceptedContactRoomId?.trim();
     if (roomId == null || roomId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -268,10 +250,9 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     final visitorChannels =
         _publicChannels?.map(_contactChannelFromAs).toList(growable: false) ??
             home?.channels ??
-            const <MockContactChannel>[];
+            const <_ContactHomeChannel>[];
     final auth = ref.watch(authStateNotifierProvider).valueOrNull;
     if (home != null &&
-        !_mockAuthEnabled &&
         auth?.isLoggedIn == true &&
         _relationshipLoadKey != widget.userId) {
       _relationshipLoadKey = widget.userId;
@@ -349,13 +330,10 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
   }
 }
 
-MockContactHome? _visitorHomeForUserId(
+_ContactHomeData? _visitorHomeForUserId(
   String userId,
   AsSyncBootstrap? bootstrap,
 ) {
-  final mock = MockData.contactHomeByMxid(userId);
-  if (mock != null) return mock;
-
   final trimmed = userId.trim();
   if (trimmed.isEmpty) return null;
 
@@ -363,30 +341,32 @@ MockContactHome? _visitorHomeForUserId(
     bootstrap?.contacts ?? const <AsSyncContact>[],
     trimmed,
   );
-  final contactDomain = contact?.domain.trim() ?? '';
+  if (contact == null) return null;
+
+  final contactDomain = contact.domain.trim();
   final domain =
       contactDomain.isNotEmpty ? contactDomain : _domainFromMxid(trimmed);
   final displayName = contactDisplayNameFromIdentity(
     mxid: trimmed,
-    displayName: contact?.displayName ?? '',
+    displayName: contact.displayName,
     domain: domain,
     fallback: _displayNameFromMxid(trimmed, fallbackDomain: domain),
   );
-  final avatarUrl = contact?.avatarUrl.trim();
+  final avatarUrl = contact.avatarUrl.trim();
 
-  return MockContactHome(
+  return _ContactHomeData(
     userId: trimmed,
     displayName: displayName,
     domain: domain,
     bio: '',
-    avatarUrl: avatarUrl == null || avatarUrl.isEmpty ? null : avatarUrl,
+    avatarUrl: avatarUrl.isEmpty ? null : avatarUrl,
     channels: const [],
     dynamics: const [],
   );
 }
 
-MockContactChannel _contactChannelFromAs(AsChannel channel) {
-  return MockContactChannel(
+_ContactHomeChannel _contactChannelFromAs(AsChannel channel) {
+  return _ContactHomeChannel(
     name: channel.name.trim().isEmpty ? channel.roomId : channel.name.trim(),
     description: channel.roomId.trim(),
     memberCount: channel.memberCount,
@@ -412,7 +392,7 @@ AsSyncContact? _contactForIdentity(
 
 AsSyncContact? _contactForHome(
   List<AsSyncContact> contacts,
-  MockContactHome home,
+  _ContactHomeData home,
 ) {
   for (final contact in contacts) {
     if (_sameIdentity(contact.userId, home.userId) ||
@@ -440,11 +420,67 @@ String _displayNameFromMxid(String mxid, {required String fallbackDomain}) {
   return mxid;
 }
 
-bool _isFollowingHome(List<FollowEntry> follows, MockContactHome home) {
+bool _isFollowingHome(List<FollowEntry> follows, _ContactHomeData home) {
   for (final follow in follows) {
     if (_sameIdentity(follow.domain, home.domain)) return true;
   }
   return false;
+}
+
+class _ContactHomeData {
+  const _ContactHomeData({
+    required this.userId,
+    required this.displayName,
+    required this.domain,
+    required this.bio,
+    required this.avatarUrl,
+    required this.channels,
+    required this.dynamics,
+  });
+
+  final String userId;
+  final String displayName;
+  final String domain;
+  final String bio;
+  final String? avatarUrl;
+  final List<_ContactHomeChannel> channels;
+  final List<_ContactHomeDynamic> dynamics;
+}
+
+class _ContactHomeChannel {
+  const _ContactHomeChannel({
+    required this.name,
+    required this.description,
+    required this.memberCount,
+    this.roomId = '',
+    this.channelId = '',
+    this.avatarUrl,
+  });
+
+  final String name;
+  final String description;
+  final int memberCount;
+  final String roomId;
+  final String channelId;
+  final String? avatarUrl;
+}
+
+class _ContactHomeDynamic {
+  const _ContactHomeDynamic({
+    required this.month,
+    required this.day,
+    required this.title,
+    required this.subtitle,
+    required this.previewColor,
+    required this.sortKey,
+  });
+
+  final String month;
+  final String day;
+  final String title;
+  final String subtitle;
+  final int previewColor;
+  final int sortKey;
 }
 
 _FriendButtonState _friendStateFromContact(AsSyncContact? contact) {
@@ -472,7 +508,7 @@ class _VisitorCoverHeader extends StatelessWidget {
     required this.onFriendTap,
   });
 
-  final MockContactHome home;
+  final _ContactHomeData home;
   final bool following;
   final bool busy;
   final String friendButtonText;
@@ -683,7 +719,7 @@ class _VisitorSection extends StatelessWidget {
 class _VisitorChannelTile extends StatelessWidget {
   const _VisitorChannelTile({required this.channel});
 
-  final MockContactChannel channel;
+  final _ContactHomeChannel channel;
 
   @override
   Widget build(BuildContext context) {
@@ -718,7 +754,7 @@ class _VisitorChannelTile extends StatelessWidget {
 class _VisitorDynamicsTimeline extends StatelessWidget {
   const _VisitorDynamicsTimeline({required this.items});
 
-  final List<MockContactDynamic> items;
+  final List<_ContactHomeDynamic> items;
 
   @override
   Widget build(BuildContext context) {
@@ -736,7 +772,7 @@ class _VisitorDynamicsTimeline extends StatelessWidget {
 class _VisitorDynamicRow extends StatelessWidget {
   const _VisitorDynamicRow({required this.item});
 
-  final MockContactDynamic item;
+  final _ContactHomeDynamic item;
 
   @override
   Widget build(BuildContext context) {
@@ -757,7 +793,7 @@ class _VisitorDynamicRow extends StatelessWidget {
 class _VisitorDynamicDate extends StatelessWidget {
   const _VisitorDynamicDate({required this.item});
 
-  final MockContactDynamic item;
+  final _ContactHomeDynamic item;
 
   @override
   Widget build(BuildContext context) {
@@ -792,7 +828,7 @@ class _VisitorDynamicDate extends StatelessWidget {
 class _VisitorDynamicPreview extends StatelessWidget {
   const _VisitorDynamicPreview({required this.item});
 
-  final MockContactDynamic item;
+  final _ContactHomeDynamic item;
 
   @override
   Widget build(BuildContext context) {

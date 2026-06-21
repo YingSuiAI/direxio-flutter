@@ -7,7 +7,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../chat/chat_glass_background.dart';
-import '../mock/mock_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
@@ -38,25 +37,27 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
     final room = client.getRoomById(widget.roomId);
-    // 真房间走 Matrix；否则回退 mock 数据（id 以 mock_ 开头，例如 mock_jack）。
-    final mock = room == null ? MockData.byId(widget.roomId) : null;
-    final acceptedContact =
-        room == null ? null : syncCache.acceptedContactForRoom(widget.roomId);
-    final peerId =
-        acceptedContact?.userId ?? room?.directChatMatrixID ?? mock?.mxid;
+    if (room == null) {
+      return Scaffold(
+        backgroundColor: chatPageBackgroundColor(context),
+        body: const ChatGlassBackground(
+          child: Center(child: Text('会话不存在')),
+        ),
+      );
+    }
+
+    final acceptedContact = syncCache.acceptedContactForRoom(widget.roomId);
+    final peerId = acceptedContact?.userId ?? room.directChatMatrixID;
     final name = _chatInfoDisplayName(
       room: room,
       acceptedContact: acceptedContact,
-      mockName: mock?.name,
       peerId: peerId,
       roomId: widget.roomId,
     );
     final peerMember =
-        peerId == null ? null : room?.unsafeGetUserFromMemoryOrFallback(peerId);
+        peerId == null ? null : room.unsafeGetUserFromMemoryOrFallback(peerId);
     final avatarUrl = avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
-        (room == null
-            ? mock?.avatarUrl
-            : matrixContentHttpUrl(client, peerMember?.avatarUrl));
+        matrixContentHttpUrl(client, peerMember?.avatarUrl);
 
     return Scaffold(
       backgroundColor: chatPageBackgroundColor(context),
@@ -73,9 +74,7 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                     _PeerHeader(
                       name: name,
                       avatarUrl: avatarUrl,
-                      // 仅真 Matrix 房间允许进 contact-detail（mock 路径下 contact-detail
-                      // 拿不到房间数据，跳过去是死页）。
-                      onTap: room != null && peerId != null
+                      onTap: peerId != null
                           ? () => context.push(
                                 '/contact/${Uri.encodeComponent(peerId)}',
                               )
@@ -209,7 +208,6 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
 String _chatInfoDisplayName({
   required Room? room,
   required AsSyncContact? acceptedContact,
-  required String? mockName,
   required String? peerId,
   required String roomId,
 }) {
@@ -219,7 +217,7 @@ String _chatInfoDisplayName({
   if (room != null && !room.isDirectChat) {
     return '正在同步联系人信息';
   }
-  return room?.getLocalizedDisplayname() ?? mockName ?? peerId ?? roomId;
+  return room?.getLocalizedDisplayname() ?? peerId ?? roomId;
 }
 
 class _PeerHeader extends StatelessWidget {

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
+import '../../data/as_client.dart';
 import '../../data/matrix_message_search_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
@@ -14,12 +15,14 @@ import '../channel/channel_inbox_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import '../mock/mock_channels.dart';
 import '../mock/mock_data.dart';
 import '../groups/group_invite_content.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
@@ -61,9 +64,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final serial = ++_searchSerial;
     setState(() => _loading = true);
     final client = ref.read(matrixClientProvider);
-    final directoryResults = _localDirectoryResults(query, client);
+    final productConversations =
+        ref.read(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final directoryResults =
+        _localDirectoryResults(query, client, productConversations);
     final remoteMessageResultsFuture = _remoteMessageResults(query);
-    final cachedMessageResults = await _cachedMessageResults(query, client);
+    final cachedMessageResults =
+        await _cachedMessageResults(query, client, productConversations);
     if (!mounted || serial != _searchSerial) return;
     final localResults = [
       ...directoryResults,
@@ -82,7 +90,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ...localResults,
         ...remoteMessageResults
             .where((result) => !_isGroupInviteSearchContent(result.body))
-            .map((result) => _GlobalSearchResult.remoteMessage(result, client)),
+            .map(
+              (result) => _GlobalSearchResult.remoteMessage(
+                result,
+                client,
+                productConversations,
+              ),
+            ),
       ]);
     });
   }
@@ -159,7 +173,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   List<_GlobalSearchResult> _localDirectoryResults(
-      String query, Client client) {
+    String query,
+    Client client,
+    Iterable<AsConversation> productConversations,
+  ) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return const [];
     final results = <_GlobalSearchResult>[];
@@ -201,18 +218,27 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           fallback: room.getLocalizedDisplayname(),
         );
         if (!containsAny([name, peerMxid, room.id])) continue;
-        final isContact = isProductDirectContactRoom(
-          room,
-          acceptedRoomIds: acceptedRoomIds,
+        final productConversation = productConversationForRoom(
+          productConversations,
+          room.id,
         );
-        final encodedRoomId = Uri.encodeComponent(room.id);
+        final isContact = productConversation?.isDirect ??
+            isProductDirectContactRoom(
+              room,
+              acceptedRoomIds: acceptedRoomIds,
+            );
+        final route = productConversationRouteForRoom(
+          room: room,
+          conversations: productConversations,
+        );
+        if (route == null) continue;
         results.add(
           _GlobalSearchResult.local(
             type:
                 isContact ? _SearchResultType.contact : _SearchResultType.group,
             title: name,
             subtitle: isContact ? (peerMxid ?? room.id) : '群聊',
-            route: isContact ? '/chat/$encodedRoomId' : '/group/$encodedRoomId',
+            route: route,
           ),
         );
       }
@@ -274,6 +300,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Future<List<_GlobalSearchResult>> _cachedMessageResults(
     String query,
     Client client,
+    Iterable<AsConversation> productConversations,
   ) async {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return const [];
@@ -286,7 +313,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       if (!_isSearchableMessage(event)) return;
       if (!event.plaintextBody.toLowerCase().contains(q)) return;
       if (!seenEventIds.add(event.eventId)) return;
-      results.add(_GlobalSearchResult.cachedMessage(event));
+      results.add(
+        _GlobalSearchResult.cachedMessage(event, productConversations),
+      );
     }
 
     for (final room in client.rooms) {
@@ -391,36 +420,51 @@ class _GlobalSearchResult {
   factory _GlobalSearchResult.remoteMessage(
     MatrixMessageSearchResult result,
     Client client,
+    Iterable<AsConversation> productConversations,
   ) {
     final room = client.getRoomById(result.roomId);
-    final encodedRoomId = Uri.encodeComponent(result.roomId);
     var senderName = result.senderId.trim();
     if (room != null && senderName.isNotEmpty) {
       final member = room.unsafeGetUserFromMemoryOrFallback(senderName);
       final displayName = member.calcDisplayname().trim();
       if (displayName.isNotEmpty) senderName = displayName;
     }
+    final productConversation = productConversationForRoom(
+      productConversations,
+      result.roomId,
+    );
+    final route = productConversation == null
+        ? room == null
+            ? '/chat/${Uri.encodeComponent(result.roomId)}'
+            : productConversationRouteForRoom(
+                room: room,
+                conversations: productConversations,
+              )
+        : productConversationRoute(productConversation);
     return _GlobalSearchResult(
       type: _SearchResultType.message,
       title: senderName.isEmpty ? '消息' : senderName,
       subtitle: result.body,
-      route: room == null || room.isDirectChat
-          ? '/chat/$encodedRoomId'
-          : '/group/$encodedRoomId',
+      route: route ?? '/chat/${Uri.encodeComponent(result.roomId)}',
       eventId: result.eventId,
       timestamp: result.timestamp,
     );
   }
 
-  factory _GlobalSearchResult.cachedMessage(Event event) {
+  factory _GlobalSearchResult.cachedMessage(
+    Event event,
+    Iterable<AsConversation> productConversations,
+  ) {
     final room = event.room;
-    final encodedRoomId = Uri.encodeComponent(room.id);
+    final route = productConversationRouteForRoom(
+      room: room,
+      conversations: productConversations,
+    );
     return _GlobalSearchResult(
       type: _SearchResultType.message,
       title: _senderDisplayName(event),
       subtitle: event.plaintextBody,
-      route:
-          room.isDirectChat ? '/chat/$encodedRoomId' : '/group/$encodedRoomId',
+      route: route ?? '/chat/${Uri.encodeComponent(room.id)}',
       eventId: event.eventId,
       timestamp: event.originServerTs,
     );

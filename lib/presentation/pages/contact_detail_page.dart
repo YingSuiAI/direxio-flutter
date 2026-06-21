@@ -175,7 +175,10 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                                 _openMockChat(roomId);
                                 return;
                               }
-                              _openProductChat(directProductConversation!);
+                              _openProductChat(
+                                directProductConversation!,
+                                room,
+                              );
                             }
                           : null,
                       showCallActions: true,
@@ -272,9 +275,14 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     );
   }
 
-  void _openProductChat(AsConversation conversation) {
+  void _openProductChat(AsConversation conversation, Room? room) {
     final roomId = conversation.roomId.trim();
-    final route = productConversationRoute(conversation);
+    final route = room == null
+        ? productConversationRoute(conversation)
+        : productConversationRouteForRoom(
+            room: room,
+            conversations: [conversation],
+          );
     if (roomId.isEmpty || route == null) return;
     showHomeConversation(ref, roomId);
     context.go(route);

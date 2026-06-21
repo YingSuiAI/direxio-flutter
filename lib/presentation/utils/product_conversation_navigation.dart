@@ -1,3 +1,5 @@
+import 'package:matrix/matrix.dart';
+
 import '../../data/as_client.dart';
 
 AsConversation? productConversationForRoom(
@@ -50,4 +52,17 @@ String? productConversationRoute(AsConversation conversation) {
     queryParameters: {'conversation': conversationId},
   ).query;
   return '$route?$query';
+}
+
+String? productConversationRouteForRoom({
+  required Room room,
+  required Iterable<AsConversation> conversations,
+}) {
+  final conversation = productConversationForRoom(conversations, room.id);
+  if (conversation != null) return productConversationRoute(conversation);
+
+  final roomId = room.id.trim();
+  if (roomId.isEmpty) return null;
+  final base = room.isDirectChat ? '/chat' : '/group';
+  return '$base/${Uri.encodeComponent(roomId)}';
 }

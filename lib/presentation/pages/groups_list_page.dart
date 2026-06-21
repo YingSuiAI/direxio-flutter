@@ -42,6 +42,10 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
     final useMockGroups = _mockAuthEnabled || !isLoggedIn;
     final syncCache = ref.watch(asSyncCacheProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
+    final directContactRoomIds = syncCache.acceptedContacts
+        .map((contact) => contact.roomId.trim())
+        .where((roomId) => roomId.isNotEmpty)
+        .toSet();
 
     final items = <_GroupItem>[];
     if (!useMockGroups) {
@@ -53,6 +57,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
       for (final group in groups) {
         final roomId = group.roomId.trim();
         if (roomId.isEmpty) continue;
+        if (directContactRoomIds.contains(roomId)) continue;
         final room = client.getRoomById(roomId);
         final lastEvent = room?.lastEvent;
         final lastActivityAt =

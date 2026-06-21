@@ -51,6 +51,7 @@ import '../chat/product_media_outbox_flow.dart';
 import '../chat/product_room_media_send_flow.dart';
 import '../chat/red_packet_message.dart';
 import '../call/voice_call_controller.dart';
+import '../groups/group_invite_join_flow.dart';
 import '../utils/message_history_policy.dart';
 import '../utils/avatar_url.dart';
 import '../utils/chat_event_attachment.dart';
@@ -1105,15 +1106,24 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         }
       }
       if (summary == null && !force) return;
-      try {
-        await _syncMissingGroupRoomFromServer(
-          summary?.roomId.trim().isNotEmpty == true
-              ? summary!.roomId.trim()
-              : _resolvedRoomId,
-        );
-      } on Object catch (e) {
-        debugPrint('group chat Matrix room recovery sync failed: $e');
-      }
+      final recoveryRoomId = summary?.roomId.trim().isNotEmpty == true
+          ? summary!.roomId.trim()
+          : _resolvedRoomId;
+      await waitForJoinedGroupMatrixRoom(
+        roomId: recoveryRoomId,
+        oneShotSync: () => _syncMissingGroupRoomFromServer(recoveryRoomId),
+        refreshBootstrap: _refreshBootstrapForRoomRecovery,
+        hasJoinedMatrixRoom: (roomId) {
+          if (!mounted) return false;
+          return ref
+                  .read(matrixClientProvider)
+                  .getRoomById(roomId)
+                  ?.membership ==
+              Membership.join;
+        },
+        timeout: const Duration(seconds: 45),
+        interval: const Duration(seconds: 2),
+      );
       if (!mounted) return;
       if (_room != null) {
         setState(() => _loading = true);
@@ -1123,6 +1133,18 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       }
     } finally {
       _roomRecoveryInFlight = false;
+    }
+  }
+
+  Future<void> _refreshBootstrapForRoomRecovery() async {
+    try {
+      final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
+      if (!mounted) return;
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.copyWith(bootstrap: bootstrap),
+          );
+    } on Object catch (e) {
+      debugPrint('group chat bootstrap recovery failed: $e');
     }
   }
 

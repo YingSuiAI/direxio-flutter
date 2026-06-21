@@ -1436,6 +1436,10 @@ class _ChatList extends ConsumerWidget {
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final outbox = ref.watch(localOutboxProvider);
     final messageOrder = ref.watch(localMessageOrderProvider);
+    final directContactRoomIds = syncCache.acceptedContacts
+        .map((contact) => contact.roomId.trim())
+        .where((roomId) => roomId.isNotEmpty)
+        .toSet();
     final asGroupRoomIds = (syncCache.bootstrap?.groups ?? const [])
         .map((group) => group.roomId.trim())
         .where((roomId) => roomId.isNotEmpty)
@@ -1531,12 +1535,12 @@ class _ChatList extends ConsumerWidget {
     for (final group in syncCache.bootstrap?.groups ?? const []) {
       final roomId = group.roomId.trim();
       if (roomId.isEmpty || !asGroupRoomIds.contains(roomId)) continue;
+      if (directContactRoomIds.contains(roomId)) continue;
       if (group.memberStatus.trim().isNotEmpty &&
           !isAsChannelMemberJoined(group.memberStatus)) {
         continue;
       }
       final matrixRoom = client.getRoomById(roomId);
-      if (matrixRoom?.membership != Membership.join) continue;
       visibleConversations.add(
         _VisibleConversation.group(
           group,

@@ -3586,6 +3586,130 @@ void main() {
     expect(find.textContaining('Group with'), findsNothing);
   });
 
+  testWidgets('messages render AS joined group before Matrix room hydrates',
+      (tester) async {
+    final client = Client('PortalIMAsJoinedGroupOnlyHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 11),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!bca:p2p-im.com',
+          name: 'BCA',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 3,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('BCA'), findsWidgets);
+    expect(find.text('还没有会话'), findsNothing);
+  });
+
+  testWidgets('messages prefer direct contact over stale group for same room',
+      (tester) async {
+    final client = Client('PortalIMDirectContactOverStaleGroupHomeListTest')
+      ..setUserId('@owner:p2p-im.com');
+    const roomId = '!direct:p2p-im.com';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@peer:p2p-im.com',
+          displayName: 'C Direct',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: 'C Stale Group',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 2,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const HomePage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (context, state) => const Text('direct route'),
+        ),
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (context, state) => const Text('group route'),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('C Direct'), findsWidgets);
+    expect(find.text('C Stale Group'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('home_conversation_$roomId')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('direct route'), findsOneWidget);
+    expect(find.text('group route'), findsNothing);
+  });
+
   testWidgets('messages render cached home conversations before rooms hydrate',
       (tester) async {
     final client = Client('PortalIMCachedHomeConversationListTest')
@@ -7200,6 +7324,59 @@ void main() {
 
     expect(find.text('owner'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('groups list excludes stale AS group for accepted contact room',
+      (tester) async {
+    final client = Client('PortalIMGroupsExcludeStaleAsGroupForDirectTest')
+      ..setUserId('@owner:p2p-im.com');
+    const roomId = '!direct:p2p-im.com';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@peer:p2p-im.com',
+          displayName: 'C Direct',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: 'C Stale Group',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 2,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('C Stale Group'), findsNothing);
+    expect(find.text('还没有群聊'), findsOneWidget);
   });
 
   testWidgets('groups list only shows AS joined groups', (tester) async {

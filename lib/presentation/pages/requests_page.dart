@@ -9,6 +9,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/friend_request_read_provider.dart';
+import '../groups/group_invite_join_flow.dart';
 import '../widgets/portal_avatar.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
@@ -231,14 +232,24 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             roomId: roomId,
             groupName: invite.title.trim(),
           );
-      await ref.read(matrixClientProvider).oneShotSync();
-      await _refreshBootstrap();
+      final joinedRoomId = group.roomId.trim().isEmpty ? roomId : group.roomId;
+      await waitForJoinedGroupMatrixRoom(
+        roomId: joinedRoomId,
+        oneShotSync: ref.read(matrixClientProvider).oneShotSync,
+        refreshBootstrap: _refreshBootstrap,
+        hasJoinedMatrixRoom: (roomId) {
+          return ref
+                  .read(matrixClientProvider)
+                  .getRoomById(roomId)
+                  ?.membership ==
+              Membership.join;
+        },
+      );
       if (!mounted) return;
       setState(() {
         _notice = '已加入群聊';
         _noticeIsError = false;
       });
-      final joinedRoomId = group.roomId.trim().isEmpty ? roomId : group.roomId;
       context.push('/group/${Uri.encodeComponent(joinedRoomId)}');
     } catch (e) {
       if (mounted) {

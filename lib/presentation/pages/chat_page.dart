@@ -1255,6 +1255,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return event.senderFromMemoryOrFallback.calcDisplayname();
   }
 
+  bool _isEventFromCurrentUser(Event event, String? fallbackUserId) {
+    final senderId = event.senderId.trim();
+    if (senderId.isEmpty) return false;
+    final matrixUserId = event.room.client.userID?.trim() ?? '';
+    if (matrixUserId.isNotEmpty) return senderId == matrixUserId;
+    final authUserId = fallbackUserId?.trim() ?? '';
+    return authUserId.isNotEmpty && senderId == authUserId;
+  }
+
   Future<void> _favoriteEvent(Event event) async {
     final eventId = event.eventId.trim();
     if (eventId.isEmpty || _favoritingEventIds.contains(eventId)) return;
@@ -1520,6 +1529,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         joinGroup: ref.read(asClientProvider).joinGroup,
         oneShotSync: ref.read(matrixClientProvider).oneShotSync,
         refreshBootstrap: _refreshBootstrapAfterVisibilityMutation,
+        hasJoinedMatrixRoom: _isJoinedGroupRoom,
       );
       if (!mounted) return;
       context.push('/group/${Uri.encodeComponent(roomId)}');
@@ -1805,13 +1815,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return () => _openContactDetail(senderId);
   }
 
-  String? _senderAvatarUrl(Event event, Profile? currentUserProfile) {
+  String? _senderAvatarUrl(
+    Event event,
+    Profile? currentUserProfile, {
+    String? fallbackUserId,
+  }) {
     final client = event.room.client;
     final memberAvatarUrl = matrixContentHttpUrl(
       client,
       event.senderFromMemoryOrFallback.avatarUrl,
     );
-    if (event.senderId == client.userID) {
+    if (_isEventFromCurrentUser(event, fallbackUserId)) {
       return profileAvatarHttpUrl(currentUserProfile, client) ??
           memberAvatarUrl;
     }
@@ -2185,6 +2199,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final syncCache = ref.watch(asSyncCacheProvider);
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
+    final authUserId = ref.watch(authStateNotifierProvider).valueOrNull?.userId;
     if (room == null) {
       if (_isKnownConversationRoom(syncCache)) {
         if (_missingRoomSyncFailed) {
@@ -2704,8 +2719,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       e,
                                       callRecordContextEvents,
                                     );
-                                    final isMe =
-                                        callerId == e.room.client.userID;
+                                    final isMe = callerId.trim().isNotEmpty &&
+                                        _isEventFromCurrentUser(
+                                          callerEvent ?? e,
+                                          authUserId,
+                                        );
                                     final callerName = callerEvent
                                             ?.senderFromMemoryOrFallback
                                             .calcDisplayname() ??
@@ -2714,6 +2732,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     final callerAvatarUrl = _senderAvatarUrl(
                                       callerEvent ?? e,
                                       currentUserProfile,
+                                      fallbackUserId: authUserId,
                                     );
                                     final avatarTap = isMe
                                         ? null
@@ -2756,7 +2775,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     );
                                   }
                                   final isMe =
-                                      e.senderId == e.room.client.userID;
+                                      _isEventFromCurrentUser(e, authUserId);
                                   final anchorKey =
                                       _messageAnchorKey(e.eventId);
                                   final flashing = _flashingMessageEventId ==
@@ -2768,8 +2787,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     isMe: isMe,
                                     peerDisplayName: name,
                                   );
-                                  final senderAvatarUrl =
-                                      _senderAvatarUrl(e, currentUserProfile);
+                                  final senderAvatarUrl = _senderAvatarUrl(
+                                    e,
+                                    currentUserProfile,
+                                    fallbackUserId: authUserId,
+                                  );
                                   final localOrder =
                                       messageOrder.entryForEvent(e.eventId);
                                   final time = _formatMsgTime(

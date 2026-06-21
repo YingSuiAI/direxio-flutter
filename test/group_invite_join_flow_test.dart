@@ -45,6 +45,48 @@ void main() {
     ]);
   });
 
+  test('waits until the joined Matrix room appears after AS join', () async {
+    final calls = <String>[];
+    var syncCount = 0;
+    var joined = false;
+
+    final roomId = await joinGroupInviteThroughAs(
+      invite: const GroupInviteContent(
+        groupRoomId: '!group:p2p-im.com',
+        groupName: '产品测试群',
+      ),
+      currentDirectRoomId: '!dm:p2p-im.com',
+      joinGroup: ({
+        required roomId,
+        required groupName,
+        required inviterMxid,
+        required inviteEventId,
+        required directRoomId,
+      }) async {
+        calls.add('join');
+        return const AsGroupResult(
+          roomId: '!joined:p2p-im.com',
+          name: '产品测试群',
+          memberCount: 2,
+          invitedCount: 0,
+          role: 'member',
+        );
+      },
+      oneShotSync: () async {
+        calls.add('sync');
+        syncCount++;
+        if (syncCount == 2) joined = true;
+      },
+      refreshBootstrap: () async => calls.add('refresh'),
+      hasJoinedMatrixRoom: (roomId) => joined && roomId == '!joined:p2p-im.com',
+      roomSyncInterval: Duration.zero,
+      roomSyncTimeout: const Duration(milliseconds: 50),
+    );
+
+    expect(roomId, '!joined:p2p-im.com');
+    expect(calls, ['join', 'sync', 'refresh', 'sync', 'refresh']);
+  });
+
   test('falls back to invite room id when AS returns empty room id', () async {
     final roomId = await joinGroupInviteThroughAs(
       invite: const GroupInviteContent(

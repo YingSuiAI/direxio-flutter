@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
+import '../chat/chat_unread_policy.dart';
 import '../utils/chat_visibility_policy.dart';
 import '../utils/contact_identity_label.dart';
 
@@ -209,7 +210,7 @@ class AsSyncCacheState {
         localReadMarkersByRoomId ?? this.localReadMarkersByRoomId;
     final nextBootstrap = bootstrap == null
         ? this.bootstrap
-        : _bootstrapApplyingLocalReadMarkers(bootstrap, nextReadMarkers);
+        : applyLocalReadMarkersToBootstrap(bootstrap, nextReadMarkers);
     var nextLocalStatuses =
         localContactStatusesByRoomId ?? this.localContactStatusesByRoomId;
     var nextLocalEntries =
@@ -646,35 +647,6 @@ AsSyncCacheState asSyncCacheForUser(
 ) {
   if (asBootstrapBelongsToUser(state.bootstrap, userId)) return state;
   return const AsSyncCacheState();
-}
-
-AsSyncBootstrap _bootstrapApplyingLocalReadMarkers(
-  AsSyncBootstrap bootstrap,
-  Map<String, DateTime> readMarkers,
-) {
-  if (readMarkers.isEmpty) return bootstrap;
-
-  List<AsSyncRoomSummary> apply(List<AsSyncRoomSummary> rooms) {
-    return rooms.map((room) {
-      final readAt = readMarkers[room.roomId.trim()];
-      if (readAt == null || room.unreadCount <= 0) return room;
-      final lastActivityAt = room.lastActivityAt?.toUtc();
-      if (lastActivityAt != null && lastActivityAt.isAfter(readAt.toUtc())) {
-        return room;
-      }
-      return room.withUnreadCount(0);
-    }).toList(growable: false);
-  }
-
-  return AsSyncBootstrap(
-    syncedAt: bootstrap.syncedAt,
-    user: bootstrap.user,
-    rooms: apply(bootstrap.rooms),
-    contacts: bootstrap.contacts,
-    groups: apply(bootstrap.groups),
-    channels: apply(bootstrap.channels),
-    pending: bootstrap.pending,
-  );
 }
 
 Map<String, Set<String>> _freezeDeletedMap(Map<String, Set<String>> source) {

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/conversation_summary_store.dart';
 import 'package:portal_app/presentation/home/conversation_summary_writer.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/local_message_order_provider.dart';
@@ -88,6 +89,91 @@ void main() {
       visible.map((conversation) => conversation.roomId),
       ['!pinned:p2p-im.com', '!recent:p2p-im.com'],
     );
+  });
+
+  test('builds home summary projection from ProductCore live inputs', () {
+    final client = Client('ConversationSummaryWriterProjectionTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: [
+        _conversation(
+          id: 'conv_recent',
+          roomId: '!recent:p2p-im.com',
+          kind: asConversationKindDirect,
+          canOpen: true,
+          lastActivityAt: DateTime.utc(2026, 6, 22, 10),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    expect(result.displayEntries, isEmpty);
+    expect(
+      result.storeEntries.map((entry) => entry.roomId),
+      ['!recent:p2p-im.com'],
+    );
+    expect(
+      result.productConversationsByRoomId.keys,
+      ['!recent:p2p-im.com'],
+    );
+    expect(result.shouldWriteStore, isTrue);
+  });
+
+  test('builds home summary projection that clears stale cached rows', () {
+    final client = Client('ConversationSummaryWriterClearCacheTest')
+      ..setUserId('@owner:p2p-im.com');
+    const cached = ConversationSummaryEntry(
+      conversationId: 'conv_stale',
+      roomId: '!stale:p2p-im.com',
+      kind: 'direct',
+      name: 'Stale',
+      lastMessage: 'old preview',
+      previewTs: 1,
+      unread: 0,
+      isGroup: false,
+      isAgent: false,
+    );
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: const [],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(),
+      summaryState: ConversationSummaryState.fromSnapshot(
+        ConversationSummarySnapshot(
+          userId: '@owner:p2p-im.com',
+          updatedAt: DateTime.utc(2026, 6, 22, 12),
+          entries: const [cached],
+        ),
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    expect(result.displayEntries, [cached]);
+    expect(result.storeEntries, isEmpty);
+    expect(result.productConversationsByRoomId, isEmpty);
+    expect(result.shouldWriteStore, isTrue);
   });
 }
 

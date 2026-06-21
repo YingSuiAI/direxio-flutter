@@ -53,6 +53,75 @@ class VisibleHomeConversation {
   final bool isGroup;
 }
 
+class HomeConversationSummaryResult {
+  const HomeConversationSummaryResult({
+    required this.projection,
+    required this.productConversationsByRoomId,
+  });
+
+  final ConversationSummaryProjection projection;
+  final Map<String, AsConversation> productConversationsByRoomId;
+
+  List<ConversationSummaryEntry> get displayEntries =>
+      projection.displayEntries;
+  List<ConversationSummaryEntry> get storeEntries => projection.storeEntries;
+  bool get shouldWriteStore => projection.shouldWriteStore;
+}
+
+HomeConversationSummaryResult buildHomeConversationSummaryProjection({
+  required Client client,
+  required Iterable<Room> rooms,
+  required Iterable<AsConversation> productConversations,
+  required bool productConversationsLoaded,
+  required AsSyncCacheState syncCache,
+  required ConversationSummaryState summaryState,
+  required Set<String> hiddenConversationIds,
+  required Set<String> pinnedConversationIds,
+  required LocalOutboxState outbox,
+  required LocalMessageOrderState messageOrder,
+  required Map<String, String> groupRemarkNames,
+  required String? currentUserId,
+}) {
+  final productList = productConversations.toList(growable: false);
+  final productConversationsByRoomId = {
+    for (final conversation in productList)
+      if (conversation.roomId.trim().isNotEmpty)
+        conversation.roomId.trim(): conversation,
+  };
+  final visibleConversations = visibleHomeConversationsForSummary(
+    client: client,
+    rooms: rooms,
+    productConversations: productList,
+    syncCache: syncCache,
+    outbox: outbox,
+    messageOrder: messageOrder,
+    pinnedConversationIds: pinnedConversationIds,
+  );
+  final liveSummaryEntries = [
+    for (final conversation in visibleConversations)
+      if (!hiddenConversationIds.contains(conversation.roomId))
+        summaryEntryForVisibleConversation(
+          client: client,
+          syncCache: syncCache,
+          outbox: outbox,
+          messageOrder: messageOrder,
+          groupRemarkNames: groupRemarkNames,
+          conversation: conversation,
+        ),
+  ];
+  return HomeConversationSummaryResult(
+    productConversationsByRoomId: productConversationsByRoomId,
+    projection: projectConversationSummaryEntries(
+      state: summaryState,
+      userId: currentUserId,
+      hiddenConversationIds: hiddenConversationIds,
+      pinnedConversationIds: pinnedConversationIds,
+      liveEntries: liveSummaryEntries,
+      includeCachedOnlyEntries: !productConversationsLoaded,
+    ),
+  );
+}
+
 List<VisibleHomeConversation> visibleHomeConversationsForSummary({
   required Client client,
   required Iterable<Room> rooms,

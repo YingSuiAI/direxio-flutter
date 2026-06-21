@@ -1428,11 +1428,6 @@ class _ChatList extends ConsumerWidget {
     final productConversationsAsync = ref.watch(productConversationsProvider);
     final productConversations =
         productConversationsAsync.valueOrNull ?? const <AsConversation>[];
-    final productConversationsByRoomId = {
-      for (final conversation in productConversations)
-        if (conversation.roomId.trim().isNotEmpty)
-          conversation.roomId.trim(): conversation,
-    };
     if (isAuthLoading) {
       return const _Empty(
         icon: Symbols.sync,
@@ -1441,45 +1436,27 @@ class _ChatList extends ConsumerWidget {
       );
     }
 
-    final visibleConversations = visibleHomeConversationsForSummary(
+    final homeSummary = buildHomeConversationSummaryProjection(
       client: client,
       rooms: rooms,
       productConversations: productConversations,
+      productConversationsLoaded: productConversationsAsync.hasValue,
       syncCache: syncCache,
-      outbox: outbox,
-      messageOrder: messageOrder,
-      pinnedConversationIds: pinnedConversationIds,
-    );
-    final filteredConversations = [
-      for (final conversation in visibleConversations)
-        if (!hiddenConversationIds.contains(conversation.roomId)) conversation,
-    ];
-    final liveSummaryEntries = [
-      for (final conversation in filteredConversations)
-        summaryEntryForVisibleConversation(
-          client: client,
-          syncCache: syncCache,
-          outbox: outbox,
-          messageOrder: messageOrder,
-          groupRemarkNames: groupRemarkNames,
-          conversation: conversation,
-        ),
-    ];
-    final projection = projectConversationSummaryEntries(
-      state: summaryState,
-      userId: currentUserId,
+      summaryState: summaryState,
       hiddenConversationIds: hiddenConversationIds,
       pinnedConversationIds: pinnedConversationIds,
-      liveEntries: liveSummaryEntries,
-      includeCachedOnlyEntries: !productConversationsAsync.hasValue,
+      outbox: outbox,
+      messageOrder: messageOrder,
+      groupRemarkNames: groupRemarkNames,
+      currentUserId: currentUserId,
     );
     recordHomeConversationSummaryProjection(
       ref,
       userId: currentUserId,
-      projection: projection,
+      projection: homeSummary.projection,
     );
     final cacheReady = summaryState.loaded;
-    final displayConversations = projection.displayEntries;
+    final displayConversations = homeSummary.displayEntries;
 
     if (displayConversations.isEmpty) {
       if (productConversationsAsync.isLoading && productConversations.isEmpty) {
@@ -1506,7 +1483,7 @@ class _ChatList extends ConsumerWidget {
     return _HomeConversationEntryList(
       entries: displayConversations,
       pinnedConversationIds: pinnedConversationIds,
-      productConversationsByRoomId: productConversationsByRoomId,
+      productConversationsByRoomId: homeSummary.productConversationsByRoomId,
     );
   }
 }

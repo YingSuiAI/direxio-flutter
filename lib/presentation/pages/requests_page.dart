@@ -15,6 +15,7 @@ import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../utils/product_conversation_summary_writer.dart';
 import '../../data/as_client.dart';
 import '../../data/well_known_service.dart';
 import '../../core/theme/design_tokens.dart';
@@ -92,6 +93,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withContactEntry(contact),
           );
+      await recordProductConversationMutation(
+        ref,
+        contact.productConversation,
+      );
       await ref.read(matrixClientProvider).oneShotSync();
       await _refreshBootstrap();
       if (mounted) {
@@ -132,6 +137,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withContactEntry(contact),
           );
+      await recordProductConversationMutation(
+        ref,
+        contact.productConversation,
+      );
       await ref.read(matrixClientProvider).oneShotSync();
       await _refreshBootstrap();
       if (mounted) {
@@ -168,6 +177,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withContactEntry(contact),
           );
+      await recordProductConversationMutation(
+        ref,
+        contact.productConversation,
+      );
       await ref.read(matrixClientProvider).oneShotSync();
       await _refreshBootstrap();
       if (mounted) {
@@ -204,6 +217,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withContactEntry(contact),
           );
+      await recordProductConversationMutation(
+        ref,
+        contact.productConversation,
+      );
       await ref.read(matrixClientProvider).oneShotSync();
       await _refreshBootstrap();
       if (mounted) {
@@ -233,6 +250,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             roomId: roomId,
             groupName: invite.title.trim(),
           );
+      await recordProductConversationMutation(
+        ref,
+        group.productConversation,
+      );
       final joinedRoomId = group.roomId.trim().isEmpty ? roomId : group.roomId;
       await waitForJoinedGroupMatrixRoom(
         roomId: joinedRoomId,
@@ -317,6 +338,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withContactEntry(contact),
           );
+      await recordProductConversationMutation(
+        ref,
+        contact.productConversation,
+      );
       await client.oneShotSync();
       await _refreshBootstrap(silent: true);
       if (!mounted) return;

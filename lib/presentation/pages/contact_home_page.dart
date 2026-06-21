@@ -13,6 +13,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/contact_identity_label.dart';
+import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
@@ -143,6 +144,10 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withContactEntry(contact),
           );
+      await recordProductConversationMutation(
+        ref,
+        contact.productConversation,
+      );
       await ref.read(matrixClientProvider).oneShotSync();
       await _refreshBootstrapFromAs();
       if (!mounted) return;
@@ -202,7 +207,11 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
     setState(() => _friendActionBusy = true);
     try {
       final asClient = ref.read(asClientProvider);
-      await asClient.deleteContact(roomId);
+      final contact = await asClient.deleteContact(roomId);
+      await recordProductConversationMutation(
+        ref,
+        contact.productConversation,
+      );
       _removeLocalMatrixRoom(roomId);
       try {
         await _refreshBootstrapFromAs();

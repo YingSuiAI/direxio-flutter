@@ -11,6 +11,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/contact_identity_label.dart';
+import '../utils/product_conversation_summary_writer.dart';
 
 class AddContactVerificationPage extends ConsumerStatefulWidget {
   const AddContactVerificationPage({
@@ -55,6 +56,10 @@ class _AddContactVerificationPageState
         ref.read(asSyncCacheProvider.notifier).update(
               (state) => state.withContactEntry(contact),
             );
+        await recordProductConversationMutation(
+          ref,
+          contact.productConversation,
+        );
       }
       if (!mounted) return;
       setState(() => _requested = true);

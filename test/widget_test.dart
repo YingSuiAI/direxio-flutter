@@ -1519,6 +1519,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   String? createdContactMxid;
   String? createdContactDisplayName;
   String? createdContactDomain;
+  AsConversation? createdContactProductConversation;
   int deleteContactCalls = 0;
   String? deletedContactRoomId;
   int updateContactCalls = 0;
@@ -1583,6 +1584,7 @@ class _TrackingAsClient extends _EmptyAsClient {
       domain: domain,
       roomId: '!new-request:example.com',
       status: 'pending_outbound',
+      productConversation: createdContactProductConversation,
     );
   }
 
@@ -7630,6 +7632,71 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('上一页'), findsOneWidget);
     expect(find.text('好友验证'), findsNothing);
+  });
+
+  testWidgets('add contact verification records returned product conversation',
+      (tester) async {
+    final client = Client('PortalIMAddContactConversationSummaryTest')
+      ..setUserId('@owner:p2p-im.com');
+    final asClient = _TrackingAsClient()
+      ..createdContactProductConversation = AsConversation(
+        conversationId: 'conv_alice',
+        roomId: '!alice:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Alice Chen',
+        avatarUrl: '',
+        lastMessage: 'restored preview',
+        lastActivityAt: DateTime.utc(2026, 6, 22, 11),
+        capabilities: const AsConversationCapabilities(open: true),
+      );
+    final snapshotStore = _MemoryConversationSummaryStore();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          initialRoute: '/verify',
+          routes: {
+            '/': (_) => const Scaffold(body: Text('上一页')),
+            '/verify': (_) => const AddContactVerificationPage(
+                  userId: '@alice:portal.local',
+                  displayName: 'Alice Chen',
+                ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('发送申请'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(asClient.createContactRequestCalls, 1);
+    expect(snapshotStore.snapshot?.userId, '@owner:p2p-im.com');
+    expect(snapshotStore.snapshot?.entries.single.conversationId, 'conv_alice');
+    expect(
+      snapshotStore.snapshot?.entries.single.lastMessage,
+      'restored preview',
+    );
+    await tester.pumpAndSettle();
   });
 
   testWidgets('add contact verification maps self request error',

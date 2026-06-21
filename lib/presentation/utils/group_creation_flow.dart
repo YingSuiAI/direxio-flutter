@@ -20,6 +20,7 @@ import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/m3/m3_search_field.dart';
 import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/portal_avatar.dart';
@@ -76,12 +77,16 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
           avatarUrl: pickedAvatarUrl,
         );
     final roomId = group.roomId;
+    var productConversation = group.productConversation;
     if (result.inviteMxids.isNotEmpty) {
-      await ref.read(asClientProvider).inviteGroupMembers(
+      final invitedGroup = await ref.read(asClientProvider).inviteGroupMembers(
             roomId: roomId,
             invite: result.inviteMxids,
           );
+      productConversation =
+          invitedGroup.productConversation ?? productConversation;
     }
+    await recordProductConversationMutation(ref, productConversation);
     _ensureOptimisticGroupRoom(
       client,
       roomId: roomId,

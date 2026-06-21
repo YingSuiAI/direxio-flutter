@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/conversation_summary_store.dart';
 
 void main() {
@@ -169,5 +170,96 @@ void main() {
       entries.map((entry) => entry.roomId),
       ['!pinned:p2p-im.com', '!agent:p2p-im.com', '!normal:p2p-im.com'],
     );
+  });
+
+  test('upserts ProductCore mutation conversation into summaries', () {
+    final previous = [
+      const ConversationSummaryEntry(
+        conversationId: 'conv_direct',
+        roomId: '!direct:p2p-im.com',
+        kind: 'direct',
+        name: 'Old B',
+        lastMessage: 'cached preview',
+        previewTs: 10,
+        unread: 1,
+        isGroup: false,
+        isAgent: false,
+      ),
+    ];
+
+    final entries = applyProductConversationSummary(
+      existingEntries: previous,
+      conversation: AsConversation(
+        conversationId: 'conv_direct',
+        roomId: '!direct:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'B Bash',
+        avatarUrl: 'mxc://p2p-im.com/avatar',
+        lastActivityAt: DateTime.utc(2026, 6, 22, 10),
+        capabilities: const AsConversationCapabilities(open: true),
+      ),
+      pinnedConversationIds: const {},
+    );
+
+    expect(entries, hasLength(1));
+    expect(entries.single.conversationId, 'conv_direct');
+    expect(entries.single.roomId, '!direct:p2p-im.com');
+    expect(entries.single.name, 'B Bash');
+    expect(entries.single.lastMessage, 'cached preview');
+    expect(entries.single.previewTs,
+        DateTime.utc(2026, 6, 22, 10).millisecondsSinceEpoch);
+    expect(entries.single.unread, 0);
+    expect(entries.single.avatarUrl, 'mxc://p2p-im.com/avatar');
+  });
+
+  test('removes ProductCore mutation conversation that cannot open', () {
+    final entries = applyProductConversationSummary(
+      existingEntries: const [
+        ConversationSummaryEntry(
+          conversationId: 'conv_deleted',
+          roomId: '!direct:p2p-im.com',
+          kind: 'direct',
+          name: 'Deleted B',
+          lastMessage: 'old preview',
+          previewTs: 10,
+          unread: 0,
+          isGroup: false,
+          isAgent: false,
+        ),
+      ],
+      conversation: const AsConversation(
+        conversationId: 'conv_deleted',
+        roomId: '!direct:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'deleted',
+        title: 'Deleted B',
+        avatarUrl: '',
+        capabilities: AsConversationCapabilities(open: false),
+      ),
+      pinnedConversationIds: const {},
+    );
+
+    expect(entries, isEmpty);
+  });
+
+  test('does not keep ProductCore channel conversations in message summaries',
+      () {
+    final entries = applyProductConversationSummary(
+      existingEntries: const [],
+      conversation: const AsConversation(
+        conversationId: 'conv_channel',
+        roomId: '!channel:p2p-im.com',
+        kind: asConversationKindChannel,
+        lifecycle: 'active',
+        title: 'Channel',
+        avatarUrl: '',
+        lastMessage: 'channel post',
+        capabilities: AsConversationCapabilities(open: true),
+      ),
+      pinnedConversationIds: const {},
+    );
+
+    expect(entries, isEmpty);
   });
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../data/as_client.dart';
 import '../../data/conversation_summary_store.dart';
 
 final conversationSummaryStoreProvider =
@@ -50,6 +51,31 @@ class ConversationSummaryNotifier
     final owner = userId?.trim() ?? '';
     if (owner.isEmpty || entries.isEmpty) return;
     await loaded;
+    await _writeEntriesForUser(owner: owner, entries: entries);
+  }
+
+  Future<void> applyProductConversationForUser({
+    required String? userId,
+    required AsConversation? conversation,
+  }) async {
+    final owner = userId?.trim() ?? '';
+    if (owner.isEmpty || conversation == null) return;
+    await loaded;
+    final existingEntries = state.userId == owner
+        ? state.entries
+        : const <ConversationSummaryEntry>[];
+    final nextEntries = applyProductConversationSummary(
+      existingEntries: existingEntries,
+      conversation: conversation,
+      pinnedConversationIds: const {},
+    );
+    await _writeEntriesForUser(owner: owner, entries: nextEntries);
+  }
+
+  Future<void> _writeEntriesForUser({
+    required String owner,
+    required List<ConversationSummaryEntry> entries,
+  }) async {
     final nextEntries = List<ConversationSummaryEntry>.unmodifiable(entries);
     if (state.loaded &&
         state.userId == owner &&

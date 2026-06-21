@@ -57,6 +57,7 @@ import '../utils/chat_file_actions.dart';
 import '../utils/chat_time_format.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/async_image_preview.dart';
 import '../../data/as_client.dart';
 import '../../data/as_call_session_store.dart';
@@ -1411,6 +1412,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         oneShotSync: ref.read(matrixClientProvider).oneShotSync,
         refreshBootstrap: _refreshBootstrapAfterVisibilityMutation,
         hasJoinedMatrixRoom: _isJoinedGroupRoom,
+      );
+      await recordProductConversationMutation(
+        ref,
+        group.productConversation,
       );
       if (!mounted) return;
       final route = productConversationRoute(group.productConversation);

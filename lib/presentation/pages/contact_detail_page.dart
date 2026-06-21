@@ -25,6 +25,7 @@ import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/report_reason_dialog.dart';
 
@@ -476,6 +477,10 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withContactEntry(contact),
           );
+      await recordProductConversationMutation(
+        ref,
+        contact.productConversation,
+      );
       unawaited(
         ref.read(asBootstrapRepositoryProvider).refresh().then((bootstrap) {
           ref.read(asSyncCacheProvider.notifier).update(

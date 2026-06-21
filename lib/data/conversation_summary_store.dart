@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'as_client.dart';
+
 class ConversationSummarySnapshot {
   const ConversationSummarySnapshot({
     required this.userId,
@@ -309,6 +311,68 @@ List<ConversationSummaryEntry> mergeConversationSummaryEntries({
   return List.unmodifiable(entries);
 }
 
+List<ConversationSummaryEntry> applyProductConversationSummary({
+  required List<ConversationSummaryEntry> existingEntries,
+  required AsConversation conversation,
+  required Set<String> pinnedConversationIds,
+}) {
+  final roomId = conversation.roomId.trim();
+  final conversationId = conversation.conversationId.trim();
+  if (roomId.isEmpty) return List.unmodifiable(existingEntries);
+
+  final entries = existingEntries
+      .where((entry) => !_sameConversationSummary(
+            entry,
+            roomId: roomId,
+            conversationId: conversationId,
+          ))
+      .toList();
+  if (!_shouldKeepProductConversationSummary(conversation)) {
+    sortConversationSummaryEntries(entries, pinnedConversationIds);
+    return List.unmodifiable(entries);
+  }
+
+  ConversationSummaryEntry? previous;
+  for (final entry in existingEntries) {
+    if (_sameConversationSummary(
+      entry,
+      roomId: roomId,
+      conversationId: conversationId,
+    )) {
+      previous = entry;
+      break;
+    }
+  }
+  entries.add(
+    conversationSummaryEntryFromProductConversation(conversation)
+        .mergeLive(previous: previous),
+  );
+  sortConversationSummaryEntries(entries, pinnedConversationIds);
+  return List.unmodifiable(entries);
+}
+
+ConversationSummaryEntry conversationSummaryEntryFromProductConversation(
+  AsConversation conversation,
+) {
+  final roomId = conversation.roomId.trim();
+  final kind = conversation.kind.trim();
+  return ConversationSummaryEntry(
+    conversationId: conversation.conversationId.trim(),
+    roomId: roomId,
+    kind: kind,
+    name: conversation.title.trim().isNotEmpty
+        ? conversation.title.trim()
+        : roomId,
+    lastMessage: conversation.lastMessage,
+    previewTs: conversation.lastActivityAt?.millisecondsSinceEpoch ?? 0,
+    unread: 0,
+    isGroup: conversation.isGroup || conversation.isChannel,
+    isAgent: conversation.isAgent,
+    canOpen: conversation.canOpen,
+    avatarUrl: conversation.avatarUrl.trim(),
+  );
+}
+
 void sortConversationSummaryEntries(
   List<ConversationSummaryEntry> entries,
   Set<String> pinnedConversationIds,
@@ -321,4 +385,25 @@ void sortConversationSummaryEntries(
     if (a.previewTs != b.previewTs) return b.previewTs.compareTo(a.previewTs);
     return a.roomId.compareTo(b.roomId);
   });
+}
+
+bool _shouldKeepProductConversationSummary(AsConversation conversation) {
+  final lifecycle = conversation.lifecycle.trim().toLowerCase();
+  return conversation.canOpen &&
+      !conversation.isChannel &&
+      lifecycle != 'deleted' &&
+      lifecycle != 'left' &&
+      lifecycle != 'dissolved';
+}
+
+bool _sameConversationSummary(
+  ConversationSummaryEntry entry, {
+  required String roomId,
+  required String conversationId,
+}) {
+  final entryConversationId = entry.conversationId.trim();
+  return (conversationId.isNotEmpty &&
+          entryConversationId.isNotEmpty &&
+          entryConversationId == conversationId) ||
+      entry.roomId.trim() == roomId;
 }

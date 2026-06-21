@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../data/as_client.dart';
+import '../../data/matrix_room_history_sync.dart';
 import 'chat_history_backfill_policy.dart';
 import '../utils/read_marker_sync.dart';
 import '../utils/message_history_policy.dart';
@@ -22,9 +23,7 @@ class ChatTimelineController {
   final String debugLabel;
   final int initialTargetMessages;
 
-  Future<Timeline?> openInitialTimeline({
-    Future<void> Function(Timeline timeline)? syncEmptyRoomHistory,
-  }) async {
+  Future<Timeline?> openInitialTimeline() async {
     final Timeline timeline;
     try {
       timeline = await room.getTimeline(
@@ -38,12 +37,28 @@ class ChatTimelineController {
       return null;
     }
 
-    if (syncEmptyRoomHistory != null) {
-      await syncEmptyRoomHistory(timeline);
-    }
+    await syncEmptyRoomHistoryIfNeeded(timeline);
     await backfillLocalStoredHistory(timeline);
     await requestInitialRemoteHistory(timeline);
     return timeline;
+  }
+
+  Future<void> syncEmptyRoomHistoryIfNeeded(Timeline timeline) async {
+    if (!shouldSyncEmptyRoomHistoryOnOpen(
+      timelineEvents: timeline.events,
+      prevBatch: timeline.room.prev_batch,
+    )) {
+      return;
+    }
+    try {
+      await syncMatrixRoomHistory(
+        timeline.room.client,
+        roomId: timeline.room.id,
+        timelineLimit: chatOpenLocalHistoryPageSize,
+      );
+    } on Object catch (e) {
+      debugPrint('$debugLabel empty room history sync failed: $e');
+    }
   }
 
   Future<void> backfillLocalStoredHistory(Timeline timeline) async {

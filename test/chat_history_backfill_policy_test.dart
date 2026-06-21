@@ -82,6 +82,47 @@ void main() {
       chatOpenLocalHistoryPageSize,
     );
   });
+
+  test('syncs empty room history only before local pagination exists', () {
+    final client = Client('ChatEmptyRoomHistorySyncPolicyTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final events = [
+      Event(
+        room: room,
+        eventId: r'$text',
+        senderId: '@me:p2p-im.com',
+        type: EventTypes.Message,
+        originServerTs: DateTime.utc(2026, 5, 30, 1),
+        content: {
+          'msgtype': MessageTypes.Text,
+          'body': 'hello',
+        },
+      ),
+    ];
+
+    expect(
+      shouldSyncEmptyRoomHistoryOnOpen(
+        timelineEvents: const <Event>[],
+        prevBatch: null,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldSyncEmptyRoomHistoryOnOpen(
+        timelineEvents: events,
+        prevBatch: null,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldSyncEmptyRoomHistoryOnOpen(
+        timelineEvents: const <Event>[],
+        prevBatch: 'batch-token',
+      ),
+      isFalse,
+    );
+  });
 }
 
 Event _event(Room room, String eventId, String type) {

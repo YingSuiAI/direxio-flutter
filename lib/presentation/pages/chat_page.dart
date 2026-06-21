@@ -28,6 +28,7 @@ import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
 import '../chat/chat_glass_background.dart';
 import '../chat/chat_history_backfill_policy.dart';
+import '../chat/chat_room_recovery_controller.dart';
 import '../chat/chat_timeline_controller.dart';
 import '../chat/chat_message_cards.dart';
 import '../chat/call_timeline_events.dart';
@@ -152,8 +153,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   bool _readMarkerQueued = false;
   bool _thumbnailWarmupInFlight = false;
   bool _historyRequestInFlight = false;
-  bool _missingRoomSyncStarted = false;
-  bool _missingRoomSyncFailed = false;
+  final _missingRoomRecovery = ChatRoomRecoveryController();
   StreamSubscription<SyncUpdate>? _roomSyncSub;
   final Set<String> _warmedThumbnailEventIds = {};
   final Set<String> _retryingOutboxIds = {};
@@ -428,9 +428,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       if (_timeline == null) {
         unawaited(_initTimeline());
       }
-      setState(() {
-        _missingRoomSyncFailed = false;
-      });
+      setState(_missingRoomRecovery.reset);
     });
     _initTimeline();
   }
@@ -466,7 +464,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       room: room,
       rebuild: rebuild,
       debugLabel: 'private',
-    ).openInitialTimeline(syncEmptyRoomHistory: _syncEmptyRoomHistory);
+    ).openInitialTimeline();
     if (mounted) setState(() => _loading = false);
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
@@ -487,17 +485,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _ensureMissingRoomSync() {
-    if (_missingRoomSyncStarted) return;
-    _missingRoomSyncStarted = true;
-    _missingRoomSyncFailed = false;
+    if (!_missingRoomRecovery.begin()) return;
     unawaited(_syncMissingRoom());
   }
 
   void _retryMissingRoomSync() {
-    setState(() {
-      _missingRoomSyncStarted = false;
-      _missingRoomSyncFailed = false;
-    });
+    setState(_missingRoomRecovery.retry);
     _ensureMissingRoomSync();
   }
 
@@ -508,12 +501,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('missing chat room sync failed: $e');
     }
     if (!mounted) return;
-    if (_room != null && _timeline == null) {
-      await _initTimeline();
+    if (_room != null) {
+      _missingRoomRecovery.finish(recovered: true);
+      if (_timeline == null) await _initTimeline();
       return;
     }
     if (mounted) {
-      setState(() => _missingRoomSyncFailed = true);
+      setState(() => _missingRoomRecovery.finish(recovered: false));
     }
   }
 
@@ -562,20 +556,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _syncEmptyRoomHistory(Timeline timeline) async {
-    if (visibleMessageCountForChatOpenHistory(timeline.events) > 0) return;
-    if ((timeline.room.prev_batch ?? '').isNotEmpty) return;
-    try {
-      await syncMatrixRoomHistory(
-        ref.read(matrixClientProvider),
-        roomId: timeline.room.id,
-        timelineLimit: chatOpenLocalHistoryPageSize,
-      );
-    } on Object catch (e) {
-      debugPrint('private room history sync failed: $e');
-    }
   }
 
   Future<void> _requestOlderMessages() async {
@@ -2102,7 +2082,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final authUserId = ref.watch(authStateNotifierProvider).valueOrNull?.userId;
     if (room == null) {
       if (_isKnownConversationRoom(syncCache)) {
-        if (_missingRoomSyncFailed) {
+        if (_missingRoomRecovery.failed) {
           return _missingRoomScaffold(
             '会话同步超时，请检查网络后重试',
             onRetry: _retryMissingRoomSync,

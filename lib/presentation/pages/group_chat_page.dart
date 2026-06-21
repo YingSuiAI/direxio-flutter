@@ -36,6 +36,7 @@ import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
 import '../chat/chat_glass_background.dart';
 import '../chat/chat_history_backfill_policy.dart';
+import '../chat/chat_room_recovery_controller.dart';
 import '../chat/chat_timeline_controller.dart';
 import '../chat/chat_media_warmup.dart';
 import '../chat/chat_message_cards.dart';
@@ -286,9 +287,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   bool _readMarkerQueued = false;
   bool _thumbnailWarmupInFlight = false;
   bool _historyRequestInFlight = false;
-  bool _roomRecoveryInFlight = false;
-  bool _roomRecoveryAttempted = false;
-  bool _roomRecoveryFailed = false;
+  final _roomRecovery = ChatRoomRecoveryController();
   final Set<String> _warmedThumbnailEventIds = {};
   final Set<String> _favoritingEventIds = {};
   final Set<String> _retryingOutboxIds = {};
@@ -978,24 +977,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       room: room,
       rebuild: rebuild,
       debugLabel: _isChannelConversation ? 'channel' : 'group',
-    ).openInitialTimeline(syncEmptyRoomHistory: _syncEmptyRoomHistory);
+    ).openInitialTimeline();
     if (mounted) setState(() => _loading = false);
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
-  }
-
-  Future<void> _syncEmptyRoomHistory(Timeline timeline) async {
-    if (visibleMessageCountForChatOpenHistory(timeline.events) > 0) return;
-    if ((timeline.room.prev_batch ?? '').isNotEmpty) return;
-    try {
-      await syncMatrixRoomHistory(
-        ref.read(matrixClientProvider),
-        roomId: timeline.room.id,
-        timelineLimit: chatOpenLocalHistoryPageSize,
-      );
-    } on Object catch (e) {
-      debugPrint('group room history sync failed: $e');
-    }
   }
 
   Future<void> _requestOlderMessages() async {
@@ -1019,11 +1004,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   Future<void> _recoverMissingGroupRoom({bool force = false}) async {
-    if (_roomRecoveryInFlight) return;
-    if (_roomRecoveryAttempted && !force) return;
-    _roomRecoveryInFlight = true;
-    _roomRecoveryAttempted = true;
-    _roomRecoveryFailed = false;
+    if (!_roomRecovery.begin(force: force)) return;
     try {
       var syncCache = ref.read(asSyncCacheProvider);
       var summary = _conversationSummary(syncCache);
@@ -1062,13 +1043,20 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       );
       if (!mounted) return;
       if (_room != null) {
+        _roomRecovery.finish(recovered: true);
         setState(() => _loading = true);
         await _initTimeline();
       } else {
-        setState(() => _roomRecoveryFailed = true);
+        setState(() => _roomRecovery.finish(recovered: false));
       }
     } finally {
-      _roomRecoveryInFlight = false;
+      if (_roomRecovery.inFlight) {
+        if (mounted) {
+          setState(() => _roomRecovery.finish(recovered: false));
+        } else {
+          _roomRecovery.finish(recovered: false);
+        }
+      }
     }
   }
 
@@ -1096,10 +1084,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   void _retryMissingGroupRoomRecovery() {
-    setState(() {
-      _roomRecoveryAttempted = false;
-      _roomRecoveryFailed = false;
-    });
+    setState(_roomRecovery.retry);
     unawaited(_recoverMissingGroupRoom(force: true));
   }
 
@@ -2197,8 +2182,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       final summary = channel ?? group;
       final knownConversation = summary != null;
       final isChannel = _isChannelConversation || channel != null;
-      final recovering =
-          (knownConversation || _isChannelConversation) && !_roomRecoveryFailed;
+      final recovering = (knownConversation || _isChannelConversation) &&
+          !_roomRecovery.failed;
       final fallbackTitle = isChannel ? '频道' : '群聊';
       final title = summary?.name.trim().isNotEmpty == true
           ? summary!.name.trim()

@@ -16,7 +16,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/friend_request_read_provider.dart';
-import '../providers/home_conversation_snapshot_provider.dart';
+import '../providers/conversation_summary_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
@@ -24,7 +24,7 @@ import '../providers/matrix_message_clients_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../../data/as_client.dart';
-import '../../data/home_conversation_snapshot_store.dart';
+import '../../data/conversation_summary_store.dart';
 import '../../data/local_outbox_store.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
@@ -1419,7 +1419,7 @@ class _ChatList extends ConsumerWidget {
       currentUserId,
     );
     final hiddenConversationIds = ref.watch(homeHiddenConversationIdsProvider);
-    final cachedSnapshot = ref.watch(homeConversationSnapshotProvider);
+    final summaryState = ref.watch(conversationSummaryProvider);
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final outbox = ref.watch(localOutboxProvider);
@@ -1513,21 +1513,32 @@ class _ChatList extends ConsumerWidget {
           conversation: conversation,
         ),
     ];
-    final cacheReady = cachedSnapshot.hasValue || !cachedSnapshot.isLoading;
-    final cachedConversations = _cachedHomeConversationEntriesForUser(
-      cachedSnapshot.valueOrNull,
+    final cacheReady = summaryState.loaded;
+    final cachedConversations = conversationSummaryEntriesForUser(
+      summaryState.toSnapshot(),
       userId: currentUserId,
       hiddenConversationIds: hiddenConversationIds,
       pinnedConversationIds: pinnedConversationIds,
     );
-    final displayConversations = _mergedHomeConversationEntries(
-      cachedEntries: cacheReady
-          ? cachedConversations
-          : const <HomeConversationSnapshotEntry>[],
-      renderedConversations: renderedConversations,
+    final liveSummaryEntries = [
+      for (final rendered in renderedConversations)
+        _summaryEntryFromRenderedConversation(rendered),
+    ];
+    final projectedConversations = mergeConversationSummaryEntries(
+      cachedEntries:
+          cacheReady ? cachedConversations : const <ConversationSummaryEntry>[],
+      liveEntries: liveSummaryEntries,
       includeCachedOnlyEntries: !productConversationsAsync.hasValue,
       pinnedConversationIds: pinnedConversationIds,
     );
+    if (cacheReady && projectedConversations.isNotEmpty) {
+      _writeConversationSummaryEntries(
+        ref,
+        userId: currentUserId,
+        entries: projectedConversations,
+      );
+    }
+    final displayConversations = cachedConversations;
 
     if (displayConversations.isEmpty) {
       if (productConversationsAsync.isLoading && productConversations.isEmpty) {
@@ -1551,14 +1562,6 @@ class _ChatList extends ConsumerWidget {
       );
     }
 
-    if (cacheReady) {
-      _persistHomeConversationEntries(
-        ref,
-        userId: currentUserId,
-        entries: displayConversations,
-      );
-    }
-
     return _HomeConversationEntryList(
       entries: displayConversations,
       pinnedConversationIds: pinnedConversationIds,
@@ -1574,7 +1577,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
     required this.productConversationsByRoomId,
   });
 
-  final List<HomeConversationSnapshotEntry> entries;
+  final List<ConversationSummaryEntry> entries;
   final Set<String> pinnedConversationIds;
   final Map<String, AsConversation> productConversationsByRoomId;
 
@@ -1692,63 +1695,24 @@ _RenderedHomeConversation _renderHomeConversation({
   );
 }
 
-List<HomeConversationSnapshotEntry> _mergedHomeConversationEntries({
-  required List<HomeConversationSnapshotEntry> cachedEntries,
-  required List<_RenderedHomeConversation> renderedConversations,
-  required bool includeCachedOnlyEntries,
-  required Set<String> pinnedConversationIds,
-}) {
-  final byRoomId = <String, HomeConversationSnapshotEntry>{};
-  if (includeCachedOnlyEntries) {
-    for (final entry in cachedEntries) {
-      final roomId = entry.roomId.trim();
-      if (roomId.isEmpty || byRoomId.containsKey(roomId)) continue;
-      byRoomId[roomId] = entry;
-    }
-  }
-  final cachedByRoomId = {
-    for (final entry in cachedEntries)
-      if (entry.roomId.trim().isNotEmpty) entry.roomId.trim(): entry,
-  };
-  for (final rendered in renderedConversations) {
-    final roomId = rendered.conversation.roomId.trim();
-    if (roomId.isEmpty) continue;
-    byRoomId[roomId] = _snapshotEntryFromRenderedConversation(
-      rendered,
-      previous: cachedByRoomId[roomId],
-    );
-  }
-  final entries = byRoomId.values.toList();
-  _sortHomeConversationEntries(entries, pinnedConversationIds);
-  return List.unmodifiable(entries);
-}
-
-HomeConversationSnapshotEntry _snapshotEntryFromRenderedConversation(
-  _RenderedHomeConversation rendered, {
-  HomeConversationSnapshotEntry? previous,
-}) {
+ConversationSummaryEntry _summaryEntryFromRenderedConversation(
+  _RenderedHomeConversation rendered,
+) {
   final roomId = rendered.conversation.roomId.trim();
-  final name = rendered.name.trim().isNotEmpty
-      ? rendered.name
-      : previous?.name ?? roomId;
-  final liveLastMessage = rendered.lastMessage.trim();
-  final liveAvatar = rendered.avatarUrl?.trim() ?? '';
-  return HomeConversationSnapshotEntry(
+  final product = rendered.conversation.product;
+  return ConversationSummaryEntry(
+    conversationId: product?.conversationId ?? '',
     roomId: roomId,
-    name: name,
-    lastMessage: liveLastMessage.isNotEmpty
-        ? rendered.lastMessage
-        : previous?.lastMessage ?? rendered.lastMessage,
-    previewTs: rendered.previewTime?.millisecondsSinceEpoch ??
-        previous?.previewTs ??
-        0,
-    unread: _renderedConversationHasUnreadSignal(rendered)
-        ? rendered.unread
-        : previous?.unread ?? rendered.unread,
+    kind: product?.kind ?? '',
+    name: rendered.name,
+    lastMessage: rendered.lastMessage,
+    previewTs: rendered.previewTime?.millisecondsSinceEpoch ?? 0,
+    unread:
+        _renderedConversationHasUnreadSignal(rendered) ? rendered.unread : 0,
     isGroup: rendered.conversation.isGroup,
     isAgent: rendered.conversation.isAgent,
-    avatarUrl:
-        liveAvatar.isNotEmpty ? rendered.avatarUrl! : previous?.avatarUrl ?? '',
+    canOpen: product?.canOpen ?? true,
+    avatarUrl: rendered.avatarUrl ?? '',
   );
 }
 
@@ -1760,61 +1724,17 @@ bool _renderedConversationHasUnreadSignal(_RenderedHomeConversation rendered) {
       conversation.roomSummary != null;
 }
 
-List<HomeConversationSnapshotEntry> _cachedHomeConversationEntriesForUser(
-  HomeConversationSnapshot? snapshot, {
-  required String? userId,
-  required Set<String> hiddenConversationIds,
-  required Set<String> pinnedConversationIds,
-}) {
-  final expectedUserId = userId?.trim() ?? '';
-  if (snapshot == null ||
-      expectedUserId.isEmpty ||
-      snapshot.userId.trim() != expectedUserId) {
-    return const [];
-  }
-  final entries = [
-    for (final entry in snapshot.entries)
-      if (entry.roomId.trim().isNotEmpty &&
-          _cachedHomeConversationHasSignal(entry) &&
-          !hiddenConversationIds.contains(entry.roomId.trim()))
-        entry,
-  ];
-  _sortHomeConversationEntries(entries, pinnedConversationIds);
-  return List.unmodifiable(entries);
-}
-
-bool _cachedHomeConversationHasSignal(HomeConversationSnapshotEntry entry) {
-  return entry.lastMessage.trim().isNotEmpty ||
-      entry.previewTs > 0 ||
-      entry.unread > 0;
-}
-
-void _sortHomeConversationEntries(
-  List<HomeConversationSnapshotEntry> entries,
-  Set<String> pinnedConversationIds,
-) {
-  entries.sort((a, b) {
-    final aPinned = pinnedConversationIds.contains(a.roomId.trim());
-    final bPinned = pinnedConversationIds.contains(b.roomId.trim());
-    if (aPinned != bPinned) return aPinned ? -1 : 1;
-    if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
-    return b.previewTs.compareTo(a.previewTs);
-  });
-}
-
-void _persistHomeConversationEntries(
+void _writeConversationSummaryEntries(
   WidgetRef ref, {
   required String? userId,
-  required List<HomeConversationSnapshotEntry> entries,
+  required List<ConversationSummaryEntry> entries,
 }) {
-  final owner = userId?.trim() ?? '';
-  if (owner.isEmpty || entries.isEmpty) return;
-  persistHomeConversationSnapshot(
-    ref,
-    HomeConversationSnapshot(
-      userId: owner,
-      updatedAt: DateTime.now().toUtc(),
-      entries: entries,
+  unawaited(
+    Future.microtask(
+      () => ref.read(conversationSummaryProvider.notifier).replaceForUser(
+            userId: userId,
+            entries: entries,
+          ),
     ),
   );
 }

@@ -28,6 +28,7 @@ import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
 import '../chat/chat_glass_background.dart';
 import '../chat/chat_history_backfill_policy.dart';
+import '../chat/chat_timeline_controller.dart';
 import '../chat/chat_message_cards.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_record_detail_page.dart';
@@ -54,7 +55,6 @@ import '../utils/chat_event_attachment.dart';
 import '../utils/chat_file_actions.dart';
 import '../utils/read_marker_sync.dart';
 import '../utils/chat_time_format.dart';
-import '../utils/message_history_policy.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/room_read_state.dart';
@@ -465,31 +465,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
 
     if (markRoomLocallyRead(room) && mounted) setState(() {});
-    try {
-      _timeline = await room.getTimeline(
-        onUpdate: rebuild,
-        onChange: (_) => rebuild(),
-        onInsert: (_) => rebuild(),
-        onRemove: (_) => rebuild(),
-      );
-    } on Object catch (e) {
-      debugPrint('getTimeline failed: $e');
-    }
-    final tl = _timeline;
-    if (tl != null) {
-      await _syncEmptyRoomHistory(tl);
-      await _backfillLocalStoredHistory(tl);
-      if (tl.canRequestHistory &&
-          shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen) &&
-          visibleMessageCountForChatOpenHistory(tl.events) <
-              chatOpenLocalHistoryPageSize) {
-        try {
-          await tl.requestHistory(historyCount: chatOpenLocalHistoryPageSize);
-        } on Object catch (e) {
-          debugPrint('private initial timeline.requestHistory failed: $e');
-        }
-      }
-    }
+    _timeline = await ChatTimelineController(
+      room: room,
+      rebuild: rebuild,
+      debugLabel: 'private',
+    ).openInitialTimeline(syncEmptyRoomHistory: _syncEmptyRoomHistory);
     if (mounted) setState(() => _loading = false);
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
@@ -587,38 +567,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Future<void> _backfillLocalStoredHistory(Timeline timeline) async {
-    var attempts = 0;
-    while (attempts < chatOpenLocalHistoryMaxAttempts) {
-      if (!shouldBackfillLocalChatOpenHistory(
-        timelineEvents: timeline.events,
-        hasStoredOlderEvents: true,
-      )) {
-        break;
-      }
-
-      try {
-        final database = timeline.room.client.database;
-        if (database == null) break;
-        final storedEvents = await database.getEventList(
-          timeline.room,
-          start: timeline.events.length,
-          limit: chatOpenLocalHistoryPageSize,
-        );
-        if (storedEvents.isEmpty) break;
-        await _hydrateStoredEventSenders(timeline.room, storedEvents);
-        timeline.events.addAll(storedEvents);
-      } on Object catch (e) {
-        debugPrint('local timeline backfill failed: $e');
-        break;
-      }
-      attempts++;
-    }
-    if (mounted) setState(() {});
-    _scheduleTimelineThumbnailWarmup();
-    unawaited(_markCurrentTimelineRead());
-  }
-
   Future<void> _syncEmptyRoomHistory(Timeline timeline) async {
     if (visibleMessageCountForChatOpenHistory(timeline.events) > 0) return;
     if ((timeline.room.prev_batch ?? '').isNotEmpty) return;
@@ -635,37 +583,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   Future<void> _requestOlderMessages() async {
     if (_historyRequestInFlight) return;
-    if (!shouldRequestHistoricalMessages(
-        MessageHistoryLoadTrigger.userLoadOlder)) {
-      return;
-    }
     final timeline = _timeline;
-    if (timeline == null || !timeline.canRequestHistory) return;
+    if (timeline == null) return;
     _historyRequestInFlight = true;
     try {
-      await timeline.requestHistory(historyCount: chatOpenLocalHistoryPageSize);
-      if (mounted) setState(() {});
-      _scheduleTimelineThumbnailWarmup();
-      unawaited(_markCurrentTimelineRead());
-    } on Object catch (e) {
-      debugPrint('private timeline.requestHistory failed: $e');
+      await ChatTimelineController(
+        room: timeline.room,
+        rebuild: () {
+          if (mounted) setState(() {});
+          _scheduleTimelineThumbnailWarmup();
+          unawaited(_markCurrentTimelineRead());
+        },
+        debugLabel: 'private',
+      ).requestOlderMessages(timeline);
     } finally {
       _historyRequestInFlight = false;
-    }
-  }
-
-  Future<void> _hydrateStoredEventSenders(
-    Room room,
-    Iterable<Event> events,
-  ) async {
-    final database = room.client.database;
-    if (database == null) return;
-    for (final event in events) {
-      if (room.getState(EventTypes.RoomMember, event.senderId) != null) {
-        continue;
-      }
-      final user = await database.getUser(event.senderId, room);
-      if (user != null) room.setState(user);
     }
   }
 

@@ -21,7 +21,7 @@ import 'package:portal_app/data/channel_post_store.dart';
 import 'package:portal_app/data/chat_clear_state_store.dart';
 import 'package:portal_app/data/conversation_preferences_store.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
-import 'package:portal_app/data/home_conversation_snapshot_store.dart';
+import 'package:portal_app/data/conversation_summary_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/data/matrix_message_search_client.dart';
 import 'package:portal_app/data/matrix_message_visibility_client.dart';
@@ -68,7 +68,7 @@ import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart';
 import 'package:portal_app/presentation/providers/conversation_preferences_provider.dart';
 import 'package:portal_app/presentation/providers/friend_request_read_provider.dart';
-import 'package:portal_app/presentation/providers/home_conversation_snapshot_provider.dart';
+import 'package:portal_app/presentation/providers/conversation_summary_provider.dart';
 import 'package:portal_app/presentation/providers/home_hidden_conversations_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 import 'package:portal_app/presentation/providers/matrix_message_clients_provider.dart';
@@ -1444,17 +1444,16 @@ class _MemoryConversationPreferencesStore
   }
 }
 
-class _MemoryHomeConversationSnapshotStore
-    implements HomeConversationSnapshotStore {
-  _MemoryHomeConversationSnapshotStore([this.snapshot]);
+class _MemoryConversationSummaryStore implements ConversationSummaryStore {
+  _MemoryConversationSummaryStore([this.snapshot]);
 
-  HomeConversationSnapshot? snapshot;
-
-  @override
-  Future<HomeConversationSnapshot?> read() async => snapshot;
+  ConversationSummarySnapshot? snapshot;
 
   @override
-  Future<void> write(HomeConversationSnapshot snapshot) async {
+  Future<ConversationSummarySnapshot?> read() async => snapshot;
+
+  @override
+  Future<void> write(ConversationSummarySnapshot snapshot) async {
     this.snapshot = snapshot;
   }
 
@@ -3986,12 +3985,12 @@ void main() {
     final client = Client('PortalIMCachedHomeConversationListTest')
       ..setUserId('@owner:p2p-im.com');
     final conversationCompleter = Completer<List<AsConversation>>();
-    final snapshotStore = _MemoryHomeConversationSnapshotStore(
-      HomeConversationSnapshot(
+    final snapshotStore = _MemoryConversationSummaryStore(
+      ConversationSummarySnapshot(
         userId: '@owner:p2p-im.com',
         updatedAt: DateTime.utc(2026, 6, 21, 10),
         entries: [
-          HomeConversationSnapshotEntry(
+          ConversationSummaryEntry(
             roomId: '!cached-direct:p2p-im.com',
             name: '缓存联系人',
             lastMessage: '本地缓存消息',
@@ -4028,7 +4027,7 @@ void main() {
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
-          homeConversationSnapshotStoreProvider.overrideWith(
+          conversationSummaryStoreProvider.overrideWith(
             (ref) async => snapshotStore,
           ),
         ],
@@ -4049,12 +4048,12 @@ void main() {
     final client = Client('PortalIMBlankCachedHomeConversationListTest')
       ..setUserId('@owner:p2p-im.com');
     final conversationCompleter = Completer<List<AsConversation>>();
-    final snapshotStore = _MemoryHomeConversationSnapshotStore(
-      HomeConversationSnapshot(
+    final snapshotStore = _MemoryConversationSummaryStore(
+      ConversationSummarySnapshot(
         userId: '@owner:p2p-im.com',
         updatedAt: DateTime.utc(2026, 6, 21, 10),
         entries: [
-          const HomeConversationSnapshotEntry(
+          const ConversationSummaryEntry(
             roomId: '!blank-direct:p2p-im.com',
             name: 'B Bash Smoke 1781942406-9885',
             lastMessage: '',
@@ -4063,7 +4062,7 @@ void main() {
             isGroup: false,
             isAgent: false,
           ),
-          HomeConversationSnapshotEntry(
+          ConversationSummaryEntry(
             roomId: '!cached-direct:p2p-im.com',
             name: '缓存联系人',
             lastMessage: '本地缓存消息',
@@ -4099,7 +4098,7 @@ void main() {
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
-          homeConversationSnapshotStoreProvider.overrideWith(
+          conversationSummaryStoreProvider.overrideWith(
             (ref) async => snapshotStore,
           ),
         ],
@@ -4120,12 +4119,12 @@ void main() {
     final client = Client('PortalIMCachedHomeConversationMergeTest')
       ..setUserId('@owner:p2p-im.com');
     final liveAt = DateTime.utc(2026, 6, 21, 12);
-    final snapshotStore = _MemoryHomeConversationSnapshotStore(
-      HomeConversationSnapshot(
+    final snapshotStore = _MemoryConversationSummaryStore(
+      ConversationSummarySnapshot(
         userId: '@owner:p2p-im.com',
         updatedAt: DateTime.utc(2026, 6, 21, 10),
         entries: [
-          HomeConversationSnapshotEntry(
+          ConversationSummaryEntry(
             roomId: '!a:p2p-im.com',
             name: '旧联系人A',
             lastMessage: '旧消息A',
@@ -4134,7 +4133,7 @@ void main() {
             isGroup: false,
             isAgent: false,
           ),
-          HomeConversationSnapshotEntry(
+          ConversationSummaryEntry(
             roomId: '!b:p2p-im.com',
             name: '缓存B',
             lastMessage: '缓存B消息',
@@ -4188,7 +4187,7 @@ void main() {
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
-          homeConversationSnapshotStoreProvider.overrideWith(
+          conversationSummaryStoreProvider.overrideWith(
             (ref) async => snapshotStore,
           ),
         ],

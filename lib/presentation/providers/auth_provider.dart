@@ -1903,7 +1903,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       'portal_im_friend_request_read.json',
       'portal_im_channel_posts.json',
       'portal_im_chat_clear_state.json',
-      'portal_im_home_conversations.json',
+      'conversation_summary.json',
     ]);
   }
 

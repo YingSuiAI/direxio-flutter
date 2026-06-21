@@ -1928,7 +1928,7 @@ class _RefreshingBootstrapAsClient extends _EmptyAsClient {
     final showAcceptedContact = syncBootstrapCalls >= 2;
     return AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 28, 14, syncBootstrapCalls),
-      user: const AsSyncUser(userId: '@owner:example.com'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
       rooms: const [
         AsSyncRoomSummary(
           roomId: '!current:p2p-im.com',
@@ -3797,6 +3797,7 @@ void main() {
           lifecycle: 'active',
           title: 'C Direct',
           avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: true),
         ),
       ],
     );
@@ -3924,6 +3925,77 @@ void main() {
     expect(find.text('缓存联系人'), findsOneWidget);
     expect(find.text('本地缓存消息'), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
+    expect(find.text('还没有会话'), findsNothing);
+  });
+
+  testWidgets('messages ignore blank cached-only conversations while loading',
+      (tester) async {
+    final client = Client('PortalIMBlankCachedHomeConversationListTest')
+      ..setUserId('@owner:p2p-im.com');
+    final conversationCompleter = Completer<List<AsConversation>>();
+    final snapshotStore = _MemoryHomeConversationSnapshotStore(
+      HomeConversationSnapshot(
+        userId: '@owner:p2p-im.com',
+        updatedAt: DateTime.utc(2026, 6, 21, 10),
+        entries: [
+          const HomeConversationSnapshotEntry(
+            roomId: '!blank-direct:p2p-im.com',
+            name: 'B Bash Smoke 1781942406-9885',
+            lastMessage: '',
+            previewTs: 0,
+            unread: 0,
+            isGroup: false,
+            isAgent: false,
+          ),
+          HomeConversationSnapshotEntry(
+            roomId: '!cached-direct:p2p-im.com',
+            name: '缓存联系人',
+            lastMessage: '本地缓存消息',
+            previewTs: DateTime.utc(2026, 6, 21, 10).millisecondsSinceEpoch,
+            unread: 0,
+            isGroup: false,
+            isAgent: false,
+          ),
+        ],
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(
+            _CompletingConversationsAsClient(conversationCompleter),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          homeConversationSnapshotStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('缓存联系人'), findsOneWidget);
+    expect(find.text('本地缓存消息'), findsOneWidget);
+    expect(find.text('B Bash Smoke 1781942406-9885'), findsNothing);
     expect(find.text('还没有会话'), findsNothing);
   });
 

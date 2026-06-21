@@ -110,6 +110,46 @@ class _StoredRestoreInitFailsClient extends Client {
   }
 }
 
+class _SdkStoreRestoreClient extends Client {
+  _SdkStoreRestoreClient(
+    super.clientName, {
+    required super.httpClient,
+  });
+
+  int initFromSdkStoreCalls = 0;
+  int initWithInjectedTokenCalls = 0;
+  String? _testDeviceId;
+
+  @override
+  String? get deviceID => _testDeviceId ?? super.deviceID;
+
+  @override
+  Future<void> init({
+    String? newToken,
+    DateTime? newTokenExpiresAt,
+    String? newRefreshToken,
+    Uri? newHomeserver,
+    String? newUserID,
+    String? newDeviceName,
+    String? newDeviceID,
+    String? newOlmAccount,
+    bool waitForFirstSync = true,
+    bool waitUntilLoadCompletedLoaded = true,
+    void Function()? onMigration,
+  }) async {
+    if (newToken != null) {
+      initWithInjectedTokenCalls++;
+      throw 'Upload key failed';
+    }
+    initFromSdkStoreCalls++;
+    homeserver = Uri.parse('https://example.com');
+    accessToken = 'stored-token';
+    setUserId('@owner:example.com');
+    _testDeviceId = 'DEVICE1';
+    onLoginStateChanged.add(LoginState.loggedIn);
+  }
+}
+
 class _NoSyncInitClient extends Client {
   _NoSyncInitClient(
     super.clientName, {
@@ -355,6 +395,48 @@ void main() {
     expect(auth.userId, '@owner:example.com');
     expect(auth.homeserver, 'https://example.com');
     expect(requestPaths, isNot(contains('/_p2p/command')));
+  });
+
+  test('stored restore prefers SDK database session before injected token init',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'stored-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'stored-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final client = _SdkStoreRestoreClient(
+      'AuthStoredRestorePrefersSdkStoreTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    final auth = await container.read(authStateNotifierProvider.future);
+
+    expect(auth.isLoggedIn, isTrue);
+    expect(client.initFromSdkStoreCalls, 1);
+    expect(client.initWithInjectedTokenCalls, 0);
+    expect(client.deviceID, 'DEVICE1');
+    expect(client.accessToken, 'stored-token');
   });
 
   test('restores stored profile initialization flag without profile lookup',

@@ -355,6 +355,23 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       return const AuthState(isLoggedIn: false);
     }
 
+    final restored = await _restoreMatrixSdkSession(client, storedPortalToken);
+    if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
+    if (restored != null) {
+      if (storedProfileInitialized == false &&
+          (storedPortalToken?.trim().isNotEmpty ?? false) &&
+          (storedHomeserver?.trim().isNotEmpty ?? false)) {
+        final refreshed = await _restorePortalSession(
+          client,
+          homeserver: storedHomeserver,
+          portalToken: storedPortalToken,
+        );
+        if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
+        if (refreshed != null) return refreshed;
+      }
+      return restored;
+    }
+
     if (token != null && homeserver != null && userId != null) {
       try {
         final homeserverUri = Uri.parse(homeserver);
@@ -457,9 +474,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         }
       }
     }
-    final restored = await _restoreMatrixSdkSession(client, storedPortalToken);
-    if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
-    if (restored != null) return restored;
     if ((storedPortalToken?.trim().isNotEmpty ?? false) &&
         (storedHomeserver?.trim().isNotEmpty ?? false)) {
       final portalRestored = await _restorePortalSession(

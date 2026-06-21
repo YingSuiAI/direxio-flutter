@@ -1774,11 +1774,18 @@ List<HomeConversationSnapshotEntry> _cachedHomeConversationEntriesForUser(
   final entries = [
     for (final entry in snapshot.entries)
       if (entry.roomId.trim().isNotEmpty &&
+          _cachedHomeConversationHasSignal(entry) &&
           !hiddenConversationIds.contains(entry.roomId.trim()))
         entry,
   ];
   _sortHomeConversationEntries(entries, pinnedConversationIds);
   return List.unmodifiable(entries);
+}
+
+bool _cachedHomeConversationHasSignal(HomeConversationSnapshotEntry entry) {
+  return entry.lastMessage.trim().isNotEmpty ||
+      entry.previewTs > 0 ||
+      entry.unread > 0;
 }
 
 void _sortHomeConversationEntries(

@@ -1318,6 +1318,8 @@ class HttpAsClient implements AsClient {
         role: group.role,
         status: status,
         invitePolicy: group.invitePolicy,
+        operation: group.operation,
+        productConversation: group.productConversation,
       );
     }
     return group;

@@ -204,6 +204,21 @@ void main() {
             'peer_mxid': '@alice:p2p-im.com',
             'room_id': '!alice:p2p-im.com',
             'status': 'deleted',
+            'operation': {
+              'action': 'contacts.delete',
+              'status': 'deleted',
+              'room_id': '!alice:p2p-im.com',
+              'conversation_id': 'conv_direct',
+            },
+            'conversation': {
+              'conversation_id': 'conv_direct',
+              'matrix_room_id': '!alice:p2p-im.com',
+              'kind': 'direct',
+              'lifecycle': 'deleted',
+              'peer_mxid': '@alice:p2p-im.com',
+              'title': 'Alice',
+              'capabilities': {'open': false},
+            },
           }),
           200,
         );
@@ -214,6 +229,10 @@ void main() {
 
     expect(contact.roomId, '!alice:p2p-im.com');
     expect(contact.status, 'deleted');
+    expect(contact.operation.action, 'contacts.delete');
+    expect(contact.operation.conversationId, 'conv_direct');
+    expect(contact.productConversation?.conversationId, 'conv_direct');
+    expect(contact.productConversation?.canOpen, isFalse);
   });
 
   test('updateContact uses unified contact update action', () async {
@@ -1194,6 +1213,20 @@ void main() {
               },
             ],
             'status': 'ok',
+            'operation': {
+              'action': 'groups.invite',
+              'status': 'ok',
+              'room_id': '!group:p2p-im.com',
+              'conversation_id': 'conv_group',
+            },
+            'conversation': {
+              'conversation_id': 'conv_group',
+              'matrix_room_id': '!group:p2p-im.com',
+              'kind': 'group',
+              'lifecycle': 'active',
+              'title': 'Group',
+              'capabilities': {'open': true},
+            },
           },
           200,
         );
@@ -1208,6 +1241,9 @@ void main() {
     expect(group.roomId, '!group:p2p-im.com');
     expect(group.invitedCount, 1);
     expect(group.status, 'ok');
+    expect(group.operation.action, 'groups.invite');
+    expect(group.operation.conversationId, 'conv_group');
+    expect(group.productConversation?.conversationId, 'conv_group');
   });
 
   test('removeGroupMember posts member removal through AS', () async {

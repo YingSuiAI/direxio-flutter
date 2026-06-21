@@ -306,6 +306,8 @@ class ContactEntry {
     required this.status,
     this.visibleAfterTs = 0,
     this.deletedEventIds = const [],
+    this.operation = const AsOperation(),
+    this.productConversation,
   });
 
   final String peerMxid;
@@ -315,6 +317,8 @@ class ContactEntry {
   final String status;
   final int visibleAfterTs;
   final List<String> deletedEventIds;
+  final AsOperation operation;
+  final AsConversation? productConversation;
 
   factory ContactEntry.fromJson(Map<String, dynamic> j) => ContactEntry(
         peerMxid: j['peer_mxid'] as String? ?? '',
@@ -324,6 +328,10 @@ class ContactEntry {
         status: j['status'] as String? ?? '',
         visibleAfterTs: j['visible_after_ts'] as int? ?? 0,
         deletedEventIds: _parseStringList(j['deleted_event_ids']),
+        operation: AsOperation.fromJson(
+          (j['operation'] as Map?)?.cast<String, dynamic>(),
+        ),
+        productConversation: _parseConversation(j['conversation']),
       );
 }
 
@@ -539,6 +547,36 @@ const asConversationKindDirect = 'direct';
 const asConversationKindGroup = 'group';
 const asConversationKindChannel = 'channel';
 const asConversationKindAgent = 'agent';
+
+class AsOperation {
+  const AsOperation({
+    this.action = '',
+    this.status = '',
+    this.roomId = '',
+    this.conversationId = '',
+  });
+
+  final String action;
+  final String status;
+  final String roomId;
+  final String conversationId;
+
+  bool get isEmpty =>
+      action.trim().isEmpty &&
+      status.trim().isEmpty &&
+      roomId.trim().isEmpty &&
+      conversationId.trim().isEmpty;
+
+  factory AsOperation.fromJson(Map<String, dynamic>? json) {
+    if (json == null || json.isEmpty) return const AsOperation();
+    return AsOperation(
+      action: json['action'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
+      conversationId: json['conversation_id'] as String? ?? '',
+    );
+  }
+}
 
 class AsConversation {
   const AsConversation({
@@ -1424,6 +1462,7 @@ class AsGroupResult {
     this.role = '',
     this.status = '',
     this.invitePolicy = groupInvitePolicyAllMembers,
+    this.operation = const AsOperation(),
     this.productConversation,
   });
 
@@ -1434,6 +1473,7 @@ class AsGroupResult {
   final String role;
   final String status;
   final String invitePolicy;
+  final AsOperation operation;
   final AsConversation? productConversation;
 
   factory AsGroupResult.fromJson(Map<String, dynamic> json) {
@@ -1446,6 +1486,9 @@ class AsGroupResult {
       status: json['status'] as String? ?? '',
       invitePolicy: _normalizeGroupInvitePolicy(
         json['invite_policy'] as String? ?? '',
+      ),
+      operation: AsOperation.fromJson(
+        (json['operation'] as Map?)?.cast<String, dynamic>(),
       ),
       productConversation: _parseConversation(json['conversation']),
     );

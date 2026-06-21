@@ -64,9 +64,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final serial = ++_searchSerial;
     setState(() => _loading = true);
     final client = ref.read(matrixClientProvider);
-    final productConversations =
-        ref.read(productConversationsProvider).valueOrNull ??
-            const <AsConversation>[];
+    final productConversations = await _productConversations();
+    if (!mounted || serial != _searchSerial) return;
     final directoryResults =
         _localDirectoryResults(query, client, productConversations);
     final remoteMessageResultsFuture = _remoteMessageResults(query);
@@ -96,9 +95,18 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 client,
                 productConversations,
               ),
-            ),
+            )
+            .whereType<_GlobalSearchResult>(),
       ]);
     });
+  }
+
+  Future<List<AsConversation>> _productConversations() async {
+    try {
+      return await ref.read(productConversationsProvider.future);
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<List<MatrixMessageSearchResult>> _remoteMessageResults(
@@ -313,9 +321,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       if (!_isSearchableMessage(event)) return;
       if (!event.plaintextBody.toLowerCase().contains(q)) return;
       if (!seenEventIds.add(event.eventId)) return;
-      results.add(
-        _GlobalSearchResult.cachedMessage(event, productConversations),
-      );
+      final result =
+          _GlobalSearchResult.cachedMessage(event, productConversations);
+      if (result != null) results.add(result);
     }
 
     for (final room in client.rooms) {
@@ -417,7 +425,7 @@ class _GlobalSearchResult {
     this.timestamp,
   });
 
-  factory _GlobalSearchResult.remoteMessage(
+  static _GlobalSearchResult? remoteMessage(
     MatrixMessageSearchResult result,
     Client client,
     Iterable<AsConversation> productConversations,
@@ -433,38 +441,32 @@ class _GlobalSearchResult {
       productConversations,
       result.roomId,
     );
-    final route = productConversation == null
-        ? room == null
-            ? '/chat/${Uri.encodeComponent(result.roomId)}'
-            : productConversationRouteForRoom(
-                room: room,
-                conversations: productConversations,
-              )
-        : productConversationRoute(productConversation);
+    final route = productConversationRoute(productConversation);
+    if (route == null) return null;
     return _GlobalSearchResult(
       type: _SearchResultType.message,
       title: senderName.isEmpty ? '消息' : senderName,
       subtitle: result.body,
-      route: route ?? '/chat/${Uri.encodeComponent(result.roomId)}',
+      route: route,
       eventId: result.eventId,
       timestamp: result.timestamp,
     );
   }
 
-  factory _GlobalSearchResult.cachedMessage(
+  static _GlobalSearchResult? cachedMessage(
     Event event,
     Iterable<AsConversation> productConversations,
   ) {
     final room = event.room;
-    final route = productConversationRouteForRoom(
-      room: room,
-      conversations: productConversations,
-    );
+    final conversation =
+        productConversationForRoom(productConversations, room.id);
+    final route = productConversationRoute(conversation);
+    if (route == null) return null;
     return _GlobalSearchResult(
       type: _SearchResultType.message,
       title: _senderDisplayName(event),
       subtitle: event.plaintextBody,
-      route: route ?? '/chat/${Uri.encodeComponent(room.id)}',
+      route: route,
       eventId: event.eventId,
       timestamp: event.originServerTs,
     );

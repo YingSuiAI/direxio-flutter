@@ -12901,7 +12901,22 @@ void main() {
         overrides: [
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(
+              const [
+                AsConversation(
+                  conversationId: 'conv_cached_direct',
+                  roomId: '!cached:example.com',
+                  kind: asConversationKindDirect,
+                  lifecycle: 'active',
+                  peerMxid: '@alice:example.com',
+                  title: 'Alice Chen',
+                  avatarUrl: '',
+                  capabilities: AsConversationCapabilities(open: true),
+                ),
+              ],
+            ),
+          ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const SearchPage()),
       ),
@@ -12913,6 +12928,55 @@ void main() {
 
     expect(find.text('Alice Chen'), findsOneWidget);
     expect(find.text('这是一条 cached-history-needle 历史消息'), findsOneWidget);
+  });
+
+  testWidgets(
+      'global search hides message results without ProductCore conversation',
+      (tester) async {
+    final client = Client('PortalIMTestSearchRequiresProductConversation')
+      ..setUserId('@owner:example.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider
+              .overrideWithValue(_ConversationListAsClient(const [])),
+          matrixMessageSearchClientProvider.overrideWithValue(
+            _StaticMatrixMessageSearchClient(
+              [
+                MatrixMessageSearchResult(
+                  eventId: r'$orphan-message',
+                  roomId: '!orphan:example.com',
+                  senderId: '@alice:example.com',
+                  body: '远端孤儿消息 orphan-product-conversation-needle',
+                  timestamp: DateTime(2026, 5, 25, 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const SearchPage()),
+      ),
+    );
+
+    await tester.enterText(
+      find.byType(TextField),
+      'orphan-product-conversation-needle',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      find.text('远端孤儿消息 orphan-product-conversation-needle'),
+      findsNothing,
+    );
+    expect(
+      find.text('没有找到包含「orphan-product-conversation-needle」的内容'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('global search hides group invite messages', (tester) async {

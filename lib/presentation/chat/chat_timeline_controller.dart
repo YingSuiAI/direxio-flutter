@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../data/as_client.dart';
 import 'chat_history_backfill_policy.dart';
+import '../utils/read_marker_sync.dart';
 import '../utils/message_history_policy.dart';
+import '../utils/room_read_state.dart';
 
 class ChatTimelineController {
   const ChatTimelineController({
@@ -105,6 +110,37 @@ class ChatTimelineController {
     } on Object catch (e) {
       debugPrint('$debugLabel timeline.requestHistory failed: $e');
     }
+  }
+
+  Future<bool> markCurrentTimelineRead({
+    required Timeline? timeline,
+    required AsClient asClient,
+    required void Function(DateTime readAt) onUnreadCleared,
+  }) async {
+    final markerEvent =
+        timeline == null ? null : latestSyncedMessageEvent(timeline);
+    final readAt = markerEvent?.originServerTs ?? DateTime.now().toUtc();
+    final changed = markRoomLocallyRead(room);
+    onUnreadCleared(readAt);
+
+    if (timeline == null) return changed;
+    try {
+      await timeline.setReadMarker(eventId: markerEvent?.eventId);
+      if (markerEvent != null) {
+        unawaited(updateAsReadMarkerForEvent(
+          asClient: asClient,
+          room: room,
+          event: markerEvent,
+        ).then((_) => onUnreadCleared(markerEvent.originServerTs)).catchError(
+          (Object e) {
+            debugPrint('$debugLabel AS read marker sync failed: $e');
+          },
+        ));
+      }
+    } on Object catch (e) {
+      debugPrint('$debugLabel setReadMarker failed: $e');
+    }
+    return changed;
   }
 }
 

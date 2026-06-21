@@ -59,9 +59,7 @@ import '../utils/avatar_url.dart';
 import '../utils/chat_event_attachment.dart';
 import '../utils/direct_contact_status.dart';
 import 'group_call_member_select_page.dart';
-import '../utils/read_marker_sync.dart';
 import '../utils/message_preview.dart';
-import '../utils/room_read_state.dart';
 import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
@@ -1240,14 +1238,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   Future<void> _markCurrentTimelineRead() async {
     final room = _room;
     final timeline = _timeline;
-    if (room == null || timeline == null) return;
-    final markerEvent = latestSyncedMessageEvent(timeline);
-    final readAt = markerEvent?.originServerTs ?? DateTime.now().toUtc();
-    final changed = markRoomLocallyRead(room);
-    ref.read(asSyncCacheProvider.notifier).update(
-          (state) => state.withRoomUnreadCleared(room.id, readAt: readAt),
-        );
-    if (changed && mounted) setState(() {});
+    if (room == null) return;
     if (_readMarkerInFlight) {
       _readMarkerQueued = true;
       return;
@@ -1255,40 +1246,28 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
     _readMarkerInFlight = true;
     try {
-      await timeline.setReadMarker(eventId: markerEvent?.eventId);
-      if (markerEvent != null) {
-        unawaited(_syncAsReadMarker(room, markerEvent).then((synced) {
-          if (!synced) return;
+      final changed = await ChatTimelineController(
+        room: room,
+        rebuild: () {
+          if (mounted) setState(() {});
+        },
+        debugLabel: _isChannelConversation ? 'channel' : 'group',
+      ).markCurrentTimelineRead(
+        timeline: timeline,
+        asClient: ref.read(asClientProvider),
+        onUnreadCleared: (readAt) {
           ref.read(asSyncCacheProvider.notifier).update(
-                (state) => state.withRoomUnreadCleared(
-                  room.id,
-                  readAt: markerEvent.originServerTs,
-                ),
+                (state) => state.withRoomUnreadCleared(room.id, readAt: readAt),
               );
-        }));
-      }
-    } on Object catch (e) {
-      debugPrint('setReadMarker failed: $e');
+        },
+      );
+      if (changed && mounted) setState(() {});
     } finally {
       _readMarkerInFlight = false;
       if (_readMarkerQueued && mounted) {
         _readMarkerQueued = false;
         unawaited(_markCurrentTimelineRead());
       }
-    }
-  }
-
-  Future<bool> _syncAsReadMarker(Room room, Event event) async {
-    try {
-      await updateAsReadMarkerForEvent(
-        asClient: ref.read(asClientProvider),
-        room: room,
-        event: event,
-      );
-      return true;
-    } on Object catch (e) {
-      debugPrint('AS read marker sync failed: $e');
-      return false;
     }
   }
 

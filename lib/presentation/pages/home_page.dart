@@ -11,6 +11,7 @@ import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
 import '../channel/create_channel_sheet.dart';
+import '../home/conversation_summary_writer.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -25,7 +26,6 @@ import '../providers/product_conversations_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../../data/as_client.dart';
 import '../../data/conversation_summary_store.dart';
-import '../../data/local_outbox_store.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
@@ -1445,9 +1445,9 @@ class _ChatList extends ConsumerWidget {
       );
     }
 
-    final visibleConversations = <_VisibleConversation>[];
+    final visibleConversations = <VisibleHomeConversation>[];
     final visibleRoomIds = <String>{};
-    void addVisibleConversation(_VisibleConversation conversation) {
+    void addVisibleConversation(VisibleHomeConversation conversation) {
       final roomId = conversation.roomId.trim();
       if (roomId.isEmpty || !visibleRoomIds.add(roomId)) return;
       visibleConversations.add(conversation);
@@ -1458,14 +1458,14 @@ class _ChatList extends ConsumerWidget {
     var fallbackAgentShown = false;
     for (final room in rooms) {
       if (room.membership != Membership.join) continue;
-      if (_isAgentRoom(room, agentMxid)) {
+      if (isAgentRoom(room, agentMxid)) {
         if (canonicalAgentRoomId.isNotEmpty) {
           if (room.id != canonicalAgentRoomId) continue;
         } else {
           if (fallbackAgentShown) continue;
           fallbackAgentShown = true;
         }
-        addVisibleConversation(_VisibleConversation.agent(room));
+        addVisibleConversation(VisibleHomeConversation.agent(room));
       }
     }
     for (final conversation in productConversations) {
@@ -1473,7 +1473,7 @@ class _ChatList extends ConsumerWidget {
       if (!conversation.canOpen) continue;
       final roomId = conversation.roomId.trim();
       addVisibleConversation(
-        _VisibleConversation.product(
+        VisibleHomeConversation.product(
           conversation,
           client.getRoomById(roomId),
           asRoomSummariesByRoomId[roomId],
@@ -1486,12 +1486,12 @@ class _ChatList extends ConsumerWidget {
         final bPinned = pinnedConversationIds.contains(b.roomId);
         if (aPinned != bPinned) return aPinned ? -1 : 1;
         if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
-        return _conversationSortTime(
+        return conversationSortTime(
           b,
           outbox: outbox,
           messageOrder: messageOrder,
         ).compareTo(
-          _conversationSortTime(
+          conversationSortTime(
             a,
             outbox: outbox,
             messageOrder: messageOrder,
@@ -1502,9 +1502,9 @@ class _ChatList extends ConsumerWidget {
       for (final conversation in sortedConversations)
         if (!hiddenConversationIds.contains(conversation.roomId)) conversation,
     ];
-    final renderedConversations = [
+    final liveSummaryEntries = [
       for (final conversation in filteredConversations)
-        _renderHomeConversation(
+        summaryEntryForVisibleConversation(
           client: client,
           syncCache: syncCache,
           outbox: outbox,
@@ -1520,10 +1520,6 @@ class _ChatList extends ConsumerWidget {
       hiddenConversationIds: hiddenConversationIds,
       pinnedConversationIds: pinnedConversationIds,
     );
-    final liveSummaryEntries = [
-      for (final rendered in renderedConversations)
-        _summaryEntryFromRenderedConversation(rendered),
-    ];
     final projectedConversations = mergeConversationSummaryEntries(
       cachedEntries:
           cacheReady ? cachedConversations : const <ConversationSummaryEntry>[],
@@ -1614,114 +1610,6 @@ class _HomeConversationEntryList extends ConsumerWidget {
       },
     );
   }
-}
-
-class _RenderedHomeConversation {
-  const _RenderedHomeConversation({
-    required this.conversation,
-    required this.name,
-    required this.lastMessage,
-    required this.previewTime,
-    required this.unread,
-    required this.avatarUrl,
-  });
-
-  final _VisibleConversation conversation;
-  final String name;
-  final String lastMessage;
-  final DateTime? previewTime;
-  final int unread;
-  final String? avatarUrl;
-}
-
-_RenderedHomeConversation _renderHomeConversation({
-  required Client client,
-  required AsSyncCacheState syncCache,
-  required LocalOutboxState outbox,
-  required LocalMessageOrderState messageOrder,
-  required Map<String, String> groupRemarkNames,
-  required _VisibleConversation conversation,
-}) {
-  final room = conversation.room;
-  final lastEvent = room?.lastEvent;
-  final visibilityPolicy = syncCache.chatVisibilityPolicyForRoom(
-    conversation.roomId,
-  );
-  final visibleLastEvent = lastEvent != null &&
-          visibilityPolicy.allows(
-            eventId: lastEvent.eventId,
-            originServerTs: lastEvent.originServerTs.millisecondsSinceEpoch,
-            redacted: lastEvent.redacted,
-          )
-      ? lastEvent
-      : null;
-  final failedOutbox = _latestFailedMediaOutboxForConversation(
-    outbox,
-    conversation,
-  );
-  final lastEventSortTime = visibleLastEvent == null
-      ? null
-      : messageOrder.entryForEvent(visibleLastEvent.eventId)?.createdAt;
-  final cleared = visibilityPolicy.clearedBeforeTs > 0 &&
-      visibleLastEvent == null &&
-      failedOutbox == null;
-  final previewTime = _conversationPreviewTimeForConversation(
-    conversation,
-    lastEvent: visibleLastEvent,
-    latestFailedOutbox: failedOutbox,
-    lastEventSortTime: lastEventSortTime,
-    cleared: cleared,
-  );
-  final lastMessage = _conversationPreviewTextForConversation(
-    conversation,
-    lastEvent: visibleLastEvent,
-    latestFailedOutbox: failedOutbox,
-    lastEventSortTime: lastEventSortTime,
-    cleared: cleared,
-  );
-  final displayName = conversation.isAgent
-      ? 'Agent'
-      : _conversationDisplayName(
-          conversation,
-          groupRemarkNames: groupRemarkNames,
-        );
-  return _RenderedHomeConversation(
-    conversation: conversation,
-    name: displayName,
-    lastMessage: lastMessage,
-    previewTime: previewTime,
-    unread: _conversationUnreadCount(conversation, room, syncCache),
-    avatarUrl: _conversationAvatarUrl(client, conversation, room),
-  );
-}
-
-ConversationSummaryEntry _summaryEntryFromRenderedConversation(
-  _RenderedHomeConversation rendered,
-) {
-  final roomId = rendered.conversation.roomId.trim();
-  final product = rendered.conversation.product;
-  return ConversationSummaryEntry(
-    conversationId: product?.conversationId ?? '',
-    roomId: roomId,
-    kind: product?.kind ?? '',
-    name: rendered.name,
-    lastMessage: rendered.lastMessage,
-    previewTs: rendered.previewTime?.millisecondsSinceEpoch ?? 0,
-    unread:
-        _renderedConversationHasUnreadSignal(rendered) ? rendered.unread : 0,
-    isGroup: rendered.conversation.isGroup,
-    isAgent: rendered.conversation.isAgent,
-    canOpen: product?.canOpen ?? true,
-    avatarUrl: rendered.avatarUrl ?? '',
-  );
-}
-
-bool _renderedConversationHasUnreadSignal(_RenderedHomeConversation rendered) {
-  final conversation = rendered.conversation;
-  return rendered.unread > 0 ||
-      conversation.room != null ||
-      conversation.product != null ||
-      conversation.roomSummary != null;
 }
 
 void _writeConversationSummaryEntries(
@@ -1816,204 +1704,6 @@ void _toggleHomeConversationPin(WidgetRef ref, String roomId) {
   toggleConversationPin(ref, trimmed);
 }
 
-class _VisibleConversation {
-  const _VisibleConversation._({
-    required this.roomId,
-    this.room,
-    this.product,
-    this.roomSummary,
-    this.isAgent = false,
-    this.isGroup = false,
-  });
-
-  factory _VisibleConversation.agent(Room room) {
-    return _VisibleConversation._(roomId: room.id, room: room, isAgent: true);
-  }
-
-  factory _VisibleConversation.product(
-    AsConversation conversation,
-    Room? room, [
-    AsSyncRoomSummary? roomSummary,
-  ]) {
-    return _VisibleConversation._(
-      roomId: conversation.roomId.trim(),
-      room: room,
-      product: conversation,
-      roomSummary: roomSummary,
-      isAgent: conversation.isAgent,
-      isGroup: conversation.isGroup,
-    );
-  }
-
-  final String roomId;
-  final Room? room;
-  final AsConversation? product;
-  final AsSyncRoomSummary? roomSummary;
-  final bool isAgent;
-  final bool isGroup;
-}
-
-String? _conversationAvatarUrl(
-  Client client,
-  _VisibleConversation conversation,
-  Room? room,
-) {
-  if (conversation.isAgent) return null;
-  final productAvatar = avatarHttpUrl(client, conversation.product?.avatarUrl);
-  if (conversation.isGroup) {
-    return productAvatar ?? (room == null ? null : roomAvatarHttpUrl(room));
-  }
-
-  return productAvatar ??
-      _directPeerMemberAvatarUrl(
-        client,
-        room,
-        conversation.product?.peerMxid,
-      ) ??
-      avatarHttpUrl(client, conversation.roomSummary?.avatarUrl) ??
-      (room == null ? null : roomAvatarHttpUrl(room));
-}
-
-String? _contactListAvatarUrl(Client client, AsSyncContact contact) {
-  final room = client.getRoomById(contact.roomId.trim());
-  return _directPeerMemberAvatarUrl(client, room, contact.userId) ??
-      avatarHttpUrl(client, contact.avatarUrl);
-}
-
-String? _directPeerMemberAvatarUrl(
-  Client client,
-  Room? room,
-  String? peerUserId,
-) {
-  final peerId = peerUserId?.trim() ?? '';
-  if (room == null || peerId.isEmpty) return null;
-  final member = room.unsafeGetUserFromMemoryOrFallback(peerId);
-  return matrixContentHttpUrl(client, member.avatarUrl);
-}
-
-LocalOutboxItem? _latestFailedMediaOutboxForConversation(
-  LocalOutboxState outbox,
-  _VisibleConversation conversation,
-) {
-  final type = conversation.isGroup
-      ? LocalOutboxConversationType.group
-      : conversation.isAgent
-          ? LocalOutboxConversationType.agent
-          : LocalOutboxConversationType.direct;
-  final items = outbox
-      .itemsForConversation(conversation.roomId, type: type)
-      .where(
-        (item) =>
-            item.status == LocalOutboxItemStatus.failed &&
-            (item.messageKind == LocalOutboxMessageKind.image ||
-                item.messageKind == LocalOutboxMessageKind.video ||
-                item.messageKind == LocalOutboxMessageKind.file),
-      )
-      .toList();
-  if (items.isEmpty && type != LocalOutboxConversationType.direct) {
-    items.addAll(
-      outbox.itemsForConversation(conversation.roomId).where(
-            (item) =>
-                item.status == LocalOutboxItemStatus.failed &&
-                (item.messageKind == LocalOutboxMessageKind.image ||
-                    item.messageKind == LocalOutboxMessageKind.video ||
-                    item.messageKind == LocalOutboxMessageKind.file),
-          ),
-    );
-  }
-  if (items.isEmpty) return null;
-  items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-  return items.first;
-}
-
-String _conversationDisplayName(
-  _VisibleConversation conversation, {
-  Map<String, String> groupRemarkNames = const {},
-}) {
-  if (conversation.isGroup) {
-    final remark = groupRemarkNames[conversation.roomId]?.trim() ?? '';
-    if (remark.isNotEmpty) return remark;
-  }
-  final productTitle = conversation.product?.title.trim() ?? '';
-  if (productTitle.isNotEmpty) return productTitle;
-  if (!conversation.isAgent) {
-    final peerName = _directProductPeerDisplayName(
-      conversation.product,
-      conversation.room,
-    );
-    if (peerName.isNotEmpty) return peerName;
-  }
-  return conversation.room?.getLocalizedDisplayname() ?? '';
-}
-
-String _directProductPeerDisplayName(AsConversation? product, Room? room) {
-  final peerMxid = product?.peerMxid.trim() ?? '';
-  if (peerMxid.isEmpty) return '';
-  final memberName = directPeerMemberDisplayName(room, peerMxid);
-  if (memberName.isEmpty || memberName == localpartFromMxid(peerMxid)) {
-    return '';
-  }
-  return memberName;
-}
-
-String _conversationPreviewTextForConversation(
-  _VisibleConversation conversation, {
-  required Event? lastEvent,
-  required LocalOutboxItem? latestFailedOutbox,
-  DateTime? lastEventSortTime,
-  bool cleared = false,
-}) {
-  if (cleared) return '';
-  final text = conversationPreviewText(
-    lastEvent: lastEvent,
-    latestFailedOutbox: latestFailedOutbox,
-    lastEventSortTime: lastEventSortTime,
-    isAgent: conversation.isAgent,
-  );
-  if (text.isNotEmpty) return text;
-  final productLastMessage = conversation.product?.lastMessage.trim() ?? '';
-  if (productLastMessage.isNotEmpty) return productLastMessage;
-  return '';
-}
-
-DateTime? _conversationPreviewTimeForConversation(
-  _VisibleConversation conversation, {
-  required Event? lastEvent,
-  required LocalOutboxItem? latestFailedOutbox,
-  DateTime? lastEventSortTime,
-  bool cleared = false,
-}) {
-  if (cleared) return null;
-  final previewTime = conversationPreviewTime(
-    lastEvent: lastEvent,
-    latestFailedOutbox: latestFailedOutbox,
-    lastEventSortTime: lastEventSortTime,
-  );
-  if (previewTime != null) return previewTime;
-  return conversation.product?.lastActivityAt ??
-      conversation.roomSummary?.lastActivityAt;
-}
-
-bool _isAgentRoom(Room room, String? agentMxid) {
-  return isPortalAgentDirectRoom(room, agentMxid: agentMxid);
-}
-
-int _conversationUnreadCount(
-  _VisibleConversation conversation,
-  Room? room,
-  AsSyncCacheState syncCache,
-) {
-  final asRoomUnread = conversation.roomSummary?.unreadCount ?? 0;
-  if (asRoomUnread > 0) return asRoomUnread;
-
-  final matrixUnread = conversationUnreadCount(
-    matrixUnreadCount: room?.notificationCount ?? 0,
-  );
-  if (matrixUnread > 0) return matrixUnread;
-
-  return 0;
-}
-
 bool _hasUnclassifiedJoinedRooms({
   required Client client,
   required AsSyncCacheState syncCache,
@@ -2023,7 +1713,7 @@ bool _hasUnclassifiedJoinedRooms({
   if (bootstrap == null) {
     return client.rooms.any((room) {
       return room.membership == Membership.join &&
-          !_isAgentRoom(room, agentMxid);
+          !isAgentRoom(room, agentMxid);
     });
   }
   final knownRoomIds = <String>{
@@ -2037,7 +1727,7 @@ bool _hasUnclassifiedJoinedRooms({
   };
   return client.rooms.any((room) {
     if (room.membership != Membership.join) return false;
-    if (_isAgentRoom(room, agentMxid)) return false;
+    if (isAgentRoom(room, agentMxid)) return false;
     return !knownRoomIds.contains(room.id.trim());
   });
 }
@@ -2048,28 +1738,8 @@ bool _hasPendingInviteRooms({
 }) {
   return client.rooms.any((room) {
     if (room.membership != Membership.invite) return false;
-    return !_isAgentRoom(room, agentMxid);
+    return !isAgentRoom(room, agentMxid);
   });
-}
-
-int _conversationSortTime(
-  _VisibleConversation conversation, {
-  required LocalOutboxState outbox,
-  required LocalMessageOrderState messageOrder,
-}) {
-  final lastEvent = conversation.room?.lastEvent;
-  final failedOutbox =
-      _latestFailedMediaOutboxForConversation(outbox, conversation);
-  final lastEventSortTime = lastEvent == null
-      ? null
-      : messageOrder.entryForEvent(lastEvent.eventId)?.createdAt;
-  return _conversationPreviewTimeForConversation(
-        conversation,
-        lastEvent: lastEvent,
-        latestFailedOutbox: failedOutbox,
-        lastEventSortTime: lastEventSortTime,
-      )?.millisecondsSinceEpoch ??
-      0;
 }
 
 String _formatConvTime(int ts) {
@@ -2496,7 +2166,7 @@ class _ContactList extends ConsumerWidget {
           domain: contact.domain,
         ),
         mxid: peerMxid,
-        avatarUrl: _contactListAvatarUrl(client, contact),
+        avatarUrl: contactListAvatarUrl(client, contact),
       );
     }).toList();
     final groupedContacts = _groupContactsByInitial(contacts);

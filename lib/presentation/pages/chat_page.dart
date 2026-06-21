@@ -27,8 +27,8 @@ import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
 import '../chat/chat_glass_background.dart';
-import '../chat/chat_history_backfill_policy.dart';
 import '../chat/chat_room_recovery_controller.dart';
+import '../chat/chat_room_recovery_sync.dart';
 import '../chat/chat_timeline_controller.dart';
 import '../chat/chat_message_cards.dart';
 import '../chat/call_timeline_events.dart';
@@ -515,10 +515,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   Future<void> _syncMissingRoomFromServer() async {
     final client = ref.read(matrixClientProvider);
-    await syncMatrixRoomHistory(
-      client,
+    await syncMissingRoomHistoryFromServer(
       roomId: widget.roomId,
-      timelineLimit: chatOpenLocalHistoryPageSize,
+      syncHistory: ({required roomId, required timelineLimit}) {
+        return syncMatrixRoomHistory(
+          client,
+          roomId: roomId,
+          timelineLimit: timelineLimit,
+        );
+      },
     );
   }
 

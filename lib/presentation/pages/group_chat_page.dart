@@ -35,8 +35,8 @@ import '../chat/call_timeline_events.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
 import '../chat/chat_glass_background.dart';
-import '../chat/chat_history_backfill_policy.dart';
 import '../chat/chat_room_recovery_controller.dart';
+import '../chat/chat_room_recovery_sync.dart';
 import '../chat/chat_timeline_controller.dart';
 import '../chat/chat_media_warmup.dart';
 import '../chat/chat_message_cards.dart';
@@ -1069,13 +1069,16 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   Future<void> _syncMissingGroupRoomFromServer(String roomId) async {
-    final trimmedRoomId = roomId.trim();
-    if (trimmedRoomId.isEmpty) return;
     final client = ref.read(matrixClientProvider);
-    await syncMatrixRoomHistory(
-      client,
-      roomId: trimmedRoomId,
-      timelineLimit: chatOpenLocalHistoryPageSize,
+    await syncMissingRoomHistoryFromServer(
+      roomId: roomId,
+      syncHistory: ({required roomId, required timelineLimit}) {
+        return syncMatrixRoomHistory(
+          client,
+          roomId: roomId,
+          timelineLimit: timelineLimit,
+        );
+      },
     );
   }
 

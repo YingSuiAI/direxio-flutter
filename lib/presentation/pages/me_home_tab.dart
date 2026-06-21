@@ -42,8 +42,6 @@ class MePage extends ConsumerWidget {
     final signature = space?.signature.trim().isNotEmpty == true
         ? space!.signature.trim()
         : personalProfile.bio.trim();
-    final dynamics = [...(space?.works ?? const <WorkItem>[])]
-      ..sort((a, b) => b.sortKey.compareTo(a.sortKey));
 
     return ColoredBox(
       color: _homeBgColor(context),
@@ -72,8 +70,6 @@ class MePage extends ConsumerWidget {
               label: '我的频道',
               onTap: () => context.push('/me/channels'),
             ),
-            const SizedBox(height: 28),
-            _MeDynamicTimeline(items: dynamics),
           ],
         ),
       ),
@@ -220,108 +216,6 @@ class _MeSignature extends StatelessWidget {
         weight: FontWeight.w400,
         color: _homeMutedColor(context),
       ).copyWith(height: 1.35),
-    );
-  }
-}
-
-class _MeDynamicTimeline extends StatelessWidget {
-  const _MeDynamicTimeline({required this.items});
-
-  final List<WorkItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Column(
-      key: const ValueKey('me_dynamics_timeline'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '动态',
-          style: AppTheme.sans(
-            size: 20,
-            weight: FontWeight.w600,
-            color: _homeTextColor(context),
-          ),
-        ),
-        const SizedBox(height: 16),
-        for (final item in items) _MeDynamicItem(item: item),
-      ],
-    );
-  }
-}
-
-class _MeDynamicItem extends StatelessWidget {
-  const _MeDynamicItem({required this.item});
-
-  final WorkItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.push('/me/dynamic/${Uri.encodeComponent(item.id)}'),
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 116,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.month,
-                    style: AppTheme.sans(
-                      size: item.day.isEmpty ? 16 : 14,
-                      weight: FontWeight.w600,
-                      color: _homeTextColor(context),
-                    ),
-                  ),
-                  if (item.day.isNotEmpty)
-                    Text(
-                      item.day,
-                      style: AppTheme.sans(
-                        size: 24,
-                        weight: FontWeight.w700,
-                        color: _homeTextColor(context),
-                      ).copyWith(height: 1.1),
-                    ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(
-                      size: 16,
-                      weight: FontWeight.w600,
-                      color: _homeTextColor(context),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    item.subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(
-                      size: 13,
-                      weight: FontWeight.w400,
-                      color: _homeMutedColor(context),
-                    ).copyWith(height: 1.35),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

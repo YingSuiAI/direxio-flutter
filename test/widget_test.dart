@@ -41,7 +41,6 @@ import 'package:portal_app/presentation/pages/chat_info_page.dart';
 import 'package:portal_app/presentation/pages/chat_page.dart';
 import 'package:portal_app/presentation/pages/contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/contact_home_page.dart';
-import 'package:portal_app/presentation/pages/dynamic_detail_page.dart';
 import 'package:portal_app/presentation/pages/follows_list_page.dart';
 import 'package:portal_app/presentation/pages/login_page.dart';
 import 'package:portal_app/presentation/mock/mock_data.dart';
@@ -13086,7 +13085,9 @@ void main() {
     expect(find.text('我的频道'), findsOneWidget);
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
     await tester.pumpAndSettle();
-    expect(find.text('动态'), findsOneWidget);
+    expect(find.text('动态'), findsNothing);
+    expect(find.byKey(const ValueKey('me_dynamics_timeline')), findsNothing);
+    expect(find.text('第三方平台一键安装'), findsNothing);
     expect(find.text('作品墙'), findsNothing);
     expect(find.text('账号与安全'), findsNothing);
     expect(find.text('通知设置'), findsNothing);
@@ -13100,7 +13101,7 @@ void main() {
     );
   });
 
-  testWidgets('me page renders dynamics as a moments-style timeline',
+  testWidgets('me page does not render removed dynamic feature',
       (tester) async {
     final client = Client('PortalIMTest');
 
@@ -13120,61 +13121,10 @@ void main() {
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('me_dynamics_timeline')), findsOneWidget);
-    expect(find.text('今天'), findsOneWidget);
-    expect(find.text('五月'), findsAtLeastNWidgets(1));
-    expect(find.text('06'), findsOneWidget);
-
-    final todayTop = tester.getTopLeft(find.text('今天')).dy;
-    final maySixTop = tester.getTopLeft(find.text('06')).dy;
-    expect(todayTop, lessThan(maySixTop));
-
-    final timeLeft = tester.getTopLeft(find.text('今天')).dx;
-    final contentLeft = tester.getTopLeft(find.text('第三方平台一键安装')).dx;
-    expect(contentLeft - timeLeft, greaterThan(100));
-  });
-
-  testWidgets('me dynamic timeline opens a detail page', (tester) async {
-    final client = Client('PortalIMTest');
-    final router = GoRouter(
-      initialLocation: '/home',
-      routes: [
-        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
-        GoRoute(
-          path: '/me/dynamic/:dynamicId',
-          builder: (_, state) => DynamicDetailPage(
-            dynamicId: state.pathParameters['dynamicId']!,
-          ),
-        ),
-      ],
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-        ],
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: router,
-        ),
-      ),
-    );
-
-    await tester.tap(find.text('我的'));
-    await tester.pump();
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('第三方平台一键安装'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('动态详情'), findsOneWidget);
-    expect(find.textContaining('云端服务能用吗'), findsOneWidget);
-    expect(find.text('评论'), findsOneWidget);
-    expect(find.text('转发'), findsOneWidget);
-    expect(find.text('更多'), findsOneWidget);
+    expect(find.text('动态'), findsNothing);
+    expect(find.byKey(const ValueKey('me_dynamics_timeline')), findsNothing);
+    expect(find.text('第三方平台一键安装'), findsNothing);
+    expect(find.text('最后问一声，还有要加仓股票的吗'), findsNothing);
   });
 
   testWidgets('me page uses profile row without duplicate page title',

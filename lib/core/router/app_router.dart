@@ -50,7 +50,6 @@ import '../../presentation/pages/channel_management_page.dart';
 import '../../presentation/channel/channel_conversation_route_page.dart';
 import '../../presentation/channel/channel_home_tab.dart';
 import '../../presentation/channel/channel_share.dart';
-import '../../presentation/pages/dynamic_detail_page.dart';
 import '../../presentation/pages/mcp_permission_page.dart';
 import '../../presentation/pages/mcp_policy_edit_page.dart';
 import '../../presentation/providers/auth_provider.dart';
@@ -631,12 +630,6 @@ GoRouter appRouter(Ref ref) {
         path: '/channel/:channelId',
         pageBuilder: (_, state) => _slidePage(
           ChannelPage(channelId: state.pathParameters['channelId']!),
-        ),
-      ),
-      GoRoute(
-        path: '/me/dynamic/:dynamicId',
-        pageBuilder: (_, state) => _slidePage(
-          DynamicDetailPage(dynamicId: state.pathParameters['dynamicId']!),
         ),
       ),
       GoRoute(

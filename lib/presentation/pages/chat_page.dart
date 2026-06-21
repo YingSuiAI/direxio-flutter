@@ -47,9 +47,6 @@ import '../chat/red_packet_message.dart';
 import '../groups/group_invite_card.dart';
 import '../groups/group_invite_content.dart';
 import '../groups/group_invite_join_flow.dart';
-import '../mock/mock_data.dart';
-import '../mock/mcp_policy.dart';
-import '../mock/mock_mcp_client.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/avatar_url.dart';
@@ -61,20 +58,13 @@ import '../utils/message_history_policy.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/room_read_state.dart';
-import '../widgets/agent_message_body.dart';
 import '../widgets/async_image_preview.dart';
-import '../widgets/tool_call_bubble.dart';
 import '../../data/as_client.dart';
 import '../../data/as_call_session_store.dart';
 import '../../data/local_outbox_store.dart';
 import '../../data/matrix_room_history_sync.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
-
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
 
 void _chatGestureLog(String message) {
   debugPrint('[chat gesture] $message');
@@ -83,10 +73,9 @@ void _chatGestureLog(String message) {
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAT PAGE — index.html `s-chat` 1:1 复刻
 //
-// 真实数据通路（Matrix）+ Mock 数据通路（_MockChatScaffold）并存，业务逻辑全部
-// 保留；仅 widget 树/视觉按 `s-chat` (index.html 第 392-505 行) 与 `s-agent`
-// (第 245-371 行) 重写：头部 / 气泡 / 输入栏 / +号面板 / 表情面板 / 长按上下文
-// 菜单 / 多选栏 / 回复栏。
+// 产品聊天页只保留真实 ProductCore / Matrix room 通路；mock id 不再进入聊天。
+// 视觉按 `s-chat` (index.html 第 392-505 行) 重写：头部 / 气泡 / 输入栏 /
+// +号面板 / 表情面板 / 长按上下文菜单 / 多选栏 / 回复栏。
 // ═══════════════════════════════════════════════════════════════════════════
 
 String _formatMsgTime(DateTime dt) {
@@ -213,15 +202,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   void _onVoicePlaybackChanged() {
     if (mounted) setState(() {});
-  }
-
-  /// 未登录且 roomId 命中演示数据时走本地渲染；
-  /// 已登录则一律走真 Matrix timeline。
-  bool get _useMock {
-    final isLoggedIn =
-        ref.read(authStateNotifierProvider).valueOrNull?.isLoggedIn ?? false;
-    return (_mockAuthEnabled || !isLoggedIn) &&
-        MockData.byId(widget.roomId) != null;
   }
 
   Object _timelineItemKey(ChatTimelineItem<Event, LocalOutboxItem> item) {
@@ -445,10 +425,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _pendingTargetEventId = widget.targetEventId?.trim();
     _voicePlayer.playback.addListener(_onVoicePlaybackChanged);
     _messageScrollCtrl.addListener(_onMessageScroll);
-    if (_useMock) {
-      _loading = false;
-      return;
-    }
     _roomSyncSub = ref.read(matrixClientProvider).onSync.stream.listen((_) {
       if (!mounted || _room == null) return;
       if (_timeline == null) {
@@ -2211,10 +2187,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_useMock) {
-      return _MockChatScaffold(conv: MockData.byId(widget.roomId)!);
-    }
-
     final room = _room;
     final t = context.tk;
     final syncCache = ref.watch(asSyncCacheProvider);
@@ -3412,922 +3384,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Mock 聊天页：roomId 命中 MockData 时使用，无需 Matrix client。
-// ═══════════════════════════════════════════════════════════════════════════
-
-class _MockChatScaffold extends ConsumerStatefulWidget {
-  const _MockChatScaffold({required this.conv});
-  final MockConversation conv;
-
-  @override
-  ConsumerState<_MockChatScaffold> createState() => _MockChatScaffoldState();
-}
-
-class _PendingConfirm {
-  _PendingConfirm({
-    required this.tool,
-    required this.args,
-    required this.preview,
-    required this.onConfirm,
-  });
-  final String tool;
-  final Map<String, dynamic> args;
-  final String preview;
-  final VoidCallback onConfirm;
-}
-
-class _MockChatScaffoldState extends ConsumerState<_MockChatScaffold> {
-  final _ctrl = TextEditingController();
-  final _scrollCtrl = ScrollController();
-  late List<MockMessage> _messages;
-  bool _agentBusy = false;
-  _PendingConfirm? _pendingConfirm;
-  Timer? _streamTimer;
-  static const _agentId = 'local-aibot';
-
-  // s-chat 视觉状态
-  bool _showPlusPanel = false;
-  bool _showEmojiPanel = false;
-  bool _multiSelect = false;
-  final Set<int> _selected = {};
-  MockMessage? _replyTo;
-  final ChatInitialEntranceRegistry _initialMockEntrances =
-      ChatInitialEntranceRegistry();
-  Timer? _initialMockEntranceTimer;
-  bool _pendingViewportScrollToBottom = false;
-  double _lastKeyboardInsetBottom = 0;
-  double _emojiPanelHeight = chatEmojiPanelDefaultHeight;
-  bool _lastBottomPanelVisible = false;
-
-  bool get _isAiBot => widget.conv.id == 'mock_aibot';
-
-  @override
-  void initState() {
-    super.initState();
-    _messages = _isAiBot ? <MockMessage>[] : List.of(widget.conv.messages);
-    _scrollToLatest(jump: true);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    _scrollCtrl.dispose();
-    _streamTimer?.cancel();
-    _initialMockEntranceTimer?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _send() async {
-    final text = _ctrl.text.trim();
-    if (text.isEmpty) return;
-    final replyTo = _replyTo;
-    final sent = MockMessage(
-      isMe: true,
-      text: text,
-      time: DateTime.now(),
-      quotedSender: replyTo == null
-          ? null
-          : replyTo.isMe
-              ? '我'
-              : widget.conv.name,
-      quotedText: replyTo?.text,
-    );
-    setState(() {
-      _messages.add(sent);
-      _ctrl.clear();
-      _replyTo = null;
-    });
-    _scrollToLatest();
-  }
-
-  VoidCallback? _mockPeerAvatarTap(MockMessage message) {
-    if (message.isMe || _isAiBot || widget.conv.isGroup) return null;
-    final mxid = widget.conv.mxid.trim();
-    if (!mxid.startsWith('@') || !mxid.contains(':')) return null;
-    return () => _openMockContactDetail(mxid);
-  }
-
-  Key? _mockPeerAvatarKey(MockMessage message, int index) {
-    if (message.isMe || _isAiBot || widget.conv.isGroup) return null;
-    return ValueKey('chat_peer_avatar_${widget.conv.id}_$index');
-  }
-
-  void _openMockContactDetail(String userId) {
-    final id = userId.trim();
-    if (id.isEmpty) return;
-    context.push(
-      '/contact/${Uri.encodeComponent(id)}?source=chat_avatar',
-    );
-  }
-
-  Object _mockMessageKey(MockMessage message) => message;
-
-  void _seedInitialMockEntrances(List<Object> keys) {
-    if (!_initialMockEntrances.seed(keys)) return;
-    _initialMockEntranceTimer?.cancel();
-    _initialMockEntranceTimer = Timer(
-      ChatInitialEntranceRegistry.closeDelay,
-      () {
-        _initialMockEntrances.close();
-        if (mounted) setState(() {});
-      },
-    );
-  }
-
-  void _scrollToLatest({bool jump = false}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollCtrl.hasClients) return;
-      final offset = _scrollCtrl.position.maxScrollExtent;
-      if (jump) {
-        _scrollCtrl.jumpTo(offset);
-        return;
-      }
-      unawaited(
-        _scrollCtrl.animateTo(
-          offset,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        ),
-      );
-    });
-  }
-
-  /// 流式输出：按字符 append，制造打字机感
-  void _streamAgentReply(String full, {int charDelayMs = 12}) {
-    _streamTimer?.cancel();
-    setState(() {
-      _agentBusy = true;
-      _messages.add(MockMessage(isMe: false, text: '', time: DateTime.now()));
-    });
-    int i = 0;
-    _streamTimer = Timer.periodic(Duration(milliseconds: charDelayMs), (t) {
-      if (!mounted) {
-        t.cancel();
-        return;
-      }
-      if (i >= full.length) {
-        t.cancel();
-        setState(() => _agentBusy = false);
-        return;
-      }
-      i = (i + 2).clamp(0, full.length);
-      setState(() {
-        final last = _messages.last;
-        _messages[_messages.length - 1] = MockMessage(
-          isMe: last.isMe,
-          text: full.substring(0, i),
-          time: last.time,
-        );
-      });
-    });
-  }
-
-  void _addToolBubble({
-    required String tool,
-    required Map<String, dynamic> args,
-    required String summary,
-    required int latencyMs,
-    List<String> warnings = const [],
-    bool denied = false,
-    String? deniedReason,
-  }) {
-    setState(() {
-      _messages.add(
-        MockMessage(
-          isMe: false,
-          text: '',
-          time: DateTime.now(),
-          kind: MockMsgKind.toolCall,
-          toolName: tool,
-          toolArgs: args,
-          toolResultSummary: denied ? (deniedReason ?? '被拒') : summary,
-          toolLatencyMs: latencyMs,
-          toolWarnings: [...warnings, if (denied) deniedReason ?? '权限不足'],
-        ),
-      );
-    });
-  }
-
-  void _addUserAction(String text) {
-    _messages.add(MockMessage(isMe: true, text: text, time: DateTime.now()));
-  }
-
-  // ignore: unused_element
-  Future<void> _onTokenUsage() async {
-    setState(() => _addUserAction('/查询 token 用量'));
-    try {
-      final r = await _callToolWithBubble('token_usage', {});
-      final d = r.data;
-      _streamAgentReply(
-        '## 📊 本月 Token 用量\n\n'
-        '| 类别 | 数量 |\n'
-        '| --- | ---: |\n'
-        '| 输入 | `${d['input']}` |\n'
-        '| 输出 | `${d['output']}` |\n'
-        '| **总计** | **${d['total']} / ${d['limit']}** |\n'
-        '| 占比 | ${(d['total'] / d['limit'] * 100).toStringAsFixed(1)}% |\n\n'
-        '**当前模型**：`${d['model']}`  \n'
-        '**本月预计支出**：¥${d['cost_cny']}\n\n'
-        '> ⏰ 配额重置时间：**2026-06-01**',
-      );
-    } on McpDeniedException {
-      /* 已写气泡 */
-    }
-  }
-
-  // ignore: unused_element
-  Future<void> _onSummarizeRecent() async {
-    setState(() => _addUserAction('/总结最近谁和我聊了什么'));
-    try {
-      final who = await _callToolWithBubble('list_conversations', {
-        'query': 'jack',
-      });
-      final convs = who.data['conversations'] as List;
-      if (convs.isEmpty) {
-        _streamAgentReply('没有匹配到名为 Jack 的会话。');
-        return;
-      }
-      final target = convs.first;
-      final r = await _callToolWithBubble('get_recent_messages', {
-        'room_id': target['id'],
-        'limit': 50,
-      });
-      final msgs = (r.data['messages'] as List).cast<Map>();
-      final preview = msgs
-          .take(3)
-          .map((m) => '> **${m['sender_name']}**：${m['text']}')
-          .join('\n>\n');
-
-      final policy = ref.read(mcpPolicyStoreProvider)[_agentId]!;
-      final warnLines = <String>[
-        if (r.warnings.isNotEmpty) ...r.warnings.map((w) => '> ⚠️ $w'),
-        '> 当前窗口：**${policy.historyWindow.label}**；范围：**${policy.summary}**',
-      ];
-
-      _streamAgentReply(
-        '## 📨 最近联系人活动\n\n'
-        '### ${target['name']} `${target['mxid']}`\n\n'
-        '共 **${msgs.length}** 条消息，未读 **${target['unread']}** 条。\n\n'
-        '**关键内容**\n\n'
-        '- 周一下午评审会改期至 **周二 10:00**，会议室 `A 区 3 楼`\n'
-        '- 需带上次的 PRD 文档参会\n'
-        '- 询问周末是否有空一起打球\n\n'
-        '**消息预览**\n\n'
-        '$preview\n\n'
-        '---\n\n'
-        '**建议行动**\n\n'
-        '- ✅ 已在日历更新评审会时间\n'
-        '- ⏰ 待办：整理 PRD 文档\n'
-        '- 💬 待回复：周末是否打球（**提示**：点下方"代我回复"按钮，将经你确认后发送）\n\n'
-        '${warnLines.join('\n')}',
-      );
-    } on McpDeniedException {
-      /* 已写气泡 */
-    }
-  }
-
-  // ignore: unused_element
-  void _onAgentDraftReply() {
-    setState(() {
-      _pendingConfirm = _PendingConfirm(
-        tool: 'send_message',
-        args: {'room_id': 'mock_jack', 'text': '周日下午 3 点万体馆见，到时候打你电话。'},
-        preview: '将发送给 **Jack**：\n\n> 周日下午 3 点万体馆见，到时候打你电话。',
-        onConfirm: () async {
-          final args = _pendingConfirm!.args;
-          setState(() => _pendingConfirm = null);
-          try {
-            await _callToolWithBubble(
-              'send_message',
-              args,
-              userConfirmed: true,
-            );
-            _streamAgentReply('✅ 已替你发送给 Jack。');
-          } on McpDeniedException {
-            /* 已写气泡 */
-          }
-        },
-      );
-    });
-  }
-
-  Future<void> _onLongPressMsg(
-    MockMessage m,
-    _MessageContextAnchor anchor, {
-    required _MessageContextMenuPlacement placement,
-  }) async {
-    if (m.kind != MockMsgKind.text &&
-        m.kind != MockMsgKind.image &&
-        m.kind != MockMsgKind.file) {
-      _chatGestureLog('mock longPress ignored kind=${m.kind}');
-      return;
-    }
-    _chatGestureLog(
-      'mock longPress handler kind=${m.kind} pos=${anchor.position} rect=${anchor.bubbleRect} placement=$placement',
-    );
-    final action = await _showMsgContextMenu(
-      context,
-      anchor,
-      placement: placement,
-    );
-    _chatGestureLog('mock context menu result kind=${m.kind} action=$action');
-    if (!mounted || action == null) return;
-    switch (action) {
-      case 'copy':
-        await Clipboard.setData(ClipboardData(text: m.text));
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('已复制'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }
-        break;
-      case 'quote':
-        setState(() => _replyTo = m);
-        break;
-      case 'forward':
-        // 占位
-        break;
-      case 'fav':
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('已收藏'),
-              duration: Duration(seconds: 1),
-            ),
-          );
-        }
-        break;
-      case 'multi':
-        setState(() {
-          _multiSelect = true;
-          _selected.add(_messages.indexOf(m));
-        });
-        break;
-      case 'delete':
-        setState(() => _messages.remove(m));
-        break;
-    }
-  }
-
-  String _mockMessageType(MockMessage message) {
-    if (message.chatRecordContent.isNotEmpty) return chatRecordMessageType;
-    return switch (message.kind) {
-      MockMsgKind.image => MessageTypes.Image,
-      MockMsgKind.file => MessageTypes.File,
-      _ => MessageTypes.Text,
-    };
-  }
-
-  Map<String, Object?> _mockMessageContent(MockMessage message) {
-    if (message.chatRecordContent.isNotEmpty) {
-      return message.chatRecordContent;
-    }
-    return switch (message.kind) {
-      MockMsgKind.image => <String, Object?>{
-          'msgtype': MessageTypes.Image,
-          'body': message.text,
-          if ((message.imageUrl ?? '').trim().isNotEmpty)
-            'url': message.imageUrl!.trim(),
-          'info': <String, Object?>{
-            'mimetype': 'image/jpeg',
-          },
-        },
-      MockMsgKind.file => <String, Object?>{
-          'msgtype': MessageTypes.File,
-          'body': (message.fileName ?? message.text).trim(),
-          'filename': (message.fileName ?? message.text).trim(),
-          'info': <String, Object?>{
-            if ((message.fileMime ?? '').trim().isNotEmpty)
-              'mimetype': message.fileMime!.trim(),
-          },
-        },
-      _ => <String, Object?>{
-          'msgtype': MessageTypes.Text,
-          'body': message.text,
-        },
-    };
-  }
-
-  void _favoriteSelectedMockMessages() {
-    if (_selected.isEmpty) return;
-    setState(() {
-      _multiSelect = false;
-      _selected.clear();
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('已收藏'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-  }
-
-  Future<void> _forwardSelectedMockMessages() async {
-    final selectedMessages = _selected
-        .where((index) => index >= 0 && index < _messages.length)
-        .toList(growable: false)
-      ..sort();
-    if (selectedMessages.isEmpty) return;
-    final payload = buildChatRecordPayload(
-      sourceRoomId: widget.conv.id,
-      sourceRoomType: widget.conv.isGroup ? 'group' : 'direct',
-      sourceName: widget.conv.name,
-      messages: [
-        for (final index in selectedMessages)
-          ChatRecordSourceMessage(
-            senderId:
-                _messages[index].isMe ? '@me:mock.local' : widget.conv.mxid,
-            senderName: _messages[index].isMe
-                ? '我'
-                : (_messages[index].senderName ?? widget.conv.name),
-            isMe: _messages[index].isMe,
-            body: _messages[index].text,
-            messageType: _mockMessageType(_messages[index]),
-            originServerTs: _messages[index].time.millisecondsSinceEpoch,
-            content: _mockMessageContent(_messages[index]),
-          ),
-      ],
-    );
-    setState(() {
-      _messages.add(
-        MockMessage(
-          isMe: true,
-          text: payload.body,
-          time: DateTime.now(),
-          chatRecordContent: payload.matrixContent,
-        ),
-      );
-      _multiSelect = false;
-      _selected.clear();
-    });
-    _scrollToLatest();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已转发聊天记录')),
-    );
-  }
-
-  /// 包装：先 precheck，需确认就弹 banner；否则直接调
-  Future<ToolResult> _callToolWithBubble(
-    String tool,
-    Map<String, dynamic> args, {
-    bool userConfirmed = false,
-  }) async {
-    final client = ref.read(mockMcpClientProvider);
-    final pre = client.precheck(_agentId, tool);
-    if (pre.needConfirm && !userConfirmed) {
-      throw McpDeniedException('需用户二次确认');
-    }
-    try {
-      final r = await client.call(
-        _agentId,
-        tool,
-        args,
-        userConfirmed: userConfirmed,
-      );
-      _addToolBubble(
-        tool: tool,
-        args: args,
-        summary: r.summary,
-        latencyMs: r.latencyMs,
-        warnings: r.warnings,
-      );
-      return r;
-    } on McpDeniedException catch (e) {
-      _addToolBubble(
-        tool: tool,
-        args: args,
-        summary: '',
-        latencyMs: 0,
-        denied: true,
-        deniedReason: e.reason,
-      );
-      rethrow;
-    }
-  }
-
-  void _togglePlus() {
-    final nextVisible = !_showPlusPanel;
-    if (nextVisible) FocusManager.instance.primaryFocus?.unfocus();
-    setState(() {
-      _showPlusPanel = nextVisible;
-      if (_showPlusPanel) _showEmojiPanel = false;
-    });
-  }
-
-  void _toggleEmoji() {
-    final nextVisible = !_showEmojiPanel;
-    if (nextVisible) {
-      final keyboardBottom = MediaQuery.viewInsetsOf(context).bottom;
-      if (keyboardBottom > 1) {
-        _emojiPanelHeight = keyboardBottom.clamp(240.0, 420.0).toDouble();
-      }
-      FocusManager.instance.primaryFocus?.unfocus();
-    }
-    setState(() {
-      _showEmojiPanel = nextVisible;
-      if (_showEmojiPanel) _showPlusPanel = false;
-    });
-  }
-
-  void _closePanels() {
-    final hadFocus = FocusManager.instance.primaryFocus != null;
-    final hadPanels = _showPlusPanel || _showEmojiPanel;
-    _chatGestureLog(
-      'mock messageLayer pointer closePanels hadFocus=$hadFocus hadPanels=$hadPanels plus=$_showPlusPanel emoji=$_showEmojiPanel',
-    );
-    if (!hadPanels) return;
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() {
-      _showPlusPanel = false;
-      _showEmojiPanel = false;
-    });
-  }
-
-  void _scheduleViewportScrollToBottom() {
-    if (_pendingViewportScrollToBottom) return;
-    _pendingViewportScrollToBottom = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _pendingViewportScrollToBottom = false;
-      if (!_scrollCtrl.hasClients) return;
-      final position = _scrollCtrl.position;
-      final target = position.maxScrollExtent;
-      if ((position.pixels - target).abs() < 1) return;
-      unawaited(
-        _scrollCtrl.animateTo(
-          target,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        ),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final c = widget.conv;
-    final replyBarVisible = _replyTo != null || _pendingConfirm != null;
-    final selectionBarVisible = _multiSelect;
-    final keyboardInsetBottom = MediaQuery.viewInsetsOf(context).bottom;
-    if (keyboardInsetBottom > 1) {
-      _emojiPanelHeight = keyboardInsetBottom.clamp(240.0, 420.0).toDouble();
-    }
-    final bottomPanelVisible =
-        keyboardInsetBottom <= 1 && (_showPlusPanel || _showEmojiPanel);
-    final showEmojiPanelContent = _showEmojiPanel && keyboardInsetBottom <= 1;
-    final bottomViewportChanged =
-        keyboardInsetBottom != _lastKeyboardInsetBottom ||
-            bottomPanelVisible != _lastBottomPanelVisible;
-    if (bottomViewportChanged &&
-        (keyboardInsetBottom > 0 || bottomPanelVisible)) {
-      _scheduleViewportScrollToBottom();
-    }
-    _lastKeyboardInsetBottom = keyboardInsetBottom;
-    _lastBottomPanelVisible = bottomPanelVisible;
-    final messageTopInset = chatMessageTopOverlayClearance(context);
-    final messageBottomInset = chatMessageBottomOverlayClearance(
-      context,
-      replyBarVisible: replyBarVisible,
-      selectionBarVisible: selectionBarVisible,
-      bottomPanelVisible: bottomPanelVisible,
-    );
-    final messagePadding = chatMessageViewportPadding(
-      context,
-      replyBarVisible: replyBarVisible,
-      selectionBarVisible: selectionBarVisible,
-      bottomPanelVisible: bottomPanelVisible,
-      reserveTopOverlay: false,
-      reserveBottomOverlay: false,
-    ).add(const EdgeInsets.symmetric(vertical: 12));
-    final messageKeys = [
-      for (final message in _messages) _mockMessageKey(message)
-    ];
-    _seedInitialMockEntrances(messageKeys);
-    final newestMessageKey = messageKeys.isEmpty ? null : messageKeys.last;
-    return Scaffold(
-      body: ChatGlassBackground(
-        child: ChatLayeredLayout(
-          messageTopInset: messageTopInset,
-          messageBottomInset: messageBottomInset,
-          header: _multiSelect
-              ? ChatSelectionHeader(
-                  count: _selected.length,
-                  onCancel: () => setState(() {
-                    _multiSelect = false;
-                    _selected.clear();
-                  }),
-                )
-              : ChatCapsuleHeader(
-                  title: _isAiBot ? 'Agent' : c.name,
-                  subtitle: c.isGroup ? '6 名成员' : null,
-                  onBack: () => unawaited(_popChatOrHome(context)),
-                  showEncryptionIcon: true,
-                  actions: _isAiBot
-                      ? const []
-                      : [
-                          ChatCapsuleAction(
-                            icon: Symbols.call,
-                            tooltip: '语音通话',
-                            color: t.accent,
-                            onTap: () {},
-                          ),
-                          ChatCapsuleAction(
-                            icon: Symbols.more_vert,
-                            tooltip: '详情',
-                            color: t.accent,
-                            onTap: () => context.push(
-                              c.isGroup
-                                  ? '/group-detail/${Uri.encodeComponent(c.id)}'
-                                  : '/contact/${Uri.encodeComponent(c.mxid)}?source=chat_info',
-                            ),
-                          ),
-                        ],
-                ),
-          messageLayer: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) => _closePanels(),
-            child: _messages.isEmpty
-                ? _EmptyState(isAiBot: _isAiBot)
-                : ChatTimelineListMotion(
-                    itemCount: _messages.length,
-                    newestItemKey: newestMessageKey,
-                    child: ListView.builder(
-                      controller: _scrollCtrl,
-                      padding: messagePadding,
-                      itemCount: _messages.length + (_agentBusy ? 1 : 0) + 1,
-                      itemBuilder: (context, i) {
-                        if (_agentBusy && i == _messages.length) {
-                          return const TypingIndicator();
-                        }
-                        if (i == _messages.length + (_agentBusy ? 1 : 0)) {
-                          return const _E2eFooter();
-                        }
-                        final m = _messages[i];
-                        final itemKey = messageKeys[i];
-                        final contextMenuPlacement =
-                            _messageContextMenuPlacement(i, _messages.length);
-                        Widget enter(Widget child) {
-                          return chatMessageEntrance(
-                            key: ValueKey(
-                              'mock_message_enter_${i}_${m.time.millisecondsSinceEpoch}_${m.isMe}_${m.text.hashCode}',
-                            ),
-                            isMe: m.isMe,
-                            index: i,
-                            enabled: _initialMockEntrances.contains(itemKey),
-                            child: child,
-                          );
-                        }
-
-                        if (m.kind == MockMsgKind.toolCall) {
-                          return enter(
-                            ToolCallBubble(
-                              toolName: m.toolName ?? '',
-                              args: m.toolArgs ?? const {},
-                              resultSummary: m.toolResultSummary ?? '',
-                              latencyMs: m.toolLatencyMs ?? 0,
-                              warnings: m.toolWarnings ?? const [],
-                              denied: m.toolResultSummary?.isEmpty == true &&
-                                  (m.toolWarnings?.isNotEmpty ?? false),
-                              deniedReason: m.toolResultSummary?.isEmpty == true
-                                  ? m.toolWarnings?.first
-                                  : null,
-                            ),
-                          );
-                        }
-                        final selected = _selected.contains(i);
-                        final time = _formatMsgTime(m.time);
-                        final avatarTap = _mockPeerAvatarTap(m);
-                        final avatarKey = _mockPeerAvatarKey(m, i);
-                        void toggle() => setState(() {
-                              if (selected) {
-                                _selected.remove(i);
-                              } else {
-                                _selected.add(i);
-                              }
-                            });
-
-                        final chatRecordPayload = m.chatRecordContent.isEmpty
-                            ? null
-                            : chatRecordPayloadFromContent(
-                                m.chatRecordContent,
-                              );
-                        if (chatRecordPayload != null) {
-                          return enter(
-                            _SChatRecordBubble(
-                              isMe: m.isMe,
-                              payload: chatRecordPayload,
-                              time: time,
-                              showRead: m.isMe,
-                              avatarSeed: m.isMe ? 'me' : c.name,
-                              avatarKey: avatarKey,
-                              onAvatarTap: avatarTap,
-                              selected: selected,
-                              multiSelect: _multiSelect,
-                              onTap: _multiSelect
-                                  ? toggle
-                                  : () => _openChatRecordDetail(
-                                        context,
-                                        chatRecordPayload,
-                                      ),
-                              onLongPressAt: (pos) => _onLongPressMsg(
-                                m,
-                                pos,
-                                placement: contextMenuPlacement,
-                              ),
-                            ),
-                          );
-                        }
-
-                        // 图片消息 → 缩略图气泡，点击全屏预览
-                        if (m.kind == MockMsgKind.image && m.imageUrl != null) {
-                          return enter(
-                            _SChatImageBubble(
-                              isMe: m.isMe,
-                              time: time,
-                              showRead: m.isMe,
-                              avatarSeed: m.isMe ? 'me' : c.name,
-                              avatarKey: avatarKey,
-                              onAvatarTap: avatarTap,
-                              mediaSize: chatMessageDefaultImageMediaSize,
-                              thumb: Image.network(
-                                m.imageUrl!,
-                                fit: BoxFit.contain,
-                              ),
-                              selected: selected,
-                              multiSelect: _multiSelect,
-                              onTap: _multiSelect
-                                  ? toggle
-                                  : () => _openImgPreview(
-                                        context,
-                                        provider: NetworkImage(m.imageUrl!),
-                                        meta:
-                                            '${m.isMe ? '我' : c.name} · $time',
-                                      ),
-                              onLongPressAt: (pos) => _onLongPressMsg(
-                                m,
-                                pos,
-                                placement: contextMenuPlacement,
-                              ),
-                            ),
-                          );
-                        }
-
-                        // 文件消息 → 单击打开；长按/右键走消息菜单；右侧图标仅下载。
-                        if (m.kind == MockMsgKind.file) {
-                          final name = m.fileName ?? m.text;
-                          return enter(
-                            _SChatFileBubble(
-                              isMe: m.isMe,
-                              time: time,
-                              showRead: m.isMe,
-                              avatarSeed: m.isMe ? 'me' : c.name,
-                              avatarKey: avatarKey,
-                              onAvatarTap: avatarTap,
-                              fileName: name,
-                              sizeLabel: m.fileSize ?? '文件',
-                              selected: selected,
-                              multiSelect: _multiSelect,
-                              onTap: _multiSelect
-                                  ? toggle
-                                  : () => ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(content: Text('打开文件')),
-                                      ),
-                              onLongPressAt: (pos) => _onLongPressMsg(
-                                m,
-                                pos,
-                                placement: contextMenuPlacement,
-                              ),
-                            ),
-                          );
-                        }
-
-                        return enter(
-                          _SChatBubble(
-                            isMe: m.isMe,
-                            text: m.text,
-                            quote: (m.quotedSender?.trim().isNotEmpty == true ||
-                                    m.quotedText?.trim().isNotEmpty == true)
-                                ? _QuotedMessagePreview(
-                                    sender: (m.quotedSender ?? '引用消息').trim(),
-                                    text: (m.quotedText ?? '消息').trim(),
-                                  )
-                                : null,
-                            time: time,
-                            showRead: m.isMe,
-                            avatarSeed: m.isMe ? 'me' : c.name,
-                            avatarKey: avatarKey,
-                            onAvatarTap: avatarTap,
-                            markdownChild: (_isAiBot && !m.isMe)
-                                ? AgentMessageBody(m.text)
-                                : null,
-                            selected: selected,
-                            multiSelect: _multiSelect,
-                            onTap: _multiSelect
-                                ? () => setState(() {
-                                      if (selected) {
-                                        _selected.remove(i);
-                                      } else {
-                                        _selected.add(i);
-                                      }
-                                    })
-                                : null,
-                            onLongPressAt: (pos) => _onLongPressMsg(
-                              m,
-                              pos,
-                              placement: contextMenuPlacement,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-          ),
-          bottomOverlay: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_pendingConfirm != null)
-                _ConfirmBanner(
-                  pending: _pendingConfirm!,
-                  onCancel: () => setState(() => _pendingConfirm = null),
-                ),
-              if (_replyTo != null)
-                _ReplyBar(
-                  text: _replyTo!.text,
-                  sender: _replyTo!.isMe ? '我' : c.name,
-                  onClose: () => setState(() => _replyTo = null),
-                ),
-              if (_multiSelect)
-                ChatRecordSelectionBar(
-                  count: _selected.length,
-                  compact: true,
-                  onExit: () => setState(() {
-                    _multiSelect = false;
-                    _selected.clear();
-                  }),
-                  onFavorite: _favoriteSelectedMockMessages,
-                  onForward: () => unawaited(_forwardSelectedMockMessages()),
-                  onDelete: () {
-                    setState(() {
-                      final idx = _selected.toList()..sort((a, b) => b - a);
-                      for (final i in idx) {
-                        if (i < _messages.length) _messages.removeAt(i);
-                      }
-                      _multiSelect = false;
-                      _selected.clear();
-                    });
-                  },
-                )
-              else
-                ChatCapsuleInputBar(
-                  ctrl: _ctrl,
-                  onSend: _send,
-                  onPlus: _togglePlus,
-                  onEmoji: _toggleEmoji,
-                  plusActive: _showPlusPanel,
-                  emojiActive: _showEmojiPanel,
-                  suggestions:
-                      _isAiBot ? const [] : const ['周日下午有空', '周日要加班，下次', '几点？'],
-                  onPickSuggestion: (s) {
-                    _ctrl.text = s;
-                    _send();
-                  },
-                ),
-              if (_showPlusPanel)
-                ChatAttachmentPanel(
-                  room: null,
-                  roomId: '',
-                  canSend: true,
-                  useAsProductMedia: false,
-                  onClose: () => setState(() => _showPlusPanel = false),
-                  onCannotSend: _showPendingContactToast,
-                  onVideoCall: c.isGroup || _isAiBot ? null : () {},
-                ),
-              if (showEmojiPanelContent)
-                ChatEmojiPanel(
-                  height: _emojiPanelHeight,
-                  onPick: (e) {
-                    final c = _ctrl;
-                    final base = c.text;
-                    c.text = base + e;
-                    c.selection =
-                        TextSelection.collapsed(offset: c.text.length);
-                  },
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 Set<String> _peerReadEventIds({
   required Room room,
   required String peerMxid,
@@ -4604,10 +3660,8 @@ class _SChatBubble extends StatelessWidget {
     required this.showRead,
     required this.avatarSeed,
     this.quote,
-    this.avatarKey,
     this.avatarUrl,
     this.onAvatarTap,
-    this.markdownChild,
     this.selected = false,
     this.multiSelect = false,
     this.onTap,
@@ -4622,10 +3676,8 @@ class _SChatBubble extends StatelessWidget {
   final bool showRead;
   final String avatarSeed;
   final _QuotedMessagePreview? quote;
-  final Key? avatarKey;
   final String? avatarUrl;
   final VoidCallback? onAvatarTap;
-  final Widget? markdownChild;
   final bool selected;
   final bool multiSelect;
   final VoidCallback? onTap;
@@ -4702,15 +3754,14 @@ class _SChatBubble extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
               ],
-              markdownChild ??
-                  Text(
-                    text,
-                    style: AppTheme.sans(
-                      size: 17,
-                      weight: FontWeight.w500,
-                      color: textColor,
-                    ).copyWith(height: 1.25),
-                  ),
+              Text(
+                text,
+                style: AppTheme.sans(
+                  size: 17,
+                  weight: FontWeight.w500,
+                  color: textColor,
+                ).copyWith(height: 1.25),
+              ),
             ],
           ),
         ),
@@ -4765,7 +3816,6 @@ class _SChatBubble extends StatelessWidget {
           if (!isMe) ...[
             _MessageAvatar(
               seed: avatarSeed,
-              avatarKey: avatarKey,
               imageUrl: avatarUrl,
               onAvatarTap: onAvatarTap,
             ),
@@ -4874,7 +3924,6 @@ class _SChatRecordBubble extends StatelessWidget {
     required this.time,
     required this.showRead,
     required this.avatarSeed,
-    this.avatarKey,
     this.avatarUrl,
     this.onAvatarTap,
     this.selected = false,
@@ -4888,7 +3937,6 @@ class _SChatRecordBubble extends StatelessWidget {
   final String time;
   final bool showRead;
   final String avatarSeed;
-  final Key? avatarKey;
   final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final bool selected;
@@ -4905,7 +3953,6 @@ class _SChatRecordBubble extends StatelessWidget {
       multiSelect: multiSelect,
       selected: selected,
       avatarSeed: avatarSeed,
-      avatarKey: avatarKey,
       avatarUrl: avatarUrl,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
@@ -5111,20 +4158,17 @@ class _SChatCallRecordBubble extends StatelessWidget {
 class _MessageAvatar extends StatelessWidget {
   const _MessageAvatar({
     required this.seed,
-    this.avatarKey,
     this.imageUrl,
     this.onAvatarTap,
   });
 
   final String? seed;
-  final Key? avatarKey;
   final String? imageUrl;
   final VoidCallback? onAvatarTap;
 
   @override
   Widget build(BuildContext context) {
     final avatar = PortalAvatar(
-      key: avatarKey,
       seed: (seed == null || seed!.trim().isEmpty) ? 'peer' : seed!,
       size: 40,
       imageUrl: imageUrl,
@@ -5174,7 +4218,6 @@ Widget _bubbleRow({
   required bool multiSelect,
   required bool selected,
   String? avatarSeed,
-  Key? avatarKey,
   String? avatarUrl,
   VoidCallback? onAvatarTap,
   VoidCallback? onSelectTap,
@@ -5199,7 +4242,6 @@ Widget _bubbleRow({
         if (!isMe) ...[
           _MessageAvatar(
             seed: avatarSeed,
-            avatarKey: avatarKey,
             imageUrl: avatarUrl,
             onAvatarTap: onAvatarTap,
           ),
@@ -5269,7 +4311,6 @@ class _SChatImageBubble extends StatelessWidget {
     this.mediaSize = chatMessageDefaultImageMediaSize,
     this.statusOverlay,
     this.centerOverlay,
-    this.avatarKey,
     this.avatarUrl,
     this.onAvatarTap,
     this.selected = false,
@@ -5286,7 +4327,6 @@ class _SChatImageBubble extends StatelessWidget {
   final ChatMediaBubbleSize mediaSize;
   final Widget? statusOverlay;
   final Widget? centerOverlay;
-  final Key? avatarKey;
   final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final bool selected;
@@ -5363,7 +4403,6 @@ class _SChatImageBubble extends StatelessWidget {
       multiSelect: multiSelect,
       selected: selected,
       avatarSeed: avatarSeed,
-      avatarKey: avatarKey,
       avatarUrl: avatarUrl,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
@@ -5521,7 +4560,6 @@ class _SChatFileBubble extends StatelessWidget {
     required this.sizeLabel,
     required this.onTap,
     this.leadingIcon = Symbols.description,
-    this.avatarKey,
     this.avatarUrl,
     this.onAvatarTap,
     this.trailing,
@@ -5538,7 +4576,6 @@ class _SChatFileBubble extends StatelessWidget {
   final String sizeLabel;
   final VoidCallback? onTap;
   final IconData leadingIcon;
-  final Key? avatarKey;
   final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final Widget? trailing;
@@ -5681,7 +4718,6 @@ class _SChatFileBubble extends StatelessWidget {
       multiSelect: multiSelect,
       selected: selected,
       avatarSeed: avatarSeed,
-      avatarKey: avatarKey,
       avatarUrl: avatarUrl,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
@@ -6526,322 +5562,6 @@ class _E2eFooter extends StatelessWidget {
               Icon(Symbols.lock, size: 12, color: t.textMute),
               const SizedBox(width: 4),
               Text('端对端加密', style: AppTheme.sans(size: 11, color: t.textMute)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.isAiBot});
-  final bool isAiBot;
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isAiBot ? Symbols.auto_awesome : Symbols.chat_bubble,
-            size: 36,
-            color: t.textMute,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            isAiBot ? '问点什么 / 用上方快捷指令' : '开始你们的第一条消息',
-            style: AppTheme.sans(size: 13, color: t.textMute),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ConfirmBanner extends StatelessWidget {
-  const _ConfirmBanner({required this.pending, required this.onCancel});
-  final _PendingConfirm pending;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      decoration: BoxDecoration(
-        color: t.surface,
-        border: Border(top: BorderSide(color: t.accent, width: 2)),
-      ),
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Symbols.security, size: 16, color: t.accent),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      'Agent 想调用 ',
-                      style: AppTheme.sans(size: 12, color: t.textMute),
-                    ),
-                    Text(
-                      pending.tool,
-                      style: AppTheme.mono(
-                        size: 12,
-                        color: t.accent,
-                        weight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      ' · 需你确认',
-                      style: AppTheme.sans(size: 12, color: t.textMute),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                AgentMessageBody(pending.preview, selectable: false),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            children: [
-              TextButton(
-                onPressed: onCancel,
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(60, 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                ),
-                child: Text(
-                  '取消',
-                  style: AppTheme.sans(size: 12, color: t.textMute),
-                ),
-              ),
-              const SizedBox(height: 4),
-              FilledButton(
-                onPressed: pending.onConfirm,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(60, 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  backgroundColor: t.accent,
-                ),
-                child: Text(
-                  '确认发送',
-                  style: AppTheme.sans(
-                    size: 12,
-                    color: t.onAccent,
-                    weight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// AI Bot 输入框上方悬浮的两个胶囊按钮 —— 飞书风格
-// ignore: unused_element
-class _AgentFloatingBar extends ConsumerWidget {
-  const _AgentFloatingBar({
-    required this.onTestAsConnector,
-    required this.onNewSession,
-  });
-
-  final VoidCallback onTestAsConnector;
-  final VoidCallback onNewSession;
-
-  void _showShortcuts(BuildContext context, Offset anchor) {
-    final t = context.tk;
-    showMenu<void>(
-      context: context,
-      color: t.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: t.border),
-      ),
-      position: RelativeRect.fromLTRB(
-        anchor.dx,
-        anchor.dy,
-        anchor.dx + 1,
-        anchor.dy + 1,
-      ),
-      items: [
-        _shortcutItem(
-          t,
-          Symbols.api,
-          '测试 AS 连接',
-          'Bearer token 调用 /api/*',
-          onTestAsConnector,
-        ),
-        _shortcutItem(
-          t,
-          Symbols.add_comment,
-          '新建会话',
-          '清空当前对话开始新一轮',
-          onNewSession,
-        ),
-      ],
-    );
-  }
-
-  PopupMenuItem<void> _shortcutItem(
-    PortalTokens t,
-    IconData icon,
-    String title,
-    String subtitle,
-    VoidCallback onTap,
-  ) {
-    return PopupMenuItem<void>(
-      onTap: onTap,
-      padding: EdgeInsets.zero,
-      child: Container(
-        width: 260,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: t.accent),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: AppTheme.sans(
-                      size: 13,
-                      color: t.text,
-                      weight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: AppTheme.sans(size: 11, color: t.textMute),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = context.tk;
-    final policy = ref.watch(mcpPolicyStoreProvider)['local-aibot'];
-    return Container(
-      color: t.bg,
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (policy != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6, left: 2),
-              child: Row(
-                children: [
-                  Icon(
-                    Symbols.verified_user,
-                    size: 11,
-                    color: policy.enabled ? t.accent : t.textMute,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    policy.enabled ? '权限：${policy.summary}' : '权限：已禁用',
-                    style: AppTheme.mono(size: 10, color: t.textMute),
-                  ),
-                ],
-              ),
-            ),
-          Row(
-            children: [
-              Builder(
-                builder: (btnCtx) {
-                  return _CapsuleButton(
-                    icon: Symbols.keyboard_arrow_down,
-                    iconLeading: false,
-                    label: '快捷指令',
-                    onTap: () {
-                      final box = btnCtx.findRenderObject() as RenderBox?;
-                      final offset =
-                          box?.localToGlobal(Offset.zero) ?? Offset.zero;
-                      _showShortcuts(btnCtx, offset);
-                    },
-                  );
-                },
-              ),
-              const SizedBox(width: 8),
-              _CapsuleButton(
-                icon: Symbols.tune,
-                iconLeading: true,
-                label: '管理',
-                onTap: () => context.push('/mcp-permission/local-aibot'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CapsuleButton extends StatelessWidget {
-  const _CapsuleButton({
-    required this.icon,
-    required this.iconLeading,
-    required this.label,
-    required this.onTap,
-  });
-  final IconData icon;
-  final bool iconLeading;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Material(
-      color: t.primaryContainer.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(9999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(9999),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(9999),
-            border: Border.all(color: t.accent.withValues(alpha: 0.25)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (iconLeading) ...[
-                Icon(icon, size: 15, color: t.accent),
-                const SizedBox(width: 5),
-              ],
-              Text(
-                label,
-                style: AppTheme.sans(
-                  size: 13,
-                  color: t.accent,
-                  weight: FontWeight.w600,
-                ),
-              ),
-              if (!iconLeading) ...[
-                const SizedBox(width: 4),
-                Icon(icon, size: 15, color: t.accent),
-              ],
             ],
           ),
         ),

@@ -104,9 +104,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       roomId: acceptedContactForUser?.roomId ?? room?.id ?? '',
     );
     final mock = room == null ? MockData.byMxid(userId) : null;
-    final canUseMock = room == null && mock != null;
-    final canOpenChat =
-        (canUseRealRoom && directProductConversation != null) || canUseMock;
+    final canOpenChat = canUseRealRoom && directProductConversation != null;
     final acceptedContact = acceptedContactForUser ??
         (room == null ? null : syncCache.acceptedContactForRoom(room.id));
     final domain = domainFromMxid(userId);
@@ -171,12 +169,8 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     _QuickActionGrid(
                       onMessage: canOpenChat && roomId != null
                           ? () {
-                              if (canUseMock) {
-                                _openMockChat(roomId);
-                                return;
-                              }
                               _openProductChat(
-                                directProductConversation!,
+                                directProductConversation,
                               );
                             }
                           : null,
@@ -280,13 +274,6 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     if (roomId.isEmpty || route == null) return;
     showHomeConversation(ref, roomId);
     context.go(route);
-  }
-
-  void _openMockChat(String roomId) {
-    final trimmed = roomId.trim();
-    if (trimmed.isEmpty) return;
-    showHomeConversation(ref, trimmed);
-    context.go('/chat/${Uri.encodeComponent(trimmed)}');
   }
 
   Future<void> _confirmDeleteContact(

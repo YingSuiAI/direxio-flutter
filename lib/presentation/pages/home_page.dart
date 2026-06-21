@@ -1482,7 +1482,7 @@ class _ChatList extends ConsumerWidget {
             isGroup: c.isGroup,
             avatarUrl: c.avatarUrl,
             isPinned: pinnedConversationIds.contains(c.id),
-            onTap: () => context.push('/chat/${c.id}'),
+            onTap: null,
             onTogglePin: () => _toggleHomeConversationPin(ref, c.id),
             onHide: () => hideHomeConversation(ref, c.id),
             onDelete: () => hideHomeConversation(ref, c.id),
@@ -2222,7 +2222,7 @@ class _ConvRow extends StatelessWidget {
   final String lastMessage;
   final String time;
   final int unread;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final VoidCallback onTogglePin;
   final VoidCallback onHide;
   final VoidCallback onDelete;

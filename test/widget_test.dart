@@ -7463,6 +7463,38 @@ void main() {
     expect(find.text('群主'), findsOneWidget);
   });
 
+  testWidgets('mock groups do not open chat routes', (tester) async {
+    final router = GoRouter(
+      initialLocation: '/groups',
+      routes: [
+        GoRoute(path: '/groups', builder: (_, __) => const GroupsListPage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, __) => const Scaffold(body: Text('opened-chat')),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('产品设计组'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('opened-chat'), findsNothing);
+    expect(find.text('产品设计组'), findsOneWidget);
+  });
+
   testWidgets('groups list excludes AS accepted undirected direct contacts',
       (tester) async {
     final client = Client('PortalIMGroupsExcludeDirectMetadataTest')
@@ -7760,6 +7792,7 @@ void main() {
                 lifecycle: 'active',
                 title: '产品群',
                 avatarUrl: '',
+                capabilities: AsConversationCapabilities(open: true),
               ),
             ]),
           ),
@@ -11038,30 +11071,16 @@ void main() {
     expect(find.byKey(conversationKey), findsNothing);
   });
 
-  testWidgets('mock auth build opens mock chat despite cached login',
+  testWidgets('home mock conversations do not open chat routes',
       (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (!mockAuthEnabled) return;
-
+    final client = Client('PortalIMHomeMockNoOpenTest');
     final router = GoRouter(
-      initialLocation: '/chat/mock_dave',
+      initialLocation: '/home',
       routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
         GoRoute(
           path: '/chat/:roomId',
-          builder: (_, state) =>
-              ChatPage(roomId: state.pathParameters['roomId']!),
-        ),
-        GoRoute(
-          path: '/contact/:userId',
-          builder: (_, state) => ContactDetailPage(
-            userId: state.pathParameters['userId']!,
-            fromChatAvatar:
-                state.uri.queryParameters['source'] == 'chat_avatar',
-            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
-          ),
+          builder: (_, __) => const Scaffold(body: Text('opened-chat')),
         ),
       ],
     );
@@ -11069,8 +11088,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -11080,29 +11100,18 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Dave Lee'), findsOneWidget);
-
-    await tester
-        .tap(find.byKey(const ValueKey('chat_peer_avatar_mock_dave_1')));
+    await tester.tap(find.text('Alice Chen'));
     await tester.pumpAndSettle();
 
-    expect(find.text('发消息'), findsOneWidget);
-    expect(find.text('语音通话'), findsOneWidget);
-    expect(find.text('删除好友'), findsOneWidget);
+    expect(find.text('opened-chat'), findsNothing);
+    expect(find.text('Alice Chen'), findsOneWidget);
   });
 
-  testWidgets('mock auth chat stays local', (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (!mockAuthEnabled) return;
-
+  testWidgets('chat route rejects mock conversation ids', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -11110,124 +11119,10 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(milliseconds: 50));
-
-    expect(find.text('Dave Lee'), findsOneWidget);
-  });
-
-  testWidgets('mock direct chat multi-select checkbox toggles selection',
-      (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (!mockAuthEnabled) return;
-
-    final router = GoRouter(
-      initialLocation: '/chat/mock_jack',
-      routes: [
-        GoRoute(
-          path: '/chat/:roomId',
-          builder: (_, state) =>
-              ChatPage(roomId: state.pathParameters['roomId']!),
-        ),
-      ],
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
-        ],
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: router,
-        ),
-      ),
-    );
     await tester.pump();
 
-    await tester.longPress(find.text('改到几点？'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('多选'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('已选择 1条消息'), findsOneWidget);
-
-    final visibleUncheckedMessage = find.text('另外周末有空吗？想约你打球');
-    final messageCenter = tester.getCenter(visibleUncheckedMessage);
-    await tester.tapAt(Offset(36, messageCenter.dy));
-    await tester.pump();
-
-    expect(find.text('已选择 2条消息'), findsOneWidget);
-
-    await tester.tapAt(
-      Offset(
-        tester.view.physicalSize.width / tester.view.devicePixelRatio - 24,
-        messageCenter.dy,
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('已选择 1条消息'), findsOneWidget);
-  });
-
-  testWidgets('mock forwarded chat record opens detail with source messages',
-      (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (!mockAuthEnabled) return;
-
-    final router = GoRouter(
-      initialLocation: '/chat/mock_jack',
-      routes: [
-        GoRoute(
-          path: '/chat/:roomId',
-          builder: (_, state) =>
-              ChatPage(roomId: state.pathParameters['roomId']!),
-        ),
-      ],
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
-        ],
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: router,
-        ),
-      ),
-    );
-    await tester.pump();
-
-    await tester.longPress(find.text('改到几点？'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('多选'));
-    await tester.pumpAndSettle();
-
-    final secondMessage = find.text('另外周末有空吗？想约你打球');
-    final secondMessageCenter = tester.getCenter(secondMessage);
-    await tester.tapAt(Offset(36, secondMessageCenter.dy));
-    await tester.pump();
-    await tester.tap(find.byTooltip('转发'));
-    await tester.pumpAndSettle();
-
-    final recordBubble = find.text('聊天记录\n与 Jack 的聊天记录\n共 2 条消息');
-    expect(recordBubble, findsOneWidget);
-
-    await tester.tap(recordBubble);
-    await tester.pumpAndSettle();
-
-    expect(find.text('与 Jack 的聊天记录'), findsOneWidget);
-    expect(find.text('共 2 条消息'), findsOneWidget);
-    expect(find.text('改到几点？'), findsOneWidget);
-    expect(find.text('另外周末有空吗？想约你打球'), findsOneWidget);
+    expect(find.text('会话不存在'), findsOneWidget);
+    expect(find.text('Dave Lee'), findsNothing);
   });
 
   testWidgets('mock auth build ignores cached login for groups',
@@ -12042,6 +11937,44 @@ void main() {
     expect(find.text('P2P IM 官方'), findsOneWidget);
   });
 
+  testWidgets('global search mock contacts do not open chat routes',
+      (tester) async {
+    final client = Client('PortalIMSearchMockNoOpenTest');
+    final router = GoRouter(
+      initialLocation: '/search',
+      routes: [
+        GoRoute(path: '/search', builder: (_, __) => const SearchPage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, __) => const Scaffold(body: Text('opened-chat')),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'Alice');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    await tester.tap(find.text('Alice Chen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('opened-chat'), findsNothing);
+    expect(find.text('Alice Chen'), findsOneWidget);
+  });
+
   testWidgets('global search opens channel detail results', (tester) async {
     final client = Client('PortalIMTest');
     final router = GoRouter(
@@ -12757,108 +12690,6 @@ void main() {
     expect(client.getRoomById('!alice:p2p-im.com'), isNull);
     expect(find.text('messages-home'), findsOneWidget);
     expect(find.text('会话不存在'), findsNothing);
-  });
-
-  testWidgets('mock direct chat peer avatar opens contact detail page',
-      (tester) async {
-    final router = GoRouter(
-      initialLocation: '/chat/mock_dave',
-      routes: [
-        GoRoute(
-          path: '/chat/:roomId',
-          builder: (_, state) =>
-              ChatPage(roomId: state.pathParameters['roomId']!),
-        ),
-        GoRoute(
-          path: '/contact/:userId',
-          builder: (_, state) => ContactDetailPage(
-            userId: state.pathParameters['userId']!,
-            fromChatAvatar:
-                state.uri.queryParameters['source'] == 'chat_avatar',
-            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
-          ),
-        ),
-      ],
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-        ],
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: router,
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    await tester
-        .tap(find.byKey(const ValueKey('chat_peer_avatar_mock_dave_1')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Dave Lee'), findsOneWidget);
-    expect(find.text('发消息'), findsOneWidget);
-    expect(find.text('语音通话'), findsOneWidget);
-    expect(find.text('视频通话'), findsOneWidget);
-    expect(find.text('设置备注'), findsOneWidget);
-    expect(find.text('推荐给朋友'), findsOneWidget);
-    expect(find.text('搜索聊天'), findsNothing);
-    expect(find.text('消息免打扰'), findsNothing);
-    expect(find.text('拉黑用户'), findsNothing);
-    expect(find.text('举报用户'), findsNothing);
-    expect(find.text('删除好友'), findsOneWidget);
-  });
-
-  testWidgets('mock direct chat header detail opens full contact page',
-      (tester) async {
-    final router = GoRouter(
-      initialLocation: '/chat/mock_dave',
-      routes: [
-        GoRoute(
-          path: '/chat/:roomId',
-          builder: (_, state) =>
-              ChatPage(roomId: state.pathParameters['roomId']!),
-        ),
-        GoRoute(
-          path: '/contact/:userId',
-          builder: (_, state) => ContactDetailPage(
-            userId: state.pathParameters['userId']!,
-            fromChatAvatar:
-                state.uri.queryParameters['source'] == 'chat_avatar',
-            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
-          ),
-        ),
-      ],
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-        ],
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: router,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('详情').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Dave Lee'), findsOneWidget);
-    expect(find.text('发消息'), findsOneWidget);
-    expect(find.text('搜索聊天'), findsOneWidget);
-    expect(find.text('设置备注'), findsOneWidget);
-    expect(find.text('推荐给朋友'), findsNothing);
-    expect(find.text('消息免打扰'), findsOneWidget);
-    expect(find.text('拉黑用户'), findsOneWidget);
-    expect(find.text('举报用户'), findsOneWidget);
-    expect(find.text('删除好友'), findsOneWidget);
   });
 
   testWidgets('contact visitor home follow button toggles locally',
@@ -14196,9 +14027,16 @@ void main() {
 
   testWidgets('agent chat back falls home when chat is the root route',
       (tester) async {
-    final client = Client('PortalIMTest');
+    const roomId = '!agent:p2p-im.com';
+    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: roomId,
+      roomMembership: Membership.join,
+      directPeerMxid: '@agent:p2p-im.com',
+    );
     final router = GoRouter(
-      initialLocation: '/chat/mock_aibot',
+      initialLocation: '/chat/${Uri.encodeComponent(roomId)}',
       routes: [
         GoRoute(
           path: '/home',
@@ -14216,7 +14054,9 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,

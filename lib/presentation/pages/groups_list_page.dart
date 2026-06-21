@@ -304,18 +304,13 @@ class _GroupRow extends StatelessWidget {
     return Material(
       color: t.surface.withValues(alpha: 0),
       child: InkWell(
-        onTap: () {
-          final productRoute = item.productConversation == null
-              ? null
-              : productConversationRoute(item.productConversation!);
-          if (productRoute != null) {
-            context.push(productRoute);
-            return;
-          }
-          if (item.id.startsWith('mock_')) {
-            context.push('/chat/${Uri.encodeComponent(item.id)}');
-          }
-        },
+        onTap: item.productConversation == null
+            ? null
+            : () {
+                final productRoute =
+                    productConversationRoute(item.productConversation!);
+                if (productRoute != null) context.push(productRoute);
+              },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(

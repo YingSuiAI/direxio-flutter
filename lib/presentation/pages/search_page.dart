@@ -205,7 +205,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             type: isGroup ? _SearchResultType.group : _SearchResultType.contact,
             title: c.name,
             subtitle: isContact ? c.mxid : c.subtitle,
-            route: isGroup ? '/group/${c.id}' : '/chat/${c.id}',
           ),
         );
       }

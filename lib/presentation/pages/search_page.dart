@@ -211,9 +211,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       }
     } else {
       final syncCache = ref.read(asSyncCacheProvider);
-      final acceptedRoomIds = syncCache.acceptedDirectRoomIds;
       for (final room in client.rooms) {
         if (room.membership != Membership.join) continue;
+        final productConversation = productConversationForRoom(
+          productConversations,
+          room.id,
+        );
+        if (productConversation == null) continue;
+        final route = productConversationRoute(productConversation);
+        if (route == null) continue;
+
         final acceptedContact = syncCache.acceptedContactForRoom(room.id);
         final peerMxid = productDirectPeerMxid(room) ?? acceptedContact?.userId;
         final memberName = directPeerMemberDisplayName(room, peerMxid);
@@ -226,20 +233,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           fallback: room.getLocalizedDisplayname(),
         );
         if (!containsAny([name, peerMxid, room.id])) continue;
-        final productConversation = productConversationForRoom(
-          productConversations,
-          room.id,
-        );
-        final isContact = productConversation?.isDirect ??
-            isProductDirectContactRoom(
-              room,
-              acceptedRoomIds: acceptedRoomIds,
-            );
-        final route = productConversationRouteForRoom(
-          room: room,
-          conversations: productConversations,
-        );
-        if (route == null) continue;
+        final isContact = productConversation.isDirect;
         results.add(
           _GlobalSearchResult.local(
             type:

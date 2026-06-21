@@ -12106,6 +12106,40 @@ void main() {
     expect(find.textContaining('真实频道索引内容'), findsOneWidget);
   });
 
+  testWidgets(
+      'global search hides Matrix rooms without ProductCore conversation',
+      (tester) async {
+    final client = Client('PortalIMTestSearchRequiresProductRoom')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!orphan-room:p2p-im.com',
+      name: '孤儿群 orphan-room-needle',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider
+              .overrideWithValue(_ConversationListAsClient(const [])),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const SearchPage()),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'orphan-room-needle');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(find.text('孤儿群 orphan-room-needle'), findsNothing);
+    expect(
+      find.text('没有找到包含「orphan-room-needle」的内容'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('contact detail shows user info actions', (tester) async {
     var clipboardText = '';
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(

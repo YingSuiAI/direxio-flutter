@@ -52,7 +52,7 @@ This document records the currently implemented client features and whether each
 
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
-| Create group | Home plus menu, `group_creation_flow.dart` | Real | Uses accepted AS contacts, calls AS group invite for selected contacts after creation, and opens the created Matrix room. |
+| Create group | Home plus menu, `group_creation_flow.dart` | Real | Uses accepted AS contacts, calls AS group invite for selected contacts after creation, and opens the created group through the returned ProductCore conversation. |
 | Group list | `/groups`, `groups_list_page.dart` | Real | Uses ProductCore group conversations as the openable group source; AS bootstrap group summaries only enrich title, preview, unread count, and ownership metadata. Bootstrap-only groups are hidden as stale metadata. Pending group invitations remain in `/requests` until accepted and projected into ProductCore conversations/bootstrap groups. Existing group member invitations are sent as direct-chat cards after the owner node records invited MXIDs; card joins are accepted only for recorded invitees and open through the returned ProductCore conversation. |
 | Group chat | `/group/:roomId`, `group_chat_page.dart` | Real | Matrix timeline with Matrix SDK text send, media outbox, mentions, quote, recall/delete where supported. |
 | Group detail/info/manage | `/group-detail/:roomId`, `/group-info/:roomId`, `/group-manage/:roomId` | Real | Uses AS group metadata for invite policy, profile, member management, leave/dissolve flows. |
@@ -62,7 +62,7 @@ This document records the currently implemented client features and whether each
 
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
-| Channel tab | Home tab 3, `channel_home_tab.dart` | Real + demo | Logged-in channel list uses `AsSyncBootstrap.channels`; unauthenticated demo uses mock channels. |
+| Channel tab | Home tab 3, `channel_home_tab.dart` | Real + demo | Logged-in channel list uses `AsSyncBootstrap.channels`; chat-channel entries open through ProductCore conversations; unauthenticated demo uses mock channels. |
 | Channel search | `/channels/search`, `channel_search_page.dart` | Real | Uses AS public search. Matrix room id lookup stays on the configured AS; remote node inference is not allowed. |
 | Create channel | Home plus menu / channel FAB, `create_channel_sheet.dart` | Real | Calls AS create; owner semantics belong to portal owner. |
 | Channel detail/join | `/channel/:id/detail`, `channel_detail_info_page.dart` | Real | Join request handles `pending`, `invite`, and `joined`. UI shows an in-progress state while waiting and opens chat/detail only after joined projection. Chat-channel joins open through the returned ProductCore conversation; post channels still open their channel post list. |

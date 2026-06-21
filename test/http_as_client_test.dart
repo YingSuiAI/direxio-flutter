@@ -1009,6 +1009,14 @@ void main() {
             'name': '产品测试群',
             'member_count': 1,
             'invited_count': 1,
+            'conversation': {
+              'conversation_id': 'conv_created_group',
+              'matrix_room_id': '!group:p2p-im.com',
+              'kind': 'group',
+              'lifecycle': 'active',
+              'title': '产品测试群',
+              'capabilities': {'open': true},
+            },
           }),
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
@@ -1026,6 +1034,8 @@ void main() {
     expect(group.name, '产品测试群');
     expect(group.memberCount, 1);
     expect(group.invitedCount, 1);
+    expect(group.productConversation?.conversationId, 'conv_created_group');
+    expect(group.productConversation?.canOpen, isTrue);
   });
 
   test('updateGroupProfile puts name topic and avatar through AS', () async {

@@ -19,6 +19,7 @@ import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
 import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/portal_avatar.dart';
@@ -101,7 +102,14 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
       }));
     }
     if (context.mounted) {
-      context.push('/group/${Uri.encodeComponent(roomId)}');
+      final route = productConversationRoute(group.productConversation);
+      if (route == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('群聊正在同步，请稍后重试')),
+        );
+        return;
+      }
+      context.push(route);
     }
   } catch (e) {
     if (!context.mounted) return;

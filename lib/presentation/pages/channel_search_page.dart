@@ -14,6 +14,7 @@ import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
 
 class ChannelSearchPage extends ConsumerStatefulWidget {
@@ -159,10 +160,14 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       context.go('/channel/$encodedChannelId');
       return;
     }
-    final name =
-        joined.name.trim().isEmpty ? fallback.name.trim() : joined.name.trim();
-    final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
-    context.go('/channel/$encodedChannelId/conversation$query');
+    final route = productConversationRoute(joined.productConversation);
+    if (route == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('频道正在同步，请稍后重试')),
+      );
+      return;
+    }
+    context.go(route);
   }
 
   @override

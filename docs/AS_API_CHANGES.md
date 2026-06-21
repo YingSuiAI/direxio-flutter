@@ -23,9 +23,9 @@ Change:
 Frontend alignment:
 
 - `AsConversation` parses the new fields and exposes `canOpen`, `canSend`, `canInvite`, and `canManageMembers`.
-- Product conversation route generation now fails closed when `canOpen` is false, so message list, contact detail, search, and group entry points no longer independently infer whether a conversation can be opened.
-- `groups.join` and `channels.join` may return top-level `conversation` with the same `ConversationView` shape. `AsGroupResult.productConversation` and `AsChannel.productConversation` preserve that object.
-- Group invite acceptance, channel invite/share acceptance, and public channel chat joins open chats through the returned ProductCore conversation route. If the returned conversation is missing or not openable, the client waits on the current screen instead of reconstructing a chat route from channel id, group name, or member count.
+- Product conversation route generation now fails closed when `canOpen` is false, so message list, contact detail, search, channel tab, and group entry points no longer independently infer whether a conversation can be opened.
+- `groups.create`, `groups.join`, and `channels.join` may return top-level `conversation` with the same `ConversationView` shape. `AsGroupResult.productConversation` and `AsChannel.productConversation` preserve that object.
+- Group creation, group invite acceptance, channel invite/share acceptance, public channel chat joins, and channel tab entries open chats through ProductCore conversation routes. If the conversation is missing or not openable, the client waits on the current screen instead of reconstructing a chat route from channel id, group name, or member count.
 
 ## 2026-06-20 Final Message Contract Alignment
 

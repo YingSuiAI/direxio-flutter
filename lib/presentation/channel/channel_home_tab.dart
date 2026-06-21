@@ -13,8 +13,10 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_created_channels_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 import 'channel_inbox_data.dart';
@@ -79,6 +81,10 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
         !_mockAuthEnabled && (auth?.isLoggedIn == true || client.isLogged());
     final listedChannels =
         useRealChannels ? ref.watch(_channelListProvider).valueOrNull : null;
+    final productConversations = useRealChannels
+        ? ref.watch(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[]
+        : const <AsConversation>[];
     final localCreatedChannels = useRealChannels
         ? ref.watch(localCreatedChannelsProvider)
         : const <ChannelCreatedCacheEntry>[];
@@ -94,6 +100,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                     : ChannelInboxData.fromBootstrap(
                         bootstrap,
                         fallbackDomain: fallbackDomain,
+                        productConversations: productConversations,
                         roomNameForRoomId: (roomId) =>
                             _matrixRoomName(client, roomId),
                         roomAvatarForRoomId: (roomId) =>
@@ -103,6 +110,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                     listedChannels,
                     fallbackDomain: fallbackDomain,
                     bootstrap: bootstrap,
+                    productConversations: productConversations,
                     roomNameForRoomId: (roomId) =>
                         _matrixRoomName(client, roomId),
                     roomAvatarForRoomId: (roomId) =>
@@ -110,6 +118,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                   ),
             localCreatedChannels,
             fallbackDomain: fallbackDomain,
+            productConversations: productConversations,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
@@ -264,6 +273,9 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
       auth?.userId,
     );
     final bootstrap = syncCache.bootstrap;
+    final productConversations =
+        ref.watch(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
     final localCreatedChannels = ref.watch(localCreatedChannelsProvider);
     final hiddenChannelKeys = ref.watch(_hiddenChannelListKeysProvider);
     final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
@@ -273,6 +285,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             const <ChannelInboxItem>[],
             localCreatedChannels,
             fallbackDomain: _clientServerName(client),
+            productConversations: productConversations,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
           )
@@ -280,12 +293,14 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             ChannelInboxData.fromBootstrap(
               bootstrap,
               fallbackDomain: _clientServerName(client),
+              productConversations: productConversations,
               roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
               roomAvatarForRoomId: (roomId) =>
                   _matrixRoomAvatar(client, roomId),
             ),
             localCreatedChannels,
             fallbackDomain: _clientServerName(client),
+            productConversations: productConversations,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
@@ -995,7 +1010,12 @@ class ChannelInboxTile extends StatelessWidget {
               : () {
                   final handler = onTap;
                   if (handler == null) {
-                    context.push(_channelRoute(channel));
+                    final route = _channelRoute(channel);
+                    if (route == null) {
+                      _toast(context, '频道正在同步，请稍后重试');
+                      return;
+                    }
+                    context.push(route);
                     return;
                   }
                   handler(channel);
@@ -1469,12 +1489,10 @@ bool _channelIsTextType(ChannelInboxItem channel) {
   return normalizeAsChannelType(channel.channelType) == asChannelTypeChat;
 }
 
-String _channelRoute(ChannelInboxItem channel) {
+String? _channelRoute(ChannelInboxItem channel) {
   final channelId = Uri.encodeComponent(channel.id.trim());
   if (!_channelIsTextType(channel)) return '/channel/$channelId';
-  final name = channel.name.trim();
-  final query = name.isEmpty ? '' : '?name=${Uri.encodeQueryComponent(name)}';
-  return '/channel/$channelId/conversation$query';
+  return productConversationRoute(channel.productConversation);
 }
 
 void _showChannelInboxMenu(
@@ -1651,7 +1669,14 @@ void _openChannelInboxItem(
       ..showSnackBar(const SnackBar(content: Text('频道已经解散')));
     return;
   }
-  context.push(_channelRoute(channel));
+  final route = _channelRoute(channel);
+  if (route == null) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('频道正在同步，请稍后重试')));
+    return;
+  }
+  context.push(route);
 }
 
 Set<String> _activeChannelKeys(

@@ -1489,6 +1489,16 @@ class _NeverListChannelsAsClient extends _EmptyAsClient {
   Future<List<AsChannel>> listChannels() => Completer<List<AsChannel>>().future;
 }
 
+class _NeverListChannelsWithConversationsAsClient
+    extends _NeverListChannelsAsClient {
+  _NeverListChannelsWithConversationsAsClient(this.conversations);
+
+  final List<AsConversation> conversations;
+
+  @override
+  Future<List<AsConversation>> listConversations() async => conversations;
+}
+
 class _TrackingAsClient extends _EmptyAsClient {
   int createContactRequestCalls = 0;
   String? createdContactMxid;
@@ -1503,6 +1513,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   String? createdGroupName;
   String? createdGroupAvatarUrl;
   List<String> createdGroupInvites = const [];
+  AsConversation? createdGroupProductConversation;
   int inviteGroupMembersCalls = 0;
   String? invitedGroupRoomId;
   List<String> invitedGroupMembers = const [];
@@ -1639,6 +1650,7 @@ class _TrackingAsClient extends _EmptyAsClient {
       memberCount: 1,
       invitedCount: invite.length,
       role: 'owner',
+      productConversation: createdGroupProductConversation,
     );
   }
 
@@ -5241,7 +5253,16 @@ void main() {
 
   testWidgets('home plus group creation uses accepted contacts and opens group',
       (tester) async {
-    final asClient = _TrackingAsClient();
+    final asClient = _TrackingAsClient()
+      ..createdGroupProductConversation = const AsConversation(
+        conversationId: 'conv_new_group',
+        roomId: '!new-group:p2p-im.com',
+        kind: asConversationKindGroup,
+        lifecycle: 'active',
+        title: '项目群',
+        avatarUrl: '',
+        capabilities: AsConversationCapabilities(open: true),
+      );
     final client = Client('PortalIMHomeGroupCreateTest')
       ..setUserId('@owner:p2p-im.com');
     client.homeserver = Uri.parse('https://p2p-im.com');
@@ -5281,7 +5302,8 @@ void main() {
           path: '/group/:roomId',
           builder: (_, state) => Scaffold(
             body: Text(
-              'group:${state.pathParameters['roomId']!}',
+              'group:${state.pathParameters['roomId']!};'
+              'conversation:${state.uri.queryParameters['conversation']}',
             ),
           ),
         ),
@@ -5359,7 +5381,10 @@ void main() {
     expect(asClient.createdGroupName, '项目群');
     expect(asClient.createdGroupInvites, ['@alice:p2p-liyanan.com']);
     expect(find.text('群组不存在'), findsNothing);
-    expect(find.text('group:!new-group:p2p-im.com'), findsOneWidget);
+    expect(
+      find.text('group:!new-group:p2p-im.com;conversation:conv_new_group'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('missing group page keeps a usable back button', (tester) async {
@@ -11434,6 +11459,105 @@ void main() {
         find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);
     expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
     expect(find.textContaining('后端部署清单已更新'), findsWidgets);
+  });
+
+  testWidgets('channel tab opens chat channels through ProductCore route',
+      (tester) async {
+    const roomId = '!channel-chat:p2p-im.com';
+    const conversationId = 'conv_channel_chat';
+    final client = Client('PortalIMChannelProductRouteTest')
+      ..setUserId('@member:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 10),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_chat',
+          roomId: roomId,
+          homeDomain: 'p2p-im.com',
+          name: '产品交流群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.utc(2026, 6, 21, 9),
+          description: '产品交流',
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypeChat,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/channels',
+      routes: [
+        GoRoute(
+          path: '/channels',
+          builder: (_, __) => const ChannelExplorePage(),
+        ),
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) => Text(
+            'group:${state.pathParameters['roomId']};'
+            'conversation:${state.uri.queryParameters['conversation']}',
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId/conversation',
+          builder: (_, state) => Text(
+            'legacy:${state.pathParameters['channelId']}',
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_MemberLoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(
+            _NeverListChannelsWithConversationsAsClient(
+              const [
+                AsConversation(
+                  conversationId: conversationId,
+                  roomId: roomId,
+                  kind: asConversationKindChannel,
+                  lifecycle: 'active',
+                  title: '产品交流群',
+                  avatarUrl: '',
+                  capabilities: AsConversationCapabilities(open: true),
+                ),
+              ],
+            ),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.tap(find.text('产品交流群'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('group:$roomId;conversation:$conversationId'),
+      findsOneWidget,
+    );
+    expect(find.text('legacy:ch_chat'), findsNothing);
   });
 
   testWidgets('channel detail restores real channel from cached bootstrap',

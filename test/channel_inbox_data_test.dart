@@ -294,6 +294,40 @@ void main() {
     expect(items.single.name, '综合讨论');
   });
 
+  test('attaches ProductCore conversation to bootstrap channel items', () {
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': '2026-06-21T10:30:00Z',
+      'user': {'user_id': '@owner:p2p-im.com'},
+      'channels': [
+        {
+          'channel_id': 'ch_chat',
+          'room_id': '!chat:p2p-im.com',
+          'display_name': '综合讨论',
+          'channel_type': 'chat',
+          'member_status': 'joined',
+        },
+      ],
+    });
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+      productConversations: const [
+        AsConversation(
+          conversationId: 'conv_channel',
+          roomId: '!chat:p2p-im.com',
+          kind: asConversationKindChannel,
+          lifecycle: 'active',
+          title: '综合讨论',
+          avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: true),
+        ),
+      ],
+    );
+
+    expect(items.single.productConversation?.conversationId, 'conv_channel');
+  });
+
   test('sorts channels by created_at when last activity is missing', () {
     final items = ChannelInboxData.fromChannels(
       [

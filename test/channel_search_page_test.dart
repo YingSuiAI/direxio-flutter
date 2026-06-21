@@ -114,7 +114,7 @@ void main() {
     expect(asClient.requestedPublicRoomBaseUri, isNull);
     expect(
       asClient.requestedPublicRoomRemoteNodeBaseUri,
-      Uri.parse('http://127.0.0.1:18008/_p2p'),
+      Uri.parse('https://dendrite-a:8448/_p2p'),
     );
     expect(asClient.publicSearchCallCount, 0);
   });
@@ -145,7 +145,7 @@ void main() {
     expect(asClient.requestedPublicRoomBaseUri, isNull);
     expect(
       asClient.requestedPublicRoomRemoteNodeBaseUri,
-      Uri.parse('http://127.0.0.1:18008/_p2p'),
+      Uri.parse('https://dendrite-a:8448/_p2p'),
     );
     expect(find.text('接口返回频道'), findsOneWidget);
 
@@ -234,6 +234,77 @@ void main() {
     expect(find.text('接口返回频道说明'), findsOneWidget);
   });
 
+  testWidgets('channel search opens joined chat through ProductCore route',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient()
+      ..joinChannelByRoomIdResponse = const AsChannel(
+        channelId: 'ch_product',
+        roomId: '!ch_product:p2p-im.com',
+        homeDomain: 'p2p-im.com',
+        name: '产品公告',
+        description: '只发布重要产品更新',
+        visibility: asChannelVisibilityPublic,
+        joinPolicy: asChannelJoinPolicyOpen,
+        commentsEnabled: true,
+        channelType: asChannelTypeChat,
+        memberStatus: asChannelMemberStatusJoined,
+        productConversation: AsConversation(
+          conversationId: 'conv_channel',
+          roomId: '!ch_product:p2p-im.com',
+          kind: asConversationKindChannel,
+          lifecycle: 'active',
+          title: '产品公告',
+          avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: true),
+        ),
+      );
+    final router = GoRouter(
+      initialLocation: '/search',
+      routes: [
+        GoRoute(path: '/search', builder: (_, __) => const ChannelSearchPage()),
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) => Text(
+            'group:${state.pathParameters['roomId']};'
+            'conversation:${state.uri.queryParameters['conversation']}',
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId/conversation',
+          builder: (_, state) => Text(
+            'legacy:${state.pathParameters['channelId']}',
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '产品');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    await tester.tap(find.text('申请加入'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
+    expect(
+      find.text('group:!ch_product:p2p-im.com;conversation:conv_channel'),
+      findsOneWidget,
+    );
+    expect(find.text('legacy:ch_product'), findsNothing);
+  });
+
   testWidgets('private channel share joins with grant without public lookup',
       (tester) async {
     final asClient = _ChannelSearchAsClient();
@@ -304,6 +375,7 @@ class _ChannelSearchAsClient extends MockAsClient {
   Uri? lastPublicSearchBaseUri;
   int? publicRoomErrorStatus;
   int publicSearchCallCount = 0;
+  AsChannel? joinChannelByRoomIdResponse;
 
   @override
   Future<List<AsChannel>> searchPublicChannels(
@@ -339,6 +411,8 @@ class _ChannelSearchAsClient extends MockAsClient {
   }) async {
     joinedRoomId = roomId;
     joinedRemoteNodeBaseUri = remoteNodeBaseUri;
+    final response = joinChannelByRoomIdResponse;
+    if (response != null) return response;
     return const AsChannel(
       channelId: 'ch_product',
       roomId: '!ch_product:p2p-im.com',

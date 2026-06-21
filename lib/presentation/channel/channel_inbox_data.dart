@@ -22,6 +22,7 @@ class ChannelInboxItem {
     this.memberStatus = asChannelMemberStatusJoined,
     this.memberCount = 0,
     this.pendingJoinCount = 0,
+    this.productConversation,
   });
 
   /// Product-level channel id owned by AS. Use this for channel routes and AS
@@ -47,6 +48,7 @@ class ChannelInboxItem {
   final String memberStatus;
   final int memberCount;
   final int pendingJoinCount;
+  final AsConversation? productConversation;
 
   ChannelInboxItem copyWith({
     String? id,
@@ -68,6 +70,7 @@ class ChannelInboxItem {
     String? memberStatus,
     int? memberCount,
     int? pendingJoinCount,
+    AsConversation? productConversation,
   }) {
     return ChannelInboxItem(
       id: id ?? this.id,
@@ -89,6 +92,7 @@ class ChannelInboxItem {
       memberStatus: memberStatus ?? this.memberStatus,
       memberCount: memberCount ?? this.memberCount,
       pendingJoinCount: pendingJoinCount ?? this.pendingJoinCount,
+      productConversation: productConversation ?? this.productConversation,
     );
   }
 }
@@ -109,9 +113,12 @@ class ChannelInboxData {
   static List<ChannelInboxItem> fromBootstrap(
     AsSyncBootstrap bootstrap, {
     required String fallbackDomain,
+    Iterable<AsConversation> productConversations = const [],
     String Function(String roomId)? roomNameForRoomId,
     String Function(String roomId)? roomAvatarForRoomId,
   }) {
+    final productConversationByRoomId =
+        _channelProductConversationsByRoomId(productConversations);
     final items = bootstrap.channels
         .where((channel) =>
             channel.roomId.trim().isNotEmpty &&
@@ -154,6 +161,7 @@ class ChannelInboxData {
           memberStatus: channel.memberStatus,
           memberCount: channel.memberCount,
           pendingJoinCount: channel.pendingJoinCount,
+          productConversation: productConversationByRoomId[roomId],
         );
       },
     ).toList();
@@ -164,9 +172,12 @@ class ChannelInboxData {
     List<AsChannel> channels, {
     required String fallbackDomain,
     AsSyncBootstrap? bootstrap,
+    Iterable<AsConversation> productConversations = const [],
     String Function(String roomId)? roomNameForRoomId,
     String Function(String roomId)? roomAvatarForRoomId,
   }) {
+    final productConversationByRoomId =
+        _channelProductConversationsByRoomId(productConversations);
     final bootstrapByChannelId = <String, AsSyncRoomSummary>{};
     final bootstrapByRoomId = <String, AsSyncRoomSummary>{};
     for (final channel in bootstrap?.channels ?? const <AsSyncRoomSummary>[]) {
@@ -254,6 +265,8 @@ class ChannelInboxData {
         pendingJoinCount: channel.pendingJoinCount == 0
             ? bootstrapChannel?.pendingJoinCount ?? 0
             : channel.pendingJoinCount,
+        productConversation:
+            channel.productConversation ?? productConversationByRoomId[roomId],
       );
     }).toList();
     return _sortByLatest(items);
@@ -263,6 +276,7 @@ class ChannelInboxData {
     List<ChannelInboxItem> items,
     List<ChannelCreatedCacheEntry> cached, {
     required String fallbackDomain,
+    Iterable<AsConversation> productConversations = const [],
     String Function(String roomId)? roomNameForRoomId,
     String Function(String roomId)? roomAvatarForRoomId,
     Set<String> hiddenChannelKeys = const <String>{},
@@ -274,6 +288,7 @@ class ChannelInboxData {
       final cachedItems = fromChannels(
         [entry.channel],
         fallbackDomain: fallbackDomain,
+        productConversations: productConversations,
         roomNameForRoomId: roomNameForRoomId,
         roomAvatarForRoomId: roomAvatarForRoomId,
       );
@@ -312,6 +327,8 @@ class ChannelInboxData {
           memberStatus: mergedItem.memberStatus.trim().isEmpty
               ? asChannelMemberStatusJoined
               : mergedItem.memberStatus,
+          productConversation:
+              mergedItem.productConversation ?? cachedItem.productConversation,
         );
       }
     }
@@ -356,6 +373,19 @@ class ChannelInboxData {
   static DateTime _latestOf(DateTime? a, DateTime b) {
     if (a == null) return b;
     return a.isAfter(b) ? a : b;
+  }
+
+  static Map<String, AsConversation> _channelProductConversationsByRoomId(
+    Iterable<AsConversation> conversations,
+  ) {
+    final byRoomId = <String, AsConversation>{};
+    for (final conversation in conversations) {
+      if (!conversation.isChannel) continue;
+      final roomId = conversation.roomId.trim();
+      if (roomId.isEmpty) continue;
+      byRoomId[roomId] = conversation;
+    }
+    return byRoomId;
   }
 
   static String? _domainFromRoomId(String roomId) {

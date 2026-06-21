@@ -1973,6 +1973,11 @@ String? _conversationAvatarUrl(
   }
 
   return productAvatar ??
+      _directPeerMemberAvatarUrl(
+        client,
+        room,
+        conversation.product?.peerMxid,
+      ) ??
       avatarHttpUrl(client, conversation.roomSummary?.avatarUrl) ??
       (room == null ? null : roomAvatarHttpUrl(room));
 }
@@ -2039,7 +2044,24 @@ String _conversationDisplayName(
   }
   final productTitle = conversation.product?.title.trim() ?? '';
   if (productTitle.isNotEmpty) return productTitle;
+  if (!conversation.isAgent) {
+    final peerName = _directProductPeerDisplayName(
+      conversation.product,
+      conversation.room,
+    );
+    if (peerName.isNotEmpty) return peerName;
+  }
   return conversation.room?.getLocalizedDisplayname() ?? '';
+}
+
+String _directProductPeerDisplayName(AsConversation? product, Room? room) {
+  final peerMxid = product?.peerMxid.trim() ?? '';
+  if (peerMxid.isEmpty) return '';
+  final memberName = directPeerMemberDisplayName(room, peerMxid);
+  if (memberName.isEmpty || memberName == localpartFromMxid(peerMxid)) {
+    return '';
+  }
+  return memberName;
 }
 
 String _conversationPreviewTextForConversation(

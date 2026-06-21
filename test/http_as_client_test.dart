@@ -68,6 +68,7 @@ void main() {
                 'matrix_room_id': '!dm:p2p-im.com',
                 'kind': 'direct',
                 'lifecycle': 'active',
+                'peer_mxid': '@alice:p2p-im.com',
                 'title': 'Alice',
                 'avatar_url': 'mxc://avatar',
                 'last_event_id': r'$event',
@@ -86,6 +87,7 @@ void main() {
     expect(conversations, hasLength(1));
     expect(conversations.single.roomId, '!dm:p2p-im.com');
     expect(conversations.single.kind, asConversationKindDirect);
+    expect(conversations.single.peerMxid, '@alice:p2p-im.com');
     expect(conversations.single.title, 'Alice');
     expect(
       conversations.single.lastActivityAt,

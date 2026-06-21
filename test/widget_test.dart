@@ -3337,6 +3337,56 @@ void main() {
     );
   });
 
+  testWidgets('messages direct conversation uses peer member identity',
+      (tester) async {
+    final client = Client('PortalIMConversationPeerIdentityTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!owner:p2p-im.com',
+      peerMxid: '@owner:p2p-liyanan.com',
+      peerName: 'Yanan Matrix',
+      peerAvatarUrl: 'https://matrix.example.com/yanan.png',
+    );
+    final asClient = _ConversationListAsClient(const [
+      AsConversation(
+        conversationId: 'conv_owner',
+        roomId: '!owner:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        peerMxid: '@owner:p2p-liyanan.com',
+        title: '',
+        avatarUrl: '',
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yanan Matrix'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 42 &&
+            widget.imageUrl == 'https://matrix.example.com/yanan.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('messages hide pending outbound contact rooms from AS metadata',
       (tester) async {
     final client = Client('PortalIMPendingOutboundHomeListTest')

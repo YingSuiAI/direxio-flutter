@@ -548,6 +548,7 @@ class AsConversation {
     required this.lifecycle,
     required this.title,
     required this.avatarUrl,
+    this.peerMxid = '',
     this.lastEventId = '',
     this.lastActivityAt,
     this.projectionState = '',
@@ -558,6 +559,7 @@ class AsConversation {
   final String roomId;
   final String kind;
   final String lifecycle;
+  final String peerMxid;
   final String title;
   final String avatarUrl;
   final String lastEventId;
@@ -577,6 +579,7 @@ class AsConversation {
           json['matrix_room_id'] as String? ?? json['room_id'] as String? ?? '',
       kind: json['kind'] as String? ?? '',
       lifecycle: json['lifecycle'] as String? ?? '',
+      peerMxid: json['peer_mxid'] as String? ?? '',
       title: json['title'] as String? ?? '',
       avatarUrl: json['avatar_url'] as String? ?? '',
       lastEventId: json['last_event_id'] as String? ?? '',

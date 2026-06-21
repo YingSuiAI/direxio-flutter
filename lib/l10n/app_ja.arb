@@ -137,6 +137,7 @@
   "addContactVerificationMessageTitle": "友だち申請を送信",
   "addContactVerificationSend": "申請を送信",
   "addContactRequestSent": "友だち申請を送信しました。承認を待っています。",
+  "addContactCannotAddSelf": "自分を追加することはできません",
   "addContactRequestFailed": "友だち申請の送信に失敗しました: {error}",
   "@addContactRequestFailed": {
     "placeholders": {

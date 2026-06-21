@@ -4,6 +4,17 @@ Last updated: 2026-06-21
 
 This document records frontend-impacting AS/Admin API changes. It is the client-side companion to the server work recorded in Codex thread `019edf7c-54fa-7ba3-a8f8-99c8dac1e838`.
 
+## 2026-06-21 Contact Re-Request State Machine
+
+Change:
+
+- `contacts.request` rejects attempts to add the local owner as a contact with `400` and `mxid must be a remote peer`.
+- Deleted direct contacts restore the old room only when the peer still retains the accepted relationship; when both sides no longer retain it, the backend creates a fresh `pending_outbound` request.
+
+Frontend alignment:
+
+- Add-contact verification maps the self-add `400` response to the user-facing message "不能添加自己" instead of showing the raw AS exception.
+
 ## 2026-06-21 ProductCore ConversationView Contract
 
 Change:

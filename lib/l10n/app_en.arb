@@ -137,6 +137,7 @@
   "addContactVerificationMessageTitle": "Send friend request",
   "addContactVerificationSend": "Send Request",
   "addContactRequestSent": "Friend request sent. Waiting for acceptance.",
+  "addContactCannotAddSelf": "You cannot add yourself",
   "addContactRequestFailed": "Failed to send friend request: {error}",
   "@addContactRequestFailed": {
     "placeholders": {

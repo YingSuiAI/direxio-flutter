@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -71,7 +72,7 @@ class _AddContactVerificationPageState
           'send add-contact verification request failed: $e\n$stackTrace');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_requestFailedText(context, '$e'))),
+        SnackBar(content: Text(_requestFailedText(context, e))),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -380,7 +381,16 @@ String _requestSentText(BuildContext context) {
       '好友请求已发送，等待对方接受。';
 }
 
-String _requestFailedText(BuildContext context, String error) {
+String _requestFailedText(BuildContext context, Object error) {
   final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-  return l10n?.addContactRequestFailed(error) ?? '发送好友请求失败: $error';
+  if (_selfContactRequestError(error)) {
+    return l10n?.addContactCannotAddSelf ?? '不能添加自己';
+  }
+  return l10n?.addContactRequestFailed('$error') ?? '发送好友请求失败: $error';
+}
+
+bool _selfContactRequestError(Object error) {
+  return error is AsClientException &&
+      error.statusCode == 400 &&
+      error.message.trim() == 'mxid must be a remote peer';
 }

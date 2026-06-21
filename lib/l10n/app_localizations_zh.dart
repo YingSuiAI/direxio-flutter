@@ -346,6 +346,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get addContactRequestSent => '好友请求已发送，等待对方接受。';
 
   @override
+  String get addContactCannotAddSelf => '不能添加自己';
+
+  @override
   String addContactRequestFailed(String error) {
     return '发送好友请求失败: $error';
   }

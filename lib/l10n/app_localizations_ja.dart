@@ -347,6 +347,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get addContactRequestSent => '友だち申請を送信しました。承認を待っています。';
 
   @override
+  String get addContactCannotAddSelf => '自分を追加することはできません';
+
+  @override
   String addContactRequestFailed(String error) {
     return '友だち申請の送信に失敗しました: $error';
   }

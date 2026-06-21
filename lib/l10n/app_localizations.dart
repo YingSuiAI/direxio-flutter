@@ -761,6 +761,12 @@ abstract class AppLocalizations {
   /// **'好友请求已发送，等待对方接受。'**
   String get addContactRequestSent;
 
+  /// No description provided for @addContactCannotAddSelf.
+  ///
+  /// In zh, this message translates to:
+  /// **'不能添加自己'**
+  String get addContactCannotAddSelf;
+
   /// No description provided for @addContactRequestFailed.
   ///
   /// In zh, this message translates to:

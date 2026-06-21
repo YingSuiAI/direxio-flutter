@@ -1516,6 +1516,7 @@ class _NeverListChannelsWithConversationsAsClient
 
 class _TrackingAsClient extends _EmptyAsClient {
   int createContactRequestCalls = 0;
+  Object? createContactRequestError;
   String? createdContactMxid;
   String? createdContactDisplayName;
   String? createdContactDomain;
@@ -1575,6 +1576,8 @@ class _TrackingAsClient extends _EmptyAsClient {
     createdContactMxid = mxid;
     createdContactDisplayName = displayName;
     createdContactDomain = domain;
+    final error = createContactRequestError;
+    if (error != null) throw error;
     return ContactEntry(
       peerMxid: mxid,
       displayName: displayName,
@@ -7439,6 +7442,54 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('上一页'), findsOneWidget);
     expect(find.text('好友验证'), findsNothing);
+  });
+
+  testWidgets('add contact verification maps self request error',
+      (tester) async {
+    final asClient = _TrackingAsClient()
+      ..createContactRequestError = AsClientException(
+        'mxid must be a remote peer',
+        statusCode: 400,
+      );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          initialRoute: '/verify',
+          routes: {
+            '/': (_) => const Scaffold(body: Text('上一页')),
+            '/verify': (_) => const AddContactVerificationPage(
+                  userId: '@owner:portal.local',
+                  displayName: 'Me',
+                ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('发送申请'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(asClient.createContactRequestCalls, 1);
+    expect(find.text('不能添加自己'), findsOneWidget);
+    expect(find.textContaining('AsClientException'), findsNothing);
+    expect(find.textContaining('mxid must be a remote peer'), findsNothing);
+    expect(find.text('好友验证'), findsOneWidget);
   });
 
   testWidgets('add contact verification preserves mxid server name with port',

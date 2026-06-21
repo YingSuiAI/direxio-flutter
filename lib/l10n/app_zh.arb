@@ -140,6 +140,7 @@
   "addContactVerificationMessageTitle": "发送好友申请",
   "addContactVerificationSend": "发送申请",
   "addContactRequestSent": "好友请求已发送，等待对方接受。",
+  "addContactCannotAddSelf": "不能添加自己",
   "addContactRequestFailed": "发送好友请求失败: {error}",
   "@addContactRequestFailed": {
     "placeholders": {

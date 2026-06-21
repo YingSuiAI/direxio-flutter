@@ -357,6 +357,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Friend request sent. Waiting for acceptance.';
 
   @override
+  String get addContactCannotAddSelf => 'You cannot add yourself';
+
+  @override
   String addContactRequestFailed(String error) {
     return 'Failed to send friend request: $error';
   }

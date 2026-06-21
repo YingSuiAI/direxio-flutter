@@ -3712,9 +3712,11 @@ void main() {
           avatarUrl: '',
           lastActivityAt: null,
           projectionState: 'ready',
+          capabilities: AsConversationCapabilities(open: true),
         ),
       ],
     );
+    final snapshotStore = _MemoryConversationSummaryStore();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3725,10 +3727,14 @@ void main() {
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
           asClientProvider.overrideWithValue(asClient),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
     );
+    await tester.pump();
     await tester.pump();
     await tester.pump();
 
@@ -3765,6 +3771,7 @@ void main() {
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
+    final snapshotStore = _MemoryConversationSummaryStore();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3778,10 +3785,14 @@ void main() {
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
     );
+    await tester.pump();
     await tester.pump();
     await tester.pump();
 
@@ -3803,6 +3814,7 @@ void main() {
           lifecycle: 'active',
           title: 'BCA',
           avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: true),
         ),
       ],
     );
@@ -3815,6 +3827,7 @@ void main() {
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
+    final snapshotStore = _MemoryConversationSummaryStore();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3828,10 +3841,15 @@ void main() {
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
     );
+    await tester.pump();
+    await tester.pump();
     await tester.pump();
 
     expect(find.text('BCA'), findsWidgets);

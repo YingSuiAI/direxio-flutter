@@ -25,6 +25,7 @@ import 'package:portal_app/data/home_conversation_snapshot_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/data/matrix_message_search_client.dart';
 import 'package:portal_app/data/matrix_message_visibility_client.dart';
+import 'package:portal_app/presentation/channel/channel_conversation_route_page.dart';
 import 'package:portal_app/presentation/channel/create_channel_sheet.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
@@ -11558,6 +11559,96 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('legacy:ch_chat'), findsNothing);
+  });
+
+  testWidgets(
+      'legacy channel conversation route redirects through ProductCore route',
+      (tester) async {
+    const roomId = '!legacy-channel:p2p-im.com';
+    const conversationId = 'conv_legacy_channel';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 10),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_legacy_chat',
+          roomId: roomId,
+          homeDomain: 'p2p-im.com',
+          name: '旧入口频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.utc(2026, 6, 21, 9),
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypeChat,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/channel/ch_legacy_chat/conversation',
+      routes: [
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) => Text(
+            'group:${state.pathParameters['roomId']};'
+            'conversation:${state.uri.queryParameters['conversation']}',
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId/conversation',
+          builder: (_, state) => ChannelConversationRoutePage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(
+            _NeverListChannelsWithConversationsAsClient(
+              const [
+                AsConversation(
+                  conversationId: conversationId,
+                  roomId: roomId,
+                  kind: asConversationKindChannel,
+                  lifecycle: 'active',
+                  title: '旧入口频道',
+                  avatarUrl: '',
+                  capabilities: AsConversationCapabilities(open: true),
+                ),
+              ],
+            ),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    expect(
+      find.text('group:$roomId;conversation:$conversationId'),
+      findsOneWidget,
+    );
+    expect(
+      router.routeInformationProvider.value.uri.toString(),
+      '/group/${Uri.encodeComponent(roomId)}?conversation=$conversationId',
+    );
   });
 
   testWidgets('channel detail restores real channel from cached bootstrap',

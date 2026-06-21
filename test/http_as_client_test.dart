@@ -74,6 +74,17 @@ void main() {
                 'last_event_id': r'$event',
                 'last_activity_at': 1781942406000,
                 'projection_state': 'ready',
+                'member_count': 2,
+                'membership': 'join',
+                'relationship_status': 'accepted',
+                'role': 'member',
+                'hydration_state': 'ready',
+                'capabilities': {
+                  'open': true,
+                  'send': true,
+                  'invite': false,
+                  'manage_members': false,
+                },
               }
             ],
           }),
@@ -89,6 +100,15 @@ void main() {
     expect(conversations.single.kind, asConversationKindDirect);
     expect(conversations.single.peerMxid, '@alice:p2p-im.com');
     expect(conversations.single.title, 'Alice');
+    expect(conversations.single.memberCount, 2);
+    expect(conversations.single.membership, 'join');
+    expect(conversations.single.relationshipStatus, 'accepted');
+    expect(conversations.single.role, 'member');
+    expect(conversations.single.hydrationState, 'ready');
+    expect(conversations.single.canOpen, isTrue);
+    expect(conversations.single.canSend, isTrue);
+    expect(conversations.single.canInvite, isFalse);
+    expect(conversations.single.canManageMembers, isFalse);
     expect(
       conversations.single.lastActivityAt,
       DateTime.fromMillisecondsSinceEpoch(1781942406000, isUtc: true),

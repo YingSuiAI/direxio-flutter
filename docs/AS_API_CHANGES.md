@@ -1,8 +1,29 @@
 # AS API Change Log
 
-Last updated: 2026-06-20
+Last updated: 2026-06-21
 
 This document records frontend-impacting AS/Admin API changes. It is the client-side companion to the server work recorded in Codex thread `019edf7c-54fa-7ba3-a8f8-99c8dac1e838`.
+
+## 2026-06-21 ProductCore ConversationView Contract
+
+Change:
+
+- `conversations.list` and `conversations.get` return hydrated ProductCore conversation fields:
+  - `member_count`
+  - `membership`
+  - `relationship_status`
+  - `role`
+  - `hydration_state`
+  - `hydration_reason`
+  - `capabilities.open`
+  - `capabilities.send`
+  - `capabilities.invite`
+  - `capabilities.manage_members`
+
+Frontend alignment:
+
+- `AsConversation` parses the new fields and exposes `canOpen`, `canSend`, `canInvite`, and `canManageMembers`.
+- Product conversation route generation now fails closed when `canOpen` is false, so message list, contact detail, search, and group entry points no longer independently infer whether a conversation can be opened.
 
 ## 2026-06-20 Final Message Contract Alignment
 

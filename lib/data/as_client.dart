@@ -553,6 +553,13 @@ class AsConversation {
     this.lastActivityAt,
     this.projectionState = '',
     this.projectionReason = '',
+    this.memberCount = 0,
+    this.membership = '',
+    this.relationshipStatus = '',
+    this.role = '',
+    this.hydrationState = '',
+    this.hydrationReason = '',
+    this.capabilities = const AsConversationCapabilities(),
   });
 
   final String conversationId;
@@ -566,11 +573,22 @@ class AsConversation {
   final DateTime? lastActivityAt;
   final String projectionState;
   final String projectionReason;
+  final int memberCount;
+  final String membership;
+  final String relationshipStatus;
+  final String role;
+  final String hydrationState;
+  final String hydrationReason;
+  final AsConversationCapabilities capabilities;
 
   bool get isDirect => kind == asConversationKindDirect;
   bool get isGroup => kind == asConversationKindGroup;
   bool get isChannel => kind == asConversationKindChannel;
   bool get isAgent => kind == asConversationKindAgent;
+  bool get canOpen => capabilities.open;
+  bool get canSend => capabilities.send;
+  bool get canInvite => capabilities.invite;
+  bool get canManageMembers => capabilities.manageMembers;
 
   factory AsConversation.fromJson(Map<String, dynamic> json) {
     return AsConversation(
@@ -586,6 +604,39 @@ class AsConversation {
       lastActivityAt: _parseUnixMillisDateTime(json['last_activity_at']),
       projectionState: json['projection_state'] as String? ?? '',
       projectionReason: json['projection_reason'] as String? ?? '',
+      memberCount: _parseInt(json['member_count']),
+      membership: json['membership'] as String? ?? '',
+      relationshipStatus: json['relationship_status'] as String? ?? '',
+      role: json['role'] as String? ?? '',
+      hydrationState: json['hydration_state'] as String? ?? '',
+      hydrationReason: json['hydration_reason'] as String? ?? '',
+      capabilities: AsConversationCapabilities.fromJson(
+        (json['capabilities'] as Map?)?.cast<String, dynamic>(),
+      ),
+    );
+  }
+}
+
+class AsConversationCapabilities {
+  const AsConversationCapabilities({
+    this.open = false,
+    this.send = false,
+    this.invite = false,
+    this.manageMembers = false,
+  });
+
+  final bool open;
+  final bool send;
+  final bool invite;
+  final bool manageMembers;
+
+  factory AsConversationCapabilities.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const AsConversationCapabilities();
+    return AsConversationCapabilities(
+      open: json['open'] == true,
+      send: json['send'] == true,
+      invite: json['invite'] == true,
+      manageMembers: json['manage_members'] == true,
     );
   }
 }

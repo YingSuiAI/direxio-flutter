@@ -39,6 +39,7 @@ AsConversation? productDirectConversationForPeer(
 String? productConversationRoute(AsConversation conversation) {
   final roomId = conversation.roomId.trim();
   if (roomId.isEmpty) return null;
+  if (!conversation.canOpen) return null;
   final base = switch (conversation.kind) {
     asConversationKindDirect || asConversationKindAgent => '/chat',
     asConversationKindGroup || asConversationKindChannel => '/group',

@@ -3121,6 +3121,8 @@ void main() {
                 lifecycle: 'active',
                 title: 'Alice',
                 avatarUrl: '',
+                hydrationState: 'ready',
+                capabilities: AsConversationCapabilities(open: true),
               ),
             ]),
           ),

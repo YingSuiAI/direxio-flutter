@@ -4221,6 +4221,66 @@ void main() {
     expect(updated.previewTs, liveAt.millisecondsSinceEpoch);
   });
 
+  testWidgets('messages clear stale cache after empty ProductCore refresh',
+      (tester) async {
+    final client = Client('PortalIMEmptyProductCorePrunesCacheTest')
+      ..setUserId('@owner:p2p-im.com');
+    final snapshotStore = _MemoryConversationSummaryStore(
+      ConversationSummarySnapshot(
+        userId: '@owner:p2p-im.com',
+        updatedAt: DateTime.utc(2026, 6, 22, 10),
+        entries: const [
+          ConversationSummaryEntry(
+            roomId: '!stale:p2p-im.com',
+            name: '多余联系人',
+            lastMessage: '旧预览',
+            previewTs: 1,
+            unread: 0,
+            isGroup: false,
+            isAgent: false,
+          ),
+        ],
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 22, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(const []),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(snapshotStore.snapshot?.entries, isEmpty);
+    expect(find.text('多余联系人'), findsNothing);
+  });
+
   testWidgets('messages hide AS group until Matrix room is joined',
       (tester) async {
     final client = Client('PortalIMAsJoinedGroupOnlyHomeListTest')

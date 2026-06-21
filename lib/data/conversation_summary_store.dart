@@ -87,6 +87,18 @@ class ConversationSummaryState {
   }
 }
 
+class ConversationSummaryProjection {
+  const ConversationSummaryProjection({
+    required this.displayEntries,
+    required this.storeEntries,
+    required this.shouldWriteStore,
+  });
+
+  final List<ConversationSummaryEntry> displayEntries;
+  final List<ConversationSummaryEntry> storeEntries;
+  final bool shouldWriteStore;
+}
+
 class ConversationSummaryEntry {
   const ConversationSummaryEntry({
     this.conversationId = '',
@@ -309,6 +321,35 @@ List<ConversationSummaryEntry> mergeConversationSummaryEntries({
   final entries = byRoomId.values.toList();
   sortConversationSummaryEntries(entries, pinnedConversationIds);
   return List.unmodifiable(entries);
+}
+
+ConversationSummaryProjection projectConversationSummaryEntries({
+  required ConversationSummaryState state,
+  required String? userId,
+  required Set<String> hiddenConversationIds,
+  required Set<String> pinnedConversationIds,
+  required List<ConversationSummaryEntry> liveEntries,
+  required bool includeCachedOnlyEntries,
+}) {
+  final owner = userId?.trim() ?? '';
+  final cachedEntries = conversationSummaryEntriesForUser(
+    state.toSnapshot(),
+    userId: owner,
+    hiddenConversationIds: hiddenConversationIds,
+    pinnedConversationIds: pinnedConversationIds,
+  );
+  final storeEntries = mergeConversationSummaryEntries(
+    cachedEntries:
+        state.loaded ? cachedEntries : const <ConversationSummaryEntry>[],
+    liveEntries: liveEntries,
+    includeCachedOnlyEntries: includeCachedOnlyEntries,
+    pinnedConversationIds: pinnedConversationIds,
+  );
+  return ConversationSummaryProjection(
+    displayEntries: cachedEntries,
+    storeEntries: storeEntries,
+    shouldWriteStore: state.loaded && owner.isNotEmpty,
+  );
 }
 
 List<ConversationSummaryEntry> applyProductConversationSummary({

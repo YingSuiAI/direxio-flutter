@@ -49,7 +49,7 @@ class ConversationSummaryNotifier
     required List<ConversationSummaryEntry> entries,
   }) async {
     final owner = userId?.trim() ?? '';
-    if (owner.isEmpty || entries.isEmpty) return;
+    if (owner.isEmpty) return;
     await loaded;
     await _writeEntriesForUser(owner: owner, entries: entries);
   }

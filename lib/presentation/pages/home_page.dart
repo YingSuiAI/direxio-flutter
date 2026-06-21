@@ -37,6 +37,7 @@ import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/app_glass_background.dart';
 import '../widgets/m3/m3_search_field.dart';
 import '../utils/contact_display_name.dart';
@@ -1464,28 +1465,21 @@ class _ChatList extends ConsumerWidget {
           conversation: conversation,
         ),
     ];
-    final cacheReady = summaryState.loaded;
-    final cachedConversations = conversationSummaryEntriesForUser(
-      summaryState.toSnapshot(),
+    final projection = projectConversationSummaryEntries(
+      state: summaryState,
       userId: currentUserId,
       hiddenConversationIds: hiddenConversationIds,
       pinnedConversationIds: pinnedConversationIds,
-    );
-    final projectedConversations = mergeConversationSummaryEntries(
-      cachedEntries:
-          cacheReady ? cachedConversations : const <ConversationSummaryEntry>[],
       liveEntries: liveSummaryEntries,
       includeCachedOnlyEntries: !productConversationsAsync.hasValue,
-      pinnedConversationIds: pinnedConversationIds,
     );
-    if (cacheReady && projectedConversations.isNotEmpty) {
-      _writeConversationSummaryEntries(
-        ref,
-        userId: currentUserId,
-        entries: projectedConversations,
-      );
-    }
-    final displayConversations = cachedConversations;
+    recordHomeConversationSummaryProjection(
+      ref,
+      userId: currentUserId,
+      projection: projection,
+    );
+    final cacheReady = summaryState.loaded;
+    final displayConversations = projection.displayEntries;
 
     if (displayConversations.isEmpty) {
       if (productConversationsAsync.isLoading && productConversations.isEmpty) {
@@ -1561,21 +1555,6 @@ class _HomeConversationEntryList extends ConsumerWidget {
       },
     );
   }
-}
-
-void _writeConversationSummaryEntries(
-  WidgetRef ref, {
-  required String? userId,
-  required List<ConversationSummaryEntry> entries,
-}) {
-  unawaited(
-    Future.microtask(
-      () => ref.read(conversationSummaryProvider.notifier).replaceForUser(
-            userId: userId,
-            entries: entries,
-          ),
-    ),
-  );
 }
 
 Future<void> _deleteHomeConversation(

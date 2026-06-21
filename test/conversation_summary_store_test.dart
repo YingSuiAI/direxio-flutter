@@ -262,4 +262,68 @@ void main() {
 
     expect(entries, isEmpty);
   });
+
+  test('projects empty live refresh as a store-clearing update', () {
+    const cached = ConversationSummaryEntry(
+      conversationId: 'conv_stale',
+      roomId: '!stale:p2p-im.com',
+      kind: 'direct',
+      name: 'Stale B',
+      lastMessage: 'old preview',
+      previewTs: 1,
+      unread: 0,
+      isGroup: false,
+      isAgent: false,
+    );
+    final projection = projectConversationSummaryEntries(
+      state: ConversationSummaryState.fromSnapshot(
+        ConversationSummarySnapshot(
+          userId: '@owner:p2p-im.com',
+          updatedAt: DateTime.utc(2026, 6, 22, 12),
+          entries: const [cached],
+        ),
+      ),
+      userId: '@owner:p2p-im.com',
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      liveEntries: const [],
+      includeCachedOnlyEntries: false,
+    );
+
+    expect(projection.displayEntries, [cached]);
+    expect(projection.storeEntries, isEmpty);
+    expect(projection.shouldWriteStore, isTrue);
+  });
+
+  test('keeps cached summaries while ProductCore refresh is still loading', () {
+    const cached = ConversationSummaryEntry(
+      conversationId: 'conv_cached',
+      roomId: '!cached:p2p-im.com',
+      kind: 'direct',
+      name: 'Cached B',
+      lastMessage: 'cached preview',
+      previewTs: 1,
+      unread: 0,
+      isGroup: false,
+      isAgent: false,
+    );
+    final projection = projectConversationSummaryEntries(
+      state: ConversationSummaryState.fromSnapshot(
+        ConversationSummarySnapshot(
+          userId: '@owner:p2p-im.com',
+          updatedAt: DateTime.utc(2026, 6, 22, 12),
+          entries: const [cached],
+        ),
+      ),
+      userId: '@owner:p2p-im.com',
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      liveEntries: const [],
+      includeCachedOnlyEntries: true,
+    );
+
+    expect(projection.displayEntries, [cached]);
+    expect(projection.storeEntries, [cached]);
+    expect(projection.shouldWriteStore, isTrue);
+  });
 }

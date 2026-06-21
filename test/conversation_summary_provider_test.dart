@@ -58,6 +58,47 @@ void main() {
         DateTime.utc(2026, 6, 22, 10).millisecondsSinceEpoch);
     expect(store.snapshot?.entries.single.name, 'B Bash');
   });
+
+  test('replaceForUser writes empty summaries to clear stale store rows',
+      () async {
+    final store = _MemoryConversationSummaryStore(
+      ConversationSummarySnapshot(
+        userId: '@owner:p2p-im.com',
+        updatedAt: DateTime.utc(2026, 6, 22, 9),
+        entries: const [
+          ConversationSummaryEntry(
+            conversationId: 'conv_stale',
+            roomId: '!stale:p2p-im.com',
+            kind: 'direct',
+            name: 'Stale B',
+            lastMessage: 'old preview',
+            previewTs: 1,
+            unread: 0,
+            isGroup: false,
+            isAgent: false,
+          ),
+        ],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        conversationSummaryStoreProvider.overrideWith((ref) async => store),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(conversationSummaryProvider.notifier);
+    await notifier.loaded;
+
+    await notifier.replaceForUser(
+      userId: '@owner:p2p-im.com',
+      entries: const [],
+    );
+
+    final state = container.read(conversationSummaryProvider);
+    expect(state.entries, isEmpty);
+    expect(store.snapshot?.entries, isEmpty);
+  });
 }
 
 class _MemoryConversationSummaryStore implements ConversationSummaryStore {

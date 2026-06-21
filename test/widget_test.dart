@@ -76,6 +76,7 @@ import 'package:portal_app/presentation/providers/matrix_message_clients_provide
 import 'package:portal_app/presentation/providers/profile_provider.dart';
 import 'package:portal_app/presentation/providers/voice_call_provider.dart';
 import 'package:portal_app/presentation/chat/cached_thumbnail_image.dart';
+import 'package:portal_app/presentation/chat/chat_history_backfill_policy.dart';
 import 'package:portal_app/presentation/utils/group_creation_flow.dart';
 import 'package:portal_app/presentation/utils/room_read_state.dart';
 import 'package:portal_app/presentation/widgets/m3/glass_header.dart';
@@ -9938,7 +9939,7 @@ void main() {
     final roomFilter = filter['room']! as Map<String, Object?>;
     final timelineFilter = roomFilter['timeline']! as Map<String, Object?>;
     expect(roomFilter['rooms'], [roomId]);
-    expect(timelineFilter['limit'], 0);
+    expect(timelineFilter['limit'], chatOpenLocalHistoryPageSize);
     expect(find.text('正在恢复群聊...'), findsNothing);
     expect(find.text('群聊同步超时，请检查网络后重试'), findsNothing);
   });
@@ -14568,7 +14569,7 @@ void main() {
     final roomFilter = filter['room']! as Map<String, Object?>;
     final timelineFilter = roomFilter['timeline']! as Map<String, Object?>;
     expect(roomFilter['rooms'], [roomId]);
-    expect(timelineFilter['limit'], 0);
+    expect(timelineFilter['limit'], chatOpenLocalHistoryPageSize);
     expect(find.text('正在同步会话'), findsNothing);
     expect(find.text('会话同步超时，请检查网络后重试'), findsNothing);
     expect(find.text('会话不存在'), findsNothing);

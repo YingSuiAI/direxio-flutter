@@ -15,6 +15,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../data/local_outbox_store.dart';
+import '../../data/matrix_room_history_sync.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
@@ -987,30 +988,30 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (e) {
       debugPrint('getTimeline failed: $e');
     }
+    final tl = _timeline;
+    if (tl != null) {
+      await _syncEmptyRoomHistory(tl);
+      await _backfillLocalStoredHistory(tl);
+    }
+    if (tl != null &&
+        shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen)) {
+      var attempts = 0;
+      while (attempts < chatOpenLocalHistoryMaxAttempts &&
+          tl.canRequestHistory &&
+          visibleMessageCountForChatOpenHistory(tl.events) <
+              chatOpenLocalHistoryTargetMessages) {
+        try {
+          await tl.requestHistory(historyCount: chatOpenLocalHistoryPageSize);
+        } on Object catch (e) {
+          debugPrint('timeline.requestHistory failed: $e');
+          break;
+        }
+        attempts++;
+      }
+    }
     if (mounted) setState(() => _loading = false);
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
-    final tl = _timeline;
-    if (tl != null) unawaited(_backfillLocalStoredHistory(tl));
-    if (tl != null &&
-        shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen)) {
-      unawaited(() async {
-        var attempts = 0;
-        while (attempts < 5 &&
-            tl.canRequestHistory &&
-            tl.events.where((e) => e.type == EventTypes.Message).length < 50) {
-          try {
-            await tl.requestHistory(historyCount: 30);
-          } on Object catch (e) {
-            debugPrint('timeline.requestHistory failed: $e');
-            break;
-          }
-          attempts++;
-        }
-        if (mounted) setState(() {});
-        _scheduleTimelineThumbnailWarmup();
-      }());
-    }
   }
 
   Future<void> _backfillLocalStoredHistory(Timeline timeline) async {
@@ -1043,6 +1044,20 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (mounted) setState(() {});
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
+  }
+
+  Future<void> _syncEmptyRoomHistory(Timeline timeline) async {
+    if (visibleMessageCountForChatOpenHistory(timeline.events) > 0) return;
+    if ((timeline.room.prev_batch ?? '').isNotEmpty) return;
+    try {
+      await syncMatrixRoomHistory(
+        ref.read(matrixClientProvider),
+        roomId: timeline.room.id,
+        timelineLimit: chatOpenLocalHistoryPageSize,
+      );
+    } on Object catch (e) {
+      debugPrint('group room history sync failed: $e');
+    }
   }
 
   Future<void> _hydrateStoredEventSenders(
@@ -1152,28 +1167,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final trimmedRoomId = roomId.trim();
     if (trimmedRoomId.isEmpty) return;
     final client = ref.read(matrixClientProvider);
-    final filter = jsonEncode({
-      'room': {
-        'rooms': [trimmedRoomId],
-        'timeline': {'limit': 0},
-      },
-    });
-    final syncResp = await client
-        .sync(
-          filter: filter,
-          fullState: true,
-          timeout: 0,
-          setPresence: client.syncPresence,
-        )
-        .timeout(const Duration(seconds: 12));
-    final database = client.database;
-    if (database != null) {
-      await database.transaction(() async {
-        await client.handleSync(syncResp, direction: Direction.f);
-      });
-    } else {
-      await client.handleSync(syncResp, direction: Direction.f);
-    }
+    await syncMatrixRoomHistory(
+      client,
+      roomId: trimmedRoomId,
+      timelineLimit: chatOpenLocalHistoryPageSize,
+    );
   }
 
   void _retryMissingGroupRoomRecovery() {

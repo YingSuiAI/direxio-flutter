@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -66,6 +65,7 @@ import '../widgets/tool_call_bubble.dart';
 import '../../data/as_client.dart';
 import '../../data/as_call_session_store.dart';
 import '../../data/local_outbox_store.dart';
+import '../../data/matrix_room_history_sync.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -483,21 +483,23 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('getTimeline failed: $e');
     }
     final tl = _timeline;
-    if (tl != null &&
-        tl.canRequestHistory &&
-        shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen) &&
-        visibleMessageCountForChatOpenHistory(tl.events) <
-            chatOpenLocalHistoryPageSize) {
-      try {
-        await tl.requestHistory(historyCount: chatOpenLocalHistoryPageSize);
-      } on Object catch (e) {
-        debugPrint('private initial timeline.requestHistory failed: $e');
+    if (tl != null) {
+      await _syncEmptyRoomHistory(tl);
+      await _backfillLocalStoredHistory(tl);
+      if (tl.canRequestHistory &&
+          shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen) &&
+          visibleMessageCountForChatOpenHistory(tl.events) <
+              chatOpenLocalHistoryPageSize) {
+        try {
+          await tl.requestHistory(historyCount: chatOpenLocalHistoryPageSize);
+        } on Object catch (e) {
+          debugPrint('private initial timeline.requestHistory failed: $e');
+        }
       }
     }
     if (mounted) setState(() => _loading = false);
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
-    if (tl != null) unawaited(_backfillLocalStoredHistory(tl));
   }
 
   bool _isKnownConversationRoom(AsSyncCacheState syncCache) {
@@ -547,28 +549,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   Future<void> _syncMissingRoomFromServer() async {
     final client = ref.read(matrixClientProvider);
-    final filter = jsonEncode({
-      'room': {
-        'rooms': [widget.roomId],
-        'timeline': {'limit': 0},
-      },
-    });
-    final syncResp = await client
-        .sync(
-          filter: filter,
-          fullState: true,
-          timeout: 0,
-          setPresence: client.syncPresence,
-        )
-        .timeout(const Duration(seconds: 12));
-    final database = client.database;
-    if (database != null) {
-      await database.transaction(() async {
-        await client.handleSync(syncResp, direction: Direction.f);
-      });
-    } else {
-      await client.handleSync(syncResp, direction: Direction.f);
-    }
+    await syncMatrixRoomHistory(
+      client,
+      roomId: widget.roomId,
+      timelineLimit: chatOpenLocalHistoryPageSize,
+    );
   }
 
   Widget _missingRoomScaffold(
@@ -639,6 +624,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (mounted) setState(() {});
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
+  }
+
+  Future<void> _syncEmptyRoomHistory(Timeline timeline) async {
+    if (visibleMessageCountForChatOpenHistory(timeline.events) > 0) return;
+    if ((timeline.room.prev_batch ?? '').isNotEmpty) return;
+    try {
+      await syncMatrixRoomHistory(
+        ref.read(matrixClientProvider),
+        roomId: timeline.room.id,
+        timelineLimit: chatOpenLocalHistoryPageSize,
+      );
+    } on Object catch (e) {
+      debugPrint('private room history sync failed: $e');
+    }
   }
 
   Future<void> _requestOlderMessages() async {

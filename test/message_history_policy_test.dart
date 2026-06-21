@@ -2,10 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/presentation/utils/message_history_policy.dart';
 
 void main() {
-  test('message history policy keeps chat open cache-only', () {
+  test('message history policy allows concrete chat-open history recovery', () {
     expect(
       shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen),
-      isFalse,
+      isTrue,
     );
     expect(
       shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.userLoadOlder),

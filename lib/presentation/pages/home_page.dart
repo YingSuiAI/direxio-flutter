@@ -1432,11 +1432,6 @@ class _ChatList extends ConsumerWidget {
         if (conversation.roomId.trim().isNotEmpty)
           conversation.roomId.trim(): conversation,
     };
-    final asRoomSummariesByRoomId = <String, AsSyncRoomSummary>{
-      for (final room in syncCache.bootstrap?.rooms ?? const [])
-        if (room.roomId.trim().isNotEmpty) room.roomId.trim(): room,
-    };
-
     if (isAuthLoading) {
       return const _Empty(
         icon: Symbols.sync,
@@ -1445,61 +1440,17 @@ class _ChatList extends ConsumerWidget {
       );
     }
 
-    final visibleConversations = <VisibleHomeConversation>[];
-    final visibleRoomIds = <String>{};
-    void addVisibleConversation(VisibleHomeConversation conversation) {
-      final roomId = conversation.roomId.trim();
-      if (roomId.isEmpty || !visibleRoomIds.add(roomId)) return;
-      visibleConversations.add(conversation);
-    }
-
-    final agentMxid = portalAgentMxidForClient(client);
-    final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
-    var fallbackAgentShown = false;
-    for (final room in rooms) {
-      if (room.membership != Membership.join) continue;
-      if (isAgentRoom(room, agentMxid)) {
-        if (canonicalAgentRoomId.isNotEmpty) {
-          if (room.id != canonicalAgentRoomId) continue;
-        } else {
-          if (fallbackAgentShown) continue;
-          fallbackAgentShown = true;
-        }
-        addVisibleConversation(VisibleHomeConversation.agent(room));
-      }
-    }
-    for (final conversation in productConversations) {
-      if (conversation.isChannel) continue;
-      if (!conversation.canOpen) continue;
-      final roomId = conversation.roomId.trim();
-      addVisibleConversation(
-        VisibleHomeConversation.product(
-          conversation,
-          client.getRoomById(roomId),
-          asRoomSummariesByRoomId[roomId],
-        ),
-      );
-    }
-
-    final sortedConversations = [...visibleConversations]..sort((a, b) {
-        final aPinned = pinnedConversationIds.contains(a.roomId);
-        final bPinned = pinnedConversationIds.contains(b.roomId);
-        if (aPinned != bPinned) return aPinned ? -1 : 1;
-        if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
-        return conversationSortTime(
-          b,
-          outbox: outbox,
-          messageOrder: messageOrder,
-        ).compareTo(
-          conversationSortTime(
-            a,
-            outbox: outbox,
-            messageOrder: messageOrder,
-          ),
-        );
-      });
+    final visibleConversations = visibleHomeConversationsForSummary(
+      client: client,
+      rooms: rooms,
+      productConversations: productConversations,
+      syncCache: syncCache,
+      outbox: outbox,
+      messageOrder: messageOrder,
+      pinnedConversationIds: pinnedConversationIds,
+    );
     final filteredConversations = [
-      for (final conversation in sortedConversations)
+      for (final conversation in visibleConversations)
         if (!hiddenConversationIds.contains(conversation.roomId)) conversation,
     ];
     final liveSummaryEntries = [

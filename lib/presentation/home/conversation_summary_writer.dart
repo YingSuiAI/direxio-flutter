@@ -53,6 +53,77 @@ class VisibleHomeConversation {
   final bool isGroup;
 }
 
+List<VisibleHomeConversation> visibleHomeConversationsForSummary({
+  required Client client,
+  required Iterable<Room> rooms,
+  required Iterable<AsConversation> productConversations,
+  required AsSyncCacheState syncCache,
+  required LocalOutboxState outbox,
+  required LocalMessageOrderState messageOrder,
+  required Set<String> pinnedConversationIds,
+}) {
+  final asRoomSummariesByRoomId = <String, AsSyncRoomSummary>{
+    for (final room in syncCache.bootstrap?.rooms ?? const [])
+      if (room.roomId.trim().isNotEmpty) room.roomId.trim(): room,
+  };
+  final visibleConversations = <VisibleHomeConversation>[];
+  final visibleRoomIds = <String>{};
+
+  void addVisibleConversation(VisibleHomeConversation conversation) {
+    final roomId = conversation.roomId.trim();
+    if (roomId.isEmpty || !visibleRoomIds.add(roomId)) return;
+    visibleConversations.add(conversation);
+  }
+
+  final agentMxid = portalAgentMxidForClient(client);
+  final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+  var fallbackAgentShown = false;
+  for (final room in rooms) {
+    if (room.membership != Membership.join) continue;
+    if (isAgentRoom(room, agentMxid)) {
+      if (canonicalAgentRoomId.isNotEmpty) {
+        if (room.id != canonicalAgentRoomId) continue;
+      } else {
+        if (fallbackAgentShown) continue;
+        fallbackAgentShown = true;
+      }
+      addVisibleConversation(VisibleHomeConversation.agent(room));
+    }
+  }
+
+  for (final conversation in productConversations) {
+    if (conversation.isChannel) continue;
+    if (!conversation.canOpen) continue;
+    final roomId = conversation.roomId.trim();
+    addVisibleConversation(
+      VisibleHomeConversation.product(
+        conversation,
+        client.getRoomById(roomId),
+        asRoomSummariesByRoomId[roomId],
+      ),
+    );
+  }
+
+  return visibleConversations
+    ..sort((a, b) {
+      final aPinned = pinnedConversationIds.contains(a.roomId);
+      final bPinned = pinnedConversationIds.contains(b.roomId);
+      if (aPinned != bPinned) return aPinned ? -1 : 1;
+      if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
+      return conversationSortTime(
+        b,
+        outbox: outbox,
+        messageOrder: messageOrder,
+      ).compareTo(
+        conversationSortTime(
+          a,
+          outbox: outbox,
+          messageOrder: messageOrder,
+        ),
+      );
+    });
+}
+
 ConversationSummaryEntry summaryEntryForVisibleConversation({
   required Client client,
   required AsSyncCacheState syncCache,

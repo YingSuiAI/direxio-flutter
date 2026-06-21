@@ -125,7 +125,7 @@ class _RelationshipAsClient extends Fake implements AsClient {
 }
 
 void main() {
-  testWidgets('mock-only contact home is not a product profile',
+  testWidgets('contact home falls back to mxid without mock profile',
       (tester) async {
     final client = Client('ContactHomeRejectMockOnlyTest')
       ..setUserId('@owner:p2p-im.com');
@@ -150,12 +150,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('联系人主页不存在'), findsOneWidget);
+    expect(find.text('联系人主页不存在'), findsNothing);
     expect(find.text('Alice Chen'), findsNothing);
+    expect(find.text('alice'), findsOneWidget);
+    expect(find.text('portal.local'), findsOneWidget);
     expect(
-        find.byKey(const ValueKey('contact_home_follow_button')), findsNothing);
-    expect(find.byKey(const ValueKey('contact_home_add_friend_button')),
-        findsNothing);
+      find.byKey(const ValueKey('contact_home_follow_button')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('contact_home_add_friend_button')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('real contact without mock profile still renders visitor header',
@@ -199,7 +205,7 @@ void main() {
     expect(find.text('p2p-liyanan.com'), findsOneWidget);
     expect(find.text('她的频道'), findsNothing);
     expect(find.text('还没有公开频道'), findsNothing);
-    expect(find.text('还没有公开动态'), findsOneWidget);
+    expect(find.text('还没有公开动态'), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('contact_home_add_friend_button')),
@@ -408,9 +414,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.deletedContacts, ['!alice:p2p-im.com']);
-    expect(find.text('联系人主页不存在'), findsOneWidget);
-    expect(find.byKey(const ValueKey('contact_home_add_friend_button')),
-        findsNothing);
+    expect(find.text('联系人主页不存在'), findsNothing);
+    expect(
+      find.descendant(of: friendButton, matching: find.text('加好友')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('followed visitor home shows unfollow and removes via AS',

@@ -43,7 +43,6 @@ import 'package:portal_app/presentation/pages/contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/contact_home_page.dart';
 import 'package:portal_app/presentation/pages/follows_list_page.dart';
 import 'package:portal_app/presentation/pages/login_page.dart';
-import 'package:portal_app/presentation/mock/mock_data.dart';
 import 'package:portal_app/presentation/pages/home_page.dart';
 import 'package:portal_app/presentation/pages/group_chat_page.dart';
 import 'package:portal_app/presentation/pages/group_detail_page.dart';
@@ -939,6 +938,22 @@ class _EmptyAsClient implements AsClient {
 
   @override
   Future<AgentConfig> updateAgentConfig(AgentConfig config) async => config;
+}
+
+class _MissingPublicChannelAsClient extends _EmptyAsClient {
+  @override
+  Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri}) async {
+    throw StateError('channel not found');
+  }
+
+  @override
+  Future<AsChannel> getPublicChannelByRoomId(
+    String roomId, {
+    Uri? baseUri,
+    Uri? remoteNodeBaseUri,
+  }) async {
+    throw StateError('channel not found');
+  }
 }
 
 class _ReadMarkerFailingAsClient extends _EmptyAsClient {
@@ -1910,7 +1925,7 @@ class _RefreshingBootstrapAsClient extends _EmptyAsClient {
     final showAcceptedContact = syncBootstrapCalls >= 2;
     return AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 28, 14, syncBootstrapCalls),
-      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      user: const AsSyncUser(userId: '@owner:example.com'),
       rooms: const [
         AsSyncRoomSummary(
           roomId: '!current:p2p-im.com',
@@ -3011,7 +3026,7 @@ void main() {
         (widget) =>
             widget is PortalAvatar &&
             widget.size == 32 &&
-            widget.imageUrl == MockAvatars.me,
+            widget.imageUrl != null,
       ),
       findsNothing,
     );
@@ -4735,10 +4750,6 @@ void main() {
   });
 
   testWidgets('home starts app warmup on launch', (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
     final client = Client('PortalIMTest');
     var warmupCalls = 0;
 
@@ -4757,7 +4768,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(warmupCalls, mockAuthEnabled ? 0 : 1);
+    expect(warmupCalls, 1);
   });
 
   test('app warmup preloads current user and recent room avatars', () async {
@@ -11327,15 +11338,17 @@ void main() {
     expect(find.text('还没有群聊'), findsOneWidget);
   });
 
-  testWidgets('mock auth build shows mock channels despite cached login',
-      (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (!mockAuthEnabled) return;
-
+  testWidgets('empty channel tab does not show mock channels', (tester) async {
     final client = Client('PortalIMTest');
+    final emptyBootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-05-26T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
 
     await tester.pumpWidget(
       ProviderScope(
@@ -11344,6 +11357,12 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asBootstrapLiveRefreshIntervalProvider.overrideWith((ref) => null),
+          asClientProvider.overrideWithValue(_NeverListChannelsAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: emptyBootstrap),
+          ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
@@ -11353,11 +11372,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('正在同步频道'), findsNothing);
-    expect(find.text('P2P IM 官方'), findsOneWidget);
-    expect(find.text('Agent 工作流'), findsOneWidget);
+    expect(find.text('P2P IM 官方'), findsNothing);
+    expect(find.text('Agent 工作流'), findsNothing);
+    expect(find.text('还没有频道'), findsOneWidget);
   });
 
-  testWidgets('channel tab presents personal channel inbox categories',
+  testWidgets('channel tab does not render removed sample categories',
       (tester) async {
     final client = Client('PortalIMTest');
 
@@ -11381,28 +11401,18 @@ void main() {
     for (final label in ['已加入', '我创建', '频道列表', '全部']) {
       expect(find.text(label), findsNothing);
     }
-    expect(find.text('文字'), findsAtLeastNWidgets(1));
-    expect(find.text('帖子'), findsAtLeastNWidgets(1));
+    expect(find.text('文字'), findsNothing);
+    expect(find.text('帖子'), findsNothing);
     expect(find.text('草稿'), findsNothing);
 
-    expect(find.text('#综合讨论'), findsOneWidget);
-    expect(find.text('#新手问答'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsNothing);
+    expect(find.text('#新手问答'), findsNothing);
     expect(find.text('草稿箱'), findsNothing);
-    expect(find.text('自由讨论、技术交流与闲聊'), findsOneWidget);
-
-    final firstTop = tester.getTopLeft(find.text('#综合讨论')).dy;
-    final secondTop = tester.getTopLeft(find.text('#新手问答')).dy;
-    expect(firstTop, lessThan(secondTop));
+    expect(find.text('自由讨论、技术交流与闲聊'), findsNothing);
   });
 
   testWidgets('channel unread badge appears only for chat channels',
       (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (mockAuthEnabled) return;
-
     final client = Client('PortalIMTest');
 
     await tester.pumpWidget(
@@ -11511,7 +11521,7 @@ void main() {
     expect(find.text('节点'), findsNothing);
   });
 
-  testWidgets('channel list opens the selected channel detail page',
+  testWidgets('channel list does not expose mock channel detail rows',
       (tester) async {
     final client = Client('PortalIMTest');
     final router = GoRouter(
@@ -11543,15 +11553,11 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('channel_inbox_tile_p2p-im')));
-    await tester.pumpAndSettle();
 
-    expect(find.text('p2p-im.com · 我的频道'), findsNothing);
-    expect(find.text('#P2P IM 官方'), findsOneWidget);
     expect(
-        find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);
-    expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
-    expect(find.textContaining('后端部署清单已更新'), findsWidgets);
+        find.byKey(const ValueKey('channel_inbox_tile_p2p-im')), findsNothing);
+    expect(find.text('P2P IM 官方'), findsNothing);
+    expect(find.text('还没有频道'), findsOneWidget);
   });
 
   testWidgets('channel tab opens chat channels through ProductCore route',
@@ -11801,12 +11807,6 @@ void main() {
 
   testWidgets('joined dissolved channel is hidden from channel list',
       (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (mockAuthEnabled) return;
-
     final client = Client('PortalIMDissolvedChannelHintTest')
       ..setUserId('@member:p2p-im.com')
       ..homeserver = Uri.parse('https://p2p-im.com')
@@ -11861,12 +11861,6 @@ void main() {
   });
 
   testWidgets('channel inbox long press shows channel actions', (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (mockAuthEnabled) return;
-
     final client = Client('PortalIMChannelInboxMenuTest')
       ..setUserId('@member:p2p-im.com')
       ..homeserver = Uri.parse('https://p2p-im.com')
@@ -11926,12 +11920,6 @@ void main() {
 
   testWidgets('empty real channel inbox does not show mock sample channels',
       (tester) async {
-    const mockAuthEnabled = bool.fromEnvironment(
-      'P2P_MATRIX_MOCK_AUTH',
-      defaultValue: false,
-    );
-    if (mockAuthEnabled) return;
-
     final client = Client('PortalIMTest');
     final emptyBootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-05-26T10:30:00Z'),
@@ -11986,7 +11974,7 @@ void main() {
     expect(find.text('P2P IM 官方'), findsNothing);
   });
 
-  testWidgets('joined channel detail uses read-only joined status bar',
+  testWidgets('unknown channel detail does not render mock posts',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/channel/agent-workflows',
@@ -12010,7 +11998,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(_MissingPublicChannelAsClient()),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -12022,22 +12010,12 @@ void main() {
 
     expect(find.text('已关注'), findsNothing);
     expect(find.text('接收通知'), findsNothing);
-    expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
-    expect(find.text('36'), findsOneWidget);
-    expect(find.text('12'), findsOneWidget);
+    expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsNothing);
+    expect(find.text('频道不存在'), findsOneWidget);
     expect(find.text('发布帖子'), findsNothing);
-
-    await tester.tap(find.text('12'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('帖子详情'), findsOneWidget);
-    expect(find.text('输入评论...'), findsOneWidget);
-    expect(find.textContaining('有人分享了群聊总结模板'), findsWidgets);
-    expect(find.text('已关注'), findsNothing);
-    expect(find.text('接收通知'), findsNothing);
   });
 
-  testWidgets('channel detail and post route use dark tokens and app font',
+  testWidgets('unknown channel detail uses dark tokens without mock posts',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/channel/agent-workflows',
@@ -12061,7 +12039,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asClientProvider.overrideWithValue(_MissingPublicChannelAsClient()),
         ],
         child: MaterialApp.router(
           theme: AppTheme.dark,
@@ -12071,19 +12049,12 @@ void main() {
     );
     await tester.pump();
 
-    final intro = tester.widget<Text>(
-      find.text('频道主Diana发布帖子，成员可评论和恢复'),
+    final title = tester.widget<Text>(
+      find.text('频道不存在'),
     );
-    expect(intro.style?.fontSize, 13);
-    expect(intro.style?.letterSpacing, 0);
-
-    await tester.tap(find.text('12'));
-    await tester.pumpAndSettle();
-
-    final detailTitle = tester.widget<Text>(find.text('帖子详情'));
-    expect(detailTitle.style?.color, PortalTokens.dark.text);
-    expect(detailTitle.style?.fontSize, 20);
-    expect(detailTitle.style?.letterSpacing, 0);
+    expect(title.style?.color, PortalTokens.dark.text);
+    expect(title.style?.letterSpacing, 0);
+    expect(find.textContaining('有人分享了群聊总结模板'), findsNothing);
   });
 
   testWidgets('global search excludes mock contacts and groups',
@@ -12111,7 +12082,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
     expect(find.text('产品设计组'), findsNothing);
-    expect(find.text('P2P IM 官方'), findsOneWidget);
+    expect(find.text('P2P IM 官方'), findsNothing);
   });
 
   testWidgets('global search does not expose mock contact routes',
@@ -12151,7 +12122,8 @@ void main() {
     expect(find.text('没有找到包含「Alice」的内容'), findsOneWidget);
   });
 
-  testWidgets('global search opens channel detail results', (tester) async {
+  testWidgets('global search does not expose mock channel routes',
+      (tester) async {
     final client = Client('PortalIMTest');
     final router = GoRouter(
       initialLocation: '/search',
@@ -12183,11 +12155,8 @@ void main() {
     await tester.enterText(find.byType(TextField), 'P2P IM 官方');
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
-    await tester.tap(find.text('P2P IM 官方').last);
-    await tester.pumpAndSettle();
 
-    expect(find.text('p2p-im.com · 我的频道'), findsNothing);
-    expect(find.text('频道详情功能待接入'), findsNothing);
+    expect(find.text('没有找到包含「P2P IM 官方」的内容'), findsOneWidget);
   });
 
   testWidgets('global search indexes real bootstrap channels', (tester) async {

@@ -677,7 +677,7 @@ void main() {
       fallbackDomain: 'p2p-im.com',
     );
 
-    expect(items.single.latestPreview, '暂无频道动态');
+    expect(items.single.latestPreview, '暂无频道内容');
     expect(items.single.description, '');
   });
 

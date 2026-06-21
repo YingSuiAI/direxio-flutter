@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
-import '../mock/mcp_policy.dart';
+import '../mcp/mcp_policy.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
 

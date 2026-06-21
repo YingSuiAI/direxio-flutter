@@ -1,11 +1,8 @@
 import 'dart:async';
 
-// [AsClient] 的 Mock 实现。
-//
-// 真实 App 注入点已经切到 HttpAsClient；本类保留给本地 UI / 单测兜底使用。
-import '../presentation/mock/mock_data.dart';
-import '../presentation/utils/contact_identity_label.dart';
-import 'as_client.dart';
+// [AsClient] 的测试替身实现。
+import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/presentation/utils/contact_identity_label.dart';
 
 class MockAsClient implements AsClient {
   static const _latency = Duration(milliseconds: 240);
@@ -114,7 +111,7 @@ class MockAsClient implements AsClient {
     return AgentStatus(
       connected: true,
       lastSeen: DateTime.now().subtract(const Duration(minutes: 2)),
-      roomsJoined: MockData.conversations.length,
+      roomsJoined: 0,
       messagesToday: 42,
     );
   }

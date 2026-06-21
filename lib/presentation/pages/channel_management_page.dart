@@ -9,7 +9,6 @@ import '../../l10n/app_localizations.dart';
 import '../channel/channel_confirm_dialog.dart';
 import '../channel/channel_inbox_data.dart';
 import '../channel/channel_leave_flow.dart';
-import '../mock/mock_channels.dart';
 import '../providers/as_sync_cache_provider.dart';
 
 enum ChannelManagementSection {
@@ -62,8 +61,10 @@ class _ChannelManagementPageState extends ConsumerState<ChannelManagementPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final channels = _managementChannels(ref);
-    final selected = _selectedChannel(channels, _selectedChannelId, l10n);
-    _selectedChannelId ??= selected.id;
+    final selected = _selectedChannel(channels, _selectedChannelId);
+    if (_selectedChannelId == null && selected != null) {
+      _selectedChannelId = selected.id;
+    }
     final t = context.tk;
 
     return Scaffold(
@@ -74,47 +75,51 @@ class _ChannelManagementPageState extends ConsumerState<ChannelManagementPage> {
           children: [
             _ChannelManageTopBar(
               title: _section.title(l10n),
-              subtitle: selected.name,
+              subtitle: selected?.name ?? '',
               onBack: () => context.pop(),
             ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
-                children: [
-                  _SectionTabs(
-                    selected: _section,
-                    onChanged: (section) => setState(() => _section = section),
-                  ),
-                  const SizedBox(height: 18),
-                  switch (_section) {
-                    ChannelManagementSection.overview => _OverviewSection(
-                        channels: channels,
-                        selectedId: selected.id,
-                        onSelect: (channel) => setState(
-                          () => _selectedChannelId = channel.id,
+              child: selected == null
+                  ? const _ChannelManageEmptyState()
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+                      children: [
+                        _SectionTabs(
+                          selected: _section,
+                          onChanged: (section) =>
+                              setState(() => _section = section),
                         ),
-                        onOpenProfile: (channel) => setState(() {
-                          _selectedChannelId = channel.id;
-                          _section = ChannelManagementSection.profile;
-                        }),
-                      ),
-                    ChannelManagementSection.profile => _ProfileSection(
-                        channel: selected,
-                        onDissolve: () => _confirmDissolveChannel(
-                          context,
-                          ref,
-                          selected.id,
-                        ),
-                      ),
-                    ChannelManagementSection.members => _MembersSection(
-                        channel: selected,
-                      ),
-                    ChannelManagementSection.moderation => _ModerationSection(
-                        channel: selected,
-                      ),
-                  },
-                ],
-              ),
+                        const SizedBox(height: 18),
+                        switch (_section) {
+                          ChannelManagementSection.overview => _OverviewSection(
+                              channels: channels,
+                              selectedId: selected.id,
+                              onSelect: (channel) => setState(
+                                () => _selectedChannelId = channel.id,
+                              ),
+                              onOpenProfile: (channel) => setState(() {
+                                _selectedChannelId = channel.id;
+                                _section = ChannelManagementSection.profile;
+                              }),
+                            ),
+                          ChannelManagementSection.profile => _ProfileSection(
+                              channel: selected,
+                              onDissolve: () => _confirmDissolveChannel(
+                                context,
+                                ref,
+                                selected.id,
+                              ),
+                            ),
+                          ChannelManagementSection.members => _MembersSection(
+                              channel: selected,
+                            ),
+                          ChannelManagementSection.moderation =>
+                            _ModerationSection(
+                              channel: selected,
+                            ),
+                        },
+                      ],
+                    ),
             ),
           ],
         ),
@@ -207,55 +212,18 @@ List<_ManageChannel> _managementChannels(WidgetRef ref) {
     ];
   }
 
-  return [
-    for (final channel
-        in MockChannels.items.where((channel) => channel.isOwned))
-      _ManageChannel(
-        id: channel.id,
-        name: channel.name,
-        domain: channel.domain,
-        description: channel.latestMessage,
-        memberCount: channel.posts.fold<int>(
-              1200,
-              (value, post) => value + post.views.replaceAll('k', '00').length,
-            ) +
-            4600,
-        todayMessages: 96 + channel.unreadCount,
-        pendingCount: channel.unreadCount,
-        color: channel.color,
-        isOwned: channel.isOwned,
-        visibility: 'public',
-        speechPolicy: 'admin_review',
-        invitePolicy: 'admin',
-        encrypted: true,
-      ),
-  ];
+  return const [];
 }
 
-_ManageChannel _selectedChannel(
+_ManageChannel? _selectedChannel(
   List<_ManageChannel> channels,
   String? id,
-  AppLocalizations l10n,
 ) {
   for (final channel in channels) {
     if (channel.id == id) return channel;
   }
   if (channels.isNotEmpty) return channels.first;
-  return _ManageChannel(
-    id: 'p2p-im',
-    name: l10n.channelManageDefaultChannelName,
-    domain: 'p2p-im.com',
-    description: l10n.channelManageDefaultChannelDescription,
-    memberCount: 5824,
-    todayMessages: 96,
-    pendingCount: 3,
-    color: const Color(0xFF3097CB),
-    isOwned: true,
-    visibility: 'public',
-    speechPolicy: 'admin_review',
-    invitePolicy: 'admin',
-    encrypted: true,
-  );
+  return null;
 }
 
 class _ChannelManageTopBar extends StatelessWidget {
@@ -311,6 +279,42 @@ class _ChannelManageTopBar extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelManageEmptyState extends StatelessWidget {
+  const _ChannelManageEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Symbols.campaign, size: 34, color: t.textMute),
+            const SizedBox(height: 10),
+            Text(
+              '还没有可管理的频道',
+              style: AppTheme.sans(
+                size: 16,
+                weight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '创建频道后，可以在这里管理资料、成员和规则。',
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(size: 13, color: t.textMute)
+                  .copyWith(height: 1.35),
             ),
           ],
         ),

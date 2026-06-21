@@ -11,7 +11,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../channel/channel_inbox_data.dart';
-import '../mock/mock_channels.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -82,7 +81,7 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
     unawaited(_loadMoreComments(detail));
   }
 
-  _PostDetailData _currentDetail() {
+  _PostDetailData? _currentDetail() {
     return _resolvePostDetail(ref, widget.channelId, widget.postId);
   }
 
@@ -107,6 +106,29 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
   Widget build(BuildContext context) {
     final detail = _currentDetail();
     _activeDetail = detail;
+    if (detail == null) {
+      return Scaffold(
+        backgroundColor: _detailBgColor(context),
+        body: SafeArea(
+          bottom: false,
+          child: Stack(
+            children: [
+              const Positioned.fill(
+                child: _PostMissingState(),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: _PostDetailTopBar(
+                  onBack: () => context.pop(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     _ensureCommentsKey(detail);
     final optimisticComment = _submittedCommentBody == null
         ? null
@@ -233,11 +255,6 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
     required int page,
     required int pageSize,
   }) async {
-    if (detail.realPost == null) {
-      final all = _mockComments(detail, true);
-      final start = (page <= 1 ? 0 : page - 1) * pageSize;
-      return all.skip(start).take(pageSize).toList(growable: false);
-    }
     final items = await ref.read(asClientProvider).getChannelComments(
           detail.channelId,
           detail.postId,
@@ -407,7 +424,7 @@ class _PostIntroPill extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
-          '频道主Diana发布帖子，成员可评论和恢复',
+          '频道帖子，成员可评论和互动',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppTheme.sans(
@@ -1069,6 +1086,42 @@ class _KindBadge extends StatelessWidget {
   }
 }
 
+class _PostMissingState extends StatelessWidget {
+  const _PostMissingState();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Symbols.search_off, size: 36, color: t.textMute),
+            const SizedBox(height: 10),
+            Text(
+              '帖子不存在',
+              style: AppTheme.sans(
+                size: 16,
+                weight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '该帖子可能已删除，或尚未同步到本机。',
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(size: 13, color: t.textMute)
+                  .copyWith(height: 1.35),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _GlassCircleAction extends StatelessWidget {
   const _GlassCircleAction({required this.icon, required this.onTap});
 
@@ -1174,7 +1227,7 @@ class _PostComment {
   }
 }
 
-_PostDetailData _resolvePostDetail(
+_PostDetailData? _resolvePostDetail(
   WidgetRef ref,
   String channelId,
   String postId,
@@ -1205,38 +1258,7 @@ _PostDetailData _resolvePostDetail(
     );
   }
 
-  final mock = MockChannels.byId(channelId);
-  if (mock != null) {
-    for (final post in mock.posts) {
-      if (_mockPostKey(post) == postId) {
-        return _PostDetailData(
-          channelId: channelId,
-          channelName: mock.name,
-          postId: postId,
-          authorName: post.author,
-          timeLabel: post.timeLabel,
-          title: '我发布的帖子',
-          body: post.body,
-          reactionCount: _countFromLabel(post.reactionLabel, fallback: 6),
-          reactedByMe: false,
-          commentCount: post.commentCount,
-        );
-      }
-    }
-  }
-
-  return _PostDetailData(
-    channelId: channelId,
-    channelName: realChannel?.name ?? mock?.name ?? '综合讨论',
-    postId: postId,
-    authorName: 'Alice',
-    timeLabel: '10:55',
-    title: '我发布的帖子',
-    body: '我发布的帖子我发布的帖子我发布的帖子我发布的帖子，我发布的帖子我发布的帖子我发布的帖子我发布的帖子。',
-    reactionCount: 6,
-    reactedByMe: false,
-    commentCount: 8,
-  );
+  return null;
 }
 
 String _realPostKey(AsChannelPost post) {
@@ -1245,37 +1267,6 @@ String _realPostKey(AsChannelPost post) {
   final eventId = post.eventId.trim();
   if (eventId.isNotEmpty) return eventId;
   return '${post.authorId}|${post.originServerTs}|${post.body}';
-}
-
-List<_PostComment> _mockComments(_PostDetailData detail, bool submitted) {
-  if (!submitted) return const [];
-  return const [
-    _PostComment(
-      authorName: 'Alice',
-      body: '我发布的帖子我发布的帖子我发布的帖子我发布的帖子。',
-      timeLabel: '10:55',
-      originServerTs: 4,
-    ),
-    _PostComment(
-      authorName: 'Mrra',
-      replyToName: 'Alice',
-      body: '我发布的帖子我发布的帖子。',
-      timeLabel: '10:55',
-      originServerTs: 3,
-    ),
-    _PostComment(
-      authorName: 'Dridder',
-      body: '我发布的帖子我发布的帖子。',
-      timeLabel: '10:55',
-      originServerTs: 2,
-    ),
-    _PostComment(
-      authorName: 'Dridder',
-      body: '我发布的帖子我发布的帖子。',
-      timeLabel: '10:55',
-      originServerTs: 1,
-    ),
-  ];
 }
 
 _PostComment _commentFromAs(AsChannelComment item) {
@@ -1332,20 +1323,12 @@ ChannelInboxItem? _findRealChannel(WidgetRef ref, String channelId) {
   return null;
 }
 
-String _mockPostKey(MockChannelPost post) =>
-    '${post.author}|${post.timeLabel}|${post.body}';
-
 String _titleFromBody(String body) {
   final trimmed = body.trim();
   if (trimmed.isEmpty) return '我发布的帖子';
   final firstLine = trimmed.split('\n').first.trim();
   if (firstLine.length <= 14) return firstLine;
   return '我发布的帖子';
-}
-
-int _countFromLabel(String label, {required int fallback}) {
-  final match = RegExp(r'\d+').firstMatch(label);
-  return int.tryParse(match?.group(0) ?? '') ?? fallback;
 }
 
 String _localpartFromMxid(String mxid) {

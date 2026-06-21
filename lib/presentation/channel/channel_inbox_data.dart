@@ -146,7 +146,7 @@ class ChannelInboxData {
           latestPreview: description.isNotEmpty
               ? description
               : topic.isEmpty
-                  ? '暂无频道动态'
+                  ? '暂无频道内容'
                   : topic,
           latestAt: channel.lastActivityAt,
           unreadCount: channel.unreadCount,
@@ -236,7 +236,7 @@ class ChannelInboxData {
         latestPreview: description.isNotEmpty
             ? description
             : topic.isEmpty
-                ? '暂无频道动态'
+                ? '暂无频道内容'
                 : topic,
         latestAt: channel.latestActivityAt ?? bootstrapChannel?.lastActivityAt,
         unreadCount: bootstrapChannel?.unreadCount ?? 0,

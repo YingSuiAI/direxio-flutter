@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../data/as_client.dart';
-import '../mock/mock_channels.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import 'channel_inbox_data.dart';
@@ -132,32 +131,12 @@ ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
     }
   }
 
-  final mock = MockChannels.byId(channelId);
-  if (mock != null) {
-    return ChannelInfoData(
-      id: mock.id,
-      roomId: mock.id,
-      domain: mock.domain,
-      name: mock.name,
-      avatarUrl: '',
-      description: mock.latestMessage,
-      visibility: asChannelVisibilityPublic,
-      joinPolicy: asChannelJoinPolicyApproval,
-      memberStatus: '',
-      isOwned: mock.isOwned,
-      commentsEnabled: true,
-      channelType:
-          mock.tags.contains('文字') ? asChannelTypeChat : asChannelTypePost,
-      tags: mock.tags,
-      memberCount: 32,
-    );
-  }
-
-  return const ChannelInfoData(
-    id: '综合讨论',
-    roomId: '综合讨论',
-    domain: 'p2p-im.com',
-    name: '综合讨论',
+  final trimmed = channelId.trim();
+  return ChannelInfoData(
+    id: trimmed,
+    roomId: trimmed,
+    domain: '',
+    name: trimmed.isEmpty ? '频道' : trimmed,
     avatarUrl: '',
     description: '',
     visibility: asChannelVisibilityPublic,
@@ -166,8 +145,8 @@ ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
     isOwned: false,
     commentsEnabled: true,
     channelType: asChannelTypeChat,
-    tags: ['文字'],
-    memberCount: 32,
+    tags: const [],
+    memberCount: 0,
   );
 }
 

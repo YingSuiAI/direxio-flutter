@@ -22,10 +22,6 @@ import '../widgets/portal_avatar.dart';
 import 'channel_inbox_data.dart';
 import 'create_channel_sheet.dart';
 
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
 const _channelBg = Color(0xFFFAFAFA);
 const _channelText = Color(0xFF262628);
 const _channelMuted = Color(0xFFA3A3A4);
@@ -77,8 +73,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
       auth?.userId,
     );
     final bootstrap = syncCache.bootstrap;
-    final useRealChannels =
-        !_mockAuthEnabled && (auth?.isLoggedIn == true || client.isLogged());
+    final useRealChannels = auth?.isLoggedIn == true || client.isLogged();
     final listedChannels =
         useRealChannels ? ref.watch(_channelListProvider).valueOrNull : null;
     final productConversations = useRealChannels
@@ -123,7 +118,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           )
-        : _mockChannelItems();
+        : const <ChannelInboxItem>[];
     final visibleSourceChannels = _sortPinnedChannels(
       sourceChannels
           .where((channel) =>
@@ -381,9 +376,7 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
 
   Future<List<_ReviewItem>> _loadReviewItems() async {
     final auth = ref.read(authStateNotifierProvider).valueOrNull;
-    if (_mockAuthEnabled || auth?.isLoggedIn != true) {
-      return _mockReviewItems();
-    }
+    if (auth?.isLoggedIn != true) return const [];
     final listedChannels = await ref.read(asClientProvider).listChannels();
     final ownedChannels = listedChannels.where(_canReviewChannel).toList(
           growable: false,
@@ -504,35 +497,6 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
       );
     }
   }
-}
-
-List<_ReviewItem> _mockReviewItems() {
-  return const [
-    _ReviewItem(
-      channelId: 'mock-review-general',
-      channelName: 'P2P IM 官方',
-      userMxid: '@alice:portal.local',
-      name: 'Alice',
-      time: '09:30',
-      status: _ReviewStatus.pending,
-    ),
-    _ReviewItem(
-      channelId: 'mock-review-general',
-      channelName: 'P2P IM 官方',
-      userMxid: '@bob:portal.local',
-      name: 'Bob',
-      time: '昨天',
-      status: _ReviewStatus.approved,
-    ),
-    _ReviewItem(
-      channelId: 'mock-review-general',
-      channelName: 'P2P IM 官方',
-      userMxid: '@eve:portal.local',
-      name: 'Eve',
-      time: '06-16',
-      status: _ReviewStatus.rejected,
-    ),
-  ];
 }
 
 bool _canReviewChannel(AsChannel channel) {
@@ -1812,97 +1776,9 @@ int _channelPendingCount(List<ChannelInboxItem> channels) {
   );
 }
 
-List<ChannelInboxItem> _mockChannelItems() {
-  return [
-    ChannelInboxItem(
-      id: 'owner',
-      roomId: 'owner',
-      name: 'owner',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '后端部署清单已更新：个人资料、二维码加好友...',
-      latestAt: _todayAt(18, 40),
-      unreadCount: 7,
-      isOwned: true,
-      channelType: asChannelTypeChat,
-      tags: const ['文字'],
-      pendingJoinCount: 1,
-    ),
-    ChannelInboxItem(
-      id: 'p2p-im',
-      roomId: 'p2p-im',
-      name: 'P2P IM 官方',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '后端部署清单已更新：个人资料、二维码加好友...',
-      latestAt: _todayAt(18, 40),
-      unreadCount: 3,
-      isOwned: true,
-      channelType: asChannelTypePost,
-      tags: const ['帖子', '产品'],
-    ),
-    ChannelInboxItem(
-      id: 'ai-studio',
-      roomId: 'ai-studio',
-      name: 'AI 创作实验室',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '短视频脚本生成流程已整理',
-      latestAt: _todayAt(13, 20),
-      unreadCount: 1,
-      isOwned: true,
-      channelType: asChannelTypePost,
-      tags: const ['帖子', 'AI'],
-    ),
-    ChannelInboxItem(
-      id: 'agent-workflows',
-      roomId: 'agent-workflows',
-      name: 'Agent 工作流',
-      domain: 'agent-workflows.p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '有人分享了群聊总结模板',
-      latestAt: _todayAt(18, 12),
-      unreadCount: 8,
-      isOwned: false,
-      channelType: asChannelTypePost,
-      tags: const ['帖子', 'AI'],
-    ),
-    ChannelInboxItem(
-      id: 'joined-general',
-      roomId: 'joined-general',
-      name: '综合讨论',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '自由讨论、技术交流与闲聊',
-      latestAt: _todayAt(9, 15),
-      unreadCount: 0,
-      isOwned: false,
-      channelType: asChannelTypeChat,
-      tags: const ['文字'],
-    ),
-    ChannelInboxItem(
-      id: 'new-user-qa',
-      roomId: 'new-user-qa',
-      name: '新手问答',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '新用户使用问题集中答疑',
-      latestAt: _todayAt(8, 50),
-      unreadCount: 0,
-      isOwned: false,
-      channelType: asChannelTypeChat,
-      tags: const ['文字'],
-    ),
-  ];
-}
-
 String _channelInboxDisplayName(ChannelInboxItem channel) {
   final name = channel.name.trim();
   if (name.isEmpty) return '';
-  final isMockSample = !channel.roomId.trim().startsWith('!');
-  if (isMockSample && _channelIsTextType(channel) && !name.startsWith('#')) {
-    return '#$name';
-  }
   return name;
 }
 
@@ -1923,11 +1799,6 @@ Color _channelAvatarColor(BuildContext context, ChannelInboxItem channel) {
   if (name.contains('草稿')) return const Color(0xFFF5F2E5);
   if (name.contains('产品')) return const Color(0xFFE5F0FF);
   return const Color(0xFFDDF0FA);
-}
-
-DateTime _todayAt(int hour, int minute) {
-  final now = DateTime.now();
-  return DateTime(now.year, now.month, now.day, hour, minute);
 }
 
 String _formatChannelTime(DateTime? value) {

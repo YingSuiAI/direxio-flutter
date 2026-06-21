@@ -444,7 +444,7 @@ class _JoinButton extends StatelessWidget {
 
 String _channelDescription(ChannelInfoData channel) {
   final description = channel.description.trim();
-  if (description.isNotEmpty && description != '暂无频道动态') {
+  if (description.isNotEmpty && description != '暂无频道内容') {
     return description;
   }
   return '暂无频道介绍';

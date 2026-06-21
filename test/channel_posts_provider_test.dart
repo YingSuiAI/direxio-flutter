@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/channel_post_store.dart';
-import 'package:portal_app/data/mock_as_client.dart';
+import 'support/mock_as_client.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/channel_provider.dart';
 

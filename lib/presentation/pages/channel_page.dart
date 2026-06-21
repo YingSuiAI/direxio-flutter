@@ -13,7 +13,6 @@ import '../channel/channel_inbox_data.dart';
 import '../channel/channel_join_flow.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../channel/public_channel_target.dart';
-import '../mock/mock_channels.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -59,69 +58,7 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
       return const _ChannelLoadingScaffold();
     }
 
-    final channel = MockChannels.byId(widget.channelId);
-
-    if (channel == null) {
-      return _PublicChannelScaffold(channelId: widget.channelId);
-    }
-
-    return Scaffold(
-      backgroundColor: _channelPageBackground(context),
-      floatingActionButton: !_multiSelect && channel.isOwned
-          ? _ChannelPostCreateFab(
-              key: const ValueKey('channel_post_create_fab'),
-              onTap: () => context.push(
-                '/channel/${Uri.encodeComponent(channel.id)}/post/create',
-              ),
-            )
-          : null,
-      body: Column(
-        children: [
-          GlassHeader.detail(
-            title: _mockPostChannelTitle(channel.name),
-            actions: [
-              GlassHeaderButton(
-                icon: Symbols.more_vert,
-                onTap: () => _showChannelMenu(context, channel),
-              ),
-            ],
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
-              children: [
-                if (channel.posts.isNotEmpty) ...[
-                  const _ChannelIntroPill(),
-                  const SizedBox(height: 20),
-                ],
-                for (final post in channel.posts) ...[
-                  _ChannelPostCard(
-                    channel: channel,
-                    post: post,
-                    selected: _selected.contains(_mockPostKey(post)),
-                    multiSelect: _multiSelect,
-                    onTap: _multiSelect
-                        ? () => _toggleSelected(_mockPostKey(post))
-                        : () => context.push(
-                              '/channel/${Uri.encodeComponent(channel.id)}'
-                              '/post/${Uri.encodeComponent(_mockPostKey(post))}',
-                            ),
-                    onLongPress: () => _enterMultiSelect(_mockPostKey(post)),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              ],
-            ),
-          ),
-          if (_multiSelect)
-            ChatRecordSelectionBar(
-              count: _selected.length,
-              onExit: _cancelSelection,
-              onForward: () => _forwardMockChannelSelection(channel),
-            ),
-        ],
-      ),
-    );
+    return _PublicChannelScaffold(channelId: widget.channelId);
   }
 
   bool _shouldRecoverRealChannel(WidgetRef ref, String channelId) {
@@ -187,28 +124,6 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
     });
   }
 
-  Future<void> _forwardMockChannelSelection(MockChannel channel) async {
-    final posts = channel.posts
-        .where((post) => _selected.contains(_mockPostKey(post)))
-        .toList(growable: false);
-    if (posts.isEmpty) return;
-    final payload = buildChatRecordPayload(
-      sourceRoomId: channel.id,
-      sourceRoomType: 'channel',
-      sourceName: channel.name,
-      messages: [
-        for (final post in posts)
-          ChatRecordSourceMessage(
-            senderName: post.author,
-            body: post.body,
-            messageType: 'text',
-            originServerTs: DateTime.now().millisecondsSinceEpoch,
-          ),
-      ],
-    );
-    await _forwardPayload(payload, channel.id, channel.name);
-  }
-
   Future<void> _forwardRealChannelSelection(ChannelInboxItem channel) async {
     if (!_selected.contains('topic')) return;
     final payload = buildChatRecordPayload(
@@ -254,9 +169,6 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
     }
   }
 }
-
-String _mockPostKey(MockChannelPost post) =>
-    '${post.author}|${post.timeLabel}|${post.body}';
 
 String _realPostKey(AsChannelPost post) {
   final postId = post.postId.trim();
@@ -331,34 +243,8 @@ String _matrixRoomAvatar(Client client, String roomId) {
   return client.getRoomById(roomId.trim())?.avatar?.toString() ?? '';
 }
 
-class _ChannelModalSurface extends StatelessWidget {
-  const _ChannelModalSurface({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Material(
-      key: const ValueKey('channel_modal_surface'),
-      color: t.surface,
-      child: IconTheme(
-        data: IconThemeData(color: t.textMute),
-        child: DefaultTextStyle(
-          style: AppTheme.sans(size: 15, color: t.text),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
 Color _channelPageBackground(BuildContext context) {
   return context.tk.bg;
-}
-
-Color _channelModalBackground(BuildContext context) {
-  return context.tk.surface;
 }
 
 class _RealChannelPage extends ConsumerStatefulWidget {
@@ -789,11 +675,6 @@ String _postChannelTitle(String name) {
   return trimmed.startsWith('#') ? trimmed.substring(1).trim() : trimmed;
 }
 
-String _mockPostChannelTitle(String name) {
-  final title = _postChannelTitle(name);
-  return title.startsWith('#') ? title : '#$title';
-}
-
 void _openJoinedPublicChannel(
   BuildContext context,
   AsChannel joined, {
@@ -881,7 +762,7 @@ class _ChannelIntroPill extends StatelessWidget {
           borderRadius: BorderRadius.circular(9999),
         ),
         child: Text(
-          '频道主Diana发布帖子，成员可评论和恢复',
+          '频道帖子，成员可评论和互动',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppTheme.sans(
@@ -909,55 +790,6 @@ void _openRealChannelInfo(BuildContext context, ChannelInboxItem channel) {
     MaterialPageRoute<void>(
       builder: (_) => ChannelInfoPage(channelId: channelId),
     ),
-  );
-}
-
-void _showChannelMenu(BuildContext context, MockChannel channel) {
-  final items = channel.isOwned
-      ? const ['频道资料', '成员管理', '标签管理', '通知设置']
-      : const ['频道资料', '通知设置', '退出频道'];
-  showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: _channelModalBackground(context),
-    showDragHandle: true,
-    builder: (ctx) {
-      final t = ctx.tk;
-      return _ChannelModalSurface(
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final item in items)
-                ListTile(
-                  title: Text(
-                    item,
-                    style: AppTheme.sans(size: 15, color: t.text),
-                  ),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (!context.mounted) return;
-                      if (item == '频道资料') {
-                        context.push(
-                          '/channel/${Uri.encodeComponent(channel.id)}/info',
-                        );
-                      } else if (item == '成员管理') {
-                        context.push(
-                          '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=members',
-                        );
-                      } else if (item == '标签管理') {
-                        context.push(
-                          '/channels/manage/${Uri.encodeComponent(channel.id)}?tab=moderation',
-                        );
-                      }
-                    });
-                  },
-                ),
-            ],
-          ),
-        ),
-      );
-    },
   );
 }
 
@@ -1431,12 +1263,6 @@ String _postExcerpt(
   return normalized;
 }
 
-int _countFromLabel(String label) {
-  final match = RegExp(r'\d+').firstMatch(label);
-  if (match == null) return 0;
-  return int.tryParse(match.group(0) ?? '') ?? 0;
-}
-
 String _localpartFromMxid(String mxid) {
   if (!mxid.startsWith('@')) return mxid.trim().isEmpty ? '用户' : mxid.trim();
   final colon = mxid.indexOf(':');
@@ -1456,145 +1282,6 @@ String _formatPostTime(int originServerTs) {
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
   return '${dt.month}.${dt.day}';
-}
-
-class _ChannelPostCard extends StatefulWidget {
-  const _ChannelPostCard({
-    required this.channel,
-    required this.post,
-    this.selected = false,
-    this.multiSelect = false,
-    this.onTap,
-    this.onLongPress,
-  });
-
-  final MockChannel channel;
-  final MockChannelPost post;
-  final bool selected;
-  final bool multiSelect;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-
-  @override
-  State<_ChannelPostCard> createState() => _ChannelPostCardState();
-}
-
-class _ChannelPostCardState extends State<_ChannelPostCard> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final title = _postTitle(widget.post.body);
-    final excerpt = _postExcerpt(widget.post.body, title);
-    return InkWell(
-      onTap: widget.onTap,
-      onLongPress: widget.onLongPress,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-        decoration: BoxDecoration(
-          color: widget.selected ? t.accent.withValues(alpha: 0.12) : t.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: widget.selected ? Border.all(color: t.accent) : null,
-          boxShadow: [
-            BoxShadow(
-              color: t.text.withValues(alpha: 0.07),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.multiSelect) ...[
-                  _ChannelSelectCheckmark(
-                    selected: widget.selected,
-                    onTap: widget.onTap,
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                _PostListAvatar(label: widget.post.author),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              widget.post.author,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTheme.sans(
-                                size: 16,
-                                weight: FontWeight.w600,
-                                color: t.text,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const _PostTypeBadge(),
-                        ],
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        widget.post.timeLabel,
-                        style: AppTheme.sans(size: 12, color: t.textMute),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 18,
-                weight: FontWeight.w600,
-                color: t.text,
-              ).copyWith(height: 26 / 18),
-            ),
-            if (excerpt.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              _ExpandablePostExcerpt(
-                excerpt,
-                expanded: _expanded,
-                onToggle: () => setState(() => _expanded = !_expanded),
-              ),
-              const SizedBox(height: 10),
-            ] else ...[
-              const SizedBox(height: 10),
-            ],
-            Row(
-              children: [
-                _PostCommentInput(onTap: widget.onTap),
-                const Spacer(),
-                _PostStatButton(
-                  icon: Symbols.favorite,
-                  count: _countFromLabel(widget.post.reactionLabel),
-                ),
-                const SizedBox(width: 16),
-                _PostStatButton(
-                  icon: Symbols.chat_bubble,
-                  count: widget.post.commentCount,
-                  onTap: widget.onTap,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _ChannelPostCreateFab extends StatelessWidget {
@@ -1618,39 +1305,6 @@ class _ChannelPostCreateFab extends StatelessWidget {
             size: 30,
             color: t.onAccent,
             weight: 700,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChannelSelectCheckmark extends StatelessWidget {
-  const _ChannelSelectCheckmark({
-    required this.selected,
-    required this.onTap,
-  });
-
-  final bool selected;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Semantics(
-      button: true,
-      label: selected ? '取消选择消息' : '选择消息',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: SizedBox.square(
-          dimension: 40,
-          child: Center(
-            child: Icon(
-              selected ? Symbols.check_circle : Symbols.circle,
-              size: 22,
-              color: selected ? t.accent : t.textMute,
-            ),
           ),
         ),
       ),

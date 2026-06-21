@@ -308,19 +308,6 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
                         ),
                         const SizedBox(height: 16),
                       ],
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: glassListTileHorizontalMargin,
-                        ),
-                        child: _VisitorSection(
-                          title: '她的动态',
-                          child: home.dynamics.isEmpty
-                              ? const _VisitorEmptyLine(text: '还没有公开动态')
-                              : _VisitorDynamicsTimeline(
-                                  items: home.dynamics,
-                                ),
-                        ),
-                      ),
                     ],
                   ),
           ),
@@ -341,18 +328,17 @@ _ContactHomeData? _visitorHomeForUserId(
     bootstrap?.contacts ?? const <AsSyncContact>[],
     trimmed,
   );
-  if (contact == null) return null;
 
-  final contactDomain = contact.domain.trim();
+  final contactDomain = contact?.domain.trim() ?? '';
   final domain =
       contactDomain.isNotEmpty ? contactDomain : _domainFromMxid(trimmed);
   final displayName = contactDisplayNameFromIdentity(
     mxid: trimmed,
-    displayName: contact.displayName,
+    displayName: contact?.displayName ?? '',
     domain: domain,
     fallback: _displayNameFromMxid(trimmed, fallbackDomain: domain),
   );
-  final avatarUrl = contact.avatarUrl.trim();
+  final avatarUrl = contact?.avatarUrl.trim() ?? '';
 
   return _ContactHomeData(
     userId: trimmed,
@@ -361,7 +347,6 @@ _ContactHomeData? _visitorHomeForUserId(
     bio: '',
     avatarUrl: avatarUrl.isEmpty ? null : avatarUrl,
     channels: const [],
-    dynamics: const [],
   );
 }
 
@@ -435,7 +420,6 @@ class _ContactHomeData {
     required this.bio,
     required this.avatarUrl,
     required this.channels,
-    required this.dynamics,
   });
 
   final String userId;
@@ -444,7 +428,6 @@ class _ContactHomeData {
   final String bio;
   final String? avatarUrl;
   final List<_ContactHomeChannel> channels;
-  final List<_ContactHomeDynamic> dynamics;
 }
 
 class _ContactHomeChannel {
@@ -463,24 +446,6 @@ class _ContactHomeChannel {
   final String roomId;
   final String channelId;
   final String? avatarUrl;
-}
-
-class _ContactHomeDynamic {
-  const _ContactHomeDynamic({
-    required this.month,
-    required this.day,
-    required this.title,
-    required this.subtitle,
-    required this.previewColor,
-    required this.sortKey,
-  });
-
-  final String month;
-  final String day;
-  final String title;
-  final String subtitle;
-  final int previewColor;
-  final int sortKey;
 }
 
 _FriendButtonState _friendStateFromContact(AsSyncContact? contact) {
@@ -747,149 +712,6 @@ class _VisitorChannelTile extends StatelessWidget {
       onTap: target.isEmpty
           ? null
           : () => context.push('/channel/${Uri.encodeComponent(target)}'),
-    );
-  }
-}
-
-class _VisitorDynamicsTimeline extends StatelessWidget {
-  const _VisitorDynamicsTimeline({required this.items});
-
-  final List<_ContactHomeDynamic> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final sorted = [...items]..sort((a, b) => b.sortKey.compareTo(a.sortKey));
-    return Column(
-      children: [
-        for (var i = 0; i < sorted.length; i++) ...[
-          _VisitorDynamicRow(item: sorted[i]),
-        ],
-      ],
-    );
-  }
-}
-
-class _VisitorDynamicRow extends StatelessWidget {
-  const _VisitorDynamicRow({required this.item});
-
-  final _ContactHomeDynamic item;
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassListPanel(
-      margin: const EdgeInsets.only(bottom: glassListTileGap),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 78, child: _VisitorDynamicDate(item: item)),
-          const SizedBox(width: 16),
-          Expanded(child: _VisitorDynamicPreview(item: item)),
-        ],
-      ),
-    );
-  }
-}
-
-class _VisitorDynamicDate extends StatelessWidget {
-  const _VisitorDynamicDate({required this.item});
-
-  final _ContactHomeDynamic item;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    if (item.day.isEmpty) {
-      return Text(
-        item.month,
-        style: AppTheme.sans(
-          size: 22,
-          weight: FontWeight.w700,
-          color: t.text,
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(item.month, style: AppTheme.sans(size: 13, color: t.text)),
-        Text(
-          item.day,
-          style: AppTheme.sans(
-            size: 26,
-            weight: FontWeight.w700,
-            color: t.text,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _VisitorDynamicPreview extends StatelessWidget {
-  const _VisitorDynamicPreview({required this.item});
-
-  final _ContactHomeDynamic item;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          item.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: AppTheme.sans(
-            size: 17,
-            weight: FontWeight.w500,
-            color: t.text,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                color: Color(item.previewColor),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Icon(Symbols.image, color: t.textMute, size: 22),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                item.subtitle,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.sans(size: 13, color: t.textMute).copyWith(
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _VisitorEmptyLine extends StatelessWidget {
-  const _VisitorEmptyLine({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Center(
-        child: Text(text, style: AppTheme.sans(size: 13, color: t.textMute)),
-      ),
     );
   }
 }

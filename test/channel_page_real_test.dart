@@ -9,7 +9,7 @@ import 'package:portal_app/core/theme/design_tokens.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/channel_post_store.dart';
-import 'package:portal_app/data/mock_as_client.dart';
+import 'support/mock_as_client.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/pages/channel_conversation_page.dart';
 import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
@@ -348,7 +348,7 @@ void main() {
           avatarUrl: '',
           unreadCount: 0,
           lastActivityAt: DateTime.parse('2026-06-17T10:20:00Z'),
-          description: '频道主Diana发布帖子，成员可评论和恢复',
+          description: '频道帖子，成员可评论和互动',
           isOwned: false,
           role: asChannelRoleOwner,
           memberStatus: asChannelMemberStatusJoined,
@@ -377,7 +377,7 @@ void main() {
 
     expect(find.text('综合讨论'), findsOneWidget);
     expect(find.text('#综合讨论'), findsNothing);
-    expect(find.text('频道主Diana发布帖子，成员可评论和恢复'), findsOneWidget);
+    expect(find.text('频道帖子，成员可评论和互动'), findsOneWidget);
     expect(find.text('第一条帖子'), findsOneWidget);
     expect(
         find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);

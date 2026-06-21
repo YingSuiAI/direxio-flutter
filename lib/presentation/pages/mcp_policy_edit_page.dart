@@ -7,9 +7,10 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
-import '../mock/mcp_policy.dart';
-import '../mock/mock_data.dart';
-import '../mock/mcp_audit.dart';
+import '../../data/as_client.dart';
+import '../mcp/mcp_policy.dart';
+import '../mcp/mcp_audit.dart';
+import '../providers/product_conversations_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
 
@@ -687,15 +688,20 @@ class _RadioRow extends StatelessWidget {
   }
 }
 
-class _RoomPicker extends StatelessWidget {
+class _RoomPicker extends ConsumerWidget {
   const _RoomPicker({required this.draft, required this.onChange});
   final McpPolicy draft;
   final VoidCallback onChange;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
-    final allRooms = MockData.conversations;
+    final allRooms = ref.watch(productConversationsProvider).valueOrNull ??
+        const <AsConversation>[];
+    final roomById = {
+      for (final room in allRooms)
+        if (room.roomId.trim().isNotEmpty) room.roomId.trim(): room,
+    };
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
       child: Column(
@@ -711,10 +717,12 @@ class _RoomPicker extends StatelessWidget {
             runSpacing: 6,
             children: [
               ...draft.roomIds.map((id) {
-                final c = MockData.byId(id);
+                final conversation = roomById[id];
                 return Chip(
                   label: Text(
-                    c?.name ?? id,
+                    conversation == null
+                        ? id
+                        : _conversationPolicyLabel(conversation),
                     style: AppTheme.sans(size: 12, color: t.text),
                   ),
                   visualDensity: VisualDensity.compact,
@@ -734,19 +742,29 @@ class _RoomPicker extends StatelessWidget {
                       child: ListView(
                         shrinkWrap: true,
                         children: allRooms
-                            .where((r) => !draft.roomIds.contains(r.id))
+                            .where(
+                              (room) => !draft.roomIds.contains(
+                                room.roomId.trim(),
+                              ),
+                            )
                             .map(
-                              (r) => ListTile(
-                                leading: PortalAvatar(seed: r.mxid, size: 32),
-                                title: Text(r.name),
+                              (room) => ListTile(
+                                leading: PortalAvatar(
+                                  seed: room.roomId,
+                                  size: 32,
+                                ),
+                                title: Text(_conversationPolicyLabel(room)),
                                 subtitle: Text(
-                                  r.mxid,
+                                  room.roomId,
                                   style: AppTheme.mono(
                                     size: 11,
                                     color: t.textMute,
                                   ),
                                 ),
-                                onTap: () => Navigator.pop(context, r.id),
+                                onTap: () => Navigator.pop(
+                                  context,
+                                  room.roomId.trim(),
+                                ),
                               ),
                             )
                             .toList(),
@@ -765,6 +783,14 @@ class _RoomPicker extends StatelessWidget {
       ),
     );
   }
+}
+
+String _conversationPolicyLabel(AsConversation conversation) {
+  final title = conversation.title.trim();
+  if (title.isNotEmpty) return title;
+  final peer = conversation.peerMxid.trim();
+  if (peer.isNotEmpty) return peer;
+  return conversation.roomId.trim();
 }
 
 class _ChoiceRow<T> extends StatelessWidget {

@@ -22,7 +22,6 @@ void main() {
   test('initial route can be injected only for call autotest builds', () {
     expect(
       initialAppLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: true,
         environment: const {
           'P2P_INITIAL_ROUTE': '/group-call/!room%3Ap2p.test',
@@ -33,7 +32,6 @@ void main() {
     );
     expect(
       initialAppLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: false,
         environment: const {
           'P2P_INITIAL_ROUTE': '/group-call/!room%3Ap2p.test',
@@ -44,19 +42,17 @@ void main() {
     );
     expect(
       initialAppLocation(
-        mockAuthEnabled: true,
         callAutotestEnabled: true,
         environment: const {'P2P_INITIAL_ROUTE': 'portalapp:///bad'},
         arguments: const [],
       ),
-      '/home',
+      '/restore',
     );
   });
 
   test('initial call autotest route can be injected by launch argument', () {
     expect(
       initialAppLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: true,
         environment: const {},
         arguments: const ['--p2p-initial-route=/group-call/!room%3Ap2p.test'],
@@ -70,7 +66,6 @@ void main() {
       () {
     expect(
       initialAppLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: true,
         environment: const {},
         arguments: const [],
@@ -99,7 +94,6 @@ void main() {
       () {
     expect(
       authRedirectLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: true,
         isAuthLoading: false,
         isLoggedIn: true,
@@ -113,7 +107,6 @@ void main() {
     );
     expect(
       authRedirectLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: true,
         isAuthLoading: false,
         isLoggedIn: true,
@@ -128,7 +121,6 @@ void main() {
   test('auth redirect uses restore page while stored session is loading', () {
     expect(
       authRedirectLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: false,
         isAuthLoading: true,
         isLoggedIn: false,
@@ -140,7 +132,6 @@ void main() {
     );
     expect(
       authRedirectLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: false,
         isAuthLoading: true,
         isLoggedIn: false,
@@ -156,7 +147,6 @@ void main() {
       () {
     expect(
       authRedirectLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: true,
@@ -168,7 +158,6 @@ void main() {
     );
     expect(
       authRedirectLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: false,
@@ -183,7 +172,6 @@ void main() {
   test('auth redirect sends logged-in uninitialized profile to init', () {
     expect(
       authRedirectLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: true,
@@ -195,7 +183,6 @@ void main() {
     );
     expect(
       authRedirectLocation(
-        mockAuthEnabled: false,
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: true,

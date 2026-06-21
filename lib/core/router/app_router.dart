@@ -57,10 +57,6 @@ import '../../data/setup_payload.dart';
 
 part 'app_router.g.dart';
 
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
 const _callAutotestEnabled = bool.fromEnvironment(
   'P2P_CALL_AUTOTEST',
   defaultValue: false,
@@ -115,7 +111,6 @@ Page<void> _pageForLocation(String location, Widget child) {
 }
 
 String? authRedirectLocation({
-  required bool mockAuthEnabled,
   required bool callAutotestEnabled,
   required bool isAuthLoading,
   required bool isLoggedIn,
@@ -123,8 +118,6 @@ String? authRedirectLocation({
   required String matchedLocation,
   required Uri uri,
 }) {
-  if (mockAuthEnabled) return null;
-
   if (isAuthLoading) {
     return matchedLocation == '/restore' ? null : '/restore';
   }
@@ -167,7 +160,6 @@ String? callAutotestRestoreNextRoute({
 }
 
 String initialAppLocation({
-  required bool mockAuthEnabled,
   required bool callAutotestEnabled,
   required Map<String, String> environment,
   required List<String> arguments,
@@ -195,7 +187,7 @@ String initialAppLocation({
           null) {
     return '/restore?next=${Uri.encodeComponent(injectedRoute)}';
   }
-  return mockAuthEnabled ? '/home' : '/restore';
+  return '/restore';
 }
 
 String? callAutotestInitialRouteFromInputs({
@@ -279,7 +271,6 @@ GoRouter appRouter(Ref ref) {
 
   return GoRouter(
     initialLocation: initialAppLocation(
-      mockAuthEnabled: _mockAuthEnabled,
       callAutotestEnabled: _callAutotestEnabled,
       environment: appRouterEnvironment(),
       arguments: appRouterExecutableArguments(),
@@ -289,7 +280,6 @@ GoRouter appRouter(Ref ref) {
     redirect: (context, state) {
       final authState = ref.read(authStateNotifierProvider);
       return authRedirectLocation(
-        mockAuthEnabled: _mockAuthEnabled,
         callAutotestEnabled: _callAutotestEnabled,
         isAuthLoading: authState.isLoading && authState.valueOrNull == null,
         isLoggedIn: authState.valueOrNull?.isLoggedIn ?? false,

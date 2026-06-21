@@ -16,7 +16,6 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/product_conversations_provider.dart';
-import '../mock/mock_channels.dart';
 import '../groups/group_invite_content.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
@@ -257,26 +256,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       }
       return results;
     }
-
-    for (final channel in MockChannels.items) {
-      if (!containsAny([
-        channel.name,
-        channel.handle,
-        channel.latestMessage,
-        ...channel.tags,
-      ])) {
-        continue;
-      }
-      results.add(
-        _GlobalSearchResult.local(
-          type: _SearchResultType.channel,
-          title: channel.name,
-          subtitle: '${channel.handle} · ${channel.latestMessage}',
-          route: '/channel/${Uri.encodeComponent(channel.id)}',
-        ),
-      );
-    }
-
     return results;
   }
 

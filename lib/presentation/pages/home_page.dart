@@ -44,10 +44,6 @@ import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import 'me_home_tab.dart';
 
-const _mockAuthEnabled = bool.fromEnvironment(
-  'P2P_MATRIX_MOCK_AUTH',
-  defaultValue: false,
-);
 const _homeBg = Color(0xFFFAFAFA);
 const _homeText = Color(0xFF262628);
 const _homeMuted = Color(0xFFA3A3A4);
@@ -136,10 +132,8 @@ class _HomePageState extends ConsumerState<HomePage>
       _refreshHomeAfterMatrixSync(client);
       scheduleMicrotask(() => _refreshHomeAfterMatrixSync(client));
     });
-    if (!_mockAuthEnabled) {
-      unawaited(ref.read(appWarmupProvider.future));
-      _startAsBootstrapLiveRefresh();
-    }
+    unawaited(ref.read(appWarmupProvider.future));
+    _startAsBootstrapLiveRefresh();
   }
 
   void _refreshHomeAfterMatrixSync(Client client) {
@@ -231,7 +225,7 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   void _attachVoiceCallController(Client client) {
-    if (_mockAuthEnabled || !client.isLogged()) return;
+    if (!client.isLogged()) return;
     final controller = ref.read(voiceCallControllerProvider);
     _voiceCallSub ??= controller.stateStream.listen(_handleVoiceCallState);
     _groupCallSub ??= controller.groupStateStream.listen(_handleGroupCallState);
@@ -344,7 +338,7 @@ class _HomePageState extends ConsumerState<HomePage>
     bool refreshExisting = false,
     bool force = false,
   }) {
-    if (_mockAuthEnabled || _asBootstrapRefreshInFlight) return;
+    if (_asBootstrapRefreshInFlight) return;
     if (_asBootstrapRefreshScheduled ||
         (_asBootstrapRefreshTimer?.isActive ?? false)) {
       return;

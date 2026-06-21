@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/data/as_client.dart';
-import 'package:portal_app/data/mock_as_client.dart';
+import 'support/mock_as_client.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
 
 void main() {

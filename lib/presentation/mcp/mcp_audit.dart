@@ -1,4 +1,4 @@
-// MCP 审计日志（mock 阶段：内存）
+// MCP 审计日志。
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum McpAuditOutcome { ok, denied, confirmRequired, confirmed, cancelled }

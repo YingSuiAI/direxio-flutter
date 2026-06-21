@@ -757,7 +757,7 @@ class MeDraftsPage extends StatelessWidget {
       title: '草稿箱',
       icon: Symbols.drafts,
       emptyTitle: '暂无草稿',
-      emptySubtitle: '未发布的动态和频道内容会保存在这里',
+      emptySubtitle: '未发布的频道内容会保存在这里',
     );
   }
 }
@@ -771,7 +771,7 @@ class MeHistoryPage extends StatelessWidget {
       title: '浏览记录',
       icon: Symbols.history,
       emptyTitle: '暂无浏览记录',
-      emptySubtitle: '看过的主页、频道和动态会显示在这里',
+      emptySubtitle: '看过的主页和频道会显示在这里',
     );
   }
 }

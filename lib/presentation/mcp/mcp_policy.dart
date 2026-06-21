@@ -1,5 +1,4 @@
-// MCP / Agent 权限策略模型 —— mock 阶段：纯内存，StateNotifier 持有
-// 真实版会换成 freezed + Biscuit token + 本地加密存储
+// MCP / Agent 权限策略模型。
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 //// 一个 MCP 工具的定义（给 UI 渲染勾选项用）
@@ -179,16 +178,8 @@ class McpPolicy {
   }
 }
 
-//// 全局 mock 策略表（agentId -> policy）
 class McpPolicyStore extends StateNotifier<Map<String, McpPolicy>> {
-  McpPolicyStore()
-      : super({
-          'local-aibot': McpPolicy(
-            agentId: 'local-aibot',
-            displayName: 'AI Bot',
-            mxid: '@aibot:portal.ai',
-          ),
-        });
+  McpPolicyStore() : super(const {});
 
   void update(String agentId, McpPolicy newPolicy) {
     state = {...state, agentId: newPolicy};

@@ -188,6 +188,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Map<String, _QuotedMessagePreview> _localReplyPreviews = {};
   final Map<String, GlobalKey> _messageAnchorKeys = {};
   final Map<String, int> _messageListIndexes = {};
+  final ChatInitialEntranceRegistry _initialTimelineEntrances =
+      ChatInitialEntranceRegistry();
   final ScrollController _messageScrollCtrl = ScrollController();
   Object? _lastAutoScrolledTimelineItemKey;
   Object? _pendingAutoScrollTimelineItemKey;
@@ -198,6 +200,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   String? _pendingTargetEventId;
   int _targetEventScrollAttempts = 0;
   Timer? _targetEventScrollTimer;
+  Timer? _initialTimelineEntranceTimer;
   String? _flashingMessageEventId;
   Timer? _flashingMessageTimer;
   final ChatVoicePlayer _voicePlayer = ChatVoicePlayer();
@@ -372,6 +375,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void _pruneMessageAnchors() {
     _messageAnchorKeys.removeWhere(
       (eventId, _) => !_messageListIndexes.containsKey(eventId),
+    );
+  }
+
+  void _seedInitialTimelineEntrances(List<Object> keys) {
+    if (!_initialTimelineEntrances.seed(keys)) return;
+    _initialTimelineEntranceTimer?.cancel();
+    _initialTimelineEntranceTimer = Timer(
+      ChatInitialEntranceRegistry.closeDelay,
+      () {
+        _initialTimelineEntrances.close();
+        if (mounted) setState(() {});
+      },
     );
   }
 
@@ -819,6 +834,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   void dispose() {
     _roomSyncSub?.cancel();
     _targetEventScrollTimer?.cancel();
+    _initialTimelineEntranceTimer?.cancel();
     _timeline?.cancelSubscriptions();
     _flashingMessageTimer?.cancel();
     _voicePlayer.playback.removeListener(_onVoicePlaybackChanged);
@@ -2281,8 +2297,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       for (final item in timelineItems) _timelineItemKey(item),
     ];
     final displayTimelineItems = timelineItems.reversed.toList(growable: false);
+    final displayTimelineItemKeys = timelineItemKeys.reversed.toList(
+      growable: false,
+    );
     _syncMessageListIndexes(displayTimelineItems, leadingItems: 1);
     _pruneMessageAnchors();
+    _seedInitialTimelineEntrances(timelineItemKeys);
     _scheduleTargetEventScroll();
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
@@ -2496,6 +2516,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 return const _E2eFooter();
                               }
                               final itemIndex = i - 1;
+                              final itemKey =
+                                  displayTimelineItemKeys[itemIndex];
                               final contextMenuPlacement =
                                   _messageContextMenuPlacement(
                                 itemIndex,
@@ -2512,7 +2534,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   key: ValueKey('private_message_enter_$id'),
                                   isMe: isMe,
                                   index: itemIndex,
-                                  enabled: false,
+                                  enabled: _initialTimelineEntrances
+                                      .contains(itemKey),
                                   child: anchorKey == null
                                       ? _MessageJumpFlash(
                                           flashing: flashing,

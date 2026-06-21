@@ -9944,6 +9944,21 @@ void main() {
     expect(find.text('群聊同步超时，请检查网络后重试'), findsNothing);
   });
 
+  testWidgets('private chat rows use the same initial entrance motion as group',
+      (tester) async {
+    await _pumpDirectChatWithPeerTextEvent(
+      tester,
+      eventId: r'$direct-opened-history',
+      body: '历史消息',
+    );
+
+    expect(
+      find.byKey(
+          const ValueKey(r'private_message_enter_$direct-opened-history')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('empty group chat can pull to load server history',
       (tester) async {
     const roomId = '!empty-group:p2p-im.com';

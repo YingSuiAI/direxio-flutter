@@ -44,10 +44,10 @@ Future<void> syncMatrixRoomHistory(
       .timeout(timeout);
   final database = client.database;
   if (database == null) {
-    await client.handleSync(syncResp, direction: Direction.f);
+    await client.handleSync(syncResp, direction: Direction.b);
     return;
   }
   await database.transaction(() async {
-    await client.handleSync(syncResp, direction: Direction.f);
+    await client.handleSync(syncResp, direction: Direction.b);
   });
 }

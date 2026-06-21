@@ -12,7 +12,6 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
-import '../mock/mock_data.dart';
 import '../providers/app_warmup_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
@@ -266,7 +265,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         : profileName?.isNotEmpty == true
             ? profileName!
             : localpart;
-    final avatarUrl = profileAvatarHttpUrl(profile, client) ?? MockAvatars.me;
+    final avatarUrl = profileAvatarHttpUrl(profile, client);
     final topInset = MediaQuery.of(context).padding.top;
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
@@ -515,7 +514,7 @@ class _AvatarEditor extends StatelessWidget {
   });
 
   final bool avatarBusy;
-  final String avatarUrl;
+  final String? avatarUrl;
   final String seed;
   final VoidCallback onTap;
 

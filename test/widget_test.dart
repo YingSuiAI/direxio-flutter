@@ -13995,6 +13995,66 @@ void main() {
     expect(copiedFromIcon?.text, 'https://p2p-im.com');
   });
 
+  testWidgets('profile info does not use mock avatar fallback', (tester) async {
+    final client = Client('PortalIMProfileInfoNoMockAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ProfileInfoPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final avatar = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 98)
+        .single;
+    expect(avatar.imageUrl, isNull);
+  });
+
+  testWidgets('me qr page does not use mock avatar fallback', (tester) async {
+    final client = Client('PortalIMMeQrNoMockAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const MeQrPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final avatar = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 60)
+        .single;
+    expect(avatar.imageUrl, isNull);
+  });
+
   testWidgets('editing profile name updates me page header', (tester) async {
     final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
     final asClient = _EmptyAsClient();

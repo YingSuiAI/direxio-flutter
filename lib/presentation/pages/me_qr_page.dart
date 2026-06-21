@@ -10,7 +10,6 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
-import '../mock/mock_data.dart';
 import '../providers/auth_provider.dart';
 import '../providers/personal_space_provider.dart';
 import '../providers/profile_provider.dart';
@@ -36,7 +35,7 @@ class MeQrPage extends ConsumerWidget {
         : profileName?.isNotEmpty == true
             ? profileName!
             : localpart;
-    final avatarUrl = profileAvatarHttpUrl(profile, client) ?? MockAvatars.me;
+    final avatarUrl = profileAvatarHttpUrl(profile, client);
     final l10n = AppLocalizations.of(context);
     final domain = _domainFromMxid(userId, l10n);
     final payload = Uri(
@@ -174,7 +173,7 @@ class _QrCard extends StatefulWidget {
   final String displayName;
   final String uid;
   final String userId;
-  final String avatarUrl;
+  final String? avatarUrl;
   final String payload;
 
   @override

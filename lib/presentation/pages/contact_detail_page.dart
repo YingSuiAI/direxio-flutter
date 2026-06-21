@@ -177,7 +177,6 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                               }
                               _openProductChat(
                                 directProductConversation!,
-                                room,
                               );
                             }
                           : null,
@@ -275,14 +274,9 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     );
   }
 
-  void _openProductChat(AsConversation conversation, Room? room) {
+  void _openProductChat(AsConversation conversation) {
     final roomId = conversation.roomId.trim();
-    final route = room == null
-        ? productConversationRoute(conversation)
-        : productConversationRouteForRoom(
-            room: room,
-            conversations: [conversation],
-          );
+    final route = productConversationRoute(conversation);
     if (roomId.isEmpty || route == null) return;
     showHomeConversation(ref, roomId);
     context.go(route);

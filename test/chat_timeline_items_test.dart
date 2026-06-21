@@ -113,6 +113,37 @@ void main() {
 
     expect(items.map((item) => item.id), const ['second']);
   });
+
+  test('filters recovered unread events already present in Matrix timeline',
+      () {
+    final recovered = filterRecoveredUnreadEventsShadowedByTimeline<String>(
+      timelineEvents: const ['\$timeline-old', '\$timeline-new'],
+      recoveredEvents: const [
+        '\$timeline-old',
+        '\$recovered-only',
+        '   ',
+      ],
+      eventId: (event) => event,
+    );
+
+    expect(recovered, const ['\$recovered-only', '   ']);
+  });
+
+  test('filters recovered unread events by stable event id only', () {
+    final recovered = filterRecoveredUnreadEventsShadowedByTimeline<_EchoEvent>(
+      timelineEvents: [
+        _EchoEvent('same body', DateTime.utc(2026, 6, 22, 10),
+            eventId: '\$matrix'),
+      ],
+      recoveredEvents: [
+        _EchoEvent('same body', DateTime.utc(2026, 6, 22, 10),
+            eventId: '\$recovered'),
+      ],
+      eventId: (event) => event.eventId,
+    );
+
+    expect(recovered.map((event) => event.eventId), const ['\$recovered']);
+  });
 }
 
 class _OutboxItem {
@@ -124,8 +155,9 @@ class _OutboxItem {
 }
 
 class _EchoEvent {
-  const _EchoEvent(this.signature, this.createdAt);
+  const _EchoEvent(this.signature, this.createdAt, {this.eventId = ''});
 
   final String signature;
   final DateTime createdAt;
+  final String eventId;
 }

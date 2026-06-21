@@ -133,3 +133,26 @@ List<TOutbox> filterOutboxItemsShadowedByEvents<TEvent, TOutbox>({
   }
   return filtered;
 }
+
+List<TEvent> filterRecoveredUnreadEventsShadowedByTimeline<TEvent>({
+  required Iterable<TEvent> timelineEvents,
+  required Iterable<TEvent> recoveredEvents,
+  required String? Function(TEvent event) eventId,
+}) {
+  final timelineEventIds = <String>{};
+  for (final event in timelineEvents) {
+    final id = eventId(event)?.trim() ?? '';
+    if (id.isNotEmpty) timelineEventIds.add(id);
+  }
+  if (timelineEventIds.isEmpty) {
+    return recoveredEvents.toList(growable: false);
+  }
+  final filtered = <TEvent>[];
+  for (final event in recoveredEvents) {
+    final id = eventId(event)?.trim() ?? '';
+    if (id.isEmpty || !timelineEventIds.contains(id)) {
+      filtered.add(event);
+    }
+  }
+  return filtered;
+}

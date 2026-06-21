@@ -175,4 +175,40 @@ void main() {
     expect(state.contacts.single.displayName, 'Alice Chen');
     expect(state.contacts.single.avatarUrl, 'mxc://example/alice');
   });
+
+  test('contacts dedupe keeps real nickname when default owner arrives later',
+      () {
+    final state = AsSyncCacheState(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        rooms: const [],
+        contacts: const [
+          AsSyncContact(
+            userId: '@owner:b.example.com',
+            displayName: 'B 的昵称',
+            avatarUrl: 'mxc://example/b',
+            roomId: '!accepted:b.example.com',
+            domain: 'b.example.com',
+            status: 'accepted',
+          ),
+          AsSyncContact(
+            userId: '@owner:b.example.com',
+            displayName: 'owner',
+            avatarUrl: '',
+            roomId: '!accepted:b.example.com',
+            domain: 'b.example.com',
+            status: 'accepted',
+          ),
+        ],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    expect(state.contacts, hasLength(1));
+    expect(state.contacts.single.displayName, 'B 的昵称');
+    expect(state.contacts.single.avatarUrl, 'mxc://example/b');
+  });
 }

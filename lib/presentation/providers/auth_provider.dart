@@ -258,8 +258,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   static const lastLoginHomeserverKey = 'last_login_homeserver';
   static const lastLoginPortalTokenKey = 'last_login_portal_token';
   static const profileInitializedKey = 'profile_initialized';
+  static const _matrixTokenAppliedAtKey = 'matrix_token_applied_at_ms';
   bool _sessionExpiredLocally = false;
   bool _isMounted = false;
+  DateTime? _lastMatrixTokenAppliedAt;
 
   @override
   Future<AuthState> build() async {
@@ -379,7 +381,28 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         );
       } catch (e) {
         if (_isTokenFailure(e)) {
-          await _storage.delete(key: 'matrix_token');
+          final refreshed = await _restorePortalSession(
+            client,
+            homeserver: storedHomeserver,
+            portalToken: storedPortalToken,
+          );
+          if (_sessionExpiredLocally) {
+            return const AuthState(isLoggedIn: false);
+          }
+          if (refreshed != null) {
+            return refreshed;
+          }
+          final fallback = await _storedAuthStateForRetry(
+            client: client,
+            token: token,
+            homeserver: homeserver,
+            userId: userId,
+            portalToken: storedPortalToken,
+            storedProfileInitialized: storedProfileInitialized,
+          );
+          if (fallback != null) {
+            return fallback;
+          }
         } else {
           debugPrint(
             'stored Matrix session init failed; preserving token for retry: $e',
@@ -988,6 +1011,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
     client.homeserver = matrixUri;
     client.accessToken = session.accessToken;
+    _lastMatrixTokenAppliedAt = DateTime.now();
     await client.database?.updateClient(
       matrixUri.toString(),
       session.accessToken,
@@ -1190,7 +1214,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         userId = client.userID ?? tokenOwner.userId;
       } catch (e) {
         if (_isTokenFailure(e)) {
-          await _expireSessionDueInvalidToken(client, publishState: false);
+          final refreshed = await _restorePortalSession(
+            client,
+            homeserver: client.homeserver?.toString() ??
+                await _storage.read(key: 'matrix_homeserver') ??
+                await _storage.read(key: lastLoginHomeserverKey),
+            portalToken: portalToken ??
+                await _storage.read(key: AuthStateNotifier.accessTokenKey) ??
+                await _storage.read(key: lastLoginPortalTokenKey),
+          );
+          if (refreshed != null) return refreshed;
           return null;
         } else {
           userId = client.userID;
@@ -1349,6 +1382,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       if (tokenOwner.userId == expectedUserId) return;
     } catch (e) {
       if (!_isTokenFailure(e)) rethrow;
+      final refreshed = await _restorePortalSession(
+        client,
+        homeserver: homeserver.toString(),
+        portalToken: portalToken,
+      );
+      if (refreshed != null && refreshed.userId == expectedUserId) {
+        return;
+      }
       await _expireSessionDueInvalidToken(client);
       throw StateError('账号在其他设备登录，请重新登录');
     }
@@ -1503,6 +1544,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     } else {
       client.homeserver = matrixUri;
       client.accessToken = session.accessToken;
+      _lastMatrixTokenAppliedAt = DateTime.now();
       await client.database?.updateClient(
         matrixUri.toString(),
         session.accessToken,
@@ -1699,6 +1741,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         value: profileInitialized ? 'true' : 'false',
       );
     }
+    if ((client.accessToken?.trim().isNotEmpty ?? false)) {
+      final now = DateTime.now();
+      _lastMatrixTokenAppliedAt = now;
+      await _storage.write(
+        key: _matrixTokenAppliedAtKey,
+        value: now.millisecondsSinceEpoch.toString(),
+      );
+    }
   }
 
   Future<void> _clearUserScopedLocalState(
@@ -1883,6 +1933,15 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       debugPrint('stale Matrix access token rejected; keeping current session');
       return;
     }
+    if (await _shouldIgnoreRecentMatrixAuthFailureForToken(
+      rejectedToken: rejectedToken,
+      currentToken: currentToken,
+    )) {
+      debugPrint(
+        'recent Matrix token update rejected; keeping session for retry window',
+      );
+      return;
+    }
     await _expireSessionDueInvalidToken(client);
   }
 
@@ -1906,6 +1965,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _storage.delete(key: 'matrix_user_id');
     await _storage.delete(key: 'matrix_device_id');
     await _storage.delete(key: AuthStateNotifier.accessTokenKey);
+    await _storage.delete(key: _matrixTokenAppliedAtKey);
     ref.read(sessionExpiredNoticeProvider.notifier).state++;
     if (publishState) {
       state = const AsyncData(AuthState(isLoggedIn: false));
@@ -1926,6 +1986,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       return restored.portalToken;
     };
     httpClient.onAuthenticationFailed = () async {
+      if (await _shouldIgnoreRecentAnonymousMatrixAuthFailure(client)) {
+        debugPrint(
+          'recent Matrix token update saw an auth failure without token; waiting for current token retry',
+        );
+        return;
+      }
       await expireSessionDueInvalidToken();
     };
     httpClient.onAuthenticationFailedForToken = (failedToken) async {
@@ -1943,6 +2009,40 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       return httpClient.inner as MatrixTokenRefreshingHttpClient;
     }
     return null;
+  }
+
+  Future<bool> _shouldIgnoreRecentAnonymousMatrixAuthFailure(
+    Client client,
+  ) async {
+    if (_sessionExpiredLocally) return false;
+    final appliedAt = await _recentMatrixTokenAppliedAt();
+    if (appliedAt == null) return false;
+    if (DateTime.now().difference(appliedAt) > const Duration(seconds: 15)) {
+      return false;
+    }
+    return client.accessToken?.trim().isNotEmpty ?? false;
+  }
+
+  Future<bool> _shouldIgnoreRecentMatrixAuthFailureForToken({
+    required String rejectedToken,
+    required String currentToken,
+  }) async {
+    if (_sessionExpiredLocally || currentToken.isEmpty) return false;
+    final appliedAt = await _recentMatrixTokenAppliedAt();
+    if (appliedAt == null) return false;
+    if (DateTime.now().difference(appliedAt) > const Duration(seconds: 15)) {
+      return false;
+    }
+    return rejectedToken.isEmpty || rejectedToken == currentToken;
+  }
+
+  Future<DateTime?> _recentMatrixTokenAppliedAt() async {
+    final appliedAt = _lastMatrixTokenAppliedAt;
+    if (appliedAt != null) return appliedAt;
+    final stored = await _storage.read(key: _matrixTokenAppliedAtKey);
+    final millis = int.tryParse(stored?.trim() ?? '');
+    if (millis == null || millis <= 0) return null;
+    return DateTime.fromMillisecondsSinceEpoch(millis);
   }
 }
 

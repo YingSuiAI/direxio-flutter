@@ -25,6 +25,11 @@ Portal setup/bootstrap, portal token auth, and owner profile setup are AS produc
 
 Only confirmed credential rejection should expire a restored session. Transient SDK/network restore failures should keep stored credentials and present a retryable logged-in shell when that is the current product behavior.
 
+After login or portal-token refresh applies a new Matrix access token, do not
+expire the session because of stale in-flight Matrix 401s from the old token.
+Use the current-token check and the short recent-token retry window before
+sending the user back to login.
+
 ## Implementation Pattern
 
 Keep route guards and redirect behavior in `lib/core/router/`.

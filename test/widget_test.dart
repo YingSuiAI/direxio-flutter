@@ -68,6 +68,7 @@ import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart';
 import 'package:portal_app/presentation/providers/conversation_preferences_provider.dart';
 import 'package:portal_app/presentation/providers/friend_request_read_provider.dart';
+import 'package:portal_app/presentation/providers/home_hidden_conversations_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 import 'package:portal_app/presentation/providers/matrix_message_clients_provider.dart';
 import 'package:portal_app/presentation/providers/profile_provider.dart';
@@ -5213,9 +5214,9 @@ void main() {
     );
   });
 
-  testWidgets('new friend badge counts AS pending group invite notices',
+  testWidgets('new friend badge ignores AS group and channel invite notices',
       (tester) async {
-    final client = Client('PortalIMPendingGroupInviteBadgeTest')
+    final client = Client('PortalIMPendingRoomInviteBadgeTest')
       ..setUserId('@owner:p2p-im.com');
     final readStore = _MemoryFriendRequestReadStore();
     final bootstrap = AsSyncBootstrap(
@@ -5234,7 +5235,13 @@ void main() {
             createdAt: null,
           ),
         ],
-        channelNotices: [],
+        channelNotices: [
+          AsSyncPendingItem(
+            id: '!pending-channel:p2p-im.com',
+            title: '产品频道',
+            createdAt: null,
+          ),
+        ],
       ),
     );
 
@@ -5258,18 +5265,14 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
 
     await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
     final contactSectionBadge =
         find.byKey(const ValueKey('section_action_badge_新朋友'));
-    expect(contactSectionBadge, findsOneWidget);
-    expect(
-      find.descendant(of: contactSectionBadge, matching: find.text('1')),
-      findsOneWidget,
-    );
+    expect(contactSectionBadge, findsNothing);
   });
 
   testWidgets('new friend badge refreshes AS pending notices after Matrix sync',
@@ -5370,7 +5373,7 @@ void main() {
     expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
   });
 
-  testWidgets('new friend badge refreshes AS pending group invites',
+  testWidgets('new friend badge ignores refreshed AS pending group invites',
       (tester) async {
     final client = Client('PortalIMPendingGroupInviteLiveRefreshTest')
       ..setUserId('@owner:p2p-im.com');
@@ -5407,7 +5410,7 @@ void main() {
     await tester.pump();
 
     expect(asClient.syncBootstrapCalls, 2);
-    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
   });
 
   testWidgets('new friend badge counts Matrix invites after AS bootstrap',
@@ -6423,6 +6426,80 @@ void main() {
     expect(find.text('举报用户'), findsOneWidget);
   });
 
+  testWidgets('add contact falls back to Matrix profile for default owner name',
+      (tester) async {
+    final requestPaths = <String>[];
+    final client = Client(
+      'PortalIMAddContactProfileFallbackTest',
+      httpClient: MockClient((request) async {
+        requestPaths.add(request.url.path);
+        if (request.url.path == '/.well-known/portal/owner.json') {
+          return http.Response(
+            '{"matrix_user_id":"@owner:portal.local","display_name":"owner","avatar_url":"mxc://portal/default"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (request.url.path.startsWith('/_matrix/client/v3/profile/')) {
+          return http.Response.bytes(
+            utf8.encode(
+              '{"displayname":"B 的昵称","avatar_url":"https://cdn.example.com/b.png"}',
+            ),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response('{}', 404);
+      }),
+    )..homeserver = Uri.parse('https://portal.local');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'portal.local');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (find
+          .byKey(const ValueKey('add_contact_result_row'))
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+    }
+
+    expect(requestPaths, contains('/.well-known/portal/owner.json'));
+    expect(
+      requestPaths
+          .any((path) => path.startsWith('/_matrix/client/v3/profile/')),
+      isTrue,
+    );
+    expect(
+        find.byKey(const ValueKey('add_contact_result_row')), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is RichText && widget.text.toPlainText() == 'B 的昵称',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('owner'), findsNothing);
+  });
+
   testWidgets('add contact uses contacts-style background and search field',
       (tester) async {
     await tester.pumpWidget(
@@ -6495,15 +6572,26 @@ void main() {
       ],
     );
 
+    final preferencesStore = _MemoryConversationPreferencesStore(
+      const ConversationPreferencesData(hiddenConversationIds: {roomId}),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        authStateNotifierProvider.overrideWith(_LoggedInAuthStateNotifier.new),
+        asSyncCacheProvider.overrideWith(
+          (ref) => AsSyncCacheState(bootstrap: bootstrap),
+        ),
+        conversationPreferencesStoreProvider.overrideWith(
+          (ref) async => preferencesStore,
+        ),
+      ],
+    );
+    container.read(conversationPreferencesProvider);
+    addTearDown(container.dispose);
+
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
-        ],
+      UncontrolledProviderScope(
+        container: container,
         child: MaterialApp.router(
           theme: AppTheme.light,
           locale: const Locale('zh'),
@@ -6517,11 +6605,16 @@ void main() {
 
     expect(find.text('申请好友'), findsNothing);
     expect(find.text('发消息'), findsWidgets);
+    expect(container.read(homeHiddenConversationIdsProvider), contains(roomId));
 
     await tester.tap(find.widgetWithText(FilledButton, '发消息'));
     await tester.pumpAndSettle();
 
     expect(find.text('chat:$roomId'), findsOneWidget);
+    expect(
+      container.read(homeHiddenConversationIdsProvider),
+      isNot(contains(roomId)),
+    );
   });
 
   testWidgets('add contact detail message action opens friend request',

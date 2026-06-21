@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
 import '../utils/chat_visibility_policy.dart';
+import '../utils/contact_identity_label.dart';
 
 class AsSyncCacheState {
   const AsSyncCacheState({
@@ -586,7 +587,28 @@ AsSyncContact _preferredContact(AsSyncContact current, AsSyncContact next) {
   final nextRank = _contactStatusRank(next.status);
   if (nextRank > currentRank) return next;
   if (nextRank < currentRank) return current;
+  final currentNameRank = _contactDisplayNameRank(current);
+  final nextNameRank = _contactDisplayNameRank(next);
+  if (nextNameRank > currentNameRank) return next;
+  if (nextNameRank < currentNameRank) return current;
+  final currentHasAvatar = current.avatarUrl.trim().isNotEmpty;
+  final nextHasAvatar = next.avatarUrl.trim().isNotEmpty;
+  if (nextHasAvatar && !currentHasAvatar) return next;
+  if (currentHasAvatar && !nextHasAvatar) return current;
+  if (next.visibleAfterTs > current.visibleAfterTs) return next;
+  if (current.visibleAfterTs > next.visibleAfterTs) return current;
   return next;
+}
+
+int _contactDisplayNameRank(AsSyncContact contact) {
+  final name = contact.displayName.trim();
+  if (name.isEmpty) return 0;
+  final userId = contact.userId.trim();
+  final localpart = localpartFromMxid(userId);
+  if (name == userId || (localpart.isNotEmpty && name == localpart)) {
+    return 1;
+  }
+  return 2;
 }
 
 int _contactStatusRank(String status) {

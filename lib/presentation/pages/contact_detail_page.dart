@@ -18,6 +18,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
+import '../providers/home_hidden_conversations_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
@@ -158,9 +159,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     const SizedBox(height: 24),
                     _QuickActionGrid(
                       onMessage: canOpenChat && roomId != null
-                          ? () => context.go(
-                                '/chat/${Uri.encodeComponent(roomId)}',
-                              )
+                          ? () => _openChat(roomId)
                           : null,
                       showCallActions: true,
                       onVoice: room != null
@@ -252,6 +251,13 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         ),
       ),
     );
+  }
+
+  void _openChat(String roomId) {
+    final trimmed = roomId.trim();
+    if (trimmed.isEmpty) return;
+    showHomeConversation(ref, trimmed);
+    context.go('/chat/${Uri.encodeComponent(trimmed)}');
   }
 
   Future<void> _confirmDeleteContact(

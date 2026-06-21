@@ -40,6 +40,11 @@ Normalize member status through `AsChannel` / `AsChannelMember`, and treat only 
 
 `invite` and `pending` are waiting states. They must not unlock channel sending, post creation, or joined-only navigation.
 
+For channel share/invite cards, show an in-progress joining state for
+`pending`, `invite`, or delayed projection. Do not use "unfinished" failure
+copy for these states; refresh bootstrap briefly and auto-open the channel when
+the member projection becomes `joined`.
+
 For `/channel/:id/conversation`, normal text/media messages send through Matrix SDK when the user is joined. Product policy remains the server-side send gate.
 
 For channel share/invite cards, call `channels.invite_grant.create` first with `channel_id` or `room_id` plus `share_room_id`. Send the card through Matrix with the returned `grant_id`; card joins call `channels.join` with `grant_id` and `share_room_id`.

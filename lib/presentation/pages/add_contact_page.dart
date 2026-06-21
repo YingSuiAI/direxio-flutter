@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 import '../providers/auth_provider.dart';
 import '../../data/well_known_service.dart';
 import '../../core/theme/design_tokens.dart';
@@ -75,15 +79,22 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
       final result = await wk.discoverOwner(portalUrl);
       switch (result.availability) {
         case PortalAvailability.online:
+          final owner = result.owner!;
+          final ownerProfile = await _resolveOwnerProfileFallback(
+            client,
+            owner.matrixUserId,
+            displayName: owner.displayName,
+            avatarUrl: owner.avatarUrl,
+          );
           setState(() {
             _resolved = {
-              'mxid': result.owner!.matrixUserId,
+              'mxid': owner.matrixUserId,
               'display_name': contactDisplayNameFromIdentity(
-                mxid: result.owner!.matrixUserId,
-                displayName: result.owner!.displayName,
+                mxid: owner.matrixUserId,
+                displayName: ownerProfile.displayName,
                 domain: portalUrl,
               ),
-              'avatar_url': avatarHttpUrl(client, result.owner!.avatarUrl),
+              'avatar_url': avatarHttpUrl(client, ownerProfile.avatarUrl),
             };
           });
           break;
@@ -195,6 +206,65 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
       ),
     );
   }
+}
+
+Future<({String displayName, String avatarUrl})> _resolveOwnerProfileFallback(
+  Client client,
+  String mxid, {
+  required String displayName,
+  required String avatarUrl,
+}) async {
+  final cleanName = displayName.trim();
+  final cleanAvatar = avatarUrl.trim();
+  if (!_needsOwnerProfileFallback(mxid, cleanName)) {
+    return (displayName: cleanName, avatarUrl: cleanAvatar);
+  }
+  try {
+    final homeserver = client.homeserver;
+    if (homeserver == null) {
+      return (displayName: cleanName, avatarUrl: cleanAvatar);
+    }
+    final uri = homeserver.resolveUri(
+      Uri(path: '_matrix/client/v3/profile/${Uri.encodeComponent(mxid)}'),
+    );
+    final response = await _effectiveProfileHttpClient(client.httpClient)
+        .get(uri)
+        .timeout(const Duration(seconds: 3));
+    if (response.statusCode != 200) {
+      return (displayName: cleanName, avatarUrl: cleanAvatar);
+    }
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final matrixName = (body['displayname'] as String? ??
+            body['display_name'] as String? ??
+            '')
+        .trim();
+    final matrixAvatar = (body['avatar_url'] as String? ?? '').trim();
+    return (
+      displayName:
+          _needsOwnerProfileFallback(mxid, matrixName) ? cleanName : matrixName,
+      avatarUrl: matrixAvatar.isNotEmpty ? matrixAvatar : cleanAvatar,
+    );
+  } catch (_) {
+    return (displayName: cleanName, avatarUrl: cleanAvatar);
+  }
+}
+
+http.Client _effectiveProfileHttpClient(http.Client client) {
+  final dynamic maybeTimeoutClient = client;
+  try {
+    final inner = maybeTimeoutClient.inner;
+    if (inner is http.Client) return inner;
+  } catch (_) {
+    // Not a Matrix SDK timeout wrapper.
+  }
+  return client;
+}
+
+bool _needsOwnerProfileFallback(String mxid, String displayName) {
+  final name = displayName.trim();
+  if (name.isEmpty) return true;
+  final localpart = localpartFromMxid(mxid);
+  return localpart.isNotEmpty && name == localpart;
 }
 
 String _addContactDetailRoute(

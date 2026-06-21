@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/presentation/chat/chat_history_backfill_policy.dart';
+import 'package:portal_app/presentation/utils/message_history_policy.dart';
 
 void main() {
   test('requests local backfill when call signaling crowds out messages', () {
@@ -35,7 +36,7 @@ void main() {
     );
   });
 
-  test('does not request chat-open server history when local store is empty',
+  test('requests a concrete chat-open history page when local store is empty',
       () {
     final client = Client('ChatHistoryNoStoredBackfillTest')
       ..setUserId('@me:p2p-im.com');
@@ -50,6 +51,10 @@ void main() {
         hasStoredOlderEvents: false,
       ),
       isFalse,
+    );
+    expect(
+      shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen),
+      isTrue,
     );
   });
 

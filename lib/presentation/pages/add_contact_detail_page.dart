@@ -8,6 +8,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
 import '../mock/mock_data.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/home_hidden_conversations_provider.dart';
 import '../utils/contact_identity_label.dart';
 import '../widgets/portal_avatar.dart';
 
@@ -47,6 +48,7 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
       _toast(context, '打开聊天失败: 缺少会话信息');
       return;
     }
+    showHomeConversation(ref, trimmed);
     context.go('/chat/${Uri.encodeComponent(trimmed)}');
   }
 

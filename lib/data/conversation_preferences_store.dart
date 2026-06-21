@@ -6,13 +6,18 @@ class ConversationPreferencesData {
     this.pinnedConversationIds = const {},
     this.groupRemarkNames = const {},
     Set<String> mutedConversationIds = const {},
-  }) : _mutedConversationIds = mutedConversationIds;
+    Set<String> hiddenConversationIds = const {},
+  })  : _mutedConversationIds = mutedConversationIds,
+        _hiddenConversationIds = hiddenConversationIds;
 
   final Set<String> pinnedConversationIds;
   final Map<String, String> groupRemarkNames;
   final Set<String>? _mutedConversationIds;
+  final Set<String>? _hiddenConversationIds;
 
   Set<String> get mutedConversationIds => _mutedConversationIds ?? const {};
+
+  Set<String> get hiddenConversationIds => _hiddenConversationIds ?? const {};
 }
 
 abstract class ConversationPreferencesStore {
@@ -39,6 +44,7 @@ class FileConversationPreferencesStore implements ConversationPreferencesStore {
       final pinned = decoded['pinned_conversation_ids'];
       final remarks = decoded['group_remark_names'];
       final muted = decoded['muted_conversation_ids'];
+      final hidden = decoded['hidden_conversation_ids'];
       return ConversationPreferencesData(
         pinnedConversationIds: pinned is List
             ? pinned
@@ -60,6 +66,12 @@ class FileConversationPreferencesStore implements ConversationPreferencesStore {
                 .where((value) => value.isNotEmpty)
                 .toSet()
             : const {},
+        hiddenConversationIds: hidden is List
+            ? hidden
+                .map((value) => '$value'.trim())
+                .where((value) => value.isNotEmpty)
+                .toSet()
+            : const {},
       );
     } catch (_) {
       return const ConversationPreferencesData();
@@ -74,6 +86,7 @@ class FileConversationPreferencesStore implements ConversationPreferencesStore {
         'pinned_conversation_ids': data.pinnedConversationIds.toList()..sort(),
         'group_remark_names': data.groupRemarkNames,
         'muted_conversation_ids': data.mutedConversationIds.toList()..sort(),
+        'hidden_conversation_ids': data.hiddenConversationIds.toList()..sort(),
       }),
       flush: true,
     );

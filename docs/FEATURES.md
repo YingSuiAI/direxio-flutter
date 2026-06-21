@@ -1,6 +1,6 @@
 # P2P Client Feature Inventory
 
-Last updated: 2026-06-20
+Last updated: 2026-06-21
 
 This document records the currently implemented client features and whether each module is backed by real Matrix/AS data, local-only state, or demo/mock data. Logged-in product views must prefer real Matrix/AS state; mock data is reserved for unauthenticated demos and tests.
 
@@ -15,7 +15,7 @@ This document records the currently implemented client features and whether each
 
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
-| App restore and redirect | `/restore`, `auth_provider.dart`, `app_router.dart` | Real | Restores Matrix session plus portal token. Transient SDK/network restore failures keep stored credentials and present a retryable logged-in shell; only confirmed token rejection expires the session. |
+| App restore and redirect | `/restore`, `auth_provider.dart`, `app_router.dart` | Real | Restores Matrix session plus portal token. Transient SDK/network restore failures keep stored credentials and present a retryable logged-in shell; only confirmed token rejection expires the session. Newly refreshed Matrix tokens have a short retry window so stale in-flight 401s do not immediately send the user to login. |
 | Portal discovery | `well_known_service.dart`, `/login`, `/setup/*` | Real | Uses owner well-known discovery and supports Matrix SDK HTTP wrapper clients. |
 | Portal setup and first profile | `/init`, `/setup/scan`, `/setup/password` | Real | Completes owner setup through AS, then moves to home. |
 | Token boundary | `as_client_provider.dart`, `matrix_token_refreshing_http_client.dart` | Real | Portal token is for AS Admin API; Matrix access token is for Matrix API only. Fallbacks are logged as warnings and should not be relied on. |
@@ -26,10 +26,10 @@ This document records the currently implemented client features and whether each
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
 | Home tabs | `/home`, `home_page.dart` | Real + demo | Logged-in messages/contacts/channels use real Matrix/AS data. Unauthenticated demo uses `MockData`. |
-| Direct conversation list | `home_page.dart` | Real | Accepted contacts come from AS bootstrap; current display name/avatar prefer Matrix room member state. |
+| Direct conversation list | `home_page.dart` | Real + local | Accepted contacts come from AS bootstrap; current display name/avatar prefer Matrix room member state. Locally hidden rows reappear when opened from contact detail or when new unread activity arrives. |
 | Agent/system room | `chat_page.dart`, `agentStatusProvider` | Real + local | Agent is a system conversation, not a normal contact. Header reflects AS connection state. |
-| Direct chat timeline | `/chat/:roomId`, `chat_page.dart` | Real | Uses Matrix room/timeline for text, media, unread, history, redaction, and local delete behavior; bootstrap stays metadata-only. |
-| Group/channel chat timeline | `/group/:roomId`, `/channel/:id/conversation`, `group_chat_page.dart` | Real | Supports Matrix timeline, Matrix SDK text/media send, quote/reply metadata, mentions, local outbox, redaction/local delete, and read state. Bootstrap stays metadata-only. |
+| Direct chat timeline | `/chat/:roomId`, `chat_page.dart` | Real | Uses Matrix room/timeline for text, media, unread, history, redaction, and local delete behavior; opening a concrete chat may request the first Matrix history page to refill the local SQLite timeline. Bootstrap stays metadata-only. |
+| Group/channel chat timeline | `/group/:roomId`, `/channel/:id/conversation`, `group_chat_page.dart` | Real | Supports Matrix timeline, Matrix SDK text/media send, quote/reply metadata, mentions, local outbox, redaction/local delete, and read state. Opening a concrete group/channel conversation may request the first Matrix history page to refill the local SQLite timeline. Bootstrap stays metadata-only. |
 | Reply/quote rendering | `group_chat_page.dart` | Real | Sends Matrix `m.relates_to` reply metadata and keeps product-compatible quote fields in Matrix content. |
 | Message privacy clearing | `chat_clear_state_provider.dart`, `matrix_message_visibility_client.dart` | Real + local | Calls Matrix `io.direxio` local delete/clear and records local clear boundaries without redacting server messages. |
 | Room search | `/room-search/:roomId` | Real | Searches room messages through Matrix `/search`. |
@@ -39,7 +39,7 @@ This document records the currently implemented client features and whether each
 | Module | Routes / files | Status | Notes |
 |---|---|---|---|
 | Contacts tab | `home_page.dart` | Real + demo | Logged-in contacts come from AS bootstrap; demo uses mock contacts. |
-| Add contact | `/add-contact`, `add_contact_page.dart` | Real | Resolves portal domain/URL queries and opens detail or verification flow. |
+| Add contact | `/add-contact`, `add_contact_page.dart` | Real | Resolves portal domain/URL queries and opens detail or verification flow. If owner well-known still returns the default localpart name, the client queries Matrix profile once as a display-name fallback. |
 | Contact detail and verification | `/add-contact/detail/:userId`, `/add-contact/verify/:userId` | Real + demo | Sends AS contact requests; unauthenticated examples use mock identities. |
 | Friend/group/channel pending requests | `/requests`, `requests_page.dart` | Real | Uses AS pending state and Matrix native direct profile metadata; new direct invites do not require legacy `p2p.contact.request`. AS `pending.group_invites` are discoverable from the New Friends entry and can be accepted through AS group join. |
 | Visitor home | `/contact-home/:userId`, `contact_home_page.dart` | Real + demo | Shows follow state, friend state, public channels, and dynamics. Demo data is used only when not logged in. |
@@ -64,7 +64,7 @@ This document records the currently implemented client features and whether each
 | Channel tab | Home tab 3, `channel_home_tab.dart` | Real + demo | Logged-in channel list uses `AsSyncBootstrap.channels`; unauthenticated demo uses mock channels. |
 | Channel search | `/channels/search`, `channel_search_page.dart` | Real | Uses AS public search. Matrix room id lookup stays on the configured AS; remote node inference is not allowed. |
 | Create channel | Home plus menu / channel FAB, `create_channel_sheet.dart` | Real | Calls AS create; owner semantics belong to portal owner. |
-| Channel detail/join | `/channel/:id/detail`, `channel_detail_info_page.dart` | Real | Join request handles `pending`, `invite`, and `joined`. UI opens chat/detail only after joined projection. |
+| Channel detail/join | `/channel/:id/detail`, `channel_detail_info_page.dart` | Real | Join request handles `pending`, `invite`, and `joined`. UI shows an in-progress state while waiting and opens chat/detail only after joined projection. |
 | Channel chat | `/channel/:id/conversation`, `group_chat_page.dart` | Real | Chat channels are Matrix rooms with channel metadata; joined members send normal text through Matrix SDK and server ProductPolicy enforces the send gate. Sending is still blocked until AS/Matrix membership is `joined`. |
 | Channel posts | `/channel/:id`, `/channel/:id/post/create`, `/channel/:id/post/:postId` | Partial | UI and local post store exist; confirm production AS persistence before relying on cross-device post state. |
 | Channel review | `/channels/review`, `ChannelReviewPage` | Real + demo | Logged-in owners/admins load pending members from AS; unauthenticated demo shows local review samples. Approval now returns `invite` until Matrix join projection. |

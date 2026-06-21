@@ -16,6 +16,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/friend_request_read_provider.dart';
+import '../providers/home_hidden_conversations_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
@@ -67,10 +68,6 @@ const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
 
 final asBootstrapLiveRefreshIntervalProvider = Provider<Duration?>(
   (ref) => const Duration(seconds: 10),
-);
-
-final _homeHiddenConversationIdsProvider = StateProvider<Set<String>>(
-  (ref) => const <String>{},
 );
 
 bool _homeDark(BuildContext context) {
@@ -159,6 +156,7 @@ class _HomePageState extends ConsumerState<HomePage>
       client: client,
       agentMxid: agentMxid,
     );
+    _showHiddenHomeConversationsWithUnread(client, syncCache);
     _scheduleAsBootstrapRefreshIfNeeded(
       refreshExisting: true,
       force: needsClassification || hasPendingInvite,
@@ -167,6 +165,41 @@ class _HomePageState extends ConsumerState<HomePage>
     if (nextSignature == _lastHomeSyncSignature) return;
     _lastHomeSyncSignature = nextSignature;
     setState(() {});
+  }
+
+  void _showHiddenHomeConversationsWithUnread(
+    Client client,
+    AsSyncCacheState syncCache,
+  ) {
+    final hidden = ref.read(homeHiddenConversationIdsProvider);
+    if (hidden.isEmpty) return;
+    final unreadRoomIds = <String>{};
+    for (final room in client.rooms) {
+      final roomId = room.id.trim();
+      if (roomId.isEmpty || !hidden.contains(roomId)) continue;
+      if (conversationUnreadCount(matrixUnreadCount: room.notificationCount) >
+          0) {
+        unreadRoomIds.add(roomId);
+      }
+    }
+    for (final room
+        in syncCache.bootstrap?.rooms ?? const <AsSyncRoomSummary>[]) {
+      final roomId = room.roomId.trim();
+      if (hidden.contains(roomId) && room.unreadCount > 0) {
+        unreadRoomIds.add(roomId);
+      }
+    }
+    for (final group
+        in syncCache.bootstrap?.groups ?? const <AsSyncRoomSummary>[]) {
+      final roomId = group.roomId.trim();
+      if (hidden.contains(roomId) && group.unreadCount > 0) {
+        unreadRoomIds.add(roomId);
+      }
+    }
+    if (unreadRoomIds.isEmpty) return;
+    for (final roomId in unreadRoomIds) {
+      showHomeConversation(ref, roomId);
+    }
   }
 
   @override
@@ -700,12 +733,6 @@ List<String> _pendingFriendRequestRoomIds({
     for (final contact in syncCache.pendingInboundContacts)
       if (contact.roomId.trim().isNotEmpty) contact.roomId.trim(),
     for (final request in syncCache.bootstrap?.pending.friendRequests ??
-        const <AsSyncPendingItem>[])
-      if (request.id.trim().isNotEmpty) request.id.trim(),
-    for (final request in syncCache.bootstrap?.pending.groupInvites ??
-        const <AsSyncPendingItem>[])
-      if (request.id.trim().isNotEmpty) request.id.trim(),
-    for (final request in syncCache.bootstrap?.pending.channelNotices ??
         const <AsSyncPendingItem>[])
       if (request.id.trim().isNotEmpty) request.id.trim(),
   };
@@ -1401,7 +1428,7 @@ class _ChatList extends ConsumerWidget {
       ref.watch(asSyncCacheProvider),
       currentUserId,
     );
-    final hiddenConversationIds = ref.watch(_homeHiddenConversationIdsProvider);
+    final hiddenConversationIds = ref.watch(homeHiddenConversationIdsProvider);
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final outbox = ref.watch(localOutboxProvider);
@@ -1454,8 +1481,8 @@ class _ChatList extends ConsumerWidget {
             isPinned: pinnedConversationIds.contains(c.id),
             onTap: () => context.push('/chat/${c.id}'),
             onTogglePin: () => _toggleHomeConversationPin(ref, c.id),
-            onHide: () => _hideHomeConversation(ref, c.id),
-            onDelete: () => _hideHomeConversation(ref, c.id),
+            onHide: () => hideHomeConversation(ref, c.id),
+            onDelete: () => hideHomeConversation(ref, c.id),
           );
         },
       );
@@ -1613,7 +1640,7 @@ class _ChatList extends ConsumerWidget {
             ref,
             conversation.roomId,
           ),
-          onHide: () => _hideHomeConversation(ref, conversation.roomId),
+          onHide: () => hideHomeConversation(ref, conversation.roomId),
           onDelete: () => _deleteHomeConversation(
             context,
             ref,
@@ -1635,8 +1662,6 @@ Future<void> _deleteHomeConversation(
   final trimmed = roomId.trim();
   if (trimmed.isEmpty) return;
   final authNotifier = ref.read(authStateNotifierProvider.notifier);
-  final preferences = ref.read(conversationPreferencesProvider.notifier);
-  final hidden = ref.read(_homeHiddenConversationIdsProvider.notifier);
   final ok = await showDialog<bool>(
     context: context,
     builder: (dialogContext) {
@@ -1677,7 +1702,7 @@ Future<void> _deleteHomeConversation(
   try {
     final clearedBeforeTs = DateTime.now().toUtc().millisecondsSinceEpoch + 1;
     await ref.read(matrixMessageVisibilityClientProvider).clearRoom(trimmed);
-    _hideHomeConversationWithNotifiers(preferences, hidden, trimmed);
+    hideHomeConversation(ref, trimmed);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('已删除「$name」')),
@@ -1697,27 +1722,6 @@ Future<void> _deleteHomeConversation(
       SnackBar(content: Text('删除聊天记录失败: $error')),
     );
   }
-}
-
-void _hideHomeConversation(WidgetRef ref, String roomId) {
-  final trimmed = roomId.trim();
-  if (trimmed.isEmpty) return;
-  _hideHomeConversationWithNotifiers(
-    ref.read(conversationPreferencesProvider.notifier),
-    ref.read(_homeHiddenConversationIdsProvider.notifier),
-    trimmed,
-  );
-}
-
-void _hideHomeConversationWithNotifiers(
-  ConversationPreferencesController preferences,
-  StateController<Set<String>> hidden,
-  String roomId,
-) {
-  final trimmed = roomId.trim();
-  if (trimmed.isEmpty) return;
-  preferences.unpin(trimmed);
-  hidden.update((ids) => {...ids, trimmed});
 }
 
 void _toggleHomeConversationPin(WidgetRef ref, String roomId) {

@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/presentation/channel/channel_join_flow.dart';
 import 'package:portal_app/presentation/channel/channel_share.dart';
 import 'package:portal_app/presentation/chat/chat_record_forwarding.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 
 void main() {
+  test('channel join in-progress copy does not use unfinished wording', () {
+    expect(channelJoinInProgressText, contains('正在加入频道'));
+    expect(channelJoinInProgressText, isNot(contains('未完成')));
+  });
+
   test('channel share payload parses structured Matrix content', () {
     final payload = channelSharePayloadFromContent({
       chatRecordMatrixMarkerKey: channelShareMessageType,

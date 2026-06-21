@@ -26,6 +26,7 @@ import '../providers/local_outbox_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/voice_call_provider.dart';
+import '../channel/channel_join_flow.dart';
 import '../channel/channel_share.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/call_timeline_events.dart';
@@ -529,19 +530,21 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         await _refreshBootstrapAfterVisibilityMutation();
       }
       if (!mounted) return;
-      if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
-        );
-        return;
-      }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('频道加入状态未完成，请稍后刷新')),
+          const SnackBar(content: Text(channelJoinInProgressText)),
         );
-        return;
+        final projected = await waitForJoinedChannelProjection(
+          ref,
+          channelId: channelId.isEmpty ? joined.channelId : channelId,
+          roomId: roomId,
+        );
+        if (!mounted || !projected) return;
       }
-      context.push(channelShareJoinedRoute(payload, joined));
+      context.push(
+        channelShareOpenRoute(ref.read(asSyncCacheProvider), payload),
+        extra: payload,
+      );
     } on Object catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3229,12 +3232,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       ),
     );
   }
-}
-
-String _channelJoinWaitingText(String memberStatus) {
-  return memberStatus == asChannelMemberStatusPending
-      ? '已提交加入申请'
-      : '已发送频道邀请，等待加入完成';
 }
 
 class _GroupImageMessageBubble extends StatelessWidget {

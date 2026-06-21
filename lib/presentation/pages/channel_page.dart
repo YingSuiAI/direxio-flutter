@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../channel/channel_inbox_data.dart';
+import '../channel/channel_join_flow.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../channel/public_channel_target.dart';
 import '../mock/mock_channels.dart';
@@ -743,7 +744,7 @@ class _PublicChannelScaffoldState
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('频道加入状态未完成，请稍后刷新')),
+          const SnackBar(content: Text(channelJoinInProgressText)),
         );
         return;
       }
@@ -763,10 +764,8 @@ class _PublicChannelScaffoldState
   }
 }
 
-String _channelJoinWaitingText(String memberStatus) {
-  return memberStatus == asChannelMemberStatusPending
-      ? '已提交加入申请'
-      : '已发送频道邀请，等待加入完成';
+String _channelJoinWaitingText(String _) {
+  return channelJoinInProgressText;
 }
 
 bool _looksLikeMatrixRoomId(String value) {

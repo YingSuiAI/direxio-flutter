@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../channel/channel_join_flow.dart';
 import '../channel/channel_share.dart';
 import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
@@ -126,7 +127,7 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('频道加入状态未完成，请稍后刷新')),
+          const SnackBar(content: Text(channelJoinInProgressText)),
         );
         return;
       }
@@ -257,10 +258,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
   }
 }
 
-String _channelJoinWaitingText(String memberStatus) {
-  return memberStatus == asChannelMemberStatusPending
-      ? '已提交加入申请'
-      : '已发送频道邀请，等待加入完成';
+String _channelJoinWaitingText(String _) {
+  return channelJoinInProgressText;
 }
 
 class _ChannelSearchTarget {

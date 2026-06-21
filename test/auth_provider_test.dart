@@ -2186,6 +2186,67 @@ void main() {
     );
   });
 
+  test('recent refreshed Matrix token rejection waits before expiring session',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'portal-pass',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    late MatrixTokenRefreshingHttpClient refreshingClient;
+    final client = _NoSyncInitClient(
+      'AuthRecentRefreshedTokenGraceTest',
+      httpClient: refreshingClient = MatrixTokenRefreshingHttpClient(
+        inner: MockClient((request) async {
+          final authAction = _p2pAction(request, 'portal.auth');
+          if (authAction != null) {
+            expect(authAction['params'], {
+              'password': 'portal-pass',
+              'device_id': 'DEVICE1',
+            });
+            return http.Response(
+              '{"access_token":"fresh-token",'
+              '"user_id":"@owner:example.com",'
+              '"homeserver":"https://example.com",'
+              '"device_id":"DEVICE1",'
+              '"profile_initialized":true}',
+              200,
+            );
+          }
+          return http.Response('{}', 404);
+        }),
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    await container.read(authStateNotifierProvider.future);
+    final refreshed = await refreshingClient.refreshAccessToken!();
+    expect(refreshed, 'fresh-token');
+    expect(client.accessToken, 'fresh-token');
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .expireSessionDueInvalidTokenIfCurrent('fresh-token');
+
+    expect(
+      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isNot(false),
+    );
+    expect(container.read(sessionExpiredNoticeProvider), 0);
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      'fresh-token',
+    );
+  });
+
   test('session expiry keeps login secret for startup restore retry', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'expired-token',

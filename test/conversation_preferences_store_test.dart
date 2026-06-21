@@ -22,12 +22,13 @@ void main() {
     }
   });
 
-  test('persists muted conversation ids with existing preferences', () async {
+  test('persists local conversation preference ids', () async {
     await store.write(
       const ConversationPreferencesData(
         pinnedConversationIds: {'!pinned:example.com'},
         groupRemarkNames: {'!group:example.com': '项目群'},
         mutedConversationIds: {'!muted:example.com'},
+        hiddenConversationIds: {'!hidden:example.com'},
       ),
     );
 
@@ -36,5 +37,6 @@ void main() {
     expect(data.pinnedConversationIds, {'!pinned:example.com'});
     expect(data.groupRemarkNames, {'!group:example.com': '项目群'});
     expect(data.mutedConversationIds, {'!muted:example.com'});
+    expect(data.hiddenConversationIds, {'!hidden:example.com'});
   });
 }

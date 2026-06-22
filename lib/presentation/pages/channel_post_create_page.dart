@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -10,9 +11,11 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
 import '../channel/channel_post_media.dart';
+import '../chat/product_media_outbox_flow.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/media_thumbnail_cache_provider.dart';
 
 class ChannelPostCreatePage extends ConsumerStatefulWidget {
   const ChannelPostCreatePage({super.key, required this.channelId});
@@ -87,36 +90,58 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
     setState(() => _imageUploading = true);
     try {
       final files = await ImagePicker().pickMultiImage(
-        imageQuality: 86,
-        maxWidth: 1800,
-        maxHeight: 1800,
+        imageQuality: 78,
+        maxWidth: 1600,
+        maxHeight: 1600,
         requestFullMetadata: false,
       );
       final selected = files.take(remaining).toList(growable: false);
       if (selected.isEmpty) return;
 
+      var failedCount = 0;
       for (final file in selected) {
-        final bytes = await file.readAsBytes();
-        if (bytes.isEmpty) continue;
-        final name = file.name.trim().isEmpty ? 'channel-post.jpg' : file.name;
-        final mimeType = file.mimeType ?? _imageMimeTypeForName(name);
-        final uploaded = await ref.read(matrixClientProvider).uploadContent(
-              bytes,
-              filename: name,
-              contentType: mimeType,
+        try {
+          final bytes = await file.readAsBytes();
+          if (bytes.isEmpty) continue;
+          final name =
+              file.name.trim().isEmpty ? 'channel-post.jpg' : file.name;
+          final mimeType = file.mimeType ?? _imageMimeTypeForName(name);
+          final uploaded = await ref.read(matrixClientProvider).uploadContent(
+                bytes,
+                filename: name,
+                contentType: mimeType,
+              );
+          if (!mounted) return;
+          final uploadedUrl = uploaded.toString();
+          unawaited(_writeUploadedImageCache(uploadedUrl, bytes));
+          setState(() {
+            if (_images.length >= channelPostMaxImages) return;
+            _images.add(
+              _SelectedPostImage(
+                bytes: bytes,
+                url: uploadedUrl,
+                name: name,
+                mimeType: mimeType,
+              ),
             );
-        if (!mounted) return;
-        setState(() {
-          if (_images.length >= channelPostMaxImages) return;
-          _images.add(
-            _SelectedPostImage(
-              bytes: bytes,
-              url: uploaded.toString(),
-              name: name,
-              mimeType: mimeType,
+          });
+        } on Object {
+          failedCount += 1;
+        }
+      }
+      if (failedCount > 0 && mounted) {
+        final l10n = Localizations.of<AppLocalizations>(
+          context,
+          AppLocalizations,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n?.channelPostImageUploadFailed('$failedCount') ??
+                  '$failedCount 张图片上传失败，请重新选择',
             ),
-          );
-        });
+          ),
+        );
       }
     } catch (err) {
       if (!mounted) return;
@@ -133,6 +158,16 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
       );
     } finally {
       if (mounted) setState(() => _imageUploading = false);
+    }
+  }
+
+  Future<void> _writeUploadedImageCache(String url, Uint8List bytes) async {
+    if (url.trim().isEmpty || bytes.isEmpty) return;
+    try {
+      final cache = await ref.read(mediaThumbnailCacheProvider.future);
+      await cache.write(url, await localOutboxThumbnailBytes(bytes));
+    } on Object {
+      // Local thumbnail cache is only a display optimization.
     }
   }
 
@@ -240,6 +275,7 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
                         weight: FontWeight.w500,
                         color: t.textMute.withValues(alpha: 0.62),
                       ).copyWith(height: 20 / 15),
+                      filled: false,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,

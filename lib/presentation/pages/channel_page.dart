@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,8 @@ import '../channel/channel_inbox_data.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_post_media.dart';
 import '../chat/chat_record_forwarding.dart';
+import '../chat/cached_thumbnail_image.dart';
+import '../chat/product_media_outbox_flow.dart';
 import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
@@ -21,6 +24,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
+import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
@@ -831,12 +835,9 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
   Widget build(BuildContext context) {
     final t = context.tk;
     final post = widget.post;
-    final title = _postTitle(context, post.body);
-    final excerpt = _postExcerpt(post.body, title);
+    final body = _postBodyText(context, post);
     final images = channelPostImagesFromPost(post);
-    final author = post.authorName.trim().isEmpty
-        ? _localpartFromMxid(post.authorId)
-        : post.authorName.trim();
+    final author = _postAuthorLabel(post);
     final avatarUrl = _postListAvatarUrl(post, images);
     return InkWell(
       onTap: widget.onOpen,
@@ -906,26 +907,14 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
               ],
             ),
             const SizedBox(height: 14),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTheme.sans(
-                size: 18,
-                weight: FontWeight.w600,
-                color: t.text,
-              ).copyWith(height: 26 / 18),
-            ),
-            if (excerpt.isNotEmpty) ...[
-              const SizedBox(height: 4),
+            if (body.isNotEmpty)
               _ExpandablePostExcerpt(
-                excerpt,
+                body,
                 expanded: _expanded,
                 onToggle: () => setState(() => _expanded = !_expanded),
-              ),
-            ] else ...[
-              const SizedBox(height: 4),
-            ],
+              )
+            else
+              const SizedBox.shrink(),
             if (images.isNotEmpty) ...[
               const SizedBox(height: 10),
               ChannelPostImageGrid(images: images),
@@ -1057,36 +1046,36 @@ class _PostListAvatarImage extends ConsumerWidget {
     }
     final uri = Uri.tryParse(url);
     if (uri != null && uri.isScheme('mxc')) {
-      return FutureBuilder(
-        future: ref
-            .read(matrixMediaBytesCacheProvider)
-            .read(ref.read(matrixClientProvider), uri),
-        builder: (context, snapshot) {
-          final bytes = snapshot.data;
-          if (bytes != null && bytes.isNotEmpty) {
-            return Image.memory(
-              bytes,
-              key: ValueKey('channel_post_avatar_$url'),
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-            );
-          }
-          if (snapshot.hasError) return _fallback(t);
-          return Container(
-            color: t.surfaceHigh,
-            alignment: Alignment.center,
-            child: SizedBox.square(
-              dimension: 14,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: t.accent,
-              ),
-            ),
-          );
-        },
+      return CachedThumbnailImage(
+        key: ValueKey('channel_post_avatar_$url'),
+        cacheKey: url,
+        cache: ref.watch(mediaThumbnailCacheProvider).valueOrNull,
+        cacheFuture: ref.read(mediaThumbnailCacheProvider.future),
+        loadBytes: () => _loadMxcThumbnailBytes(ref, uri),
+        fit: BoxFit.cover,
+        loadingBuilder: (_) => _loading(t),
+        failedBuilder: (_) => _fallback(t),
       );
     }
     return _fallback(t);
+  }
+
+  Future<Uint8List> _loadMxcThumbnailBytes(WidgetRef ref, Uri uri) async {
+    final bytes = await ref
+        .read(matrixMediaBytesCacheProvider)
+        .read(ref.read(matrixClientProvider), uri);
+    return localOutboxThumbnailBytes(bytes);
+  }
+
+  Widget _loading(PortalTokens t) {
+    return Container(
+      color: t.surfaceHigh,
+      alignment: Alignment.center,
+      child: SizedBox.square(
+        dimension: 14,
+        child: CircularProgressIndicator(strokeWidth: 2, color: t.accent),
+      ),
+    );
   }
 
   Widget _fallback(PortalTokens t) {
@@ -1112,6 +1101,14 @@ String _postListAvatarUrl(
   final postAvatarUrl = images.isEmpty ? '' : images.first.url.trim();
   if (postAvatarUrl.isNotEmpty) return postAvatarUrl;
   return post.authorAvatarUrl.trim();
+}
+
+String _postAuthorLabel(AsChannelPost post) {
+  final name = post.authorName.trim();
+  if (name.isNotEmpty) return name;
+  final localpart = _localpartFromMxid(post.authorId).trim();
+  if (localpart.isNotEmpty) return localpart;
+  return '用户';
 }
 
 class _PostTypeBadge extends StatelessWidget {
@@ -1157,8 +1154,8 @@ class _ExpandablePostExcerpt extends StatelessWidget {
     final style = AppTheme.sans(
       size: 13,
       weight: FontWeight.w500,
-      color: t.textMute,
-    ).copyWith(height: 20 / 13);
+      color: t.text,
+    ).copyWith(height: 18 / 13);
     return LayoutBuilder(
       builder: (context, constraints) {
         final canExpand = _exceedsCollapsedLines(
@@ -1313,12 +1310,19 @@ class _PostStatButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 21,
-              color: active ? t.danger : t.textMute,
-              fill: active ? 1 : 0,
-            ),
+            if (icon == Symbols.favorite)
+              Image.asset(
+                active ? 'assets/images/like.png' : 'assets/images/no-like.png',
+                width: 21,
+                height: 21,
+              )
+            else
+              Icon(
+                icon,
+                size: 21,
+                color: active ? t.danger : t.textMute,
+                fill: active ? 1 : 0,
+              ),
             const SizedBox(width: 5),
             Text(
               '$count',
@@ -1335,27 +1339,13 @@ class _PostStatButton extends StatelessWidget {
   }
 }
 
-String _postTitle(BuildContext context, String body) {
-  final l10n = _l10n(context);
-  final trimmed = body.trim();
-  if (trimmed.isEmpty) return l10n?.channelPostDefaultTitle ?? '我发布的帖子';
-  final firstLine = trimmed.split(RegExp(r'[\r\n]')).first.trim();
-  final sentenceEnd = firstLine.indexOf(RegExp(r'[。.!！?？]'));
-  final candidate = sentenceEnd > 0
-      ? firstLine.substring(0, sentenceEnd + 1).trim()
-      : firstLine;
-  if (candidate.characters.length <= 18) return candidate;
-  return '${candidate.characters.take(18).toString()}...';
-}
-
-String _postExcerpt(
-  String body,
-  String title,
-) {
-  final trimmed = body.trim();
-  if (trimmed.isEmpty || trimmed == title) return '';
-  final normalized = trimmed.replaceAll(RegExp(r'\s+'), ' ');
-  return normalized;
+String _postBodyText(BuildContext context, AsChannelPost post) {
+  final body = post.body.trim();
+  if (body.isNotEmpty) return body;
+  if (channelPostImagesFromPost(post).isNotEmpty) {
+    return _l10n(context)?.channelPostDefaultTitle ?? '我发布的帖子';
+  }
+  return '';
 }
 
 String _localpartFromMxid(String mxid) {

@@ -6,8 +6,11 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../chat/cached_thumbnail_image.dart';
+import '../chat/product_media_outbox_flow.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
+import '../providers/media_thumbnail_cache_provider.dart';
 
 const channelPostMaxImages = 9;
 
@@ -166,25 +169,32 @@ class _ChannelPostImageTile extends ConsumerWidget {
 
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.isScheme('mxc')) return _fallback(t);
-    return FutureBuilder<Uint8List>(
-      future: ref
-          .read(matrixMediaBytesCacheProvider)
-          .read(ref.read(matrixClientProvider), uri),
-      builder: (context, snapshot) {
-        final bytes = snapshot.data;
-        if (bytes != null && bytes.isNotEmpty) {
-          return Image.memory(bytes, fit: BoxFit.cover);
-        }
-        if (snapshot.hasError) return _fallback(t);
-        return Container(
-          color: t.surfaceHigh,
-          alignment: Alignment.center,
-          child: SizedBox.square(
-            dimension: 18,
-            child: CircularProgressIndicator(strokeWidth: 2, color: t.accent),
-          ),
-        );
-      },
+    return CachedThumbnailImage(
+      cacheKey: url,
+      cache: ref.watch(mediaThumbnailCacheProvider).valueOrNull,
+      cacheFuture: ref.read(mediaThumbnailCacheProvider.future),
+      loadBytes: () => _loadMxcThumbnailBytes(ref, uri),
+      fit: BoxFit.cover,
+      loadingBuilder: (_) => _loading(t),
+      failedBuilder: (_) => _fallback(t),
+    );
+  }
+
+  Future<Uint8List> _loadMxcThumbnailBytes(WidgetRef ref, Uri uri) async {
+    final bytes = await ref
+        .read(matrixMediaBytesCacheProvider)
+        .read(ref.read(matrixClientProvider), uri);
+    return localOutboxThumbnailBytes(bytes);
+  }
+
+  Widget _loading(PortalTokens t) {
+    return Container(
+      color: t.surfaceHigh,
+      alignment: Alignment.center,
+      child: SizedBox.square(
+        dimension: 18,
+        child: CircularProgressIndicator(strokeWidth: 2, color: t.accent),
+      ),
     );
   }
 

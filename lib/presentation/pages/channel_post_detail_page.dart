@@ -17,6 +17,8 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../utils/avatar_url.dart';
+import '../widgets/portal_avatar.dart';
 
 class ChannelPostDetailPage extends ConsumerStatefulWidget {
   const ChannelPostDetailPage({
@@ -267,7 +269,7 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
           pageSize: pageSize,
         );
     return [
-      for (final item in items) _commentFromAs(item),
+      for (final item in items) _commentFromAs(ref, item),
     ];
   }
 
@@ -414,21 +416,9 @@ class _PostDetailContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = detail.title.trim().isEmpty
-        ? _l10n(context)?.channelPostDefaultTitle ?? '我发布的帖子'
-        : detail.title;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: AppTheme.sans(
-            size: 18,
-            weight: FontWeight.w600,
-            color: _detailTextColor(context),
-          ).copyWith(height: 33 / 18),
-        ),
-        const SizedBox(height: 4),
         Text(
           detail.body,
           maxLines: bodyExpanded ? null : 4,
@@ -454,8 +444,6 @@ class _PostDetailContent extends StatelessWidget {
                 color: _detailTextColor(context),
               ).copyWith(height: 16 / 13),
             ),
-            const SizedBox(width: 4),
-            Icon(Symbols.sort, size: 15, color: _detailTextColor(context)),
           ],
         ),
         const SizedBox(height: 10),
@@ -565,6 +553,7 @@ class _PostDetailBottomBar extends StatelessWidget {
             count: detail.reactionCount,
             color: detail.reactedByMe ? t.danger : t.danger,
             fill: detail.reactedByMe ? 1 : 1,
+            active: detail.reactedByMe,
             onTap: detail.realPost == null || !detail.canToggleReaction
                 ? null
                 : onPostReaction,
@@ -596,6 +585,7 @@ class _BottomStatButton extends StatelessWidget {
     required this.icon,
     required this.count,
     required this.color,
+    this.active = false,
     this.fill = 0,
     this.onTap,
   });
@@ -603,6 +593,7 @@ class _BottomStatButton extends StatelessWidget {
   final IconData icon;
   final int count;
   final Color color;
+  final bool active;
   final double fill;
   final VoidCallback? onTap;
 
@@ -611,7 +602,14 @@ class _BottomStatButton extends StatelessWidget {
     final content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 20, color: color, fill: fill),
+        if (icon == Symbols.favorite)
+          Image.asset(
+            active ? 'assets/images/like.png' : 'assets/images/no-like.png',
+            width: 20,
+            height: 20,
+          )
+        else
+          Icon(icon, size: 20, color: color, fill: fill),
         const SizedBox(width: 4),
         Text(
           '$count',
@@ -653,7 +651,14 @@ class _CommentThreadRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _PostAvatar(name: comment.authorName, size: avatarSize, radius: 4),
+          PortalAvatar(
+            seed: comment.authorName,
+            size: avatarSize,
+            imageUrl: comment.avatarUrl.trim().isEmpty
+                ? null
+                : comment.avatarUrl.trim(),
+            shape: AvatarShape.squircle,
+          ),
           const SizedBox(width: 5),
           Expanded(
             child: Column(
@@ -797,45 +802,6 @@ class _CommentInputRow extends StatelessWidget {
   }
 }
 
-class _PostAvatar extends StatelessWidget {
-  const _PostAvatar({
-    required this.name,
-    required this.size,
-    required this.radius,
-  });
-
-  final String name;
-  final double size;
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            t.primaryContainer.withValues(alpha: 0.72),
-            t.accentCool.withValues(alpha: 0.72),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(radius),
-      ),
-      child: Text(
-        name.trim().isEmpty ? 'A' : name.trim().characters.first.toUpperCase(),
-        style: AppTheme.sans(
-          size: size * 0.38,
-          weight: FontWeight.w700,
-          color: t.onPrimaryContainer,
-        ),
-      ),
-    );
-  }
-}
-
 class _PostMissingState extends StatelessWidget {
   const _PostMissingState();
 
@@ -945,6 +911,7 @@ class _PostComment {
     required this.authorName,
     required this.body,
     required this.timeLabel,
+    this.avatarUrl = '',
     this.commentId = '',
     this.channelId = '',
     this.postId = '',
@@ -958,6 +925,7 @@ class _PostComment {
   final String channelId;
   final String postId;
   final String authorName;
+  final String avatarUrl;
   final String? replyToName;
   final String body;
   final String timeLabel;
@@ -974,6 +942,7 @@ class _PostComment {
       channelId: channelId,
       postId: postId,
       authorName: authorName,
+      avatarUrl: avatarUrl,
       replyToName: replyToName,
       body: body,
       timeLabel: timeLabel,
@@ -1029,7 +998,7 @@ String _realPostKey(AsChannelPost post) {
   return '${post.authorId}|${post.originServerTs}|${post.body}';
 }
 
-_PostComment _commentFromAs(AsChannelComment item) {
+_PostComment _commentFromAs(WidgetRef ref, AsChannelComment item) {
   return _PostComment(
     commentId: item.commentId,
     channelId: item.channelId,
@@ -1037,12 +1006,17 @@ _PostComment _commentFromAs(AsChannelComment item) {
     authorName: item.authorName.trim().isEmpty
         ? _localpartFromMxid(item.authorId)
         : item.authorName.trim(),
+    avatarUrl: _commentAvatarUrl(ref, item.authorAvatarUrl),
     body: item.body.trim().isEmpty ? '[${item.messageType}]' : item.body,
     timeLabel: _formatTime(item.originServerTs),
     likeCount: item.reactionCount,
     reactedByMe: item.reactedByMe,
     originServerTs: item.originServerTs,
   );
+}
+
+String _commentAvatarUrl(WidgetRef ref, String rawUrl) {
+  return avatarHttpUrl(ref.read(matrixClientProvider), rawUrl) ?? '';
 }
 
 List<_PostComment> _withOptimisticComments(

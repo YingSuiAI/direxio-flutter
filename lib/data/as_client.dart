@@ -1344,11 +1344,25 @@ class AsChannelPost {
       channelId: json['channel_id'] as String? ?? '',
       roomId: json['room_id'] as String? ?? '',
       eventId: json['event_id'] as String? ?? '',
-      authorId: json['author_mxid'] as String? ?? '',
-      authorName: json['author_name'] as String? ?? '',
-      authorAvatarUrl: json['author_avatar_url'] as String? ??
-          json['avatar_url'] as String? ??
-          '',
+      authorId: _firstString(json, const [
+        'author_mxid',
+        'author_id',
+        'sender_mxid',
+        'sender_id',
+        'user_mxid',
+      ]),
+      authorName: _firstString(json, const [
+        'author_name',
+        'author_display_name',
+        'sender_name',
+        'display_name',
+        'name',
+      ]),
+      authorAvatarUrl: _firstString(json, const [
+        'author_avatar_url',
+        'sender_avatar_url',
+        'avatar_url',
+      ]),
       messageType: json['message_type'] as String? ?? 'text',
       body: json['body'] as String? ?? '',
       media: _objectMapOrJson(json['media_json'] ?? json['media']),
@@ -1462,6 +1476,7 @@ class AsChannelComment {
     required this.originServerTs,
     this.authorName = '',
     this.authorDomain = '',
+    this.authorAvatarUrl = '',
     this.media = const {},
     this.replyToCommentId = '',
     this.replyToAuthorId = '',
@@ -1479,6 +1494,7 @@ class AsChannelComment {
   final String authorId;
   final String authorName;
   final String authorDomain;
+  final String authorAvatarUrl;
   final String messageType;
   final String body;
   final Map<String, Object?> media;
@@ -1497,9 +1513,26 @@ class AsChannelComment {
       postId: json['post_id'] as String? ?? '',
       channelId: json['channel_id'] as String? ?? '',
       eventId: json['event_id'] as String? ?? '',
-      authorId: json['author_mxid'] as String? ?? '',
-      authorName: json['author_name'] as String? ?? '',
+      authorId: _firstString(json, const [
+        'author_mxid',
+        'author_id',
+        'sender_mxid',
+        'sender_id',
+        'user_mxid',
+      ]),
+      authorName: _firstString(json, const [
+        'author_name',
+        'author_display_name',
+        'sender_name',
+        'display_name',
+        'name',
+      ]),
       authorDomain: json['author_domain'] as String? ?? '',
+      authorAvatarUrl: _firstString(json, const [
+        'author_avatar_url',
+        'sender_avatar_url',
+        'avatar_url',
+      ]),
       messageType: json['message_type'] as String? ?? 'text',
       body: json['body'] as String? ?? '',
       media: _objectMapOrJson(json['media_json'] ?? json['media']),

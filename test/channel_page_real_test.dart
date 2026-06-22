@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
-import 'package:portal_app/core/theme/design_tokens.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/channel_post_store.dart';
@@ -27,6 +26,25 @@ import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 
 void main() {
+  test('channel post parses sender author aliases for list display', () {
+    final post = AsChannelPost.fromJson({
+      'post_id': 'post_alias',
+      'channel_id': 'ch_real',
+      'room_id': '!real:p2p-im.com',
+      'event_id': r'$post_alias',
+      'sender_id': '@alice:p2p-im.com',
+      'sender_name': 'Alice',
+      'sender_avatar_url': 'https://cdn.example.com/alice.png',
+      'message_type': 'text',
+      'body': '帖子正文',
+      'origin_server_ts': 123,
+    });
+
+    expect(post.authorId, '@alice:p2p-im.com');
+    expect(post.authorName, 'Alice');
+    expect(post.authorAvatarUrl, 'https://cdn.example.com/alice.png');
+  });
+
   testWidgets('channel detail opens real bootstrap channel summary',
       (tester) async {
     final bootstrap = AsSyncBootstrap(
@@ -539,11 +557,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final likeButton = find.byKey(const ValueKey('channel_post_like_post1'));
-    final heart = tester.widget<Icon>(
-      find.descendant(of: likeButton, matching: find.byIcon(Symbols.favorite)),
+    final heart = tester.widget<Image>(
+      find.descendant(of: likeButton, matching: find.byType(Image)),
     );
 
-    expect(heart.color, PortalTokens.light.danger);
+    expect((heart.image as AssetImage).assetName, 'assets/images/no-like.png');
     expect(find.text('2'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('channel_post_like_post1')));
@@ -620,11 +638,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final heart = tester.widget<Icon>(find.byIcon(Symbols.favorite));
-    expect(heart.color, PortalTokens.light.danger);
-    expect(heart.fill, 1);
+    final likeButton = find.byKey(
+      const ValueKey('channel_post_detail_like_post1'),
+    );
+    final heart = tester.widget<Image>(
+      find.descendant(of: likeButton, matching: find.byType(Image)),
+    );
+    expect((heart.image as AssetImage).assetName, 'assets/images/like.png');
 
-    await tester.tap(find.byIcon(Symbols.favorite));
+    await tester.tap(likeButton);
     await tester.pumpAndSettle();
 
     expect(asClient.toggledPostId, 'post1');
@@ -755,7 +777,7 @@ void main() {
     await tester.tap(find.text('第一条帖子').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('帖子详情'), findsOneWidget);
+    expect(find.text('帖子详情'), findsNothing);
 
     router.pop();
     await tester.pumpAndSettle();
@@ -765,7 +787,7 @@ void main() {
     await tester.tap(find.text('输入评论...'));
     await tester.pumpAndSettle();
 
-    expect(find.text('帖子详情'), findsOneWidget);
+    expect(find.text('帖子详情'), findsNothing);
     expect(find.text('输入评论...'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), '这条更新很有用');
@@ -1058,6 +1080,7 @@ void main() {
           eventId: r'$comment-react',
           authorId: '@alice:p2p-im.com',
           authorName: 'Alice',
+          authorAvatarUrl: 'https://cdn.example.com/alice.png',
           messageType: 'text',
           body: '可以点赞的评论',
           originServerTs: 1000,
@@ -1115,6 +1138,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('可以点赞的评论'), findsOneWidget);
+    expect(
+      tester.widget<PortalAvatar>(find.byType(PortalAvatar).last).imageUrl,
+      'https://cdn.example.com/alice.png',
+    );
     expect(find.byKey(const ValueKey('channel_comment_like_comment-react')),
         findsNothing);
     expect(asClient.toggledCommentId, isNull);

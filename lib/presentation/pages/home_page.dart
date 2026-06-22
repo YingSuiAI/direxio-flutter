@@ -53,15 +53,18 @@ const _conversationTileAvatarSize = 42.0;
 const _iconMenuAddFriend = 'assets/icons/menu_add_friend.svg';
 const _iconMenuCreateGroup = 'assets/icons/menu_create_group.svg';
 const _iconMenuScan = 'assets/icons/menu_scan.svg';
-const _iconTabChats = 'assets/icons/tab_chats.svg';
 const _iconTabContacts = 'assets/icons/tab_contacts.svg';
-const _iconTabChannel = 'assets/icons/tab_channel.svg';
-const _iconTabMe = 'assets/icons/tab_me.svg';
+const _iconTabChannel = _assetTabChannelNormal;
 const _iconBottomSearchTg = 'assets/icons/bottom_search_tg.svg';
-const _assetMeTabNormal =
-    'assets/resources/tab_profile_normal__Profile Square 2.png';
-const _assetMeTabSelected =
-    'assets/resources/tab_profile_selected__Profile Square 2.png';
+const _assetTabChatsNormal = 'assets/images/Vector (1).png';
+const _assetTabChatsSelected = 'assets/images/聊天选中.png';
+const _assetTabContactsNormal = 'assets/images/Vector (2).png';
+const _assetTabContactsSelected = 'assets/images/通讯录选中.png';
+const _assetTabChannelNormal = 'assets/images/频道2.png';
+const _assetTabChannelSelected = 'assets/images/频道选中.png';
+const _assetTabMeNormal = 'assets/images/我的.png';
+const _assetTabMeSelected = 'assets/images/我的选中.png';
+const _contactShortcutIconColor = Color(0xFF3DCFFF);
 const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
 const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
@@ -91,12 +94,20 @@ Color _homeBorderColor(BuildContext context) {
 }
 
 Color _homeTabColor(BuildContext context, {required bool active}) {
+  if (active) return context.tk.accent;
   if (_homeDark(context)) return context.tk.accent;
-  return active ? context.tk.accent : _homeText;
+  return _homeText;
+}
+
+int _normalizedHomeTab(int tab) {
+  if (tab < 0 || tab > 3) return 0;
+  return tab;
 }
 
 class HomePage extends ConsumerStatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.initialTab = 0});
+
+  final int initialTab;
 
   @override
   ConsumerState<HomePage> createState() => _HomePageState();
@@ -123,6 +134,7 @@ class _HomePageState extends ConsumerState<HomePage>
   @override
   void initState() {
     super.initState();
+    _tab = _normalizedHomeTab(widget.initialTab);
     WidgetsBinding.instance.addObserver(this);
     // 订阅 client.onSync, 但只在会话列表关心的数据变化时重建。
     // Matrix 的空 sync 很频繁，不能让它们触发整页刷新。
@@ -135,6 +147,15 @@ class _HomePageState extends ConsumerState<HomePage>
     });
     unawaited(ref.read(appWarmupProvider.future));
     _startAsBootstrapLiveRefresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextTab = _normalizedHomeTab(widget.initialTab);
+    if (nextTab != _normalizedHomeTab(oldWidget.initialTab)) {
+      _tab = nextTab;
+    }
   }
 
   void _refreshHomeAfterMatrixSync(Client client) {
@@ -510,25 +531,30 @@ class _HomePageState extends ConsumerState<HomePage>
         onSearchTap: () => context.push('/search'),
         items: [
           const _HomeNavItem(
-            iconAsset: _iconTabChats,
+            iconAsset: _assetTabChatsNormal,
+            activeIconAsset: _assetTabChatsSelected,
+            inactiveIconAsset: _assetTabChatsNormal,
             labelIndex: 0,
-            iconSize: 21,
           ),
           _HomeNavItem(
-            iconAsset: _iconTabContacts,
+            iconAsset: _assetTabContactsNormal,
+            activeIconAsset: _assetTabContactsSelected,
+            inactiveIconAsset: _assetTabContactsNormal,
             labelIndex: 1,
             badge: friendRequestUnreadCount > 0
                 ? _formatBadgeCount(friendRequestUnreadCount)
                 : null,
           ),
           const _HomeNavItem(
-            iconAsset: _iconTabChannel,
+            iconAsset: _assetTabChannelNormal,
+            activeIconAsset: _assetTabChannelSelected,
+            inactiveIconAsset: _assetTabChannelNormal,
             labelIndex: 2,
           ),
           const _HomeNavItem(
-            iconAsset: _iconTabMe,
-            activeIconAsset: _assetMeTabSelected,
-            inactiveIconAsset: _assetMeTabNormal,
+            iconAsset: _assetTabMeNormal,
+            activeIconAsset: _assetTabMeSelected,
+            inactiveIconAsset: _assetTabMeNormal,
             labelIndex: 3,
           ),
         ],
@@ -913,7 +939,6 @@ class _HomeNavItem {
     this.badge,
     this.activeIconAsset,
     this.inactiveIconAsset,
-    this.iconSize = 24,
   });
 
   final String iconAsset;
@@ -921,7 +946,6 @@ class _HomeNavItem {
   final String? badge;
   final String? activeIconAsset;
   final String? inactiveIconAsset;
-  final double iconSize;
 
   @override
   bool operator ==(Object other) {
@@ -930,8 +954,7 @@ class _HomeNavItem {
         other.labelIndex == labelIndex &&
         other.badge == badge &&
         other.activeIconAsset == activeIconAsset &&
-        other.inactiveIconAsset == inactiveIconAsset &&
-        other.iconSize == iconSize;
+        other.inactiveIconAsset == inactiveIconAsset;
   }
 
   @override
@@ -941,7 +964,6 @@ class _HomeNavItem {
         badge,
         activeIconAsset,
         inactiveIconAsset,
-        iconSize,
       );
 }
 
@@ -1147,8 +1169,7 @@ class _LiquidTabPill extends StatelessWidget {
                                 assetName: active
                                     ? item.activeIconAsset ?? item.iconAsset
                                     : item.inactiveIconAsset ?? item.iconAsset,
-                                size: item.iconSize,
-                                color: _homeTabColor(context, active: active),
+                                size: active ? 24 : 22,
                               ),
                               if (item.badge != null)
                                 Positioned(
@@ -2052,6 +2073,8 @@ class _ContactList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final syncCache = ref.watch(asSyncCacheProvider);
+    final auth = ref.watch(authStateNotifierProvider).valueOrNull;
+    final isLoggedIn = auth?.isLoggedIn == true;
     final friendRequestReadState = ref.watch(friendRequestReadProvider);
     final acceptedContacts = syncCache.acceptedContacts;
     final pendingInvites = friendRequestReadState.unreadCountForRoomIds(
@@ -2117,34 +2140,41 @@ class _ContactList extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 12),
-            if (contacts.isEmpty)
-              const _Empty(
-                icon: Symbols.person,
-                title: '还没有联系人',
-                subtitle: '添加联系人后会显示在这里',
-              )
-            else
-              for (final sectionKey in sectionKeys) ...[
-                _ContactSectionHeader(label: sectionKey),
-                _ActionSection(
-                  emptyFallback: const SizedBox.shrink(),
-                  children: groupedContacts[sectionKey]!
-                      .map(
-                        (contact) => _ContactEntryTile(
-                          name: contact.name,
-                          avatarUrl: contact.avatarUrl,
-                          onTap: () {
-                            if (contact.mxid.isNotEmpty) {
-                              context.push(
-                                '/contact/${Uri.encodeComponent(contact.mxid)}',
-                              );
-                            }
-                          },
-                        ),
-                      )
-                      .toList(),
+            _ActionSection(
+              emptyFallback: const SizedBox.shrink(),
+              children: [
+                _AgentContactEntryTile(
+                  onTap: () => _openAgentContactChat(
+                    context,
+                    client,
+                    syncCache,
+                    isLoggedIn: isLoggedIn,
+                  ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            for (final sectionKey in sectionKeys) ...[
+              _ContactSectionHeader(label: sectionKey),
+              _ActionSection(
+                emptyFallback: const SizedBox.shrink(),
+                children: groupedContacts[sectionKey]!
+                    .map(
+                      (contact) => _ContactEntryTile(
+                        name: contact.name,
+                        avatarUrl: contact.avatarUrl,
+                        onTap: () {
+                          if (contact.mxid.isNotEmpty) {
+                            context.push(
+                              '/contact/${Uri.encodeComponent(contact.mxid)}',
+                            );
+                          }
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
           ],
         ),
         if (contacts.isNotEmpty)
@@ -2157,6 +2187,46 @@ class _ContactList extends ConsumerWidget {
       ],
     );
   }
+}
+
+void _openAgentContactChat(
+  BuildContext context,
+  Client client,
+  AsSyncCacheState syncCache, {
+  required bool isLoggedIn,
+}) {
+  final roomId = _resolvedAgentContactRoomId(
+    client,
+    syncCache,
+    isLoggedIn: isLoggedIn,
+  );
+  if (roomId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Agent 会话还未同步'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+    return;
+  }
+  context.push('/chat/${Uri.encodeComponent(roomId)}');
+}
+
+String _resolvedAgentContactRoomId(
+  Client client,
+  AsSyncCacheState syncCache, {
+  required bool isLoggedIn,
+}) {
+  if (!isLoggedIn) return 'mock_aibot';
+  final agentMxid = portalAgentMxidForClient(client);
+  for (final room in client.rooms) {
+    if (room.membership == Membership.join &&
+        isPortalAgentDirectRoom(room, agentMxid: agentMxid)) {
+      return room.id;
+    }
+  }
+  final bootstrapRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+  return bootstrapRoomId;
 }
 
 class _ContactListEntry {
@@ -2384,21 +2454,16 @@ class _SectionAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
     return _ContactFlatRow(
       onTap: onTap,
       leading: Container(
         width: 28,
         height: 28,
-        decoration: BoxDecoration(
-          color: t.primaryContainer,
-          borderRadius: BorderRadius.circular(5),
-        ),
         alignment: Alignment.center,
         child: _DesignAssetIcon(
           assetName: iconAsset,
           size: 18,
-          color: t.onPrimaryContainer,
+          color: _contactShortcutIconColor,
         ),
       ),
       title: label,
@@ -2532,6 +2597,31 @@ class _ContactEntryTile extends StatelessWidget {
         ),
       ),
       title: name,
+    );
+  }
+}
+
+class _AgentContactEntryTile extends StatelessWidget {
+  const _AgentContactEntryTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ContactFlatRow(
+      onTap: onTap,
+      leading: Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        child: const Icon(
+          Symbols.robot_2,
+          size: 18,
+          color: _contactShortcutIconColor,
+          fill: 1,
+        ),
+      ),
+      title: 'Agent',
     );
   }
 }

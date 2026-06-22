@@ -20,9 +20,11 @@ import '../../presentation/pages/group_info_page.dart';
 import '../../presentation/pages/group_chat_page.dart';
 import '../../presentation/pages/contact_detail_page.dart';
 import '../../presentation/pages/contact_home_page.dart';
+import '../../presentation/pages/contact_channels_page.dart';
 import '../../presentation/pages/add_contact_page.dart';
 import '../../presentation/pages/add_contact_detail_page.dart';
 import '../../presentation/pages/add_contact_verification_page.dart';
+import '../../presentation/pages/about_us_page.dart';
 import '../../presentation/pages/requests_page.dart';
 import '../../presentation/pages/qr_scanner_page.dart';
 import '../../presentation/pages/group_detail_page.dart';
@@ -254,6 +256,15 @@ List<String> appRouterExecutableArguments() {
   return io.Platform.executableArguments;
 }
 
+int _homeInitialTabFromQuery(String? tab) {
+  return switch (tab?.trim().toLowerCase()) {
+    'contacts' || 'contact' || '1' => 1,
+    'channels' || 'channel' || '2' => 2,
+    'me' || 'mine' || 'profile' || '3' => 3,
+    _ => 0,
+  };
+}
+
 @riverpod
 GoRouter appRouter(Ref ref) {
   final authRefresh = ValueNotifier<int>(0);
@@ -279,15 +290,25 @@ GoRouter appRouter(Ref ref) {
     refreshListenable: authRefresh,
     redirect: (context, state) {
       final authState = ref.read(authStateNotifierProvider);
-      return authRedirectLocation(
+      final auth = authState.valueOrNull;
+      final redirect = authRedirectLocation(
         callAutotestEnabled: _callAutotestEnabled,
         isAuthLoading: authState.isLoading && authState.valueOrNull == null,
-        isLoggedIn: authState.valueOrNull?.isLoggedIn ?? false,
-        requiresProfileSetup:
-            authState.valueOrNull?.requiresProfileSetup ?? false,
+        isLoggedIn: auth?.isLoggedIn ?? false,
+        requiresProfileSetup: auth?.requiresProfileSetup ?? false,
         matchedLocation: state.matchedLocation,
         uri: state.uri,
       );
+      if (redirect != null) {
+        debugPrint(
+          '[router] redirect ${state.matchedLocation} -> $redirect '
+          'loading=${authState.isLoading && auth == null} '
+          'logged_in=${auth?.isLoggedIn ?? false} '
+          'requires_profile_setup=${auth?.requiresProfileSetup ?? false} '
+          'user=${auth?.userId ?? "<none>"}',
+        );
+      }
+      return redirect;
     },
     routes: [
       GoRoute(path: '/restore', builder: (_, __) => const _AuthRestorePage()),
@@ -307,7 +328,13 @@ GoRouter appRouter(Ref ref) {
           return _slidePage(OnboardingPasswordPage(payload: payload));
         },
       ),
-      GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+      GoRoute(
+        path: '/home',
+        builder: (_, state) => HomePage(
+          initialTab:
+              _homeInitialTabFromQuery(state.uri.queryParameters['tab']),
+        ),
+      ),
       GoRoute(
         path: '/chat/:roomId',
         pageBuilder: (_, state) => _pageForLocation(
@@ -359,6 +386,12 @@ GoRouter appRouter(Ref ref) {
         path: '/contact-home/:userId',
         pageBuilder: (_, state) => _slidePage(
           ContactHomePage(userId: state.pathParameters['userId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/contact-channels/:userId',
+        pageBuilder: (_, state) => _slidePage(
+          ContactChannelsPage(userId: state.pathParameters['userId']!),
         ),
       ),
       GoRoute(
@@ -531,6 +564,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/settings',
         pageBuilder: (_, __) => _slidePage(const SettingsPage()),
+      ),
+      GoRoute(
+        path: '/settings/about',
+        pageBuilder: (_, __) => _slidePage(const AboutUsPage()),
       ),
       GoRoute(
         path: '/settings/blacklist',

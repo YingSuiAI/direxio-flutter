@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Portal App</string>
+	<string>Direxio</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>portal_app</string>
+	<string>Direxio</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -26,10 +26,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.example.portalApp</string>
+			<string>com.direxio.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>portalapp</string>
+				<string>direxio</string>
 			</array>
 		</dict>
 	</array>
@@ -40,13 +40,13 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>用于扫描 Portal 设置二维码、进行视频通话和聊天拍摄。</string>
+	<string>用于扫描 Direxio 设置二维码、进行视频通话和聊天拍摄。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>用于进行语音和视频通话。</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>用于选择头像和聊天图片。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>用于将我的二维码保存到手机相册。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>用于选择头像和聊天图片。</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -79,12 +79,6 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
 </dict>
 </plist>

@@ -41,6 +41,9 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
   final Color secondaryContainer; // secondary-container（nav pill 等）
   final Color tertiaryFixed; // tertiary-fixed（在线状态绿点）
 
+  /// 全局品牌主色。换产品主色时优先改这里。
+  static const brandPrimary = Color(0xFF3DCFFF);
+
   // M3 浅色（来自设计稿 tailwind.config）
   static const light = PortalTokens(
     bg: Color(0xFFF9F9FE),
@@ -49,7 +52,7 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     border: Color(0xFFC1C6D7),
     text: Color(0xFF1A1C1F),
     textMute: Color(0xFF414755),
-    accent: Color(0xFF3097CB),
+    accent: brandPrimary,
     accentCool: Color(0xFF006B27),
     danger: Color(0xFFBA1A1A),
     onAccent: Color(0xFFFFFFFF),
@@ -68,8 +71,8 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     border: Color(0xFF3C3B3B),
     text: Color(0xFFF4F4F5),
     textMute: Color(0xFFC7C8CE),
-    accent: Color(0xFF3097CB),
-    accentCool: Color(0xFF3097CB),
+    accent: brandPrimary,
+    accentCool: brandPrimary,
     danger: Color(0xFFFF5656),
     onAccent: Color(0xFFFFFFFF),
     primaryContainer: Color(0xFF12384C),

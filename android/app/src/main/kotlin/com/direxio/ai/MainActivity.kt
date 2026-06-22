@@ -1,4 +1,4 @@
-package com.example.portal_app
+package com.direxio.ai
 
 import android.Manifest
 import android.content.ActivityNotFoundException

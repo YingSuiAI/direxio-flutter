@@ -128,6 +128,7 @@ class _MeProfileTile extends StatelessWidget {
       child: Row(
         children: [
           GestureDetector(
+            key: const ValueKey('me_profile_avatar'),
             onTap: onAvatarTap,
             child: PortalAvatar(
               seed: displayId,

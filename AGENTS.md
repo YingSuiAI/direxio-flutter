@@ -37,8 +37,7 @@ lib/
     ├── channel/       channel inbox, share, and create/review flows
     ├── chat/          shared chat/media/record rendering helpers
     ├── widgets/       reusable widgets; widgets/m3/ is the local M3 library
-    ├── providers/     Riverpod providers and local state adapters
-    └── mock/          unauthenticated demo and explicit test data
+    └── providers/     Riverpod providers and local state adapters
 ```
 
 ## Data Boundaries
@@ -65,12 +64,12 @@ lib/
 - Treat only `isAsChannelMemberJoined(status)` as joined. `invite` and `pending` are waiting states and must not unlock channel sending.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
 - Channel invite/share cards first create `channels.invite_grant.create` with `channel_id` or `room_id` plus `share_room_id`; receivers call `channels.join` with `grant_id` and `share_room_id`.
-- When the AS contract changes, update `AsClient`, `HttpAsClient`, `MockAsClient`, focused tests, and `docs/AS_API_CHANGES.md` together.
+- When the AS contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/AS_API_CHANGES.md` together.
 
 ## Architecture
 
 - State management is Riverpod 2 with `riverpod_annotation` where generated providers are used.
-- Keep API abstractions in `lib/data/`: `AsClient` defines contracts, `HttpAsClient` implements real HTTP, and `MockAsClient` stays demo/test-only.
+- Keep API abstractions in `lib/data/`: `AsClient` defines contracts and `HttpAsClient` implements real HTTP. Test doubles stay under `test/support/` or inside test files.
 - New backend capabilities should follow the same interface + implementation injection pattern.
 - Keep Riverpod state in `lib/presentation/providers/`.
 - Keep reusable UI/data adapters outside route pages when shared or testable, for example `lib/presentation/channel/channel_inbox_data.dart`.

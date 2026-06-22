@@ -137,6 +137,8 @@ class ChannelInboxData {
     Iterable<AsConversation> productConversations = const [],
     String Function(String roomId)? roomNameForRoomId,
     String Function(String roomId)? roomAvatarForRoomId,
+    String Function(String roomId)? latestPreviewForRoomId,
+    DateTime? Function(String roomId)? latestAtForRoomId,
   }) {
     final productConversationByRoomId =
         _channelProductConversationsByRoomId(productConversations);
@@ -150,6 +152,10 @@ class ChannelInboxData {
         final channelId = channel.channelId.trim();
         final description = _channelPreviewText(channel.description);
         final topic = _channelPreviewText(channel.topic);
+        final latestPreview = _channelPreviewText(
+          latestPreviewForRoomId?.call(roomId) ?? '',
+        );
+        final latestAt = latestAtForRoomId?.call(roomId);
         final name = _preferReadableChannelName(
           channel.name,
           roomNameForRoomId?.call(roomId),
@@ -164,12 +170,14 @@ class ChannelInboxData {
               : channel.homeDomain.trim(),
           avatarUrl: _preferReadableText(
               channel.avatarUrl, roomAvatarForRoomId?.call(roomId)),
-          latestPreview: description.isNotEmpty
-              ? description
-              : topic.isEmpty
-                  ? '暂无频道内容'
-                  : topic,
-          latestAt: channel.lastActivityAt,
+          latestPreview: latestPreview.isNotEmpty
+              ? latestPreview
+              : description.isNotEmpty
+                  ? description
+                  : topic.isEmpty
+                      ? '暂无频道内容'
+                      : topic,
+          latestAt: latestAt ?? channel.lastActivityAt,
           unreadCount: channel.unreadCount,
           isOwned: _isChannelOwnerRole(channel.role) || channel.isOwned,
           tags: channel.tags,
@@ -196,6 +204,9 @@ class ChannelInboxData {
     Iterable<AsConversation> productConversations = const [],
     String Function(String roomId)? roomNameForRoomId,
     String Function(String roomId)? roomAvatarForRoomId,
+    String Function(String roomId)? latestPreviewForRoomId,
+    DateTime? Function(String roomId)? latestAtForRoomId,
+    Set<String> hiddenChannelKeys = const <String>{},
   }) {
     final productConversationByRoomId =
         _channelProductConversationsByRoomId(productConversations);
@@ -211,6 +222,11 @@ class ChannelInboxData {
       final channelId = channel.channelId.trim();
       final roomId = channel.roomId.trim();
       if (channelId.isEmpty || roomId.isEmpty) return false;
+      if ((channelId.isNotEmpty &&
+              hiddenChannelKeys.contains('channel:$channelId')) ||
+          (roomId.isNotEmpty && hiddenChannelKeys.contains('room:$roomId'))) {
+        return false;
+      }
       final bootstrapChannel =
           bootstrapByChannelId[channelId] ?? bootstrapByRoomId[roomId];
       final status = _preferReadableText(
@@ -227,6 +243,10 @@ class ChannelInboxData {
         _preferReadableText(channel.description, bootstrapChannel?.description),
       );
       final topic = _channelPreviewText(bootstrapChannel?.topic ?? '');
+      final latestPreview = _channelPreviewText(
+        latestPreviewForRoomId?.call(roomId) ?? '',
+      );
+      final latestAt = latestAtForRoomId?.call(roomId);
       final name = _preferReadableChannelName(
         channel.name,
         _preferReadableChannelName(
@@ -254,12 +274,16 @@ class ChannelInboxData {
             roomAvatarForRoomId?.call(roomId),
           ),
         ),
-        latestPreview: description.isNotEmpty
-            ? description
-            : topic.isEmpty
-                ? '暂无频道内容'
-                : topic,
-        latestAt: channel.latestActivityAt ?? bootstrapChannel?.lastActivityAt,
+        latestPreview: latestPreview.isNotEmpty
+            ? latestPreview
+            : description.isNotEmpty
+                ? description
+                : topic.isEmpty
+                    ? '暂无频道内容'
+                    : topic,
+        latestAt: latestAt ??
+            channel.latestActivityAt ??
+            bootstrapChannel?.lastActivityAt,
         unreadCount: bootstrapChannel?.unreadCount ?? 0,
         isOwned: _isChannelOwnerRole(channel.role) ||
             _isChannelOwnerRole(bootstrapChannel?.role ?? '') ||
@@ -300,6 +324,8 @@ class ChannelInboxData {
     Iterable<AsConversation> productConversations = const [],
     String Function(String roomId)? roomNameForRoomId,
     String Function(String roomId)? roomAvatarForRoomId,
+    String Function(String roomId)? latestPreviewForRoomId,
+    DateTime? Function(String roomId)? latestAtForRoomId,
     Set<String> hiddenChannelKeys = const <String>{},
   }) {
     if (cached.isEmpty) return _sortByLatest([...items]);
@@ -312,6 +338,8 @@ class ChannelInboxData {
         productConversations: productConversations,
         roomNameForRoomId: roomNameForRoomId,
         roomAvatarForRoomId: roomAvatarForRoomId,
+        latestPreviewForRoomId: latestPreviewForRoomId,
+        latestAtForRoomId: latestAtForRoomId,
       );
       if (cachedItems.isEmpty) continue;
       final cachedItem = cachedItems.single.copyWith(

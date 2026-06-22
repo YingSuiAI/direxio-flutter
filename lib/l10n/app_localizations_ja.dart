@@ -9,7 +9,7 @@ class AppLocalizationsJa extends AppLocalizations {
   AppLocalizationsJa([String locale = 'ja']) : super(locale);
 
   @override
-  String get appTitle => 'P2P-IM';
+  String get appTitle => 'Direxio';
 
   @override
   String get languageSystem => 'システムに従う';
@@ -93,6 +93,20 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsClearChats => 'チャット履歴を消去';
 
   @override
+  String get settingsClearChatsClearing => '消去中...';
+
+  @override
+  String get settingsClearChatsConfirmMessage =>
+      'この端末のチャット履歴、未読復元、メディアサムネイルのキャッシュを消去します。サーバー上のメッセージは削除されません。';
+
+  @override
+  String get settingsClearChatsSuccess => 'チャット履歴を消去しました';
+
+  @override
+  String get settingsClearChatsFailure =>
+      'チャット履歴の消去に失敗しました。しばらくしてからもう一度お試しください。';
+
+  @override
   String get settingsLogout => 'ログアウト';
 
   @override
@@ -109,6 +123,15 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get commonShare => '共有';
+
+  @override
+  String get aboutWebsite => '公式サイト';
+
+  @override
+  String get aboutEmail => 'メール';
+
+  @override
+  String get aboutVersionUpdates => 'バージョン';
 
   @override
   String get channelManageTitle => 'チャンネル管理';
@@ -305,7 +328,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get loginSubtitle => 'Portal ドメインとパスワードで分散型メッセージに入ります';
 
   @override
-  String get loginDomainHint => 'https://あなたのドメイン';
+  String get loginDomainHint => 'あなたのドメイン';
 
   @override
   String get loginPasswordHint => 'パスワード';
@@ -315,6 +338,61 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get loginButtonLoading => 'ログイン中…';
+
+  @override
+  String get loginTermsOpenFailed => '利用規約とプライバシーポリシーを開けません';
+
+  @override
+  String get loginAgreementRequiredTitle => '確認して同意してください';
+
+  @override
+  String get loginAgreementRequiredMessage =>
+      'ログインする前に利用規約とプライバシーポリシーへの同意が必要です。';
+
+  @override
+  String get loginAgreementConfirmAndLogin => '同意してログイン';
+
+  @override
+  String get agreementPrefix => '確認して同意します';
+
+  @override
+  String get agreementTermsPrivacy => '利用規約・プライバシーポリシー';
+
+  @override
+  String get initPasswordTooShort => 'パスワードは8文字以上にしてください';
+
+  @override
+  String get initPasswordMismatch => '2回入力したパスワードが一致しません';
+
+  @override
+  String get initPortalDomainHint => 'Portal ドメイン';
+
+  @override
+  String get initDisplayNameHint => '表示名';
+
+  @override
+  String get initOwnerTokenHint => '長期ログインパスフレーズ';
+
+  @override
+  String get initPasswordHint => 'パスワード';
+
+  @override
+  String get initConfirmOwnerTokenHint => '長期ログインパスフレーズを再入力';
+
+  @override
+  String get initConfirmPasswordHint => 'パスワードを再入力';
+
+  @override
+  String get initPasswordRule => '8文字以上';
+
+  @override
+  String get initButton => '確認';
+
+  @override
+  String get initButtonLoading => '初期化中…';
+
+  @override
+  String get initExistingAccountLogin => 'すでにアカウントをお持ちですか？ログイン';
 
   @override
   String get addContactTitle => '友だちを追加';

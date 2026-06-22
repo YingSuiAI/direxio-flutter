@@ -317,7 +317,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE1',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -1015,7 +1015,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE1',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -1240,7 +1240,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'OLDDEVICE',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -1966,7 +1966,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE1',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -2040,7 +2040,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE1',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -2119,7 +2119,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE1',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -2220,7 +2220,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE1',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -2411,7 +2411,7 @@ void main() {
 
     expect(
       container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
-      isTrue,
+      isNot(false),
     );
     expect(container.read(sessionExpiredNoticeProvider), 0);
     expect(
@@ -2522,7 +2522,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE1',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -2634,7 +2634,7 @@ void main() {
       newUserID: '@alice:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE_A',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -2723,7 +2723,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'OLDDEVICE',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -3035,7 +3035,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE_A',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );
@@ -3130,7 +3130,7 @@ void main() {
       newUserID: '@owner:example.com',
       newHomeserver: Uri.parse('https://example.com'),
       newDeviceID: 'DEVICE_A',
-      newDeviceName: 'PortalIM',
+      newDeviceName: 'Direxio',
       waitForFirstSync: false,
       waitUntilLoadCompletedLoaded: false,
     );

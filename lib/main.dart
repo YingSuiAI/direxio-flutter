@@ -107,9 +107,54 @@ class PortalApp extends ConsumerWidget {
       routerConfig: router,
       builder: (context, child) {
         return UserActionDebounce(
-          child: AppGlassBackground(child: child ?? const SizedBox.shrink()),
+          child: _StartupSplashOverlay(
+            child: AppGlassBackground(child: child ?? const SizedBox.shrink()),
+          ),
         );
       },
+    );
+  }
+}
+
+class _StartupSplashOverlay extends StatefulWidget {
+  const _StartupSplashOverlay({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_StartupSplashOverlay> createState() => _StartupSplashOverlayState();
+}
+
+class _StartupSplashOverlayState extends State<_StartupSplashOverlay> {
+  bool _visible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(milliseconds: 1300), () {
+      if (mounted) setState(() => _visible = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        widget.child,
+        IgnorePointer(
+          ignoring: !_visible,
+          child: AnimatedOpacity(
+            opacity: _visible ? 1 : 0,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            child: Image.asset(
+              'assets/images/splash_launch.png',
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

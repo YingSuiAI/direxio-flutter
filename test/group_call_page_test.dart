@@ -159,7 +159,8 @@ void main() {
     expect(find.text('摄像头已关'), findsNothing);
   });
 
-  testWidgets('group video camera control is disabled without local video track',
+  testWidgets(
+      'group video camera control is disabled without local video track',
       (tester) async {
     final controller = _FakeGroupCallController(
       initialGroupState: const GroupCallUiState(
@@ -189,7 +190,8 @@ void main() {
     expect(controller.groupCameraMutedValues, isEmpty);
   });
 
-  testWidgets('group video camera control toggles when local video track exists',
+  testWidgets(
+      'group video camera control toggles when local video track exists',
       (tester) async {
     final controller = _FakeGroupCallController(
       initialGroupState: const GroupCallUiState(
@@ -577,11 +579,13 @@ void main() {
     await tester.pump();
 
     expect(
-      find.byKey(const ValueKey('group-call-participant-@test:p2p-im-test.com')),
+      find.byKey(
+          const ValueKey('group-call-participant-@test:p2p-im-test.com')),
       findsOneWidget,
     );
     final testNode = tester.widget<Opacity>(
-      find.byKey(const ValueKey('group-call-participant-@test:p2p-im-test.com')),
+      find.byKey(
+          const ValueKey('group-call-participant-@test:p2p-im-test.com')),
     );
     expect(testNode.opacity, 1);
   });

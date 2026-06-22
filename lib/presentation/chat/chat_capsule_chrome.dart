@@ -503,28 +503,29 @@ class ChatCapsuleHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ChatDirectionalEntrance(
-                  direction: ChatEntranceDirection.top,
-                  delay: const Duration(milliseconds: 70),
-                  child: Row(
-                    key: const ValueKey('chat_header_actions_capsule'),
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _FigmaGlassCircleButton(
-                        tooltip: detailAction?.tooltip ?? '详情',
-                        onTap: detailAction?.onTap,
-                        child: _chatAsset(
-                          _assetChatMore,
-                          size: 17,
-                          color: t.text,
+              if (detailAction != null)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ChatDirectionalEntrance(
+                    direction: ChatEntranceDirection.top,
+                    delay: const Duration(milliseconds: 70),
+                    child: Row(
+                      key: const ValueKey('chat_header_actions_capsule'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _FigmaGlassCircleButton(
+                          tooltip: detailAction.tooltip,
+                          onTap: detailAction.onTap,
+                          child: _chatAsset(
+                            _assetChatMore,
+                            size: 17,
+                            color: t.text,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

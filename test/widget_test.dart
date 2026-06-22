@@ -2186,7 +2186,7 @@ class _RecoveringGroupRoomClient extends Client {
   _RecoveringGroupRoomClient({
     required this.recoveryRoomId,
     required this.recoveryUserId,
-  }) : super('PortalIMGroupChatMissingRoomRecoveryTest') {
+  }) : super('DirexioGroupChatMissingRoomRecoveryTest') {
     setUserId(recoveryUserId);
   }
 
@@ -2259,7 +2259,7 @@ class _RecoveringDirectRoomClient extends Client {
     required this.recoveryRoomId,
     required this.ownerMxid,
     required this.peerMxid,
-  }) : super('PortalIMMissingRoomRecoveryTest') {
+  }) : super('DirexioMissingRoomRecoveryTest') {
     setUserId(ownerMxid);
   }
 
@@ -2382,7 +2382,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   final matrixLocalDeleteBodies = <Map<String, dynamic>>[];
   final visibilityClient = _RecordingMatrixMessageVisibilityClient();
   final client = Client(
-    'PortalIMGroupActionTest',
+    'DirexioGroupActionTest',
     httpClient: MockClient((request) async {
       if (request.url.path.endsWith('/local_delete')) {
         matrixLocalDeleteBodies.add(
@@ -2552,7 +2552,7 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
   final matrixRedactionPaths = <String>[];
   final matrixLocalDeleteBodies = <Map<String, dynamic>>[];
   final client = Client(
-    'PortalIMDirectActionTest',
+    'DirexioDirectActionTest',
     httpClient: MockClient((request) async {
       if (request.url.path.endsWith('/local_delete')) {
         matrixLocalDeleteBodies.add(
@@ -2734,7 +2734,7 @@ void main() {
   });
 
   test('markRoomLocallyRead clears Matrix unread counters immediately', () {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
     final room = Room(
       id: '!agent:example.com',
       client: client,
@@ -3010,7 +3010,7 @@ void main() {
 
   testWidgets('messages home header does not duplicate the me avatar shortcut',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3039,7 +3039,7 @@ void main() {
   testWidgets(
       'messages list does not flash mock conversations while auth loads',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3062,7 +3062,7 @@ void main() {
   testWidgets(
       'messages wait for ProductCore conversations before rendering rooms',
       (tester) async {
-    final client = Client('PortalIMUndirectedRoomMetadataTest')
+    final client = Client('DirexioUndirectedRoomMetadataTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3113,7 +3113,7 @@ void main() {
       (tester) async {
     const roomId = '!alice:p2p-im.com';
     const conversationId = 'conv_alice';
-    final client = Client('PortalIMProductConversationOpenTest')
+    final client = Client('DirexioProductConversationOpenTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3177,7 +3177,7 @@ void main() {
 
   testWidgets('messages conversation avatar uses ProductCore avatar',
       (tester) async {
-    final client = Client('PortalIMConversationAsAvatarTest')
+    final client = Client('DirexioConversationAsAvatarTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3227,7 +3227,7 @@ void main() {
 
   testWidgets('messages keeps ProductCore avatar after Matrix member sync',
       (tester) async {
-    final client = Client('PortalIMConversationAvatarSyncTest')
+    final client = Client('DirexioConversationAvatarSyncTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3301,7 +3301,7 @@ void main() {
 
   testWidgets('messages contact conversation does not show online dot',
       (tester) async {
-    final client = Client('PortalIMConversationNoContactOnlineDotTest')
+    final client = Client('DirexioConversationNoContactOnlineDotTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3344,7 +3344,7 @@ void main() {
       (tester) async {
     const roomId = '!owner:p2p-im.com';
     const peerMxid = '@owner:p2p-liyanan.com';
-    final client = Client('PortalIMConversationClearPreviewTest')
+    final client = Client('DirexioConversationClearPreviewTest')
       ..setUserId('@owner:p2p-im.com');
     final room = _addUndirectedJoinedRoom(
       client,
@@ -3391,7 +3391,7 @@ void main() {
 
   testWidgets('messages conversation avatar uses ProductCore fallback avatar',
       (tester) async {
-    final client = Client('PortalIMConversationMatrixAvatarTest')
+    final client = Client('DirexioConversationMatrixAvatarTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3439,7 +3439,7 @@ void main() {
 
   testWidgets('messages direct conversation uses peer member identity',
       (tester) async {
-    final client = Client('PortalIMConversationPeerIdentityTest')
+    final client = Client('DirexioConversationPeerIdentityTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3489,7 +3489,7 @@ void main() {
 
   testWidgets('messages hide pending outbound contact rooms from AS metadata',
       (tester) async {
-    final client = Client('PortalIMPendingOutboundHomeListTest')
+    final client = Client('DirexioPendingOutboundHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3542,7 +3542,7 @@ void main() {
 
   testWidgets('messages keep pending contact hidden until AS accepts it',
       (tester) async {
-    final client = Client('PortalIMPendingJoinedHomeListTest')
+    final client = Client('DirexioPendingJoinedHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3596,7 +3596,7 @@ void main() {
 
   testWidgets('messages refresh AS metadata after Matrix sync events',
       (tester) async {
-    final client = Client('PortalIMMatrixSyncRefreshesAsMetadataTest')
+    final client = Client('DirexioMatrixSyncRefreshesAsMetadataTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -3640,7 +3640,7 @@ void main() {
 
   testWidgets('messages render ProductCore direct before Matrix room hydrates',
       (tester) async {
-    final client = Client('PortalIMAsAcceptedContactOnlyHomeListTest')
+    final client = Client('DirexioAsAcceptedContactOnlyHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     final asClient = _ConversationListAsClient(
       const [
@@ -3699,7 +3699,7 @@ void main() {
   testWidgets(
       'messages render ProductCore conversations before Matrix room hydrates',
       (tester) async {
-    final client = Client('PortalIMProductCoreConversationHomeListTest')
+    final client = Client('DirexioProductCoreConversationHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     final asClient = _ConversationListAsClient(
       const [
@@ -3744,7 +3744,7 @@ void main() {
 
   testWidgets('messages use ProductCore preview before Matrix room hydrates',
       (tester) async {
-    final client = Client('PortalIMAsConversationPreviewHomeListTest')
+    final client = Client('DirexioAsConversationPreviewHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     final asClient = _ConversationListAsClient(
       [
@@ -3803,7 +3803,7 @@ void main() {
 
   testWidgets('messages render ProductCore group before Matrix room hydrates',
       (tester) async {
-    final client = Client('PortalIMAsJoinedGroupOnlyHomeListTest')
+    final client = Client('DirexioAsJoinedGroupOnlyHomeListTest')
       ..setUserId('@owner:example.test');
     final asClient = _ConversationListAsClient(
       const [
@@ -3858,7 +3858,7 @@ void main() {
 
   testWidgets('messages hide ProductCore conversations that cannot open',
       (tester) async {
-    final client = Client('PortalIMHiddenPendingProductConversationTest')
+    final client = Client('DirexioHiddenPendingProductConversationTest')
       ..setUserId('@owner:p2p-im.com');
     final asClient = _ConversationListAsClient(
       const [
@@ -3920,7 +3920,7 @@ void main() {
 
   testWidgets('messages prefer direct contact over stale group for same room',
       (tester) async {
-    final client = Client('PortalIMDirectContactOverStaleGroupHomeListTest')
+    final client = Client('DirexioDirectContactOverStaleGroupHomeListTest')
       ..setUserId('@owner:example.test');
     const roomId = '!direct:example.test';
     final asClient = _ConversationListAsClient(
@@ -4002,7 +4002,7 @@ void main() {
 
   testWidgets('messages render cached home conversations before rooms hydrate',
       (tester) async {
-    final client = Client('PortalIMCachedHomeConversationListTest')
+    final client = Client('DirexioCachedHomeConversationListTest')
       ..setUserId('@owner:p2p-im.com');
     final conversationCompleter = Completer<List<AsConversation>>();
     final snapshotStore = _MemoryConversationSummaryStore(
@@ -4065,7 +4065,7 @@ void main() {
 
   testWidgets('messages ignore blank cached-only conversations while loading',
       (tester) async {
-    final client = Client('PortalIMBlankCachedHomeConversationListTest')
+    final client = Client('DirexioBlankCachedHomeConversationListTest')
       ..setUserId('@owner:p2p-im.com');
     final conversationCompleter = Completer<List<AsConversation>>();
     final snapshotStore = _MemoryConversationSummaryStore(
@@ -4136,7 +4136,7 @@ void main() {
 
   testWidgets('messages prune stale cached conversations after ProductCore',
       (tester) async {
-    final client = Client('PortalIMCachedHomeConversationMergeTest')
+    final client = Client('DirexioCachedHomeConversationMergeTest')
       ..setUserId('@owner:p2p-im.com');
     final liveAt = DateTime.utc(2026, 6, 21, 12);
     final snapshotStore = _MemoryConversationSummaryStore(
@@ -4241,7 +4241,7 @@ void main() {
 
   testWidgets('messages clear stale cache after empty ProductCore refresh',
       (tester) async {
-    final client = Client('PortalIMEmptyProductCorePrunesCacheTest')
+    final client = Client('DirexioEmptyProductCorePrunesCacheTest')
       ..setUserId('@owner:p2p-im.com');
     final snapshotStore = _MemoryConversationSummaryStore(
       ConversationSummarySnapshot(
@@ -4301,7 +4301,7 @@ void main() {
 
   testWidgets('messages hide AS group until Matrix room is joined',
       (tester) async {
-    final client = Client('PortalIMAsJoinedGroupOnlyHomeListTest')
+    final client = Client('DirexioAsJoinedGroupOnlyHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 30, 11),
@@ -4350,7 +4350,7 @@ void main() {
   testWidgets(
       'contacts hide pending metadata until AS marks the contact accepted',
       (tester) async {
-    final client = Client('PortalIMPendingContactListTest')
+    final client = Client('DirexioPendingContactListTest')
       ..setUserId('@owner:p2p-im.com');
     final room = _addUndirectedJoinedRoom(
       client,
@@ -4412,7 +4412,7 @@ void main() {
 
   testWidgets('messages hide unknown raw Matrix rooms after AS bootstrap',
       (tester) async {
-    final client = Client('PortalIMUnknownRawRoomHomeListTest')
+    final client = Client('DirexioUnknownRawRoomHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -4454,7 +4454,7 @@ void main() {
   });
 
   testWidgets('messages show only canonical AS agent room', (tester) async {
-    final client = Client('PortalIMCanonicalAgentHomeListTest')
+    final client = Client('DirexioCanonicalAgentHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     final canonicalRoom = _addHeroSummaryRoom(
       client,
@@ -4526,7 +4526,7 @@ void main() {
 
   testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',
       (tester) async {
-    final client = Client('PortalIMDuplicateDirectRoomHomeListTest')
+    final client = Client('DirexioDuplicateDirectRoomHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     final canonicalRoom = _addUndirectedJoinedRoom(
       client,
@@ -4613,7 +4613,7 @@ void main() {
   testWidgets(
       'messages prefer new local accepted room over stale bootstrap room',
       (tester) async {
-    final client = Client('PortalIMLocalAcceptedShadowsBootstrapHomeTest')
+    final client = Client('DirexioLocalAcceptedShadowsBootstrapHomeTest')
       ..setUserId('@owner:p2p-im.com');
     final oldRoom = _addUndirectedJoinedRoom(
       client,
@@ -4726,7 +4726,7 @@ void main() {
 
   testWidgets('contacts hide duplicate Matrix direct rooms not accepted by AS',
       (tester) async {
-    final client = Client('PortalIMDuplicateDirectContactListTest')
+    final client = Client('DirexioDuplicateDirectContactListTest')
       ..setUserId('@owner:p2p-im.com');
     final canonicalRoom = _addUndirectedJoinedRoom(
       client,
@@ -4804,7 +4804,7 @@ void main() {
   testWidgets(
       'messages and contacts hide rejected direct rooms with joined peer',
       (tester) async {
-    final client = Client('PortalIMRejectedDirectRoomListTest')
+    final client = Client('DirexioRejectedDirectRoomListTest')
       ..setUserId('@owner:p2p-im.com');
     final rejectedRoom = _addUndirectedJoinedRoom(
       client,
@@ -4871,7 +4871,7 @@ void main() {
 
   testWidgets('chat info uses AS contact metadata for undirected direct rooms',
       (tester) async {
-    final client = Client('PortalIMChatInfoDirectMetadataTest')
+    final client = Client('DirexioChatInfoDirectMetadataTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -4921,7 +4921,7 @@ void main() {
   });
 
   testWidgets('chat info rejects mock conversation ids', (tester) async {
-    final client = Client('PortalIMChatInfoRejectMockTest')
+    final client = Client('DirexioChatInfoRejectMockTest')
       ..setUserId('@owner:p2p-im.com');
 
     await tester.pumpWidget(
@@ -4948,7 +4948,7 @@ void main() {
       (tester) async {
     const roomId = '!owner:p2p-im.com';
     final client = Client(
-      'PortalIMChatInfoClearHistoryTest',
+      'DirexioChatInfoClearHistoryTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -5021,7 +5021,7 @@ void main() {
   });
 
   testWidgets('home starts app warmup on launch', (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
     var warmupCalls = 0;
 
     await tester.pumpWidget(
@@ -5043,7 +5043,7 @@ void main() {
   });
 
   test('app warmup preloads current user and recent room avatars', () async {
-    final client = Client('PortalIMTest')
+    final client = Client('DirexioTest')
       ..homeserver = Uri.parse('https://hs.example.com');
     final room = Room(
       id: '!room:example.com',
@@ -5098,7 +5098,7 @@ void main() {
 
   testWidgets('main content page titles use the same neutral color',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5127,7 +5127,7 @@ void main() {
 
   testWidgets('messages contacts and channel share header actions',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5159,7 +5159,7 @@ void main() {
 
   testWidgets('third home tab is channel without explore subpages',
       (tester) async {
-    final client = Client('PortalIMChannelTabTest');
+    final client = Client('DirexioChannelTabTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5194,7 +5194,7 @@ void main() {
   });
 
   testWidgets('channel tab matches figma header controls', (tester) async {
-    final client = Client('PortalIMChannelHeaderTest');
+    final client = Client('DirexioChannelHeaderTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5221,7 +5221,7 @@ void main() {
 
   testWidgets('me channels page shows only owned channel inbox items',
       (tester) async {
-    final client = Client('PortalIMMeChannelsTest')
+    final client = Client('DirexioMeChannelsTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 17, 10),
@@ -5295,7 +5295,7 @@ void main() {
   });
 
   testWidgets('channel search page matches figma empty state', (tester) async {
-    final client = Client('PortalIMChannelSearchTest');
+    final client = Client('DirexioChannelSearchTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5322,7 +5322,7 @@ void main() {
 
   testWidgets('channel search keeps Matrix room id lookup on configured AS',
       (tester) async {
-    final client = Client('PortalIMChannelSearchRoomIdTargetTest');
+    final client = Client('DirexioChannelSearchRoomIdTargetTest');
     final asClient = _EmptyAsClient();
 
     await tester.pumpWidget(
@@ -5351,7 +5351,7 @@ void main() {
 
   testWidgets('channel search uses unified AS public search for keywords',
       (tester) async {
-    final client = Client('PortalIMChannelSearchUnifiedTest');
+    final client = Client('DirexioChannelSearchUnifiedTest');
     final asClient = _EmptyAsClient();
 
     await tester.pumpWidget(
@@ -5378,7 +5378,7 @@ void main() {
   });
 
   testWidgets('create channel entry opens figma form', (tester) async {
-    final client = Client('PortalIMCreateChannelTest');
+    final client = Client('DirexioCreateChannelTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5435,7 +5435,7 @@ void main() {
 
   testWidgets('create channel empty name stays on form with prompt',
       (tester) async {
-    final client = Client('PortalIMCreateChannelEmptyNameTest');
+    final client = Client('DirexioCreateChannelEmptyNameTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5463,7 +5463,7 @@ void main() {
   });
 
   testWidgets('channel review entry opens figma review page', (tester) async {
-    final client = Client('PortalIMChannelReviewTest');
+    final client = Client('DirexioChannelReviewTest');
     final router = GoRouter(
       routes: [
         GoRoute(path: '/', builder: (_, __) => const HomePage()),
@@ -5502,7 +5502,7 @@ void main() {
   });
 
   testWidgets('home plus menu has the unified action order', (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5532,7 +5532,7 @@ void main() {
   });
 
   testWidgets('home plus menu uses dark surface in dark mode', (tester) async {
-    final client = Client('PortalIMHomePlusDarkTest');
+    final client = Client('DirexioHomePlusDarkTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5572,7 +5572,7 @@ void main() {
         avatarUrl: '',
         capabilities: AsConversationCapabilities(open: true),
       );
-    final client = Client('PortalIMHomeGroupCreateTest')
+    final client = Client('DirexioHomeGroupCreateTest')
       ..setUserId('@owner:p2p-im.com');
     client.homeserver = Uri.parse('https://p2p-im.com');
     client.accessToken = 'test-token';
@@ -5697,7 +5697,7 @@ void main() {
   });
 
   testWidgets('missing group page keeps a usable back button', (tester) async {
-    final client = Client('PortalIMMissingGroupBackTest')
+    final client = Client('DirexioMissingGroupBackTest')
       ..setUserId('@owner:p2p-im.com');
     final router = GoRouter(
       initialLocation: '/home',
@@ -5740,7 +5740,7 @@ void main() {
 
   testWidgets('contacts empty state does not render mock friends',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5768,7 +5768,7 @@ void main() {
 
   testWidgets('contacts use Matrix member avatar when AS avatar is empty',
       (tester) async {
-    final client = Client('PortalIMContactsMatrixAvatarTest')
+    final client = Client('DirexioContactsMatrixAvatarTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -5829,7 +5829,7 @@ void main() {
   });
 
   testWidgets('contact action shortcuts match contact design', (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5853,7 +5853,7 @@ void main() {
   });
 
   testWidgets('contact page has inline search box', (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -5875,7 +5875,7 @@ void main() {
 
   testWidgets('new friend badge counts AS pending inbound contacts',
       (tester) async {
-    final client = Client('PortalIMInviteBadgeTest')
+    final client = Client('DirexioInviteBadgeTest')
       ..setUserId('@owner:p2p-im.com');
     final readStore = _MemoryFriendRequestReadStore();
     _addTestRoom(
@@ -5936,7 +5936,7 @@ void main() {
 
   testWidgets('new friend badge counts AS pending friend request notices',
       (tester) async {
-    final client = Client('PortalIMPendingFriendNoticeBadgeTest')
+    final client = Client('DirexioPendingFriendNoticeBadgeTest')
       ..setUserId('@owner:p2p-im.com');
     final readStore = _MemoryFriendRequestReadStore();
     final bootstrap = AsSyncBootstrap(
@@ -5995,7 +5995,7 @@ void main() {
 
   testWidgets('new friend badge ignores AS group and channel invite notices',
       (tester) async {
-    final client = Client('PortalIMPendingRoomInviteBadgeTest')
+    final client = Client('DirexioPendingRoomInviteBadgeTest')
       ..setUserId('@owner:p2p-im.com');
     final readStore = _MemoryFriendRequestReadStore();
     final bootstrap = AsSyncBootstrap(
@@ -6056,7 +6056,7 @@ void main() {
 
   testWidgets('new friend badge refreshes AS pending notices after Matrix sync',
       (tester) async {
-    final client = Client('PortalIMPendingFriendNoticeSyncTest')
+    final client = Client('DirexioPendingFriendNoticeSyncTest')
       ..setUserId('@owner:p2p-im.com');
     final readStore = _MemoryFriendRequestReadStore();
     final asClient = _RefreshingFriendRequestBootstrapAsClient();
@@ -6114,7 +6114,7 @@ void main() {
   testWidgets(
       'new friend badge refreshes AS pending notices without Matrix sync',
       (tester) async {
-    final client = Client('PortalIMPendingFriendNoticeLiveRefreshTest')
+    final client = Client('DirexioPendingFriendNoticeLiveRefreshTest')
       ..setUserId('@owner:p2p-im.com');
     final readStore = _MemoryFriendRequestReadStore();
     final asClient = _RefreshingFriendRequestBootstrapAsClient();
@@ -6154,7 +6154,7 @@ void main() {
 
   testWidgets('new friend badge ignores refreshed AS pending group invites',
       (tester) async {
-    final client = Client('PortalIMPendingGroupInviteLiveRefreshTest')
+    final client = Client('DirexioPendingGroupInviteLiveRefreshTest')
       ..setUserId('@owner:p2p-im.com');
     final readStore = _MemoryFriendRequestReadStore();
     final asClient = _RefreshingFriendRequestBootstrapAsClient();
@@ -6194,7 +6194,7 @@ void main() {
 
   testWidgets('new friend badge counts Matrix invites after AS bootstrap',
       (tester) async {
-    final client = Client('PortalIMInviteBadgeBootstrapTest')
+    final client = Client('DirexioInviteBadgeBootstrapTest')
       ..setUserId('@owner:p2p-im.com');
     final readStore = _MemoryFriendRequestReadStore();
     _addTestRoom(
@@ -6248,7 +6248,7 @@ void main() {
   testWidgets('chat list shows group unread badge from AS room summary',
       (tester) async {
     const roomId = '!group-unread:p2p-im.com';
-    final client = Client('PortalIMHomeGroupUnreadBadgeTest')
+    final client = Client('DirexioHomeGroupUnreadBadgeTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -6319,7 +6319,7 @@ void main() {
 
   testWidgets('viewing new friends clears unread badges but keeps request',
       (tester) async {
-    final client = Client('PortalIMFriendRequestReadBadgeTest')
+    final client = Client('DirexioFriendRequestReadBadgeTest')
       ..setUserId('@owner:p2p-im.com');
     final readStore = _MemoryFriendRequestReadStore();
     final router = GoRouter(
@@ -6388,7 +6388,7 @@ void main() {
 
   testWidgets('new friends page only lists incoming direct contact invites',
       (tester) async {
-    final client = Client('PortalIMRequestsFilterTest')
+    final client = Client('DirexioRequestsFilterTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -6426,7 +6426,7 @@ void main() {
 
   testWidgets('new friends page refreshes AS pending notices after Matrix sync',
       (tester) async {
-    final client = Client('PortalIMRequestsLivePendingTest')
+    final client = Client('DirexioRequestsLivePendingTest')
       ..setUserId('@owner:p2p-im.com');
     final asClient = _RefreshingFriendRequestBootstrapAsClient();
 
@@ -6461,7 +6461,7 @@ void main() {
 
   testWidgets('new friends page refreshes AS pending group invites after sync',
       (tester) async {
-    final client = Client('PortalIMRequestsLiveGroupInviteTest')
+    final client = Client('DirexioRequestsLiveGroupInviteTest')
       ..setUserId('@owner:p2p-im.com');
     final asClient = _RefreshingFriendRequestBootstrapAsClient();
 
@@ -6499,7 +6499,7 @@ void main() {
   testWidgets('new friends page can accept AS pending group invite',
       (tester) async {
     final client = Client(
-      'PortalIMRequestsGroupInviteAcceptTest',
+      'DirexioRequestsGroupInviteAcceptTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -6561,7 +6561,7 @@ void main() {
 
   testWidgets('new friends page still lists Matrix invites after AS bootstrap',
       (tester) async {
-    final client = Client('PortalIMRequestsBootstrapInviteTest')
+    final client = Client('DirexioRequestsBootstrapInviteTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -6601,7 +6601,7 @@ void main() {
 
   testWidgets('new friends page uses AS metadata for outgoing pending contacts',
       (tester) async {
-    final client = Client('PortalIMOutgoingPendingMetadataTest')
+    final client = Client('DirexioOutgoingPendingMetadataTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 27, 10),
@@ -6654,7 +6654,7 @@ void main() {
 
   testWidgets('new friends search matches add friend Figma list style',
       (tester) async {
-    final client = Client('PortalIMRequestsSearchStyleTest')
+    final client = Client('DirexioRequestsSearchStyleTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 27, 10),
@@ -6706,7 +6706,7 @@ void main() {
 
   testWidgets('new friends page shows rejected outbound contacts separately',
       (tester) async {
-    final client = Client('PortalIMOutgoingRejectedBootstrapTest')
+    final client = Client('DirexioOutgoingRejectedBootstrapTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 28, 18),
@@ -6751,7 +6751,7 @@ void main() {
 
   testWidgets('new friends keeps outgoing requests visible after peer rejects',
       (tester) async {
-    final client = Client('PortalIMOutgoingRejectedMetadataTest')
+    final client = Client('DirexioOutgoingRejectedMetadataTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -6805,7 +6805,7 @@ void main() {
 
   testWidgets('new friends hides stale outgoing invite omitted by AS bootstrap',
       (tester) async {
-    final client = Client('PortalIMStaleOutgoingInviteTest')
+    final client = Client('DirexioStaleOutgoingInviteTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -6846,7 +6846,7 @@ void main() {
 
   testWidgets('new friends re-add ignores stale Matrix invite absent from AS',
       (tester) async {
-    final client = Client('PortalIMReaddAfterRejectedTest')
+    final client = Client('DirexioReaddAfterRejectedTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -6890,7 +6890,7 @@ void main() {
   testWidgets('new friends rejects domains without portal owner discovery',
       (tester) async {
     final client = Client(
-      'PortalIMRequestsUnknownDomainTest',
+      'DirexioRequestsUnknownDomainTest',
       httpClient: MockClient((request) async {
         expect(request.url.toString(),
             'https://unknown.portal.local/.well-known/portal/owner.json');
@@ -6931,7 +6931,7 @@ void main() {
 
   testWidgets('new friends page exposes accept and reject actions',
       (tester) async {
-    final client = Client('PortalIMRequestsActionsTest')
+    final client = Client('DirexioRequestsActionsTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -6962,7 +6962,7 @@ void main() {
 
   testWidgets('accepting friend request updates local accepted room cache',
       (tester) async {
-    final client = Client('PortalIMRequestsAcceptCacheTest')
+    final client = Client('DirexioRequestsAcceptCacheTest')
       ..setUserId('@owner:p2p-im.com');
 
     await tester.pumpWidget(
@@ -6996,7 +6996,7 @@ void main() {
   });
 
   testWidgets('contact page does not show follows shortcut', (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
@@ -7128,7 +7128,7 @@ void main() {
   testWidgets('add contact resolves portal url only after submit',
       (tester) async {
     final client = Client(
-      'PortalIMAddContactTest',
+      'DirexioAddContactTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"matrix_user_id":"@alice:portal.local","display_name":"Alice Chen","avatar_url":"https://cdn.example.com/alice-search.png"}',
@@ -7219,20 +7219,20 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
     await tester.pumpAndSettle();
 
-    expect(find.text('申请好友'), findsOneWidget);
-    expect(find.text('发消息'), findsOneWidget);
-    expect(find.text('音频通话'), findsOneWidget);
-    expect(find.text('视频通话'), findsOneWidget);
-    expect(find.text('消息免打扰'), findsOneWidget);
-    expect(find.text('屏蔽用户'), findsOneWidget);
-    expect(find.text('举报用户'), findsOneWidget);
+    expect(find.text('添加好友'), findsOneWidget);
+    expect(find.text('发消息'), findsNothing);
+    expect(find.text('音频通话'), findsNothing);
+    expect(find.text('视频通话'), findsNothing);
+    expect(find.text('消息免打扰'), findsNothing);
+    expect(find.text('屏蔽用户'), findsNothing);
+    expect(find.text('举报用户'), findsNothing);
   });
 
   testWidgets('add contact falls back to Matrix profile for default owner name',
       (tester) async {
     final requestPaths = <String>[];
     final client = Client(
-      'PortalIMAddContactProfileFallbackTest',
+      'DirexioAddContactProfileFallbackTest',
       httpClient: MockClient((request) async {
         requestPaths.add(request.url.path);
         if (request.url.path == '/.well-known/portal/owner.json') {
@@ -7360,7 +7360,7 @@ void main() {
   testWidgets('add contact submit does not resolve mock portal owners',
       (tester) async {
     final client = Client(
-      'PortalIMAddContactNoMockOwnerTest',
+      'DirexioAddContactNoMockOwnerTest',
       httpClient: MockClient((request) async {
         expect(request.url.toString(),
             'https://alice.portal.local/.well-known/portal/owner.json');
@@ -7488,11 +7488,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('申请好友'), findsNothing);
+    expect(find.text('添加好友'), findsNothing);
     expect(find.text('发消息'), findsWidgets);
     expect(container.read(homeHiddenConversationIdsProvider), contains(roomId));
 
-    await tester.tap(find.widgetWithText(FilledButton, '发消息'));
+    await tester.tap(find.text('发消息').first);
     await tester.pumpAndSettle();
 
     expect(
@@ -7549,8 +7549,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('申请好友'), findsOneWidget);
-    await tester.tap(find.text('发消息'));
+    expect(find.text('添加好友'), findsOneWidget);
+    await tester.tap(find.text('添加好友'));
     await tester.pumpAndSettle();
 
     expect(find.text('发送好友申请'), findsOneWidget);
@@ -7617,7 +7617,7 @@ void main() {
       (tester) async {
     final asClient = _TrackingAsClient();
     final client = Client(
-      'PortalIMAddContactUnknownDomainTest',
+      'DirexioAddContactUnknownDomainTest',
       httpClient: MockClient((request) async {
         expect(request.url.toString(),
             'https://unknown.portal.local/.well-known/portal/owner.json');
@@ -7714,7 +7714,7 @@ void main() {
 
   testWidgets('add contact verification records returned product conversation',
       (tester) async {
-    final client = Client('PortalIMAddContactConversationSummaryTest')
+    final client = Client('DirexioAddContactConversationSummaryTest')
       ..setUserId('@owner:p2p-im.com');
     final asClient = _TrackingAsClient()
       ..createdContactProductConversation = AsConversation(
@@ -7947,7 +7947,7 @@ void main() {
 
   testWidgets('add contact search detail can request friend', (tester) async {
     final client = Client(
-      'PortalIMAddContactInboundRequestTest',
+      'DirexioAddContactInboundRequestTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"matrix_user_id":"@alice:portal.local","display_name":"Alice Chen"}',
@@ -8006,7 +8006,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('add_contact_result_avatar')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('申请好友'));
+    await tester.tap(find.text('添加好友'));
     await tester.pumpAndSettle();
     expect(find.text('好友验证'), findsOneWidget);
     expect(find.text('发送好友申请'), findsOneWidget);
@@ -8017,14 +8017,14 @@ void main() {
     expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
     await tester.pumpAndSettle();
     expect(find.text('好友验证'), findsNothing);
-    expect(find.text('申请好友'), findsOneWidget);
+    expect(find.text('添加好友'), findsOneWidget);
 
     await client.dispose(closeDatabase: false);
   });
 
   testWidgets('groups empty state does not render mock group list',
       (tester) async {
-    final client = Client('PortalIMGroupsNoMockListTest');
+    final client = Client('DirexioGroupsNoMockListTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -8047,7 +8047,7 @@ void main() {
 
   testWidgets('groups empty state does not expose mock group routes',
       (tester) async {
-    final client = Client('PortalIMGroupsNoMockRouteTest');
+    final client = Client('DirexioGroupsNoMockRouteTest');
     final router = GoRouter(
       initialLocation: '/groups',
       routes: [
@@ -8081,7 +8081,7 @@ void main() {
 
   testWidgets('groups list excludes AS accepted undirected direct contacts',
       (tester) async {
-    final client = Client('PortalIMGroupsExcludeDirectMetadataTest')
+    final client = Client('DirexioGroupsExcludeDirectMetadataTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -8131,7 +8131,7 @@ void main() {
 
   testWidgets('groups list excludes stale AS group for accepted contact room',
       (tester) async {
-    final client = Client('PortalIMGroupsExcludeStaleAsGroupForDirectTest')
+    final client = Client('DirexioGroupsExcludeStaleAsGroupForDirectTest')
       ..setUserId('@owner:example.test');
     const roomId = '!direct:example.test';
     final bootstrap = AsSyncBootstrap(
@@ -8195,7 +8195,7 @@ void main() {
   });
 
   testWidgets('groups list only shows AS joined groups', (tester) async {
-    final client = Client('PortalIMGroupsExcludeStaleDirectRoomsTest')
+    final client = Client('DirexioGroupsExcludeStaleDirectRoomsTest')
       ..setUserId('@owner:p2p-im.com');
     _addHeroSummaryRoom(
       client,
@@ -8281,7 +8281,7 @@ void main() {
 
   testWidgets('groups list hides bootstrap groups missing ProductCore record',
       (tester) async {
-    final client = Client('PortalIMGroupsRequireProductConversationTest')
+    final client = Client('DirexioGroupsRequireProductConversationTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 21, 14),
@@ -8326,7 +8326,7 @@ void main() {
       (tester) async {
     const roomId = '!group:p2p-im.com';
     const conversationId = 'conv_group';
-    final client = Client('PortalIMGroupsProductOpenTest')
+    final client = Client('DirexioGroupsProductOpenTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 21, 14),
@@ -8403,7 +8403,7 @@ void main() {
       (tester) async {
     const imageName =
         'image_picker_11111111-AAAA-BBBB-CCCC-generated-photo.jpg';
-    final client = Client('PortalIMGroupListImagePreviewTest')
+    final client = Client('DirexioGroupListImagePreviewTest')
       ..setUserId('@owner:p2p-im.com');
     final room = _addNamedGroupRoom(
       client,
@@ -8476,7 +8476,7 @@ void main() {
   testWidgets('group creation invites only selected accepted contacts',
       (tester) async {
     final client = Client(
-      'PortalIMGroupCreateInviteTest',
+      'DirexioGroupCreateInviteTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{}',
@@ -8620,7 +8620,7 @@ void main() {
 
   testWidgets('messages hide Matrix group invite room before AS join',
       (tester) async {
-    final client = Client('PortalIMGroupInviteRoomHiddenHomeListTest')
+    final client = Client('DirexioGroupInviteRoomHiddenHomeListTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -8664,7 +8664,7 @@ void main() {
   testWidgets(
       'group detail shows real members and hides management for members',
       (tester) async {
-    final client = Client('PortalIMGroupDetailMemberTest')
+    final client = Client('DirexioGroupDetailMemberTest')
       ..setUserId('@member:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -8694,7 +8694,7 @@ void main() {
   });
 
   testWidgets('group detail rejects mock group ids', (tester) async {
-    final client = Client('PortalIMGroupDetailRejectMockTest')
+    final client = Client('DirexioGroupDetailRejectMockTest')
       ..setUserId('@owner:p2p-im.com');
 
     await tester.pumpWidget(
@@ -8719,7 +8719,7 @@ void main() {
 
   testWidgets('group detail keeps management visible for group owner',
       (tester) async {
-    final client = Client('PortalIMGroupDetailOwnerTest')
+    final client = Client('DirexioGroupDetailOwnerTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -8748,7 +8748,7 @@ void main() {
 
   testWidgets('group detail owner dissolves through AS and refreshes bootstrap',
       (tester) async {
-    final client = Client('PortalIMGroupDetailLeaveAsTest')
+    final client = Client('DirexioGroupDetailLeaveAsTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -8847,7 +8847,7 @@ void main() {
       (tester) async {
     var matrixInviteCardSends = 0;
     final client = Client(
-      'PortalIMGroupDetailInviteAsTest',
+      'DirexioGroupDetailInviteAsTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           matrixInviteCardSends++;
@@ -8968,7 +8968,7 @@ void main() {
       (tester) async {
     var matrixInviteCardSends = 0;
     final client = Client(
-      'PortalIMGroupInfoInviteAsTest',
+      'DirexioGroupInfoInviteAsTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           matrixInviteCardSends++;
@@ -9074,7 +9074,7 @@ void main() {
 
   testWidgets('group detail reports roomless invite contacts as skipped',
       (tester) async {
-    final client = Client('PortalIMGroupDetailInviteRoomlessTest')
+    final client = Client('DirexioGroupDetailInviteRoomlessTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -9153,7 +9153,7 @@ void main() {
 
   testWidgets('group info shows management only to group owner',
       (tester) async {
-    final memberClient = Client('PortalIMGroupInfoMemberManageTest')
+    final memberClient = Client('DirexioGroupInfoMemberManageTest')
       ..setUserId('@member:p2p-im.com');
     _addNamedGroupRoom(
       memberClient,
@@ -9177,7 +9177,7 @@ void main() {
     expect(find.text('群管理'), findsNothing);
     expect(find.text('移除'), findsNothing);
 
-    final ownerClient = Client('PortalIMGroupInfoOwnerManageTest')
+    final ownerClient = Client('DirexioGroupInfoOwnerManageTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       ownerClient,
@@ -9203,7 +9203,7 @@ void main() {
   });
 
   testWidgets('group owner can remove member from group info', (tester) async {
-    final client = Client('PortalIMGroupInfoRemoveMemberTest')
+    final client = Client('DirexioGroupInfoRemoveMemberTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -9256,7 +9256,7 @@ void main() {
       (tester) async {
     final nicknameRequests = <http.Request>[];
     final client = Client(
-      'PortalIMGroupInfoSettingsTest',
+      'DirexioGroupInfoSettingsTest',
       httpClient: MockClient((request) async {
         nicknameRequests.add(request);
         return http.Response(
@@ -9345,7 +9345,7 @@ void main() {
 
   testWidgets('group detail shows owner-admin invite permission failure',
       (tester) async {
-    final client = Client('PortalIMGroupInvitePermissionFailureTest')
+    final client = Client('DirexioGroupInvitePermissionFailureTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -9525,7 +9525,7 @@ void main() {
 
   testWidgets('group management edits group name through AS', (tester) async {
     final asClient = _TrackingAsClient();
-    final client = Client('PortalIMGroupManageRenameTest')
+    final client = Client('DirexioGroupManageRenameTest')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -9641,7 +9641,7 @@ void main() {
       (tester) async {
     var matrixSendCalls = 0;
     final client = Client(
-      'PortalIMGroupTextSendAsTest',
+      'DirexioGroupTextSendAsTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           matrixSendCalls++;
@@ -9718,7 +9718,7 @@ void main() {
       (tester) async {
     var matrixSendCalls = 0;
     final client = Client(
-      'PortalIMChannelTextSendAsTest',
+      'DirexioChannelTextSendAsTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           matrixSendCalls++;
@@ -9801,7 +9801,7 @@ void main() {
       (tester) async {
     var matrixSendCalls = 0;
     final client = Client(
-      'PortalIMChannelConversationChannelIdRouteTest',
+      'DirexioChannelConversationChannelIdRouteTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           matrixSendCalls++;
@@ -9889,7 +9889,7 @@ void main() {
       (tester) async {
     var matrixSendCalls = 0;
     final client = Client(
-      'PortalIMChannelInvitedSendBlockTest',
+      'DirexioChannelInvitedSendBlockTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           matrixSendCalls++;
@@ -9968,7 +9968,7 @@ void main() {
     _mockAudioRecorderPlugins(tester);
     var matrixSendCalls = 0;
     final client = Client(
-      'PortalIMMutedChannelTextSendTest',
+      'DirexioMutedChannelTextSendTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           matrixSendCalls++;
@@ -10066,7 +10066,7 @@ void main() {
   testWidgets('channel conversation title prefers channel name over room id',
       (tester) async {
     final client = Client(
-      'PortalIMChannelTitleTest',
+      'DirexioChannelTitleTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -10114,7 +10114,7 @@ void main() {
   testWidgets('joined channel opened as group route uses channel title',
       (tester) async {
     final client = Client(
-      'PortalIMChannelGroupRouteTitleTest',
+      'DirexioChannelGroupRouteTitleTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -10180,7 +10180,7 @@ void main() {
   testWidgets('channel conversation ignores id-shaped bootstrap title',
       (tester) async {
     final client = Client(
-      'PortalIMChannelIdTitleTest',
+      'DirexioChannelIdTitleTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -10248,7 +10248,7 @@ void main() {
 
   testWidgets('channel conversation header hides member count', (tester) async {
     final client = Client(
-      'PortalIMChannelMemberCountHeaderTest',
+      'DirexioChannelMemberCountHeaderTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -10318,7 +10318,7 @@ void main() {
   testWidgets('channel conversation skips call API and limits attachment tools',
       (tester) async {
     final client = Client(
-      'PortalIMChannelAttachmentToolsTest',
+      'DirexioChannelAttachmentToolsTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -10399,7 +10399,7 @@ void main() {
       (tester) async {
     Map<String, dynamic>? sentMatrixContent;
     final client = Client(
-      'PortalIMGroupMentionSendTest',
+      'DirexioGroupMentionSendTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           sentMatrixContent = jsonDecode(request.body) as Map<String, dynamic>;
@@ -10492,7 +10492,7 @@ void main() {
   testWidgets('channel chat @ mention picker excludes portal agent',
       (tester) async {
     final client = Client(
-      'PortalIMChannelMentionAgentFilterTest',
+      'DirexioChannelMentionAgentFilterTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -10652,7 +10652,7 @@ void main() {
   testWidgets('empty group chat can pull to load server history',
       (tester) async {
     const roomId = '!empty-group:p2p-im.com';
-    final client = Client('PortalIMEmptyGroupPullHistoryTest')
+    final client = Client('DirexioEmptyGroupPullHistoryTest')
       ..setUserId('@owner:p2p-im.com');
     client.homeserver = Uri.parse('https://p2p-im.com');
     client.accessToken = 'matrix-token';
@@ -10710,7 +10710,7 @@ void main() {
       (tester) async {
     const roomId = '!group:p2p-im.com';
     final client = Client(
-      'PortalIMGroupActiveCallHeaderTest',
+      'DirexioGroupActiveCallHeaderTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -10803,7 +10803,7 @@ void main() {
   testWidgets('group chat renders group local media outbox items',
       (tester) async {
     final client = Client(
-      'PortalIMGroupMediaOutboxTest',
+      'DirexioGroupMediaOutboxTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -10884,7 +10884,7 @@ void main() {
     const imageName =
         'image_picker_11111111-AAAA-BBBB-CCCC-generated-photo.jpg';
     final client = Client(
-      'PortalIMGroupReceivedImageTest',
+      'DirexioGroupReceivedImageTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -10984,7 +10984,7 @@ void main() {
     const roomId = '!group:p2p-im.com';
     const fileName = 'quarterly-plan.pdf';
     final client = Client(
-      'PortalIMGroupReceivedFileTest',
+      'DirexioGroupReceivedFileTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -11084,7 +11084,7 @@ void main() {
     const roomId = '!group:p2p-im.com';
     const videoName = 'camera-roll-clip.mov';
     final client = Client(
-      'PortalIMGroupReceivedVideoTest',
+      'DirexioGroupReceivedVideoTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -11510,7 +11510,7 @@ void main() {
 
   testWidgets('home empty state does not render mock conversations or contacts',
       (tester) async {
-    final client = Client('PortalIMHomeNoMockListsTest')
+    final client = Client('DirexioHomeNoMockListsTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 21, 16),
@@ -11556,7 +11556,7 @@ void main() {
       'home conversation delete clears Matrix local history after confirm',
       (tester) async {
     final client = Client(
-      'PortalIMHomeDeleteConversationMatrixTest',
+      'DirexioHomeDeleteConversationMatrixTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -11635,7 +11635,7 @@ void main() {
 
   testWidgets('home empty state does not expose mock chat rows',
       (tester) async {
-    final client = Client('PortalIMHomeMockNoOpenTest')
+    final client = Client('DirexioHomeMockNoOpenTest')
       ..setUserId('@owner:p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 21, 16),
@@ -11703,7 +11703,7 @@ void main() {
 
   testWidgets('groups list empty state does not render mock groups',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -11723,7 +11723,7 @@ void main() {
   });
 
   testWidgets('empty channel tab does not show mock channels', (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
     final emptyBootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-05-26T10:30:00Z'),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -11763,7 +11763,7 @@ void main() {
 
   testWidgets('channel tab does not render removed sample categories',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -11789,15 +11789,15 @@ void main() {
     expect(find.text('帖子'), findsNothing);
     expect(find.text('草稿'), findsNothing);
 
-    expect(find.text('#综合讨论'), findsNothing);
-    expect(find.text('#新手问答'), findsNothing);
+    expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('#新手问答'), findsOneWidget);
     expect(find.text('草稿箱'), findsNothing);
-    expect(find.text('自由讨论、技术交流与闲聊'), findsNothing);
+    expect(find.text('自由讨论、技术交流与闲聊'), findsOneWidget);
   });
 
   testWidgets('channel unread badge appears only for chat channels',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -11852,7 +11852,7 @@ void main() {
   });
 
   testWidgets('channel tab hides legacy discover switch', (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -11880,7 +11880,7 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -11907,7 +11907,7 @@ void main() {
 
   testWidgets('channel list does not expose mock channel detail rows',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
@@ -11941,14 +11941,16 @@ void main() {
     expect(
         find.byKey(const ValueKey('channel_inbox_tile_p2p-im')), findsNothing);
     expect(find.text('P2P IM 官方'), findsNothing);
-    expect(find.text('还没有频道'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('#新手问答'), findsOneWidget);
+    expect(find.text('还没有频道'), findsNothing);
   });
 
   testWidgets('channel tab opens chat channels through ProductCore route',
       (tester) async {
     const roomId = '!channel-chat:p2p-im.com';
     const conversationId = 'conv_channel_chat';
-    final client = Client('PortalIMChannelProductRouteTest')
+    final client = Client('DirexioChannelProductRouteTest')
       ..setUserId('@member:p2p-im.com')
       ..homeserver = Uri.parse('https://p2p-im.com')
       ..accessToken = 'matrix-token';
@@ -12135,7 +12137,7 @@ void main() {
 
   testWidgets('channel detail restores real channel from cached bootstrap',
       (tester) async {
-    final client = Client('PortalIMCachedChannelDetailTest')
+    final client = Client('DirexioCachedChannelDetailTest')
       ..setUserId('@owner:p2p-im.com');
     client.homeserver = Uri.parse('https://p2p-im.com');
     client.accessToken = 'matrix-token';
@@ -12191,7 +12193,7 @@ void main() {
 
   testWidgets('joined dissolved channel is hidden from channel list',
       (tester) async {
-    final client = Client('PortalIMDissolvedChannelHintTest')
+    final client = Client('DirexioDissolvedChannelHintTest')
       ..setUserId('@member:p2p-im.com')
       ..homeserver = Uri.parse('https://p2p-im.com')
       ..accessToken = 'matrix-token';
@@ -12245,7 +12247,7 @@ void main() {
   });
 
   testWidgets('channel inbox long press shows channel actions', (tester) async {
-    final client = Client('PortalIMChannelInboxMenuTest')
+    final client = Client('DirexioChannelInboxMenuTest')
       ..setUserId('@member:p2p-im.com')
       ..homeserver = Uri.parse('https://p2p-im.com')
       ..accessToken = 'matrix-token';
@@ -12304,7 +12306,7 @@ void main() {
 
   testWidgets('empty real channel inbox does not show mock sample channels',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
     final emptyBootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-05-26T10:30:00Z'),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -12443,7 +12445,7 @@ void main() {
 
   testWidgets('global search excludes mock contacts and groups',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -12471,7 +12473,7 @@ void main() {
 
   testWidgets('global search does not expose mock contact routes',
       (tester) async {
-    final client = Client('PortalIMSearchMockNoOpenTest');
+    final client = Client('DirexioSearchMockNoOpenTest');
     final router = GoRouter(
       initialLocation: '/search',
       routes: [
@@ -12508,7 +12510,7 @@ void main() {
 
   testWidgets('global search does not expose mock channel routes',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
     final router = GoRouter(
       initialLocation: '/search',
       routes: [
@@ -12544,7 +12546,7 @@ void main() {
   });
 
   testWidgets('global search indexes real bootstrap channels', (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 26, 10),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -12592,7 +12594,7 @@ void main() {
   testWidgets(
       'global search hides Matrix rooms without ProductCore conversation',
       (tester) async {
-    final client = Client('PortalIMTestSearchRequiresProductRoom')
+    final client = Client('DirexioTestSearchRequiresProductRoom')
       ..setUserId('@owner:p2p-im.com');
     _addNamedGroupRoom(
       client,
@@ -12701,7 +12703,7 @@ void main() {
       (tester) async {
     const roomId = '!contact-mute:p2p-im.com';
     const peerMxid = '@alice:p2p-im.com';
-    final client = Client('PortalIMContactMuteTest')
+    final client = Client('DirexioContactMuteTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -12773,7 +12775,7 @@ void main() {
   testWidgets(
       'contact detail uses Matrix member nickname when AS name is empty',
       (tester) async {
-    final client = Client('PortalIMContactDetailMatrixNameTest')
+    final client = Client('DirexioContactDetailMatrixNameTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -12827,7 +12829,7 @@ void main() {
       (tester) async {
     const roomId = '!alice:p2p-im.com';
     const peerMxid = '@alice:p2p-im.com';
-    final client = Client('PortalIMContactDetailProductOpenGuardTest')
+    final client = Client('DirexioContactDetailProductOpenGuardTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -12897,7 +12899,7 @@ void main() {
 
   testWidgets('contact detail hides delete friend action for self',
       (tester) async {
-    final client = Client('PortalIMContactDetailSelfTest')
+    final client = Client('DirexioContactDetailSelfTest')
       ..setUserId('@owner:p2p-im.com');
 
     await tester.pumpWidget(
@@ -12928,7 +12930,7 @@ void main() {
 
   testWidgets('contact detail updates remark without dialog disposal crash',
       (tester) async {
-    final client = Client('PortalIMContactDetailRemarkTest')
+    final client = Client('DirexioContactDetailRemarkTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -12995,7 +12997,7 @@ void main() {
   testWidgets(
       'contact detail deletes contact through AS and returns to messages',
       (tester) async {
-    final client = Client('PortalIMContactDetailDeleteTest')
+    final client = Client('DirexioContactDetailDeleteTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -13075,7 +13077,7 @@ void main() {
 
   testWidgets('contact detail blocks contact through AS delete flow',
       (tester) async {
-    final client = Client('PortalIMContactDetailBlockTest')
+    final client = Client('DirexioContactDetailBlockTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -13156,7 +13158,7 @@ void main() {
   testWidgets(
       'contact visitor home delete returns to messages instead of stale chat',
       (tester) async {
-    final client = Client('PortalIMContactHomeDeleteNavigationTest')
+    final client = Client('DirexioContactHomeDeleteNavigationTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -13244,7 +13246,7 @@ void main() {
 
   testWidgets('global search includes locally cached Matrix messages',
       (tester) async {
-    final client = Client('PortalIMTestCachedSearch')
+    final client = Client('DirexioTestCachedSearch')
       ..setUserId('@owner:example.com');
     final room = Room(
       id: '!cached:example.com',
@@ -13312,7 +13314,7 @@ void main() {
   testWidgets(
       'global search hides message results without ProductCore conversation',
       (tester) async {
-    final client = Client('PortalIMTestSearchRequiresProductConversation')
+    final client = Client('DirexioTestSearchRequiresProductConversation')
       ..setUserId('@owner:example.com');
 
     await tester.pumpWidget(
@@ -13359,7 +13361,7 @@ void main() {
   });
 
   testWidgets('global search hides group invite messages', (tester) async {
-    final client = Client('PortalIMTestGroupInviteSearch')
+    final client = Client('DirexioTestGroupInviteSearch')
       ..setUserId('@owner:example.com');
     final room = Room(
       id: '!invite-direct:example.com',
@@ -13417,7 +13419,7 @@ void main() {
 
   testWidgets('me page presents personal space instead of settings list',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -13456,7 +13458,7 @@ void main() {
 
   testWidgets('me page does not render removed dynamic feature',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -13503,7 +13505,7 @@ void main() {
       );
     });
 
-    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    final client = Client('DirexioTest')..setUserId('@owner:p2p-im.com');
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
@@ -13566,7 +13568,7 @@ void main() {
       await tester.binding.setSurfaceSize(null);
     });
 
-    final client = Client('PortalIMLongUidTest')
+    final client = Client('DirexioLongUidTest')
       ..setUserId('@owner:very-long-personal-node-domain.example.com');
 
     await tester.pumpWidget(
@@ -13591,7 +13593,7 @@ void main() {
 
   testWidgets('me menu opens private tools and unified settings page',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
@@ -13914,7 +13916,7 @@ void main() {
       (tester) async {
     final requested = <Uri>[];
     final client = Client(
-      'PortalIMFavoritePreviewTest',
+      'DirexioFavoritePreviewTest',
       httpClient: MockClient((request) async {
         requested.add(request.url);
         return http.Response.bytes(
@@ -13958,7 +13960,7 @@ void main() {
     });
 
     final client = Client(
-      'PortalIMFavoriteImageOpenTest',
+      'DirexioFavoriteImageOpenTest',
       httpClient: MockClient((request) async {
         return http.Response.bytes(
           _transparentPng,
@@ -14192,7 +14194,7 @@ void main() {
 
   testWidgets('me menu button stays below the status safe area',
       (tester) async {
-    final client = Client('PortalIMTest');
+    final client = Client('DirexioTest');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -14245,7 +14247,7 @@ void main() {
       );
     });
 
-    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    final client = Client('DirexioTest')..setUserId('@owner:p2p-im.com');
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
@@ -14299,7 +14301,7 @@ void main() {
   });
 
   testWidgets('profile info does not use mock avatar fallback', (tester) async {
-    final client = Client('PortalIMProfileInfoNoMockAvatarTest')
+    final client = Client('DirexioProfileInfoNoMockAvatarTest')
       ..setUserId('@owner:p2p-im.com');
 
     await tester.pumpWidget(
@@ -14329,7 +14331,7 @@ void main() {
   });
 
   testWidgets('me qr page does not use mock avatar fallback', (tester) async {
-    final client = Client('PortalIMMeQrNoMockAvatarTest')
+    final client = Client('DirexioMeQrNoMockAvatarTest')
       ..setUserId('@owner:p2p-im.com');
 
     await tester.pumpWidget(
@@ -14359,7 +14361,7 @@ void main() {
   });
 
   testWidgets('editing profile name updates me page header', (tester) async {
-    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    final client = Client('DirexioTest')..setUserId('@owner:p2p-im.com');
     final asClient = _EmptyAsClient();
     final router = GoRouter(
       initialLocation: '/me/profile',
@@ -14404,7 +14406,7 @@ void main() {
     expect(find.text('破局'), findsOneWidget);
   });
 
-  testWidgets('settings page matches TokLink settings sections',
+  testWidgets('settings page matches Direxio settings sections',
       (tester) async {
     final router = GoRouter(
       initialLocation: '/settings',
@@ -14532,7 +14534,7 @@ void main() {
   testWidgets('agent chat back falls home when chat is the root route',
       (tester) async {
     const roomId = '!agent:p2p-im.com';
-    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    final client = Client('DirexioTest')..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
       roomId: roomId,
@@ -14579,7 +14581,7 @@ void main() {
   });
 
   testWidgets('agent chat header uses AS connection status', (tester) async {
-    final client = Client('PortalIMTest')..setUserId('@owner:p2p-im.com');
+    final client = Client('DirexioTest')..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
       roomId: '!agent:p2p-im.com',
@@ -14612,7 +14614,7 @@ void main() {
       (tester) async {
     const roomId = '!peer-status:p2p-im.com';
     const peerMxid = '@alice:p2p-im.com';
-    final client = Client('PortalIMPeerStatusTest')
+    final client = Client('DirexioPeerStatusTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -14799,7 +14801,7 @@ void main() {
       (tester) async {
     const roomId = '!own-avatar:p2p-im.com';
     final client = Client(
-      'PortalIMOwnMessageAvatarTest',
+      'DirexioOwnMessageAvatarTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -14911,7 +14913,7 @@ void main() {
     const peerMxid = '@alice:p2p-liyanan.com';
     const eventId = r'$read-target';
     final client = Client(
-      'PortalIMReadReceiptIconTest',
+      'DirexioReadReceiptIconTest',
       httpClient: MockClient((request) async {
         return http.Response(
           '{"next_batch":"s1","rooms":{}}',
@@ -15032,7 +15034,7 @@ void main() {
 
   testWidgets('chat renders accepted-friend notice as system hint',
       (tester) async {
-    final client = Client('PortalIMSystemNoticeChatTest')
+    final client = Client('DirexioSystemNoticeChatTest')
       ..setUserId('@owner:p2p-im.com');
     final room = _addUndirectedJoinedRoom(
       client,
@@ -15127,7 +15129,7 @@ void main() {
       (tester) async {
     var matrixSendCalls = 0;
     final client = Client(
-      'PortalIMAcceptedPrivateMatrixSendTest',
+      'DirexioAcceptedPrivateMatrixSendTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           matrixSendCalls++;
@@ -15274,7 +15276,7 @@ void main() {
       (tester) async {
     _mockAudioRecorderPlugins(tester);
     final client = Client(
-      'PortalIMPeerDeletedSendTest',
+      'DirexioPeerDeletedSendTest',
       httpClient: MockClient((request) async {
         if (request.url.path.contains('/send/m.room.message/')) {
           return http.Response(
@@ -15354,7 +15356,7 @@ void main() {
 
   testWidgets('private chat blocks duplicate direct rooms omitted by AS',
       (tester) async {
-    final client = Client('PortalIMDuplicateDirectSendTest')
+    final client = Client('DirexioDuplicateDirectSendTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,
@@ -15398,7 +15400,7 @@ void main() {
 
   testWidgets('private chat blocks unclassified one-to-one rooms omitted by AS',
       (tester) async {
-    final client = Client('PortalIMUnclassifiedOneToOneSendTest')
+    final client = Client('DirexioUnclassifiedOneToOneSendTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
@@ -15442,7 +15444,7 @@ void main() {
 
   testWidgets('private chat blocks rejected direct rooms with joined peer',
       (tester) async {
-    final client = Client('PortalIMRejectedDirectSendTest')
+    final client = Client('DirexioRejectedDirectSendTest')
       ..setUserId('@owner:p2p-im.com');
     _addTestRoom(
       client,

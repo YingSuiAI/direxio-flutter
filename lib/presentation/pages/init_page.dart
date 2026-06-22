@@ -6,8 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../providers/auth_provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
-import '../widgets/m3/glass_header.dart';
-import '../widgets/m3/m3_card.dart';
+import '../../l10n/app_localizations.dart';
 
 class InitPage extends ConsumerStatefulWidget {
   const InitPage({super.key});
@@ -23,6 +22,7 @@ class _InitPageState extends ConsumerState<InitPage> {
   final _confirmPortalTokenCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
+  bool _agreed = false;
   String? _error;
 
   @override
@@ -35,14 +35,18 @@ class _InitPageState extends ConsumerState<InitPage> {
   }
 
   Future<void> _register() async {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final portalToken = _portalTokenCtrl.text.trim();
     final confirmPortalToken = _confirmPortalTokenCtrl.text.trim();
     if (portalToken.length < 8) {
-      setState(() => _error = '密码至少 8 位');
+      setState(() => _error = l10n?.initPasswordTooShort ?? '密码至少 8 位');
       return;
     }
     if (portalToken != confirmPortalToken) {
-      setState(() => _error = '两次输入的密码不一致');
+      setState(() => _error = l10n?.initPasswordMismatch ?? '两次输入的密码不一致');
       return;
     }
     setState(() {
@@ -75,135 +79,352 @@ class _InitPageState extends ConsumerState<InitPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
+    const pageTokens = PortalTokens.dark;
     final auth = ref.watch(authStateNotifierProvider).valueOrNull;
     final isLoggedIn = auth?.isLoggedIn ?? false;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          GlassHeader.detail(
-            title: isLoggedIn ? '初始化账号' : '创建账号',
-            onBack: () => context.go(isLoggedIn ? '/home' : '/login'),
+      backgroundColor: pageTokens.surface,
+      body: SafeArea(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                pageTokens.primaryContainer,
+                pageTokens.surface,
+                pageTokens.surface,
+              ],
+              stops: const [0, 0.28, 1],
+            ),
           ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        width: 96,
-                        height: 96,
-                        decoration: BoxDecoration(
-                          color: t.primaryContainer,
-                          borderRadius: BorderRadius.circular(96 * 0.225),
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(
-                          Symbols.person_add,
-                          size: 48,
-                          color: t.onPrimaryContainer,
-                          fill: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        isLoggedIn ? '完善你的账号' : '初始化你的 Portal',
-                        textAlign: TextAlign.center,
-                        style: AppTheme.sans(
-                          size: 20,
-                          weight: FontWeight.w700,
-                          color: t.text,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isLoggedIn
-                            ? '设置用户昵称和长期登录口令'
-                            : '输入 AS 启动时生成的 Portal Token',
-                        textAlign: TextAlign.center,
-                        style: AppTheme.sans(size: 13, color: t.textMute),
-                      ),
-                      const SizedBox(height: 28),
-                      if (!isLoggedIn) ...[
-                        M3InputField(
-                          controller: _domainCtrl,
-                          icon: Symbols.link,
-                          hint: 'Portal 域名',
-                          keyboardType: TextInputType.url,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(19, 62, 19, 30),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: 420,
+                      minHeight: constraints.maxHeight - 92,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Align(
+                          alignment: Alignment.center,
+                          child: _DirexioLogoMark(),
                         ),
                         const SizedBox(height: 12),
-                      ],
-                      M3InputField(
-                        controller: _displayNameCtrl,
-                        icon: Symbols.person,
-                        hint: '用户昵称',
-                      ),
-                      const SizedBox(height: 12),
-                      M3InputField(
-                        controller: _portalTokenCtrl,
-                        icon: Symbols.key,
-                        hint: isLoggedIn ? '长期登录口令' : '登录密码',
-                        obscure: _obscure,
-                        onSubmitted: (_) => _register(),
-                        trailing: IconButton(
-                          icon: Icon(
-                            _obscure
-                                ? Symbols.visibility
-                                : Symbols.visibility_off,
-                            size: 20,
-                            color: t.textMute,
-                          ),
-                          onPressed: () => setState(() => _obscure = !_obscure),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      M3InputField(
-                        controller: _confirmPortalTokenCtrl,
-                        icon: Symbols.verified_user,
-                        hint: isLoggedIn ? '再次输入长期登录口令' : '再次输入登录密码',
-                        obscure: _obscure,
-                        onSubmitted: (_) => _register(),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        '密码至少 8 位',
-                        style: AppTheme.sans(size: 13, color: t.textMute),
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 12),
-                        _ErrorBanner(message: _error!),
-                      ],
-                      const SizedBox(height: 20),
-                      M3PrimaryButton(
-                        label: _loading
-                            ? '初始化中…'
-                            : isLoggedIn
-                                ? '完成初始化'
-                                : '初始化 Portal',
-                        onPressed: _loading ? null : _register,
-                      ),
-                      if (!isLoggedIn) ...[
-                        const SizedBox(height: 16),
-                        TextButton(
-                          onPressed: () => context.go('/login'),
-                          child: Text(
-                            '已有账号？登录',
-                            style: AppTheme.sans(size: 15, color: t.accent),
+                        Text(
+                          'Direxio',
+                          textAlign: TextAlign.center,
+                          style: AppTheme.sans(
+                            size: 24,
+                            weight: FontWeight.w700,
+                            color: pageTokens.text,
                           ),
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n?.loginSubtitle ?? '使用你的Portal域名和密码进入去中心化通讯空间',
+                          textAlign: TextAlign.center,
+                          style: AppTheme.sans(
+                            size: 12,
+                            color: pageTokens.accent,
+                          ),
+                        ),
+                        const SizedBox(height: 44),
+                        if (!isLoggedIn) ...[
+                          _InitPillInputField(
+                            controller: _domainCtrl,
+                            icon: Symbols.link,
+                            hint: l10n?.initPortalDomainHint ?? 'Portal 域名',
+                            keyboardType: TextInputType.url,
+                            tokens: pageTokens,
+                          ),
+                          const SizedBox(height: 15),
+                        ],
+                        _InitPillInputField(
+                          controller: _displayNameCtrl,
+                          icon: Symbols.person,
+                          hint: l10n?.initDisplayNameHint ?? '用户昵称',
+                          tokens: pageTokens,
+                        ),
+                        const SizedBox(height: 15),
+                        _InitPillInputField(
+                          controller: _portalTokenCtrl,
+                          icon: Symbols.lock,
+                          hint: isLoggedIn
+                              ? l10n?.initOwnerTokenHint ?? '长期登录口令'
+                              : l10n?.initPasswordHint ?? '登录密码',
+                          obscure: _obscure,
+                          onSubmitted: (_) => _register(),
+                          tokens: pageTokens,
+                          trailing: IconButton(
+                            icon: Icon(
+                              _obscure
+                                  ? Symbols.visibility
+                                  : Symbols.visibility_off,
+                              size: 22,
+                              color: pageTokens.text,
+                            ),
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        _InitPillInputField(
+                          controller: _confirmPortalTokenCtrl,
+                          icon: Symbols.verified_user,
+                          hint: isLoggedIn
+                              ? l10n?.initConfirmOwnerTokenHint ?? '再次输入长期登录口令'
+                              : l10n?.initConfirmPasswordHint ?? '再次输入登录密码',
+                          obscure: _obscure,
+                          onSubmitted: (_) => _register(),
+                          tokens: pageTokens,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          l10n?.initPasswordRule ?? '密码至少8位',
+                          style: AppTheme.sans(
+                            size: 12,
+                            color: pageTokens.textMute,
+                          ),
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          _ErrorBanner(message: _error!),
+                        ],
+                        const SizedBox(height: 22),
+                        SizedBox(
+                          height: 53,
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: pageTokens.accent,
+                              foregroundColor: pageTokens.onAccent,
+                              disabledBackgroundColor:
+                                  pageTokens.accent.withValues(alpha: 0.55),
+                              disabledForegroundColor:
+                                  pageTokens.onAccent.withValues(alpha: 0.75),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              textStyle: AppTheme.sans(
+                                size: 16,
+                                weight: FontWeight.w600,
+                                color: pageTokens.onAccent,
+                              ),
+                            ),
+                            onPressed: _loading ? null : _register,
+                            child: Text(
+                              _loading
+                                  ? l10n?.initButtonLoading ?? '初始化中…'
+                                  : l10n?.initButton ?? '确认',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 166),
+                        _AgreementLine(
+                          agreed: _agreed,
+                          tokens: pageTokens,
+                          onTap: () => setState(() => _agreed = !_agreed),
+                        ),
+                        if (!isLoggedIn) ...[
+                          const SizedBox(height: 14),
+                          TextButton(
+                            onPressed: () => context.go('/login'),
+                            child: Text(
+                              l10n?.initExistingAccountLogin ?? '已有账号？登录',
+                              style: AppTheme.sans(
+                                size: 15,
+                                color: pageTokens.accent,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DirexioLogoMark extends StatelessWidget {
+  const _DirexioLogoMark();
+
+  @override
+  Widget build(BuildContext context) {
+    const t = PortalTokens.dark;
+    return Container(
+      width: 96,
+      height: 96,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [t.accent, t.primaryContainer, t.accent],
+          stops: const [0, 0.62, 1],
+        ),
+        borderRadius: BorderRadius.circular(27),
+      ),
+      child: Stack(
+        children: [
+          Center(
+            child: Icon(
+              Symbols.communication,
+              size: 47,
+              fill: 1,
+              color: t.onAccent,
+            ),
+          ),
+          Positioned(
+            top: 16,
+            right: 14,
+            child: Icon(
+              Symbols.star,
+              size: 18,
+              fill: 1,
+              color: t.onAccent,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InitPillInputField extends StatelessWidget {
+  const _InitPillInputField({
+    required this.controller,
+    required this.icon,
+    required this.hint,
+    required this.tokens,
+    this.obscure = false,
+    this.keyboardType,
+    this.trailing,
+    this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final IconData icon;
+  final String hint;
+  final PortalTokens tokens;
+  final bool obscure;
+  final TextInputType? keyboardType;
+  final Widget? trailing;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 53,
+      decoration: BoxDecoration(
+        color: tokens.surface.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: tokens.accent),
+        boxShadow: [
+          BoxShadow(
+            color: tokens.surface.withValues(alpha: 0.12),
+            blurRadius: 4,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 28),
+          Icon(icon, size: 24, color: tokens.accent),
+          Container(
+            width: 1,
+            height: 25,
+            margin: const EdgeInsets.only(left: 17, right: 12),
+            color: tokens.text,
+          ),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              obscureText: obscure,
+              keyboardType: keyboardType,
+              onSubmitted: onSubmitted,
+              style: AppTheme.sans(size: 16, color: tokens.text),
+              cursorColor: tokens.text,
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: AppTheme.sans(
+                  size: 16,
+                  color: tokens.text.withValues(alpha: 0.58),
+                ),
+                isCollapsed: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+              ),
+            ),
+          ),
+          if (trailing != null) trailing!,
+          const SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _AgreementLine extends StatelessWidget {
+  const _AgreementLine({
+    required this.agreed,
+    required this.tokens,
+    required this.onTap,
+  });
+
+  final bool agreed;
+  final PortalTokens tokens;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Icon(
+              agreed ? Symbols.check_circle : Symbols.radio_button_unchecked,
+              size: 16,
+              color: agreed ? tokens.accent : tokens.textMute,
+              fill: agreed ? 1 : 0,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              l10n?.agreementPrefix ?? '阅读并同意',
+              style: AppTheme.sans(size: 12, color: tokens.textMute),
+            ),
+            Text(
+              l10n?.agreementTermsPrivacy ?? '《用户协议&隐私条款》',
+              style: AppTheme.sans(size: 12, color: tokens.text),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -23,7 +23,7 @@
 | `border` | 描边 / 分隔线 | `#C1C6D7` |
 | `text` | 主文字 | `#1A1C1F` |
 | `textMute` | 次要文字 / 图标 | `#414755` |
-| `accent` | 主色（按钮 / 强调 / 选中） | `#3097CB` |
+| `accent` | 主色（按钮 / 强调 / 选中） | `#3DCFFF` |
 | `onAccent` | accent 上的文字 | `#FFFFFF` |
 | `accentCool` | 辅助强调（链接 / 加密标识） | `#006B27` |
 | `danger` | 错误 / 危险操作 | `#BA1A1A` |

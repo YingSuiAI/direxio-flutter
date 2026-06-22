@@ -47,6 +47,7 @@ class ContactDetailPage extends ConsumerStatefulWidget {
 
 class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
   bool _blocking = false;
+  bool _friendActionBusy = false;
   StreamSubscription<SyncUpdate>? _syncSub;
 
   @override
@@ -135,6 +136,50 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final muted = mutedConversationIds.contains(preferenceKey);
     final hideChatAvatarEntries = widget.fromChatAvatar;
     final hideRecommendFriend = widget.fromChatInfo;
+    final existingContact = syncCache.contactForUserId(userId);
+
+    if (widget.fromChatAvatar) {
+      return _buildChatAvatarProfile(
+        context,
+        displayName: displayName,
+        avatarUrl: avatarUrl,
+        seed: userId,
+        isSelf: isSelf,
+        isFriend: canOpenChat,
+        contactStatus: existingContact?.status,
+        onMessage: canOpenChat && roomId != null
+            ? () => context.go('/chat/${Uri.encodeComponent(roomId)}')
+            : null,
+        onVoice: room != null
+            ? () => context.push(
+                  _callRoute('call', room.id, userId, displayName, avatarUrl),
+                )
+            : null,
+        onVideo: room != null
+            ? () => context.push(
+                  _callRoute(
+                    'video-call',
+                    room.id,
+                    userId,
+                    displayName,
+                    avatarUrl,
+                  ),
+                )
+            : null,
+        onChannels: () => context.push(
+          '/contact-channels/${Uri.encodeComponent(userId)}',
+        ),
+        onRecommend: isSelf ? null : () => _shareContact(displayName, userId),
+        onAddFriend: isSelf || _isPendingContact(existingContact?.status)
+            ? null
+            : () => _sendFriendRequest(
+                  context,
+                  userId: userId,
+                  displayName: displayName,
+                  domain: acceptedContact?.domain ?? domain,
+                ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: t.surfaceHover,
@@ -272,6 +317,131 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     if (roomId.isEmpty || route == null) return;
     showHomeConversation(ref, roomId);
     context.go(route);
+  }
+
+  Widget _buildChatAvatarProfile(
+    BuildContext context, {
+    required String displayName,
+    required String? avatarUrl,
+    required String seed,
+    required bool isSelf,
+    required bool isFriend,
+    required String? contactStatus,
+    required VoidCallback? onMessage,
+    required VoidCallback? onVoice,
+    required VoidCallback? onVideo,
+    required VoidCallback onChannels,
+    required VoidCallback? onRecommend,
+    required VoidCallback? onAddFriend,
+  }) {
+    final t = context.tk;
+    final pending = _isPendingContact(contactStatus);
+    return Scaffold(
+      backgroundColor: t.bg,
+      body: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _ContactBackButton(onTap: () => context.pop()),
+              ),
+              const SizedBox(height: 24),
+              _AvatarProfileHeader(
+                name: displayName,
+                avatarUrl: avatarUrl,
+                seed: seed,
+              ),
+              SizedBox(height: isFriend ? 22 : 24),
+              if (isFriend) ...[
+                _AvatarProfileActions(
+                  onMessage: onMessage,
+                  onVoice: onVoice,
+                  onVideo: onVideo,
+                ),
+                const SizedBox(height: 24),
+                _AvatarProfileMenuRow(
+                  label: '他的频道',
+                  onTap: onChannels,
+                ),
+                const SizedBox(height: 14),
+                if (onRecommend != null)
+                  _AvatarProfileMenuRow(
+                    label: '把他推荐给朋友',
+                    onTap: onRecommend,
+                  ),
+              ] else ...[
+                _AvatarProfileMenuRow(
+                  label: '他的频道',
+                  onTap: onChannels,
+                  previewSeeds: const ['channel-a', 'channel-b', 'channel-c'],
+                ),
+                if (!isSelf) ...[
+                  const SizedBox(height: 14),
+                  _AddFriendRow(
+                    busy: _friendActionBusy,
+                    text: pending ? '已申请' : '添加好友',
+                    onTap: pending || _friendActionBusy ? null : onAddFriend,
+                  ),
+                ],
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendFriendRequest(
+    BuildContext context, {
+    required String userId,
+    required String displayName,
+    required String domain,
+  }) async {
+    if (_friendActionBusy) return;
+    setState(() => _friendActionBusy = true);
+    try {
+      final contact = await ref.read(asClientProvider).createContactRequest(
+            mxid: userId,
+            displayName: displayName,
+            domain: domain,
+          );
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.withContactEntry(contact),
+          );
+      await ref.read(matrixClientProvider).oneShotSync();
+      unawaited(
+        ref.read(asBootstrapRepositoryProvider).refresh().then((bootstrap) {
+          ref.read(asSyncCacheProvider.notifier).update(
+                (state) => state.copyWith(bootstrap: bootstrap),
+              );
+        }).catchError((Object e) {
+          debugPrint('refresh bootstrap after contact request failed: $e');
+        }),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            contact.status.trim() == 'accepted'
+                ? '已恢复旧会话，可以继续聊天。'
+                : '好友请求已发送，等待对方接受。',
+          ),
+        ),
+      );
+    } catch (e, stackTrace) {
+      debugPrint(
+          'send friend request from contact detail failed: $e\n$stackTrace');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('发送好友请求失败: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _friendActionBusy = false);
+    }
   }
 
   Future<void> _confirmDeleteContact(
@@ -648,6 +818,247 @@ class _RoleBadge extends StatelessWidget {
   }
 }
 
+class _AvatarProfileHeader extends StatelessWidget {
+  const _AvatarProfileHeader({
+    required this.name,
+    required this.seed,
+    this.avatarUrl,
+  });
+
+  final String name;
+  final String seed;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Row(
+      children: [
+        PortalAvatar(
+          seed: seed,
+          size: 60,
+          imageUrl: avatarUrl,
+          shape: AvatarShape.squircle,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.sans(
+              size: 16,
+              weight: FontWeight.w600,
+              color: t.text,
+            ).copyWith(letterSpacing: -0.4),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AvatarProfileActions extends StatelessWidget {
+  const _AvatarProfileActions({
+    required this.onMessage,
+    required this.onVoice,
+    required this.onVideo,
+  });
+
+  final VoidCallback? onMessage;
+  final VoidCallback? onVoice;
+  final VoidCallback? onVideo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _AvatarProfileActionCard(
+            icon: Symbols.chat_bubble,
+            label: '发消息',
+            onTap: onMessage,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _AvatarProfileActionCard(
+            icon: Symbols.call,
+            label: '音频通话',
+            onTap: onVoice,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _AvatarProfileActionCard(
+            icon: Symbols.videocam,
+            label: '视频通话',
+            onTap: onVideo,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AvatarProfileActionCard extends StatelessWidget {
+  const _AvatarProfileActionCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final enabled = onTap != null;
+    final color = enabled ? t.accent : t.accent.withValues(alpha: 0.35);
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(12),
+      elevation: 0,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 68,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 26, color: color, fill: 1),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(
+                  size: 13,
+                  weight: FontWeight.w500,
+                  color: color,
+                ).copyWith(letterSpacing: -0.4),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarProfileMenuRow extends StatelessWidget {
+  const _AvatarProfileMenuRow({
+    required this.label,
+    required this.onTap,
+    this.previewSeeds = const [],
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final List<String> previewSeeds;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 50,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 12),
+            child: Row(
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 16,
+                    weight: FontWeight.w500,
+                    color: t.text,
+                  ).copyWith(letterSpacing: -0.4),
+                ),
+                if (previewSeeds.isNotEmpty) ...[
+                  const SizedBox(width: 14),
+                  for (final seed in previewSeeds.take(3)) ...[
+                    PortalAvatar(
+                      seed: seed,
+                      size: 30,
+                      shape: AvatarShape.squircle,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
+                const Spacer(),
+                Icon(
+                  Symbols.chevron_right,
+                  size: 24,
+                  color: t.text,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddFriendRow extends StatelessWidget {
+  const _AddFriendRow({
+    required this.text,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final String text;
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final enabled = onTap != null;
+    return Material(
+      color: t.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 50,
+          child: Center(
+            child: busy
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: t.accent,
+                    ),
+                  )
+                : Text(
+                    text,
+                    style: AppTheme.sans(
+                      size: 16,
+                      weight: FontWeight.w500,
+                      color: enabled ? t.accent : t.textMute,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _QuickActionGrid extends StatelessWidget {
   const _QuickActionGrid({
     required this.onMessage,
@@ -967,6 +1378,11 @@ String _firstNonEmpty(Iterable<String?> values) {
     if (trimmed.isNotEmpty) return trimmed;
   }
   return '';
+}
+
+bool _isPendingContact(String? status) {
+  final normalized = status?.trim();
+  return normalized == 'pending_outbound' || normalized == 'pending_inbound';
 }
 
 String _roleBadge(String? domain) {

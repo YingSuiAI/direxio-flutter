@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +16,7 @@ import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_created_channels_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../utils/message_preview.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
@@ -29,6 +32,15 @@ const _channelBorder = Color(0xFFE6E6E6);
 
 final _channelListProvider = FutureProvider.autoDispose<List<AsChannel>>((ref) {
   return ref.read(asClientProvider).listChannels();
+});
+
+final _publicChannelListProvider =
+    FutureProvider.autoDispose<List<AsChannel>>((ref) async {
+  try {
+    return await ref.read(asClientProvider).searchPublicChannels('', limit: 10);
+  } catch (_) {
+    return const <AsChannel>[];
+  }
 });
 
 final _hiddenChannelListKeysProvider = StateProvider<Set<String>>(
@@ -74,6 +86,9 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     );
     final bootstrap = syncCache.bootstrap;
     final useRealChannels = auth?.isLoggedIn == true || client.isLogged();
+    final publicChannels = useRealChannels && bootstrap == null
+        ? ref.watch(_publicChannelListProvider).valueOrNull
+        : null;
     final listedChannels =
         useRealChannels ? ref.watch(_channelListProvider).valueOrNull : null;
     final productConversations = useRealChannels
@@ -87,7 +102,20 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
     final fallbackDomain = _clientServerName(client);
     final syncHiddenChannelKeys = _hiddenChannelKeys(syncCache);
-    final sourceChannels = useRealChannels
+    final publicChannelItems = useRealChannels && publicChannels != null
+        ? ChannelInboxData.fromChannels(
+            publicChannels,
+            fallbackDomain: fallbackDomain,
+            bootstrap: bootstrap,
+            roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
+            roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            latestPreviewForRoomId: (roomId) =>
+                _matrixRoomLatestPreview(client, roomId),
+            latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
+            hiddenChannelKeys: syncHiddenChannelKeys,
+          )
+        : const <ChannelInboxItem>[];
+    final previousChannelItems = useRealChannels
         ? ChannelInboxData.mergeCreatedCache(
             listedChannels == null
                 ? bootstrap == null
@@ -100,6 +128,10 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                             _matrixRoomName(client, roomId),
                         roomAvatarForRoomId: (roomId) =>
                             _matrixRoomAvatar(client, roomId),
+                        latestPreviewForRoomId: (roomId) =>
+                            _matrixRoomLatestPreview(client, roomId),
+                        latestAtForRoomId: (roomId) =>
+                            _matrixRoomLatestAt(client, roomId),
                       )
                 : ChannelInboxData.fromChannels(
                     listedChannels,
@@ -110,19 +142,31 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                         _matrixRoomName(client, roomId),
                     roomAvatarForRoomId: (roomId) =>
                         _matrixRoomAvatar(client, roomId),
+                    latestPreviewForRoomId: (roomId) =>
+                        _matrixRoomLatestPreview(client, roomId),
+                    latestAtForRoomId: (roomId) =>
+                        _matrixRoomLatestAt(client, roomId),
+                    hiddenChannelKeys: syncHiddenChannelKeys,
                   ),
             localCreatedChannels,
             fallbackDomain: fallbackDomain,
             productConversations: productConversations,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            latestPreviewForRoomId: (roomId) =>
+                _matrixRoomLatestPreview(client, roomId),
+            latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           )
         : const <ChannelInboxItem>[];
+    final sourceChannels = useRealChannels
+        ? _mergePriorityChannelItems(publicChannelItems, previousChannelItems)
+        : _mockChannelItems();
     final visibleSourceChannels = _sortPinnedChannels(
       sourceChannels
           .where((channel) =>
-              !_channelHiddenKeysContain(hiddenChannelKeys, channel))
+              !_channelHiddenKeysContain(hiddenChannelKeys, channel) &&
+              !_channelHiddenKeysContain(syncHiddenChannelKeys, channel))
           .toList(growable: false),
       pinnedChannelKeys,
     );
@@ -142,7 +186,10 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             _channelPendingCount(sourceChannels)
         : _channelPendingCount(sourceChannels);
 
-    if (useRealChannels && bootstrap == null && listedChannels == null) {
+    if (useRealChannels &&
+        bootstrap == null &&
+        listedChannels == null &&
+        publicChannels == null) {
       return const _ChannelFrame(
         child: Center(
           child: _ChannelEmpty(
@@ -222,6 +269,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                         _toggleChannelListPin(ref, channel),
                     onHide: (channel) => _hideChannelListItem(ref, channel),
                     onDelete: (channel) => _deleteChannelListItem(ref, channel),
+                    showKindBadge: false,
                   ),
           ),
           Positioned(
@@ -240,6 +288,38 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
       ),
     );
   }
+}
+
+List<ChannelInboxItem> _mergePriorityChannelItems(
+  List<ChannelInboxItem> priority,
+  List<ChannelInboxItem> fallback,
+) {
+  if (priority.isEmpty) return fallback;
+  if (fallback.isEmpty) return priority;
+  final seen = <String>{};
+  final merged = <ChannelInboxItem>[];
+
+  void add(ChannelInboxItem item) {
+    final keys = _channelInboxItemKeys(item);
+    if (keys.any(seen.contains)) return;
+    merged.add(item);
+    seen.addAll(keys);
+  }
+
+  for (final item in priority) {
+    add(item);
+  }
+  for (final item in fallback) {
+    add(item);
+  }
+  return merged;
+}
+
+Set<String> _channelInboxItemKeys(ChannelInboxItem item) {
+  return {
+    if (item.id.trim().isNotEmpty) 'channel:${item.id.trim()}',
+    if (item.roomId.trim().isNotEmpty) 'room:${item.roomId.trim()}',
+  };
 }
 
 class ChannelReviewPage extends ConsumerStatefulWidget {
@@ -283,6 +363,9 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             productConversations: productConversations,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            latestPreviewForRoomId: (roomId) =>
+                _matrixRoomLatestPreview(client, roomId),
+            latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
           )
         : ChannelInboxData.mergeCreatedCache(
             ChannelInboxData.fromBootstrap(
@@ -292,16 +375,24 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
               roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
               roomAvatarForRoomId: (roomId) =>
                   _matrixRoomAvatar(client, roomId),
+              latestPreviewForRoomId: (roomId) =>
+                  _matrixRoomLatestPreview(client, roomId),
+              latestAtForRoomId: (roomId) =>
+                  _matrixRoomLatestAt(client, roomId),
             ),
             localCreatedChannels,
             fallbackDomain: _clientServerName(client),
             productConversations: productConversations,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            latestPreviewForRoomId: (roomId) =>
+                _matrixRoomLatestPreview(client, roomId),
+            latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           );
     final filteredChannels = channels.where((channel) {
-      final hidden = _channelHiddenKeysContain(hiddenChannelKeys, channel);
+      final hidden = _channelHiddenKeysContain(hiddenChannelKeys, channel) ||
+          _channelHiddenKeysContain(syncHiddenChannelKeys, channel);
       if (hidden) return false;
       return _section == '我创建' ? channel.isOwned : !channel.isOwned;
     }).toList(growable: false);
@@ -376,7 +467,7 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
 
   Future<List<_ReviewItem>> _loadReviewItems() async {
     final auth = ref.read(authStateNotifierProvider).valueOrNull;
-    if (auth?.isLoggedIn != true) return const [];
+    if (auth?.isLoggedIn != true) return _mockReviewItems();
     final listedChannels = await ref.read(asClientProvider).listChannels();
     final ownedChannels = listedChannels.where(_canReviewChannel).toList(
           growable: false,
@@ -879,6 +970,7 @@ class ChannelInboxList extends StatelessWidget {
     this.onDelete,
     this.showPreview = true,
     this.showTime = true,
+    this.showKindBadge = true,
     this.bottomPadding = 104,
   });
 
@@ -891,6 +983,7 @@ class ChannelInboxList extends StatelessWidget {
   final ValueChanged<ChannelInboxItem>? onDelete;
   final bool showPreview;
   final bool showTime;
+  final bool showKindBadge;
   final double bottomPadding;
 
   @override
@@ -910,6 +1003,7 @@ class ChannelInboxList extends StatelessWidget {
         onDelete: onDelete,
         showPreview: showPreview,
         showTime: showTime,
+        showKindBadge: showKindBadge,
       ),
     );
   }
@@ -927,6 +1021,7 @@ class ChannelInboxTile extends StatelessWidget {
     this.onDelete,
     this.showPreview = true,
     this.showTime = true,
+    this.showKindBadge = true,
   });
 
   final ChannelInboxItem channel;
@@ -938,6 +1033,7 @@ class ChannelInboxTile extends StatelessWidget {
   final ValueChanged<ChannelInboxItem>? onDelete;
   final bool showPreview;
   final bool showTime;
+  final bool showKindBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -1007,7 +1103,7 @@ class ChannelInboxTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Padding(
-                            padding: const EdgeInsets.only(top: 11, bottom: 9),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1026,12 +1122,14 @@ class ChannelInboxTile extends StatelessWidget {
                                         ).copyWith(height: 18 / 14),
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
-                                    _ChannelKindBadge(
-                                      label: _channelIsTextType(channel)
-                                          ? '文字'
-                                          : '帖子',
-                                    ),
+                                    if (showKindBadge) ...[
+                                      const SizedBox(width: 6),
+                                      _ChannelKindBadge(
+                                        label: _channelIsTextType(channel)
+                                            ? '文字'
+                                            : '帖子',
+                                      ),
+                                    ],
                                     if (isPinned) ...[
                                       const SizedBox(width: 4),
                                       Icon(
@@ -1492,6 +1590,7 @@ void _showChannelInboxMenu(
           top: top,
           width: menuWidth,
           child: _ChannelInboxMenuCard(
+            scaffoldContext: context,
             channel: channel,
             isPinned: isPinned,
             onTogglePin: onTogglePin,
@@ -1508,6 +1607,7 @@ void _showChannelInboxMenu(
 
 class _ChannelInboxMenuCard extends StatelessWidget {
   const _ChannelInboxMenuCard({
+    required this.scaffoldContext,
     required this.channel,
     required this.isPinned,
     this.onTogglePin,
@@ -1515,6 +1615,7 @@ class _ChannelInboxMenuCard extends StatelessWidget {
     this.onDelete,
   });
 
+  final BuildContext scaffoldContext;
   final ChannelInboxItem channel;
   final bool isPinned;
   final ValueChanged<ChannelInboxItem>? onTogglePin;
@@ -1555,7 +1656,7 @@ class _ChannelInboxMenuCard extends StatelessWidget {
                 Navigator.of(context).pop();
                 onTogglePin?.call(channel);
                 _toast(
-                  context,
+                  scaffoldContext,
                   isPinned ? '已取消置顶「${channel.name}」' : '已置顶「${channel.name}」',
                 );
               },
@@ -1569,7 +1670,7 @@ class _ChannelInboxMenuCard extends StatelessWidget {
             _row(context, Symbols.visibility_off, '不显示', () {
               Navigator.of(context).pop();
               onHide?.call(channel);
-              _toast(context, '已隐藏「${channel.name}」');
+              _toast(scaffoldContext, '已隐藏「${channel.name}」');
             }),
             const Divider(
               height: 1,
@@ -1580,7 +1681,7 @@ class _ChannelInboxMenuCard extends StatelessWidget {
             _row(context, Symbols.delete, '删除频道', () {
               Navigator.of(context).pop();
               onDelete?.call(channel);
-              _toast(context, '已删除「${channel.name}」');
+              _toast(scaffoldContext, '已删除「${channel.name}」');
             }, danger: true),
           ],
         ),
@@ -1687,6 +1788,15 @@ void _hideChannelListItem(WidgetRef ref, ChannelInboxItem channel) {
 
 void _deleteChannelListItem(WidgetRef ref, ChannelInboxItem channel) {
   _updateHiddenChannelListKeys(ref, channel);
+  ref.read(asSyncCacheProvider.notifier).update(
+        (state) => state.withoutChannel(
+            channel.id.trim().isNotEmpty ? channel.id : channel.roomId),
+      );
+  unawaited(
+    ref.read(localCreatedChannelsProvider.notifier).removeChannel(
+        channel.id.trim().isNotEmpty ? channel.id : channel.roomId),
+  );
+  ref.invalidate(_channelListProvider);
   final key = _channelPreferenceKey(channel);
   if (key.isNotEmpty) unpinConversation(ref, key);
 }
@@ -1776,6 +1886,71 @@ int _channelPendingCount(List<ChannelInboxItem> channels) {
   );
 }
 
+DateTime _todayAt(int hour, int minute) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day, hour, minute);
+}
+
+List<ChannelInboxItem> _mockChannelItems() {
+  return [
+    ChannelInboxItem(
+      id: 'joined-general',
+      roomId: 'joined-general',
+      name: '#综合讨论',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '自由讨论、技术交流与闲聊',
+      latestAt: _todayAt(9, 15),
+      unreadCount: 0,
+      isOwned: false,
+      tags: const ['文字'],
+      channelType: asChannelTypeChat,
+    ),
+    ChannelInboxItem(
+      id: 'new-user-qna',
+      roomId: 'new-user-qna',
+      name: '#新手问答',
+      domain: 'p2p-im.com',
+      avatarUrl: '',
+      latestPreview: '入门问题和使用技巧',
+      latestAt: _todayAt(8, 50),
+      unreadCount: 0,
+      isOwned: false,
+      tags: const ['文字'],
+      channelType: asChannelTypeChat,
+    ),
+  ];
+}
+
+List<_ReviewItem> _mockReviewItems() {
+  return const [
+    _ReviewItem(
+      channelId: 'joined-general',
+      channelName: '综合讨论',
+      userMxid: '@alice:p2p-im.com',
+      name: 'Alice Chen',
+      time: '刚刚',
+      status: _ReviewStatus.pending,
+    ),
+    _ReviewItem(
+      channelId: 'joined-general',
+      channelName: '综合讨论',
+      userMxid: '@bob:p2p-im.com',
+      name: 'Bob Smith',
+      time: '昨天',
+      status: _ReviewStatus.approved,
+    ),
+    _ReviewItem(
+      channelId: 'new-user-qna',
+      channelName: '新手问答',
+      userMxid: '@carol:p2p-im.com',
+      name: 'Carol Lee',
+      time: '周一',
+      status: _ReviewStatus.rejected,
+    ),
+  ];
+}
+
 String _channelInboxDisplayName(ChannelInboxItem channel) {
   final name = channel.name.trim();
   if (name.isEmpty) return '';
@@ -1858,6 +2033,16 @@ String _matrixRoomName(Client client, String roomId) {
 
 String _matrixRoomAvatar(Client client, String roomId) {
   return client.getRoomById(roomId.trim())?.avatar?.toString() ?? '';
+}
+
+String _matrixRoomLatestPreview(Client client, String roomId) {
+  final event = client.getRoomById(roomId.trim())?.lastEvent;
+  final preview = roomEventPreviewText(event, isAgent: false).trim();
+  return preview;
+}
+
+DateTime? _matrixRoomLatestAt(Client client, String roomId) {
+  return client.getRoomById(roomId.trim())?.lastEvent?.originServerTs;
 }
 
 bool _looksLikeMatrixRoomId(String text) {

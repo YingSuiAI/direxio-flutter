@@ -1276,6 +1276,42 @@ class AsChannelPost {
   final AsOperation operation;
   final AsConversation? productConversation;
 
+  AsChannelPost copyWith({
+    String? postId,
+    String? channelId,
+    String? roomId,
+    String? eventId,
+    String? authorId,
+    String? authorName,
+    String? messageType,
+    String? body,
+    Map<String, Object?>? media,
+    int? originServerTs,
+    int? commentCount,
+    int? reactionCount,
+    bool? reactedByMe,
+    AsOperation? operation,
+    AsConversation? productConversation,
+  }) {
+    return AsChannelPost(
+      postId: postId ?? this.postId,
+      channelId: channelId ?? this.channelId,
+      roomId: roomId ?? this.roomId,
+      eventId: eventId ?? this.eventId,
+      authorId: authorId ?? this.authorId,
+      authorName: authorName ?? this.authorName,
+      messageType: messageType ?? this.messageType,
+      body: body ?? this.body,
+      media: media ?? this.media,
+      originServerTs: originServerTs ?? this.originServerTs,
+      commentCount: commentCount ?? this.commentCount,
+      reactionCount: reactionCount ?? this.reactionCount,
+      reactedByMe: reactedByMe ?? this.reactedByMe,
+      operation: operation ?? this.operation,
+      productConversation: productConversation ?? this.productConversation,
+    );
+  }
+
   factory AsChannelPost.fromJson(Map<String, dynamic> json) {
     return AsChannelPost(
       postId: json['post_id'] as String? ?? '',

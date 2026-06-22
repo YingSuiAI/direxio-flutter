@@ -9,7 +9,7 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
-  String get appTitle => 'TokLink';
+  String get appTitle => 'Direxio';
 
   @override
   String get languageSystem => '跟随系统';
@@ -27,7 +27,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get languageDialogTitle => '语言';
 
   @override
-  String get tabChats => '消息';
+  String get tabChats => '聊天';
 
   @override
   String get tabContacts => '通讯录';
@@ -93,6 +93,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsClearChats => '清空聊天记录';
 
   @override
+  String get settingsClearChatsClearing => '正在清空...';
+
+  @override
+  String get settingsClearChatsConfirmMessage =>
+      '将清空本机聊天记录、未读恢复和媒体缩略图缓存。服务器上的消息不会被删除。';
+
+  @override
+  String get settingsClearChatsSuccess => '聊天记录已清空';
+
+  @override
+  String get settingsClearChatsFailure => '清空聊天记录失败，请稍后重试';
+
+  @override
   String get settingsLogout => '退出登录';
 
   @override
@@ -109,6 +122,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get commonShare => '分享';
+
+  @override
+  String get aboutWebsite => '官网';
+
+  @override
+  String get aboutEmail => '邮箱';
+
+  @override
+  String get aboutVersionUpdates => '版本更新';
 
   @override
   String get channelManageTitle => '频道管理';
@@ -304,7 +326,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginSubtitle => '使用你的 Portal 域名和密码进入去中心化通讯空间';
 
   @override
-  String get loginDomainHint => 'https://你的域名';
+  String get loginDomainHint => '你的域名';
 
   @override
   String get loginPasswordHint => '登录密码';
@@ -314,6 +336,60 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get loginButtonLoading => '登录中…';
+
+  @override
+  String get loginTermsOpenFailed => '无法打开用户协议与隐私条款';
+
+  @override
+  String get loginAgreementRequiredTitle => '请先阅读并同意';
+
+  @override
+  String get loginAgreementRequiredMessage => '登录前需要同意用户协议与隐私条款。';
+
+  @override
+  String get loginAgreementConfirmAndLogin => '同意并登录';
+
+  @override
+  String get agreementPrefix => '阅读并同意';
+
+  @override
+  String get agreementTermsPrivacy => '《用户协议&隐私条款》';
+
+  @override
+  String get initPasswordTooShort => '密码至少 8 位';
+
+  @override
+  String get initPasswordMismatch => '两次输入的密码不一致';
+
+  @override
+  String get initPortalDomainHint => 'Portal 域名';
+
+  @override
+  String get initDisplayNameHint => '用户昵称';
+
+  @override
+  String get initOwnerTokenHint => '长期登录口令';
+
+  @override
+  String get initPasswordHint => '登录密码';
+
+  @override
+  String get initConfirmOwnerTokenHint => '再次输入长期登录口令';
+
+  @override
+  String get initConfirmPasswordHint => '再次输入登录密码';
+
+  @override
+  String get initPasswordRule => '密码至少8位';
+
+  @override
+  String get initButton => '确认';
+
+  @override
+  String get initButtonLoading => '初始化中…';
+
+  @override
+  String get initExistingAccountLogin => '已有账号？登录';
 
   @override
   String get addContactTitle => '添加好友';

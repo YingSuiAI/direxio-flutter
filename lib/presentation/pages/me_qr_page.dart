@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -47,7 +48,7 @@ class MeQrPage extends ConsumerWidget {
         'name': displayName,
       },
     ).toString();
-    final uid = localpart.isEmpty ? userId : localpart;
+    final uid = _meUidUrl(client, userId);
     final topInset = MediaQuery.of(context).padding.top;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -350,6 +351,28 @@ String _localpartFromMxid(String mxid) {
     return trimmed.substring(1);
   }
   return trimmed;
+}
+
+String _meUidUrl(Client client, String displayId) {
+  final domain = _serverNameFromMxid(displayId) ?? _clientServerName(client);
+  final normalized = domain.trim().replaceFirst(RegExp(r'^https?://'), '');
+  if (normalized.isEmpty) return displayId;
+  return 'https://$normalized';
+}
+
+String? _serverNameFromMxid(String mxid) {
+  final index = mxid.indexOf(':');
+  if (index < 0 || index == mxid.length - 1) return null;
+  return mxid.substring(index + 1);
+}
+
+String _clientServerName(Client client) {
+  final userId = client.userID ?? '';
+  final fromMxid = _serverNameFromMxid(userId);
+  if (fromMxid != null && fromMxid.isNotEmpty) return fromMxid;
+  final homeserver = client.homeserver;
+  if (homeserver != null && homeserver.host.isNotEmpty) return homeserver.host;
+  return 'p2p-im.com';
 }
 
 String _domainFromMxid(String mxid, AppLocalizations l10n) {

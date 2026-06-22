@@ -52,7 +52,7 @@ Client matrixClient(Ref ref) {
   late final Client client;
 
   client = Client(
-    'PortalIM',
+    'Direxio',
     httpClient: refreshingHttpClient,
     databaseBuilder: (_) async {
       final db = kIsWeb
@@ -383,7 +383,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           newUserID: userId,
           newHomeserver: homeserverUri,
           newDeviceID: deviceId,
-          newDeviceName: 'PortalIM',
+          newDeviceName: 'Direxio',
           waitForFirstSync: false,
           waitUntilLoadCompletedLoaded: false,
         );
@@ -1067,7 +1067,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       null,
       effectiveUserId,
       effectiveDeviceId,
-      client.deviceName ?? 'PortalIM',
+      client.deviceName ?? 'Direxio',
       client.prevBatch,
       client.encryption?.pickledOlmAccount,
     );
@@ -1651,7 +1651,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         null,
         effectiveUserId,
         effectiveDeviceId,
-        client.deviceName ?? 'PortalIM',
+        client.deviceName ?? 'Direxio',
         client.prevBatch,
         client.encryption?.pickledOlmAccount,
       );
@@ -1689,7 +1689,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         newUserID: userId,
         newHomeserver: homeserver,
         newDeviceID: deviceId,
-        newDeviceName: 'PortalIM',
+        newDeviceName: 'Direxio',
         waitForFirstSync: false,
         waitUntilLoadCompletedLoaded: false,
       );
@@ -1804,7 +1804,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       accessToken: accessToken,
       userId: userId,
       deviceId: deviceId,
-      deviceName: 'PortalIM',
+      deviceName: 'Direxio',
       seedStore: MatrixSdkSessionSeedStore(client),
     );
   }

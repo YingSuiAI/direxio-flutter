@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'P2P-IM';
+  String get appTitle => 'Direxio';
 
   @override
   String get languageSystem => 'Follow system';
@@ -93,6 +93,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsClearChats => 'Clear Chat History';
 
   @override
+  String get settingsClearChatsClearing => 'Clearing...';
+
+  @override
+  String get settingsClearChatsConfirmMessage =>
+      'This will clear local chat history, unread recovery, and media thumbnail cache. Messages on the server will not be deleted.';
+
+  @override
+  String get settingsClearChatsSuccess => 'Chat history cleared';
+
+  @override
+  String get settingsClearChatsFailure =>
+      'Failed to clear chat history. Try again later.';
+
+  @override
   String get settingsLogout => 'Log Out';
 
   @override
@@ -110,6 +124,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonShare => 'Share';
+
+  @override
+  String get aboutWebsite => 'Website';
+
+  @override
+  String get aboutEmail => 'Email';
+
+  @override
+  String get aboutVersionUpdates => 'Version';
 
   @override
   String get channelManageTitle => 'Channel Management';
@@ -310,7 +333,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use your Portal domain and password to enter decentralized messaging';
 
   @override
-  String get loginDomainHint => 'https://your-domain';
+  String get loginDomainHint => 'your-domain';
 
   @override
   String get loginPasswordHint => 'Password';
@@ -320,6 +343,62 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loginButtonLoading => 'Logging in…';
+
+  @override
+  String get loginTermsOpenFailed =>
+      'Unable to open the Terms and Privacy Policy';
+
+  @override
+  String get loginAgreementRequiredTitle => 'Please review and agree';
+
+  @override
+  String get loginAgreementRequiredMessage =>
+      'You need to agree to the Terms and Privacy Policy before logging in.';
+
+  @override
+  String get loginAgreementConfirmAndLogin => 'Agree and Log In';
+
+  @override
+  String get agreementPrefix => 'I have read and agree to ';
+
+  @override
+  String get agreementTermsPrivacy => 'Terms & Privacy Policy';
+
+  @override
+  String get initPasswordTooShort => 'Password must be at least 8 characters';
+
+  @override
+  String get initPasswordMismatch => 'The two passwords do not match';
+
+  @override
+  String get initPortalDomainHint => 'Portal domain';
+
+  @override
+  String get initDisplayNameHint => 'Display name';
+
+  @override
+  String get initOwnerTokenHint => 'Long-term login passphrase';
+
+  @override
+  String get initPasswordHint => 'Password';
+
+  @override
+  String get initConfirmOwnerTokenHint => 'Re-enter long-term login passphrase';
+
+  @override
+  String get initConfirmPasswordHint => 'Re-enter password';
+
+  @override
+  String get initPasswordRule => 'At least 8 characters';
+
+  @override
+  String get initButton => 'Confirm';
+
+  @override
+  String get initButtonLoading => 'Initializing…';
+
+  @override
+  String get initExistingAccountLogin => 'Already have an account? Log in';
 
   @override
   String get addContactTitle => 'Add Friend';

@@ -50,7 +50,8 @@ void main() {
     expect(bootstrap.contacts.single.roomId, '!retry:p2p-im.com');
   });
 
-  test('refresh still returns fresh bootstrap when cache write fails', () async {
+  test('refresh still returns fresh bootstrap when cache write fails',
+      () async {
     final repository = AsBootstrapRepository(
       loadBootstrap: () async => _bootstrap('!fresh:p2p-im.com'),
       store: _ThrowingAsBootstrapStore(),

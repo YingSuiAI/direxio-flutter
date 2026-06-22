@@ -348,13 +348,13 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
     final channelId = detail.channelId.trim();
     final postId = detail.postId.trim();
     if (channelId.isEmpty || postId.isEmpty) return;
-    await ref.read(asClientProvider).toggleChannelPostReaction(
+    final reaction = await ref.read(asClientProvider).toggleChannelPostReaction(
           channelId,
           postId,
         );
-    unawaited(
-      ref.read(channelPostsProvider(channelId).notifier).refresh(silent: true),
-    );
+    await ref
+        .read(channelPostsProvider(channelId).notifier)
+        .applyReaction(postId, reaction);
   }
 }
 

@@ -1733,9 +1733,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _openContactInfo(String userId) {
-    final id = userId.trim();
-    if (id.isEmpty) return;
-    context.push('/contact/${Uri.encodeComponent(id)}?source=chat_info');
+    context.push('/chat-info/${Uri.encodeComponent(widget.roomId)}');
   }
 
   void _openMyProfileFromChat() {

@@ -34,8 +34,7 @@ void main() {
   test('warmup starts Matrix conversation sync for logged-in clients',
       () async {
     var syncCalls = 0;
-    final client = Client('PortalIMWarmupMatrixSyncTest')
-      ..accessToken = 'token';
+    final client = Client('DirexioWarmupMatrixSyncTest')..accessToken = 'token';
     final service = AppWarmupService(
       client: client,
       avatarPreloader: _NoopAvatarPreloader(),
@@ -54,7 +53,7 @@ void main() {
     final events = <String>[];
     final syncCompleter = Completer<void>();
     final bootstrapCompleter = Completer<AsSyncBootstrap>();
-    final client = Client('PortalIMWarmupTest')..accessToken = 'token';
+    final client = Client('DirexioWarmupTest')..accessToken = 'token';
     final service = AppWarmupService(
       client: client,
       avatarPreloader: _NoopAvatarPreloader(),
@@ -97,7 +96,7 @@ void main() {
 
   test('warmup preloads AS contact avatars from bootstrap metadata', () async {
     final avatarPreloader = _RecordingAvatarPreloader();
-    final client = Client('PortalIMWarmupContactAvatarTest')
+    final client = Client('DirexioWarmupContactAvatarTest')
       ..homeserver = Uri.parse('https://p2p-im.com');
     final service = AppWarmupService(
       client: client,
@@ -145,7 +144,7 @@ void main() {
     final events = <String>[];
     final bootstrapCompleter = Completer<AsSyncBootstrap>();
     final service = AppWarmupService(
-      client: Client('PortalIMWarmupBootstrapCacheTest'),
+      client: Client('DirexioWarmupBootstrapCacheTest'),
       avatarPreloader: _NoopAvatarPreloader(),
       loadCurrentUserProfile: () async => null,
       loadCachedBootstrap: () async {
@@ -182,7 +181,7 @@ void main() {
   });
 
   test('warmup preloads local thumbnails for recent image rooms', () async {
-    final client = Client('PortalIMWarmupMediaTest')
+    final client = Client('DirexioWarmupMediaTest')
       ..setUserId('@owner:p2p-im.com');
     final room = Room(
       id: '!room:p2p-im.com',
@@ -216,7 +215,7 @@ void main() {
   });
 
   test('warmup preloads missing or non-terminal AS call sessions', () async {
-    final client = Client('PortalIMWarmupCallTest')
+    final client = Client('DirexioWarmupCallTest')
       ..setUserId('@owner:p2p-im.com');
     final room = Room(
       id: '!room:p2p-im.com',
@@ -278,7 +277,7 @@ void main() {
     final store = _MemoryChannelPostStore();
     final loadedChannelIds = <String>[];
     final service = AppWarmupService(
-      client: Client('PortalIMWarmupChannelTest'),
+      client: Client('DirexioWarmupChannelTest'),
       avatarPreloader: _NoopAvatarPreloader(),
       loadCurrentUserProfile: () async => null,
       loadBootstrap: () async => AsSyncBootstrap(

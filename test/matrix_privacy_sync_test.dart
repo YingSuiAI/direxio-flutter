@@ -71,7 +71,7 @@ void main() {
       accessToken: 'matrix-token',
       userId: '@owner:example.com',
       deviceId: 'DEVICE',
-      deviceName: 'PortalIM',
+      deviceName: 'Direxio',
       seedStore: store,
     );
 
@@ -84,7 +84,7 @@ void main() {
       () async {
     final database = _TrackingMatrixDatabase();
     final client = Client(
-      'PortalIMTest',
+      'DirexioTest',
       databaseBuilder: (_) async => database,
     );
     await client.init(
@@ -97,7 +97,7 @@ void main() {
       accessToken: 'matrix-token',
       userId: '@owner:example.com',
       deviceId: 'DEVICE',
-      deviceName: 'PortalIM',
+      deviceName: 'Direxio',
       prevBatch: 's789',
     );
 

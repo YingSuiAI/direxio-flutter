@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
@@ -14,6 +15,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/direct_contact_status.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/report_reason_dialog.dart';
@@ -82,10 +84,11 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             widget.channelId,
             status: asChannelMemberStatusJoined,
           );
+      final visibleMembers = _visibleChannelMembers(members, client);
       if (mounted) {
-        setState(() => _members = members);
+        setState(() => _members = visibleMembers);
       }
-      return members;
+      return visibleMembers;
     } catch (_) {
       if (mounted) {
         setState(() => _members = const []);
@@ -97,7 +100,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   @override
   Widget build(BuildContext context) {
     final channel = resolveChannelInfoData(ref, widget.channelId);
-    final titleMemberCount = _channelTitleMemberCount(channel);
+    final membersFuture = _ensureMembersFuture();
     return Scaffold(
       backgroundColor: context.tk.bg,
       body: SafeArea(
@@ -107,9 +110,18 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             ListView(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
               children: [
-                _InfoTopBar(
-                  title: '频道信息($titleMemberCount)',
-                  onBack: () => context.pop(),
+                FutureBuilder<List<AsChannelMember>>(
+                  future: membersFuture,
+                  builder: (context, snapshot) {
+                    final titleMemberCount = _channelTitleMemberCount(
+                      channel,
+                      loadedMembers: snapshot.data,
+                    );
+                    return _InfoTopBar(
+                      title: '频道信息($titleMemberCount)',
+                      onBack: () => context.pop(),
+                    );
+                  },
                 ),
                 if (channel.isOwned)
                   ..._ownerContent(context, channel)
@@ -232,10 +244,18 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     ];
   }
 
-  int _channelTitleMemberCount(ChannelInfoData channel) {
-    final joinedMembers =
-        _members.where(_isJoinedChannelMember).toList(growable: false);
-    if (joinedMembers.isNotEmpty) return joinedMembers.length;
+  int _channelTitleMemberCount(
+    ChannelInfoData channel, {
+    List<AsChannelMember>? loadedMembers,
+  }) {
+    final members = loadedMembers ?? _members;
+    final joinedMembers = members.where(_isJoinedChannelMember);
+    if (loadedMembers != null && joinedMembers.isNotEmpty ||
+        loadedMembers == null &&
+            _membersFuture != null &&
+            _members.isNotEmpty) {
+      return joinedMembers.length;
+    }
     return channel.memberCount < 0 ? 0 : channel.memberCount;
   }
 
@@ -250,10 +270,12 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             .catchError((_) => const <AsChannelMember>[])
         : _members;
     if (!mounted) return;
-    final currentUserId = ref.read(matrixClientProvider).userID?.trim() ?? '';
+    final client = ref.read(matrixClientProvider);
+    final currentUserId = client.userID?.trim() ?? '';
     final candidates = members.where((member) {
       final userMxid = member.userMxid.trim();
       if (userMxid.isEmpty || userMxid == currentUserId) return false;
+      if (_isAgentChannelMember(member, client)) return false;
       if (!_isJoinedChannelMember(member)) return false;
       return member.role != asChannelRoleOwner;
     }).toList(growable: false);
@@ -719,6 +741,23 @@ bool _isJoinedChannelMember(AsChannelMember member) {
   return status.isEmpty && member.joinedAtMs > 0;
 }
 
+List<AsChannelMember> _visibleChannelMembers(
+  List<AsChannelMember> members,
+  Client client,
+) {
+  return members
+      .where((member) => !_isAgentChannelMember(member, client))
+      .toList(growable: false);
+}
+
+bool _isAgentChannelMember(AsChannelMember member, Client client) {
+  final userMxid = member.userMxid.trim();
+  if (userMxid.isEmpty) return false;
+  final agentMxid = portalAgentMxidForClient(client);
+  if (agentMxid != null && userMxid == agentMxid) return true;
+  return userMxid.toLowerCase().startsWith('@agent:');
+}
+
 String _memberName(AsChannelMember member) {
   final displayName = member.displayName.trim();
   if (displayName.isNotEmpty) return displayName;
@@ -878,7 +917,7 @@ Future<void> _confirmLeaveChannel(
     await leaveChannelThroughAs(ref, channel.id);
     if (!context.mounted) return;
     _showSnack(context, '已退出频道');
-    _returnToChannelList(context);
+    _returnToChannelTab(context);
   } catch (err) {
     if (!context.mounted) return;
     _showSnack(context, '退出频道失败：$err');
@@ -899,16 +938,16 @@ Future<void> _confirmDissolveChannel(
     await dissolveChannelThroughAs(ref, channel.id);
     if (!context.mounted) return;
     _showSnack(context, '已解散频道');
-    _returnToChannelList(context);
+    _returnToChannelTab(context);
   } catch (err) {
     if (!context.mounted) return;
     _showSnack(context, '解散频道失败：$err');
   }
 }
 
-void _returnToChannelList(BuildContext context) {
+void _returnToChannelTab(BuildContext context) {
   try {
-    context.go('/me/channels');
+    context.go('/home?tab=channels');
     return;
   } catch (_) {
     // Tests may mount this page without GoRouter.

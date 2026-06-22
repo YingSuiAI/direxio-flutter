@@ -35,7 +35,7 @@ void main() {
 
   test('AS accepted room metadata treats missing m.direct rooms as contacts',
       () {
-    final client = Client('PortalIMAcceptedMetadataNoDirectTest')
+    final client = Client('DirexioAcceptedMetadataNoDirectTest')
       ..setUserId('@owner:example.com');
     final room = Room(
       id: '!room:example.com',
@@ -110,7 +110,7 @@ void main() {
 
   test('portal agent room can be detected from Matrix summary heroes', () {
     const agentMxid = '@agent:example.com';
-    final client = Client('PortalIMAgentHeroSummaryTest')
+    final client = Client('DirexioAgentHeroSummaryTest')
       ..setUserId('@owner:example.com');
     final room = Room(
       id: '!agent:example.com',
@@ -139,7 +139,7 @@ void main() {
   });
 
   test('group invite does not count as new friend request', () {
-    final client = Client('PortalIMGroupInviteTest')
+    final client = Client('DirexioGroupInviteTest')
       ..setUserId('@owner:example.com');
     final room = Room(
       id: '!group:example.com',
@@ -170,7 +170,7 @@ Room _productDirectRoom({
   Membership roomMembership = Membership.join,
   required Membership peerMembership,
 }) {
-  final client = Client('PortalIMProductDirectContactTest')
+  final client = Client('DirexioProductDirectContactTest')
     ..setUserId('@owner:example.com');
   final room = Room(
     id: '!room:example.com',
@@ -211,7 +211,7 @@ Room _nativeDirectProfileRoom({
   required String requesterMxid,
   required String targetMxid,
 }) {
-  final client = Client('PortalIMNativeDirectContactTest')
+  final client = Client('DirexioNativeDirectContactTest')
     ..setUserId('@owner:example.com');
   final room = Room(
     id: '!room:example.com',
@@ -254,7 +254,7 @@ Room _nativeDirectProfileRoom({
 Room _directRoomWithoutPeerState({
   String peerMxid = '@alice:example.com',
 }) {
-  final client = Client('PortalIMDirectContactAcceptedMetadataTest')
+  final client = Client('DirexioDirectContactAcceptedMetadataTest')
     ..setUserId('@owner:example.com');
   final room = Room(
     id: '!room:example.com',
@@ -285,7 +285,7 @@ Room _directRoom({
   Membership roomMembership = Membership.join,
   required Membership peerMembership,
 }) {
-  final client = Client('PortalIMDirectContactTest')
+  final client = Client('DirexioDirectContactTest')
     ..setUserId('@owner:example.com');
   final room = Room(
     id: '!room:example.com',

@@ -103,7 +103,7 @@ abstract class AppLocalizations {
   /// Application title
   ///
   /// In zh, this message translates to:
-  /// **'TokLink'**
+  /// **'Direxio'**
   String get appTitle;
 
   /// No description provided for @languageSystem.
@@ -139,7 +139,7 @@ abstract class AppLocalizations {
   /// No description provided for @tabChats.
   ///
   /// In zh, this message translates to:
-  /// **'消息'**
+  /// **'聊天'**
   String get tabChats;
 
   /// No description provided for @tabContacts.
@@ -268,6 +268,30 @@ abstract class AppLocalizations {
   /// **'清空聊天记录'**
   String get settingsClearChats;
 
+  /// No description provided for @settingsClearChatsClearing.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在清空...'**
+  String get settingsClearChatsClearing;
+
+  /// No description provided for @settingsClearChatsConfirmMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'将清空本机聊天记录、未读恢复和媒体缩略图缓存。服务器上的消息不会被删除。'**
+  String get settingsClearChatsConfirmMessage;
+
+  /// No description provided for @settingsClearChatsSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'聊天记录已清空'**
+  String get settingsClearChatsSuccess;
+
+  /// No description provided for @settingsClearChatsFailure.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空聊天记录失败，请稍后重试'**
+  String get settingsClearChatsFailure;
+
   /// No description provided for @settingsLogout.
   ///
   /// In zh, this message translates to:
@@ -303,6 +327,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'分享'**
   String get commonShare;
+
+  /// No description provided for @aboutWebsite.
+  ///
+  /// In zh, this message translates to:
+  /// **'官网'**
+  String get aboutWebsite;
+
+  /// No description provided for @aboutEmail.
+  ///
+  /// In zh, this message translates to:
+  /// **'邮箱'**
+  String get aboutEmail;
+
+  /// No description provided for @aboutVersionUpdates.
+  ///
+  /// In zh, this message translates to:
+  /// **'版本更新'**
+  String get aboutVersionUpdates;
 
   /// No description provided for @channelManageTitle.
   ///
@@ -680,7 +722,7 @@ abstract class AppLocalizations {
   /// No description provided for @loginDomainHint.
   ///
   /// In zh, this message translates to:
-  /// **'https://你的域名'**
+  /// **'你的域名'**
   String get loginDomainHint;
 
   /// No description provided for @loginPasswordHint.
@@ -700,6 +742,114 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'登录中…'**
   String get loginButtonLoading;
+
+  /// No description provided for @loginTermsOpenFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开用户协议与隐私条款'**
+  String get loginTermsOpenFailed;
+
+  /// No description provided for @loginAgreementRequiredTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先阅读并同意'**
+  String get loginAgreementRequiredTitle;
+
+  /// No description provided for @loginAgreementRequiredMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录前需要同意用户协议与隐私条款。'**
+  String get loginAgreementRequiredMessage;
+
+  /// No description provided for @loginAgreementConfirmAndLogin.
+  ///
+  /// In zh, this message translates to:
+  /// **'同意并登录'**
+  String get loginAgreementConfirmAndLogin;
+
+  /// No description provided for @agreementPrefix.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读并同意'**
+  String get agreementPrefix;
+
+  /// No description provided for @agreementTermsPrivacy.
+  ///
+  /// In zh, this message translates to:
+  /// **'《用户协议&隐私条款》'**
+  String get agreementTermsPrivacy;
+
+  /// No description provided for @initPasswordTooShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'密码至少 8 位'**
+  String get initPasswordTooShort;
+
+  /// No description provided for @initPasswordMismatch.
+  ///
+  /// In zh, this message translates to:
+  /// **'两次输入的密码不一致'**
+  String get initPasswordMismatch;
+
+  /// No description provided for @initPortalDomainHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'Portal 域名'**
+  String get initPortalDomainHint;
+
+  /// No description provided for @initDisplayNameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户昵称'**
+  String get initDisplayNameHint;
+
+  /// No description provided for @initOwnerTokenHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'长期登录口令'**
+  String get initOwnerTokenHint;
+
+  /// No description provided for @initPasswordHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录密码'**
+  String get initPasswordHint;
+
+  /// No description provided for @initConfirmOwnerTokenHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'再次输入长期登录口令'**
+  String get initConfirmOwnerTokenHint;
+
+  /// No description provided for @initConfirmPasswordHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'再次输入登录密码'**
+  String get initConfirmPasswordHint;
+
+  /// No description provided for @initPasswordRule.
+  ///
+  /// In zh, this message translates to:
+  /// **'密码至少8位'**
+  String get initPasswordRule;
+
+  /// No description provided for @initButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认'**
+  String get initButton;
+
+  /// No description provided for @initButtonLoading.
+  ///
+  /// In zh, this message translates to:
+  /// **'初始化中…'**
+  String get initButtonLoading;
+
+  /// No description provided for @initExistingAccountLogin.
+  ///
+  /// In zh, this message translates to:
+  /// **'已有账号？登录'**
+  String get initExistingAccountLogin;
 
   /// No description provided for @addContactTitle.
   ///

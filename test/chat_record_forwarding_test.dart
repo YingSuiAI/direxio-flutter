@@ -409,7 +409,7 @@ void main() {
       (tester) async {
     final requestedPaths = <String>[];
     final client = Client(
-      'PortalIMChatRecordMediaCacheTest',
+      'DirexioChatRecordMediaCacheTest',
       httpClient: MockClient((request) async {
         requestedPaths.add(request.url.path);
         return http.Response.bytes(
@@ -679,7 +679,7 @@ class _RecordingChatRecordNativePreviewer extends ChatRecordNativePreviewer {
 
 Client _mediaClient() {
   final client = Client(
-    'PortalIMChatRecordMediaTest',
+    'DirexioChatRecordMediaTest',
     httpClient: MockClient((request) async {
       return http.Response.bytes(
         _transparentPng,

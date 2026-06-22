@@ -7,10 +7,10 @@ import '../../data/as_client.dart';
 import '../../data/http_as_client.dart';
 import 'auth_provider.dart';
 
-/// Global AS Admin API client.
+/// Global P2P product API client.
 ///
 /// It reuses the active Matrix session's homeserver and the persisted AS
-/// `access_token`, matching p2p-matrix-as Admin API authentication.
+/// `access_token`, matching Direxio P2P backend P2P product API authentication.
 final asClientProvider = Provider<AsClient>((ref) {
   final client = ref.watch(matrixClientProvider);
   final portalToken =
@@ -29,7 +29,7 @@ final asClientProvider = Provider<AsClient>((ref) {
   }
   debugPrint(
     'asClientProvider missing access_token; falling back to Matrix '
-    'access token for AS Admin API. This will fail on AS v2 with '
+    'access token for P2P product API. This will fail on P2P API token auth with '
     'M_UNKNOWN_TOKEN.',
   );
   return HttpAsClient.fromMatrixClient(

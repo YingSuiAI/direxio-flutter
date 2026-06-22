@@ -18,9 +18,10 @@ The Flutter package name remains `portal_app` because it is the Dart import name
 ## Data Boundary
 
 - Matrix SDK owns Matrix-native behavior: login session, rooms, timelines, media, membership, profile avatar/display name, read state, message search, and message send.
-- AS Admin API owns product-layer state: portal bootstrap/auth, contacts, follows, group/channel metadata, channel posts/comments/reactions, Agent/MCP state, and public profile/channel extension data.
-- The portal token is for AS Admin API. Matrix access tokens are for Matrix Client-Server APIs.
-- Logged-in UI must use real Matrix/AS data. It must not silently fall back to demo data.
+- The integrated Direxio P2P product API owns product-layer state: portal bootstrap/auth, contacts, follows, group/channel metadata, channel posts/comments/reactions, Agent/MCP state, and public profile/channel extension data.
+- Product API requests go to `/_p2p/query` or `/_p2p/command` with an `action` and `params` body. This matches the current backend in `/Users/niki/de-as`.
+- The portal token is for P2P product API auth. Matrix access tokens are for Matrix Client-Server APIs.
+- Runtime UI must use real Matrix/P2P data or a real empty state. It must not silently fall back to placeholder fixture data.
 - Test doubles belong under `test/support/` or inside tests.
 
 ## Important Paths
@@ -28,7 +29,7 @@ The Flutter package name remains `portal_app` because it is the Dart import name
 ```text
 lib/
 ├── core/          router and design tokens
-├── data/          Matrix/AS clients, contracts, stores
+├── data/          Matrix/P2P clients, contracts, stores
 └── presentation/  pages, widgets, providers, channel/chat UI
 
 android/           Android package, resources, app icon, native helpers
@@ -58,4 +59,4 @@ flutter build apk --debug
 - `AGENTS.md`: repository rules for coding agents.
 - `lib/presentation/CLAUDE.md`: Material 3 UI rules for presentation-layer edits.
 - `docs/FEATURES.md`: current feature implementation status.
-- `docs/AS_API_CHANGES.md`: current AS/Matrix client contract boundary.
+- `docs/P2P_API_BOUNDARY.md`: current P2P/Matrix client contract boundary.

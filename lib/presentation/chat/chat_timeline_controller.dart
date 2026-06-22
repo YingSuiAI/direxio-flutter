@@ -148,7 +148,7 @@ class ChatTimelineController {
           event: markerEvent,
         ).then((_) => onUnreadCleared(markerEvent.originServerTs)).catchError(
           (Object e) {
-            debugPrint('$debugLabel AS read marker sync failed: $e');
+            debugPrint('$debugLabel P2P read marker sync failed: $e');
           },
         ));
       }

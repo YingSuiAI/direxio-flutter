@@ -9,14 +9,14 @@ The product rule is: one person, one node, one owner. Agent/service accounts may
 - If a change touches `lib/presentation/`, read `lib/presentation/CLAUDE.md` first and follow its Material 3 rules.
 - For directories without a more specific instruction file, follow this file.
 - Do not add new repo-wide rules to `CLAUDE.md`; update `AGENTS.md`.
-- Check `docs/FEATURES.md` before changing user-visible behavior, and update it when a feature moves between demo, partial, local, or real status.
-- Check `docs/AS_API_CHANGES.md` before changing AS/Admin API contracts, and update it in the same change.
+- Check `docs/FEATURES.md` before changing user-visible behavior, and update it when a feature moves between partial, local, or real status.
+- Check `docs/P2P_API_BOUNDARY.md` before changing P2P product API contracts, and update it in the same change.
 
 ## Project-local Codex Skills
 
 Project-local Codex skills live under `.codex/skills/`. Use `p2p-client-guardrails` as the entry skill, then use the focused skill that matches the task:
 
-- `p2p-client-as-contract`: AS/Admin API contracts, models, mocks, parsing, docs, and tests.
+- `p2p-client-as-contract`: P2P product API contracts, models, parsing, docs, and tests.
 - `p2p-client-channel-work`: channel search, join, approval, inbox, detail, share, posts, and chat send gating.
 - `p2p-client-presentation-m3`: `lib/presentation/` UI, widgets, providers, empty states, and Material 3 rules.
 - `p2p-client-auth-session`: login, setup, restore, route guards, credential storage, and token/session behavior.
@@ -43,19 +43,20 @@ lib/
 ## Data Boundaries
 
 - Use Matrix SDK for Matrix-native behavior: login session, rooms, timeline, membership, media, profile avatar/display name, read markers, and Matrix message state.
-- Use AS Admin API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal token auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
-- AS Admin API calls use the portal token as bearer auth. Matrix access tokens are for Matrix SDK/Matrix API behavior. Do not conflate the two token types.
-- Do not create duplicate list APIs or duplicate client flows. If data already arrives through `/_as/sync/bootstrap`, prefer extending that contract and the client model.
-- Logged-in views must prefer real Matrix/AS data. Mock data is allowed only for unauthenticated demos, explicit tests, or temporary UI scaffolding.
-- Do not silently fall back to mock after login. A real empty state is better than fake data.
+- Use the integrated P2P product API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal token auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
+- P2P product API calls use the portal token as bearer auth. Matrix access tokens are for Matrix SDK/Matrix API behavior. Do not conflate the two token types.
+- Product API calls go through `/_p2p/query` or `/_p2p/command` with an `action` and `params` envelope. Do not add new URL-shaped client contracts unless the backend does.
+- Do not create duplicate list APIs or duplicate client flows. If data already arrives through `sync.bootstrap`, prefer extending that action contract and the client model.
+- Runtime views must prefer real Matrix/P2P data. Placeholder fixture data is not allowed in production UI.
+- Do not silently fall back to fixture data. A real empty state is better than fake data.
 
-## Current AS Contract Rules
+## Current P2P Product Contract Rules
 
-- `/_as/sync/bootstrap` is metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields to bootstrap.
+- `sync.bootstrap` is metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields to bootstrap.
 - P2P ordinary message/search/backup actions are removed, not compatibility entries: `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
 - Ordinary message send, media send, history, unread, message search, and recall use Matrix Client-Server APIs.
 - Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both. It hides only the current user's local Matrix read path and is not a redaction.
-- Public remote channel lookup must use explicitly configured AS remotes. Do not infer a remote AS URL from a Matrix `room_id` domain.
+- Public remote channel lookup must pass the request-provided `remote_node_base_url` required by the backend. Do not infer a remote P2P URL from a Matrix `room_id` domain.
 - Channel member status must be normalized through `AsChannel` / `AsChannelMember` helpers:
   - `join`, `joined` -> `joined`
   - `invite`, `invited` -> `invite`
@@ -64,7 +65,7 @@ lib/
 - Treat only `isAsChannelMemberJoined(status)` as joined. `invite` and `pending` are waiting states and must not unlock channel sending.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
 - Channel invite/share cards first create `channels.invite_grant.create` with `channel_id` or `room_id` plus `share_room_id`; receivers call `channels.join` with `grant_id` and `share_room_id`.
-- When the AS contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/AS_API_CHANGES.md` together.
+- When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 
 ## Architecture
 
@@ -73,7 +74,7 @@ lib/
 - New backend capabilities should follow the same interface + implementation injection pattern.
 - Keep Riverpod state in `lib/presentation/providers/`.
 - Keep reusable UI/data adapters outside route pages when shared or testable, for example `lib/presentation/channel/channel_inbox_data.dart`.
-- Local UI-only state belongs in a provider/store with a clear name, not in AS models.
+- Local UI-only state belongs in a provider/store with a clear name, not in P2P API models.
 
 ## UI Rules
 
@@ -81,19 +82,19 @@ lib/
 - Do not hardcode new colors, font sizes, font families, or hex values in UI code.
 - Do not reintroduce `flutter_lucide`; icons come from `material_symbols_icons` via `Symbols.*`.
 - `GlassHeader` is not a `PreferredSizeWidget`; place it at the top of the body rather than in `Scaffold.appBar`.
-- For logged-in empty states, show the real empty state. Do not show demo contacts/channels/messages.
+- For empty states, show the real empty state. Do not show placeholder contacts/channels/messages.
 
 ## Privacy Rules
 
 - New-device bootstrap must not load historical read message bodies.
-- Unread and message history come from Matrix `/sync` and `/rooms/{roomID}/messages`, not AS bootstrap or P2P action facades.
+- Unread and message history come from Matrix `/sync` and `/rooms/{roomID}/messages`, not P2P bootstrap or P2P action facades.
 - Local clear/delete/hide actions must not imply server deletion unless the AS/Matrix API call actually deletes server state.
 
 ## Channel Rules
 
 - A channel is a Matrix room marked by `p2p.room.kind = {"kind":"channel"}`.
 - Channel list uses `AsSyncBootstrap.channels` as the primary logged-in source. Do not add a duplicate list endpoint without updating interface docs and tests.
-- `POST /_as/channels` creates a channel through AS, but owner semantics belong to the portal owner, not the Agent/bot.
+- `channels.create` creates a channel through the P2P product API, but owner semantics belong to the portal owner, not the Agent/bot.
 - Search, channel tab, channel detail, and channel chat must use the same channel identity source when logged in.
 - Approval/invite does not mean joined. Wait for Matrix join projection before enabling chat send.
 
@@ -123,7 +124,7 @@ Before claiming completion, run `flutter analyze --no-pub` and the broadest prac
 ## Code Style
 
 - Keep changes scoped to the requested behavior and local architecture.
-- Do not leave dead code, duplicate shims, or unused mock paths.
+- Do not leave dead code, duplicate shims, or unused fixture-data paths.
 - Add comments only when the reason is not obvious.
 - Add dependencies only after confirming existing dependencies cannot reasonably solve the problem.
 - Do not edit generated files by hand unless the repo already tracks generated outputs and the matching source file is updated in the same change.

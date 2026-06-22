@@ -63,7 +63,7 @@ class PortalTokens extends ThemeExtension<PortalTokens> {
     tertiaryFixed: Color(0xFF72FE88),
   );
 
-  // M3 深色（对齐 toklink_Wechat_glass_dark，accent 保持产品蓝）
+  // M3 dark palette; accent keeps the Direxio product blue.
   static const dark = PortalTokens(
     bg: Color(0xFF1C1D23),
     surface: Color(0xFF23242B),

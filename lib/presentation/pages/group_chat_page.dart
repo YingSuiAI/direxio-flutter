@@ -1118,7 +1118,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (!mounted) return;
       _replaceRoomAsCallHistory(sessions);
     } on Object catch (e) {
-      debugPrint('load local group AS call history failed: $e');
+      debugPrint('load local group P2P call history failed: $e');
     }
     unawaited(_refreshAsCallHistoryFromAs());
   }
@@ -1162,7 +1162,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (!mounted) return;
       _replaceRoomAsCallHistory(stable);
     } on Object catch (e) {
-      debugPrint('refresh group AS call history failed: $e');
+      debugPrint('refresh group P2P call history failed: $e');
     } finally {
       _roomAsCallHistoryRefreshing = false;
     }

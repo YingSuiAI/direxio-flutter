@@ -11,7 +11,7 @@ import 'auth_provider.dart';
 final asBootstrapStoreProvider = FutureProvider<AsBootstrapStore>((ref) async {
   final dir = await getApplicationSupportDirectory();
   return FileAsBootstrapStore(
-    File('${dir.path}/portal_im_as_bootstrap.json'),
+    File('${dir.path}/direxio_p2p_bootstrap.json'),
   );
 });
 
@@ -22,7 +22,7 @@ final asBootstrapRepositoryProvider = Provider<AsBootstrapRepository>((ref) {
       final currentUserId = ref.read(matrixClientProvider).userID;
       if (!asBootstrapBelongsToUser(bootstrap, currentUserId)) {
         throw StateError(
-          'AS bootstrap user mismatch: current=$currentUserId '
+          'P2P bootstrap user mismatch: current=$currentUserId '
           'bootstrap=${bootstrap.user.userId}',
         );
       }

@@ -144,7 +144,7 @@ class AsCallStateReporter {
           connectedAt: call.answeredAt,
         );
       } catch (error) {
-        debugPrint('finish stale AS connected call failed: $error');
+        debugPrint('finish stale P2P connected call failed: $error');
       }
     }
     return remaining;
@@ -251,7 +251,7 @@ class AsCallStateReporter {
     try {
       await _store?.upsert(call);
     } catch (error) {
-      debugPrint('persist AS call state failed: $error');
+      debugPrint('persist P2P call state failed: $error');
     }
   }
 
@@ -259,7 +259,7 @@ class AsCallStateReporter {
     try {
       await _store?.upsertAll(calls);
     } catch (error) {
-      debugPrint('persist AS active calls failed: $error');
+      debugPrint('persist P2P active calls failed: $error');
     }
   }
 }

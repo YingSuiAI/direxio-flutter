@@ -262,7 +262,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
           ),
         );
       } on Object {
-        // AS is canonical here; local Matrix cache refresh is best-effort.
+        // P2P API is canonical here; local Matrix cache refresh is best-effort.
       }
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withGroupProfile(widget.roomId, name: appliedName),
@@ -328,7 +328,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
         ),
       );
     } on Object {
-      // AS is canonical here; local Matrix cache refresh is best-effort.
+      // P2P API is canonical here; local Matrix cache refresh is best-effort.
     }
     if (!mounted) return;
     setState(() => _groupAvatarOverride = avatarUrl);

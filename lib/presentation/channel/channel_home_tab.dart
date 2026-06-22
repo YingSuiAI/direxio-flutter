@@ -161,7 +161,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
         : const <ChannelInboxItem>[];
     final sourceChannels = useRealChannels
         ? _mergePriorityChannelItems(publicChannelItems, previousChannelItems)
-        : _mockChannelItems();
+        : const <ChannelInboxItem>[];
     final visibleSourceChannels = _sortPinnedChannels(
       sourceChannels
           .where((channel) =>
@@ -467,7 +467,7 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
 
   Future<List<_ReviewItem>> _loadReviewItems() async {
     final auth = ref.read(authStateNotifierProvider).valueOrNull;
-    if (auth?.isLoggedIn != true) return _mockReviewItems();
+    if (auth?.isLoggedIn != true) return const <_ReviewItem>[];
     final listedChannels = await ref.read(asClientProvider).listChannels();
     final ownedChannels = listedChannels.where(_canReviewChannel).toList(
           growable: false,
@@ -1884,71 +1884,6 @@ int _channelPendingCount(List<ChannelInboxItem> channels) {
     0,
     (sum, channel) => sum + channel.pendingJoinCount,
   );
-}
-
-DateTime _todayAt(int hour, int minute) {
-  final now = DateTime.now();
-  return DateTime(now.year, now.month, now.day, hour, minute);
-}
-
-List<ChannelInboxItem> _mockChannelItems() {
-  return [
-    ChannelInboxItem(
-      id: 'joined-general',
-      roomId: 'joined-general',
-      name: '#综合讨论',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '自由讨论、技术交流与闲聊',
-      latestAt: _todayAt(9, 15),
-      unreadCount: 0,
-      isOwned: false,
-      tags: const ['文字'],
-      channelType: asChannelTypeChat,
-    ),
-    ChannelInboxItem(
-      id: 'new-user-qna',
-      roomId: 'new-user-qna',
-      name: '#新手问答',
-      domain: 'p2p-im.com',
-      avatarUrl: '',
-      latestPreview: '入门问题和使用技巧',
-      latestAt: _todayAt(8, 50),
-      unreadCount: 0,
-      isOwned: false,
-      tags: const ['文字'],
-      channelType: asChannelTypeChat,
-    ),
-  ];
-}
-
-List<_ReviewItem> _mockReviewItems() {
-  return const [
-    _ReviewItem(
-      channelId: 'joined-general',
-      channelName: '综合讨论',
-      userMxid: '@alice:p2p-im.com',
-      name: 'Alice Chen',
-      time: '刚刚',
-      status: _ReviewStatus.pending,
-    ),
-    _ReviewItem(
-      channelId: 'joined-general',
-      channelName: '综合讨论',
-      userMxid: '@bob:p2p-im.com',
-      name: 'Bob Smith',
-      time: '昨天',
-      status: _ReviewStatus.approved,
-    ),
-    _ReviewItem(
-      channelId: 'new-user-qna',
-      channelName: '新手问答',
-      userMxid: '@carol:p2p-im.com',
-      name: 'Carol Lee',
-      time: '周一',
-      status: _ReviewStatus.rejected,
-    ),
-  ];
 }
 
 String _channelInboxDisplayName(ChannelInboxItem channel) {

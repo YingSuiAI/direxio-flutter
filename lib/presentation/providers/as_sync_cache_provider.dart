@@ -216,12 +216,12 @@ class AsSyncCacheState {
     var nextLocalEntries =
         localContactEntriesByRoomId ?? this.localContactEntriesByRoomId;
     if (bootstrap != null && localContactStatusesByRoomId == null) {
-      // A bootstrap response is authoritative for AS contact state. Local
+      // A bootstrap response is authoritative for P2P contact state. Local
       // Optimistic pending entries are only a short bridge between a mutation
       // and the next successful bootstrap; keeping omitted pending rooms would
       // leave stale requests stuck in the UI. Locally derived outbound rejects
       // are preserved so the requester sees "已拒绝" instead of a disappearing
-      // row when AS has already cleaned up the pending Matrix room.
+      // row when the P2P API has already cleaned up the pending Matrix room.
       final bootstrapRoomIds = bootstrap.contacts
           .map((contact) => contact.roomId.trim())
           .where((roomId) => roomId.isNotEmpty)

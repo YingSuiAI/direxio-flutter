@@ -13,7 +13,7 @@ const _assetChatEmoji =
     'assets/resources/chat_composer_emoji__chat_composer_emoji.svg';
 const _assetChatPlus =
     'assets/resources/chat_composer_plus__chat_composer_plus.svg';
-const _assetChatMore = 'assets/icons/toklink_more_vertical.svg';
+const _assetChatMore = 'assets/icons/direxio_more_vertical.svg';
 
 class ChatCapsuleAction {
   const ChatCapsuleAction({

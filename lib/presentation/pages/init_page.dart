@@ -22,7 +22,6 @@ class _InitPageState extends ConsumerState<InitPage> {
   final _confirmPortalTokenCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
-  bool _agreed = false;
   String? _error;
 
   @override
@@ -229,11 +228,6 @@ class _InitPageState extends ConsumerState<InitPage> {
                           ),
                         ),
                         const SizedBox(height: 166),
-                        _AgreementLine(
-                          agreed: _agreed,
-                          tokens: pageTokens,
-                          onTap: () => setState(() => _agreed = !_agreed),
-                        ),
                         if (!isLoggedIn) ...[
                           const SizedBox(height: 14),
                           TextButton(
@@ -377,54 +371,6 @@ class _InitPillInputField extends StatelessWidget {
           if (trailing != null) trailing!,
           const SizedBox(width: 12),
         ],
-      ),
-    );
-  }
-}
-
-class _AgreementLine extends StatelessWidget {
-  const _AgreementLine({
-    required this.agreed,
-    required this.tokens,
-    required this.onTap,
-  });
-
-  final bool agreed;
-  final PortalTokens tokens;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = Localizations.of<AppLocalizations>(
-      context,
-      AppLocalizations,
-    );
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Icon(
-              agreed ? Symbols.check_circle : Symbols.radio_button_unchecked,
-              size: 16,
-              color: agreed ? tokens.accent : tokens.textMute,
-              fill: agreed ? 1 : 0,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              l10n?.agreementPrefix ?? '阅读并同意',
-              style: AppTheme.sans(size: 12, color: tokens.textMute),
-            ),
-            Text(
-              l10n?.agreementTermsPrivacy ?? '《用户协议&隐私条款》',
-              style: AppTheme.sans(size: 12, color: tokens.text),
-            ),
-          ],
-        ),
       ),
     );
   }

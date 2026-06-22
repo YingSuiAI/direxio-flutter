@@ -345,7 +345,7 @@ class AppWarmupService {
         final fresh = await loader(callId).timeout(syncTimeout);
         await store.upsert(fresh);
       } catch (e) {
-        debugPrint('AS call session prewarm failed: $e');
+        debugPrint('P2P call session prewarm failed: $e');
       }
     }
   }
@@ -409,7 +409,7 @@ class AppWarmupService {
           emit(asCallIdForCallRecord(event, context));
         }
       } catch (e) {
-        debugPrint('recent AS call id scan failed: $e');
+        debugPrint('recent P2P call id scan failed: $e');
       }
       if (ids.length >= maxCallSessions) break;
     }

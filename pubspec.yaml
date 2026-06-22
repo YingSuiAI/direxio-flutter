@@ -15,7 +15,7 @@ dependencies:
   # Matrix SDK
   matrix: ^0.30.0
 
-  # HTTP（well-known 域名发现 + AS Admin API 调用）
+  # HTTP（well-known 域名发现 + P2P product API 调用）
   http: ^1.2.0
   crypto: ^3.0.7
 

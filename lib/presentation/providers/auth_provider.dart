@@ -779,10 +779,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       ).getOwnerProfile().timeout(const Duration(seconds: 2));
       return ownerProfile.displayName;
     } on TimeoutException {
-      debugPrint('AS owner profile timed out during login');
+      debugPrint('P2P owner profile timed out during login');
       return null;
     } catch (e) {
-      debugPrint('AS owner profile failed during login: $e');
+      debugPrint('P2P owner profile failed during login: $e');
       return null;
     }
   }
@@ -831,7 +831,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       ).syncBootstrap().timeout(const Duration(seconds: 10));
       if (!asBootstrapBelongsToUser(bootstrap, client.userID)) {
         debugPrint(
-          'post-login ignored AS bootstrap for ${bootstrap.user.userId}; '
+          'post-login ignored P2P bootstrap for ${bootstrap.user.userId}; '
           'current user is ${client.userID}',
         );
         return;
@@ -841,7 +841,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             (state) => state.copyWith(bootstrap: bootstrap),
           );
     } catch (e) {
-      debugPrint('post-login AS bootstrap sync failed: $e');
+      debugPrint('post-login P2P bootstrap sync failed: $e');
     }
   }
 
@@ -871,7 +871,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final currentPortalToken = auth?.portalToken ??
         await _storage.read(key: AuthStateNotifier.accessTokenKey);
     if (currentPortalToken == null || currentPortalToken.trim().isEmpty) {
-      throw StateError('当前 AS 登录态缺失，请重新登录');
+      throw StateError('当前 P2P 登录态缺失，请重新登录');
     }
     final currentLoginPassword =
         (await _storage.read(key: lastLoginPortalTokenKey))?.trim();
@@ -1895,6 +1895,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<void> _deleteUserScopedSupportFiles() async {
     await _deleteSupportFiles(const [
+      'direxio_p2p_bootstrap.json',
       'portal_im_as_bootstrap.json',
       'portal_im_recovered_unread.json',
       'portal_im_pending_media_uploads.json',

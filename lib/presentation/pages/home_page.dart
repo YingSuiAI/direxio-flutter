@@ -2217,7 +2217,7 @@ String _resolvedAgentContactRoomId(
   AsSyncCacheState syncCache, {
   required bool isLoggedIn,
 }) {
-  if (!isLoggedIn) return 'mock_aibot';
+  if (!isLoggedIn) return '';
   final agentMxid = portalAgentMxidForClient(client);
   for (final room in client.rooms) {
     if (room.membership == Membership.join &&

@@ -8,7 +8,7 @@ import 'api_logger.dart';
 import 'as_client.dart';
 import 'local_endpoint_resolver.dart';
 
-/// HTTP implementation for the p2p-matrix-as Admin API.
+/// HTTP implementation for the Direxio P2P backend P2P product API.
 ///
 /// Production deployments expose the integrated P2P product API under
 /// `https://{domain}/_p2p/*`.
@@ -52,8 +52,8 @@ class HttpAsClient implements AsClient {
     );
   }
 
-  /// Backward-compatible constructor for sessions created before AS v2 auth.
-  /// New p2p-matrix-as deployments expect [fromPortalSession] instead.
+  /// Backward-compatible constructor for sessions created before P2P API token auth auth.
+  /// New Direxio P2P backend deployments expect [fromPortalSession] instead.
   factory HttpAsClient.fromMatrixClient(
     Client client, {
     Uri? baseUri,
@@ -228,7 +228,7 @@ class HttpAsClient implements AsClient {
     } catch (error, stackTrace) {
       stopwatch.stop();
       ApiLogger.failure(
-        service: 'AS events',
+        service: 'P2P events',
         method: 'GET',
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -241,7 +241,7 @@ class HttpAsClient implements AsClient {
     if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
       final response = await http.Response.fromStream(streamed);
       ApiLogger.response(
-        service: 'AS events',
+        service: 'P2P events',
         method: 'GET',
         uri: uri,
         statusCode: response.statusCode,
@@ -257,7 +257,7 @@ class HttpAsClient implements AsClient {
       );
     }
     ApiLogger.response(
-      service: 'AS events',
+      service: 'P2P events',
       method: 'GET',
       uri: uri,
       statusCode: streamed.statusCode,
@@ -414,7 +414,7 @@ class HttpAsClient implements AsClient {
       if (domain.trim().isNotEmpty) 'domain': domain.trim(),
     };
     ApiLogger.info(
-      '[AS admin] friend request params '
+      '[P2P product] friend request params '
       'auth_source=$_authSourceLabel '
       'params=${jsonEncode(requestBody)}',
     );
@@ -427,14 +427,14 @@ class HttpAsClient implements AsClient {
       );
       final contact = ContactEntry.fromJson(body);
       ApiLogger.info(
-        '[AS admin] friend request result '
+        '[P2P product] friend request result '
         'status=ok '
         'result=${jsonEncode(_contactEntryLogJson(contact))}',
       );
       return contact;
     } catch (error) {
       ApiLogger.info(
-        '[AS admin] friend request result '
+        '[P2P product] friend request result '
         'status=error '
         'params=${jsonEncode(requestBody)} '
         'error=$error',
@@ -646,7 +646,7 @@ class HttpAsClient implements AsClient {
         'device_id': deviceId.trim(),
     };
     ApiLogger.info(
-      '[AS admin] portal password params '
+      '[P2P product] portal password params '
       'auth_source=$_authSourceLabel '
       'authorization_present=${_portalToken.trim().isNotEmpty} '
       'bearer=true '
@@ -665,7 +665,7 @@ class HttpAsClient implements AsClient {
       );
     } catch (error) {
       ApiLogger.info(
-        '[AS admin] portal password result '
+        '[P2P product] portal password result '
         'status=error '
         'params=${jsonEncode(_passwordChangeLogJson(requestBody))} '
         'error=$error',
@@ -675,11 +675,11 @@ class HttpAsClient implements AsClient {
     final session = AsPortalSession.fromJson(response);
     if (session.accessToken.isEmpty) {
       throw AsClientException(
-        'AS password response is missing access_token',
+        'P2P password response is missing access_token',
       );
     }
     ApiLogger.info(
-      '[AS admin] portal password result '
+      '[P2P product] portal password result '
       'status=ok '
       'result=${jsonEncode(_portalSessionLogJson(session))}',
     );
@@ -718,7 +718,7 @@ class HttpAsClient implements AsClient {
       }).toList(growable: false),
     };
     ApiLogger.info(
-      '[AS admin] create channel request ${jsonEncode(requestBody)}',
+      '[P2P product] create channel request ${jsonEncode(requestBody)}',
     );
     final body = await _requestJson(
       'POST',
@@ -728,7 +728,7 @@ class HttpAsClient implements AsClient {
     );
     final channel = AsChannel.fromJson(body);
     if (channel.roomId.isEmpty) {
-      throw AsClientException('AS create channel response is missing room_id');
+      throw AsClientException('P2P create channel response is missing room_id');
     }
     return channel;
   }
@@ -1253,7 +1253,7 @@ class HttpAsClient implements AsClient {
     );
     final group = AsGroupResult.fromJson(body);
     if (group.roomId.isEmpty) {
-      throw AsClientException('AS create group response is missing room_id');
+      throw AsClientException('P2P create group response is missing room_id');
     }
     return group;
   }
@@ -1282,7 +1282,7 @@ class HttpAsClient implements AsClient {
     );
     final group = AsGroupResult.fromJson(response);
     if (group.roomId.isEmpty) {
-      throw AsClientException('AS update group response is missing room_id');
+      throw AsClientException('P2P update group response is missing room_id');
     }
     return group;
   }
@@ -1308,7 +1308,7 @@ class HttpAsClient implements AsClient {
       final rawMembers = body['members'] as List? ?? const [];
       final status = body['status'] as String? ?? group.status;
       if (fallbackRoomId.isEmpty || rawMembers.isEmpty) {
-        throw AsClientException('AS invite group response is missing room_id');
+        throw AsClientException('P2P invite group response is missing room_id');
       }
       return AsGroupResult(
         roomId: fallbackRoomId,
@@ -1388,7 +1388,7 @@ class HttpAsClient implements AsClient {
     final group = AsGroupResult.fromJson(body);
     if (group.roomId.isEmpty) {
       throw AsClientException(
-        'AS update group invite policy response is missing room_id',
+        'P2P update group invite policy response is missing room_id',
       );
     }
     return group;
@@ -1417,7 +1417,7 @@ class HttpAsClient implements AsClient {
     );
     final group = AsGroupResult.fromJson(body);
     if (group.roomId.isEmpty) {
-      throw AsClientException('AS join group response is missing room_id');
+      throw AsClientException('P2P join group response is missing room_id');
     }
     return group;
   }
@@ -1522,7 +1522,7 @@ class HttpAsClient implements AsClient {
     } catch (error, stackTrace) {
       stopwatch.stop();
       ApiLogger.failure(
-        service: 'AS public',
+        service: 'P2P public',
         method: unified ? 'POST' : 'GET',
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -1534,7 +1534,7 @@ class HttpAsClient implements AsClient {
     }
     stopwatch.stop();
     ApiLogger.response(
-      service: 'AS public',
+      service: 'P2P public',
       method: unified ? 'POST' : 'GET',
       uri: uri,
       statusCode: response.statusCode,
@@ -1554,7 +1554,7 @@ class HttpAsClient implements AsClient {
       decoded = jsonDecode(response.body);
     } catch (error, stackTrace) {
       ApiLogger.failure(
-        service: 'AS public',
+        service: 'P2P public',
         method: 'GET',
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -1567,11 +1567,11 @@ class HttpAsClient implements AsClient {
     }
     if (decoded is! Map<String, dynamic>) {
       final error = AsClientException(
-        'AS returned a non-object JSON response',
+        'P2P API returned a non-object JSON response',
         statusCode: response.statusCode,
       );
       ApiLogger.failure(
-        service: 'AS public',
+        service: 'P2P public',
         method: 'GET',
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -1622,7 +1622,7 @@ class HttpAsClient implements AsClient {
         final authorization = request.headers['Authorization'] ?? '';
         final accessToken = _accessTokenForDebug?.trim() ?? '';
         ApiLogger.info(
-          '[AS admin] friend request auth '
+          '[P2P product] friend request auth '
           'authorization_present=${authorization.isNotEmpty} '
           'bearer=${authorization.startsWith('Bearer ')} '
           'auth_source=$_authSourceLabel '
@@ -1644,7 +1644,7 @@ class HttpAsClient implements AsClient {
       } catch (error, stackTrace) {
         stopwatch.stop();
         ApiLogger.failure(
-          service: 'AS admin',
+          service: 'P2P product',
           method: 'POST',
           uri: uri,
           elapsed: stopwatch.elapsed,
@@ -1657,7 +1657,7 @@ class HttpAsClient implements AsClient {
       stopwatch.stop();
       requestElapsed = stopwatch.elapsed;
       ApiLogger.response(
-        service: 'AS admin',
+        service: 'P2P product',
         method: 'POST',
         uri: uri,
         statusCode: response.statusCode,
@@ -1690,7 +1690,7 @@ class HttpAsClient implements AsClient {
       decoded = jsonDecode(response.body);
     } catch (error, stackTrace) {
       ApiLogger.failure(
-        service: 'AS admin',
+        service: 'P2P product',
         method: method,
         uri: uri,
         elapsed: requestElapsed,
@@ -1704,11 +1704,11 @@ class HttpAsClient implements AsClient {
     }
     if (decoded is! Map<String, dynamic>) {
       final error = AsClientException(
-        'AS returned a non-object JSON response',
+        'P2P API returned a non-object JSON response',
         statusCode: response.statusCode,
       );
       ApiLogger.failure(
-        service: 'AS admin',
+        service: 'P2P product',
         method: method,
         uri: uri,
         elapsed: requestElapsed,
@@ -1742,7 +1742,7 @@ class HttpAsClient implements AsClient {
       final authorization = request.headers['Authorization'] ?? '';
       final accessToken = _accessTokenForDebug?.trim() ?? '';
       ApiLogger.info(
-        '[AS admin] friend request auth '
+        '[P2P product] friend request auth '
         'authorization_present=${authorization.isNotEmpty} '
         'bearer=${authorization.startsWith('Bearer ')} '
         'auth_source=$_authSourceLabel '
@@ -1765,7 +1765,7 @@ class HttpAsClient implements AsClient {
     } catch (error, stackTrace) {
       stopwatch.stop();
       ApiLogger.failure(
-        service: 'AS admin',
+        service: 'P2P product',
         method: method,
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -1777,7 +1777,7 @@ class HttpAsClient implements AsClient {
     }
     stopwatch.stop();
     ApiLogger.response(
-      service: 'AS admin',
+      service: 'P2P product',
       method: method,
       uri: uri,
       statusCode: response.statusCode,
@@ -1800,7 +1800,7 @@ class HttpAsClient implements AsClient {
       decoded = jsonDecode(response.body);
     } catch (error, stackTrace) {
       ApiLogger.failure(
-        service: 'AS admin',
+        service: 'P2P product',
         method: method,
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -1814,11 +1814,11 @@ class HttpAsClient implements AsClient {
     }
     if (decoded is! Map<String, dynamic>) {
       final error = AsClientException(
-        'AS returned a non-object JSON response',
+        'P2P API returned a non-object JSON response',
         statusCode: response.statusCode,
       );
       ApiLogger.failure(
-        service: 'AS admin',
+        service: 'P2P product',
         method: method,
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -1911,12 +1911,12 @@ class HttpAsClient implements AsClient {
         return decoded['error'] as String? ??
             decoded['message'] as String? ??
             response.reasonPhrase ??
-            'AS request failed';
+            'P2P request failed';
       }
     } catch (_) {
       // Fall through to a generic HTTP error message.
     }
-    return response.reasonPhrase ?? 'AS request failed';
+    return response.reasonPhrase ?? 'P2P request failed';
   }
 
   static bool _isAuthenticationFailureResponse(http.Response response) {
@@ -1934,7 +1934,7 @@ class HttpAsClient implements AsClient {
 
   static String _requireToken(String? token) {
     if (token == null || token.isEmpty) {
-      throw AsClientException('AS portal token is required');
+      throw AsClientException('P2P portal token is required');
     }
     return token;
   }
@@ -1972,7 +1972,7 @@ class HttpAsClient implements AsClient {
     } catch (error, stackTrace) {
       stopwatch.stop();
       ApiLogger.failure(
-        service: 'AS auth',
+        service: 'P2P auth',
         method: 'POST',
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -1984,7 +1984,7 @@ class HttpAsClient implements AsClient {
     }
     stopwatch.stop();
     ApiLogger.response(
-      service: 'AS auth',
+      service: 'P2P auth',
       method: 'POST',
       uri: uri,
       statusCode: response.statusCode,
@@ -2004,7 +2004,7 @@ class HttpAsClient implements AsClient {
       decoded = jsonDecode(response.body);
     } catch (error, stackTrace) {
       ApiLogger.failure(
-        service: 'AS auth',
+        service: 'P2P auth',
         method: 'POST',
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -2018,11 +2018,11 @@ class HttpAsClient implements AsClient {
     }
     if (decoded is! Map<String, dynamic>) {
       final error = AsClientException(
-        'AS returned a non-object JSON response',
+        'P2P API returned a non-object JSON response',
         statusCode: response.statusCode,
       );
       ApiLogger.failure(
-        service: 'AS auth',
+        service: 'P2P auth',
         method: 'POST',
         uri: uri,
         elapsed: stopwatch.elapsed,
@@ -2038,11 +2038,11 @@ class HttpAsClient implements AsClient {
         session.userId.isEmpty ||
         session.homeserver.isEmpty) {
       final error = AsClientException(
-        'AS auth response is missing access_token, user_id, or homeserver',
+        'P2P auth response is missing access_token, user_id, or homeserver',
         statusCode: response.statusCode,
       );
       ApiLogger.failure(
-        service: 'AS auth',
+        service: 'P2P auth',
         method: 'POST',
         uri: uri,
         elapsed: stopwatch.elapsed,

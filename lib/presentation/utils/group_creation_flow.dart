@@ -139,7 +139,7 @@ Future<void> _refreshCreatedGroupBootstrap(WidgetRef ref) async {
         .read(asSyncCacheProvider.notifier)
         .update((state) => state.copyWith(bootstrap: bootstrap));
   } catch (e) {
-    debugPrint('AS bootstrap refresh after group create failed: $e');
+    debugPrint('P2P bootstrap refresh after group create failed: $e');
   }
 }
 

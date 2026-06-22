@@ -74,7 +74,7 @@ void _chatGestureLog(String message) {
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAT PAGE — index.html `s-chat` 1:1 复刻
 //
-// 产品聊天页只保留真实 ProductCore / Matrix room 通路；mock id 不再进入聊天。
+// 产品聊天页只保留真实 ProductCore / Matrix room 通路；占位 id 不再进入聊天。
 // 视觉按 `s-chat` (index.html 第 392-505 行) 重写：头部 / 气泡 / 输入栏 /
 // +号面板 / 表情面板 / 长按上下文菜单 / 多选栏 / 回复栏。
 // ═══════════════════════════════════════════════════════════════════════════
@@ -91,7 +91,7 @@ bool _isProductDirectRoomForChat(Room room, AsSyncCacheState syncCache) {
       syncCache.contactStatusForRoom(room.id) != null ||
       // Old Matrix rooms can lack m.direct / p2p.room.kind after delete/re-add
       // flows. A joined room with exactly one non-agent peer must still use
-      // AS as the authority for whether it is a valid private chat.
+      // P2P API as the authority for whether it is a valid private chat.
       joinedPersonPeerMxid(room) != null;
 }
 
@@ -665,7 +665,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return;
       }
     } on Object catch (e) {
-      debugPrint('load cached AS call session failed: $e');
+      debugPrint('load cached P2P call session failed: $e');
     }
 
     try {
@@ -674,14 +674,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         final store = await storeFuture;
         await store.upsert(session);
       } on Object catch (e) {
-        debugPrint('persist AS call session failed: $e');
+        debugPrint('persist P2P call session failed: $e');
       }
       if (!mounted) return;
       setState(() {
         _asCallSessionCache[callId] = session;
       });
     } on Object catch (e) {
-      debugPrint('load AS call session failed: $e');
+      debugPrint('load P2P call session failed: $e');
     } finally {
       _loadingAsCallIds.remove(callId);
     }

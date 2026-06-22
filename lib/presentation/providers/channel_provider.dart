@@ -131,7 +131,7 @@ class ChannelPostsNotifier
         state = AsyncValue.data(cached);
       }
     } catch (_) {
-      // A corrupt local cache must not prevent the AS refresh path.
+      // A corrupt local cache must not prevent the P2P refresh path.
     }
     await refresh(silent: cached.isNotEmpty);
   }

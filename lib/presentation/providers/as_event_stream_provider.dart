@@ -35,7 +35,7 @@ final asEventStreamRefreshProvider =
           );
     },
     onError: (error, stackTrace) {
-      debugPrint('AS event stream refresh failed: $error');
+      debugPrint('P2P event stream refresh failed: $error');
     },
   );
   controller.start();

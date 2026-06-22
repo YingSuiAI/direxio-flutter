@@ -167,7 +167,7 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
         tags: [draft.type],
       );
       ApiLogger.info(
-        '[AS admin] create channel result ${jsonEncode(channel.toJson())}',
+        '[P2P product] create channel result ${jsonEncode(channel.toJson())}',
       );
       final createdAt = DateTime.now().toUtc();
       final cachedChannel = _channelWithDraftProfile(channel, draft);

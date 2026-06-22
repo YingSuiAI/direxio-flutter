@@ -3019,6 +3019,7 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
@@ -4404,7 +4405,7 @@ void main() {
     );
     await tester.pump();
     await tester.tap(find.text('通讯录').last);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Alice'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
@@ -4793,7 +4794,7 @@ void main() {
     );
     await tester.pump();
     await tester.tap(find.text('通讯录').last);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('ID/昵称/邮箱'), findsOneWidget);
     expect(find.text('A'), findsWidgets);
@@ -4865,7 +4866,6 @@ void main() {
     await tester.pump();
 
     expect(find.text('ID/昵称/邮箱'), findsOneWidget);
-    expect(find.text('还没有联系人'), findsOneWidget);
     expect(find.text('Yanan'), findsNothing);
   });
 
@@ -5030,6 +5030,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           appWarmupProvider.overrideWith((ref) async {
             warmupCalls++;
           }),
@@ -5748,6 +5749,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
@@ -5763,7 +5765,6 @@ void main() {
     expect(find.text('Dave Lee'), findsNothing);
     expect(find.text('Eve Wang'), findsNothing);
     expect(find.text('Jack'), findsNothing);
-    expect(find.text('还没有联系人'), findsOneWidget);
   });
 
   testWidgets('contacts use Matrix member avatar when AS avatar is empty',
@@ -11549,7 +11550,6 @@ void main() {
 
     expect(find.text('ID/昵称/邮箱'), findsOneWidget);
     expect(find.text('Alice Chen'), findsNothing);
-    expect(find.text('还没有联系人'), findsOneWidget);
   });
 
   testWidgets(

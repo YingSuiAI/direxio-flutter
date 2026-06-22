@@ -24,7 +24,7 @@ class AgentMessageBody extends StatelessWidget {
       style: baseStyle,
       followLinkColor: true,
       onLinkTap: (url, title) {
-        // mock 阶段：什么都不做
+        // Links are rendered as text until the product defines navigation.
       },
       codeBuilder: (ctx, name, code, closed) =>
           _CodeBlock(language: name, code: code),

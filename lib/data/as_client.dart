@@ -1,7 +1,7 @@
-// AS Admin API 客户端 —— 对应 INTERFACE_SPEC.md §5 / §6
+// P2P product API 客户端 —— 对应 INTERFACE_SPEC.md §5 / §6
 //
 // Matrix 标准协议不覆盖的能力（Agent 配置、关注系统、Portal 状态）
-// 由 p2p-matrix-as 的 Admin API 补齐，端点统一走 `https://{domain}/_p2p/`
+// 由 Direxio P2P backend 的 P2P product API 补齐，端点统一走 `https://{domain}/_p2p/`
 // 前缀。当前后端统一返回 `access_token`，P2P API 和 Matrix SDK 使用同一个
 // 用户 token。
 //
@@ -335,7 +335,7 @@ class ContactEntry {
       );
 }
 
-/// Portal owner profile managed by p2p-matrix-as.
+/// Portal owner profile managed by Direxio P2P backend.
 ///
 /// `userId` remains Matrix's technical MXID, while `displayName` is the
 /// product-visible name users set in the app.
@@ -490,7 +490,7 @@ bool isAsChannelMemberAwaitingJoin(String status) {
       normalized == asChannelMemberStatusInvite;
 }
 
-/// Privacy-safe new-device bootstrap metadata from `GET /_as/sync/bootstrap`.
+/// P2P product API action.
 class AsSyncBootstrap {
   const AsSyncBootstrap({
     required this.syncedAt,
@@ -1758,7 +1758,7 @@ class AsSyncPendingItem {
   }
 }
 
-/// AS API 调用失败
+/// P2P API 调用失败
 class AsClientException implements Exception {
   AsClientException(this.message, {this.statusCode});
   final String message;
@@ -1769,14 +1769,14 @@ class AsClientException implements Exception {
 
 // ─────────────────────────── 抽象接口 ───────────────────────────
 
-/// p2p-matrix-as 的 Admin API 客户端。
+/// Direxio P2P backend 的 P2P product API 客户端。
 ///
 /// 所有实现都用 `access_token` 做认证（Bearer）。
 abstract class AsClient {
-  /// GET /_as/profile
+  /// P2P product API action.
   Future<OwnerProfile> getOwnerProfile();
 
-  /// PUT /_as/profile
+  /// P2P product API action.
   Future<OwnerProfile> updateOwnerProfile({
     required String displayName,
     String avatarUrl = '',
@@ -1786,7 +1786,7 @@ abstract class AsClient {
     String email = '',
   });
 
-  /// GET /_as/sync/bootstrap
+  /// P2P product API action.
   Future<AsSyncBootstrap> syncBootstrap();
 
   /// GET /_p2p/conversations
@@ -1800,37 +1800,37 @@ abstract class AsClient {
     throw AsClientException('streamEvents is not supported by this client');
   }
 
-  /// §5.2 GET /_as/agent/config
+  /// P2P product API action.
   Future<AgentConfig> getAgentConfig();
 
-  /// §5.2 PUT /_as/agent/config
+  /// P2P product API action.
   Future<AgentConfig> updateAgentConfig(AgentConfig config);
 
-  /// §5.3 GET /_as/agent/status
+  /// P2P product API action.
   Future<AgentStatus> getAgentStatus();
 
-  /// §5.4 GET /_as/follows
+  /// P2P product API action.
   Future<List<FollowEntry>> getFollows();
 
-  /// §5.4 POST /_as/follows
+  /// P2P product API action.
   Future<void> addFollow(String domain);
 
-  /// §5.4 DELETE /_as/follows/{domain}
+  /// P2P product API action.
   Future<void> removeFollow(String domain);
 
-  /// GET /_as/favorites
+  /// P2P product API action.
   Future<List<AsFavoriteMessage>> getFavorites({
     String messageType = '',
     int limit = 100,
   });
 
-  /// POST /_as/favorites
+  /// P2P product API action.
   Future<AsFavoriteMessage> favoriteMessage(AsFavoriteMessageDraft draft);
 
-  /// DELETE /_as/favorites/{id}
+  /// P2P product API action.
   Future<void> deleteFavorite(int id);
 
-  /// POST /_as/reports
+  /// P2P product API action.
   Future<Map<String, dynamic>> submitReport({
     required String reporterDomain,
     required String reportedDomain,
@@ -1839,14 +1839,14 @@ abstract class AsClient {
     List<String> images = const [],
   });
 
-  /// POST /_as/contacts/requests
+  /// P2P product API action.
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',
     String domain = '',
   });
 
-  /// POST /_as/contacts/requests/{roomId}/accept
+  /// P2P product API action.
   Future<ContactEntry> acceptContactRequest({
     required String roomId,
     required String peerMxid,
@@ -1854,7 +1854,7 @@ abstract class AsClient {
     String domain = '',
   });
 
-  /// POST /_as/contacts/requests/{roomId}/reject
+  /// P2P product API action.
   Future<ContactEntry> rejectContactRequest({
     required String roomId,
     required String peerMxid,
@@ -1862,36 +1862,36 @@ abstract class AsClient {
     String domain = '',
   });
 
-  /// DELETE /_as/contacts/{roomId}
+  /// P2P product API action.
   Future<ContactEntry> deleteContact(String roomId);
 
-  /// PUT /_as/contacts/{roomId}
+  /// P2P product API action.
   Future<ContactEntry> updateContact({
     required String roomId,
     required String displayName,
     String domain = '',
   });
 
-  /// POST /_as/calls
+  /// P2P product API action.
   Future<AsCallSession> createCall({
     required String roomId,
     required String mediaType,
     List<String> invitedUserIds = const [],
   });
 
-  /// GET /_as/calls/{callId}
+  /// P2P product API action.
   Future<AsCallSession> getCall(String callId);
 
-  /// GET /_as/calls/active
+  /// P2P product API action.
   Future<List<AsCallSession>> getActiveCalls();
 
-  /// GET /_as/calls?room_id=&limit=
+  /// P2P product API action.
   Future<List<AsCallSession>> listCalls({
     required String roomId,
     int limit = 50,
   });
 
-  /// POST /_as/calls/incoming
+  /// P2P product API action.
   Future<AsCallSession> registerIncomingCall({
     required String callId,
     required String roomId,
@@ -1901,7 +1901,7 @@ abstract class AsClient {
     List<String> invitedUserIds = const [],
   });
 
-  /// POST /_as/calls/{callId}/events
+  /// P2P product API action.
   Future<AsCallSession> updateCallEvent({
     required String callId,
     required String event,
@@ -1909,19 +1909,19 @@ abstract class AsClient {
     int durationMs = 0,
   });
 
-  /// §5.5 GET /_as/portal/status
+  /// P2P product API action.
   Future<PortalStatus> getPortalStatus();
 
-  /// Updates the Portal password through AS admin auth.
+  /// Updates the Portal password through P2P product auth.
   Future<AsPortalSession> changePortalPassword({
     required String oldPassword,
     required String newPassword,
     String? deviceId,
   });
 
-  /// POST /_as/channels
+  /// P2P product API action.
   ///
-  /// Creates a Matrix room marked as a P2P IM channel and returns AS channel
+  /// Creates a Matrix room marked as a P2P IM channel and returns P2P channel
   /// metadata. Matrix room ID is no longer enough for channel UI/routing.
   Future<AsChannel> createChannel({
     required String name,
@@ -1935,33 +1935,33 @@ abstract class AsClient {
     List<String> tags = const [],
   });
 
-  /// GET /_as/channels
+  /// P2P product API action.
   Future<List<AsChannel>> listChannels();
 
-  /// GET /_as/public/channels/search
+  /// P2P product API action.
   Future<List<AsChannel>> searchPublicChannels(
     String query, {
     Uri? baseUri,
     int limit = 20,
   });
 
-  /// GET /_as/public/channels/{channelId}
+  /// P2P product API action.
   Future<AsChannel> getPublicChannel(String channelId, {Uri? baseUri});
 
-  /// GET /_as/public/channels/{roomId}
+  /// P2P product API action.
   Future<AsChannel> getPublicChannelByRoomId(
     String roomId, {
     Uri? baseUri,
     Uri? remoteNodeBaseUri,
   });
 
-  /// GET /_as/users/{userId}/public-channels
+  /// P2P product API action.
   Future<List<AsChannel>> getUserPublicChannels(String userId, {Uri? baseUri});
 
-  /// PUT /_as/channels/{channelId}
+  /// P2P product API action.
   Future<AsChannel> updateChannel(AsChannel draft);
 
-  /// POST /_as/channels/join
+  /// P2P product API action.
   Future<AsChannel> joinChannelByRoomId(
     String roomId, {
     String shareToken = '',
@@ -1971,7 +1971,7 @@ abstract class AsClient {
     Uri? remoteNodeBaseUri,
   });
 
-  /// POST /_as/channels/{channelId}/join
+  /// P2P product API action.
   Future<AsChannel> joinChannel(
     String channelId, {
     String roomId = '',
@@ -1981,19 +1981,19 @@ abstract class AsClient {
     AsChannel? discoveredChannel,
   });
 
-  /// POST /_as/channels/{channelId}/leave
+  /// P2P product API action.
   Future<void> leaveChannel(String channelId);
 
-  /// POST /_as/channels/{channelId}/dissolve
+  /// P2P product API action.
   Future<void> dissolveChannel(String channelId);
 
-  /// GET /_as/channels/{channelId}/members
+  /// P2P product API action.
   Future<List<AsChannelMember>> getChannelMembers(
     String channelId, {
     String status = '',
   });
 
-  /// POST /_as/channels/{channelId}/invite
+  /// P2P product API action.
   Future<void> inviteChannelMembers({
     required String channelId,
     required List<String> invite,
@@ -2012,35 +2012,35 @@ abstract class AsClient {
     String reason = '',
   });
 
-  /// POST /_as/channels/{channelId}/join-requests/{userMxid}/approve
+  /// P2P product API action.
   Future<AsChannel> approveChannelJoin(String channelId, String userMxid);
 
-  /// POST /_as/channels/{channelId}/join-requests/{userMxid}/reject
+  /// P2P product API action.
   Future<AsChannel> rejectChannelJoin(String channelId, String userMxid);
 
-  /// POST /_as/channels/{channelId}/members/{userMxid}/remove
+  /// P2P product API action.
   Future<void> removeChannelMember(String channelId, String userMxid);
 
-  /// POST /_as/channels/{channelId}/mute
+  /// P2P product API action.
   Future<void> muteChannel(String channelId);
 
-  /// POST /_as/channels/{channelId}/unmute
+  /// P2P product API action.
   Future<void> unmuteChannel(String channelId);
 
-  /// POST /_as/channels/{channelId}/members/{userId}/mute
+  /// P2P product API action.
   Future<void> muteChannelMember(String channelId, String userId);
 
-  /// POST /_as/channels/{channelId}/members/{userId}/unmute
+  /// P2P product API action.
   Future<void> unmuteChannelMember(String channelId, String userId);
 
-  /// GET /_as/channels/{channelId}/posts
+  /// P2P product API action.
   Future<List<AsChannelPost>> getChannelPosts(
     String channelId, {
     int limit = 50,
     int beforeTs = 0,
   });
 
-  /// POST /_as/channels/{channelId}/posts
+  /// P2P product API action.
   Future<AsChannelPost> createChannelPost(
     String channelId, {
     required String messageType,
@@ -2048,14 +2048,14 @@ abstract class AsClient {
     Map<String, Object?> media = const {},
   });
 
-  /// POST /_as/channels/{channelId}/posts/{postId}/recall
+  /// P2P product API action.
   Future<void> recallChannelPost(
     String channelId,
     String postId, {
     String reason = 'recall post',
   });
 
-  /// GET /_as/channels/{channelId}/posts/{postId}/comments
+  /// P2P product API action.
   Future<List<AsChannelComment>> getChannelComments(
     String channelId,
     String postId, {
@@ -2063,7 +2063,7 @@ abstract class AsClient {
     int pageSize = 50,
   });
 
-  /// POST /_as/channels/{channelId}/posts/{postId}/comments
+  /// P2P product API action.
   Future<AsChannelComment> createChannelComment(
     String channelId,
     String postId, {
@@ -2075,24 +2075,24 @@ abstract class AsClient {
     List<Map<String, Object?>> mentions = const [],
   });
 
-  /// GET /_as/channels/me/comments
+  /// P2P product API action.
   Future<List<AsChannelCommentHistory>> getMyChannelComments({
     int limit = 50,
   });
 
-  /// GET /_as/channels/me/reactions
+  /// P2P product API action.
   Future<List<AsChannelReactionHistory>> getMyChannelReactions({
     int limit = 50,
   });
 
-  /// POST /_as/channels/{channelId}/posts/{postId}/reactions
+  /// P2P product API action.
   Future<AsChannelReaction> toggleChannelPostReaction(
     String channelId,
     String postId, {
     String reaction = 'like',
   });
 
-  /// POST /_as/channels/{channelId}/posts/{postId}/comments/{commentId}/reactions
+  /// P2P product API action.
   Future<AsChannelReaction> toggleChannelCommentReaction(
     String channelId,
     String postId,
@@ -2100,21 +2100,21 @@ abstract class AsClient {
     String reaction = 'like',
   });
 
-  /// PUT /_as/channels/{channelId}/read-marker
+  /// P2P product API action.
   Future<void> updateChannelReadMarker(
     String channelId, {
     required String eventId,
     required int originServerTs,
   });
 
-  /// POST /_as/groups
+  /// P2P product API action.
   Future<AsGroupResult> createGroup({
     required String name,
     required List<String> invite,
     String avatarUrl = '',
   });
 
-  /// PUT /_as/groups/{roomId}
+  /// P2P product API action.
   Future<AsGroupResult> updateGroupProfile({
     required String roomId,
     String name = '',
@@ -2122,43 +2122,43 @@ abstract class AsClient {
     String avatarUrl = '',
   });
 
-  /// POST /_as/groups/{roomId}/invite
+  /// P2P product API action.
   Future<AsGroupResult> inviteGroupMembers({
     required String roomId,
     required List<String> invite,
   });
 
-  /// POST /_as/groups/{roomId}/members/{userId}/remove
+  /// P2P product API action.
   Future<void> removeGroupMember({
     required String roomId,
     required String peerMxid,
   });
 
-  /// POST /_as/groups/{roomId}/mute
+  /// P2P product API action.
   Future<void> muteGroup(String roomId);
 
-  /// POST /_as/groups/{roomId}/unmute
+  /// P2P product API action.
   Future<void> unmuteGroup(String roomId);
 
-  /// POST /_as/groups/{roomId}/members/{userId}/mute
+  /// P2P product API action.
   Future<void> muteGroupMember({
     required String roomId,
     required String userId,
   });
 
-  /// POST /_as/groups/{roomId}/members/{userId}/unmute
+  /// P2P product API action.
   Future<void> unmuteGroupMember({
     required String roomId,
     required String userId,
   });
 
-  /// PUT /_as/groups/{roomId}/invite-policy
+  /// P2P product API action.
   Future<AsGroupResult> updateGroupInvitePolicy({
     required String roomId,
     required String invitePolicy,
   });
 
-  /// POST /_as/groups/{roomId}/join
+  /// P2P product API action.
   Future<AsGroupResult> joinGroup({
     required String roomId,
     String groupName = '',
@@ -2167,13 +2167,13 @@ abstract class AsClient {
     String directRoomId = '',
   });
 
-  /// POST /_as/groups/{roomId}/leave
+  /// P2P product API action.
   Future<void> leaveGroup(String roomId);
 
-  /// POST /_as/groups/{roomId}/dissolve
+  /// P2P product API action.
   Future<void> dissolveGroup(String roomId);
 
-  /// PUT /_as/sync/read-marker
+  /// P2P product API action.
   ///
   /// Records the latest read marker known by this device so unread-only
   /// recovery can avoid returning already-read history on a new device.

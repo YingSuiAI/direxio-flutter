@@ -101,7 +101,7 @@ class AsBootstrapRepository {
       await _store.write(bootstrap);
     } catch (_) {
       // Cache persistence is an optimization. A failed local write must not
-      // make fresh AS metadata unavailable to the UI.
+      // make fresh P2P metadata unavailable to the UI.
     }
   }
 }

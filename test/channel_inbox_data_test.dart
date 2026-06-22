@@ -597,6 +597,7 @@ void main() {
           unreadCount: 0,
           lastActivityAt: DateTime.parse('2026-06-18T10:20:00Z'),
           memberStatus: asChannelMemberStatusJoined,
+          lifecycle: 'active',
         ),
         AsSyncRoomSummary(
           channelId: 'ch_removed',
@@ -607,6 +608,17 @@ void main() {
           unreadCount: 0,
           lastActivityAt: DateTime.parse('2026-06-18T10:21:00Z'),
           memberStatus: 'removed',
+        ),
+        AsSyncRoomSummary(
+          channelId: 'ch_dissolved',
+          roomId: '!dissolved:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '已解散频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-18T10:22:00Z'),
+          memberStatus: asChannelMemberStatusJoined,
+          lifecycle: 'dissolved',
         ),
       ],
       pending: const AsSyncPending.empty(),
@@ -627,11 +639,67 @@ void main() {
           name: '已解散频道',
           memberStatus: 'removed',
         ),
+        AsChannel(
+          channelId: 'ch_dissolved',
+          roomId: '!dissolved:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '已解散频道',
+          memberStatus: asChannelMemberStatusJoined,
+          lifecycle: 'dissolved',
+        ),
       ],
       fallbackDomain: 'p2p-im.com',
       bootstrap: bootstrap,
     );
     expect(listedItems, isEmpty);
+  });
+
+  test('hides channels with terminal ProductCore conversation lifecycle', () {
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': '2026-06-21T10:30:00Z',
+      'user': {'user_id': '@owner:p2p-im.com'},
+      'channels': [
+        {
+          'channel_id': 'ch_active',
+          'room_id': '!active:p2p-im.com',
+          'display_name': '正常频道',
+          'member_status': asChannelMemberStatusJoined,
+        },
+        {
+          'channel_id': 'ch_dissolved',
+          'room_id': '!dissolved:p2p-im.com',
+          'display_name': '已解散频道',
+          'member_status': asChannelMemberStatusJoined,
+        },
+      ],
+    });
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+      productConversations: const [
+        AsConversation(
+          conversationId: 'conv_active',
+          roomId: '!active:p2p-im.com',
+          kind: asConversationKindChannel,
+          lifecycle: 'active',
+          title: '正常频道',
+          avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: true),
+        ),
+        AsConversation(
+          conversationId: 'conv_dissolved',
+          roomId: '!dissolved:p2p-im.com',
+          kind: asConversationKindChannel,
+          lifecycle: 'dissolved',
+          title: '已解散频道',
+          avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: false),
+        ),
+      ],
+    );
+
+    expect(items.map((item) => item.id), ['ch_active']);
   });
 
   test('hidden bootstrap channel suppresses local created cache entry', () {

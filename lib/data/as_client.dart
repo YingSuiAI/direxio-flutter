@@ -496,7 +496,8 @@ bool isAsChannelMemberAwaitingJoin(String status) {
 }
 
 bool isAsChannelMemberJoinFailed(String status) {
-  return _normalizeChannelMemberStatus(status) == asChannelMemberStatusJoinFailed;
+  return _normalizeChannelMemberStatus(status) ==
+      asChannelMemberStatusJoinFailed;
 }
 
 /// P2P product API action.
@@ -830,6 +831,7 @@ class AsSyncRoomSummary {
     this.channelType = asChannelTypePost,
     this.role = '',
     this.memberStatus = '',
+    this.lifecycle = '',
     this.memberCount = 0,
     this.pendingJoinCount = 0,
   });
@@ -852,6 +854,7 @@ class AsSyncRoomSummary {
   final String channelType;
   final String role;
   final String memberStatus;
+  final String lifecycle;
   final int memberCount;
   final int pendingJoinCount;
 
@@ -890,6 +893,7 @@ class AsSyncRoomSummary {
       memberStatus: _normalizeChannelMemberStatus(
         _firstString(json, const ['member_status', 'membership', 'status']),
       ),
+      lifecycle: json['lifecycle'] as String? ?? '',
       memberCount: _parseInt(json['member_count']),
       pendingJoinCount: _parseInt(json['pending_join_count']),
     );
@@ -915,6 +919,7 @@ class AsSyncRoomSummary {
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
+      lifecycle: lifecycle,
       memberCount: memberCount,
       pendingJoinCount: pendingJoinCount,
     );
@@ -940,6 +945,7 @@ class AsSyncRoomSummary {
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
+      lifecycle: lifecycle,
       memberCount: memberCount,
       pendingJoinCount: pendingJoinCount,
     );
@@ -971,6 +977,7 @@ class AsSyncRoomSummary {
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
+      lifecycle: lifecycle,
       memberCount: memberCount,
       pendingJoinCount: pendingJoinCount,
     );
@@ -996,6 +1003,7 @@ class AsSyncRoomSummary {
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
+      lifecycle: lifecycle,
       memberCount: memberCount,
       pendingJoinCount: pendingJoinCount,
     );
@@ -1046,6 +1054,7 @@ class AsSyncRoomSummary {
       'channel_type': channelType,
       if (role.trim().isNotEmpty) 'role': role,
       if (memberStatus.trim().isNotEmpty) 'member_status': memberStatus,
+      if (lifecycle.trim().isNotEmpty) 'lifecycle': lifecycle,
       if (memberCount > 0) 'member_count': memberCount,
       if (pendingJoinCount > 0) 'pending_join_count': pendingJoinCount,
     };
@@ -1066,6 +1075,7 @@ class AsChannel {
     this.channelType = asChannelTypePost,
     this.role = '',
     this.memberStatus = '',
+    this.lifecycle = '',
     this.memberCount = 0,
     this.pendingJoinCount = 0,
     this.tags = const [],
@@ -1085,6 +1095,7 @@ class AsChannel {
   final String channelType;
   final String role;
   final String memberStatus;
+  final String lifecycle;
   final int memberCount;
   final int pendingJoinCount;
   final List<String> tags;
@@ -1113,6 +1124,7 @@ class AsChannel {
       memberStatus: _normalizeChannelMemberStatus(
         _firstString(json, const ['member_status', 'membership', 'status']),
       ),
+      lifecycle: json['lifecycle'] as String? ?? '',
       memberCount: _parseInt(json['member_count']),
       pendingJoinCount: _parseInt(json['pending_join_count']),
       tags: _parseStringList(json['tags']),
@@ -1136,6 +1148,7 @@ class AsChannel {
       'channel_type': channelType,
       if (role.trim().isNotEmpty) 'role': role,
       if (memberStatus.trim().isNotEmpty) 'member_status': memberStatus,
+      if (lifecycle.trim().isNotEmpty) 'lifecycle': lifecycle,
       if (memberCount > 0) 'member_count': memberCount,
       if (pendingJoinCount > 0) 'pending_join_count': pendingJoinCount,
       'tags': tags,
@@ -1261,6 +1274,7 @@ class AsChannelPost {
     required this.body,
     required this.originServerTs,
     this.authorName = '',
+    this.authorAvatarUrl = '',
     this.media = const {},
     this.commentCount = 0,
     this.reactionCount = 0,
@@ -1275,6 +1289,7 @@ class AsChannelPost {
   final String eventId;
   final String authorId;
   final String authorName;
+  final String authorAvatarUrl;
   final String messageType;
   final String body;
   final Map<String, Object?> media;
@@ -1292,6 +1307,7 @@ class AsChannelPost {
     String? eventId,
     String? authorId,
     String? authorName,
+    String? authorAvatarUrl,
     String? messageType,
     String? body,
     Map<String, Object?>? media,
@@ -1309,6 +1325,7 @@ class AsChannelPost {
       eventId: eventId ?? this.eventId,
       authorId: authorId ?? this.authorId,
       authorName: authorName ?? this.authorName,
+      authorAvatarUrl: authorAvatarUrl ?? this.authorAvatarUrl,
       messageType: messageType ?? this.messageType,
       body: body ?? this.body,
       media: media ?? this.media,
@@ -1329,6 +1346,9 @@ class AsChannelPost {
       eventId: json['event_id'] as String? ?? '',
       authorId: json['author_mxid'] as String? ?? '',
       authorName: json['author_name'] as String? ?? '',
+      authorAvatarUrl: json['author_avatar_url'] as String? ??
+          json['avatar_url'] as String? ??
+          '',
       messageType: json['message_type'] as String? ?? 'text',
       body: json['body'] as String? ?? '',
       media: _objectMapOrJson(json['media_json'] ?? json['media']),
@@ -1350,6 +1370,8 @@ class AsChannelPost {
         'event_id': eventId,
         'author_mxid': authorId,
         'author_name': authorName,
+        if (authorAvatarUrl.trim().isNotEmpty)
+          'author_avatar_url': authorAvatarUrl,
         'message_type': messageType,
         'body': body,
         'media': media,

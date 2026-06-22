@@ -65,6 +65,8 @@ const _assetTabMeSelected = 'assets/images/我的选中.png';
 const _contactShortcutIconColor = Color(0xFF3DCFFF);
 const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
+const _homeBottomBarHorizontalInset = 12.0;
+const _homeBottomBarGap = 12.0;
 const _asBootstrapRefreshExistingMinInterval = Duration(seconds: 8);
 
 final asBootstrapLiveRefreshIntervalProvider = Provider<Duration?>(
@@ -481,7 +483,14 @@ class _HomePageState extends ConsumerState<HomePage>
       _attachVoiceCallController(client);
     }
 
-    final unreadTotal = _homeUnreadTotal(client, syncCache);
+    final unreadTotal = _tab == 0
+        ? _visibleHomeUnreadTotal(
+            ref: ref,
+            client: client,
+            syncCache: syncCache,
+            currentUserId: client.userID ?? authState.valueOrNull?.userId,
+          )
+        : 0;
 
     return Scaffold(
       backgroundColor: _homeBgColor(context),
@@ -626,33 +635,32 @@ String _homeTabTitle(AppLocalizations? l10n, int index) {
   };
 }
 
-int _homeUnreadTotal(Client client, AsSyncCacheState syncCache) {
-  final unreadByRoomId = <String, int>{};
-
-  void merge(String roomId, int count) {
-    final trimmed = roomId.trim();
-    if (trimmed.isEmpty || count <= 0) return;
-    final current = unreadByRoomId[trimmed] ?? 0;
-    if (count > current) unreadByRoomId[trimmed] = count;
-  }
-
-  for (final room in client.rooms) {
-    if (room.membership == Membership.join) {
-      merge(
-        room.id,
-        conversationUnreadCount(matrixUnreadCount: room.notificationCount),
-      );
-    }
-  }
-  for (final room
-      in syncCache.bootstrap?.rooms ?? const <AsSyncRoomSummary>[]) {
-    merge(room.roomId, room.unreadCount);
-  }
-  for (final group
-      in syncCache.bootstrap?.groups ?? const <AsSyncRoomSummary>[]) {
-    merge(group.roomId, group.unreadCount);
-  }
-  return unreadByRoomId.values.fold<int>(0, (total, count) => total + count);
+int _visibleHomeUnreadTotal({
+  required WidgetRef ref,
+  required Client client,
+  required AsSyncCacheState syncCache,
+  required String? currentUserId,
+}) {
+  final productConversationsAsync = ref.watch(productConversationsProvider);
+  final homeSummary = buildHomeConversationSummaryProjection(
+    client: client,
+    rooms: client.rooms,
+    productConversations:
+        productConversationsAsync.valueOrNull ?? const <AsConversation>[],
+    productConversationsLoaded: productConversationsAsync.hasValue,
+    syncCache: syncCache,
+    summaryState: ref.watch(conversationSummaryProvider),
+    hiddenConversationIds: ref.watch(homeHiddenConversationIdsProvider),
+    pinnedConversationIds: ref.watch(pinnedConversationIdsProvider),
+    outbox: ref.watch(localOutboxProvider),
+    messageOrder: ref.watch(localMessageOrderProvider),
+    groupRemarkNames: ref.watch(groupRemarkNamesProvider),
+    currentUserId: currentUserId,
+  );
+  return homeSummary.displayEntries.fold<int>(
+    0,
+    (total, entry) => total + entry.unread,
+  );
 }
 
 String _homeSyncSignature(Client client) {
@@ -1021,58 +1029,103 @@ class _HomeBottomBarState extends State<_HomeBottomBar> {
     return RepaintBoundary(
       child: SizedBox(
         height: 80 + bottomInset,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        bg.withValues(alpha: 0.0),
-                        bg.withValues(alpha: _homeDark(context) ? 0.98 : 0.92),
-                      ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final contentWidth =
+                (constraints.maxWidth - (_homeBottomBarHorizontalInset * 2))
+                    .clamp(0.0, double.infinity);
+            final tabWidth =
+                (contentWidth - _homeBottomBarGap - _bottomSearchTapSize)
+                    .clamp(0.0, double.infinity);
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            bg.withValues(alpha: 0.0),
+                            bg.withValues(
+                              alpha: _homeDark(context) ? 0.98 : 0.92,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            Positioned(
-              left: 11,
-              bottom: bottomInset + 5,
-              width: 291,
-              height: 56,
-              child: _LiquidTabPill(
-                items: widget.items,
-                currentIndex: widget.currentIndex,
-                onTap: widget.onTap,
-              ),
-            ),
-            Positioned(
-              right: 16,
-              bottom: bottomInset + 4,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: widget.onSearchTap,
-                child: SizedBox(
-                  width: _bottomSearchTapSize,
+                Positioned(
+                  left: _homeBottomBarHorizontalInset,
+                  bottom: bottomInset + 5,
+                  width: tabWidth,
                   height: _bottomSearchTapSize,
-                  child: Center(
-                    child: SvgPicture.asset(
-                      _iconBottomSearchTg,
-                      width: _bottomSearchIconSize,
-                      height: _bottomSearchIconSize,
-                      colorFilter: _homeDark(context)
-                          ? ColorFilter.mode(context.tk.accent, BlendMode.srcIn)
-                          : null,
-                    ),
+                  child: _LiquidTabPill(
+                    items: widget.items,
+                    currentIndex: widget.currentIndex,
+                    onTap: widget.onTap,
                   ),
                 ),
-              ),
+                Positioned(
+                  right: _homeBottomBarHorizontalInset,
+                  bottom: bottomInset + 4,
+                  child: _BottomSearchButton(onTap: widget.onSearchTap),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomSearchButton extends StatelessWidget {
+  const _BottomSearchButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    final isDark = _homeDark(context);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: isDark
+              ? t.surfaceHigh.withValues(alpha: 0.92)
+              : t.surface.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isDark
+                ? t.border.withValues(alpha: 0.28)
+                : t.surfaceHigh.withValues(alpha: 0.72),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.08),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
           ],
+        ),
+        child: SizedBox(
+          width: _bottomSearchTapSize,
+          height: _bottomSearchTapSize,
+          child: Center(
+            child: SvgPicture.asset(
+              _iconBottomSearchTg,
+              width: _bottomSearchIconSize,
+              height: _bottomSearchIconSize,
+              colorFilter: isDark
+                  ? ColorFilter.mode(context.tk.accent, BlendMode.srcIn)
+                  : null,
+            ),
+          ),
         ),
       ),
     );

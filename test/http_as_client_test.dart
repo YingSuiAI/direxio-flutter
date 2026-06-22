@@ -54,7 +54,7 @@ void main() {
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
+        expect(request.method, 'GET');
         expect(request.url.path, '/_p2p/query');
         expect(jsonDecode(request.body), {
           'action': 'conversations.list',
@@ -134,7 +134,7 @@ void main() {
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
+        expect(request.method, 'GET');
         expect(request.url.path, '/_p2p/command');
         expect(jsonDecode(request.body), {
           'action': 'portal.password',
@@ -350,6 +350,23 @@ void main() {
 
     expect(summary.description, '频道介绍字段');
     expect(channel.description, '频道介绍字段');
+  });
+
+  test('listChannels treats null channels envelope as empty list', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        final envelope = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(envelope['action'], 'channels.list');
+        return _jsonResponse({'channels': null}, 200);
+      }),
+    );
+
+    final channels = await client.listChannels();
+
+    expect(channels, isEmpty);
   });
 
   test('AS M_UNKNOWN_TOKEN refreshes token and retries once', () async {
@@ -820,7 +837,7 @@ void main() {
       baseUri: Uri.parse('https://p2p-im.com/_as'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.method, 'GET');
+        expect(request.method, 'POST');
         expect(request.url.path, '/_as/calls/call_abc');
         return http.Response(
           jsonEncode({
@@ -850,7 +867,7 @@ void main() {
       baseUri: Uri.parse('https://p2p-im.com/_as'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.method, 'GET');
+        expect(request.method, 'POST');
         expect(request.url.path, '/_as/calls/active');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return http.Response(
@@ -2856,6 +2873,42 @@ void main() {
     );
 
     expect(post.postId, 'post1');
+  });
+
+  test('channel post parses author avatar url from response', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        final envelope = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(envelope['action'], 'channels.posts.list');
+        return _jsonResponse(
+          {
+            'posts': [
+              {
+                'post_id': 'post1',
+                'channel_id': 'ch1',
+                'room_id': '!channel:example.com',
+                'event_id': r'$post1',
+                'author_mxid': '@owner:example.com',
+                'author_name': 'Owner',
+                'author_avatar_url': 'mxc://example.com/owner-avatar',
+                'body': '图片说明',
+                'message_type': 'text',
+                'origin_server_ts': 1780730000000,
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final posts = await client.getChannelPosts('ch1');
+
+    expect(posts.single.authorAvatarUrl, 'mxc://example.com/owner-avatar');
   });
 
   test('recallChannelPost posts reason to recall endpoint', () async {

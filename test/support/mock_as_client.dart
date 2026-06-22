@@ -960,6 +960,7 @@ class MockAsClient implements AsClient {
         eventId: post.eventId,
         authorId: post.authorId,
         authorName: post.authorName,
+        authorAvatarUrl: post.authorAvatarUrl,
         messageType: post.messageType,
         body: post.body,
         media: post.media,

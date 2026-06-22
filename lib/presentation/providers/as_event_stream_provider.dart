@@ -8,6 +8,7 @@ import 'as_bootstrap_store_provider.dart';
 import 'as_client_provider.dart';
 import 'as_sync_cache_provider.dart';
 import 'auth_provider.dart';
+import 'product_conversations_provider.dart';
 
 typedef AsEventStreamOpener = Stream<AsEventStreamEvent> Function({
   int? since,
@@ -33,6 +34,7 @@ final asEventStreamRefreshProvider =
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
           );
+      ref.invalidate(productConversationsProvider);
     },
     onError: (error, stackTrace) {
       debugPrint('P2P event stream refresh failed: $error');

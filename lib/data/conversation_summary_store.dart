@@ -346,7 +346,7 @@ ConversationSummaryProjection projectConversationSummaryEntries({
     pinnedConversationIds: pinnedConversationIds,
   );
   return ConversationSummaryProjection(
-    displayEntries: cachedEntries,
+    displayEntries: storeEntries,
     storeEntries: storeEntries,
     shouldWriteStore: state.loaded && owner.isNotEmpty,
   );
@@ -419,10 +419,10 @@ void sortConversationSummaryEntries(
   Set<String> pinnedConversationIds,
 ) {
   entries.sort((a, b) {
+    if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
     final aPinned = pinnedConversationIds.contains(a.roomId.trim());
     final bPinned = pinnedConversationIds.contains(b.roomId.trim());
     if (aPinned != bPinned) return aPinned ? -1 : 1;
-    if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
     if (a.previewTs != b.previewTs) return b.previewTs.compareTo(a.previewTs);
     return a.roomId.compareTo(b.roomId);
   });

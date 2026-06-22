@@ -26,6 +26,7 @@ class VisibleHomeConversation {
     return VisibleHomeConversation._(
       roomId: room.id,
       room: room,
+      product: _fallbackAgentConversation(room),
       isAgent: true,
     );
   }
@@ -213,11 +214,12 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
   for (final group in asGroupSummariesByRoomId.values) {
     final roomId = group.roomId.trim();
     if (directContactRoomIds.contains(roomId)) continue;
-    if (!_isJoinedGroupSummary(group)) continue;
+    final room = client.getRoomById(roomId);
+    if (!_isJoinedGroupSummary(group, room)) continue;
     addVisibleConversation(
       VisibleHomeConversation.product(
         _fallbackGroupConversationForSummary(group),
-        client.getRoomById(roomId),
+        room,
         group,
       ),
     );
@@ -231,10 +233,10 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
 
   return visibleConversations
     ..sort((a, b) {
+      if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
       final aPinned = pinnedConversationIds.contains(a.roomId);
       final bPinned = pinnedConversationIds.contains(b.roomId);
       if (aPinned != bPinned) return aPinned ? -1 : 1;
-      if (a.isAgent != b.isAgent) return a.isAgent ? -1 : 1;
       return conversationSortTime(
         b,
         outbox: outbox,
@@ -273,6 +275,27 @@ AsConversation? _openableFallbackForGroupConversation(
         : roomSummary?.memberCount ?? 0,
     role: conversation.role,
     membership: conversation.membership,
+  );
+}
+
+AsConversation _fallbackAgentConversation(Room room) {
+  return AsConversation(
+    conversationId: '',
+    roomId: room.id,
+    kind: asConversationKindAgent,
+    lifecycle: 'active',
+    title: 'Agent',
+    avatarUrl: '',
+    lastActivityAt: room.lastEvent?.originServerTs,
+    memberCount: 2,
+    membership: 'join',
+    hydrationState: 'ready',
+    capabilities: const AsConversationCapabilities(
+      open: true,
+      send: true,
+      sendMedia: true,
+      call: true,
+    ),
   );
 }
 
@@ -328,9 +351,9 @@ AsConversation _fallbackGroupConversation({
   );
 }
 
-bool _isJoinedGroupSummary(AsSyncRoomSummary group) {
+bool _isJoinedGroupSummary(AsSyncRoomSummary group, Room? room) {
   final status = group.memberStatus.trim().toLowerCase();
-  if (status.isEmpty) return true;
+  if (status.isEmpty) return room?.membership == Membership.join;
   return status == asChannelMemberStatusJoined || status == 'join';
 }
 

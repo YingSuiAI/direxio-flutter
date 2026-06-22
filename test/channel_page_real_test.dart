@@ -331,6 +331,28 @@ void main() {
     expect(find.text('新帖子'), findsOneWidget);
   });
 
+  testWidgets('channel post list renders uploaded post image as avatar',
+      (tester) async {
+    const avatarUrl = 'https://cdn.example.com/post-avatar.png';
+    await _pumpRealChannelPage(
+      tester,
+      _PostingChannelAsClient(
+        postMedia: const {
+          'url': avatarUrl,
+          'images': [
+            {'url': avatarUrl, 'name': 'post-avatar.png'},
+          ],
+        },
+      ),
+    );
+
+    expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
+    expect(
+      find.byKey(const ValueKey('channel_post_avatar_$avatarUrl')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('post channel owner role sees create button on post list',
       (tester) async {
     final bootstrap = AsSyncBootstrap(
@@ -348,7 +370,7 @@ void main() {
           avatarUrl: '',
           unreadCount: 0,
           lastActivityAt: DateTime.parse('2026-06-17T10:20:00Z'),
-          description: '频道帖子，成员可评论和互动',
+          description: '综合讨论',
           isOwned: false,
           role: asChannelRoleOwner,
           memberStatus: asChannelMemberStatusJoined,
@@ -377,7 +399,7 @@ void main() {
 
     expect(find.text('综合讨论'), findsOneWidget);
     expect(find.text('#综合讨论'), findsNothing);
-    expect(find.text('频道帖子，成员可评论和互动'), findsOneWidget);
+    expect(find.text('频道帖子，成员可评论和互动'), findsNothing);
     expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
     expect(
         find.byKey(const ValueKey('channel_post_create_fab')), findsOneWidget);
@@ -401,7 +423,7 @@ void main() {
           avatarUrl: '',
           unreadCount: 0,
           lastActivityAt: DateTime.parse('2026-06-17T10:20:00Z'),
-          description: '频道帖子，成员可评论和互动',
+          description: '综合讨论',
           isOwned: true,
           role: asChannelRoleOwner,
           memberStatus: asChannelMemberStatusJoined,
@@ -608,7 +630,7 @@ void main() {
     expect(asClient.toggledPostId, 'post1');
   });
 
-  testWidgets('channel post detail title and id align channel detail',
+  testWidgets('channel post detail matches figma text-only layout',
       (tester) async {
     final asClient = _PostingChannelAsClient();
     final bootstrap = AsSyncBootstrap(
@@ -656,14 +678,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('帖子详情'), findsOneWidget);
+    expect(find.text('帖子详情'), findsNothing);
     expect(find.text('产品公告'), findsNothing);
-    expect(find.text('ID:post1'), findsOneWidget);
-
-    await tester.tap(find.byIcon(Symbols.content_copy));
-    await tester.pump(const Duration(milliseconds: 100));
-
-    expect(find.text('已复制帖子 ID'), findsOneWidget);
+    expect(find.text('ID:post1'), findsNothing);
+    expect(find.byIcon(Symbols.arrow_back), findsOneWidget);
+    expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
+    expect(find.text('共0条评论'), findsOneWidget);
   });
 
   testWidgets('channel post list input opens detail for commenting',
@@ -856,7 +876,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('帖子详情'), findsOneWidget);
+    expect(find.text('帖子详情'), findsNothing);
     expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
     expect(find.text('输入评论...'), findsOneWidget);
 
@@ -945,7 +965,7 @@ void main() {
     expect(asClient.toggledPostId, isNull);
   });
 
-  testWidgets('channel post detail lazily loads collapsed comments',
+  testWidgets('channel post detail loads visible comments and paginates',
       (tester) async {
     tester.view.physicalSize = const Size(390, 480);
     tester.view.devicePixelRatio = 1;
@@ -1012,12 +1032,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('评论 1'), findsNothing);
-    expect(asClient.requestedCommentPages, isEmpty);
-
-    await tester.tap(find.text('查看评论(12)'));
-    await tester.pumpAndSettle();
-
     expect(asClient.requestedCommentPages, [1]);
     expect(asClient.requestedCommentPageSizes, [5]);
     expect(find.textContaining('评论 1'), findsOneWidget);
@@ -1033,7 +1047,7 @@ void main() {
     expect(find.textContaining('评论 6'), findsOneWidget);
   });
 
-  testWidgets('channel post detail updates visible comment reaction',
+  testWidgets('channel post detail renders comments without row reactions',
       (tester) async {
     final asClient = _PostingChannelAsClient(
       comments: const [
@@ -1098,21 +1112,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('查看评论(1)'));
     await tester.pumpAndSettle();
 
     expect(find.text('可以点赞的评论'), findsOneWidget);
-    expect(find.text('2'), findsAtLeastNWidgets(1));
-
-    await tester.tap(
-      find.byKey(const ValueKey('channel_comment_like_comment-react')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(asClient.toggledCommentId, 'comment-react');
-    expect(asClient.toggledCommentPostId, 'post1');
-    expect(asClient.toggledCommentChannelId, 'ch_real');
-    expect(find.text('7'), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_comment_like_comment-react')),
+        findsNothing);
+    expect(asClient.toggledCommentId, isNull);
   });
 
   testWidgets('channel info page renders figma actions', (tester) async {
@@ -2763,6 +2768,7 @@ const _postingChannelConversations = [
 class _PostingChannelAsClient extends MockAsClient {
   _PostingChannelAsClient({
     this.postBody,
+    this.postMedia = const {},
     this.reactedByMe = false,
     this.postId = 'post1',
     this.comments = const [],
@@ -2771,6 +2777,7 @@ class _PostingChannelAsClient extends MockAsClient {
   });
 
   final String? postBody;
+  final Map<String, Object?> postMedia;
   final bool reactedByMe;
   final String postId;
   final List<AsChannelComment> comments;
@@ -2813,6 +2820,7 @@ class _PostingChannelAsClient extends MockAsClient {
         authorName: 'Yanan',
         messageType: 'text',
         body: createdBody ?? postBody ?? '第一条帖子',
+        media: postMedia,
         originServerTs:
             DateTime.parse('2026-06-06T10:20:00Z').millisecondsSinceEpoch,
         commentCount: comments.length,

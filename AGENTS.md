@@ -64,6 +64,7 @@ lib/
   - `pending` -> `pending`
   - `reject`, `rejected` -> `rejected`
 - Treat only `isAsChannelMemberJoined(status)` as joined. `invite` and `pending` are waiting states and must not unlock channel sending.
+- Channel list entries with terminal lifecycle such as `deleted`, `left`, `dissolve`, or `dissolved` must be hidden even if stale membership still says `joined`.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
 - Channel invite/share cards first create `channels.invite_grant.create` with `channel_id` or `room_id` plus `share_room_id`; receivers call `channels.join` with `grant_id` and `share_room_id`.
 - When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.

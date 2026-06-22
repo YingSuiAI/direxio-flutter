@@ -142,11 +142,15 @@ class ChannelInboxData {
   }) {
     final productConversationByRoomId =
         _channelProductConversationsByRoomId(productConversations);
-    final items = bootstrap.channels
-        .where((channel) =>
-            channel.roomId.trim().isNotEmpty &&
-            _channelListMemberStatusVisible(channel.memberStatus))
-        .map(
+    final items = bootstrap.channels.where((channel) {
+      final roomId = channel.roomId.trim();
+      if (roomId.isEmpty) return false;
+      return _channelListChannelVisible(
+        memberStatus: channel.memberStatus,
+        lifecycle: channel.lifecycle,
+        productConversation: productConversationByRoomId[roomId],
+      );
+    }).map(
       (channel) {
         final roomId = channel.roomId.trim();
         final channelId = channel.channelId.trim();
@@ -229,11 +233,21 @@ class ChannelInboxData {
       }
       final bootstrapChannel =
           bootstrapByChannelId[channelId] ?? bootstrapByRoomId[roomId];
+      final productConversation =
+          channel.productConversation ?? productConversationByRoomId[roomId];
       final status = _preferReadableText(
         channel.memberStatus,
         bootstrapChannel?.memberStatus,
       );
-      return _channelListMemberStatusVisible(status);
+      final lifecycle = _preferReadableText(
+        channel.lifecycle,
+        bootstrapChannel?.lifecycle,
+      );
+      return _channelListChannelVisible(
+        memberStatus: status,
+        lifecycle: lifecycle,
+        productConversation: productConversation,
+      );
     }).map((channel) {
       final roomId = channel.roomId.trim();
       final channelId = channel.channelId.trim();
@@ -463,6 +477,31 @@ bool _isChannelOwnerRole(String role) {
 bool _channelListMemberStatusVisible(String status) {
   final normalized = status.trim();
   return normalized.isEmpty || isAsChannelMemberJoined(normalized);
+}
+
+bool _channelListChannelVisible({
+  required String memberStatus,
+  required String lifecycle,
+  AsConversation? productConversation,
+}) {
+  if (!_channelListMemberStatusVisible(memberStatus)) return false;
+  if (_channelLifecycleIsTerminal(lifecycle)) return false;
+  if (_channelLifecycleIsTerminal(productConversation?.lifecycle ?? '')) {
+    return false;
+  }
+  return true;
+}
+
+bool _channelLifecycleIsTerminal(String lifecycle) {
+  switch (lifecycle.trim().toLowerCase()) {
+    case 'deleted':
+    case 'dissolve':
+    case 'dissolved':
+    case 'left':
+      return true;
+    default:
+      return false;
+  }
 }
 
 String _channelPreviewText(String value) {

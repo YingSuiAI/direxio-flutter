@@ -124,14 +124,15 @@ class PortalApp extends ConsumerWidget {
           context: context,
           barrierDismissible: false,
           builder: (dialogContext) {
+            final l10n = AppLocalizations.of(dialogContext);
             return CupertinoAlertDialog(
-              title: const Text('账号在其他设备登录'),
-              content: const Text('请重新登录'),
+              title: Text(l10n.sessionExpiredTitle),
+              content: Text(l10n.sessionExpiredMessage),
               actions: [
                 CupertinoDialogAction(
                   isDefaultAction: true,
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('确定'),
+                  child: Text(l10n.commonOk),
                 ),
               ],
             );

@@ -45,6 +45,10 @@ Normalize member status through `AsChannel` / `AsChannelMember`, and treat only 
 
 `invite` and `pending` are waiting states. They must not unlock channel sending, post creation, or joined-only navigation.
 
+Channel list entries with terminal lifecycle such as `deleted`, `left`,
+`dissolve`, or `dissolved` must be hidden even if stale membership still says
+`joined`.
+
 For channel share/invite cards, show an in-progress joining state for
 `pending`, `invite`, or delayed projection. Do not use "unfinished" failure
 copy for these states; refresh bootstrap briefly and auto-open the channel when

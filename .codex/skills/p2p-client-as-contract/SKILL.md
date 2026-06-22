@@ -52,6 +52,11 @@ Normalize channel member status through `AsChannel` / `AsChannelMember` helpers:
 
 Treat only `isAsChannelMemberJoined(status)` as joined.
 
+Channel list consumers must also honor terminal lifecycle fields from
+bootstrap/list/ProductCore channel data. `deleted`, `left`, `dissolve`, and
+`dissolved` channels are not visible channel-list entries even when stale
+membership still normalizes to `joined`.
+
 Public remote channel lookup must use explicitly configured AS remotes or request-provided remote base URLs. Do not infer a remote AS URL from a Matrix `room_id` domain unless the current contract document explicitly says to derive and pass a concrete remote base URL.
 
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.

@@ -7,6 +7,7 @@ import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/local_message_order_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 import 'package:portal_app/presentation/utils/direct_contact_status.dart';
+import 'package:portal_app/presentation/utils/product_conversation_navigation.dart';
 
 void main() {
   test('builds visible ProductCore conversations for summary writing', () {
@@ -89,6 +90,48 @@ void main() {
     expect(
       visible.map((conversation) => conversation.roomId),
       ['!pinned:p2p-im.com', '!recent:p2p-im.com'],
+    );
+  });
+
+  test('Agent ProductCore conversations sort before pinned conversations', () {
+    final client = Client('ConversationSummaryWriterAgentFirstTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    final visible = visibleHomeConversationsForSummary(
+      client: client,
+      rooms: const [],
+      productConversations: [
+        _conversation(
+          id: 'conv_recent',
+          roomId: '!recent:p2p-im.com',
+          kind: asConversationKindDirect,
+          canOpen: true,
+          lastActivityAt: DateTime.utc(2026, 6, 22, 10),
+        ),
+        _conversation(
+          id: 'conv_pinned',
+          roomId: '!pinned:p2p-im.com',
+          kind: asConversationKindGroup,
+          canOpen: true,
+          lastActivityAt: DateTime.utc(2026, 6, 22, 11),
+        ),
+        _conversation(
+          id: 'conv_agent',
+          roomId: '!agent:p2p-im.com',
+          kind: asConversationKindAgent,
+          canOpen: true,
+          lastActivityAt: DateTime.utc(2026, 6, 22, 8),
+        ),
+      ],
+      syncCache: const AsSyncCacheState(),
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      pinnedConversationIds: const {'!pinned:p2p-im.com'},
+    );
+
+    expect(
+      visible.map((conversation) => conversation.roomId),
+      ['!agent:p2p-im.com', '!pinned:p2p-im.com', '!recent:p2p-im.com'],
     );
   });
 
@@ -180,6 +223,53 @@ void main() {
     expect(result.productConversationsByRoomId[roomId]?.canOpen, isTrue);
   });
 
+  test('builds openable fallback conversation for Agent rooms', () {
+    final client = Client('ConversationSummaryWriterAgentFallbackTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!agent:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    room.summary.mHeroes = ['@agent:p2p-im.com'];
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: [room],
+      productConversations: const [],
+      productConversationsLoaded: true,
+      syncCache: AsSyncCacheState(
+        bootstrap: AsSyncBootstrap(
+          syncedAt: DateTime.utc(2026, 6, 22, 12),
+          user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+          agentRoomId: '!agent:p2p-im.com',
+          rooms: const [],
+          contacts: const [],
+          groups: const [],
+          channels: const [],
+          pending: const AsSyncPending.empty(),
+        ),
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    final conversation =
+        result.productConversationsByRoomId['!agent:p2p-im.com'];
+    expect(result.storeEntries.single.isAgent, isTrue);
+    expect(conversation?.isAgent, isTrue);
+    expect(conversation?.canOpen, isTrue);
+    expect(productConversationRoute(conversation), '/chat/!agent%3Ap2p-im.com');
+  });
+
   test('builds home summary projection from ProductCore live inputs', () {
     final client = Client('ConversationSummaryWriterProjectionTest')
       ..setUserId('@owner:p2p-im.com');
@@ -211,7 +301,10 @@ void main() {
       currentUserId: '@owner:p2p-im.com',
     );
 
-    expect(result.displayEntries, isEmpty);
+    expect(
+      result.displayEntries.map((entry) => entry.roomId),
+      ['!recent:p2p-im.com'],
+    );
     expect(
       result.storeEntries.map((entry) => entry.roomId),
       ['!recent:p2p-im.com'],
@@ -259,7 +352,7 @@ void main() {
       currentUserId: '@owner:p2p-im.com',
     );
 
-    expect(result.displayEntries, [cached]);
+    expect(result.displayEntries, isEmpty);
     expect(result.storeEntries, isEmpty);
     expect(result.productConversationsByRoomId, isEmpty);
     expect(result.shouldWriteStore, isTrue);

@@ -288,8 +288,10 @@ class GroupChatPage extends ConsumerStatefulWidget {
 
 class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   final _msgCtrl = TextEditingController();
+  StreamSubscription<SyncUpdate>? _matrixSyncSub;
   Timeline? _timeline;
   bool _loading = true;
+  bool _matrixMembershipLeft = false;
   bool _readMarkerInFlight = false;
   bool _readMarkerQueued = false;
   bool _thumbnailWarmupInFlight = false;
@@ -957,6 +959,19 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _msgCtrl.addListener(_onComposerTextChanged);
     _voicePlayer.playback.addListener(_onVoicePlaybackChanged);
     _messageScrollCtrl.addListener(_onMessageScroll);
+    _matrixMembershipLeft = _currentRoomHasLeftMatrixMembership();
+    _matrixSyncSub = ref.read(matrixClientProvider).onSync.stream.listen((_) {
+      final left = _currentRoomHasLeftMatrixMembership();
+      if (!mounted || left == _matrixMembershipLeft) return;
+      setState(() {
+        _matrixMembershipLeft = left;
+        if (left) {
+          _showPlusPanel = false;
+          _showEmojiPanel = false;
+          _replyTo = null;
+        }
+      });
+    });
     if (!_isChannelConversation) {
       unawaited(_loadLocalAsCallHistory());
     }
@@ -1319,6 +1334,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   @override
   void dispose() {
+    unawaited(_matrixSyncSub?.cancel());
     _timeline?.cancelSubscriptions();
     _initialTimelineEntranceTimer?.cancel();
     _targetEventScrollTimer?.cancel();
@@ -1399,11 +1415,22 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (text.isEmpty) return;
     final room = _room;
     if (room == null) return;
+    final syncCache = ref.read(asSyncCacheProvider);
+    final productConversations =
+        ref.read(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    if (_isRemovedFromGroupConversation(
+      room: room,
+      syncCache: syncCache,
+      productConversations: productConversations,
+    )) {
+      _showGroupCannotSendToast(context);
+      return;
+    }
     final capabilityPolicy = _groupCapabilityPolicy(
-      ref.read(productConversationsProvider).valueOrNull ??
-          const <AsConversation>[],
+      productConversations,
       room,
-      ref.read(asSyncCacheProvider),
+      syncCache,
     );
     if (!capabilityPolicy.canSendText) {
       _showGroupCannotSendToast(context);
@@ -1528,6 +1555,54 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         ) ??
         false;
     return isJoinedAsGroup;
+  }
+
+  bool _currentRoomHasLeftMatrixMembership() {
+    final room = _room;
+    if (room == null) return false;
+    return _isLeftMatrixMembership(room.membership);
+  }
+
+  bool _isRemovedFromGroupConversation({
+    required Room room,
+    required AsSyncCacheState syncCache,
+    required Iterable<AsConversation> productConversations,
+  }) {
+    if (_isChannelConversation) return false;
+    if (_matrixMembershipLeft || _isLeftMatrixMembership(room.membership)) {
+      return true;
+    }
+    final group = _groupSummary(syncCache);
+    if (_isNonJoinedGroupMembership(group?.memberStatus)) return true;
+    final conversation = productConversationForRoom(
+      productConversations,
+      room.id,
+      kinds: const {asConversationKindGroup},
+    );
+    return _isNonJoinedGroupMembership(conversation?.membership) ||
+        _isNonJoinedGroupMembership(conversation?.relationshipStatus) ||
+        _isNonJoinedGroupMembership(conversation?.projectionState);
+  }
+
+  bool _isLeftMatrixMembership(Membership membership) {
+    return membership == Membership.leave || membership == Membership.ban;
+  }
+
+  bool _isNonJoinedGroupMembership(String? status) {
+    switch (status?.trim().toLowerCase()) {
+      case 'leave':
+      case 'left':
+      case 'ban':
+      case 'banned':
+      case 'kick':
+      case 'kicked':
+      case 'remove':
+      case 'removed':
+      case 'rejected':
+      case 'reject':
+        return true;
+    }
+    return false;
   }
 
   ConversationCapabilityPolicy _groupCapabilityPolicy(
@@ -2443,21 +2518,29 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       room,
       syncCache,
     );
-    final canSendMessages = capabilityPolicy.canSendText;
-    final canSendMedia = capabilityPolicy.canSendMedia;
-    final canStartCall = capabilityPolicy.canCall;
-    final canQueueChannelTextFailure =
-        !canSendMessages && _isJoinedChannelConversation(room, syncCache);
+    final removedFromGroup = _isRemovedFromGroupConversation(
+      room: room,
+      syncCache: syncCache,
+      productConversations: productConversations,
+    );
+    final canSendMessages = !removedFromGroup && capabilityPolicy.canSendText;
+    final canSendMedia = !removedFromGroup && capabilityPolicy.canSendMedia;
+    final canStartCall = !removedFromGroup && capabilityPolicy.canCall;
+    final canQueueChannelTextFailure = !removedFromGroup &&
+        !canSendMessages &&
+        _isJoinedChannelConversation(room, syncCache);
     final myId = ref.read(matrixClientProvider).userID;
-    final replyBarVisible = _replyTo != null;
+    final replyBarVisible = _replyTo != null && !removedFromGroup;
     final selectionBarVisible = _multiSelect;
     final keyboardInsetBottom = MediaQuery.viewInsetsOf(context).bottom;
     if (keyboardInsetBottom > 1) {
       _emojiPanelHeight = keyboardInsetBottom.clamp(240.0, 420.0).toDouble();
     }
-    final bottomPanelVisible =
-        keyboardInsetBottom <= 1 && (_showPlusPanel || _showEmojiPanel);
-    final showEmojiPanelContent = _showEmojiPanel && keyboardInsetBottom <= 1;
+    final bottomPanelVisible = !removedFromGroup &&
+        keyboardInsetBottom <= 1 &&
+        (_showPlusPanel || _showEmojiPanel);
+    final showEmojiPanelContent =
+        !removedFromGroup && _showEmojiPanel && keyboardInsetBottom <= 1;
     final bottomViewportChanged =
         keyboardInsetBottom != _lastKeyboardInsetBottom ||
             bottomPanelVisible != _lastBottomPanelVisible;
@@ -3149,7 +3232,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
           bottomOverlay: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_replyTo != null)
+              if (_replyTo != null && !removedFromGroup)
                 _GroupReplyBar(
                   text: _replyTo!.body,
                   sender:
@@ -3169,6 +3252,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                       unawaited(_forwardSelectedEvents(events, name)),
                   onDelete: () => unawaited(_deleteSelectedEventsForMe(events)),
                 )
+              else if (removedFromGroup)
+                const _GroupRemovedComposerBar()
               else
                 ChatCapsuleInputBar(
                   ctrl: _msgCtrl,
@@ -3188,7 +3273,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                   onVoiceRecordStop: _stopVoiceRecording,
                   onVoiceRecordCancel: _cancelVoiceRecording,
                 ),
-              if (_showPlusPanel)
+              if (_showPlusPanel && !removedFromGroup)
                 ChatAttachmentPanel(
                   room: room,
                   roomId: activeRoomId,
@@ -5715,6 +5800,36 @@ class _GroupReplyBar extends StatelessWidget {
             icon: Icon(Symbols.close, size: 18, color: t.textMute),
             onPressed: onClose,
             visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupRemovedComposerBar extends StatelessWidget {
+  const _GroupRemovedComposerBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      height: 56,
+      width: double.infinity,
+      color: t.surfaceHover,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Symbols.error, size: 16, color: t.textMute, fill: 1),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              '无法在已退出的群聊中发送消息',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(size: 15, color: t.textMute),
+            ),
           ),
         ],
       ),

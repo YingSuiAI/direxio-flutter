@@ -254,5 +254,100 @@
   "groupInviteFallbackInviter": "相手",
   "groupInviteJoinButton": "参加",
   "groupInviteJoiningButton": "参加中…",
-  "groupInviteAlreadyJoined": "すでにこのグループに参加しています"
+  "groupInviteAlreadyJoined": "すでにこのグループに参加しています",
+  "commonOk": "OK",
+  "commonRetry": "再試行",
+  "sessionExpiredTitle": "別の端末でログインされました",
+  "sessionExpiredMessage": "もう一度ログインしてください",
+  "chatRecordForwarded": "チャット履歴を転送しました",
+  "chatRecordForwardFailed": "転送に失敗しました：{error}",
+  "@chatRecordForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelFallbackTitle": "チャンネル",
+  "channelMissingTitle": "チャンネルが見つかりません",
+  "channelMissingSubtitle": "このチャンネルは非公開、削除済み、または一時的に到達できない可能性があります。",
+  "channelNoPublicContentTitle": "公開コンテンツはまだありません",
+  "channelNoPublicContentSubtitle": "チャンネルに参加すると今後の投稿を確認できます。",
+  "channelJoinFailed": "チャンネルへの参加に失敗しました：{error}",
+  "@channelJoinFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelJoinJoined": "参加済み",
+  "channelJoinPending": "審査待ち",
+  "channelJoinSyncing": "同期中",
+  "channelJoinRetry": "再参加",
+  "channelJoinApply": "参加申請",
+  "channelJoinAction": "チャンネルに参加",
+  "channelJoinProcessing": "処理中",
+  "channelPostEmptyTitle": "チャンネル投稿はまだありません",
+  "channelPostEmptySubtitle": "投稿するとここに表示されます。",
+  "channelPostPublish": "投稿",
+  "channelPostPublishing": "投稿中",
+  "channelPostPlaceholder": "投稿を書く...",
+  "channelPostPublishFailed": "投稿に失敗しました：{error}",
+  "@channelPostPublishFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelPostImageUploadFailed": "画像のアップロードに失敗しました：{error}",
+  "@channelPostImageUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelPostDeleted": "投稿を削除しました",
+  "channelPostDeleteFailed": "投稿の削除に失敗しました：{error}",
+  "@channelPostDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelPostDeleteTooltip": "投稿を削除",
+  "channelPostType": "投稿",
+  "channelPostDefaultTitle": "自分の投稿",
+  "channelPostExpandMore": "もっと見る",
+  "channelPostCollapse": "閉じる",
+  "channelPostCommentHint": "コメントを入力...",
+  "channelPostDetailTitle": "投稿詳細",
+  "channelPostCommentLoadFailed": "コメントの読み込みに失敗しました",
+  "channelPostNoMoreComments": "これ以上コメントはありません",
+  "channelPostIdCopied": "投稿 ID をコピーしました",
+  "channelPostReply": "返信",
+  "channelPostCollapseComments": "コメントを閉じる",
+  "channelPostCommentCount": "コメント {count} 件",
+  "@channelPostCommentCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "channelPostViewComments": "コメントを見る{countText}",
+  "@channelPostViewComments": {
+    "placeholders": {
+      "countText": {
+        "type": "String"
+      }
+    }
+  },
+  "channelPostMissingTitle": "投稿が見つかりません",
+  "channelPostMissingSubtitle": "この投稿は削除されたか、この端末にまだ同期されていない可能性があります。",
+  "commonMe": "自分",
+  "commonJustNow": "たった今"
 }

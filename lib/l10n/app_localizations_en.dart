@@ -593,4 +593,160 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get groupInviteAlreadyJoined => 'You are already in this group';
+
+  @override
+  String get commonOk => 'OK';
+
+  @override
+  String get commonRetry => 'Retry';
+
+  @override
+  String get sessionExpiredTitle => 'Signed in on another device';
+
+  @override
+  String get sessionExpiredMessage => 'Please sign in again';
+
+  @override
+  String get chatRecordForwarded => 'Chat record forwarded';
+
+  @override
+  String chatRecordForwardFailed(String error) {
+    return 'Forward failed: $error';
+  }
+
+  @override
+  String get channelFallbackTitle => 'Channel';
+
+  @override
+  String get channelMissingTitle => 'Channel not found';
+
+  @override
+  String get channelMissingSubtitle =>
+      'This channel may be private, deleted, or temporarily unreachable.';
+
+  @override
+  String get channelNoPublicContentTitle => 'No public content yet';
+
+  @override
+  String get channelNoPublicContentSubtitle =>
+      'Join the channel to see future posts.';
+
+  @override
+  String channelJoinFailed(String error) {
+    return 'Failed to join channel: $error';
+  }
+
+  @override
+  String get channelJoinJoined => 'Joined';
+
+  @override
+  String get channelJoinPending => 'Pending review';
+
+  @override
+  String get channelJoinSyncing => 'Syncing';
+
+  @override
+  String get channelJoinRetry => 'Join again';
+
+  @override
+  String get channelJoinApply => 'Request to join';
+
+  @override
+  String get channelJoinAction => 'Join channel';
+
+  @override
+  String get channelJoinProcessing => 'Processing';
+
+  @override
+  String get channelPostEmptyTitle => 'No channel posts yet';
+
+  @override
+  String get channelPostEmptySubtitle =>
+      'Posts will appear here after publishing.';
+
+  @override
+  String get channelPostPublish => 'Post';
+
+  @override
+  String get channelPostPublishing => 'Posting';
+
+  @override
+  String get channelPostPlaceholder => 'Write a post...';
+
+  @override
+  String channelPostPublishFailed(String error) {
+    return 'Failed to publish: $error';
+  }
+
+  @override
+  String channelPostImageUploadFailed(String error) {
+    return 'Image upload failed: $error';
+  }
+
+  @override
+  String get channelPostDeleted => 'Post deleted';
+
+  @override
+  String channelPostDeleteFailed(String error) {
+    return 'Failed to delete post: $error';
+  }
+
+  @override
+  String get channelPostDeleteTooltip => 'Delete post';
+
+  @override
+  String get channelPostType => 'Post';
+
+  @override
+  String get channelPostDefaultTitle => 'My post';
+
+  @override
+  String get channelPostExpandMore => 'Expand';
+
+  @override
+  String get channelPostCollapse => 'Collapse';
+
+  @override
+  String get channelPostCommentHint => 'Write a comment...';
+
+  @override
+  String get channelPostDetailTitle => 'Post Details';
+
+  @override
+  String get channelPostCommentLoadFailed => 'Failed to load comments';
+
+  @override
+  String get channelPostNoMoreComments => 'No more comments';
+
+  @override
+  String get channelPostIdCopied => 'Post ID copied';
+
+  @override
+  String get channelPostReply => 'Reply';
+
+  @override
+  String get channelPostCollapseComments => 'Hide comments';
+
+  @override
+  String channelPostCommentCount(int count) {
+    return '$count comments';
+  }
+
+  @override
+  String channelPostViewComments(String countText) {
+    return 'View comments$countText';
+  }
+
+  @override
+  String get channelPostMissingTitle => 'Post not found';
+
+  @override
+  String get channelPostMissingSubtitle =>
+      'This post may have been deleted or has not synced to this device.';
+
+  @override
+  String get commonMe => 'Me';
+
+  @override
+  String get commonJustNow => 'Just now';
 }

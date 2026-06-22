@@ -579,4 +579,158 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get groupInviteAlreadyJoined => 'すでにこのグループに参加しています';
+
+  @override
+  String get commonOk => 'OK';
+
+  @override
+  String get commonRetry => '再試行';
+
+  @override
+  String get sessionExpiredTitle => '別の端末でログインされました';
+
+  @override
+  String get sessionExpiredMessage => 'もう一度ログインしてください';
+
+  @override
+  String get chatRecordForwarded => 'チャット履歴を転送しました';
+
+  @override
+  String chatRecordForwardFailed(String error) {
+    return '転送に失敗しました：$error';
+  }
+
+  @override
+  String get channelFallbackTitle => 'チャンネル';
+
+  @override
+  String get channelMissingTitle => 'チャンネルが見つかりません';
+
+  @override
+  String get channelMissingSubtitle =>
+      'このチャンネルは非公開、削除済み、または一時的に到達できない可能性があります。';
+
+  @override
+  String get channelNoPublicContentTitle => '公開コンテンツはまだありません';
+
+  @override
+  String get channelNoPublicContentSubtitle => 'チャンネルに参加すると今後の投稿を確認できます。';
+
+  @override
+  String channelJoinFailed(String error) {
+    return 'チャンネルへの参加に失敗しました：$error';
+  }
+
+  @override
+  String get channelJoinJoined => '参加済み';
+
+  @override
+  String get channelJoinPending => '審査待ち';
+
+  @override
+  String get channelJoinSyncing => '同期中';
+
+  @override
+  String get channelJoinRetry => '再参加';
+
+  @override
+  String get channelJoinApply => '参加申請';
+
+  @override
+  String get channelJoinAction => 'チャンネルに参加';
+
+  @override
+  String get channelJoinProcessing => '処理中';
+
+  @override
+  String get channelPostEmptyTitle => 'チャンネル投稿はまだありません';
+
+  @override
+  String get channelPostEmptySubtitle => '投稿するとここに表示されます。';
+
+  @override
+  String get channelPostPublish => '投稿';
+
+  @override
+  String get channelPostPublishing => '投稿中';
+
+  @override
+  String get channelPostPlaceholder => '投稿を書く...';
+
+  @override
+  String channelPostPublishFailed(String error) {
+    return '投稿に失敗しました：$error';
+  }
+
+  @override
+  String channelPostImageUploadFailed(String error) {
+    return '画像のアップロードに失敗しました：$error';
+  }
+
+  @override
+  String get channelPostDeleted => '投稿を削除しました';
+
+  @override
+  String channelPostDeleteFailed(String error) {
+    return '投稿の削除に失敗しました：$error';
+  }
+
+  @override
+  String get channelPostDeleteTooltip => '投稿を削除';
+
+  @override
+  String get channelPostType => '投稿';
+
+  @override
+  String get channelPostDefaultTitle => '自分の投稿';
+
+  @override
+  String get channelPostExpandMore => 'もっと見る';
+
+  @override
+  String get channelPostCollapse => '閉じる';
+
+  @override
+  String get channelPostCommentHint => 'コメントを入力...';
+
+  @override
+  String get channelPostDetailTitle => '投稿詳細';
+
+  @override
+  String get channelPostCommentLoadFailed => 'コメントの読み込みに失敗しました';
+
+  @override
+  String get channelPostNoMoreComments => 'これ以上コメントはありません';
+
+  @override
+  String get channelPostIdCopied => '投稿 ID をコピーしました';
+
+  @override
+  String get channelPostReply => '返信';
+
+  @override
+  String get channelPostCollapseComments => 'コメントを閉じる';
+
+  @override
+  String channelPostCommentCount(int count) {
+    return 'コメント $count 件';
+  }
+
+  @override
+  String channelPostViewComments(String countText) {
+    return 'コメントを見る$countText';
+  }
+
+  @override
+  String get channelPostMissingTitle => '投稿が見つかりません';
+
+  @override
+  String get channelPostMissingSubtitle =>
+      'この投稿は削除されたか、この端末にまだ同期されていない可能性があります。';
+
+  @override
+  String get commonMe => '自分';
+
+  @override
+  String get commonJustNow => 'たった今';
 }

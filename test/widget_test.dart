@@ -34,6 +34,7 @@ import 'package:portal_app/presentation/channel/channel_inbox_data.dart';
 import 'package:portal_app/presentation/pages/add_contact_detail_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_page.dart';
 import 'package:portal_app/presentation/pages/add_contact_verification_page.dart';
+import 'package:portal_app/presentation/pages/about_us_page.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
 import 'package:portal_app/presentation/pages/channel_post_detail_page.dart';
 import 'package:portal_app/presentation/pages/channel_search_page.dart';
@@ -4360,6 +4361,7 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.text('消息(3)'), findsNothing);
     expect(find.text('产品测试群'), findsNothing);
     expect(find.text('群聊已创建，等待同步'), findsNothing);
     expect(find.text('3'), findsNothing);
@@ -8509,6 +8511,69 @@ void main() {
         findsOneWidget);
   });
 
+  testWidgets('groups list renders ProductCore group avatar', (tester) async {
+    const roomId = '!group:p2p-im.com';
+    const avatarUrl = 'https://cdn.example.com/group.png';
+    final client = Client('DirexioGroupsProductAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 14),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '产品群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(const [
+              AsConversation(
+                conversationId: 'conv_group',
+                roomId: roomId,
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '产品群',
+                avatarUrl: avatarUrl,
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ]),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('产品群'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 48 &&
+            widget.imageUrl == avatarUrl,
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('groups list labels image previews instead of filenames',
       (tester) async {
     const imageName =
@@ -9867,6 +9932,79 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
 
     expect(matrixSendCalls, 1);
+  });
+
+  testWidgets('group chat shows removed banner after Matrix leave',
+      (tester) async {
+    var matrixSendCalls = 0;
+    final client = Client(
+      'DirexioGroupRemovedComposerBannerTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          matrixSendCalls++;
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!removed-group:p2p-im.com',
+      name: '已退出群',
+      creatorMxid: '@owner:p2p-im.com',
+      membership: Membership.leave,
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 22, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!removed-group:p2p-im.com',
+          name: '已退出群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: 'left',
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: '!removed-group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('无法在已退出的群聊中发送消息'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('发送'), findsNothing);
+    expect(matrixSendCalls, 0);
   });
 
   testWidgets('channel conversation text input is enabled for joined channel',
@@ -14622,6 +14760,18 @@ void main() {
       expect(tester.widget<Icon>(find.byIcon(icon)).color,
           PortalTokens.light.text);
     }
+  });
+
+  testWidgets('about us page uses bundled logo asset', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(theme: AppTheme.light, home: const AboutUsPage()),
+    );
+    await tester.pump();
+
+    final image = tester.widget<Image>(
+      find.byKey(const ValueKey('about_us_logo_asset')),
+    );
+    expect(image.image, const AssetImage('assets/images/logo.png'));
   });
 
   testWidgets('account security page setting icons are neutral',

@@ -576,4 +576,156 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get groupInviteAlreadyJoined => '已在群里中';
+
+  @override
+  String get commonOk => '确定';
+
+  @override
+  String get commonRetry => '重试';
+
+  @override
+  String get sessionExpiredTitle => '账号在其他设备登录';
+
+  @override
+  String get sessionExpiredMessage => '请重新登录';
+
+  @override
+  String get chatRecordForwarded => '已转发聊天记录';
+
+  @override
+  String chatRecordForwardFailed(String error) {
+    return '转发失败：$error';
+  }
+
+  @override
+  String get channelFallbackTitle => '频道';
+
+  @override
+  String get channelMissingTitle => '频道不存在';
+
+  @override
+  String get channelMissingSubtitle => '该频道可能是私密频道、已删除，或目标节点暂时不可达';
+
+  @override
+  String get channelNoPublicContentTitle => '还没有公开内容';
+
+  @override
+  String get channelNoPublicContentSubtitle => '加入频道后可以查看后续发布内容';
+
+  @override
+  String channelJoinFailed(String error) {
+    return '加入频道失败：$error';
+  }
+
+  @override
+  String get channelJoinJoined => '已加入';
+
+  @override
+  String get channelJoinPending => '待审核';
+
+  @override
+  String get channelJoinSyncing => '同步中';
+
+  @override
+  String get channelJoinRetry => '重新加入';
+
+  @override
+  String get channelJoinApply => '申请加入';
+
+  @override
+  String get channelJoinAction => '加入频道';
+
+  @override
+  String get channelJoinProcessing => '处理中';
+
+  @override
+  String get channelPostEmptyTitle => '还没有频道内容';
+
+  @override
+  String get channelPostEmptySubtitle => '发布后会显示在这里';
+
+  @override
+  String get channelPostPublish => '发表';
+
+  @override
+  String get channelPostPublishing => '发表中';
+
+  @override
+  String get channelPostPlaceholder => '发表帖子...';
+
+  @override
+  String channelPostPublishFailed(String error) {
+    return '发表失败：$error';
+  }
+
+  @override
+  String channelPostImageUploadFailed(String error) {
+    return '图片上传失败：$error';
+  }
+
+  @override
+  String get channelPostDeleted => '帖子已删除';
+
+  @override
+  String channelPostDeleteFailed(String error) {
+    return '删除帖子失败：$error';
+  }
+
+  @override
+  String get channelPostDeleteTooltip => '删除帖子';
+
+  @override
+  String get channelPostType => '帖子';
+
+  @override
+  String get channelPostDefaultTitle => '我发布的帖子';
+
+  @override
+  String get channelPostExpandMore => '展开更多';
+
+  @override
+  String get channelPostCollapse => '收起';
+
+  @override
+  String get channelPostCommentHint => '输入评论...';
+
+  @override
+  String get channelPostDetailTitle => '帖子详情';
+
+  @override
+  String get channelPostCommentLoadFailed => '评论加载失败';
+
+  @override
+  String get channelPostNoMoreComments => '没有更多评论';
+
+  @override
+  String get channelPostIdCopied => '已复制帖子 ID';
+
+  @override
+  String get channelPostReply => '回复';
+
+  @override
+  String get channelPostCollapseComments => '收起评论';
+
+  @override
+  String channelPostCommentCount(int count) {
+    return '共$count条评论';
+  }
+
+  @override
+  String channelPostViewComments(String countText) {
+    return '查看评论$countText';
+  }
+
+  @override
+  String get channelPostMissingTitle => '帖子不存在';
+
+  @override
+  String get channelPostMissingSubtitle => '该帖子可能已删除，或尚未同步到本机。';
+
+  @override
+  String get commonMe => '我';
+
+  @override
+  String get commonJustNow => '刚刚';
 }

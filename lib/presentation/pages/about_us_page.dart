@@ -111,40 +111,14 @@ class _DirexioLogoMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      width: 96,
-      height: 96,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [t.accent, t.primaryContainer, t.accent],
-          stops: const [0, 0.62, 1],
-        ),
-        borderRadius: BorderRadius.circular(27),
-      ),
-      child: Stack(
-        children: [
-          Center(
-            child: Icon(
-              Symbols.communication,
-              size: 47,
-              fill: 1,
-              color: t.onAccent,
-            ),
-          ),
-          Positioned(
-            top: 16,
-            right: 14,
-            child: Icon(
-              Symbols.star,
-              size: 18,
-              fill: 1,
-              color: t.onAccent,
-            ),
-          ),
-        ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(27),
+      child: Image.asset(
+        'assets/images/logo.png',
+        key: const ValueKey('about_us_logo_asset'),
+        width: 96,
+        height: 96,
+        fit: BoxFit.cover,
       ),
     );
   }

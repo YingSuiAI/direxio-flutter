@@ -10,10 +10,12 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
+import '../widgets/portal_avatar.dart';
 
 const _groupsToolbarHeight = 62.0;
 
@@ -83,6 +85,9 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           preview: lastEvent == null
               ? _previewText(group?.topic ?? '')
               : roomEventPreviewText(lastEvent, isAgent: false),
+          avatarUrl: avatarHttpUrl(client, conversation.avatarUrl) ??
+              avatarHttpUrl(client, group?.avatarUrl) ??
+              (room == null ? null : roomAvatarHttpUrl(room)),
           time: lastActivityAt == null
               ? ''
               : _formatTime(lastActivityAt.millisecondsSinceEpoch),
@@ -315,6 +320,7 @@ class _GroupItem {
     required this.id,
     required this.name,
     required this.preview,
+    this.avatarUrl,
     required this.time,
     required this.unread,
     this.isOwner = false,
@@ -323,6 +329,7 @@ class _GroupItem {
   final String id;
   final String name;
   final String preview;
+  final String? avatarUrl;
   final String time;
   final int unread;
   final bool isOwner;
@@ -355,7 +362,7 @@ class _GroupRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              _GroupAvatar(name: name),
+              _GroupAvatar(name: name, imageUrl: item.avatarUrl),
               const SizedBox(width: 8),
               Expanded(
                 child: Container(
@@ -485,11 +492,20 @@ class _OwnerBadge extends StatelessWidget {
 
 /// 群聊头像：48 圆角方块，按群名 hash 取色，显示 groups 图标。
 class _GroupAvatar extends StatelessWidget {
-  const _GroupAvatar({required this.name});
+  const _GroupAvatar({required this.name, this.imageUrl});
   final String name;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
+    if (imageUrl?.trim().isNotEmpty ?? false) {
+      return PortalAvatar(
+        seed: name,
+        size: 48,
+        imageUrl: imageUrl!.trim(),
+        shape: AvatarShape.squircle,
+      );
+    }
     final t = context.tk;
     final colors = [t.accent, t.primaryContainer, t.accentCool, t.danger];
     final bg = colors[name.hashCode.abs() % colors.length];

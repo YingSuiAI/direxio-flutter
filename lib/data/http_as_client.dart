@@ -1867,7 +1867,17 @@ class HttpAsClient implements AsClient {
   }
 
   static List<AsChannel> _parseChannels(Object? value) {
-    final raw = value as List? ?? const [];
+    Object? listValue = value;
+    if (listValue is Map) {
+      if (listValue.containsKey('channels')) {
+        listValue = listValue['channels'];
+      } else if (listValue.containsKey('results')) {
+        listValue = listValue['results'];
+      } else if (listValue.containsKey('items')) {
+        listValue = listValue['items'];
+      }
+    }
+    final raw = listValue as List? ?? const [];
     return raw
         .whereType<Map>()
         .map((item) => AsChannel.fromJson(item.cast<String, dynamic>()))

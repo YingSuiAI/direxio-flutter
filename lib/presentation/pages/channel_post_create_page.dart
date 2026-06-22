@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
+import '../channel/channel_post_media.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/auth_provider.dart';
@@ -25,10 +28,7 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
   final _ctrl = TextEditingController();
   bool _posting = false;
   bool _imageUploading = false;
-  String _imageUrl = '';
-  String _imageName = '';
-  String _imageMimeType = '';
-  Uint8List? _imagePreviewBytes;
+  final List<_SelectedPostImage> _images = [];
 
   @override
   void dispose() {
@@ -39,27 +39,26 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
   Future<void> _publish() async {
     final channelId = widget.channelId.trim();
     final body = _ctrl.text.trim();
-    if (channelId.isEmpty || (body.isEmpty && _imageUrl.isEmpty) || _posting) {
+    if (channelId.isEmpty || (body.isEmpty && _images.isEmpty) || _posting) {
       return;
     }
     setState(() => _posting = true);
     try {
-      final hasImage = _imageUrl.trim().isNotEmpty;
+      final mediaImages = [
+        for (final image in _images)
+          ChannelPostMediaImage(
+            url: image.url,
+            name: image.name,
+            mimeType: image.mimeType,
+            size: image.bytes.length,
+          ),
+      ];
+      final hasImage = mediaImages.isNotEmpty;
       final post = await ref.read(asClientProvider).createChannelPost(
             channelId,
             messageType: hasImage ? 'm.image' : 'text',
-            body: body.isEmpty ? _imageName : body,
-            media: hasImage
-                ? {
-                    'url': _imageUrl,
-                    'name': _imageName,
-                    'info': {
-                      if (_imageMimeType.isNotEmpty) 'mimetype': _imageMimeType,
-                      if (_imagePreviewBytes != null)
-                        'size': _imagePreviewBytes!.length,
-                    },
-                  }
-                : const {},
+            body: body.isEmpty ? mediaImages.first.name : body,
+            media: hasImage ? channelPostMediaForImages(mediaImages) : const {},
           );
       await ref
           .read(channelPostsProvider(channelId).notifier)
@@ -69,66 +68,87 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
     } catch (err) {
       if (!mounted) return;
       setState(() => _posting = false);
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('发表失败：$err')),
+        SnackBar(
+          content: Text(l10n?.channelPostPublishFailed('$err') ?? '发表失败：$err'),
+        ),
       );
     }
   }
 
   Future<void> _pickImage() async {
     if (_posting || _imageUploading) return;
+    final remaining = channelPostMaxImages - _images.length;
+    if (remaining <= 0) return;
     setState(() => _imageUploading = true);
     try {
-      final file = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
+      final files = await ImagePicker().pickMultiImage(
         imageQuality: 86,
         maxWidth: 1800,
         maxHeight: 1800,
         requestFullMetadata: false,
       );
-      if (file == null) return;
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) throw StateError('empty image bytes');
-      final mimeType = file.mimeType ?? _imageMimeTypeForName(file.name);
-      if (mounted) {
+      final selected = files.take(remaining).toList(growable: false);
+      if (selected.isEmpty) return;
+
+      for (final file in selected) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isEmpty) continue;
+        final name = file.name.trim().isEmpty ? 'channel-post.jpg' : file.name;
+        final mimeType = file.mimeType ?? _imageMimeTypeForName(name);
+        final uploaded = await ref.read(matrixClientProvider).uploadContent(
+              bytes,
+              filename: name,
+              contentType: mimeType,
+            );
+        if (!mounted) return;
         setState(() {
-          _imagePreviewBytes = bytes;
-          _imageName =
-              file.name.trim().isEmpty ? 'channel-post.jpg' : file.name;
-          _imageMimeType = mimeType;
+          if (_images.length >= channelPostMaxImages) return;
+          _images.add(
+            _SelectedPostImage(
+              bytes: bytes,
+              url: uploaded.toString(),
+              name: name,
+              mimeType: mimeType,
+            ),
+          );
         });
       }
-      final uploaded = await ref.read(matrixClientProvider).uploadContent(
-            bytes,
-            filename: _imageName.isEmpty ? 'channel-post.jpg' : _imageName,
-            contentType: mimeType,
-          );
-      if (!mounted) return;
-      setState(() => _imageUrl = uploaded.toString());
     } catch (err) {
       if (!mounted) return;
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('图片上传失败：$err')),
+        SnackBar(
+          content: Text(
+            l10n?.channelPostImageUploadFailed('$err') ?? '图片上传失败：$err',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _imageUploading = false);
     }
   }
 
-  void _removeImage() {
+  void _removeImage(int index) {
     if (_posting || _imageUploading) return;
-    setState(() {
-      _imagePreviewBytes = null;
-      _imageUrl = '';
-      _imageName = '';
-      _imageMimeType = '';
-    });
+    if (index < 0 || index >= _images.length) return;
+    setState(() => _images.removeAt(index));
   }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final topInset = MediaQuery.of(context).padding.top;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
       backgroundColor: t.bg,
       body: SafeArea(
@@ -149,7 +169,7 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
                         alignment: Alignment.centerLeft,
                       ),
                       child: Text(
-                        '取消',
+                        l10n?.commonCancel ?? '取消',
                         style: AppTheme.sans(
                           size: 15,
                           weight: FontWeight.w500,
@@ -174,7 +194,9 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
                           ),
                         ),
                         child: Text(
-                          _posting ? '发表中' : '发表',
+                          _posting
+                              ? l10n?.channelPostPublishing ?? '发表中'
+                              : l10n?.channelPostPublish ?? '发表',
                           style: AppTheme.sans(
                             size: 13,
                             weight: FontWeight.w500,
@@ -188,89 +210,147 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
               ),
             ),
             Expanded(
-              child: TextField(
-                controller: _ctrl,
-                autofocus: true,
-                cursorColor: t.accent,
-                minLines: null,
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                keyboardType: TextInputType.multiline,
-                style: AppTheme.sans(
-                  size: 15,
-                  weight: FontWeight.w500,
-                  color: t.text,
-                ).copyWith(height: 20 / 15),
-                decoration: InputDecoration(
-                  hintText: '发表帖子...',
-                  hintStyle: AppTheme.sans(
-                    size: 15,
-                    weight: FontWeight.w500,
-                    color: t.textMute.withValues(alpha: 0.62),
-                  ).copyWith(height: 20 / 15),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  errorBorder: InputBorder.none,
-                  focusedErrorBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.fromLTRB(
-                    30,
-                    topInset > 0 ? 14 : 22,
-                    30,
-                    24,
-                  ),
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
-              decoration: BoxDecoration(
-                color: t.bg,
-                border: Border(
-                  top: BorderSide(color: t.border.withValues(alpha: 0.48)),
-                ),
-              ),
-              child: Row(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(19, 17, 19, 24),
                 children: [
-                  IconButton(
-                    tooltip: '图片',
-                    onPressed: _posting || _imageUploading ? null : _pickImage,
-                    icon: _imageUploading
-                        ? SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: t.accent,
-                            ),
-                          )
-                        : Icon(Icons.image_outlined, color: t.text),
+                  _CreatePostImageGrid(
+                    images: _images,
+                    uploading: _imageUploading,
+                    onAdd: _pickImage,
+                    onRemove: _removeImage,
                   ),
-                  if (_imagePreviewBytes != null) ...[
-                    const SizedBox(width: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Image.memory(
-                        _imagePreviewBytes!,
-                        width: 44,
-                        height: 44,
-                        fit: BoxFit.cover,
-                      ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _ctrl,
+                    autofocus: true,
+                    cursorColor: t.accent,
+                    minLines: 4,
+                    maxLines: null,
+                    textAlignVertical: TextAlignVertical.top,
+                    keyboardType: TextInputType.multiline,
+                    style: AppTheme.sans(
+                      size: 15,
+                      weight: FontWeight.w500,
+                      color: t.text,
+                    ).copyWith(height: 20 / 15),
+                    decoration: InputDecoration(
+                      hintText: l10n?.channelPostPlaceholder ?? '发表帖子...',
+                      hintStyle: AppTheme.sans(
+                        size: 15,
+                        weight: FontWeight.w500,
+                        color: t.textMute.withValues(alpha: 0.62),
+                      ).copyWith(height: 20 / 15),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.only(left: 5),
                     ),
-                    IconButton(
-                      tooltip: '移除图片',
-                      onPressed: _removeImage,
-                      icon: Icon(Icons.close, color: t.textMute),
-                    ),
-                  ],
+                  ),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SelectedPostImage {
+  const _SelectedPostImage({
+    required this.bytes,
+    required this.url,
+    required this.name,
+    required this.mimeType,
+  });
+
+  final Uint8List bytes;
+  final String url;
+  final String name;
+  final String mimeType;
+}
+
+class _CreatePostImageGrid extends StatelessWidget {
+  const _CreatePostImageGrid({
+    required this.images,
+    required this.uploading,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final List<_SelectedPostImage> images;
+  final bool uploading;
+  final VoidCallback onAdd;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemSize = (constraints.maxWidth - 10) / 3;
+        return Wrap(
+          spacing: 5,
+          runSpacing: 5,
+          children: [
+            for (var i = 0; i < images.length; i++)
+              SizedBox.square(
+                dimension: itemSize,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.memory(images[i].bytes, fit: BoxFit.cover),
+                    Positioned(
+                      right: 4,
+                      top: 4,
+                      child: Material(
+                        color: t.text.withValues(alpha: 0.54),
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () => onRemove(i),
+                          child: Icon(
+                            Symbols.close,
+                            size: 18,
+                            color: t.surface,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (images.length < channelPostMaxImages)
+              SizedBox.square(
+                dimension: itemSize,
+                child: Material(
+                  color: t.surfaceHigh.withValues(alpha: 0.56),
+                  child: InkWell(
+                    onTap: uploading ? null : onAdd,
+                    child: Center(
+                      child: uploading
+                          ? SizedBox.square(
+                              dimension: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: t.accent,
+                              ),
+                            )
+                          : Icon(
+                              Symbols.add,
+                              size: 34,
+                              color: t.textMute.withValues(alpha: 0.72),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

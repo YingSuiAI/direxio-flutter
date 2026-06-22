@@ -254,5 +254,100 @@
   "groupInviteFallbackInviter": "They",
   "groupInviteJoinButton": "Join Group",
   "groupInviteJoiningButton": "Joining…",
-  "groupInviteAlreadyJoined": "You are already in this group"
+  "groupInviteAlreadyJoined": "You are already in this group",
+  "commonOk": "OK",
+  "commonRetry": "Retry",
+  "sessionExpiredTitle": "Signed in on another device",
+  "sessionExpiredMessage": "Please sign in again",
+  "chatRecordForwarded": "Chat record forwarded",
+  "chatRecordForwardFailed": "Forward failed: {error}",
+  "@chatRecordForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelFallbackTitle": "Channel",
+  "channelMissingTitle": "Channel not found",
+  "channelMissingSubtitle": "This channel may be private, deleted, or temporarily unreachable.",
+  "channelNoPublicContentTitle": "No public content yet",
+  "channelNoPublicContentSubtitle": "Join the channel to see future posts.",
+  "channelJoinFailed": "Failed to join channel: {error}",
+  "@channelJoinFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelJoinJoined": "Joined",
+  "channelJoinPending": "Pending review",
+  "channelJoinSyncing": "Syncing",
+  "channelJoinRetry": "Join again",
+  "channelJoinApply": "Request to join",
+  "channelJoinAction": "Join channel",
+  "channelJoinProcessing": "Processing",
+  "channelPostEmptyTitle": "No channel posts yet",
+  "channelPostEmptySubtitle": "Posts will appear here after publishing.",
+  "channelPostPublish": "Post",
+  "channelPostPublishing": "Posting",
+  "channelPostPlaceholder": "Write a post...",
+  "channelPostPublishFailed": "Failed to publish: {error}",
+  "@channelPostPublishFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelPostImageUploadFailed": "Image upload failed: {error}",
+  "@channelPostImageUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelPostDeleted": "Post deleted",
+  "channelPostDeleteFailed": "Failed to delete post: {error}",
+  "@channelPostDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelPostDeleteTooltip": "Delete post",
+  "channelPostType": "Post",
+  "channelPostDefaultTitle": "My post",
+  "channelPostExpandMore": "Expand",
+  "channelPostCollapse": "Collapse",
+  "channelPostCommentHint": "Write a comment...",
+  "channelPostDetailTitle": "Post Details",
+  "channelPostCommentLoadFailed": "Failed to load comments",
+  "channelPostNoMoreComments": "No more comments",
+  "channelPostIdCopied": "Post ID copied",
+  "channelPostReply": "Reply",
+  "channelPostCollapseComments": "Hide comments",
+  "channelPostCommentCount": "{count} comments",
+  "@channelPostCommentCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "channelPostViewComments": "View comments{countText}",
+  "@channelPostViewComments": {
+    "placeholders": {
+      "countText": {
+        "type": "String"
+      }
+    }
+  },
+  "channelPostMissingTitle": "Post not found",
+  "channelPostMissingSubtitle": "This post may have been deleted or has not synced to this device.",
+  "commonMe": "Me",
+  "commonJustNow": "Just now"
 }

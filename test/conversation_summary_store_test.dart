@@ -130,7 +130,7 @@ void main() {
     expect(entries.map((entry) => entry.roomId), ['!empty-group:p2p-im.com']);
   });
 
-  test('sorts pinned and agent summaries before recent normal summaries', () {
+  test('sorts agent summaries before pinned and recent normal summaries', () {
     final entries = mergeConversationSummaryEntries(
       cachedEntries: const [],
       liveEntries: const [
@@ -168,7 +168,7 @@ void main() {
 
     expect(
       entries.map((entry) => entry.roomId),
-      ['!pinned:p2p-im.com', '!agent:p2p-im.com', '!normal:p2p-im.com'],
+      ['!agent:p2p-im.com', '!pinned:p2p-im.com', '!normal:p2p-im.com'],
     );
   });
 
@@ -290,7 +290,7 @@ void main() {
       includeCachedOnlyEntries: false,
     );
 
-    expect(projection.displayEntries, [cached]);
+    expect(projection.displayEntries, isEmpty);
     expect(projection.storeEntries, isEmpty);
     expect(projection.shouldWriteStore, isTrue);
   });

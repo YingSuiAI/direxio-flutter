@@ -19,6 +19,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Follow/favorite/report actions: `follows.*`, `favorites.*`, `reports.submit`.
 - Group actions: `groups.create`, `groups.update`, `groups.invite`, `groups.join`, `groups.list`, `groups.members`, `groups.leave`, `groups.dissolve`, member moderation, mute, and invite policy actions.
 - Channel actions: `channels.create`, `channels.update`, `channels.join`, `channels.invite_grant.create`, `channels.invite`, `channels.list`, `channels.members`, `channels.leave`, `channels.dissolve`, moderation, mute, read marker, public search/detail/join request, posts, comments, and reactions.
+- Channel post responses may include `author_avatar_url` for the post author. Post media still travels in `media`/`media_json`; the UI uses the first post image as the post-list thumbnail when present.
 - Public channel join requests return `pending`, `rejected`, `approved`, `joining`, `joined`, or `join_failed`. Only `joined` is openable as a joined channel; `approved`/`joining` are still in-progress states.
 - Public profile/channel extension action: `users.public_channels`.
 - Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`.
@@ -56,6 +57,8 @@ This document records the current P2P product API / Matrix boundary used by the 
   - `join_failed` -> `join_failed`
   - `reject`, `rejected` -> `rejected`
 - Only normalized `joined` unlocks channel sending.
+- Channel list consumers hide terminal channel lifecycles: `deleted`, `left`,
+  `dissolve`, and `dissolved`, even if stale membership still says `joined`.
 
 ## Test Doubles
 

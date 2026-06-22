@@ -1198,6 +1198,282 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已在群里中'**
   String get groupInviteAlreadyJoined;
+
+  /// No description provided for @commonOk.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定'**
+  String get commonOk;
+
+  /// No description provided for @commonRetry.
+  ///
+  /// In zh, this message translates to:
+  /// **'重试'**
+  String get commonRetry;
+
+  /// No description provided for @sessionExpiredTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号在其他设备登录'**
+  String get sessionExpiredTitle;
+
+  /// No description provided for @sessionExpiredMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'请重新登录'**
+  String get sessionExpiredMessage;
+
+  /// No description provided for @chatRecordForwarded.
+  ///
+  /// In zh, this message translates to:
+  /// **'已转发聊天记录'**
+  String get chatRecordForwarded;
+
+  /// No description provided for @chatRecordForwardFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'转发失败：{error}'**
+  String chatRecordForwardFailed(String error);
+
+  /// No description provided for @channelFallbackTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道'**
+  String get channelFallbackTitle;
+
+  /// No description provided for @channelMissingTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道不存在'**
+  String get channelMissingTitle;
+
+  /// No description provided for @channelMissingSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'该频道可能是私密频道、已删除，或目标节点暂时不可达'**
+  String get channelMissingSubtitle;
+
+  /// No description provided for @channelNoPublicContentTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有公开内容'**
+  String get channelNoPublicContentTitle;
+
+  /// No description provided for @channelNoPublicContentSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入频道后可以查看后续发布内容'**
+  String get channelNoPublicContentSubtitle;
+
+  /// No description provided for @channelJoinFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入频道失败：{error}'**
+  String channelJoinFailed(String error);
+
+  /// No description provided for @channelJoinJoined.
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入'**
+  String get channelJoinJoined;
+
+  /// No description provided for @channelJoinPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'待审核'**
+  String get channelJoinPending;
+
+  /// No description provided for @channelJoinSyncing.
+  ///
+  /// In zh, this message translates to:
+  /// **'同步中'**
+  String get channelJoinSyncing;
+
+  /// No description provided for @channelJoinRetry.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新加入'**
+  String get channelJoinRetry;
+
+  /// No description provided for @channelJoinApply.
+  ///
+  /// In zh, this message translates to:
+  /// **'申请加入'**
+  String get channelJoinApply;
+
+  /// No description provided for @channelJoinAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入频道'**
+  String get channelJoinAction;
+
+  /// No description provided for @channelJoinProcessing.
+  ///
+  /// In zh, this message translates to:
+  /// **'处理中'**
+  String get channelJoinProcessing;
+
+  /// No description provided for @channelPostEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有频道内容'**
+  String get channelPostEmptyTitle;
+
+  /// No description provided for @channelPostEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'发布后会显示在这里'**
+  String get channelPostEmptySubtitle;
+
+  /// No description provided for @channelPostPublish.
+  ///
+  /// In zh, this message translates to:
+  /// **'发表'**
+  String get channelPostPublish;
+
+  /// No description provided for @channelPostPublishing.
+  ///
+  /// In zh, this message translates to:
+  /// **'发表中'**
+  String get channelPostPublishing;
+
+  /// No description provided for @channelPostPlaceholder.
+  ///
+  /// In zh, this message translates to:
+  /// **'发表帖子...'**
+  String get channelPostPlaceholder;
+
+  /// No description provided for @channelPostPublishFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'发表失败：{error}'**
+  String channelPostPublishFailed(String error);
+
+  /// No description provided for @channelPostImageUploadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片上传失败：{error}'**
+  String channelPostImageUploadFailed(String error);
+
+  /// No description provided for @channelPostDeleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子已删除'**
+  String get channelPostDeleted;
+
+  /// No description provided for @channelPostDeleteFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除帖子失败：{error}'**
+  String channelPostDeleteFailed(String error);
+
+  /// No description provided for @channelPostDeleteTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除帖子'**
+  String get channelPostDeleteTooltip;
+
+  /// No description provided for @channelPostType.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子'**
+  String get channelPostType;
+
+  /// No description provided for @channelPostDefaultTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'我发布的帖子'**
+  String get channelPostDefaultTitle;
+
+  /// No description provided for @channelPostExpandMore.
+  ///
+  /// In zh, this message translates to:
+  /// **'展开更多'**
+  String get channelPostExpandMore;
+
+  /// No description provided for @channelPostCollapse.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起'**
+  String get channelPostCollapse;
+
+  /// No description provided for @channelPostCommentHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入评论...'**
+  String get channelPostCommentHint;
+
+  /// No description provided for @channelPostDetailTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子详情'**
+  String get channelPostDetailTitle;
+
+  /// No description provided for @channelPostCommentLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论加载失败'**
+  String get channelPostCommentLoadFailed;
+
+  /// No description provided for @channelPostNoMoreComments.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有更多评论'**
+  String get channelPostNoMoreComments;
+
+  /// No description provided for @channelPostIdCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制帖子 ID'**
+  String get channelPostIdCopied;
+
+  /// No description provided for @channelPostReply.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复'**
+  String get channelPostReply;
+
+  /// No description provided for @channelPostCollapseComments.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起评论'**
+  String get channelPostCollapseComments;
+
+  /// No description provided for @channelPostCommentCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'共{count}条评论'**
+  String channelPostCommentCount(int count);
+
+  /// No description provided for @channelPostViewComments.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看评论{countText}'**
+  String channelPostViewComments(String countText);
+
+  /// No description provided for @channelPostMissingTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子不存在'**
+  String get channelPostMissingTitle;
+
+  /// No description provided for @channelPostMissingSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'该帖子可能已删除，或尚未同步到本机。'**
+  String get channelPostMissingSubtitle;
+
+  /// No description provided for @commonMe.
+  ///
+  /// In zh, this message translates to:
+  /// **'我'**
+  String get commonMe;
+
+  /// No description provided for @commonJustNow.
+  ///
+  /// In zh, this message translates to:
+  /// **'刚刚'**
+  String get commonJustNow;
 }
 
 class _AppLocalizationsDelegate

@@ -9,8 +9,10 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../channel/channel_inbox_data.dart';
 import '../channel/channel_join_flow.dart';
+import '../channel/channel_post_media.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
@@ -18,6 +20,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
+import '../providers/matrix_media_cache_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
@@ -159,13 +162,17 @@ class _ChannelPageState extends ConsumerState<ChannelPage> {
       );
       if (!mounted || !sent) return;
       _cancelSelection();
+      final l10n = _l10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已转发聊天记录')),
+        SnackBar(content: Text(l10n?.chatRecordForwarded ?? '已转发聊天记录')),
       );
     } on Object catch (err) {
       if (!mounted) return;
+      final l10n = _l10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('转发失败：$err')),
+        SnackBar(
+          content: Text(l10n?.chatRecordForwardFailed('$err') ?? '转发失败：$err'),
+        ),
       );
     }
   }
@@ -215,11 +222,12 @@ class _ChannelLoadingScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _l10n(context);
     return Scaffold(
       backgroundColor: _channelPageBackground(context),
       body: Column(
         children: [
-          GlassHeader.detail(title: '频道'),
+          GlassHeader.detail(title: l10n?.channelFallbackTitle ?? '频道'),
           Expanded(
             child: Center(
               child: CircularProgressIndicator(color: context.tk.accent),
@@ -249,6 +257,10 @@ String _matrixRoomAvatar(Client client, String roomId) {
 
 Color _channelPageBackground(BuildContext context) {
   return context.tk.bg;
+}
+
+AppLocalizations? _l10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
 }
 
 class _RealChannelPage extends ConsumerStatefulWidget {
@@ -305,6 +317,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _l10n(context);
     final channel = widget.channel;
     final postsAsync = ref.watch(channelPostsProvider(channel.id));
     final posts = postsAsync.valueOrNull ?? const <AsChannelPost>[];
@@ -322,7 +335,10 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
       body: Column(
         children: [
           GlassHeader.detail(
-            title: _postChannelTitle(channel.name),
+            title: _postChannelTitle(
+              channel.name,
+              fallback: _l10n(context)?.channelFallbackTitle ?? '频道',
+            ),
             titleTrailing: _channelTitleLock(context, channel.visibility),
             actions: [
               GlassHeaderButton(
@@ -339,10 +355,6 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 2, 16, 18),
                 children: [
-                  if (posts.isNotEmpty) ...[
-                    const _ChannelIntroPill(),
-                    const SizedBox(height: 20),
-                  ],
                   if (postsAsync.isLoading && postsAsync.valueOrNull == null)
                     const Padding(
                       padding: EdgeInsets.only(top: 48),
@@ -378,12 +390,12 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
                         ),
                       )
                   else
-                    const Padding(
-                      padding: EdgeInsets.only(top: 72),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 72),
                       child: _ChannelEmptyState(
                         icon: Symbols.campaign,
-                        title: '还没有频道内容',
-                        subtitle: '发布后会显示在这里',
+                        title: l10n?.channelPostEmptyTitle ?? '还没有频道内容',
+                        subtitle: l10n?.channelPostEmptySubtitle ?? '发布后会显示在这里',
                       ),
                     ),
                 ],
@@ -454,13 +466,18 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
             ),
       );
       if (!mounted) return;
+      final l10n = _l10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('帖子已删除')),
+        SnackBar(content: Text(l10n?.channelPostDeleted ?? '帖子已删除')),
       );
     } catch (error) {
       if (!mounted) return;
+      final l10n = _l10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('删除帖子失败：$error')),
+        SnackBar(
+          content:
+              Text(l10n?.channelPostDeleteFailed('$error') ?? '删除帖子失败：$error'),
+        ),
       );
     }
   }
@@ -544,6 +561,7 @@ class _PublicChannelScaffoldState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _l10n(context);
     return FutureBuilder<AsChannel>(
       future: _future,
       builder: (context, snapshot) {
@@ -553,7 +571,12 @@ class _PublicChannelScaffoldState
           body: Column(
             children: [
               GlassHeader.detail(
-                title: channel == null ? '频道' : _postChannelTitle(channel.name),
+                title: channel == null
+                    ? l10n?.channelFallbackTitle ?? '频道'
+                    : _postChannelTitle(
+                        channel.name,
+                        fallback: l10n?.channelFallbackTitle ?? '频道',
+                      ),
                 subtitle: channel?.homeDomain,
                 titleTrailing:
                     _channelTitleLock(context, channel?.visibility ?? ''),
@@ -580,21 +603,23 @@ class _PublicChannelScaffoldState
     }
     final channel = snapshot.data;
     if (snapshot.hasError || channel == null || channel.channelId.isEmpty) {
-      return const _ChannelEmptyState(
+      final l10n = _l10n(context);
+      return _ChannelEmptyState(
         icon: Symbols.search_off,
-        title: '频道不存在',
-        subtitle: '该频道可能是私密频道、已删除，或目标节点暂时不可达',
+        title: l10n?.channelMissingTitle ?? '频道不存在',
+        subtitle: l10n?.channelMissingSubtitle ?? '该频道可能是私密频道、已删除，或目标节点暂时不可达',
       );
     }
+    final l10n = _l10n(context);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-      children: const [
+      children: [
         Padding(
-          padding: EdgeInsets.only(top: 72),
+          padding: const EdgeInsets.only(top: 72),
           child: _ChannelEmptyState(
             icon: Symbols.campaign,
-            title: '还没有公开内容',
-            subtitle: '加入频道后可以查看后续发布内容',
+            title: l10n?.channelNoPublicContentTitle ?? '还没有公开内容',
+            subtitle: l10n?.channelNoPublicContentSubtitle ?? '加入频道后可以查看后续发布内容',
           ),
         ),
       ],
@@ -645,8 +670,10 @@ class _PublicChannelScaffoldState
     } catch (err) {
       if (!mounted) return;
       setState(() => _joining = false);
+      final l10n = _l10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加入频道失败：$err')),
+        SnackBar(
+            content: Text(l10n?.channelJoinFailed('$err') ?? '加入频道失败：$err')),
       );
     }
   }
@@ -670,9 +697,9 @@ Widget? _channelTitleLock(BuildContext context, String visibility) {
   );
 }
 
-String _postChannelTitle(String name) {
+String _postChannelTitle(String name, {String fallback = '频道'}) {
   final trimmed = name.trim();
-  if (trimmed.isEmpty) return '频道';
+  if (trimmed.isEmpty) return fallback;
   return trimmed.startsWith('#') ? trimmed.substring(1).trim() : trimmed;
 }
 
@@ -715,17 +742,18 @@ class _PublicChannelJoinBar extends StatelessWidget {
         status == asChannelMemberStatusJoining;
     final failed = status == asChannelMemberStatusJoinFailed;
     final approval = channel.joinPolicy == asChannelJoinPolicyApproval;
+    final l10n = _l10n(context);
     final label = joined
-        ? '已加入'
+        ? l10n?.channelJoinJoined ?? '已加入'
         : pending
-            ? '待审核'
+            ? l10n?.channelJoinPending ?? '待审核'
             : approved
-                ? '同步中'
+                ? l10n?.channelJoinSyncing ?? '同步中'
                 : failed
-                    ? '重新加入'
+                    ? l10n?.channelJoinRetry ?? '重新加入'
                     : approval
-                        ? '申请加入'
-                        : '加入频道';
+                        ? l10n?.channelJoinApply ?? '申请加入'
+                        : l10n?.channelJoinAction ?? '加入频道';
     return SafeArea(
       top: false,
       child: Container(
@@ -741,42 +769,13 @@ class _PublicChannelJoinBar extends StatelessWidget {
           child: FilledButton(
             onPressed: joined || pending || approved || joining ? null : onJoin,
             child: Text(
-              joining ? '处理中' : label,
+              joining ? l10n?.channelJoinProcessing ?? '处理中' : label,
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
                 color: t.onAccent,
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChannelIntroPill extends StatelessWidget {
-  const _ChannelIntroPill();
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          color: t.surfaceHover.withValues(alpha: 0.78),
-          borderRadius: BorderRadius.circular(9999),
-        ),
-        child: Text(
-          '频道帖子，成员可评论和互动',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTheme.sans(
-            size: 13,
-            weight: FontWeight.w500,
-            color: t.textMute.withValues(alpha: 0.56),
           ),
         ),
       ),
@@ -832,11 +831,13 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
   Widget build(BuildContext context) {
     final t = context.tk;
     final post = widget.post;
-    final title = _postTitle(post.body);
+    final title = _postTitle(context, post.body);
     final excerpt = _postExcerpt(post.body, title);
+    final images = channelPostImagesFromPost(post);
     final author = post.authorName.trim().isEmpty
         ? _localpartFromMxid(post.authorId)
         : post.authorName.trim();
+    final avatarUrl = _postListAvatarUrl(post, images);
     return InkWell(
       onTap: widget.onOpen,
       borderRadius: BorderRadius.circular(20),
@@ -859,7 +860,10 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _PostListAvatar(label: author),
+                _PostListAvatar(
+                  label: author,
+                  imageUrl: avatarUrl.isEmpty ? null : avatarUrl,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -919,10 +923,14 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
                 expanded: _expanded,
                 onToggle: () => setState(() => _expanded = !_expanded),
               ),
-              const SizedBox(height: 10),
             ] else ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 4),
             ],
+            if (images.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ChannelPostImageGrid(images: images),
+            ],
+            const SizedBox(height: 10),
             Row(
               children: [
                 _PostCommentInput(
@@ -977,9 +985,10 @@ class _PostRecallButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _l10n(context);
     final t = context.tk;
     return Tooltip(
-      message: '删除帖子',
+      message: l10n?.channelPostDeleteTooltip ?? '删除帖子',
       child: Material(
         color: t.surfaceHover,
         borderRadius: BorderRadius.circular(16),
@@ -1011,20 +1020,78 @@ class _PostRecallButton extends StatelessWidget {
 }
 
 class _PostListAvatar extends StatelessWidget {
-  const _PostListAvatar({required this.label});
+  const _PostListAvatar({required this.label, this.imageUrl});
 
   final String label;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tk;
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: t.secondaryContainer,
+    return SizedBox.square(
+      dimension: 40,
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
+        child: _PostListAvatarImage(label: label, imageUrl: imageUrl),
       ),
+    );
+  }
+}
+
+class _PostListAvatarImage extends ConsumerWidget {
+  const _PostListAvatarImage({required this.label, this.imageUrl});
+
+  final String label;
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = context.tk;
+    final url = imageUrl?.trim() ?? '';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return Image.network(
+        key: ValueKey('channel_post_avatar_$url'),
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _fallback(t),
+      );
+    }
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.isScheme('mxc')) {
+      return FutureBuilder(
+        future: ref
+            .read(matrixMediaBytesCacheProvider)
+            .read(ref.read(matrixClientProvider), uri),
+        builder: (context, snapshot) {
+          final bytes = snapshot.data;
+          if (bytes != null && bytes.isNotEmpty) {
+            return Image.memory(
+              bytes,
+              key: ValueKey('channel_post_avatar_$url'),
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+            );
+          }
+          if (snapshot.hasError) return _fallback(t);
+          return Container(
+            color: t.surfaceHigh,
+            alignment: Alignment.center,
+            child: SizedBox.square(
+              dimension: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: t.accent,
+              ),
+            ),
+          );
+        },
+      );
+    }
+    return _fallback(t);
+  }
+
+  Widget _fallback(PortalTokens t) {
+    return Container(
+      color: t.secondaryContainer,
       alignment: Alignment.center,
       child: Text(
         label.characters.isEmpty ? '' : label.characters.first,
@@ -1036,6 +1103,15 @@ class _PostListAvatar extends StatelessWidget {
       ),
     );
   }
+}
+
+String _postListAvatarUrl(
+  AsChannelPost post,
+  List<ChannelPostMediaImage> images,
+) {
+  final postAvatarUrl = images.isEmpty ? '' : images.first.url.trim();
+  if (postAvatarUrl.isNotEmpty) return postAvatarUrl;
+  return post.authorAvatarUrl.trim();
 }
 
 class _PostTypeBadge extends StatelessWidget {
@@ -1051,7 +1127,7 @@ class _PostTypeBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        '帖子',
+        _l10n(context)?.channelPostType ?? '帖子',
         style: AppTheme.sans(
           size: 8,
           weight: FontWeight.w500,
@@ -1140,6 +1216,7 @@ class _PostExpandControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _l10n(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -1153,7 +1230,9 @@ class _PostExpandControl extends StatelessWidget {
               const SizedBox(width: 6),
             ],
             Text(
-              expanded ? '收起' : '展开更多',
+              expanded
+                  ? l10n?.channelPostCollapse ?? '收起'
+                  : l10n?.channelPostExpandMore ?? '展开更多',
               style: AppTheme.sans(
                 size: 13,
                 weight: FontWeight.w500,
@@ -1183,6 +1262,7 @@ class _PostCommentInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _l10n(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -1196,7 +1276,7 @@ class _PostCommentInput extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
-          '输入评论...',
+          l10n?.channelPostCommentHint ?? '输入评论...',
           style: AppTheme.sans(
             size: 13,
             weight: FontWeight.w500,
@@ -1255,9 +1335,10 @@ class _PostStatButton extends StatelessWidget {
   }
 }
 
-String _postTitle(String body) {
+String _postTitle(BuildContext context, String body) {
+  final l10n = _l10n(context);
   final trimmed = body.trim();
-  if (trimmed.isEmpty) return '我发布的帖子';
+  if (trimmed.isEmpty) return l10n?.channelPostDefaultTitle ?? '我发布的帖子';
   final firstLine = trimmed.split(RegExp(r'[\r\n]')).first.trim();
   final sentenceEnd = firstLine.indexOf(RegExp(r'[。.!！?？]'));
   final candidate = sentenceEnd > 0

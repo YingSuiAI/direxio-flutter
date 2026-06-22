@@ -2209,6 +2209,9 @@ Future<void> _openAgentContactChat(
   if (roomId.isEmpty && isLoggedIn) {
     roomId = await _refreshAgentContactRoomId(ref, client);
   }
+  if (roomId.isEmpty && isLoggedIn) {
+    roomId = await _startAgentDirectChat(client);
+  }
   if (roomId.isEmpty) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -2223,10 +2226,28 @@ Future<void> _openAgentContactChat(
   context.push('/chat/${Uri.encodeComponent(roomId)}');
 }
 
+Future<String> _startAgentDirectChat(Client client) async {
+  final agentMxid = portalAgentMxidForClient(client);
+  if (agentMxid == null || agentMxid.trim().isEmpty) return '';
+  try {
+    return await client
+        .startDirectChat(
+          agentMxid,
+          waitForSync: false,
+          enableEncryption: false,
+        )
+        .timeout(const Duration(seconds: 10));
+  } catch (error) {
+    debugPrint('start Agent direct chat failed: $error');
+    return '';
+  }
+}
+
 Future<String> _refreshAgentContactRoomId(
   WidgetRef ref,
   Client client,
 ) async {
+  var refreshedRoomId = '';
   try {
     final bootstrap = await ref
         .read(asBootstrapRepositoryProvider)
@@ -2236,14 +2257,13 @@ Future<String> _refreshAgentContactRoomId(
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
           );
+      refreshedRoomId = bootstrap.agentRoomId.trim();
     }
   } catch (error) {
     debugPrint('refresh Agent bootstrap failed: $error');
   }
-  try {
-    await client.oneShotSync().timeout(const Duration(seconds: 8));
-  } catch (error) {
-    debugPrint('refresh Agent Matrix room sync failed: $error');
+  if (refreshedRoomId.isNotEmpty) {
+    return refreshedRoomId;
   }
   try {
     return _resolvedAgentContactRoomId(
@@ -2547,6 +2567,7 @@ class _SectionAction extends StatelessWidget {
 
 class _ContactFlatRow extends StatelessWidget {
   const _ContactFlatRow({
+    super.key,
     required this.leading,
     required this.title,
     required this.onTap,
@@ -2654,6 +2675,7 @@ class _AgentContactEntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _ContactFlatRow(
+      key: const ValueKey('contacts_agent_entry'),
       onTap: onTap,
       leading: Container(
         width: 28,

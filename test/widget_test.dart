@@ -4600,11 +4600,11 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('通讯录'));
     await tester.pump();
-    await tester.tap(find.text('Agent'));
+    await tester.tap(find.byKey(const ValueKey('contacts_agent_entry')));
     await tester.pumpAndSettle();
 
     expect(find.text('Agent 会话还未同步'), findsNothing);

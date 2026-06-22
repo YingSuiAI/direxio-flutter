@@ -635,6 +635,12 @@ class AsConversation {
   bool get canRemoveMembers => capabilities.removeMembers;
   bool get canLeave => capabilities.leave;
   bool get canDelete => capabilities.delete;
+  bool get canCreatePost => capabilities.postCreate;
+  bool get canCreateComment => capabilities.commentCreate;
+  bool get canToggleReaction => capabilities.reactionToggle;
+  bool get canRecallPost => capabilities.postRecall;
+  bool get canRecallComment => capabilities.commentRecall;
+  bool get commentsEnabled => capabilities.commentsEnabled;
 
   factory AsConversation.fromJson(Map<String, dynamic> json) {
     return AsConversation(
@@ -676,6 +682,12 @@ class AsConversationCapabilities {
     this.removeMembers = false,
     this.leave = false,
     this.delete = false,
+    this.postCreate = false,
+    this.commentCreate = false,
+    this.reactionToggle = false,
+    this.postRecall = false,
+    this.commentRecall = false,
+    this.commentsEnabled = false,
   });
 
   final bool open;
@@ -688,6 +700,12 @@ class AsConversationCapabilities {
   final bool removeMembers;
   final bool leave;
   final bool delete;
+  final bool postCreate;
+  final bool commentCreate;
+  final bool reactionToggle;
+  final bool postRecall;
+  final bool commentRecall;
+  final bool commentsEnabled;
 
   factory AsConversationCapabilities.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const AsConversationCapabilities();
@@ -702,6 +720,12 @@ class AsConversationCapabilities {
       removeMembers: json['remove_members'] == true,
       leave: json['leave'] == true,
       delete: json['delete'] == true,
+      postCreate: json['post_create'] == true,
+      commentCreate: json['comment_create'] == true,
+      reactionToggle: json['reaction_toggle'] == true,
+      postRecall: json['post_recall'] == true,
+      commentRecall: json['comment_recall'] == true,
+      commentsEnabled: json['comments_enabled'] == true,
     );
   }
 }
@@ -1232,6 +1256,8 @@ class AsChannelPost {
     this.commentCount = 0,
     this.reactionCount = 0,
     this.reactedByMe = false,
+    this.operation = const AsOperation(),
+    this.productConversation,
   });
 
   final String postId;
@@ -1247,6 +1273,8 @@ class AsChannelPost {
   final int commentCount;
   final int reactionCount;
   final bool reactedByMe;
+  final AsOperation operation;
+  final AsConversation? productConversation;
 
   factory AsChannelPost.fromJson(Map<String, dynamic> json) {
     return AsChannelPost(
@@ -1263,6 +1291,10 @@ class AsChannelPost {
       commentCount: _parseInt(json['comment_count']),
       reactionCount: _parseInt(json['reaction_count']),
       reactedByMe: json['reacted_by_me'] as bool? ?? false,
+      operation: AsOperation.fromJson(
+        (json['operation'] as Map?)?.cast<String, dynamic>(),
+      ),
+      productConversation: _parseConversation(json['conversation']),
     );
   }
 
@@ -1290,6 +1322,8 @@ class AsChannelReaction {
     required this.reaction,
     required this.active,
     required this.reactionCount,
+    this.operation = const AsOperation(),
+    this.productConversation,
   });
 
   final String postId;
@@ -1297,6 +1331,8 @@ class AsChannelReaction {
   final String reaction;
   final bool active;
   final int reactionCount;
+  final AsOperation operation;
+  final AsConversation? productConversation;
 
   factory AsChannelReaction.fromJson(Map<String, dynamic> json) {
     return AsChannelReaction(
@@ -1305,6 +1341,10 @@ class AsChannelReaction {
       reaction: json['reaction'] as String? ?? 'like',
       active: json['active'] as bool? ?? false,
       reactionCount: _parseInt(json['reaction_count']),
+      operation: AsOperation.fromJson(
+        (json['operation'] as Map?)?.cast<String, dynamic>(),
+      ),
+      productConversation: _parseConversation(json['conversation']),
     );
   }
 }
@@ -1361,6 +1401,8 @@ class AsChannelComment {
     this.mentions = const [],
     this.reactionCount = 0,
     this.reactedByMe = false,
+    this.operation = const AsOperation(),
+    this.productConversation,
   });
 
   final String commentId;
@@ -1379,6 +1421,8 @@ class AsChannelComment {
   final int originServerTs;
   final int reactionCount;
   final bool reactedByMe;
+  final AsOperation operation;
+  final AsConversation? productConversation;
 
   factory AsChannelComment.fromJson(Map<String, dynamic> json) {
     return AsChannelComment(
@@ -1398,6 +1442,10 @@ class AsChannelComment {
       originServerTs: _parseInt(json['origin_server_ts']),
       reactionCount: _parseInt(json['reaction_count']),
       reactedByMe: json['reacted_by_me'] as bool? ?? false,
+      operation: AsOperation.fromJson(
+        (json['operation'] as Map?)?.cast<String, dynamic>(),
+      ),
+      productConversation: _parseConversation(json['conversation']),
     );
   }
 }

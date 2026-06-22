@@ -15,6 +15,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
+import '../providers/product_conversations_provider.dart';
 
 const _detailBg = Color(0xFFFAFAFA);
 const _detailText = Color(0xFF262628);
@@ -268,7 +269,7 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
 
   Future<void> _sendComment(_PostDetailData detail) async {
     final body = _commentCtrl.text.trim();
-    if (body.isEmpty || _sending) return;
+    if (body.isEmpty || _sending || !detail.canCreateComment) return;
     setState(() => _sending = true);
     try {
       if (detail.realPost != null) {
@@ -309,6 +310,8 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
   }
 
   Future<void> _toggleCommentReaction(_PostComment comment) async {
+    final detail = _activeDetail;
+    if (detail?.canToggleReaction != true) return;
     final channelId = comment.channelId.trim();
     final postId = comment.postId.trim();
     final commentId = comment.commentId.trim();
@@ -341,7 +344,7 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
   }
 
   Future<void> _togglePostReaction(_PostDetailData detail) async {
-    if (detail.realPost == null) return;
+    if (detail.realPost == null || !detail.canToggleReaction) return;
     final channelId = detail.channelId.trim();
     final postId = detail.postId.trim();
     if (channelId.isEmpty || postId.isEmpty) return;
@@ -523,7 +526,10 @@ class _PostDetailCard extends StatelessWidget {
             reactedByMe: detail.reactedByMe,
             commentCount: detail.commentCount,
             alignEnd: true,
-            onLike: detail.realPost == null ? null : onPostReaction,
+            likeKey: ValueKey('channel_post_detail_like_${detail.postId}'),
+            onLike: detail.realPost == null || !detail.canToggleReaction
+                ? null
+                : onPostReaction,
           ),
           if (showComments) ...[
             const SizedBox(height: 18),
@@ -549,7 +555,9 @@ class _PostDetailCard extends StatelessWidget {
                   for (final comment in comments)
                     _CommentThreadRow(
                       comment: comment,
-                      onReaction: () => onCommentReaction(comment),
+                      onReaction: detail.canToggleReaction
+                          ? () => onCommentReaction(comment)
+                          : null,
                     ),
                   if (commentsLoadingMore)
                     const Padding(
@@ -581,11 +589,12 @@ class _PostDetailCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          _CommentInputRow(
-            controller: commentController,
-            sending: sending,
-            onSend: onSend,
-          ),
+          if (detail.canCreateComment)
+            _CommentInputRow(
+              controller: commentController,
+              sending: sending,
+              onSend: onSend,
+            ),
         ],
       ),
     );
@@ -685,6 +694,7 @@ class _PostStatsRow extends StatelessWidget {
     required this.reactedByMe,
     required this.commentCount,
     this.alignEnd = false,
+    this.likeKey,
     this.onLike,
   });
 
@@ -692,6 +702,7 @@ class _PostStatsRow extends StatelessWidget {
   final bool reactedByMe;
   final int commentCount;
   final bool alignEnd;
+  final Key? likeKey;
   final VoidCallback? onLike;
 
   @override
@@ -700,6 +711,7 @@ class _PostStatsRow extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         InkWell(
+          key: likeKey,
           onTap: onLike,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -740,7 +752,7 @@ class _CommentThreadRow extends StatelessWidget {
   });
 
   final _PostComment comment;
-  final Future<void> Function() onReaction;
+  final Future<void> Function()? onReaction;
 
   @override
   Widget build(BuildContext context) {
@@ -823,7 +835,9 @@ class _CommentThreadRow extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                       onTap: comment.commentId.trim().isEmpty
                           ? null
-                          : () => onReaction(),
+                          : onReaction == null
+                              ? null
+                              : () => onReaction!(),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(
@@ -1159,6 +1173,8 @@ class _PostDetailData {
     required this.reactionCount,
     required this.reactedByMe,
     required this.commentCount,
+    required this.canCreateComment,
+    required this.canToggleReaction,
     this.realPost,
   });
 
@@ -1172,6 +1188,8 @@ class _PostDetailData {
   final int reactionCount;
   final bool reactedByMe;
   final int commentCount;
+  final bool canCreateComment;
+  final bool canToggleReaction;
   final AsChannelPost? realPost;
 
   String get displayPostId {
@@ -1254,6 +1272,8 @@ _PostDetailData? _resolvePostDetail(
       reactionCount: realPost.reactionCount,
       reactedByMe: realPost.reactedByMe,
       commentCount: realPost.commentCount,
+      canCreateComment: realChannel.canCreateComment,
+      canToggleReaction: realChannel.canToggleReaction,
       realPost: realPost,
     );
   }
@@ -1311,9 +1331,12 @@ ChannelInboxItem? _findRealChannel(WidgetRef ref, String channelId) {
   final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
   if (bootstrap == null) return null;
   final client = ref.watch(matrixClientProvider);
+  final productConversations =
+      ref.watch(productConversationsProvider).valueOrNull ?? const [];
   final channels = ChannelInboxData.fromBootstrap(
     bootstrap,
     fallbackDomain: _clientServerName(client),
+    productConversations: productConversations,
     roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
     roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
   );

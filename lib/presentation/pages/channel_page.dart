@@ -18,6 +18,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/glass_header.dart';
@@ -182,9 +183,12 @@ ChannelInboxItem? _findRealChannel(WidgetRef ref, String channelId) {
   final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
   if (bootstrap == null) return null;
   final client = ref.watch(matrixClientProvider);
+  final productConversations =
+      ref.watch(productConversationsProvider).valueOrNull ?? const [];
   final channels = ChannelInboxData.fromBootstrap(
     bootstrap,
     fallbackDomain: _domainFromRoomId(channelId) ?? 'p2p-im.com',
+    productConversations: productConversations,
     roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
     roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
   );
@@ -307,7 +311,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
     _markLatestPostRead(channel, posts);
     return Scaffold(
       backgroundColor: _channelPageBackground(context),
-      floatingActionButton: !widget.multiSelect && channel.isOwned
+      floatingActionButton: !widget.multiSelect && channel.canCreatePost
           ? _ChannelPostCreateFab(
               key: const ValueKey('channel_post_create_fab'),
               onTap: () => context.push(
@@ -369,6 +373,8 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
                           onRecall: _canRecallPost(channel, post)
                               ? () => _recallPost(channel, post)
                               : null,
+                          canComment: channel.canCreateComment,
+                          canReact: channel.canToggleReaction,
                         ),
                       )
                   else
@@ -427,7 +433,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
   }
 
   bool _canRecallPost(ChannelInboxItem channel, AsChannelPost post) {
-    return channel.isOwned && post.postId.trim().isNotEmpty;
+    return channel.canRecallPost && post.postId.trim().isNotEmpty;
   }
 
   Future<void> _recallPost(ChannelInboxItem channel, AsChannelPost post) async {
@@ -797,6 +803,8 @@ class _RealChannelPostCard extends StatefulWidget {
   const _RealChannelPostCard({
     required this.channel,
     required this.post,
+    required this.canComment,
+    required this.canReact,
     this.onOpen,
     this.onReaction,
     this.onRecall,
@@ -804,6 +812,8 @@ class _RealChannelPostCard extends StatefulWidget {
 
   final ChannelInboxItem channel;
   final AsChannelPost post;
+  final bool canComment;
+  final bool canReact;
   final VoidCallback? onOpen;
   final Future<void> Function()? onReaction;
   final Future<void> Function()? onRecall;
@@ -913,14 +923,16 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
             ],
             Row(
               children: [
-                _PostCommentInput(onTap: widget.onOpen),
+                _PostCommentInput(
+                  onTap: widget.canComment ? widget.onOpen : null,
+                ),
                 const Spacer(),
                 _PostStatButton(
                   key: ValueKey('channel_post_like_${_realPostKey(post)}'),
                   icon: Symbols.favorite,
                   active: post.reactedByMe,
                   count: post.reactionCount,
-                  onTap: widget.onReaction == null
+                  onTap: !widget.canReact || widget.onReaction == null
                       ? null
                       : () => widget.onReaction!(),
                 ),

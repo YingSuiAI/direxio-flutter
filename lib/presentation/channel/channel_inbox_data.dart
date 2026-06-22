@@ -50,6 +50,12 @@ class ChannelInboxItem {
   final int pendingJoinCount;
   final AsConversation? productConversation;
 
+  bool get canCreatePost => productConversation?.canCreatePost ?? false;
+  bool get canCreateComment => productConversation?.canCreateComment ?? false;
+  bool get canToggleReaction => productConversation?.canToggleReaction ?? false;
+  bool get canRecallPost => productConversation?.canRecallPost ?? false;
+  bool get canRecallComment => productConversation?.canRecallComment ?? false;
+
   ChannelInboxItem copyWith({
     String? id,
     String? roomId,

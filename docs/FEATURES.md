@@ -20,6 +20,7 @@ This document is a current implementation inventory. It is not a roadmap and doe
 - Channel posts/comments/reactions have UI and P2P client contracts; production behavior depends on backend persistence.
 - Voice/video call UI and P2P call session flows exist; runtime behavior depends on platform permissions and Matrix/WebRTC availability.
 - Favorites, likes, comments, drafts, and history pages have UI paths and partial AS/local backing. Treat each list as real only where the code calls AS/Matrix directly.
+- Android offline push registers an FCM token as a Matrix HTTP pusher after login. The production gateway is `https://push.direxio.ai/_matrix/push/v1/notify`; local HTTP is allowed only for local development hosts.
 - MCP permission UI is local until wired to a server-backed policy endpoint.
 - Blacklist UI is local until server enforcement is implemented.
 

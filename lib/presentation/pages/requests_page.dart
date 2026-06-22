@@ -9,12 +9,10 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/friend_request_read_provider.dart';
-import '../groups/group_invite_join_flow.dart';
 import '../widgets/portal_avatar.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
-import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
 import '../../data/as_client.dart';
 import '../../data/well_known_service.dart';
@@ -241,58 +239,6 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     }
   }
 
-  Future<void> _acceptGroupInviteNotice(AsSyncPendingItem invite) async {
-    final roomId = invite.id.trim();
-    if (roomId.isEmpty || _busy) return;
-    setState(() => _busy = true);
-    try {
-      final group = await ref.read(asClientProvider).joinGroup(
-            roomId: roomId,
-            groupName: invite.title.trim(),
-          );
-      await recordProductConversationMutation(
-        ref,
-        group.productConversation,
-      );
-      final joinedRoomId = group.roomId.trim().isEmpty ? roomId : group.roomId;
-      await waitForJoinedGroupMatrixRoom(
-        roomId: joinedRoomId,
-        oneShotSync: ref.read(matrixClientProvider).oneShotSync,
-        refreshBootstrap: _refreshBootstrap,
-        hasJoinedMatrixRoom: (roomId) {
-          return ref
-                  .read(matrixClientProvider)
-                  .getRoomById(roomId)
-                  ?.membership ==
-              Membership.join;
-        },
-      );
-      if (!mounted) return;
-      setState(() {
-        _notice = '已加入群聊';
-        _noticeIsError = false;
-      });
-      final route = productConversationRoute(group.productConversation);
-      if (route == null) {
-        setState(() {
-          _notice = '群聊正在同步，请稍后重试';
-          _noticeIsError = false;
-        });
-        return;
-      }
-      context.push(route);
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _notice = '加入群聊失败：$e';
-          _noticeIsError = true;
-        });
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   Future<void> _sendInviteFromSearch() async {
     final input = _searchCtrl.text.trim();
     if (input.isEmpty || _busy) return;
@@ -401,9 +347,6 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       for (final request in syncCache.bootstrap?.pending.friendRequests ??
           const <AsSyncPendingItem>[])
         request.id,
-      for (final request in syncCache.bootstrap?.pending.groupInvites ??
-          const <AsSyncPendingItem>[])
-        request.id,
       for (final request in syncCache.bootstrap?.pending.channelNotices ??
           const <AsSyncPendingItem>[])
         request.id,
@@ -474,11 +417,6 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             !pendingInboundRoomIds.contains(request.id.trim()) &&
             !inviteRoomIds.contains(request.id.trim()))
           request,
-    ];
-    final pendingGroupInviteNotices = [
-      for (final request in syncCache.bootstrap?.pending.groupInvites ??
-          const <AsSyncPendingItem>[])
-        if (request.id.trim().isNotEmpty) request,
     ];
     final pendingChannelNotices = [
       for (final request in syncCache.bootstrap?.pending.channelNotices ??
@@ -559,7 +497,6 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       invites: invites,
                       contacts: pendingInboundContacts,
                       friendNotices: pendingFriendRequestNotices,
-                      groupInvites: pendingGroupInviteNotices,
                       channelNotices: pendingChannelNotices,
                       busy: _busy,
                       onOpenProfile: _openAddContactProfile,
@@ -567,7 +504,6 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       onReject: _reject,
                       onAcceptContact: _acceptContact,
                       onRejectContact: _rejectContact,
-                      onAcceptGroupInvite: _acceptGroupInviteNotice,
                     ),
                     if (pendingOutboundContacts.isNotEmpty) ...[
                       const _HiddenText('等待对方接受'),
@@ -1140,7 +1076,6 @@ class _PendingSection extends StatelessWidget {
     required this.invites,
     required this.contacts,
     required this.friendNotices,
-    required this.groupInvites,
     required this.channelNotices,
     required this.busy,
     required this.onOpenProfile,
@@ -1148,13 +1083,11 @@ class _PendingSection extends StatelessWidget {
     required this.onReject,
     required this.onAcceptContact,
     required this.onRejectContact,
-    required this.onAcceptGroupInvite,
   });
   final Client client;
   final List<Room> invites;
   final List<AsSyncContact> contacts;
   final List<AsSyncPendingItem> friendNotices;
-  final List<AsSyncPendingItem> groupInvites;
   final List<AsSyncPendingItem> channelNotices;
   final bool busy;
   final void Function(String mxid, String displayName) onOpenProfile;
@@ -1162,7 +1095,6 @@ class _PendingSection extends StatelessWidget {
   final void Function(Room) onReject;
   final void Function(AsSyncContact) onAcceptContact;
   final void Function(AsSyncContact) onRejectContact;
-  final void Function(AsSyncPendingItem) onAcceptGroupInvite;
 
   @override
   Widget build(BuildContext context) {
@@ -1226,22 +1158,6 @@ class _PendingSection extends StatelessWidget {
           imageUrl: null,
           onTap: null,
           onAccept: null,
-          onReject: null,
-        ),
-      );
-    }
-    for (final notice in groupInvites) {
-      final title = notice.title.trim();
-      final id = notice.id.trim();
-      final name = title.isEmpty ? '群聊邀请' : title;
-      rows.add(
-        _PendingRow(
-          name: name,
-          message: id.isEmpty ? '邀请加入群聊' : '邀请加入群聊 · $id',
-          seed: id.isEmpty ? name : id,
-          imageUrl: null,
-          onTap: null,
-          onAccept: busy ? null : () => onAcceptGroupInvite(notice),
           onReject: null,
         ),
       );

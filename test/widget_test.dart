@@ -6183,6 +6183,41 @@ void main() {
     expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
   });
 
+  testWidgets('home does not poll AS bootstrap by default while idle',
+      (tester) async {
+    final client = Client('DirexioPendingFriendNoticeNoDefaultPollTest')
+      ..setUserId('@owner:p2p-im.com');
+    final readStore = _MemoryFriendRequestReadStore();
+    final asClient = _RefreshingFriendRequestBootstrapAsClient();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          friendRequestReadStoreProvider.overrideWith((ref) async => readStore),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 1);
+
+    asClient.showPendingFriendRequest = true;
+    await tester.pump(const Duration(seconds: 12));
+    await tester.pump();
+
+    expect(asClient.syncBootstrapCalls, 1);
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
+  });
+
   testWidgets('new friend badge ignores refreshed AS pending group invites',
       (tester) async {
     final client = Client('DirexioPendingGroupInviteLiveRefreshTest')
@@ -6490,7 +6525,7 @@ void main() {
     expect(find.text('Alice'), findsOneWidget);
   });
 
-  testWidgets('new friends page refreshes AS pending group invites after sync',
+  testWidgets('new friends page ignores AS pending group invites after sync',
       (tester) async {
     final client = Client('DirexioRequestsLiveGroupInviteTest')
       ..setUserId('@owner:p2p-im.com');
@@ -6522,72 +6557,9 @@ void main() {
     await tester.pump();
 
     expect(asClient.syncBootstrapCalls, 2);
-    expect(find.text('实时群聊'), findsOneWidget);
-    expect(
-        find.text('邀请加入群聊 · !pending-group-live:p2p-im.com'), findsOneWidget);
-  });
-
-  testWidgets('new friends page can accept AS pending group invite',
-      (tester) async {
-    final client = Client(
-      'DirexioRequestsGroupInviteAcceptTest',
-      httpClient: MockClient((request) async {
-        return http.Response(
-          '{"next_batch":"s1","rooms":{}}',
-          200,
-          headers: {'content-type': 'application/json; charset=utf-8'},
-        );
-      }),
-    )..setUserId('@member:p2p-im.com');
-    client.homeserver = Uri.parse('https://p2p-im.com');
-    client.accessToken = 'test-token';
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 20, 9),
-      user: const AsSyncUser(userId: '@member:p2p-im.com'),
-      rooms: const [],
-      contacts: const [],
-      groups: const [],
-      channels: const [],
-      pending: const AsSyncPending(
-        friendRequests: [],
-        groupInvites: [
-          AsSyncPendingItem(
-            id: '!pending-group:p2p-im.com',
-            title: '项目群',
-            createdAt: null,
-          ),
-        ],
-        channelNotices: [],
-      ),
-    );
-    final asClient = _TrackingAsClient();
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider
-              .overrideWith(_LoggedInAuthStateNotifier.new),
-          asClientProvider.overrideWithValue(asClient),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
-        ],
-        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
-      ),
-    );
-    await tester.pump();
-
-    expect(find.text('项目群'), findsOneWidget);
-    await tester.tap(find.text('查看'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('接受'));
-    await tester.pumpAndSettle();
-
-    expect(asClient.joinGroupCalls, 1);
-    expect(asClient.joinedGroupRoomId, '!pending-group:p2p-im.com');
-    expect(asClient.joinedGroupName, '项目群');
-    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('暂无好友请求'), findsOneWidget);
+    expect(find.text('实时群聊'), findsNothing);
+    expect(find.textContaining('邀请加入群聊'), findsNothing);
   });
 
   testWidgets('new friends page still lists Matrix invites after AS bootstrap',
@@ -13447,8 +13419,7 @@ void main() {
     expect(find.text('没有找到包含「hidden-invite-needle」的内容'), findsOneWidget);
   });
 
-  testWidgets('me page presents origin niki-dev settings list',
-      (tester) async {
+  testWidgets('me page presents origin niki-dev settings list', (tester) async {
     final client = Client('DirexioTest');
 
     await tester.pumpWidget(
@@ -13625,8 +13596,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('me settings button opens unified settings page',
-      (tester) async {
+  testWidgets('me settings button opens unified settings page', (tester) async {
     final client = Client('DirexioTest');
     final router = GoRouter(
       initialLocation: '/home',

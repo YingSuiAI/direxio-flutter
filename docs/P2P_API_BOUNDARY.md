@@ -51,6 +51,9 @@ This document records the current P2P product API / Matrix boundary used by the 
   - `join`, `joined` -> `joined`
   - `invite`, `invited` -> `invite`
   - `pending` -> `pending`
+  - `approved` -> `approved`
+  - `joining` -> `joining`
+  - `join_failed` -> `join_failed`
   - `reject`, `rejected` -> `rejected`
 - Only normalized `joined` unlocks channel sending.
 

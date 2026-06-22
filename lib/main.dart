@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -15,6 +18,7 @@ import 'presentation/providers/as_event_stream_provider.dart';
 import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/bi_analytics_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
+import 'presentation/providers/push_notification_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
 import 'presentation/widgets/user_action_debounce.dart';
 
@@ -24,7 +28,8 @@ bool _sessionExpiredDialogShowing = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await _warmAppFonts();
+  await _initializeAndroidFcm();
+  await _warmAppFontsSafely();
   // Web 上禁用浏览器原生右键菜单（翻译/检查等），让我们自己的
   // chat-ctx / msg-ctx 菜单不被遮挡。
   if (kIsWeb) {
@@ -45,6 +50,53 @@ void main() async {
   );
 }
 
+bool get _androidFcmSupported {
+  return !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+}
+
+Future<void> _initializeAndroidFcm() async {
+  if (!_androidFcmSupported) return;
+  try {
+    await Firebase.initializeApp().timeout(const Duration(seconds: 4));
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (error, stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'p2p-client startup',
+        context: ErrorDescription('initializing Firebase Messaging'),
+      ),
+    );
+  }
+}
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (_androidFcmSupported) {
+    await Firebase.initializeApp();
+  }
+  debugPrint(
+    '[push-notification] background FCM data=${message.data} '
+    'has_notification=${message.notification != null}',
+  );
+}
+
+Future<void> _warmAppFontsSafely() async {
+  try {
+    await _warmAppFonts().timeout(const Duration(seconds: 4));
+  } catch (error, stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'p2p-client startup',
+        context: ErrorDescription('warming app fonts'),
+      ),
+    );
+  }
+}
+
 Future<void> _warmAppFonts() async {
   final loader = FontLoader(AppTheme.fontFamily)
     ..addFont(rootBundle.load(_appFontAsset));
@@ -61,6 +113,7 @@ class PortalApp extends ConsumerWidget {
     final themeMode = ref.watch(appThemeProvider);
     ref.watch(asEventStreamRefreshProvider);
     ref.watch(messageSoundControllerProvider);
+    ref.watch(pushNotificationBootstrapProvider);
     ref.listen<int>(sessionExpiredNoticeProvider, (previous, next) {
       if (previous == null || next <= previous) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {

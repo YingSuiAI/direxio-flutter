@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "154451393501",
+    "project_id": "p2p-im-portal",
+    "storage_bucket": "p2p-im-portal.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:154451393501:android:19b9e055ed2421a8a9d434",
+        "android_client_info": {
+          "package_name": "com.direxio.ai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAqrv9mp6c5sKQLXV-5-KftArwxAI5Vzlg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:154451393501:android:88fa779dc9d34406a9d434",
+        "android_client_info": {
+          "package_name": "com.example.p2p_portal_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAqrv9mp6c5sKQLXV-5-KftArwxAI5Vzlg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

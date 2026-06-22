@@ -14,6 +14,7 @@ import '../../data/as_client.dart';
 import '../../data/http_as_client.dart';
 import '../../data/local_endpoint_resolver.dart';
 import '../../data/matrix_privacy_sync.dart';
+import '../../data/matrix_push_registration.dart';
 import '../../data/matrix_token_refreshing_http_client.dart';
 import '../../data/well_known_service.dart';
 import '../../data/bi_analytics_service.dart';
@@ -1979,6 +1980,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final client = ref.read(matrixClientProvider);
     final lastHomeserver = await _storage.read(key: lastLoginHomeserverKey) ??
         await _storage.read(key: 'matrix_homeserver');
+    try {
+      await unregisterStoredAndroidFcmMatrixPusher(client);
+    } catch (e) {
+      debugPrint('Matrix pusher unregister during logout failed: $e');
+    }
     await _logoutMatrixSessionPreservingStore(client);
     await _clearUserScopedLocalState(
       client,

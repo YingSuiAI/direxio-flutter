@@ -4,7 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+    show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -28,11 +28,8 @@ bool _sessionExpiredDialogShowing = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (_androidFcmSupported) {
-    await Firebase.initializeApp();
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  }
-  await _warmAppFonts();
+  await _initializeAndroidFcm();
+  await _warmAppFontsSafely();
   // Web 上禁用浏览器原生右键菜单（翻译/检查等），让我们自己的
   // chat-ctx / msg-ctx 菜单不被遮挡。
   if (kIsWeb) {
@@ -57,10 +54,46 @@ bool get _androidFcmSupported {
   return !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 }
 
+Future<void> _initializeAndroidFcm() async {
+  if (!_androidFcmSupported) return;
+  try {
+    await Firebase.initializeApp().timeout(const Duration(seconds: 4));
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (error, stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'p2p-client startup',
+        context: ErrorDescription('initializing Firebase Messaging'),
+      ),
+    );
+  }
+}
+
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (_androidFcmSupported) {
     await Firebase.initializeApp();
+  }
+  debugPrint(
+    '[push-notification] background FCM data=${message.data} '
+    'has_notification=${message.notification != null}',
+  );
+}
+
+Future<void> _warmAppFontsSafely() async {
+  try {
+    await _warmAppFonts().timeout(const Duration(seconds: 4));
+  } catch (error, stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'p2p-client startup',
+        context: ErrorDescription('warming app fonts'),
+      ),
+    );
   }
 }
 

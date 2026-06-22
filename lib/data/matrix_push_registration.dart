@@ -38,11 +38,24 @@ Future<void> registerAndroidFcmMatrixPusher({
   required Client client,
   required String fcmToken,
 }) async {
-  if (!androidFcmMatrixPushSupported) return;
+  if (!androidFcmMatrixPushSupported) {
+    debugPrint('[push-registration] skip: not running on Android');
+    return;
+  }
   final token = fcmToken.trim();
-  if (token.isEmpty) return;
+  if (token.isEmpty) {
+    debugPrint('[push-registration] skip: empty FCM token');
+    return;
+  }
   final userId = client.userID?.trim() ?? '';
-  if (userId.isEmpty || client.accessToken?.trim().isEmpty != false) return;
+  if (userId.isEmpty) {
+    debugPrint('[push-registration] skip: Matrix user is not logged in');
+    return;
+  }
+  if (client.accessToken?.trim().isEmpty != false) {
+    debugPrint('[push-registration] skip: Matrix access token is missing');
+    return;
+  }
   final gatewayUrl = direxioPushGatewayUrl.trim();
   final gatewayUri = Uri.tryParse(gatewayUrl);
   if (gatewayUri == null || !isAllowedMatrixPushGatewayUrl(gatewayUrl)) {
@@ -59,9 +72,21 @@ Future<void> registerAndroidFcmMatrixPusher({
   if (previousToken.isNotEmpty &&
       previousToken != token &&
       previousUserId == userId) {
-    await _deleteMatrixPusher(client, previousToken);
+    debugPrint(
+      '[push-registration] deleting previous server Matrix pusher '
+      'app_id=$direxioMatrixPusherAppId token=${_redactToken(previousToken)}',
+    );
+    await _deleteServerMatrixPusher(client, previousToken);
   }
 
+  debugPrint(
+    '[push-registration] registering Matrix pusher '
+    'app_id=$direxioMatrixPusherAppId '
+    'url=$gatewayUrl '
+    'user_id=$userId '
+    'device_id=${client.deviceID ?? ''} '
+    'token=${_redactToken(token)}',
+  );
   await client.postPusher(
     Pusher(
       appId: direxioMatrixPusherAppId,
@@ -90,6 +115,10 @@ Future<void> registerAndroidFcmMatrixPusher({
   );
   await prefs.setString(_storedPushTokenKey, token);
   await prefs.setString(_storedPushUserIdKey, userId);
+  debugPrint(
+    '[push-registration] Matrix pusher registered '
+    'app_id=$direxioMatrixPusherAppId token=${_redactToken(token)}',
+  );
 }
 
 bool _isLocalDevelopmentHost(String host) {
@@ -114,17 +143,41 @@ bool _isLocalDevelopmentHost(String host) {
 }
 
 Future<void> unregisterStoredAndroidFcmMatrixPusher(Client client) async {
-  if (!androidFcmMatrixPushSupported) return;
+  if (!androidFcmMatrixPushSupported) {
+    debugPrint('[push-registration] unregister skip: not running on Android');
+    return;
+  }
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString(_storedPushTokenKey)?.trim() ?? '';
-  if (token.isNotEmpty && client.accessToken?.trim().isNotEmpty == true) {
-    await _deleteMatrixPusher(client, token);
+  if (token.isEmpty) {
+    debugPrint('[push-registration] unregister skip: no stored FCM token');
+    await prefs.remove(_storedPushTokenKey);
+    await prefs.remove(_storedPushUserIdKey);
+    return;
   }
+  if (client.accessToken?.trim().isNotEmpty != true) {
+    debugPrint(
+      '[push-registration] server pusher unregister skipped: '
+      'Matrix access token is missing app_id=$direxioMatrixPusherAppId '
+      'token=${_redactToken(token)}',
+    );
+    return;
+  }
+  debugPrint(
+    '[push-registration] unregistering server Matrix pusher via '
+    '/_matrix/client/v3/pushers/set kind=null '
+    'app_id=$direxioMatrixPusherAppId token=${_redactToken(token)}',
+  );
+  await _deleteServerMatrixPusher(client, token);
+  debugPrint(
+    '[push-registration] server Matrix pusher unregistered '
+    'app_id=$direxioMatrixPusherAppId token=${_redactToken(token)}',
+  );
   await prefs.remove(_storedPushTokenKey);
   await prefs.remove(_storedPushUserIdKey);
 }
 
-Future<void> _deleteMatrixPusher(Client client, String token) async {
+Future<void> _deleteServerMatrixPusher(Client client, String token) async {
   await client.deletePusher(
     PusherId(
       appId: direxioMatrixPusherAppId,
@@ -137,4 +190,10 @@ String _deviceDisplayName(Client client) {
   final deviceId = client.deviceID?.trim() ?? '';
   if (deviceId.isEmpty) return 'Android device';
   return 'Android $deviceId';
+}
+
+String _redactToken(String token) {
+  final clean = token.trim();
+  if (clean.length <= 12) return '<redacted:${clean.length}>';
+  return '${clean.substring(0, 6)}...${clean.substring(clean.length - 6)}';
 }

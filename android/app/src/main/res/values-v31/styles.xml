@@ -11,7 +11,7 @@
     </style>
 
     <style name="NormalTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/normal_window_background</item>
+        <item name="android:windowBackground">@drawable/launch_background</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">@color/normal_window_background</item>
         <item name="android:statusBarColor">@color/normal_window_background</item>

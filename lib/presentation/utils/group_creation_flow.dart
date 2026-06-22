@@ -21,6 +21,7 @@ import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
+import '../groups/group_invite_content.dart';
 import '../widgets/m3/m3_search_field.dart';
 import '../widgets/avatar_adjust_sheet.dart';
 import '../widgets/portal_avatar.dart';
@@ -78,6 +79,8 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
         );
     final roomId = group.roomId;
     var productConversation = group.productConversation;
+    final invitedContacts =
+        _contactsForInviteMxids(contacts, result.inviteMxids);
     if (result.inviteMxids.isNotEmpty) {
       final invitedGroup = await ref.read(asClientProvider).inviteGroupMembers(
             roomId: roomId,
@@ -85,8 +88,20 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
           );
       productConversation =
           invitedGroup.productConversation ?? productConversation;
+      _sendGroupInviteCards(
+        client,
+        contacts: invitedContacts,
+        groupRoomId: roomId,
+        groupName: group.name.trim().isEmpty ? result.name : group.name,
+      );
     }
-    await recordProductConversationMutation(ref, productConversation);
+    final resolvedConversation = productConversation ??
+        _fallbackGroupConversation(
+          group,
+          fallbackName: result.name,
+          avatarUrl: ownerAvatarUrl,
+          inviteCount: result.inviteMxids.length,
+        );
     _ensureOptimisticGroupRoom(
       client,
       roomId: roomId,
@@ -100,6 +115,7 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
       fallbackName: result.name,
       avatarUrl: ownerAvatarUrl,
     );
+    await recordProductConversationMutation(ref, resolvedConversation);
     unawaited(_refreshCreatedGroupBootstrap(ref));
     if (ref.read(groupCreationSyncAfterCreateProvider)) {
       unawaited(client.oneShotSync().catchError((Object e) {
@@ -107,7 +123,10 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
       }));
     }
     if (context.mounted) {
-      final route = productConversationRoute(group.productConversation);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('群聊已创建')),
+      );
+      final route = productConversationRoute(resolvedConversation);
       if (route == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('群聊正在同步，请稍后重试')),
@@ -122,6 +141,126 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
       SnackBar(content: Text('创建失败: $e')),
     );
   }
+}
+
+List<AsSyncContact> _contactsForInviteMxids(
+  List<AsSyncContact> contacts,
+  List<String> inviteMxids,
+) {
+  final selected = inviteMxids
+      .map((mxid) => mxid.trim())
+      .where((mxid) => mxid.isNotEmpty)
+      .toSet();
+  return [
+    for (final contact in contacts)
+      if (selected.contains(contact.userId.trim())) contact,
+  ];
+}
+
+void _sendGroupInviteCards(
+  Client client, {
+  required List<AsSyncContact> contacts,
+  required String groupRoomId,
+  required String groupName,
+}) {
+  final roomId = groupRoomId.trim();
+  if (roomId.isEmpty || contacts.isEmpty) return;
+  final title = groupName.trim().isEmpty ? '群聊' : groupName.trim();
+  final inviterMxid = client.userID?.trim() ?? '';
+  final sends = [
+    for (final contact in contacts)
+      _sendSingleGroupInviteCard(
+        client,
+        contact: contact,
+        groupRoomId: roomId,
+        groupName: title,
+        inviterMxid: inviterMxid,
+      ),
+  ];
+  unawaited(_observeGroupInviteCardSends(client, sends));
+}
+
+Future<void> _observeGroupInviteCardSends(
+  Client client,
+  List<Future<bool>> sends,
+) async {
+  final results = await Future.wait(sends);
+  final sent = results.where((sent) => sent).length;
+  final failed = results.length - sent;
+  if (sent > 0) {
+    unawaited(client.oneShotSync().catchError((Object e) {
+      debugPrint('sync after group invite cards failed: $e');
+    }));
+  }
+  if (failed > 0) {
+    debugPrint(
+      'group create invite cards partially failed: sent=$sent failed=$failed',
+    );
+  }
+}
+
+Future<bool> _sendSingleGroupInviteCard(
+  Client client, {
+  required AsSyncContact contact,
+  required String groupRoomId,
+  required String groupName,
+  required String inviterMxid,
+}) async {
+  final directRoomId = contact.roomId.trim();
+  if (directRoomId.isEmpty) {
+    return false;
+  }
+  final directRoom = client.getRoomById(directRoomId);
+  if (directRoom == null) {
+    return false;
+  }
+  try {
+    await directRoom.sendEvent({
+      'msgtype': GroupInviteContent.msgTypeV1,
+      'body': '邀请加入群聊\n$groupName',
+      'group_room_id': groupRoomId,
+      'group_name': groupName,
+      if (inviterMxid.isNotEmpty) 'inviter_mxid': inviterMxid,
+      'direct_room_id': directRoomId,
+    });
+    return true;
+  } on Object catch (e) {
+    debugPrint('send group invite card after group create failed: $e');
+    return false;
+  }
+}
+
+AsConversation _fallbackGroupConversation(
+  AsGroupResult group, {
+  required String fallbackName,
+  required String avatarUrl,
+  required int inviteCount,
+}) {
+  final roomId = group.roomId.trim();
+  return AsConversation(
+    conversationId: group.operation.conversationId.trim(),
+    roomId: roomId,
+    kind: asConversationKindGroup,
+    lifecycle: 'active',
+    title: group.name.trim().isEmpty ? fallbackName : group.name.trim(),
+    avatarUrl: avatarUrl.trim(),
+    lastActivityAt: DateTime.now().toUtc(),
+    memberCount: group.memberCount > 0 ? group.memberCount : inviteCount + 1,
+    membership: 'join',
+    role: group.role.trim().isEmpty ? 'owner' : group.role.trim(),
+    hydrationState: 'ready',
+    capabilities: const AsConversationCapabilities(
+      open: true,
+      send: true,
+      sendMedia: true,
+      call: true,
+      invite: true,
+      manageMembers: true,
+      rename: true,
+      removeMembers: true,
+      leave: true,
+    ),
+  );
 }
 
 Future<String> _currentUserAvatarUrl(WidgetRef ref) async {

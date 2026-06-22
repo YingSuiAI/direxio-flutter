@@ -8282,6 +8282,113 @@ void main() {
     expect(find.text('Vivid Dusk'), findsNothing);
   });
 
+  testWidgets('groups list hides non-joined group projections', (tester) async {
+    final client = Client('DirexioGroupsHideNonJoinedStatusTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 22, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!joined:p2p-im.com',
+          name: '已加入群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: 'joined',
+        ),
+        AsSyncRoomSummary(
+          roomId: '!invite:p2p-im.com',
+          name: '待加入群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: 'invite',
+        ),
+        AsSyncRoomSummary(
+          roomId: '!pending:p2p-im.com',
+          name: '等待同意群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: 'pending',
+        ),
+        AsSyncRoomSummary(
+          roomId: '!rejected:p2p-im.com',
+          name: '未同意群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: 'rejected',
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(const [
+              AsConversation(
+                conversationId: 'conv_joined',
+                roomId: '!joined:p2p-im.com',
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '已加入群',
+                avatarUrl: '',
+                membership: 'joined',
+              ),
+              AsConversation(
+                conversationId: 'conv_invite',
+                roomId: '!invite:p2p-im.com',
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '待加入群',
+                avatarUrl: '',
+                membership: 'invite',
+              ),
+              AsConversation(
+                conversationId: 'conv_pending',
+                roomId: '!pending:p2p-im.com',
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '等待同意群',
+                avatarUrl: '',
+                membership: 'pending',
+              ),
+              AsConversation(
+                conversationId: 'conv_rejected',
+                roomId: '!rejected:p2p-im.com',
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '未同意群',
+                avatarUrl: '',
+                membership: 'rejected',
+              ),
+            ]),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('已加入群'), findsOneWidget);
+    expect(find.text('待加入群'), findsNothing);
+    expect(find.text('等待同意群'), findsNothing);
+    expect(find.text('未同意群'), findsNothing);
+  });
+
   testWidgets('groups list hides bootstrap groups missing ProductCore record',
       (tester) async {
     final client = Client('DirexioGroupsRequireProductConversationTest')
@@ -8478,11 +8585,25 @@ void main() {
 
   testWidgets('group creation invites only selected accepted contacts',
       (tester) async {
+    final sentInviteCards = <Map<String, dynamic>>[];
+    final requestPaths = <String>[];
     final client = Client(
       'DirexioGroupCreateInviteTest',
       httpClient: MockClient((request) async {
+        requestPaths.add(request.url.path);
+        if (request.url.path.contains('/send/m.room.message/')) {
+          sentInviteCards.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response(
+            jsonEncode({
+              'event_id':
+                  '\$group-create-invite-card-${sentInviteCards.length}',
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
         return http.Response(
-          '{}',
+          '{"next_batch":"s1","rooms":{}}',
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
@@ -8490,6 +8611,18 @@ void main() {
     )..setUserId('@owner:p2p-im.com');
     client.homeserver = Uri.parse('https://p2p-im.com');
     client.accessToken = 'test-token';
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-liyanan.com',
+      peerName: 'Alice Chen',
+    );
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!bob:p2p-im.com',
+      peerMxid: '@bob:p2p-liyanan.com',
+      peerName: 'Bob Lin',
+    );
     final asClient = _TrackingAsClient();
 
     final bootstrap = AsSyncBootstrap(
@@ -8603,6 +8736,14 @@ void main() {
 
     await tester.tap(find.text('完成创建'));
     await tester.pumpAndSettle();
+    for (var i = 0; i < 10 && sentInviteCards.length < 2; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    for (var i = 0;
+        i < 10 && client.getRoomById('!new-group:p2p-im.com') == null;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
 
     expect(asClient.createdGroupName, 'Alice Chen、Bob Lin的群聊');
     expect(
@@ -8615,7 +8756,18 @@ void main() {
       asClient.invitedGroupMembers,
       ['@alice:p2p-liyanan.com', '@bob:p2p-liyanan.com'],
     );
-    expect(asClient.syncBootstrapCalls, 1);
+    expect(sentInviteCards, hasLength(2), reason: requestPaths.join('\n'));
+    expect(
+      sentInviteCards.map((body) => body['direct_room_id']).toSet(),
+      {'!alice:p2p-im.com', '!bob:p2p-im.com'},
+    );
+    for (final body in sentInviteCards) {
+      expect(body['msgtype'], 'p2p.group.invite.v1');
+      expect(body['group_room_id'], '!new-group:p2p-im.com');
+      expect(body['group_name'], 'Alice Chen、Bob Lin的群聊');
+      expect(body['inviter_mxid'], '@owner:p2p-im.com');
+      expect(body['body'], '邀请加入群聊\nAlice Chen、Bob Lin的群聊');
+    }
     final createdRoom = client.getRoomById('!new-group:p2p-im.com');
     expect(createdRoom, isNotNull);
     expect(createdRoom!.avatar?.toString(), 'mxc://p2p-im.com/owner-avatar');

@@ -45,6 +45,25 @@ void main() {
     );
   });
 
+  test('does not play for muted conversations', () {
+    expect(
+      shouldPlayMessageSound(
+        _messageUpdate(sender: '@alice:p2p-im.com'),
+        currentUserId: '@owner:p2p-im.com',
+        mutedConversationIds: {'!room:p2p-im.com'},
+      ),
+      isFalse,
+    );
+    expect(
+      shouldPlayMessageSound(
+        _messageUpdate(sender: '@alice:p2p-im.com'),
+        currentUserId: '@owner:p2p-im.com',
+        mutedConversationIds: {'!other:p2p-im.com'},
+      ),
+      isTrue,
+    );
+  });
+
   test('message vibration uses mobile-compatible pattern', () async {
     final patterns = <List<int>>[];
     final player = MessageVibrationPlayer(

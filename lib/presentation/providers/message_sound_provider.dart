@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import 'package:vibration/vibration.dart';
 
 import 'auth_provider.dart';
+import 'conversation_preferences_provider.dart';
 import 'message_notification_preferences_provider.dart';
 
 const _messageSoundAsset = '0.m4a';
@@ -25,6 +26,7 @@ final messageVibrationPlayerProvider = Provider<MessageVibrationPlayer>((ref) {
 
 final messageSoundControllerProvider = Provider<void>((ref) {
   final preferences = ref.watch(messageNotificationPreferencesProvider);
+  final mutedConversationIds = ref.watch(mutedConversationIdsProvider);
   if (preferences.doNotDisturb ||
       (!preferences.messageSound && !preferences.messageVibration)) {
     return;
@@ -36,7 +38,13 @@ final messageSoundControllerProvider = Provider<void>((ref) {
 
   DateTime? lastPlayedAt;
   final subscription = client.onEvent.stream.listen((update) {
-    if (!shouldPlayMessageSound(update, currentUserId: client.userID)) return;
+    if (!shouldPlayMessageSound(
+      update,
+      currentUserId: client.userID,
+      mutedConversationIds: mutedConversationIds,
+    )) {
+      return;
+    }
 
     final now = DateTime.now();
     final previous = lastPlayedAt;
@@ -56,10 +64,17 @@ final messageSoundControllerProvider = Provider<void>((ref) {
 });
 
 @visibleForTesting
-bool shouldPlayMessageSound(EventUpdate update,
-    {required String? currentUserId}) {
+bool shouldPlayMessageSound(
+  EventUpdate update, {
+  required String? currentUserId,
+  Set<String> mutedConversationIds = const {},
+}) {
   if (update.type != EventUpdateType.timeline &&
       update.type != EventUpdateType.decryptedTimelineQueue) {
+    return false;
+  }
+  final roomId = update.roomID.trim();
+  if (roomId.isNotEmpty && mutedConversationIds.contains(roomId)) {
     return false;
   }
   if (update.content['type'] != EventTypes.Message) return false;

@@ -10,7 +10,6 @@ import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
-import '../channel/create_channel_sheet.dart';
 import '../home/conversation_summary_writer.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -54,7 +53,6 @@ const _iconMenuAddFriend = 'assets/icons/menu_add_friend.svg';
 const _iconMenuCreateGroup = 'assets/icons/menu_create_group.svg';
 const _iconMenuScan = 'assets/icons/menu_scan.svg';
 const _iconTabContacts = 'assets/icons/tab_contacts.svg';
-const _iconTabChannel = _assetTabChannelNormal;
 const _iconBottomSearchTg = 'assets/icons/bottom_search_tg.svg';
 const _assetTabChatsNormal = 'assets/images/Vector (1).png';
 const _assetTabChatsSelected = 'assets/images/聊天选中.png';
@@ -765,7 +763,7 @@ List<String> _pendingFriendRequestRoomIds({
 
 String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';
 
-enum _PlusAction { contact, group, channel, scan }
+enum _PlusAction { contact, group, scan }
 
 Future<void> _handleHomePlusTap(BuildContext context, WidgetRef ref) async {
   final action = await _showHomePlusMenu(context);
@@ -775,8 +773,6 @@ Future<void> _handleHomePlusTap(BuildContext context, WidgetRef ref) async {
       context.push('/add-contact');
     case _PlusAction.group:
       showCreateGroupFlow(context, ref);
-    case _PlusAction.channel:
-      showCreateChannelDialog(context, ref);
     case _PlusAction.scan:
       context.push('/scan');
   }
@@ -797,7 +793,7 @@ Future<_PlusAction?> _showHomePlusMenu(BuildContext context) {
             top: padding.top + 53,
             right: 15,
             width: 126,
-            height: 158,
+            height: 126,
             child: const _HomePlusMenuPanel(),
           ),
         ],
@@ -863,16 +859,13 @@ class _HomePlusMenuPanel extends StatelessWidget {
                     label: '添加好友',
                     value: _PlusAction.contact,
                   ),
+                  SizedBox(height: 5),
                   _PlusMenuTile(
                     iconAsset: _iconMenuCreateGroup,
                     label: '创建群聊',
                     value: _PlusAction.group,
                   ),
-                  _PlusMenuTile(
-                    iconAsset: _iconTabChannel,
-                    label: '创建频道',
-                    value: _PlusAction.channel,
-                  ),
+                  SizedBox(height: 5),
                   _PlusMenuTile(
                     iconAsset: _iconMenuScan,
                     label: '扫一扫',

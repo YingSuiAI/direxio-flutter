@@ -62,6 +62,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
       if (roomId.isEmpty) continue;
       if (directContactRoomIds.contains(roomId)) continue;
       final group = groupsByRoomId[roomId];
+      if (!_isJoinedGroupForList(group, conversation)) continue;
       final room = client.getRoomById(roomId);
       final lastEvent = room?.lastEvent;
       final lastActivityAt = lastEvent?.originServerTs ??
@@ -135,6 +136,73 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
       ),
     );
   }
+}
+
+bool _isJoinedGroupForList(
+  AsSyncRoomSummary? group,
+  AsConversation conversation,
+) {
+  if (_isNonJoinedGroupStatus(group?.memberStatus) ||
+      _isNonJoinedGroupStatus(conversation.membership) ||
+      _isNonJoinedGroupStatus(conversation.relationshipStatus) ||
+      _isNonJoinedGroupStatus(conversation.projectionState)) {
+    return false;
+  }
+  if (_isJoinedGroupStatus(group?.memberStatus) ||
+      _isJoinedGroupStatus(conversation.membership) ||
+      _isJoinedGroupStatus(conversation.relationshipStatus) ||
+      _isJoinedGroupStatus(conversation.projectionState) ||
+      _isJoinedGroupRole(group?.role) ||
+      _isJoinedGroupRole(conversation.role) ||
+      conversation.canOpen) {
+    return true;
+  }
+
+  return group?.memberStatus.trim().isEmpty != false &&
+      conversation.membership.trim().isEmpty &&
+      conversation.relationshipStatus.trim().isEmpty &&
+      conversation.projectionState.trim().isEmpty;
+}
+
+bool _isJoinedGroupStatus(String? status) {
+  switch (status?.trim().toLowerCase()) {
+    case 'join':
+    case 'joined':
+    case 'active':
+    case 'member':
+      return true;
+  }
+  return false;
+}
+
+bool _isNonJoinedGroupStatus(String? status) {
+  switch (status?.trim().toLowerCase()) {
+    case 'invite':
+    case 'invited':
+    case 'pending':
+    case 'pending_inbound':
+    case 'pending_outbound':
+    case 'requested':
+    case 'request':
+    case 'rejected':
+    case 'reject':
+    case 'left':
+    case 'leave':
+    case 'ban':
+    case 'banned':
+      return true;
+  }
+  return false;
+}
+
+bool _isJoinedGroupRole(String? role) {
+  switch (role?.trim().toLowerCase()) {
+    case 'owner':
+    case 'admin':
+    case 'member':
+      return true;
+  }
+  return false;
 }
 
 class _SearchBar extends StatelessWidget {

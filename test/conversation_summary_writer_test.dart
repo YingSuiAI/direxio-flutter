@@ -6,6 +6,7 @@ import 'package:portal_app/presentation/home/conversation_summary_writer.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/local_message_order_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
+import 'package:portal_app/presentation/utils/direct_contact_status.dart';
 
 void main() {
   test('builds visible ProductCore conversations for summary writing', () {
@@ -89,6 +90,94 @@ void main() {
       visible.map((conversation) => conversation.roomId),
       ['!pinned:p2p-im.com', '!recent:p2p-im.com'],
     );
+  });
+
+  test('includes joined native group rooms before ProductCore sync catches up',
+      () {
+    final client = Client('ConversationSummaryWriterNativeGroupTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!new-group:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: nativeRoomProfileEventType,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: const {
+          'room_type': nativeGroupRoomType,
+          'name': '新的群聊',
+        },
+      ),
+    );
+
+    final visible = visibleHomeConversationsForSummary(
+      client: client,
+      rooms: [room],
+      productConversations: const [],
+      syncCache: const AsSyncCacheState(),
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      pinnedConversationIds: const {},
+    );
+
+    expect(visible.map((conversation) => conversation.roomId), [
+      '!new-group:p2p-im.com',
+    ]);
+    expect(visible.single.isGroup, isTrue);
+    expect(visible.single.product?.canOpen, isTrue);
+  });
+
+  test('builds home summary from bootstrap groups before conversation sync',
+      () {
+    final client = Client('ConversationSummaryWriterBootstrapGroupTest')
+      ..setUserId('@owner:p2p-im.com');
+    const roomId = '!bootstrap-group:p2p-im.com';
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: const [],
+      productConversationsLoaded: true,
+      syncCache: AsSyncCacheState(
+        bootstrap: AsSyncBootstrap(
+          syncedAt: DateTime.utc(2026, 6, 22, 12),
+          user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+          rooms: const [],
+          contacts: const [],
+          groups: const [
+            AsSyncRoomSummary(
+              roomId: roomId,
+              name: '对方创建的群',
+              avatarUrl: '',
+              unreadCount: 3,
+              lastActivityAt: null,
+              memberStatus: asChannelMemberStatusJoined,
+            ),
+          ],
+          channels: const [],
+          pending: const AsSyncPending.empty(),
+        ),
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    expect(result.storeEntries.map((entry) => entry.roomId), [roomId]);
+    expect(result.storeEntries.single.name, '对方创建的群');
+    expect(result.storeEntries.single.isGroup, isTrue);
+    expect(result.storeEntries.single.canOpen, isTrue);
+    expect(result.productConversationsByRoomId[roomId]?.canOpen, isTrue);
   });
 
   test('builds home summary projection from ProductCore live inputs', () {

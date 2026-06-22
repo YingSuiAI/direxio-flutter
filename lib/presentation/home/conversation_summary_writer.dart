@@ -45,6 +45,19 @@ class VisibleHomeConversation {
     );
   }
 
+  factory VisibleHomeConversation.groupRoom(Room room) {
+    return VisibleHomeConversation._(
+      roomId: room.id,
+      room: room,
+      product: _fallbackGroupConversation(
+        roomId: room.id,
+        title: room.getLocalizedDisplayname(),
+        lastActivityAt: room.lastEvent?.originServerTs,
+      ),
+      isGroup: true,
+    );
+  }
+
   final String roomId;
   final Room? room;
   final AsConversation? product;
@@ -97,6 +110,12 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
     messageOrder: messageOrder,
     pinnedConversationIds: pinnedConversationIds,
   );
+  for (final conversation in visibleConversations) {
+    final product = conversation.product;
+    final roomId = product?.roomId.trim() ?? '';
+    if (product == null || roomId.isEmpty) continue;
+    productConversationsByRoomId.putIfAbsent(roomId, () => product);
+  }
   final liveSummaryEntries = [
     for (final conversation in visibleConversations)
       if (!hiddenConversationIds.contains(conversation.roomId))
@@ -135,6 +154,15 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
     for (final room in syncCache.bootstrap?.rooms ?? const [])
       if (room.roomId.trim().isNotEmpty) room.roomId.trim(): room,
   };
+  final asGroupSummariesByRoomId = <String, AsSyncRoomSummary>{
+    for (final group in syncCache.bootstrap?.groups ?? const [])
+      if (group.roomId.trim().isNotEmpty) group.roomId.trim(): group,
+  };
+  asRoomSummariesByRoomId.addAll(asGroupSummariesByRoomId);
+  final directContactRoomIds = syncCache.acceptedContacts
+      .map((contact) => contact.roomId.trim())
+      .where((roomId) => roomId.isNotEmpty)
+      .toSet();
   final visibleConversations = <VisibleHomeConversation>[];
   final visibleRoomIds = <String>{};
 
@@ -162,15 +190,43 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
 
   for (final conversation in productConversations) {
     if (conversation.isChannel) continue;
-    if (!conversation.canOpen) continue;
     final roomId = conversation.roomId.trim();
+    final room = client.getRoomById(roomId);
+    final groupSummary = asGroupSummariesByRoomId[roomId];
+    final visibleProduct = conversation.canOpen
+        ? conversation
+        : _openableFallbackForGroupConversation(
+            conversation,
+            room: room,
+            roomSummary: groupSummary,
+          );
+    if (visibleProduct == null) continue;
     addVisibleConversation(
       VisibleHomeConversation.product(
-        conversation,
-        client.getRoomById(roomId),
+        visibleProduct,
+        room,
         asRoomSummariesByRoomId[roomId],
       ),
     );
+  }
+
+  for (final group in asGroupSummariesByRoomId.values) {
+    final roomId = group.roomId.trim();
+    if (directContactRoomIds.contains(roomId)) continue;
+    if (!_isJoinedGroupSummary(group)) continue;
+    addVisibleConversation(
+      VisibleHomeConversation.product(
+        _fallbackGroupConversationForSummary(group),
+        client.getRoomById(roomId),
+        group,
+      ),
+    );
+  }
+
+  for (final room in rooms) {
+    if (room.membership != Membership.join) continue;
+    if (!_isNativeGroupRoom(room)) continue;
+    addVisibleConversation(VisibleHomeConversation.groupRoom(room));
   }
 
   return visibleConversations
@@ -191,6 +247,97 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
         ),
       );
     });
+}
+
+AsConversation? _openableFallbackForGroupConversation(
+  AsConversation conversation, {
+  required Room? room,
+  required AsSyncRoomSummary? roomSummary,
+}) {
+  if (!conversation.isGroup) return null;
+  if (!_isActiveConversation(conversation)) return null;
+  final roomJoined = room?.membership == Membership.join;
+  if (!roomJoined && roomSummary == null) return null;
+  return _fallbackGroupConversation(
+    roomId: conversation.roomId,
+    conversationId: conversation.conversationId,
+    title: conversation.title.trim().isNotEmpty
+        ? conversation.title
+        : roomSummary?.name ?? '',
+    avatarUrl: conversation.avatarUrl.trim().isNotEmpty
+        ? conversation.avatarUrl
+        : roomSummary?.avatarUrl ?? '',
+    lastActivityAt: conversation.lastActivityAt ?? roomSummary?.lastActivityAt,
+    memberCount: conversation.memberCount > 0
+        ? conversation.memberCount
+        : roomSummary?.memberCount ?? 0,
+    role: conversation.role,
+    membership: conversation.membership,
+  );
+}
+
+bool _isActiveConversation(AsConversation conversation) {
+  final lifecycle = conversation.lifecycle.trim().toLowerCase();
+  return lifecycle != 'deleted' &&
+      lifecycle != 'left' &&
+      lifecycle != 'dissolved';
+}
+
+AsConversation _fallbackGroupConversationForSummary(AsSyncRoomSummary group) {
+  return _fallbackGroupConversation(
+    roomId: group.roomId,
+    title: group.name,
+    avatarUrl: group.avatarUrl,
+    lastActivityAt: group.lastActivityAt,
+    memberCount: group.memberCount,
+    role: group.role,
+    membership: group.memberStatus,
+  );
+}
+
+AsConversation _fallbackGroupConversation({
+  required String roomId,
+  String conversationId = '',
+  String title = '',
+  String avatarUrl = '',
+  DateTime? lastActivityAt,
+  int memberCount = 0,
+  String role = '',
+  String membership = '',
+}) {
+  final trimmedRoomId = roomId.trim();
+  return AsConversation(
+    conversationId: conversationId.trim(),
+    roomId: trimmedRoomId,
+    kind: asConversationKindGroup,
+    lifecycle: 'active',
+    title: title.trim().isEmpty ? trimmedRoomId : title.trim(),
+    avatarUrl: avatarUrl.trim(),
+    lastActivityAt: lastActivityAt,
+    memberCount: memberCount,
+    membership: membership.trim().isEmpty ? 'join' : membership.trim(),
+    role: role.trim(),
+    hydrationState: 'ready',
+    capabilities: const AsConversationCapabilities(
+      open: true,
+      send: true,
+      sendMedia: true,
+      call: true,
+      invite: true,
+    ),
+  );
+}
+
+bool _isJoinedGroupSummary(AsSyncRoomSummary group) {
+  final status = group.memberStatus.trim().toLowerCase();
+  if (status.isEmpty) return true;
+  return status == asChannelMemberStatusJoined || status == 'join';
+}
+
+bool _isNativeGroupRoom(Room room) {
+  final content = room.getState(nativeRoomProfileEventType)?.content;
+  if (content == null) return false;
+  return content['room_type'] == nativeGroupRoomType;
 }
 
 ConversationSummaryEntry summaryEntryForVisibleConversation({

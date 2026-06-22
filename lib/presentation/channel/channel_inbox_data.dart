@@ -50,11 +50,26 @@ class ChannelInboxItem {
   final int pendingJoinCount;
   final AsConversation? productConversation;
 
-  bool get canCreatePost => productConversation?.canCreatePost ?? false;
-  bool get canCreateComment => productConversation?.canCreateComment ?? false;
-  bool get canToggleReaction => productConversation?.canToggleReaction ?? false;
-  bool get canRecallPost => productConversation?.canRecallPost ?? false;
-  bool get canRecallComment => productConversation?.canRecallComment ?? false;
+  bool get _fallbackOpen => _channelListMemberStatusVisible(memberStatus);
+  bool get _fallbackOwner => _isChannelOwnerRole(role) || isOwned;
+  bool get _fallbackPostChannel =>
+      normalizeAsChannelType(channelType) == asChannelTypePost;
+
+  bool get canCreatePost =>
+      productConversation?.canCreatePost ??
+      (_fallbackOpen && _fallbackOwner && _fallbackPostChannel);
+  bool get canCreateComment =>
+      productConversation?.canCreateComment ??
+      (_fallbackOpen && _fallbackPostChannel && commentsEnabled);
+  bool get canToggleReaction =>
+      productConversation?.canToggleReaction ??
+      (_fallbackOpen && _fallbackPostChannel);
+  bool get canRecallPost =>
+      productConversation?.canRecallPost ??
+      (_fallbackOpen && _fallbackOwner && _fallbackPostChannel);
+  bool get canRecallComment =>
+      productConversation?.canRecallComment ??
+      (_fallbackOpen && _fallbackOwner && _fallbackPostChannel);
 
   ChannelInboxItem copyWith({
     String? id,

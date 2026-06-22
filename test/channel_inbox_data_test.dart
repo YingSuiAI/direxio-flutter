@@ -179,6 +179,84 @@ void main() {
     expect(items.single.channelType, asChannelTypePost);
   });
 
+  test('uses bootstrap ProductCore fields for channel action capabilities', () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_owner_post',
+          roomId: '!owner-post:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '综合讨论',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-17T10:20:00Z'),
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypePost,
+          commentsEnabled: true,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    expect(items.single.canCreatePost, isTrue);
+    expect(items.single.canCreateComment, isTrue);
+    expect(items.single.canToggleReaction, isTrue);
+    expect(items.single.canRecallPost, isTrue);
+    expect(items.single.canRecallComment, isTrue);
+  });
+
+  test('ProductCore conversation capability overrides bootstrap channel actions',
+      () {
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': '2026-06-17T10:30:00Z',
+      'user': {'user_id': '@owner:p2p-im.com'},
+      'channels': [
+        {
+          'channel_id': 'ch_owner_post',
+          'room_id': '!owner-post:p2p-im.com',
+          'display_name': '综合讨论',
+          'is_owned': true,
+          'role': asChannelRoleOwner,
+          'member_status': asChannelMemberStatusJoined,
+          'channel_type': asChannelTypePost,
+          'comments_enabled': true,
+        },
+      ],
+    });
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+      productConversations: const [
+        AsConversation(
+          conversationId: 'conv_channel',
+          roomId: '!owner-post:p2p-im.com',
+          kind: asConversationKindChannel,
+          lifecycle: 'active',
+          title: '综合讨论',
+          avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: true),
+        ),
+      ],
+    );
+
+    expect(items.single.canCreatePost, isFalse);
+    expect(items.single.canCreateComment, isFalse);
+    expect(items.single.canToggleReaction, isFalse);
+  });
+
   test('ignores non-channel rooms from AS channel list results', () {
     final items = ChannelInboxData.fromChannels(
       [

@@ -15,6 +15,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_created_channels_provider.dart';
+import '../providers/p2p_api_provider.dart';
 import '../utils/message_preview.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
@@ -33,6 +34,20 @@ const _channelBorder = Color(0xFFE6E6E6);
 
 final _channelListProvider = FutureProvider.autoDispose<List<AsChannel>>((ref) {
   return ref.read(asClientProvider).listChannels();
+});
+
+final _publicChannelListProvider =
+    FutureProvider.autoDispose<List<AsChannel>>((ref) async {
+  try {
+    return await ref.read(p2pApiClientProvider).listChannels(
+          page: 1,
+          pageSize: 10,
+          sortBy: 'createdAt',
+          desc: false,
+        );
+  } catch (_) {
+    return const <AsChannel>[];
+  }
 });
 
 final _hiddenChannelListKeysProvider = StateProvider<Set<String>>(
@@ -79,6 +94,9 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     );
     final bootstrap = syncCache.bootstrap;
     final useRealChannels = !_mockAuthEnabled && isLoggedIn;
+    final publicChannels = useRealChannels
+        ? ref.watch(_publicChannelListProvider).valueOrNull
+        : null;
     final listedChannels =
         useRealChannels ? ref.watch(_channelListProvider).valueOrNull : null;
     final localCreatedChannels = useRealChannels
@@ -88,7 +106,20 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
     final fallbackDomain = _clientServerName(client);
     final syncHiddenChannelKeys = _hiddenChannelKeys(syncCache);
-    final sourceChannels = useRealChannels
+    final publicChannelItems = useRealChannels && publicChannels != null
+        ? ChannelInboxData.fromChannels(
+            publicChannels,
+            fallbackDomain: fallbackDomain,
+            bootstrap: bootstrap,
+            roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
+            roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
+            latestPreviewForRoomId: (roomId) =>
+                _matrixRoomLatestPreview(client, roomId),
+            latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
+            hiddenChannelKeys: syncHiddenChannelKeys,
+          )
+        : const <ChannelInboxItem>[];
+    final previousChannelItems = useRealChannels
         ? ChannelInboxData.mergeCreatedCache(
             listedChannels == null
                 ? bootstrap == null
@@ -128,6 +159,9 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           )
+        : const <ChannelInboxItem>[];
+    final sourceChannels = useRealChannels
+        ? _mergePriorityChannelItems(publicChannelItems, previousChannelItems)
         : _mockChannelItems();
     final visibleSourceChannels = _sortPinnedChannels(
       sourceChannels
@@ -153,7 +187,10 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             _channelPendingCount(sourceChannels)
         : _channelPendingCount(sourceChannels);
 
-    if (useRealChannels && bootstrap == null && listedChannels == null) {
+    if (useRealChannels &&
+        bootstrap == null &&
+        listedChannels == null &&
+        publicChannels == null) {
       return const _ChannelFrame(
         child: Center(
           child: _ChannelEmpty(
@@ -251,6 +288,38 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
       ),
     );
   }
+}
+
+List<ChannelInboxItem> _mergePriorityChannelItems(
+  List<ChannelInboxItem> priority,
+  List<ChannelInboxItem> fallback,
+) {
+  if (priority.isEmpty) return fallback;
+  if (fallback.isEmpty) return priority;
+  final seen = <String>{};
+  final merged = <ChannelInboxItem>[];
+
+  void add(ChannelInboxItem item) {
+    final keys = _channelInboxItemKeys(item);
+    if (keys.any(seen.contains)) return;
+    merged.add(item);
+    seen.addAll(keys);
+  }
+
+  for (final item in priority) {
+    add(item);
+  }
+  for (final item in fallback) {
+    add(item);
+  }
+  return merged;
+}
+
+Set<String> _channelInboxItemKeys(ChannelInboxItem item) {
+  return {
+    if (item.id.trim().isNotEmpty) 'channel:${item.id.trim()}',
+    if (item.roomId.trim().isNotEmpty) 'room:${item.roomId.trim()}',
+  };
 }
 
 class ChannelReviewPage extends ConsumerStatefulWidget {

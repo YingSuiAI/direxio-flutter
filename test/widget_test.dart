@@ -22,6 +22,7 @@ import 'package:portal_app/data/chat_clear_state_store.dart';
 import 'package:portal_app/data/conversation_preferences_store.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
+import 'package:portal_app/data/p2p_api_client.dart';
 import 'package:portal_app/presentation/channel/create_channel_sheet.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
@@ -69,6 +70,7 @@ import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart
 import 'package:portal_app/presentation/providers/conversation_preferences_provider.dart';
 import 'package:portal_app/presentation/providers/friend_request_read_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
+import 'package:portal_app/presentation/providers/p2p_api_provider.dart';
 import 'package:portal_app/presentation/providers/profile_provider.dart';
 import 'package:portal_app/presentation/providers/voice_call_provider.dart';
 import 'package:portal_app/presentation/chat/chat_attachment_panel.dart';
@@ -1396,6 +1398,33 @@ class _ListedChannelsAsClient extends _EmptyAsClient {
 
   @override
   Future<List<AsChannel>> listChannels() async => channels;
+}
+
+class _ListedPublicChannelsP2pApiClient extends P2pApiClient {
+  _ListedPublicChannelsP2pApiClient(this.channels)
+      : super(baseUri: Uri.parse('http://localhost:8888'));
+
+  final List<AsChannel> channels;
+  int? requestedPage;
+  int? requestedPageSize;
+  String? requestedSortBy;
+  bool? requestedDesc;
+
+  @override
+  Future<List<AsChannel>> listChannels({
+    int page = 1,
+    int pageSize = 10,
+    String ownerDomain = '',
+    String keyword = '',
+    String sortBy = 'createdAt',
+    bool desc = true,
+  }) async {
+    requestedPage = page;
+    requestedPageSize = pageSize;
+    requestedSortBy = sortBy;
+    requestedDesc = desc;
+    return channels;
+  }
 }
 
 class _TrackingAsClient extends _EmptyAsClient {
@@ -9189,6 +9218,86 @@ void main() {
     expect(find.text('频道列表'), findsNothing);
     expect(find.text('综合讨论'), findsOneWidget);
     expect(find.text('P2P IM 官方'), findsOneWidget);
+  });
+
+  testWidgets('channel tab shows public channel list before joined channels',
+      (tester) async {
+    const mockAuthEnabled = bool.fromEnvironment(
+      'P2P_MATRIX_MOCK_AUTH',
+      defaultValue: false,
+    );
+    if (mockAuthEnabled) return;
+
+    final client = Client('PortalIMPublicChannelListTest')
+      ..setUserId('@member:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-18T10:30:00Z'),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final publicApi = _ListedPublicChannelsP2pApiClient(
+      const [
+        AsChannel(
+          channelId: 'ch_public',
+          roomId: '!public:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '公开频道',
+          description: '公开频道简介',
+          channelType: asChannelTypeChat,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_MemberLoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(
+            _ListedChannelsAsClient(
+              const [
+                AsChannel(
+                  channelId: 'ch_joined',
+                  roomId: '!joined:p2p-im.com',
+                  homeDomain: 'p2p-im.com',
+                  name: '旧来源频道',
+                  description: '旧列表频道简介',
+                  channelType: asChannelTypeChat,
+                ),
+              ],
+            ),
+          ),
+          p2pApiClientProvider.overrideWithValue(publicApi),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const Scaffold(body: ChannelExplorePage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(publicApi.requestedPage, 1);
+    expect(publicApi.requestedPageSize, 10);
+    expect(publicApi.requestedSortBy, 'createdAt');
+    expect(publicApi.requestedDesc, isFalse);
+    expect(find.text('公开频道'), findsOneWidget);
+    expect(find.text('旧来源频道'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('公开频道')).dy,
+      lessThan(tester.getTopLeft(find.text('旧来源频道')).dy),
+    );
   });
 
   testWidgets('channel filters are hidden on channel tab', (tester) async {

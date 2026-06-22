@@ -408,6 +408,8 @@ class _ChannelSearchAsClient extends MockAsClient {
     String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
+    Uri? requesterNodeBaseUri,
+    List<String> serverNames = const [],
   }) async {
     joinedRoomId = roomId;
     joinedRemoteNodeBaseUri = remoteNodeBaseUri;
@@ -434,6 +436,7 @@ class _ChannelSearchAsClient extends MockAsClient {
     String grantId = '',
     String shareRoomId = '',
     AsChannel? discoveredChannel,
+    List<String> serverNames = const [],
   }) async {
     joinedChannelId = channelId;
     joinedChannelRoomId = roomId;

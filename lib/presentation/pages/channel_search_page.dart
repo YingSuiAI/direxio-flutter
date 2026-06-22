@@ -126,6 +126,12 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
         );
         return;
       }
+      if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
+        );
+        return;
+      }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text(channelJoinInProgressText)),
@@ -263,8 +269,8 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
   }
 }
 
-String _channelJoinWaitingText(String _) {
-  return channelJoinInProgressText;
+String _channelJoinWaitingText(String status) {
+  return channelJoinStatusText(status);
 }
 
 class _ChannelSearchTarget {
@@ -410,14 +416,21 @@ class _ChannelSearchResultTile extends StatelessWidget {
     final status = channel.memberStatus.trim();
     final joined = status == asChannelMemberStatusJoined;
     final pending = status == asChannelMemberStatusPending;
+    final approved = status == asChannelMemberStatusApproved ||
+        status == asChannelMemberStatusJoining;
+    final failed = status == asChannelMemberStatusJoinFailed;
     final approval = channel.joinPolicy == asChannelJoinPolicyApproval;
     final buttonLabel = joined
         ? '已加入'
         : pending
             ? '待审核'
-            : approval
-                ? '申请加入'
-                : '加入';
+            : approved
+                ? '同步中'
+                : failed
+                    ? '重试'
+                    : approval
+                        ? '申请加入'
+                        : '加入';
     return Material(
       color: t.surface.withValues(alpha: 0.72),
       borderRadius: BorderRadius.circular(12),
@@ -458,7 +471,7 @@ class _ChannelSearchResultTile extends StatelessWidget {
               SizedBox(
                 height: 34,
                 child: FilledButton.tonal(
-                  onPressed: joined || pending ? null : onJoin,
+                  onPressed: joined || pending || approved ? null : onJoin,
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     minimumSize: Size.zero,

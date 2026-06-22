@@ -601,6 +601,8 @@ class MockAsClient implements AsClient {
     String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
+    Uri? requesterNodeBaseUri,
+    List<String> serverNames = const [],
   }) async {
     await Future.delayed(_latency);
     final trimmedRoomId = roomId.trim();
@@ -623,7 +625,7 @@ class MockAsClient implements AsClient {
         : existing.channelId;
     final memberStatus = existing.joinPolicy == asChannelJoinPolicyApproval
         ? asChannelMemberStatusPending
-        : asChannelMemberStatusInvite;
+        : asChannelMemberStatusJoined;
     final invited = AsChannel(
       channelId: existing.channelId,
       roomId: existing.roomId,
@@ -676,6 +678,7 @@ class MockAsClient implements AsClient {
     String grantId = '',
     String shareRoomId = '',
     AsChannel? discoveredChannel,
+    List<String> serverNames = const [],
   }) async {
     await Future.delayed(_latency);
     final existing = _channels[channelId] ??

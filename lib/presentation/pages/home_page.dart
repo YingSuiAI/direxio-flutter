@@ -2144,11 +2144,14 @@ class _ContactList extends ConsumerWidget {
               emptyFallback: const SizedBox.shrink(),
               children: [
                 _AgentContactEntryTile(
-                  onTap: () => _openAgentContactChat(
-                    context,
-                    client,
-                    syncCache,
-                    isLoggedIn: isLoggedIn,
+                  onTap: () => unawaited(
+                    _openAgentContactChat(
+                      context,
+                      ref,
+                      client,
+                      syncCache,
+                      isLoggedIn: isLoggedIn,
+                    ),
                   ),
                 ),
               ],
@@ -2189,18 +2192,23 @@ class _ContactList extends ConsumerWidget {
   }
 }
 
-void _openAgentContactChat(
+Future<void> _openAgentContactChat(
   BuildContext context,
+  WidgetRef ref,
   Client client,
   AsSyncCacheState syncCache, {
   required bool isLoggedIn,
-}) {
-  final roomId = _resolvedAgentContactRoomId(
+}) async {
+  var roomId = _resolvedAgentContactRoomId(
     client,
     syncCache,
     isLoggedIn: isLoggedIn,
   );
+  if (roomId.isEmpty && isLoggedIn) {
+    roomId = await _refreshAgentContactRoomId(ref, client);
+  }
   if (roomId.isEmpty) {
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Agent 会话还未同步'),
@@ -2209,7 +2217,42 @@ void _openAgentContactChat(
     );
     return;
   }
+  if (!context.mounted) return;
   context.push('/chat/${Uri.encodeComponent(roomId)}');
+}
+
+Future<String> _refreshAgentContactRoomId(
+  WidgetRef ref,
+  Client client,
+) async {
+  try {
+    final bootstrap = await ref
+        .read(asBootstrapRepositoryProvider)
+        .refresh()
+        .timeout(const Duration(seconds: 10));
+    if (asBootstrapBelongsToUser(bootstrap, client.userID)) {
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.copyWith(bootstrap: bootstrap),
+          );
+    }
+  } catch (error) {
+    debugPrint('refresh Agent bootstrap failed: $error');
+  }
+  try {
+    await client.oneShotSync().timeout(const Duration(seconds: 8));
+  } catch (error) {
+    debugPrint('refresh Agent Matrix room sync failed: $error');
+  }
+  try {
+    return _resolvedAgentContactRoomId(
+      client,
+      ref.read(asSyncCacheProvider),
+      isLoggedIn: true,
+    );
+  } catch (error) {
+    debugPrint('refresh Agent contact chat failed: $error');
+    return '';
+  }
 }
 
 String _resolvedAgentContactRoomId(

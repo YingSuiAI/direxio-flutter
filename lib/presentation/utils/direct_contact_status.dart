@@ -3,9 +3,10 @@ import 'package:matrix/matrix.dart';
 import '../../data/well_known_service.dart';
 import 'contact_identity_label.dart';
 
-const productRoomKindEventType = 'p2p.room.kind';
 const nativeRoomProfileEventType = 'io.direxio.room.profile';
 const nativeDirectRoomType = 'io.direxio.room.direct';
+const nativeGroupRoomType = 'io.direxio.room.group';
+const nativeChannelRoomType = 'io.direxio.room.channel';
 
 String? serverNameFromMxid(String? mxid) {
   if (mxid == null) return null;
@@ -22,10 +23,9 @@ String? portalAgentMxidForClient(Client client) {
 
 bool isPortalAgentDirectRoom(Room room, {String? agentMxid}) {
   final resolvedAgentMxid = agentMxid ?? portalAgentMxidForClient(room.client);
-  return _productRoomKind(room) == 'agent' ||
-      (resolvedAgentMxid != null &&
+  return resolvedAgentMxid != null &&
           (room.directChatMatrixID == resolvedAgentMxid ||
-              _summaryLooksLikeAgentDirectRoom(room, resolvedAgentMxid)));
+              _summaryLooksLikeAgentDirectRoom(room, resolvedAgentMxid));
 }
 
 bool _summaryLooksLikeAgentDirectRoom(Room room, String agentMxid) {
@@ -41,7 +41,6 @@ String? productDirectPeerMxid(Room room) {
   if (directMxid != null && directMxid.isNotEmpty) return directMxid;
   final nativePeerMxid = _nativeDirectPeerMxid(room);
   if (nativePeerMxid != null) return nativePeerMxid;
-  if (_productRoomKind(room) != 'direct') return null;
   final self = room.client.userID;
   final memberStates = room.states[EventTypes.RoomMember]?.values ??
       const <StrippedStateEvent>[];
@@ -114,7 +113,6 @@ bool isProductDirectContactRoom(
   if (isPortalAgentDirectRoom(room, agentMxid: agentMxid)) return false;
   if (acceptedRoomIds.contains(room.id)) return true;
   if (_nativeDirectProfile(room) != null) return true;
-  if (_productRoomKind(room) == 'direct') return true;
   return room.isDirectChat;
 }
 
@@ -159,11 +157,6 @@ bool canSendDirectChatMessage(
     agentMxid: agentMxid,
     acceptedRoomIds: acceptedRoomIds,
   );
-}
-
-String _productRoomKind(Room room) {
-  final raw = room.getState(productRoomKindEventType)?.content['kind'];
-  return raw is String ? raw.trim() : '';
 }
 
 Map<String, dynamic>? _nativeDirectProfile(Room room) {

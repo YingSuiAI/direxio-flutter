@@ -181,10 +181,14 @@ Room _productDirectRoom({
   client.rooms.add(room);
   room.setState(
     StrippedStateEvent(
-      type: 'p2p.room.kind',
+      type: 'io.direxio.room.profile',
       senderId: peerMxid,
       stateKey: '',
-      content: {'kind': 'direct'},
+      content: {
+        'room_type': 'io.direxio.room.direct',
+        'requester_mxid': client.userID,
+        'target_mxid': peerMxid,
+      },
     ),
   );
   room.setState(

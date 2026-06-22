@@ -477,6 +477,8 @@ class _EmptyAsClient implements AsClient {
     String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
+    Uri? requesterNodeBaseUri,
+    List<String> serverNames = const [],
   }) async =>
       AsChannel(
         channelId: discoveredChannel?.channelId ?? roomId,
@@ -495,6 +497,7 @@ class _EmptyAsClient implements AsClient {
     String grantId = '',
     String shareRoomId = '',
     AsChannel? discoveredChannel,
+    List<String> serverNames = const [],
   }) async =>
       AsChannel(
         channelId: channelId,
@@ -2084,11 +2087,27 @@ Room _addUndirectedJoinedRoom(
     membership: Membership.join,
   );
   client.rooms.add(room);
+  final selfMxid = client.userID ?? '@owner:p2p-im.com';
+  room.setState(
+    StrippedStateEvent(
+      type: 'io.direxio.room.profile',
+      senderId: selfMxid,
+      stateKey: '',
+      content: {
+        'room_type': 'io.direxio.room.direct',
+        'room_id': roomId,
+        'requester_mxid': selfMxid,
+        'target_mxid': peerMxid,
+        'display_name': peerName,
+        if (peerAvatarUrl.isNotEmpty) 'avatar_url': peerAvatarUrl,
+      },
+    ),
+  );
   room.setState(
     StrippedStateEvent(
       type: EventTypes.RoomMember,
-      senderId: client.userID ?? '@owner:p2p-im.com',
-      stateKey: client.userID,
+      senderId: selfMxid,
+      stateKey: selfMxid,
       content: {'membership': Membership.join.name},
     ),
   );
@@ -4353,20 +4372,12 @@ void main() {
       (tester) async {
     final client = Client('DirexioPendingContactListTest')
       ..setUserId('@owner:p2p-im.com');
-    final room = _addUndirectedJoinedRoom(
+    _addUndirectedJoinedRoom(
       client,
       roomId: '!pending:p2p-im.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'owner',
       peerMembership: Membership.join,
-    );
-    room.setState(
-      StrippedStateEvent(
-        type: 'p2p.room.kind',
-        senderId: '@owner:p2p-im.com',
-        stateKey: '',
-        content: {'kind': 'direct'},
-      ),
     );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 27, 10),
@@ -4525,37 +4536,96 @@ void main() {
     expect(find.text('legacy agent message'), findsNothing);
   });
 
+  testWidgets('contacts Agent tap refreshes bootstrap before unsynced notice',
+      (tester) async {
+    final client = Client(
+      'DirexioAgentContactRefreshTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'test-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 22, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      agentRoomId: '!agent:p2p-im.com',
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _StaticBootstrapAsClient(bootstrap);
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) => Text(
+            'agent route ${state.pathParameters['roomId']}',
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          asBootstrapRepositoryProvider.overrideWithValue(
+            AsBootstrapRepository(
+              loadBootstrap: asClient.syncBootstrap,
+              store: _MemoryAsBootstrapStore(),
+            ),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('通讯录'));
+    await tester.pump();
+    await tester.tap(find.text('Agent'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Agent 会话还未同步'), findsNothing);
+    expect(find.text('agent route !agent:p2p-im.com'), findsOneWidget);
+  });
+
   testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',
       (tester) async {
     final client = Client('DirexioDuplicateDirectRoomHomeListTest')
       ..setUserId('@owner:p2p-im.com');
-    final canonicalRoom = _addUndirectedJoinedRoom(
+    _addUndirectedJoinedRoom(
       client,
       roomId: '!canonical:p2p-liyanan.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'Yanan',
-    );
-    canonicalRoom.setState(
-      StrippedStateEvent(
-        type: 'p2p.room.kind',
-        senderId: '@owner:p2p-im.com',
-        stateKey: '',
-        content: {'kind': 'direct'},
-      ),
     );
     final duplicateRoom = _addUndirectedJoinedRoom(
       client,
       roomId: '!duplicate:p2p-im.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'default owner',
-    );
-    duplicateRoom.setState(
-      StrippedStateEvent(
-        type: 'p2p.room.kind',
-        senderId: '@owner:p2p-im.com',
-        stateKey: '',
-        content: {'kind': 'direct'},
-      ),
     );
     duplicateRoom.lastEvent = Event(
       room: duplicateRoom,
@@ -4622,14 +4692,6 @@ void main() {
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'Yanan',
     );
-    oldRoom.setState(
-      StrippedStateEvent(
-        type: 'p2p.room.kind',
-        senderId: '@owner:p2p-im.com',
-        stateKey: '',
-        content: {'kind': 'direct'},
-      ),
-    );
     oldRoom.lastEvent = Event(
       room: oldRoom,
       eventId: r'$old-history',
@@ -4646,14 +4708,6 @@ void main() {
       roomId: '!new:p2p-im.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'Yanan',
-    );
-    newRoom.setState(
-      StrippedStateEvent(
-        type: 'p2p.room.kind',
-        senderId: '@owner:p2p-im.com',
-        stateKey: '',
-        content: {'kind': 'direct'},
-      ),
     );
     newRoom.lastEvent = Event(
       room: newRoom,
@@ -4729,33 +4783,17 @@ void main() {
       (tester) async {
     final client = Client('DirexioDuplicateDirectContactListTest')
       ..setUserId('@owner:p2p-im.com');
-    final canonicalRoom = _addUndirectedJoinedRoom(
+    _addUndirectedJoinedRoom(
       client,
       roomId: '!canonical:p2p-liyanan.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'Yanan',
     );
-    canonicalRoom.setState(
-      StrippedStateEvent(
-        type: 'p2p.room.kind',
-        senderId: '@owner:p2p-im.com',
-        stateKey: '',
-        content: {'kind': 'direct'},
-      ),
-    );
-    final duplicateRoom = _addUndirectedJoinedRoom(
+    _addUndirectedJoinedRoom(
       client,
       roomId: '!duplicate:p2p-im.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'default owner',
-    );
-    duplicateRoom.setState(
-      StrippedStateEvent(
-        type: 'p2p.room.kind',
-        senderId: '@owner:p2p-im.com',
-        stateKey: '',
-        content: {'kind': 'direct'},
-      ),
     );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 27, 10),
@@ -4807,19 +4845,11 @@ void main() {
       (tester) async {
     final client = Client('DirexioRejectedDirectRoomListTest')
       ..setUserId('@owner:p2p-im.com');
-    final rejectedRoom = _addUndirectedJoinedRoom(
+    _addUndirectedJoinedRoom(
       client,
       roomId: '!rejected:p2p-im.com',
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'Yanan',
-    );
-    rejectedRoom.setState(
-      StrippedStateEvent(
-        type: 'p2p.room.kind',
-        senderId: '@owner:p2p-im.com',
-        stateKey: '',
-        content: {'kind': 'direct'},
-      ),
     );
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 28, 10),
@@ -13417,7 +13447,7 @@ void main() {
     expect(find.text('没有找到包含「hidden-invite-needle」的内容'), findsOneWidget);
   });
 
-  testWidgets('me page presents personal space instead of settings list',
+  testWidgets('me page presents origin niki-dev settings list',
       (tester) async {
     final client = Client('DirexioTest');
 
@@ -13436,8 +13466,12 @@ void main() {
     await tester.pump();
 
     expect(find.text('个性签名'), findsNothing);
-    expect(find.text('用自己的节点，连接重要的人和内容。'), findsOneWidget);
+    expect(find.text('用自己的节点，连接重要的人和内容。'), findsNothing);
     expect(find.text('我的频道'), findsOneWidget);
+    expect(find.text('收藏'), findsOneWidget);
+    expect(find.text('赞'), findsOneWidget);
+    expect(find.text('评论'), findsOneWidget);
+    expect(find.text('帮助与反馈'), findsOneWidget);
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
     await tester.pumpAndSettle();
     expect(find.text('动态'), findsNothing);
@@ -13450,7 +13484,7 @@ void main() {
     expect(find.text('退出登录'), findsNothing);
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is GlassHeaderButton && widget.icon == Symbols.menu,
+        (widget) => widget is Icon && widget.icon == Symbols.settings,
       ),
       findsOneWidget,
     );
@@ -13534,14 +13568,14 @@ void main() {
     await tester.tap(find.text('我的'));
     await tester.pump();
 
-    expect(_headerTitle('我的'), findsNothing);
+    expect(find.text('我的'), findsWidgets);
     expect(find.text('owner'), findsOneWidget);
-    expect(find.text('UID: https://p2p-im.com'), findsOneWidget);
+    expect(find.text('https://p2p-im.com'), findsOneWidget);
     expect(find.text('我的频道'), findsOneWidget);
     expect(find.text('@me'), findsNothing);
     expect(find.textContaining('Node:'), findsNothing);
 
-    await tester.tap(find.text('UID: https://p2p-im.com'));
+    await tester.tap(find.text('https://p2p-im.com'));
     await tester.pumpAndSettle();
     expect(find.text('已复制 UID'), findsOneWidget);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
@@ -13552,12 +13586,12 @@ void main() {
     final copiedFromIcon = await Clipboard.getData(Clipboard.kTextPlain);
     expect(copiedFromIcon?.text, 'https://p2p-im.com');
 
-    await tester.tap(find.byKey(const ValueKey('me_domain_qr_button')));
+    await tester.tap(find.byIcon(Symbols.qr_code_2));
     await tester.pumpAndSettle();
 
     expect(find.text('我的二维码'), findsOneWidget);
     expect(find.byType(QrImageView), findsOneWidget);
-    expect(find.text('UID owner'), findsOneWidget);
+    expect(find.text('UID https://p2p-im.com'), findsOneWidget);
     expect(find.text('保存到相册'), findsOneWidget);
   });
 
@@ -13591,7 +13625,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('me menu opens private tools and unified settings page',
+  testWidgets('me settings button opens unified settings page',
       (tester) async {
     final client = Client('DirexioTest');
     final router = GoRouter(
@@ -13619,19 +13653,7 @@ void main() {
 
     await tester.tap(find.text('我的'));
     await tester.pump();
-    await tester.tap(find.byIcon(Symbols.menu));
-    await tester.pumpAndSettle();
-
-    expect(find.text('菜单'), findsOneWidget);
-    expect(find.text('我的收藏'), findsOneWidget);
-    expect(find.text('我的点赞'), findsOneWidget);
-    expect(find.text('我的评论'), findsOneWidget);
-    expect(find.text('草稿箱'), findsOneWidget);
-    expect(find.text('浏览记录'), findsNothing);
-    expect(find.text('我的钱包'), findsOneWidget);
-    expect(find.text('通用设置'), findsOneWidget);
-
-    await tester.tap(find.text('通用设置'));
+    await tester.tap(find.byIcon(Symbols.settings));
     await tester.pumpAndSettle();
 
     expect(find.text('设置'), findsOneWidget);
@@ -14192,7 +14214,7 @@ void main() {
     expect(find.text('第二条'), findsOneWidget);
   });
 
-  testWidgets('me menu button stays below the status safe area',
+  testWidgets('me settings button stays below the status safe area',
       (tester) async {
     final client = Client('DirexioTest');
 
@@ -14218,9 +14240,7 @@ void main() {
     await tester.tap(find.text('我的'));
     await tester.pump();
 
-    final topLeft = tester.getTopLeft(find.byKey(
-      const ValueKey('me_menu_button'),
-    ));
+    final topLeft = tester.getTopLeft(find.byIcon(Symbols.settings));
     expect(topLeft.dy, greaterThanOrEqualTo(52));
   });
 
@@ -14276,16 +14296,15 @@ void main() {
     await tester.tap(find.text('我的'));
     await tester.pump();
 
-    await tester.tap(find.byKey(const ValueKey('me_profile_entry')));
+    await tester.tap(find.text('owner'));
     await tester.pumpAndSettle();
 
     expect(find.text('我的信息'), findsOneWidget);
     expect(find.text('修改'), findsOneWidget);
-    expect(find.text('名字'), findsOneWidget);
+    expect(find.text('昵称'), findsOneWidget);
     expect(find.text('UID: https://p2p-im.com'), findsOneWidget);
     expect(find.text('性别'), findsOneWidget);
     expect(find.text('生日'), findsOneWidget);
-    expect(find.text('手机号码'), findsOneWidget);
     expect(find.text('邮箱'), findsOneWidget);
 
     await tester.tap(find.text('UID: https://p2p-im.com'));
@@ -14389,7 +14408,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('名字'));
+    await tester.tap(find.text('昵称'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '破局');
     await tester.tap(find.text('保存'));

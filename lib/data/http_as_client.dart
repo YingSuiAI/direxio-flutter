@@ -819,13 +819,22 @@ class HttpAsClient implements AsClient {
     String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
+    Uri? requesterNodeBaseUri,
+    List<String> serverNames = const [],
   }) async {
     final trimmedRoomId = roomId.trim();
+    final effectiveRequesterBase = requesterNodeBaseUri ?? _baseUri;
     final requestBody = <String, Object?>{
       if (shareToken.trim().isNotEmpty) 'share_token': shareToken.trim(),
       if (grantId.trim().isNotEmpty) 'grant_id': grantId.trim(),
       if (shareRoomId.trim().isNotEmpty) 'share_room_id': shareRoomId.trim(),
       ..._remoteNodeParams(remoteNodeBaseUri),
+      ..._requesterNodeParams(effectiveRequesterBase),
+      ..._serverNameParams(
+        serverNames.isEmpty
+            ? _serverNamesForRemoteNode(remoteNodeBaseUri)
+            : serverNames,
+      ),
       ..._discoveredChannelJoinBody(discoveredChannel),
     };
     final body = await _requestJson(
@@ -845,12 +854,14 @@ class HttpAsClient implements AsClient {
     String grantId = '',
     String shareRoomId = '',
     AsChannel? discoveredChannel,
+    List<String> serverNames = const [],
   }) async {
     final requestBody = <String, Object?>{
       if (roomId.trim().isNotEmpty) 'room_id': roomId.trim(),
       if (shareToken.trim().isNotEmpty) 'share_token': shareToken.trim(),
       if (grantId.trim().isNotEmpty) 'grant_id': grantId.trim(),
       if (shareRoomId.trim().isNotEmpty) 'share_room_id': shareRoomId.trim(),
+      ..._serverNameParams(serverNames),
       ..._discoveredChannelJoinBody(discoveredChannel),
     };
     final body = await _requestJson(
@@ -2084,6 +2095,27 @@ Map<String, Object?> _remoteNodeParams(Uri? remoteNodeBaseUri) {
   return {'remote_node_base_url': value};
 }
 
+Map<String, Object?> _requesterNodeParams(Uri? requesterNodeBaseUri) {
+  final value = requesterNodeBaseUri?.toString().trim() ?? '';
+  if (value.isEmpty) return const {};
+  return {'requester_node_base_url': value};
+}
+
+Map<String, Object?> _serverNameParams(Iterable<String> serverNames) {
+  final normalized = [
+    for (final value in serverNames)
+      if (value.trim().isNotEmpty) value.trim(),
+  ];
+  return normalized.isEmpty ? const {} : {'server_names': normalized};
+}
+
+List<String> _serverNamesForRemoteNode(Uri? remoteNodeBaseUri) {
+  final host = remoteNodeBaseUri?.host.trim() ?? '';
+  if (host.isEmpty) return const [];
+  final port = remoteNodeBaseUri!.hasPort ? remoteNodeBaseUri.port : null;
+  return [port == null ? host : '$host:$port'];
+}
+
 Map<String, String>? _mergeQueryParameters(
   Map<String, String>? queryParameters,
   Map<String, Object?>? extraParams,
@@ -2243,7 +2275,6 @@ String _actionFor(String method, String path) {
   }
   if (method == 'PUT' && clean == 'sync/read-marker') return 'sync.read_marker';
   if (method == 'GET' && clean == 'portal/status') return 'portal.status';
-  if (method == 'POST' && clean == 'portal/setup') return 'portal.setup';
   if (method == 'PUT' && clean == 'portal/password') return 'portal.password';
   if (method == 'POST' && clean == 'reports') return 'reports.submit';
   if (method == 'GET' && clean == 'contacts') return 'contacts.list';

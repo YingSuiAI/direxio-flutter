@@ -27,6 +27,9 @@ const asChannelMemberStatusJoined = 'joined';
 const asChannelMemberStatusInvite = 'invite';
 const asChannelMemberStatusPending = 'pending';
 const asChannelMemberStatusRejected = 'rejected';
+const asChannelMemberStatusApproved = 'approved';
+const asChannelMemberStatusJoining = 'joining';
+const asChannelMemberStatusJoinFailed = 'join_failed';
 const asChannelRoleOwner = 'owner';
 const asChannelRoleAdmin = 'admin';
 const asChannelRoleMember = 'member';
@@ -487,7 +490,13 @@ bool isAsChannelMemberJoined(String status) {
 bool isAsChannelMemberAwaitingJoin(String status) {
   final normalized = _normalizeChannelMemberStatus(status);
   return normalized == asChannelMemberStatusPending ||
-      normalized == asChannelMemberStatusInvite;
+      normalized == asChannelMemberStatusInvite ||
+      normalized == asChannelMemberStatusApproved ||
+      normalized == asChannelMemberStatusJoining;
+}
+
+bool isAsChannelMemberJoinFailed(String status) {
+  return _normalizeChannelMemberStatus(status) == asChannelMemberStatusJoinFailed;
 }
 
 /// P2P product API action.
@@ -1969,6 +1978,8 @@ abstract class AsClient {
     String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
+    Uri? requesterNodeBaseUri,
+    List<String> serverNames = const [],
   });
 
   /// P2P product API action.
@@ -1979,6 +1990,7 @@ abstract class AsClient {
     String grantId = '',
     String shareRoomId = '',
     AsChannel? discoveredChannel,
+    List<String> serverNames = const [],
   });
 
   /// P2P product API action.
@@ -2260,6 +2272,12 @@ String _normalizeChannelMemberStatus(String status) {
       return asChannelMemberStatusInvite;
     case asChannelMemberStatusPending:
       return asChannelMemberStatusPending;
+    case asChannelMemberStatusApproved:
+      return asChannelMemberStatusApproved;
+    case asChannelMemberStatusJoining:
+      return asChannelMemberStatusJoining;
+    case asChannelMemberStatusJoinFailed:
+      return asChannelMemberStatusJoinFailed;
     case 'reject':
     case asChannelMemberStatusRejected:
       return asChannelMemberStatusRejected;

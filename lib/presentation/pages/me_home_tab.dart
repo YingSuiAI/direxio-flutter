@@ -10,7 +10,6 @@ import '../../core/theme/design_tokens.dart';
 import '../providers/personal_space_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
-import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 
 const _homeBg = Color(0xFFFAFAFA);
@@ -38,10 +37,6 @@ class MePage extends ConsumerWidget {
             : localpart;
     final avatarUrl = profileAvatarHttpUrl(profile, client) ?? '';
     final uidUrl = _meUidUrl(client, displayId);
-    final space = ref.watch(personalSpaceProvider).valueOrNull;
-    final signature = space?.signature.trim().isNotEmpty == true
-        ? space!.signature.trim()
-        : personalProfile.bio.trim();
 
     return ColoredBox(
       color: _homeBgColor(context),
@@ -50,7 +45,7 @@ class MePage extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
           children: [
-            _MeTopBar(onMenuTap: () => context.push('/me/menu')),
+            _MeTopBar(onSettingsTap: () => context.push('/settings')),
             const SizedBox(height: 12),
             _MeProfileTile(
               displayId: displayId,
@@ -62,13 +57,35 @@ class MePage extends ConsumerWidget {
               onUidTap: () => _copyUidUrl(context, uidUrl),
               onQrTap: () => context.push('/me/qr'),
             ),
-            const SizedBox(height: 14),
-            _MeSignature(text: signature),
-            const SizedBox(height: 28),
+            const SizedBox(height: 34),
             _MeActionRow(
               icon: Symbols.person_add,
               label: '我的频道',
               onTap: () => context.push('/me/channels'),
+            ),
+            const SizedBox(height: 16),
+            _MeActionRow(
+              icon: Symbols.bookmark,
+              label: '收藏',
+              onTap: () => context.push('/me/favorites'),
+            ),
+            const SizedBox(height: 16),
+            _MeActionRow(
+              icon: Symbols.favorite,
+              label: '赞',
+              onTap: () => context.push('/me/likes'),
+            ),
+            const SizedBox(height: 16),
+            _MeActionRow(
+              icon: Symbols.error,
+              label: '评论',
+              onTap: () => context.push('/me/comments'),
+            ),
+            const SizedBox(height: 16),
+            _MeActionRow(
+              icon: Symbols.help,
+              label: '帮助与反馈',
+              onTap: () => _showHelpFeedback(context),
             ),
           ],
         ),
@@ -78,9 +95,9 @@ class MePage extends ConsumerWidget {
 }
 
 class _MeTopBar extends StatelessWidget {
-  const _MeTopBar({required this.onMenuTap});
+  const _MeTopBar({required this.onSettingsTap});
 
-  final VoidCallback onMenuTap;
+  final VoidCallback onSettingsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -88,12 +105,19 @@ class _MeTopBar extends StatelessWidget {
       height: 48,
       child: Row(
         children: [
-          const Spacer(),
-          GlassHeaderButton(
-            key: const ValueKey('me_menu_button'),
-            icon: Symbols.menu,
-            onTap: onMenuTap,
+          Expanded(
+            child: Text(
+              '我的',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.sans(
+                size: 20,
+                weight: FontWeight.w600,
+                color: _homeTextColor(context),
+              ),
+            ),
           ),
+          _MeIconButton(icon: Symbols.settings, onTap: onSettingsTap),
         ],
       ),
     );
@@ -140,7 +164,6 @@ class _MeProfileTile extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: InkWell(
-              key: const ValueKey('me_profile_entry'),
               onTap: onProfileTap,
               child: Align(
                 alignment: Alignment.centerLeft,
@@ -167,7 +190,7 @@ class _MeProfileTile extends StatelessWidget {
                         children: [
                           Flexible(
                             child: Text(
-                              'UID: $uid',
+                              uid,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTheme.sans(
@@ -190,33 +213,9 @@ class _MeProfileTile extends StatelessWidget {
               ),
             ),
           ),
-          _MeIconButton(
-            key: const ValueKey('me_domain_qr_button'),
-            icon: Symbols.qr_code_2,
-            onTap: onQrTap,
-          ),
+          _MeIconButton(icon: Symbols.qr_code_2, onTap: onQrTap),
         ],
       ),
-    );
-  }
-}
-
-class _MeSignature extends StatelessWidget {
-  const _MeSignature({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: AppTheme.sans(
-        size: 15,
-        weight: FontWeight.w400,
-        color: _homeMutedColor(context),
-      ).copyWith(height: 1.35),
     );
   }
 }
@@ -275,11 +274,7 @@ class _MeActionRow extends StatelessWidget {
 }
 
 class _MeIconButton extends StatelessWidget {
-  const _MeIconButton({
-    super.key,
-    required this.icon,
-    required this.onTap,
-  });
+  const _MeIconButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
@@ -315,6 +310,23 @@ Future<void> _copyUidUrl(BuildContext context, String uidUrl) async {
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text('已复制 UID')),
+  );
+}
+
+Future<void> _showHelpFeedback(BuildContext context) {
+  return showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('帮助与反馈'),
+      content: const Text(
+          '官方邮箱：support@direxio.ai\n\n温馨提示：请在反馈中描述问题发生的页面、操作步骤和设备型号。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('知道了'),
+        ),
+      ],
+    ),
   );
 }
 

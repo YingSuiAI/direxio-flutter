@@ -218,6 +218,12 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
         );
         return;
       }
+      if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
+        );
+        return;
+      }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text(channelJoinInProgressText)),
@@ -249,8 +255,8 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
   }
 }
 
-String _channelJoinWaitingText(String _) {
-  return channelJoinInProgressText;
+String _channelJoinWaitingText(String status) {
+  return channelJoinStatusText(status);
 }
 
 bool _looksLikeMatrixRoomId(String value) {

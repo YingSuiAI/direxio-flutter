@@ -7,6 +7,20 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 
 const channelJoinInProgressText = '正在加入频道，加入完成后会自动打开';
+const channelJoinPendingText = '申请已提交，等待频道主审核';
+const channelJoinApprovedText = '申请已通过，正在同步加入频道';
+const channelJoinFailedText = '加入频道失败，请稍后重试';
+
+String channelJoinStatusText(String status) {
+  final normalized = status.trim().toLowerCase();
+  return switch (normalized) {
+    asChannelMemberStatusPending => channelJoinPendingText,
+    asChannelMemberStatusApproved || asChannelMemberStatusJoining =>
+      channelJoinApprovedText,
+    asChannelMemberStatusJoinFailed => channelJoinFailedText,
+    _ => channelJoinInProgressText,
+  };
+}
 
 Future<bool> waitForJoinedChannelProjection(
   WidgetRef ref, {

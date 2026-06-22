@@ -89,7 +89,7 @@ bool _isProductDirectRoomForChat(Room room, AsSyncCacheState syncCache) {
         acceptedRoomIds: syncCache.acceptedDirectRoomIds,
       ) ||
       syncCache.contactStatusForRoom(room.id) != null ||
-      // Old Matrix rooms can lack m.direct / p2p.room.kind after delete/re-add
+      // Old Matrix rooms can lack m.direct / native Direxio room profile after delete/re-add
       // flows. A joined room with exactly one non-agent peer must still use
       // P2P API as the authority for whether it is a valid private chat.
       joinedPersonPeerMxid(room) != null;

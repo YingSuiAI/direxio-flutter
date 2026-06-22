@@ -2493,31 +2493,33 @@ void main() {
     expect(channel.productConversation?.roomId, '!private:example.com');
   });
 
-  test('joinChannelByRoomId posts room_id to public join request endpoint',
+  test('joinChannelByRoomId posts public join request through P2P command',
       () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(
-          request.url.path,
-          '/_as/public/channels/%21remote%3Ap2p-im.com/join-requests',
-        );
+        expect(request.url.path, '/_p2p/command');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
-          'room_id': '!remote:p2p-im.com',
-          'home_domain': 'p2p-im.com',
-          'name': '远端公开频道',
-          'description': '跨节点发现',
-          'visibility': 'public',
-          'join_policy': 'open',
-          'comments_enabled': true,
-          'tags': ['产品'],
+          'action': 'channels.public.join_request',
+          'params': {
+            'channel_id': '!remote:p2p-im.com',
+            'room_id': '!remote:p2p-im.com',
+            'requester_node_base_url': 'https://example.com/_p2p',
+            'home_domain': 'p2p-im.com',
+            'name': '远端公开频道',
+            'description': '跨节点发现',
+            'visibility': 'public',
+            'join_policy': 'open',
+            'comments_enabled': true,
+            'tags': ['产品'],
+          },
         });
         return _jsonResponse(
           {
-            'status': 'invited',
+            'status': 'joined',
             'channel': {
               'channel_id': 'ch_remote',
               'room_id': '!remote:p2p-im.com',
@@ -2527,7 +2529,7 @@ void main() {
               'visibility': 'public',
               'join_policy': 'open',
               'comments_enabled': true,
-              'member_status': 'invite',
+              'member_status': 'joined',
             },
           },
           200,
@@ -2550,7 +2552,7 @@ void main() {
       ),
     );
 
-    expect(channel.memberStatus, asChannelMemberStatusInvite);
+    expect(channel.memberStatus, asChannelMemberStatusJoined);
   });
 
   test('joinChannelByRoomId requests public channel join by room id', () async {
@@ -2566,10 +2568,11 @@ void main() {
         expect(envelope['params'], {
           'channel_id': '!remote:p2p-im.com',
           'room_id': '!remote:p2p-im.com',
+          'requester_node_base_url': 'https://example.com/_p2p',
         });
         return _jsonResponse(
           {
-            'status': 'invited',
+            'status': 'joined',
             'channel': {
               'channel_id': 'ch_remote',
               'room_id': '!remote:p2p-im.com',
@@ -2588,7 +2591,7 @@ void main() {
     final channel = await client.joinChannelByRoomId('!remote:p2p-im.com');
 
     expect(channel.channelId, 'ch_remote');
-    expect(channel.memberStatus, asChannelMemberStatusInvite);
+    expect(channel.memberStatus, asChannelMemberStatusJoined);
   });
 
   test('joinChannelByRoomId passes remote node base URL as params', () async {
@@ -2605,6 +2608,8 @@ void main() {
           'channel_id': '!remote:remote.example',
           'room_id': '!remote:remote.example',
           'remote_node_base_url': 'https://remote.example/_p2p',
+          'requester_node_base_url': 'https://local.example/_p2p',
+          'server_names': ['remote.example'],
         });
         return _jsonResponse(
           {
@@ -2682,20 +2687,25 @@ void main() {
     expect(member.joinedAtMs, 1781870000000);
   });
 
-  test('approveChannelJoin posts approval action to AS', () async {
+  test('approveChannelJoin posts approval action to P2P command', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(
-          request.url.path,
-          '/_as/channels/ch1/join-requests/%40alice%3Ap2p-liyanan.com/approve',
-        );
+        expect(request.url.path, '/_p2p/command');
         expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'channels.join_request.approve',
+          'params': {
+            'channel_id': 'ch1',
+            'user_id': '@alice:p2p-liyanan.com',
+            'user_mxid': '@alice:p2p-liyanan.com',
+          },
+        });
         return _jsonResponse(
           {
-            'status': 'invited',
+            'status': 'approved',
             'channel': {
               'channel_id': 'ch1',
               'room_id': '!channel:example.com',
@@ -2720,17 +2730,22 @@ void main() {
     expect(channel.pendingJoinCount, 0);
   });
 
-  test('rejectChannelJoin posts rejection action to AS', () async {
+  test('rejectChannelJoin posts rejection action to P2P command', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(
-          request.url.path,
-          '/_as/channels/ch1/join-requests/%40alice%3Ap2p-liyanan.com/reject',
-        );
+        expect(request.url.path, '/_p2p/command');
         expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'channels.join_request.reject',
+          'params': {
+            'channel_id': 'ch1',
+            'user_id': '@alice:p2p-liyanan.com',
+            'user_mxid': '@alice:p2p-liyanan.com',
+          },
+        });
         return _jsonResponse(
           {
             'status': 'rejected',

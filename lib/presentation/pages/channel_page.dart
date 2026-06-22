@@ -608,22 +608,11 @@ class _PublicChannelScaffoldState
     setState(() => _joining = true);
     try {
       final asClient = ref.read(asClientProvider);
-      var joined = await asClient.joinChannelByRoomId(
+      final joined = await asClient.joinChannelByRoomId(
         roomId,
         discoveredChannel: channel,
         remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
       );
-      if (joined.memberStatus == asChannelMemberStatusInvite) {
-        final channelId = joined.channelId.trim().isEmpty
-            ? channel.channelId.trim()
-            : joined.channelId.trim();
-        if (channelId.isNotEmpty) {
-          joined = await asClient.joinChannel(
-            channelId,
-            discoveredChannel: joined,
-          );
-        }
-      }
       setState(() {
         _joining = false;
         _future = Future.value(joined);
@@ -632,6 +621,12 @@ class _PublicChannelScaffoldState
       if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
+        );
+        return;
+      }
+      if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
         );
         return;
       }
@@ -657,8 +652,8 @@ class _PublicChannelScaffoldState
   }
 }
 
-String _channelJoinWaitingText(String _) {
-  return channelJoinInProgressText;
+String _channelJoinWaitingText(String status) {
+  return channelJoinStatusText(status);
 }
 
 bool _looksLikeMatrixRoomId(String value) {
@@ -716,14 +711,21 @@ class _PublicChannelJoinBar extends StatelessWidget {
     final status = channel.memberStatus.trim();
     final joined = status == asChannelMemberStatusJoined;
     final pending = status == asChannelMemberStatusPending;
+    final approved = status == asChannelMemberStatusApproved ||
+        status == asChannelMemberStatusJoining;
+    final failed = status == asChannelMemberStatusJoinFailed;
     final approval = channel.joinPolicy == asChannelJoinPolicyApproval;
     final label = joined
         ? '已加入'
         : pending
             ? '待审核'
-            : approval
-                ? '申请加入'
-                : '加入频道';
+            : approved
+                ? '同步中'
+                : failed
+                    ? '重新加入'
+                    : approval
+                        ? '申请加入'
+                        : '加入频道';
     return SafeArea(
       top: false,
       child: Container(
@@ -737,7 +739,7 @@ class _PublicChannelJoinBar extends StatelessWidget {
           width: double.infinity,
           height: 44,
           child: FilledButton(
-            onPressed: joined || pending || joining ? null : onJoin,
+            onPressed: joined || pending || approved || joining ? null : onJoin,
             child: Text(
               joining ? '处理中' : label,
               style: AppTheme.sans(

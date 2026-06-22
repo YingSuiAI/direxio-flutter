@@ -2484,6 +2484,8 @@ class _PublicChannelAsClient extends MockAsClient {
     String shareRoomId = '',
     AsChannel? discoveredChannel,
     Uri? remoteNodeBaseUri,
+    Uri? requesterNodeBaseUri,
+    List<String> serverNames = const [],
   }) async {
     joinRequestRoomId = roomId;
     return const AsChannel(
@@ -2509,6 +2511,7 @@ class _PublicChannelAsClient extends MockAsClient {
     String grantId = '',
     String shareRoomId = '',
     AsChannel? discoveredChannel,
+    List<String> serverNames = const [],
   }) async {
     joinProjectionChannelId = channelId;
     return const AsChannel(

@@ -246,10 +246,15 @@ void _ensureOptimisticGroupRoom(
   }
   room.setState(
     StrippedStateEvent(
-      type: productRoomKindEventType,
+      type: nativeRoomProfileEventType,
       senderId: sender,
       stateKey: '',
-      content: {'kind': 'group'},
+      content: {
+        'room_type': nativeGroupRoomType,
+        'room_id': room.id,
+        'name': name,
+        if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
+      },
     ),
   );
   room.setState(

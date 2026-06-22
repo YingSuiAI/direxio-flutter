@@ -13,12 +13,13 @@ This document records the current P2P product API / Matrix boundary used by the 
 ## P2P Product API Responsibilities
 
 - Requests use `POST /_p2p/query` or `POST /_p2p/command` with an `action` and `params` body.
-- Portal actions: `portal.bootstrap`, `portal.auth`, `portal.status`, `portal.setup`, `portal.password`.
+- Portal actions: `portal.bootstrap`, `portal.auth`, `portal.status`, `portal.password`.
 - Bootstrap metadata action: `sync.bootstrap` for contacts, groups, channels, pending requests, user profile, and product summaries.
 - Contact actions: `contacts.list`, `contacts.request`, `contacts.reactivate`, `contacts.requests.accept`, `contacts.requests.reject`, `contacts.requests.delete`, `contacts.update`, `contacts.delete`.
 - Follow/favorite/report actions: `follows.*`, `favorites.*`, `reports.submit`.
 - Group actions: `groups.create`, `groups.update`, `groups.invite`, `groups.join`, `groups.list`, `groups.members`, `groups.leave`, `groups.dissolve`, member moderation, mute, and invite policy actions.
 - Channel actions: `channels.create`, `channels.update`, `channels.join`, `channels.invite_grant.create`, `channels.invite`, `channels.list`, `channels.members`, `channels.leave`, `channels.dissolve`, moderation, mute, read marker, public search/detail/join request, posts, comments, and reactions.
+- Public channel join requests return `pending`, `rejected`, `approved`, `joining`, `joined`, or `join_failed`. Only `joined` is openable as a joined channel; `approved`/`joining` are still in-progress states.
 - Public profile/channel extension action: `users.public_channels`.
 - Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`.
 - Agent/API actions: `agent.*` and `apis.*`.

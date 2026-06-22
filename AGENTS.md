@@ -54,6 +54,7 @@ lib/
 
 - `sync.bootstrap` is metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields to bootstrap.
 - P2P ordinary message/search/backup actions are removed, not compatibility entries: `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
+- `portal.setup` is removed. First-time setup must use `portal.status` / `portal.auth`, then password/profile update flows.
 - Ordinary message send, media send, history, unread, message search, and recall use Matrix Client-Server APIs.
 - Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both. It hides only the current user's local Matrix read path and is not a redaction.
 - Public remote channel lookup must pass the request-provided `remote_node_base_url` required by the backend. Do not infer a remote P2P URL from a Matrix `room_id` domain.
@@ -92,7 +93,7 @@ lib/
 
 ## Channel Rules
 
-- A channel is a Matrix room marked by `p2p.room.kind = {"kind":"channel"}`.
+- Product room classification comes from `io.direxio.room.profile` and P2P product APIs. Do not add new code that depends on legacy `p2p.room.kind`.
 - Channel list uses `AsSyncBootstrap.channels` as the primary logged-in source. Do not add a duplicate list endpoint without updating interface docs and tests.
 - `channels.create` creates a channel through the P2P product API, but owner semantics belong to the portal owner, not the Agent/bot.
 - Search, channel tab, channel detail, and channel chat must use the same channel identity source when logged in.

@@ -69,7 +69,11 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
-    final currentNickname = _currentUserNickname(room, client.userID);
+    final currentNickname = _currentUserNickname(
+      room,
+      client.userID,
+      currentUserProfile: currentUserProfile,
+    );
     // 真实成员列表（已加入）；降级到空列表
     final members = room
             ?.getParticipants()
@@ -332,7 +336,10 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                     ),
                     itemBuilder: (_, index) {
                       final member = removableMembers[index];
-                      final displayName = member.calcDisplayname();
+                      final displayName = _groupMemberDisplayName(
+                        room: room,
+                        member: member,
+                      );
                       return ListTile(
                         key: ValueKey(
                           'group_info_remove_member_${member.id}',
@@ -382,7 +389,11 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
 
   Future<void> _confirmRemoveMember(BuildContext context, User member) async {
     if (_removingMember) return;
-    final displayName = member.calcDisplayname();
+    final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
+    final displayName = _groupMemberDisplayName(
+      room: room,
+      member: member,
+    );
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -424,14 +435,17 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final peerMxid = member.id.trim();
     if (_removingMember || peerMxid.isEmpty) return;
     final messenger = ScaffoldMessenger.of(context);
-    final displayName = member.calcDisplayname();
+    final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
+    final displayName = _groupMemberDisplayName(
+      room: room,
+      member: member,
+    );
     setState(() => _removingMember = true);
     try {
       await ref.read(asClientProvider).removeGroupMember(
             roomId: widget.roomId,
             peerMxid: peerMxid,
           );
-      final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
       room?.setState(
         StrippedStateEvent(
           type: EventTypes.RoomMember,
@@ -645,15 +659,27 @@ Future<String?> _showTextEditDialog(
   );
 }
 
-String _currentUserNickname(Room? room, String? userId) {
+String _currentUserNickname(
+  Room? room,
+  String? userId, {
+  required Profile? currentUserProfile,
+}) {
   final trimmedUserId = userId?.trim() ?? '';
   if (room == null || trimmedUserId.isEmpty) return '';
+  final profileName = _usableDisplayName(
+    currentUserProfile?.displayName?.toString() ?? '',
+  );
+  if (profileName.isNotEmpty) return profileName;
   final member = room.getState(EventTypes.RoomMember, trimmedUserId);
-  final stateName = member?.content.tryGet<String>('displayname')?.trim() ?? '';
+  final stateName = _usableDisplayName(
+    member?.content.tryGet<String>('displayname') ?? '',
+  );
   if (stateName.isNotEmpty) return stateName;
-  return room
-      .unsafeGetUserFromMemoryOrFallback(trimmedUserId)
-      .calcDisplayname();
+  final matrixName = _usableDisplayName(
+    room.unsafeGetUserFromMemoryOrFallback(trimmedUserId).calcDisplayname(),
+  );
+  if (matrixName.isNotEmpty) return matrixName;
+  return _fallbackDisplayNameFromMxid(trimmedUserId);
 }
 
 _GroupMemberPresentation _groupMemberPresentation({
@@ -665,18 +691,19 @@ _GroupMemberPresentation _groupMemberPresentation({
   final userId = member.id.trim();
   final isSelf = userId.isNotEmpty && userId == client.userID?.trim();
   final memberState = room?.getState(EventTypes.RoomMember, userId);
-  final stateName =
-      memberState?.content.tryGet<String>('displayname')?.trim() ?? '';
-  final profileName =
-      isSelf ? currentUserProfile?.displayName?.toString().trim() ?? '' : '';
-  final userName = member.calcDisplayname().trim();
-  final name = profileName.isNotEmpty
-      ? profileName
-      : stateName.isNotEmpty
-          ? stateName
-          : userName.isNotEmpty
-              ? userName
-              : userId;
+  final profileName = isSelf
+      ? _usableDisplayName(currentUserProfile?.displayName?.toString() ?? '')
+      : '';
+  final stateName = _usableDisplayName(
+    memberState?.content.tryGet<String>('displayname') ?? '',
+  );
+  final userName = _usableDisplayName(member.calcDisplayname());
+  final name = _firstUsableDisplayName([
+    profileName,
+    stateName,
+    userName,
+    _fallbackDisplayNameFromMxid(userId),
+  ]);
   final profileAvatar =
       isSelf ? profileAvatarHttpUrl(currentUserProfile, client) : null;
   final stateAvatar = avatarHttpUrl(
@@ -689,6 +716,46 @@ _GroupMemberPresentation _groupMemberPresentation({
     name: name,
     avatarUrl: profileAvatar ?? stateAvatar ?? userAvatar,
   );
+}
+
+String _groupMemberDisplayName({
+  required Room? room,
+  required User member,
+}) {
+  final userId = member.id.trim();
+  final memberState = room?.getState(EventTypes.RoomMember, userId);
+  return _firstUsableDisplayName([
+    memberState?.content.tryGet<String>('displayname') ?? '',
+    member.calcDisplayname(),
+    _fallbackDisplayNameFromMxid(userId),
+  ]);
+}
+
+String _firstUsableDisplayName(Iterable<String> values) {
+  for (final value in values) {
+    final name = _usableDisplayName(value);
+    if (name.isNotEmpty) return name;
+  }
+  return '';
+}
+
+String _usableDisplayName(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return '';
+  if (trimmed.toLowerCase() == 'owner') return '';
+  return trimmed;
+}
+
+String _fallbackDisplayNameFromMxid(String mxid) {
+  final trimmed = mxid.trim();
+  if (trimmed.isEmpty) return '';
+  if (!trimmed.startsWith('@')) return trimmed;
+  final separator = trimmed.indexOf(':');
+  if (separator <= 1) return trimmed;
+  final localpart = trimmed.substring(1, separator).trim();
+  final domain = trimmed.substring(separator + 1).trim();
+  if (localpart.toLowerCase() == 'owner' && domain.isNotEmpty) return domain;
+  return localpart.isNotEmpty ? localpart : trimmed;
 }
 
 void _toast(BuildContext context, String message) {

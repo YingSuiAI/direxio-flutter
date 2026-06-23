@@ -7,8 +7,12 @@ import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/presentation/channel/channel_home_tab.dart';
 import 'package:portal_app/presentation/channel/channel_inbox_data.dart';
+import 'package:portal_app/presentation/pages/channel_info_page.dart';
+import 'package:portal_app/presentation/providers/as_client_provider.dart';
+import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
+import 'support/mock_as_client.dart';
 
 void main() {
   testWidgets('channel inbox tile renders uploaded channel avatar',
@@ -44,6 +48,139 @@ void main() {
     final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
     expect(avatar.imageUrl, 'https://cdn.example.com/channel.png');
     expect(avatar.shape, AvatarShape.squircle);
+  });
+
+  testWidgets('owned channel info page renders uploaded channel avatar',
+      (tester) async {
+    final client = Client('OwnedChannelInfoAvatarTest');
+    const avatarUrl = 'https://cdn.example.com/owned-channel.png';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        const AsSyncRoomSummary(
+          channelId: 'ch_owned',
+          roomId: '!owned:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '频道头像测试',
+          avatarUrl: avatarUrl,
+          unreadCount: 0,
+          lastActivityAt: null,
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 0,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(MockAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_owned'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
+    expect(
+      avatars.any(
+        (avatar) =>
+            avatar.imageUrl == avatarUrl &&
+            avatar.shape == AvatarShape.squircle,
+      ),
+      isTrue,
+    );
+  });
+
+  test('channel member parses backend user id and avatar fields', () {
+    final member = AsChannelMember.fromJson(const {
+      'channel_id': 'ch_owned',
+      'user_id': '@alice:p2p-im.com',
+      'display_name': 'Alice',
+      'avatar_url': 'https://cdn.example.com/alice.png',
+      'membership': 'join',
+      'role': 'member',
+      'joined_at': 1770000000000,
+    });
+
+    expect(member.userMxid, '@alice:p2p-im.com');
+    expect(member.avatarUrl, 'https://cdn.example.com/alice.png');
+    expect(member.status, asChannelMemberStatusJoined);
+  });
+
+  testWidgets('owned channel info page renders member avatars', (tester) async {
+    final client = Client('OwnedChannelInfoMemberAvatarTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    const memberAvatarUrl = 'https://cdn.example.com/alice-member.png';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        const AsSyncRoomSummary(
+          channelId: 'ch_owned',
+          roomId: '!owned:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '频道成员头像测试',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 2,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(
+            _ChannelMemberAvatarAsClient(memberAvatarUrl),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_owned'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final memberAvatar = tester.widget<PortalAvatar>(
+      find.descendant(
+        of: find.byKey(
+          const ValueKey('channel_member_avatar_@alice:p2p-im.com'),
+        ),
+        matching: find.byType(PortalAvatar),
+      ),
+    );
+    expect(memberAvatar.imageUrl, memberAvatarUrl);
+    expect(memberAvatar.shape, AvatarShape.squircle);
   });
 
   testWidgets('channel inbox tile opens post list or chat by channel type',
@@ -173,4 +310,28 @@ void main() {
 
     expect(find.text('频道已解散'), findsOneWidget);
   });
+}
+
+class _ChannelMemberAvatarAsClient extends MockAsClient {
+  _ChannelMemberAvatarAsClient(this.memberAvatarUrl);
+
+  final String memberAvatarUrl;
+
+  @override
+  Future<List<AsChannelMember>> getChannelMembers(
+    String channelId, {
+    String status = '',
+  }) async {
+    return [
+      AsChannelMember(
+        channelId: channelId,
+        userMxid: '@alice:p2p-im.com',
+        displayName: 'Alice',
+        avatarUrl: memberAvatarUrl,
+        role: asChannelRoleMember,
+        status: asChannelMemberStatusJoined,
+        joinedAtMs: 1770000000000,
+      ),
+    ];
+  }
 }

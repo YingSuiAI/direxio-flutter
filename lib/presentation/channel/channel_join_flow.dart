@@ -12,6 +12,8 @@ const channelJoinPendingText = '申请已提交，等待频道主审核';
 const channelJoinApprovedText = '申请已通过，正在同步加入频道';
 const channelJoinFailedText = '加入频道失败，请稍后重试';
 const _missingInviteGrantMessage = 'channel invite grant is missing or expired';
+const _missingInviteGrantMessageCompact =
+    'channelinvitegrantismissingorexpired';
 
 String channelJoinStatusText(String status) {
   final normalized = status.trim().toLowerCase();
@@ -62,7 +64,7 @@ Future<bool> waitForJoinedChannelProjection(
 Future<AsChannel> joinChannelWithInviteProjectionRetry(
   WidgetRef ref,
   Future<AsChannel> Function() join, {
-  int retries = 2,
+  int retries = 6,
   Duration delay = const Duration(seconds: 2),
 }) async {
   for (var attempt = 0;; attempt++) {
@@ -81,9 +83,12 @@ Future<AsChannel> joinChannelWithInviteProjectionRetry(
 }
 
 bool _isMissingInviteGrant(Object error) {
+  final message = error is AsClientException ? error.message.toLowerCase() : '';
+  final compactMessage = message.replaceAll(RegExp(r'\s+'), '');
   return error is AsClientException &&
       error.statusCode == 403 &&
-      error.message.contains(_missingInviteGrantMessage);
+      (message.contains(_missingInviteGrantMessage) ||
+          compactMessage.contains(_missingInviteGrantMessageCompact));
 }
 
 Future<void> _refreshChannelInviteProjection(WidgetRef ref) async {

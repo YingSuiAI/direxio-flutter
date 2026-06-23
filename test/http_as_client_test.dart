@@ -1677,6 +1677,88 @@ void main() {
     expect(favorite.senderAvatarUrl, 'mxc://p2p-im.com/yanan-avatar');
   });
 
+  test('favoriteMessage sends media snapshot content through unified action',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        final payload = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(payload['action'], 'favorites.add');
+        final params = (payload['params'] as Map).cast<String, dynamic>();
+        expect(params['room_id'], '!room:p2p-im.com');
+        expect(params['event_id'], r'$image');
+        expect(params['url'], 'mxc://p2p-im.com/photo');
+        final content =
+            jsonDecode(params['content'] as String) as Map<String, dynamic>;
+        expect(content['msgtype'], 'm.image');
+        expect(content['body'], 'photo.jpg');
+        expect(content['filename'], 'photo.jpg');
+        expect(content['url'], 'mxc://p2p-im.com/photo');
+        final info = (content['info'] as Map).cast<String, dynamic>();
+        expect(info['mimetype'], 'image/jpeg');
+        expect(info['size'], 12345);
+        expect(info['thumbnail_url'], 'mxc://p2p-im.com/thumb');
+        expect(info['w'], 640);
+        expect(info['h'], 480);
+        final thumbnailInfo =
+            (info['thumbnail_info'] as Map).cast<String, dynamic>();
+        expect(thumbnailInfo['mimetype'], 'image/jpeg');
+        expect(thumbnailInfo['size'], 1234);
+        return http.Response(
+          jsonEncode({
+            'id': 17,
+            'room_id': '!room:p2p-im.com',
+            'event_id': r'$image',
+            'message_type': 'image',
+            'sender_id': '@owner:p2p-im.com',
+            'sender_name': 'Yanan',
+            'content': params['content'],
+            'origin_server_ts': 1779685200000,
+            'created_at': '2026-05-29T10:00:00Z',
+          }),
+          200,
+        );
+      }),
+    );
+
+    final favorite = await client.favoriteMessage(
+      const AsFavoriteMessageDraft(
+        roomId: '!room:p2p-im.com',
+        eventId: r'$image',
+        roomType: 'direct',
+        messageType: 'image',
+        senderId: '@owner:p2p-im.com',
+        senderName: 'Yanan',
+        body: 'photo.jpg',
+        url: 'mxc://p2p-im.com/photo',
+        filename: 'photo.jpg',
+        mimeType: 'image/jpeg',
+        size: 12345,
+        thumbnailUrl: 'mxc://p2p-im.com/thumb',
+        thumbnailMimeType: 'image/jpeg',
+        thumbnailSize: 1234,
+        width: 640,
+        height: 480,
+        originServerTs: 1779685200000,
+      ),
+    );
+
+    expect(favorite.id, 17);
+    expect(favorite.body, 'photo.jpg');
+    expect(favorite.url, 'mxc://p2p-im.com/photo');
+    expect(favorite.thumbnailUrl, 'mxc://p2p-im.com/thumb');
+    expect(favorite.mimeType, 'image/jpeg');
+    expect(favorite.size, 12345);
+    expect(favorite.width, 640);
+    expect(favorite.height, 480);
+    expect(favorite.favoritedAt?.toUtc().toIso8601String(),
+        '2026-05-29T10:00:00.000Z');
+  });
+
   test('submitReport posts through unified reports action', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),

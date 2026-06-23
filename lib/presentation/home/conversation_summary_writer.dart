@@ -13,6 +13,7 @@ import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/message_preview.dart';
+import '../utils/user_profile_directory.dart';
 
 class VisibleHomeConversation {
   const VisibleHomeConversation._({
@@ -643,32 +644,26 @@ String? conversationAvatarUrl(
     return resolved;
   }
 
-  final productPeerAvatar = directPeerMemberAvatarUrl(
-    client,
-    room,
-    conversation.product?.peerMxid,
-  );
-  final contactPeerAvatar = directPeerMemberAvatarUrl(
-    client,
-    room,
-    directContact?.userId,
-  );
-  final productPeerAvatarInRooms =
-      directPeerAvatarUrlInRooms(client, conversation.product?.peerMxid);
-  final contactPeerAvatarInRooms =
-      directPeerAvatarUrlInRooms(client, directContact?.userId);
-  final contactAvatar = avatarHttpUrl(client, directContact?.avatarUrl);
   final roomSummaryAvatar =
       avatarHttpUrl(client, conversation.roomSummary?.avatarUrl);
   final roomAvatar = room == null ? null : roomAvatarHttpUrl(room);
-  final resolved = productAvatar ??
-      productPeerAvatar ??
-      contactPeerAvatar ??
-      productPeerAvatarInRooms ??
-      contactPeerAvatarInRooms ??
-      contactAvatar ??
-      roomSummaryAvatar ??
-      roomAvatar;
+  final directory = UserProfileDirectory.fromSources(
+    client: client,
+    productConversations: [
+      if (conversation.product != null) conversation.product!,
+    ],
+    extraContacts: [
+      if (directContact != null) directContact,
+    ],
+  );
+  final peerMxid = _firstNonEmpty([
+    conversation.product?.peerMxid,
+    directContact?.userId,
+    room == null ? null : productDirectPeerMxid(room),
+  ]);
+  final peerAvatar = peerMxid.isEmpty ? null : directory.avatarUrlFor(peerMxid);
+  final resolved =
+      productAvatar ?? peerAvatar ?? roomSummaryAvatar ?? roomAvatar;
   _debugAvatarResolution(
     source: 'conversation_direct',
     roomId: conversation.roomId,
@@ -684,25 +679,32 @@ String? conversationAvatarUrl(
 }
 
 String? contactListAvatarUrl(Client client, AsSyncContact contact) {
-  final room = client.getRoomById(contact.roomId.trim());
-  final memberAvatar = directPeerMemberAvatarUrl(client, room, contact.userId);
-  final roomProfileAvatar = room == null
-      ? null
-      : avatarHttpUrl(client, productDirectPeerAvatarUrl(room));
-  final syncedRoomAvatar = directPeerAvatarUrlInRooms(client, contact.userId);
-  final contactAvatar = avatarHttpUrl(client, contact.avatarUrl);
-  final resolved =
-      memberAvatar ?? syncedRoomAvatar ?? contactAvatar ?? roomProfileAvatar;
+  final directory = UserProfileDirectory.fromSources(
+    client: client,
+    extraContacts: [contact],
+  );
+  final resolved = directory.avatarUrlFor(
+    contact.userId,
+    fallbackAvatarUrl: contact.avatarUrl,
+  );
   _debugAvatarResolution(
     source: 'contact_list',
     roomId: contact.roomId,
     contactPeerMxid: contact.userId,
     contactAvatar: contact.avatarUrl,
-    roomAvatar: roomProfileAvatar,
+    roomAvatar: null,
     resolved: resolved,
-    hasRoom: room != null,
+    hasRoom: client.getRoomById(contact.roomId.trim()) != null,
   );
   return resolved;
+}
+
+String _firstNonEmpty(Iterable<String?> values) {
+  for (final value in values) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isNotEmpty) return trimmed;
+  }
+  return '';
 }
 
 void _debugAvatarResolution({

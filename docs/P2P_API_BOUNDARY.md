@@ -20,7 +20,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Accepted-contact remark updates use `contacts.update` with `room_id` and `display_name`; the backend stores the remark as the contact `display_name`, not as a separate `remark` field.
 - Contact identity writes preserve the peer profile: `contacts.request`, `contacts.requests.accept`, and `contacts.update` may send `display_name`, `avatar_url`, and `domain`; `ContactEntry` reads `avatar_url` back for contact and direct-conversation caches.
 - Follow/favorite/report actions: `follows.*`, `favorites.*`, `reports.submit`.
-- Favorite message snapshots may include `sender_avatar_url`; the favorites UI uses it for the source sender avatar when present.
+- Favorite message snapshots may include `sender_avatar_url`; the favorites UI uses it for the source sender avatar when present. Unified `favorites.add` sends media details inside a Matrix-style `content` snapshot so AS responses can restore image/file URLs even when only `content` is persisted.
 - Group actions: `groups.create`, `groups.update`, `groups.invite`, `groups.join`, `groups.list`, `groups.members`, `groups.leave`, `groups.dissolve`, member moderation, mute, and invite policy actions.
 - `groups.invite` is surfaced to receivers as a Matrix room invite and may also appear in `sync.bootstrap.pending.group_invites`; it is not delivered as a private-chat invite message.
 - Channel actions: `channels.create`, `channels.update`, `channels.join`, `channels.invite_grant.create`, `channels.invite`, `channels.list`, `channels.members`, `channels.leave`, `channels.dissolve`, moderation, mute, read marker, public search/detail/join request, posts, comments, and reactions.

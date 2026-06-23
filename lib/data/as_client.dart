@@ -281,6 +281,9 @@ class AsFavoriteMessage {
     final content = _objectMapOrJson(json['content_json'] ?? json['content']);
     final info = _objectMapOrJson(content['info']);
     final file = _objectMapOrJson(content['file'] ?? info['file']);
+    final thumbnailInfo = _objectMapOrJson(
+      content['thumbnail_info'] ?? info['thumbnail_info'],
+    );
     final thumbnailFile = _objectMapOrJson(
       content['thumbnail_file'] ?? info['thumbnail_file'],
     );
@@ -369,21 +372,76 @@ class AsFavoriteMessage {
           json['sender_avatar'] as String? ??
           json['avatar_url'] as String? ??
           '',
-      body: json['body'] as String? ?? '',
+      body: _firstNonEmptyString([
+        json['body'] as String? ?? '',
+        content['body'] as String? ?? '',
+      ]),
       url: url,
-      filename: json['filename'] as String? ?? '',
-      mimeType: json['mime_type'] as String? ?? '',
-      size: json['size'] as int? ?? 0,
+      filename: _firstNonEmptyString([
+        json['filename'] as String? ?? '',
+        content['filename'] as String? ?? '',
+      ]),
+      mimeType: _firstNonEmptyString([
+        json['mime_type'] as String? ?? '',
+        json['mimetype'] as String? ?? '',
+        content['mime_type'] as String? ?? '',
+        content['mimetype'] as String? ?? '',
+        info['mime_type'] as String? ?? '',
+        info['mimetype'] as String? ?? '',
+        file['mime_type'] as String? ?? '',
+        file['mimetype'] as String? ?? '',
+      ]),
+      size: _firstPositiveInt([
+        json['size'],
+        content['size'],
+        info['size'],
+        file['size'],
+      ]),
       thumbnailUrl: thumbnailUrl,
-      thumbnailMimeType: json['thumbnail_mime_type'] as String? ?? '',
-      thumbnailSize: json['thumbnail_size'] as int? ?? 0,
-      width: json['width'] as int? ?? 0,
-      height: json['height'] as int? ?? 0,
-      durationMs: json['duration_ms'] as int? ?? 0,
-      originServerTs: json['origin_server_ts'] as int? ?? 0,
-      favoritedAt: _parseDateTime(json['favorited_at']),
+      thumbnailMimeType: _firstNonEmptyString([
+        json['thumbnail_mime_type'] as String? ?? '',
+        json['thumbnail_mimetype'] as String? ?? '',
+        content['thumbnail_mime_type'] as String? ?? '',
+        content['thumbnail_mimetype'] as String? ?? '',
+        info['thumbnail_mime_type'] as String? ?? '',
+        info['thumbnail_mimetype'] as String? ?? '',
+        thumbnailInfo['mime_type'] as String? ?? '',
+        thumbnailInfo['mimetype'] as String? ?? '',
+        thumbnailFile['mime_type'] as String? ?? '',
+        thumbnailFile['mimetype'] as String? ?? '',
+      ]),
+      thumbnailSize: _firstPositiveInt([
+        json['thumbnail_size'],
+        content['thumbnail_size'],
+        info['thumbnail_size'],
+        thumbnailInfo['size'],
+        thumbnailFile['size'],
+      ]),
+      width: _firstPositiveInt([
+        json['width'],
+        content['width'],
+        info['width'],
+        info['w'],
+      ]),
+      height: _firstPositiveInt([
+        json['height'],
+        content['height'],
+        info['height'],
+        info['h'],
+      ]),
+      durationMs: _firstPositiveInt([
+        json['duration_ms'],
+        content['duration_ms'],
+        info['duration_ms'],
+        info['duration'],
+      ]),
+      originServerTs: _firstPositiveInt([
+        json['origin_server_ts'],
+        content['origin_server_ts'],
+      ]),
+      favoritedAt: _parseDateTime(json['favorited_at'] ?? json['created_at']),
       chatRecord: _chatRecordMap(
-        json['chat_record'],
+        json['chat_record'] ?? content['chat_record'],
         fallback: json['chat_record_json'],
       ),
     );
@@ -1651,7 +1709,10 @@ class AsChannelMember {
   factory AsChannelMember.fromJson(Map<String, dynamic> json) {
     return AsChannelMember(
       channelId: json['channel_id'] as String? ?? '',
-      userMxid: json['user_mxid'] as String? ?? '',
+      userMxid: _firstString(
+        json,
+        const ['user_mxid', 'user_id', 'matrix_user_id', 'mxid'],
+      ),
       domain: json['domain'] as String? ?? '',
       displayName: json['display_name'] as String? ?? '',
       avatarUrl: _firstString(
@@ -2615,6 +2676,14 @@ String _firstNonEmptyString(Iterable<String> values) {
     if (trimmed.isNotEmpty) return trimmed;
   }
   return '';
+}
+
+int _firstPositiveInt(Iterable<Object?> values) {
+  for (final value in values) {
+    final parsed = _parseInt(value);
+    if (parsed > 0) return parsed;
+  }
+  return 0;
 }
 
 String _normalizeChannelVisibility(String visibility) {

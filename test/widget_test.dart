@@ -11556,6 +11556,45 @@ void main() {
     expect(ownerAvatar.imageUrl, contains('/download/p2p-im.com/owner-avatar'));
   });
 
+  testWidgets('group info hides owner fallback for my group nickname',
+      (tester) async {
+    final client = Client('DirexioGroupInfoOwnerNicknameTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {
+        '@owner:p2p-im.com': 'owner',
+        '@alice:p2p-im.com': 'Alice',
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          currentUserProfileProvider.overrideWith(
+            (ref) async => Profile(
+              userId: '@owner:p2p-im.com',
+              displayName: '真实昵称',
+              avatarUrl: null,
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('真实昵称'), findsWidgets);
+    expect(find.text('owner'), findsNothing);
+  });
+
   testWidgets('group info member avatar opens contact home for friend actions',
       (tester) async {
     final client = Client('DirexioGroupInfoMemberProfileTest')

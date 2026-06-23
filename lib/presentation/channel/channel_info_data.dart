@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 import '../../data/as_client.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/product_conversations_provider.dart';
 import 'channel_inbox_data.dart';
 import 'channel_share.dart';
 
@@ -95,11 +96,14 @@ ChannelInfoData channelInfoDataFromAsChannel(AsChannel channel) {
 
 ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
   final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
+  final productConversations =
+      ref.watch(productConversationsProvider).valueOrNull ?? const [];
   if (bootstrap != null) {
     final client = ref.watch(matrixClientProvider);
     final channels = ChannelInboxData.fromBootstrap(
       bootstrap,
       fallbackDomain: _clientServerName(client),
+      productConversations: productConversations,
     );
     for (final channel in channels) {
       if (channel.id == channelId || channel.roomId == channelId) {
@@ -109,6 +113,11 @@ ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
           channel.roomId,
         );
         final matrixAvatar = _matrixRoomAvatar(client, channel.roomId);
+        final productAvatar = _findProductConversationAvatar(
+          productConversations,
+          channel.id,
+          channel.roomId,
+        );
         return ChannelInfoData(
           id: channel.id,
           roomId: channel.roomId,
@@ -118,9 +127,10 @@ ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
             roomId: channel.roomId,
             matrixRoomName: _matrixRoomName(client, channel.roomId),
           ),
-          avatarUrl: channel.avatarUrl.trim().isEmpty
-              ? matrixAvatar
-              : channel.avatarUrl,
+          avatarUrl: _preferReadableText(
+            channel.avatarUrl,
+            _preferReadableText(productAvatar, matrixAvatar),
+          ),
           description: _channelDescriptionField(
             bootstrapChannel,
             fallback: channel.description,
@@ -161,6 +171,28 @@ ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
   );
 }
 
+String _findProductConversationAvatar(
+  Iterable<AsConversation> conversations,
+  String channelId,
+  String roomId,
+) {
+  final targetChannelId = channelId.trim();
+  final targetRoomId = roomId.trim();
+  for (final conversation in conversations) {
+    if (!conversation.isChannel) continue;
+    final conversationId = conversation.conversationId.trim();
+    final conversationRoomId = conversation.roomId.trim();
+    final matchesChannel =
+        targetChannelId.isNotEmpty && conversationId == targetChannelId;
+    final matchesRoom = targetRoomId.isNotEmpty &&
+        (conversationRoomId == targetRoomId || conversationId == targetRoomId);
+    if (!matchesChannel && !matchesRoom) continue;
+    final avatar = conversation.avatarUrl.trim();
+    if (avatar.isNotEmpty) return avatar;
+  }
+  return '';
+}
+
 String _clientServerName(Client client) {
   final userId = client.userID ?? '';
   final fromMxid = _serverNameFromMxid(userId);
@@ -196,6 +228,12 @@ String _channelDescriptionField(
   final description = channel?.description.trim() ?? '';
   if (description.isNotEmpty) return description;
   return fallback.trim();
+}
+
+String _preferReadableText(String primary, String? fallback) {
+  final first = primary.trim();
+  if (first.isNotEmpty) return first;
+  return fallback?.trim() ?? '';
 }
 
 String? _serverNameFromMxid(String mxid) {

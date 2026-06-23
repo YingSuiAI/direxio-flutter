@@ -1512,52 +1512,37 @@ class HttpAsClient implements AsClient {
     Map<String, Object?>? extraParams,
   }) async {
     final normalizedBase = _normalizeBaseUri(baseUri ?? _baseUri);
-    final unified = _isUnifiedBase(normalizedBase);
-    final publicQueryParameters = unified
-        ? queryParameters
-        : _mergeQueryParameters(queryParameters, extraParams);
-    final uri = unified
-        ? _resolveAgainst(normalizedBase, 'query')
-        : _resolveAgainst(
-            normalizedBase,
-            path,
-            queryParameters: publicQueryParameters,
-          );
+    final uri = _resolveAgainst(normalizedBase, 'query');
     final unifiedParams = _actionParams(path, queryParameters: queryParameters)
       ..addAll(extraParams ?? const <String, Object?>{});
     final action = _actionFor('GET', path);
-    final requestBody = unified
-        ? jsonEncode({
-            'action': action,
-            'params': unifiedParams,
-          })
-        : null;
+    final requestBody = jsonEncode({
+      'action': action,
+      'params': unifiedParams,
+    });
     final stopwatch = Stopwatch()..start();
     late http.Response response;
     try {
-      response = unified
-          ? await _http
-              .post(
-                uri,
-                headers: const {
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json; charset=utf-8',
-                },
-                body: requestBody,
-              )
-              .timeout(_timeout)
-          : await _http.get(uri,
-              headers: const {'Accept': 'application/json'}).timeout(_timeout);
+      response = await _http
+          .post(
+            uri,
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: requestBody,
+          )
+          .timeout(_timeout);
     } catch (error, stackTrace) {
       stopwatch.stop();
       ApiLogger.failure(
         service: 'P2P public',
-        method: unified ? 'POST' : 'GET',
+        method: 'POST',
         uri: uri,
         elapsed: stopwatch.elapsed,
         error: error,
         stackTrace: stackTrace,
-        apiName: unified ? action : path,
+        apiName: action,
         requestBody: requestBody,
       );
       rethrow;
@@ -1565,11 +1550,11 @@ class HttpAsClient implements AsClient {
     stopwatch.stop();
     ApiLogger.response(
       service: 'P2P public',
-      method: unified ? 'POST' : 'GET',
+      method: 'POST',
       uri: uri,
       statusCode: response.statusCode,
       elapsed: stopwatch.elapsed,
-      apiName: unified ? action : path,
+      apiName: action,
       requestBody: requestBody,
       responseBody: response.body,
     );
@@ -1591,7 +1576,7 @@ class HttpAsClient implements AsClient {
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
         responseBody: response.body,
-        apiName: unified ? action : path,
+        apiName: action,
         error: error,
         stackTrace: stackTrace,
       );
@@ -1609,7 +1594,7 @@ class HttpAsClient implements AsClient {
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
         responseBody: response.body,
-        apiName: unified ? action : path,
+        apiName: action,
         error: error,
       );
       throw error;
@@ -1624,18 +1609,12 @@ class HttpAsClient implements AsClient {
     Object? body,
     Set<int> allowedStatusCodes = const {200},
   }) async {
-    if (!_isUnifiedBase(_baseUri)) {
-      return _legacyRequestJson(
-        method,
-        path,
-        queryParameters: queryParameters,
-        body: body,
-        allowedStatusCodes: allowedStatusCodes,
-      );
-    }
     final action = _actionFor(method, path);
-    final params =
+    var params =
         _actionParams(path, queryParameters: queryParameters, body: body);
+    if (action == 'favorites.add') {
+      params = _favoriteAddParams(params);
+    }
     final endpoint = method == 'GET' ? 'query' : 'command';
     final uri = _resolve(endpoint);
     late http.Response response;
@@ -1759,121 +1738,6 @@ class HttpAsClient implements AsClient {
     return decoded;
   }
 
-  Future<Map<String, dynamic>> _legacyRequestJson(
-    String method,
-    String path, {
-    Map<String, String>? queryParameters,
-    Object? body,
-    Set<int> allowedStatusCodes = const {200},
-  }) async {
-    final apiName = _actionFor(method, path);
-    final uri = _resolve(path, queryParameters: queryParameters);
-    final request = http.Request(method, uri);
-    request.headers['Authorization'] = 'Bearer $_portalToken';
-    request.headers['Accept'] = 'application/json';
-    if (body != null) {
-      request.encoding = utf8;
-      request.headers['Content-Type'] = 'application/json; charset=utf-8';
-      request.body = jsonEncode(body);
-    }
-    if (method == 'POST' && path == 'contacts/requests') {
-      final authorization = request.headers['Authorization'] ?? '';
-      final accessToken = _accessTokenForDebug?.trim() ?? '';
-      ApiLogger.info(
-        '[P2P product] friend request auth '
-        'authorization_present=${authorization.isNotEmpty} '
-        'bearer=${authorization.startsWith('Bearer ')} '
-        'auth_source=$_authSourceLabel '
-        'portal_token_present=${_portalToken.trim().isNotEmpty} '
-        'portal_token_length=${_portalToken.length} '
-        'access_token_for_debug_present=${accessToken.isNotEmpty} '
-        'access_token_for_debug_length=${accessToken.length} '
-        'authorization_matches_access_token_for_debug='
-        '${authorization == 'Bearer $accessToken'} '
-        'target=${_friendRequestTarget(body)}',
-      );
-    }
-    final requestBody = request.body.isEmpty ? null : request.body;
-
-    final stopwatch = Stopwatch()..start();
-    late http.Response response;
-    try {
-      final streamed = await _http.send(request).timeout(_timeout);
-      response = await http.Response.fromStream(streamed);
-    } catch (error, stackTrace) {
-      stopwatch.stop();
-      ApiLogger.failure(
-        service: 'P2P product',
-        method: method,
-        uri: uri,
-        elapsed: stopwatch.elapsed,
-        error: error,
-        stackTrace: stackTrace,
-        apiName: apiName,
-        requestBody: requestBody,
-      );
-      rethrow;
-    }
-    stopwatch.stop();
-    ApiLogger.response(
-      service: 'P2P product',
-      method: method,
-      uri: uri,
-      statusCode: response.statusCode,
-      elapsed: stopwatch.elapsed,
-      apiName: apiName,
-      requestBody: requestBody,
-      responseBody: response.body,
-    );
-    if (!allowedStatusCodes.contains(response.statusCode)) {
-      if (_isAuthenticationFailureResponse(response)) {
-        await _onAuthenticationFailed?.call();
-      }
-      throw AsClientException(
-        _extractErrorMessage(response),
-        statusCode: response.statusCode,
-      );
-    }
-    if (response.body.trim().isEmpty) return const {};
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(response.body);
-    } catch (error, stackTrace) {
-      ApiLogger.failure(
-        service: 'P2P product',
-        method: method,
-        uri: uri,
-        elapsed: stopwatch.elapsed,
-        statusCode: response.statusCode,
-        apiName: apiName,
-        requestBody: requestBody,
-        responseBody: response.body,
-        error: error,
-        stackTrace: stackTrace,
-      );
-      rethrow;
-    }
-    if (decoded is! Map<String, dynamic>) {
-      final error = AsClientException(
-        'P2P API returned a non-object JSON response',
-        statusCode: response.statusCode,
-      );
-      ApiLogger.failure(
-        service: 'P2P product',
-        method: method,
-        uri: uri,
-        elapsed: stopwatch.elapsed,
-        statusCode: response.statusCode,
-        apiName: apiName,
-        requestBody: requestBody,
-        responseBody: response.body,
-        error: error,
-      );
-      throw error;
-    }
-    return decoded;
-  }
-
   String get _authSourceLabel {
     final value = _authSource?.trim();
     return value == null || value.isEmpty ? 'unknown' : value;
@@ -1942,8 +1806,10 @@ class HttpAsClient implements AsClient {
   }
 
   static Uri _normalizeBaseUri(Uri baseUri) {
-    final path =
-        baseUri.path.isEmpty || baseUri.path == '/' ? '/_p2p' : baseUri.path;
+    final rawPath = baseUri.path.trim();
+    final path = rawPath.isEmpty || rawPath == '/' || rawPath == '/_as'
+        ? '/_p2p'
+        : rawPath;
     return baseUri.replace(
         path: path.endsWith('/') ? path.substring(0, path.length - 1) : path);
   }
@@ -2012,16 +1878,14 @@ class HttpAsClient implements AsClient {
     String path, {
     required Map<String, String> body,
   }) async {
-    final unified = _isUnifiedBase(baseUri);
-    final uri = _resolveStatic(baseUri, unified ? 'command' : path);
+    final normalizedBase = _normalizeBaseUri(baseUri);
+    final uri = _resolveStatic(normalizedBase, 'command');
     final apiName = path == 'bootstrap' ? 'portal.bootstrap' : 'portal.auth';
     final requestBody = jsonEncode(
-      unified
-          ? {
-              'action': apiName,
-              'params': body,
-            }
-          : body,
+      {
+        'action': apiName,
+        'params': body,
+      },
     );
     final stopwatch = Stopwatch()..start();
     late http.Response response;
@@ -2445,6 +2309,77 @@ Map<String, Object?> _actionParams(
     }
   }
   return params;
+}
+
+Map<String, Object?> _favoriteAddParams(Map<String, Object?> params) {
+  final existing = params['content'];
+  if (existing is String && existing.trim().isNotEmpty) return params;
+  return {
+    ...params,
+    'content': jsonEncode(_favoriteContentSnapshot(params)),
+  };
+}
+
+Map<String, Object?> _favoriteContentSnapshot(Map<String, Object?> params) {
+  final body = _paramString(params, 'body');
+  final filename = _paramString(params, 'filename');
+  final url = _paramString(params, 'url');
+  final thumbnailUrl = _paramString(params, 'thumbnail_url');
+  final mimeType = _paramString(params, 'mime_type');
+  final thumbnailMimeType = _paramString(params, 'thumbnail_mime_type');
+  final size = _paramInt(params, 'size');
+  final thumbnailSize = _paramInt(params, 'thumbnail_size');
+  final width = _paramInt(params, 'width');
+  final height = _paramInt(params, 'height');
+  final durationMs = _paramInt(params, 'duration_ms');
+  final info = <String, Object?>{};
+  if (mimeType.isNotEmpty) info['mimetype'] = mimeType;
+  if (size > 0) info['size'] = size;
+  if (thumbnailUrl.isNotEmpty) info['thumbnail_url'] = thumbnailUrl;
+  if (thumbnailMimeType.isNotEmpty || thumbnailSize > 0) {
+    info['thumbnail_info'] = {
+      if (thumbnailMimeType.isNotEmpty) 'mimetype': thumbnailMimeType,
+      if (thumbnailSize > 0) 'size': thumbnailSize,
+    };
+  }
+  if (width > 0) info['w'] = width;
+  if (height > 0) info['h'] = height;
+  if (durationMs > 0) info['duration'] = durationMs;
+
+  return {
+    'msgtype': _favoriteMatrixMsgType(_paramString(params, 'message_type')),
+    if (body.isNotEmpty) 'body': body,
+    if (filename.isNotEmpty) 'filename': filename,
+    if (url.isNotEmpty) 'url': url,
+    if (info.isNotEmpty) 'info': info,
+    if (params['chat_record'] is Map) 'chat_record': params['chat_record'],
+  };
+}
+
+String _favoriteMatrixMsgType(String messageType) {
+  switch (messageType.trim().toLowerCase()) {
+    case 'image':
+      return 'm.image';
+    case 'video':
+      return 'm.video';
+    case 'audio':
+      return 'm.audio';
+    case 'file':
+      return 'm.file';
+    default:
+      return 'm.text';
+  }
+}
+
+String _paramString(Map<String, Object?> params, String key) =>
+    params[key]?.toString().trim() ?? '';
+
+int _paramInt(Map<String, Object?> params, String key) {
+  final value = params[key];
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
 }
 
 String _encodeStrictPathComponent(String value) =>

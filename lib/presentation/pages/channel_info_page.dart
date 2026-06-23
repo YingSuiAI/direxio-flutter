@@ -164,32 +164,11 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   }
 
   List<Widget> _memberContent(BuildContext context, ChannelInfoData channel) {
-    final avatarUrl = avatarHttpUrl(
-      ref.watch(matrixClientProvider),
-      channel.avatarUrl,
-    );
     return [
       const SizedBox(height: 24),
-      Center(
-        child: PortalAvatar(
-          seed: channel.name,
-          size: 86,
-          imageUrl: avatarUrl,
-          shape: AvatarShape.squircle,
-        ),
-      ),
-      const SizedBox(height: 15),
-      Center(
-        child: Text(
-          channelDisplayNameWithMemberCount(channel),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTheme.sans(
-            size: 15,
-            weight: FontWeight.w600,
-            color: context.tk.textMute,
-          ).copyWith(height: 33 / 15),
-        ),
+      _ChannelInfoHeader(
+        channel: channel,
+        avatarUrl: _channelAvatarUrl(channel),
       ),
       const SizedBox(height: 26),
       _InfoActionRow(
@@ -224,15 +203,24 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         : displayMembers.length;
     return [
       const SizedBox(height: 24),
+      _ChannelInfoHeader(
+        channel: channel,
+        avatarUrl: _channelAvatarUrl(channel),
+      ),
+      const SizedBox(height: 21),
       FutureBuilder<List<AsChannelMember>>(
         future: _ensureMembersFuture(),
         builder: (context, snapshot) {
+          final loadedMembers = snapshot.data
+                  ?.where(_isJoinedChannelMember)
+                  .toList(growable: false) ??
+              displayMembers;
           final isLoading = snapshot.connectionState != ConnectionState.done &&
-              displayMembers.isEmpty;
+              loadedMembers.isEmpty;
           return _OwnerMemberGrid(
             channel: channel,
-            members: displayMembers,
-            placeholderCount: displayMembers.isEmpty ? visibleMemberCount : 0,
+            members: loadedMembers,
+            placeholderCount: loadedMembers.isEmpty ? visibleMemberCount : 0,
             isLoading: isLoading,
             client: ref.read(matrixClientProvider),
             currentUserId: ref.read(matrixClientProvider).userID ?? '',
@@ -265,6 +253,13 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         onTap: () => _confirmDissolveChannel(context, ref, channel),
       ),
     ];
+  }
+
+  String? _channelAvatarUrl(ChannelInfoData channel) {
+    return avatarHttpUrl(
+      ref.watch(matrixClientProvider),
+      channel.avatarUrl,
+    );
   }
 
   bool _displayedChannelMuted(ChannelInfoData channel) {
@@ -544,6 +539,45 @@ class _InfoTopBar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ChannelInfoHeader extends StatelessWidget {
+  const _ChannelInfoHeader({
+    required this.channel,
+    required this.avatarUrl,
+  });
+
+  final ChannelInfoData channel;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Center(
+          child: PortalAvatar(
+            seed: channel.name,
+            size: 86,
+            imageUrl: avatarUrl,
+            shape: AvatarShape.squircle,
+          ),
+        ),
+        const SizedBox(height: 15),
+        Center(
+          child: Text(
+            channelDisplayNameWithMemberCount(channel),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTheme.sans(
+              size: 15,
+              weight: FontWeight.w600,
+              color: context.tk.textMute,
+            ).copyWith(height: 33 / 15),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -10,6 +10,7 @@ import '../groups/group_member_invite_flow.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
+import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
@@ -37,6 +38,8 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
+    final currentUserProfile =
+        ref.watch(currentUserProfileProvider).valueOrNull;
     if (room == null) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
@@ -44,7 +47,11 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
       );
     }
 
-    final currentNickname = _currentUserNickname(room, client.userID);
+    final currentNickname = _currentUserNickname(
+      room,
+      client.userID,
+      currentUserProfile: currentUserProfile,
+    );
     final realMembers = room.getParticipants();
     final existingMemberMxids = realMembers
         .map((member) => member.id.trim())
@@ -53,6 +60,7 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     final members = _buildMemberStripData(
       realMembers,
       client: client,
+      currentUserProfile: currentUserProfile,
     );
     final memberCount = realMembers.length;
     final canManageGroup = _canManageGroup(room);
@@ -185,6 +193,7 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
   List<_Member> _buildMemberStripData(
     List<User> real, {
     required Client client,
+    required Profile? currentUserProfile,
   }) {
     final palette = <Color>[
       context.tk.accent, // A —— primary
@@ -204,10 +213,22 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     ];
     final out = <_Member>[];
     for (var i = 0; i < real.length; i++) {
-      final name = real[i].displayName ?? real[i].id.replaceFirst('@', '');
+      final userId = real[i].id.trim();
+      final isSelf = userId.isNotEmpty && userId == client.userID?.trim();
+      final profileName = isSelf
+          ? _usableDisplayName(
+              currentUserProfile?.displayName?.toString() ?? '')
+          : '';
+      final name = _firstUsableDisplayName([
+        profileName,
+        real[i].displayName ?? '',
+        real[i].calcDisplayname(),
+        _fallbackDisplayNameFromMxid(userId),
+      ]);
       out.add(
         _Member(
-          initial: name.characters.first.toUpperCase(),
+          initial:
+              (name.isNotEmpty ? name : userId).characters.first.toUpperCase(),
           name: name,
           avatarUrl: matrixContentHttpUrl(client, real[i].avatarUrl),
           bg: palette[i % palette.length],
@@ -426,15 +447,54 @@ Future<String?> _showTextEditDialog(
   );
 }
 
-String _currentUserNickname(Room? room, String? userId) {
+String _currentUserNickname(
+  Room? room,
+  String? userId, {
+  required Profile? currentUserProfile,
+}) {
   final trimmedUserId = userId?.trim() ?? '';
   if (room == null || trimmedUserId.isEmpty) return '';
+  final profileName = _usableDisplayName(
+    currentUserProfile?.displayName?.toString() ?? '',
+  );
+  if (profileName.isNotEmpty) return profileName;
   final member = room.getState(EventTypes.RoomMember, trimmedUserId);
-  final stateName = member?.content.tryGet<String>('displayname')?.trim() ?? '';
+  final stateName = _usableDisplayName(
+    member?.content.tryGet<String>('displayname') ?? '',
+  );
   if (stateName.isNotEmpty) return stateName;
-  return room
-      .unsafeGetUserFromMemoryOrFallback(trimmedUserId)
-      .calcDisplayname();
+  final matrixName = _usableDisplayName(
+    room.unsafeGetUserFromMemoryOrFallback(trimmedUserId).calcDisplayname(),
+  );
+  if (matrixName.isNotEmpty) return matrixName;
+  return _fallbackDisplayNameFromMxid(trimmedUserId);
+}
+
+String _firstUsableDisplayName(Iterable<String> values) {
+  for (final value in values) {
+    final name = _usableDisplayName(value);
+    if (name.isNotEmpty) return name;
+  }
+  return '';
+}
+
+String _usableDisplayName(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return '';
+  if (trimmed.toLowerCase() == 'owner') return '';
+  return trimmed;
+}
+
+String _fallbackDisplayNameFromMxid(String mxid) {
+  final trimmed = mxid.trim();
+  if (trimmed.isEmpty) return '';
+  if (!trimmed.startsWith('@')) return trimmed;
+  final separator = trimmed.indexOf(':');
+  if (separator <= 1) return trimmed;
+  final localpart = trimmed.substring(1, separator).trim();
+  final domain = trimmed.substring(separator + 1).trim();
+  if (localpart.toLowerCase() == 'owner' && domain.isNotEmpty) return domain;
+  return localpart.isNotEmpty ? localpart : trimmed;
 }
 
 void _toast(BuildContext context, String message) {

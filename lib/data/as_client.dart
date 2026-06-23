@@ -1407,29 +1407,75 @@ class AsChannelPost {
   }
 
   factory AsChannelPost.fromJson(Map<String, dynamic> json) {
+    final authorJson = _firstMap(json, const [
+      'author',
+      'sender',
+      'user',
+      'profile',
+      'creator',
+    ]);
     return AsChannelPost(
       postId: json['post_id'] as String? ?? '',
       channelId: json['channel_id'] as String? ?? '',
       roomId: json['room_id'] as String? ?? '',
       eventId: json['event_id'] as String? ?? '',
-      authorId: _firstString(json, const [
-        'author_mxid',
-        'author_id',
-        'sender_mxid',
-        'sender_id',
-        'user_mxid',
+      authorId: _firstNonEmptyString([
+        _firstString(json, const [
+          'author_mxid',
+          'author_id',
+          'sender_mxid',
+          'sender_id',
+          'user_mxid',
+          'user_id',
+          'creator_mxid',
+          'creator_id',
+        ]),
+        _firstString(authorJson, const [
+          'mxid',
+          'user_id',
+          'id',
+          'author_mxid',
+          'sender_mxid',
+        ]),
       ]),
-      authorName: _firstString(json, const [
-        'author_name',
-        'author_display_name',
-        'sender_name',
-        'display_name',
-        'name',
+      authorName: _firstNonEmptyString([
+        _firstString(json, const [
+          'author_name',
+          'author_display_name',
+          'sender_name',
+          'display_name',
+          'displayName',
+          'name',
+          'username',
+          'user_name',
+          'creator_name',
+        ]),
+        _firstString(authorJson, const [
+          'display_name',
+          'displayName',
+          'name',
+          'username',
+          'user_name',
+          'author_name',
+          'sender_name',
+        ]),
       ]),
-      authorAvatarUrl: _firstString(json, const [
-        'author_avatar_url',
-        'sender_avatar_url',
-        'avatar_url',
+      authorAvatarUrl: _firstNonEmptyString([
+        _firstString(json, const [
+          'author_avatar_url',
+          'author_avatar',
+          'sender_avatar_url',
+          'sender_avatar',
+          'avatar_url',
+          'avatar',
+        ]),
+        _firstString(authorJson, const [
+          'avatar_url',
+          'avatar',
+          'avatarUrl',
+          'author_avatar_url',
+          'sender_avatar_url',
+        ]),
       ]),
       messageType: json['message_type'] as String? ?? 'text',
       body: json['body'] as String? ?? '',
@@ -1582,30 +1628,76 @@ class AsChannelComment {
   final AsConversation? productConversation;
 
   factory AsChannelComment.fromJson(Map<String, dynamic> json) {
+    final authorJson = _firstMap(json, const [
+      'author',
+      'sender',
+      'user',
+      'profile',
+      'creator',
+    ]);
     return AsChannelComment(
       commentId: json['comment_id'] as String? ?? '',
       postId: json['post_id'] as String? ?? '',
       channelId: json['channel_id'] as String? ?? '',
       eventId: json['event_id'] as String? ?? '',
-      authorId: _firstString(json, const [
-        'author_mxid',
-        'author_id',
-        'sender_mxid',
-        'sender_id',
-        'user_mxid',
+      authorId: _firstNonEmptyString([
+        _firstString(json, const [
+          'author_mxid',
+          'author_id',
+          'sender_mxid',
+          'sender_id',
+          'user_mxid',
+          'user_id',
+          'creator_mxid',
+          'creator_id',
+        ]),
+        _firstString(authorJson, const [
+          'mxid',
+          'user_id',
+          'id',
+          'author_mxid',
+          'sender_mxid',
+        ]),
       ]),
-      authorName: _firstString(json, const [
-        'author_name',
-        'author_display_name',
-        'sender_name',
-        'display_name',
-        'name',
+      authorName: _firstNonEmptyString([
+        _firstString(json, const [
+          'author_name',
+          'author_display_name',
+          'sender_name',
+          'display_name',
+          'displayName',
+          'name',
+          'username',
+          'user_name',
+          'creator_name',
+        ]),
+        _firstString(authorJson, const [
+          'display_name',
+          'displayName',
+          'name',
+          'username',
+          'user_name',
+          'author_name',
+          'sender_name',
+        ]),
       ]),
       authorDomain: json['author_domain'] as String? ?? '',
-      authorAvatarUrl: _firstString(json, const [
-        'author_avatar_url',
-        'sender_avatar_url',
-        'avatar_url',
+      authorAvatarUrl: _firstNonEmptyString([
+        _firstString(json, const [
+          'author_avatar_url',
+          'author_avatar',
+          'sender_avatar_url',
+          'sender_avatar',
+          'avatar_url',
+          'avatar',
+        ]),
+        _firstString(authorJson, const [
+          'avatar_url',
+          'avatar',
+          'avatarUrl',
+          'author_avatar_url',
+          'sender_avatar_url',
+        ]),
       ]),
       messageType: json['message_type'] as String? ?? 'text',
       body: json['body'] as String? ?? '',
@@ -2411,6 +2503,22 @@ String _firstString(Map<String, dynamic> json, List<String> keys) {
   for (final key in keys) {
     final value = json[key];
     if (value is String && value.trim().isNotEmpty) return value;
+  }
+  return '';
+}
+
+Map<String, dynamic> _firstMap(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is Map) return value.cast<String, dynamic>();
+  }
+  return const {};
+}
+
+String _firstNonEmptyString(Iterable<String> values) {
+  for (final value in values) {
+    final trimmed = value.trim();
+    if (trimmed.isNotEmpty) return trimmed;
   }
   return '';
 }

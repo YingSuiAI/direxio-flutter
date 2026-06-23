@@ -86,6 +86,11 @@ void main() {
       find.byKey(const ValueKey('channel_post_avatar_$avatarUrl')),
       findsOneWidget,
     );
+    final imageTop = tester.getTopLeft(
+      find.byKey(const ValueKey('channel_post_image_$avatarUrl')),
+    );
+    final bodyTop = tester.getTopLeft(find.text('第一条帖子').last);
+    expect(imageTop.dy, lessThan(bodyTop.dy));
   });
 }
 

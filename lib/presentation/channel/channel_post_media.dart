@@ -137,6 +137,7 @@ class ChannelPostImageGrid extends StatelessWidget {
           children: [
             for (final image in visible)
               SizedBox.square(
+                key: ValueKey('channel_post_image_${image.url.trim()}'),
                 dimension: itemSize,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(0),

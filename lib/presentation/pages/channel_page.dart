@@ -910,6 +910,10 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
               ],
             ),
             const SizedBox(height: 14),
+            if (images.isNotEmpty) ...[
+              ChannelPostImageGrid(images: images),
+              if (body.isNotEmpty) const SizedBox(height: 10),
+            ],
             if (body.isNotEmpty)
               _ExpandablePostExcerpt(
                 body,
@@ -918,10 +922,6 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
               )
             else
               const SizedBox.shrink(),
-            if (images.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              ChannelPostImageGrid(images: images),
-            ],
             const SizedBox(height: 10),
             Row(
               children: [

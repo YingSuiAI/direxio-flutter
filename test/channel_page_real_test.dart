@@ -45,6 +45,27 @@ void main() {
     expect(post.authorAvatarUrl, 'https://cdn.example.com/alice.png');
   });
 
+  test('channel post parses nested author profile for list display', () {
+    final post = AsChannelPost.fromJson({
+      'post_id': 'post_nested_author',
+      'channel_id': 'ch_real',
+      'room_id': '!real:p2p-im.com',
+      'event_id': r'$post_nested_author',
+      'author': {
+        'user_id': '@alex:p2p-im.com',
+        'displayName': 'Alex Chen',
+        'avatarUrl': 'https://cdn.example.com/alex.png',
+      },
+      'message_type': 'text',
+      'body': '帖子正文',
+      'origin_server_ts': 123,
+    });
+
+    expect(post.authorId, '@alex:p2p-im.com');
+    expect(post.authorName, 'Alex Chen');
+    expect(post.authorAvatarUrl, 'https://cdn.example.com/alex.png');
+  });
+
   testWidgets('channel detail opens real bootstrap channel summary',
       (tester) async {
     final bootstrap = AsSyncBootstrap(
@@ -369,6 +390,16 @@ void main() {
       find.byKey(const ValueKey('channel_post_avatar_$avatarUrl')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('channel post list shows author display name', (tester) async {
+    await _pumpRealChannelPage(
+      tester,
+      _PostingChannelAsClient(authorName: 'Alex Chen'),
+    );
+
+    expect(find.text('Alex Chen'), findsOneWidget);
+    expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
   });
 
   testWidgets('post channel owner role sees create button on post list',
@@ -2883,6 +2914,7 @@ class _PostingChannelAsClient extends MockAsClient {
     this.postMedia = const {},
     this.reactedByMe = false,
     this.postId = 'post1',
+    this.authorName = 'Yanan',
     this.comments = const [],
     this.commentReactionCount = 1,
   });
@@ -2891,6 +2923,7 @@ class _PostingChannelAsClient extends MockAsClient {
   final Map<String, Object?> postMedia;
   final bool reactedByMe;
   final String postId;
+  final String authorName;
   final List<AsChannelComment> comments;
   final int commentReactionCount;
   final List<int> requestedCommentPages = [];
@@ -2925,7 +2958,7 @@ class _PostingChannelAsClient extends MockAsClient {
         roomId: '!real:p2p-im.com',
         eventId: r'$post1',
         authorId: '@owner:p2p-im.com',
-        authorName: 'Yanan',
+        authorName: authorName,
         messageType: 'text',
         body: createdBody ?? postBody ?? '第一条帖子',
         media: postMedia,

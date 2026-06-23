@@ -773,13 +773,6 @@ List<String> _pendingFriendRequestReadKeys({
       if (isIncomingDirectContactInvite(room, agentMxid: agentMxid) &&
           room.id.trim().isNotEmpty)
         friendRequestReadKeyForRoom(room),
-    for (final room in client.rooms)
-      if (room.membership == Membership.invite &&
-          room.id.trim().isNotEmpty &&
-          !isPortalAgentDirectRoom(room, agentMxid: agentMxid) &&
-          !isIncomingDirectContactInvite(room, agentMxid: agentMxid) &&
-          !_isNativeChannelInvite(room))
-        friendRequestReadKeyForRoom(room),
     for (final contact in syncCache.pendingInboundContacts)
       if (contact.roomId.trim().isNotEmpty)
         friendRequestReadKeyForContact(contact),
@@ -787,17 +780,8 @@ List<String> _pendingFriendRequestReadKeys({
         const <AsSyncPendingItem>[])
       if (request.id.trim().isNotEmpty)
         friendRequestReadKeyForPendingItem(request),
-    for (final request in syncCache.bootstrap?.pending.groupInvites ??
-        const <AsSyncPendingItem>[])
-      if (request.id.trim().isNotEmpty)
-        friendRequestReadKeyForPendingItem(request),
   };
   return keys.toList(growable: false);
-}
-
-bool _isNativeChannelInvite(Room room) {
-  final content = room.getState(nativeRoomProfileEventType)?.content;
-  return content?['room_type'] == nativeChannelRoomType;
 }
 
 String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';
@@ -2146,10 +2130,8 @@ class _ContactList extends ConsumerWidget {
           domain: contact.domain,
         ),
         mxid: peerMxid,
-        avatarUrl: _homeAvatarUrl(
-          client,
-          strictGroupContactAvatarUrl(client, syncCache, peerMxid),
-        ),
+        avatarUrl:
+            _homeAvatarUrl(client, contactListAvatarUrl(client, contact)),
       );
     }).toList();
     final groupedContacts = _groupContactsByInitial(contacts);

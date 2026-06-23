@@ -5324,6 +5324,69 @@ void main() {
     );
   });
 
+  testWidgets('contacts list falls back to Matrix direct room avatar',
+      (tester) async {
+    final client = Client('DirexioContactsMatrixAvatarFallbackTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-im.com',
+      peerName: 'Alice',
+      peerAvatarUrl: 'https://example.com/alice-matrix.png',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 14),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('通讯录'));
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.seed == 'Alice' &&
+            widget.imageUrl == 'https://example.com/alice-matrix.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('create group contact avatars do not reuse another friend avatar',
       (tester) async {
     final client = Client('DirexioCreateGroupDistinctAvatarTest')
@@ -7112,8 +7175,7 @@ void main() {
     );
   });
 
-  testWidgets(
-      'new friend badge counts AS group invites but not channel notices',
+  testWidgets('new friend badge ignores AS group invites and channel notices',
       (tester) async {
     final client = Client('DirexioPendingRoomInviteBadgeTest')
       ..setUserId('@owner:p2p-im.com');
@@ -7164,22 +7226,14 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final bottomBadge = find.byKey(const ValueKey('bottom_nav_badge_通讯录'));
-    expect(bottomBadge, findsOneWidget);
-    expect(
-      find.descendant(of: bottomBadge, matching: find.text('1')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
 
     await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
-    final contactSectionBadge =
-        find.byKey(const ValueKey('section_action_badge_新朋友'));
-    expect(contactSectionBadge, findsOneWidget);
     expect(
-      find.descendant(of: contactSectionBadge, matching: find.text('1')),
-      findsOneWidget,
+      find.byKey(const ValueKey('section_action_badge_新朋友')),
+      findsNothing,
     );
   });
 
@@ -7316,7 +7370,7 @@ void main() {
     expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
   });
 
-  testWidgets('new friend badge counts refreshed AS pending group invites',
+  testWidgets('new friend badge ignores refreshed AS pending group invites',
       (tester) async {
     final client = Client('DirexioPendingGroupInviteLiveRefreshTest')
       ..setUserId('@owner:p2p-im.com');
@@ -7353,12 +7407,7 @@ void main() {
     await tester.pump();
 
     expect(asClient.syncBootstrapCalls, 2);
-    final badge = find.byKey(const ValueKey('bottom_nav_badge_通讯录'));
-    expect(badge, findsOneWidget);
-    expect(
-      find.descendant(of: badge, matching: find.text('1')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
   });
 
   testWidgets('new friend badge counts Matrix invites after AS bootstrap',
@@ -7726,7 +7775,7 @@ void main() {
     expect(find.text('Alice'), findsOneWidget);
   });
 
-  testWidgets('new friends page shows AS pending group invites after sync',
+  testWidgets('new friends page hides AS pending group invites after sync',
       (tester) async {
     final client = Client('DirexioRequestsLiveGroupInviteTest')
       ..setUserId('@owner:p2p-im.com');
@@ -7758,12 +7807,12 @@ void main() {
     await tester.pump();
 
     expect(asClient.syncBootstrapCalls, 2);
-    expect(find.text('暂无好友请求'), findsNothing);
-    expect(find.text('实时群聊'), findsOneWidget);
-    expect(find.text('邀请加入群聊'), findsOneWidget);
+    expect(find.text('暂无好友请求'), findsOneWidget);
+    expect(find.text('实时群聊'), findsNothing);
+    expect(find.text('邀请加入群聊'), findsNothing);
   });
 
-  testWidgets('new friends page shows Matrix group room invites',
+  testWidgets('new friends page hides Matrix group room invites',
       (tester) async {
     final client = Client('DirexioRequestsMatrixGroupInviteTest')
       ..setUserId('@owner:p2p-im.com');
@@ -7789,9 +7838,9 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('暂无好友请求'), findsNothing);
-    expect(find.text('邀请加入群聊'), findsOneWidget);
-    expect(find.text('查看'), findsOneWidget);
+    expect(find.text('暂无好友请求'), findsOneWidget);
+    expect(find.text('邀请加入群聊'), findsNothing);
+    expect(find.text('查看'), findsNothing);
   });
 
   testWidgets('new friends page still lists Matrix invites after AS bootstrap',

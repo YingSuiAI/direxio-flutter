@@ -23,7 +23,24 @@ class ChatTimelineController {
   final String debugLabel;
   final int initialTargetMessages;
 
+  bool get _canUseMatrixNetwork =>
+      room.client.isLogged() && room.client.homeserver != null;
+
   Future<Timeline?> openInitialTimeline() async {
+    final timeline = await _openTimeline();
+    if (timeline == null) return null;
+    unawaited(hydrateInitialTimeline(timeline));
+    return timeline;
+  }
+
+  Future<Timeline?> openLocalTimelineForPrewarm() async {
+    final timeline = await _openTimeline();
+    if (timeline == null) return null;
+    await backfillLocalStoredHistory(timeline);
+    return timeline;
+  }
+
+  Future<Timeline?> _openTimeline() async {
     final Timeline timeline;
     try {
       timeline = await room.getTimeline(
@@ -36,14 +53,16 @@ class ChatTimelineController {
       debugPrint('$debugLabel getTimeline failed: $e');
       return null;
     }
-
-    await syncEmptyRoomHistoryIfNeeded(timeline);
-    await backfillLocalStoredHistory(timeline);
-    await requestInitialRemoteHistory(timeline);
     return timeline;
   }
 
+  Future<void> hydrateInitialTimeline(Timeline timeline) async {
+    await backfillLocalStoredHistory(timeline);
+    await requestInitialRemoteHistory(timeline);
+  }
+
   Future<void> syncEmptyRoomHistoryIfNeeded(Timeline timeline) async {
+    if (!_canUseMatrixNetwork) return;
     if (!shouldSyncEmptyRoomHistoryOnOpen(
       timelineEvents: timeline.events,
       prevBatch: timeline.room.prev_batch,
@@ -92,6 +111,7 @@ class ChatTimelineController {
   }
 
   Future<void> requestInitialRemoteHistory(Timeline timeline) async {
+    if (!_canUseMatrixNetwork) return;
     if (!shouldRequestHistoricalMessages(MessageHistoryLoadTrigger.chatOpen)) {
       return;
     }
@@ -113,6 +133,7 @@ class ChatTimelineController {
   }
 
   Future<void> requestOlderMessages(Timeline timeline) async {
+    if (!_canUseMatrixNetwork) return;
     if (!shouldRequestHistoricalMessages(
       MessageHistoryLoadTrigger.userLoadOlder,
     )) {

@@ -1753,6 +1753,50 @@ void main() {
         '2026-05-29T10:01:00.000Z');
   });
 
+  test('getFavorites parses favorite media fallback urls', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/_as/favorites');
+        final body = jsonEncode({
+          'favorites': [
+            {
+              'id': 11,
+              'owner_user_id': '@owner:p2p-im.com',
+              'room_id': '!room:p2p-im.com',
+              'event_id': r'$image',
+              'room_type': 'direct',
+              'message_type': 'image',
+              'sender_id': '@alice:p2p-liyanan.com',
+              'sender_name': 'Alice',
+              'body': 'photo.jpg',
+              'content_json': jsonEncode({
+                'msgtype': 'm.image',
+                'body': 'photo.jpg',
+                'file': {'url': 'mxc://p2p-im.com/photo'},
+                'info': {
+                  'thumbnail_file': {'url': 'mxc://p2p-im.com/thumb'},
+                },
+              }),
+            },
+          ],
+        });
+        return http.Response.bytes(
+          utf8.encode(body),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    final favorites = await client.getFavorites();
+
+    expect(favorites.single.url, 'mxc://p2p-im.com/photo');
+    expect(favorites.single.thumbnailUrl, 'mxc://p2p-im.com/thumb');
+  });
+
   test('getFavorites preserves chat record item snapshots', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_as'),

@@ -14,6 +14,8 @@ import 'as_bootstrap_store_provider.dart';
 import 'as_call_session_store_provider.dart';
 import 'as_sync_cache_provider.dart';
 import '../chat/call_timeline_events.dart';
+import '../chat/chat_history_backfill_policy.dart';
+import '../chat/chat_timeline_controller.dart';
 import '../utils/avatar_url.dart';
 import 'auth_provider.dart';
 import 'channel_provider.dart';
@@ -30,6 +32,10 @@ typedef AsChannelPostsLoader = Future<List<AsChannelPost>> Function(
 typedef RecentRoomEventsLoader = Future<List<Event>> Function(
   Room room,
   int limit,
+);
+typedef RecentRoomTimelinePrewarmer = Future<void> Function(
+  Room room,
+  int targetMessages,
 );
 typedef MatrixConversationSync = Future<void> Function();
 
@@ -157,10 +163,12 @@ class AppWarmupService {
     this.channelPostStore,
     this.loadChannelPosts,
     this.loadRecentRoomEvents,
+    this.prewarmRecentRoomTimeline,
     this.onBootstrapLoaded,
     this.maxRoomAvatars = 20,
     this.maxMediaThumbnails = 40,
     this.maxCallSessions = 20,
+    this.maxPrewarmRoomTimelines = 8,
     this.maxPrewarmChannels = 20,
     this.channelPostsPerChannel = 50,
     this.callContextEventsPerRoom = 80,
@@ -181,10 +189,12 @@ class AppWarmupService {
   final ChannelPostStore? channelPostStore;
   final AsChannelPostsLoader? loadChannelPosts;
   final RecentRoomEventsLoader? loadRecentRoomEvents;
+  final RecentRoomTimelinePrewarmer? prewarmRecentRoomTimeline;
   final void Function(AsSyncBootstrap bootstrap)? onBootstrapLoaded;
   final int maxRoomAvatars;
   final int maxMediaThumbnails;
   final int maxCallSessions;
+  final int maxPrewarmRoomTimelines;
   final int maxPrewarmChannels;
   final int channelPostsPerChannel;
   final int callContextEventsPerRoom;
@@ -224,6 +234,7 @@ class AppWarmupService {
     await Future.wait([
       _preload(urls),
       _preloadMediaThumbnails(_mediaThumbnailEventIds()),
+      _prewarmRecentRoomTimelines(),
       _prewarmCallSessions(),
       _prewarmChannelPosts(bootstrap),
     ]);
@@ -334,6 +345,36 @@ class AppWarmupService {
     } catch (e) {
       debugPrint('media thumbnail preload failed: $e');
     }
+  }
+
+  Future<void> _prewarmRecentRoomTimelines() async {
+    final rooms = _recentJoinedRooms().take(maxPrewarmRoomTimelines).toList();
+    if (rooms.isEmpty) return;
+    final queue = Queue<Room>.from(rooms);
+    final workerCount =
+        queue.length < preloadConcurrency ? queue.length : preloadConcurrency;
+    await Future.wait(
+      List.generate(workerCount, (_) async {
+        while (queue.isNotEmpty) {
+          final room = queue.removeFirst();
+          try {
+            final injected = prewarmRecentRoomTimeline;
+            if (injected != null) {
+              await injected(room, chatOpenLocalHistoryTargetMessages);
+              continue;
+            }
+            final timeline = await ChatTimelineController(
+              room: room,
+              rebuild: () {},
+              debugLabel: 'warmup',
+            ).openLocalTimelineForPrewarm();
+            timeline?.cancelSubscriptions();
+          } catch (e) {
+            debugPrint('recent room timeline prewarm failed: $e');
+          }
+        }
+      }),
+    );
   }
 
   Future<void> _prewarmCallSessions() async {

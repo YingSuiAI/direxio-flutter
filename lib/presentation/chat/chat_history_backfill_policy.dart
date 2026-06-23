@@ -2,8 +2,8 @@ import 'package:matrix/matrix.dart';
 
 import 'call_timeline_events.dart';
 
-const chatOpenLocalHistoryTargetMessages = 50;
-const chatOpenLocalHistoryPageSize = 30;
+const chatOpenLocalHistoryTargetMessages = 20;
+const chatOpenLocalHistoryPageSize = 20;
 const chatOpenLocalHistoryMaxAttempts = 5;
 
 int visibleMessageCountForChatOpenHistory(Iterable<Event> events) {

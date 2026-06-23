@@ -44,6 +44,30 @@ void main() {
     expect(draft.height, 480);
   });
 
+  test('maps alternate Matrix media URL fields to a favorite snapshot', () {
+    final draft = favoriteDraftFromMatrixMessage(
+      roomId: '!room:p2p-im.com',
+      eventId: r'$image-alt',
+      roomType: 'direct',
+      senderId: '@alice:p2p-liyanan.com',
+      body: 'photo.jpg',
+      content: {
+        'msgtype': 'm.image',
+        'body': 'photo.jpg',
+        'info': {
+          'mimetype': 'image/jpeg',
+          'mxc_url': 'mxc://p2p-im.com/photo',
+          'thumbnailMxcUrl': 'mxc://p2p-im.com/thumb',
+        },
+      },
+      originServerTs: 1779685200000,
+    );
+
+    expect(draft.messageType, 'image');
+    expect(draft.url, 'mxc://p2p-im.com/photo');
+    expect(draft.thumbnailUrl, 'mxc://p2p-im.com/thumb');
+  });
+
   test('classifies text containing an URL as a link favorite', () {
     final draft = favoriteDraftFromMatrixMessage(
       roomId: '!room:p2p-im.com',

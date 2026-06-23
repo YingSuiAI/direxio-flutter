@@ -14,6 +14,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/conversation_summary_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
@@ -62,6 +63,7 @@ import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/async_image_preview.dart';
 import '../../data/as_client.dart';
 import '../../data/as_call_session_store.dart';
+import '../../data/conversation_summary_store.dart';
 import '../../data/local_outbox_store.dart';
 import '../../data/matrix_room_history_sync.dart';
 import '../../core/theme/design_tokens.dart';
@@ -149,6 +151,19 @@ PresenceType? _peerPresence(Client client, String peerMxid) {
   // The header needs the latest sync cache without doing network work in build.
   // ignore: deprecated_member_use
   return client.presences[peerId]?.presence;
+}
+
+bool _conversationSummaryHasCachedMessage(
+  ConversationSummaryState state,
+  String roomId,
+) {
+  final normalizedRoomId = roomId.trim();
+  if (normalizedRoomId.isEmpty || !state.loaded) return false;
+  for (final entry in state.entries) {
+    if (entry.roomId.trim() != normalizedRoomId) continue;
+    return entry.lastMessage.trim().isNotEmpty || entry.previewTs > 0;
+  }
+  return false;
 }
 
 /// 字节数 → 人类可读，如 `2.8 MB`。
@@ -476,7 +491,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final room = _room;
     if (room == null) return;
     void rebuild() {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
       _scheduleTimelineThumbnailWarmup();
       unawaited(_markCurrentTimelineRead());
     }
@@ -594,7 +610,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       await ChatTimelineController(
         room: timeline.room,
         rebuild: () {
-          if (mounted) setState(() {});
+          if (!mounted) return;
+          setState(() {});
           _scheduleTimelineThumbnailWarmup();
           unawaited(_markCurrentTimelineRead());
         },
@@ -687,6 +704,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Future<void> _markCurrentTimelineRead() async {
+    if (!mounted) return;
     final room = _room;
     if (room == null) return;
     final timeline = _timeline;
@@ -707,6 +725,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         timeline: timeline,
         asClient: ref.read(asClientProvider),
         onUnreadCleared: (readAt) {
+          if (!mounted) return;
           ref.read(asSyncCacheProvider.notifier).update(
                 (state) => state.withRoomUnreadCleared(room.id, readAt: readAt),
               );
@@ -2145,6 +2164,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final room = _room;
     final t = context.tk;
     final syncCache = ref.watch(asSyncCacheProvider);
+    final summaryState = ref.watch(conversationSummaryProvider);
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
     final authUserId = ref.watch(authStateNotifierProvider).valueOrNull?.userId;
@@ -2240,6 +2260,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final newestTimelineItemKey =
         timelineItemKeys.isEmpty ? null : timelineItemKeys.first;
     _scheduleScrollToLatest(newestTimelineItemKey);
+    final suppressFirstMessageEmpty = topSystemNoticeText == null &&
+        timelineItems.isEmpty &&
+        (_timeline == null ||
+            !summaryState.loaded ||
+            _conversationSummaryHasCachedMessage(
+              summaryState,
+              widget.roomId,
+            ));
     if (deliveredPendingMediaIds.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -2417,15 +2445,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           children: [
                             SizedBox(
                               height: emptyHeight,
-                              child: Center(
-                                child: Text(
-                                  '开始你们的第一条消息',
-                                  style: AppTheme.sans(
-                                    size: 13,
-                                    color: t.textMute,
-                                  ),
-                                ),
-                              ),
+                              child: suppressFirstMessageEmpty
+                                  ? const SizedBox.shrink()
+                                  : Center(
+                                      child: Text(
+                                        '开始你们的第一条消息',
+                                        style: AppTheme.sans(
+                                          size: 13,
+                                          color: t.textMute,
+                                        ),
+                                      ),
+                                    ),
                             ),
                           ],
                         ),

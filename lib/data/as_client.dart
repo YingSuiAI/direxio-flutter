@@ -276,6 +276,85 @@ class AsFavoriteMessage {
   final Map<String, Object?> chatRecord;
 
   factory AsFavoriteMessage.fromJson(Map<String, dynamic> json) {
+    final media = _objectMapOrJson(json['media_json'] ?? json['media']);
+    final content = _objectMapOrJson(json['content_json'] ?? json['content']);
+    final info = _objectMapOrJson(content['info']);
+    final file = _objectMapOrJson(content['file'] ?? info['file']);
+    final thumbnailFile = _objectMapOrJson(
+      content['thumbnail_file'] ?? info['thumbnail_file'],
+    );
+    final url = _firstNonEmptyString([
+      _firstString(json, const [
+        'url',
+        'media_url',
+        'mediaUrl',
+        'mxc_url',
+        'mxcUrl',
+      ]),
+      _firstObjectString(media, const [
+        'url',
+        'media_url',
+        'mediaUrl',
+        'mxc_url',
+        'mxcUrl',
+      ]),
+      _firstObjectString(content, const [
+        'url',
+        'media_url',
+        'mediaUrl',
+        'mxc_url',
+        'mxcUrl',
+        'org.matrix.msc1767.url',
+      ]),
+      _firstObjectString(info, const [
+        'url',
+        'media_url',
+        'mediaUrl',
+        'mxc_url',
+        'mxcUrl',
+        'org.matrix.msc1767.url',
+      ]),
+      _firstObjectString(file, const [
+        'url',
+        'media_url',
+        'mediaUrl',
+        'mxc_url',
+        'mxcUrl',
+      ]),
+    ]);
+    final thumbnailUrl = _firstNonEmptyString([
+      _firstString(json, const [
+        'thumbnail_url',
+        'thumbnailUrl',
+        'thumbnail_mxc_url',
+        'thumbnailMxcUrl',
+      ]),
+      _firstObjectString(media, const [
+        'thumbnail_url',
+        'thumbnailUrl',
+        'thumbnail_mxc_url',
+        'thumbnailMxcUrl',
+      ]),
+      _firstObjectString(content, const [
+        'thumbnail_url',
+        'thumbnailUrl',
+        'thumbnail_mxc_url',
+        'thumbnailMxcUrl',
+      ]),
+      _firstObjectString(info, const [
+        'thumbnail_url',
+        'thumbnailUrl',
+        'thumbnail_mxc_url',
+        'thumbnailMxcUrl',
+      ]),
+      _firstObjectString(thumbnailFile, const [
+        'url',
+        'media_url',
+        'mediaUrl',
+        'mxc_url',
+        'mxcUrl',
+      ]),
+    ]);
     return AsFavoriteMessage(
       id: json['id'] as int? ?? 0,
       ownerUserId: json['owner_user_id'] as String? ?? '',
@@ -290,11 +369,11 @@ class AsFavoriteMessage {
           json['avatar_url'] as String? ??
           '',
       body: json['body'] as String? ?? '',
-      url: json['url'] as String? ?? '',
+      url: url,
       filename: json['filename'] as String? ?? '',
       mimeType: json['mime_type'] as String? ?? '',
       size: json['size'] as int? ?? 0,
-      thumbnailUrl: json['thumbnail_url'] as String? ?? '',
+      thumbnailUrl: thumbnailUrl,
       thumbnailMimeType: json['thumbnail_mime_type'] as String? ?? '',
       thumbnailSize: json['thumbnail_size'] as int? ?? 0,
       width: json['width'] as int? ?? 0,
@@ -2500,6 +2579,14 @@ String _parseChannelDisplayName(Map<String, dynamic> json) {
 }
 
 String _firstString(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is String && value.trim().isNotEmpty) return value;
+  }
+  return '';
+}
+
+String _firstObjectString(Map<String, Object?> json, List<String> keys) {
   for (final key in keys) {
     final value = json[key];
     if (value is String && value.trim().isNotEmpty) return value;

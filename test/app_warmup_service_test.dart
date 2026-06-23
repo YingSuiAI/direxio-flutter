@@ -228,6 +228,60 @@ void main() {
     expect(thumbnails.eventIds, [r'$last-image']);
   });
 
+  test('warmup prewarms recent joined room timelines', () async {
+    final client = Client('DirexioWarmupTimelineTest')
+      ..setUserId('@owner:p2p-im.com');
+    final recent = Room(
+      id: '!recent:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    recent.lastEvent = _messageEvent(
+      recent,
+      eventId: r'$recent',
+      at: DateTime.utc(2026, 6, 1, 10),
+    );
+    final old = Room(
+      id: '!old:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    old.lastEvent = _messageEvent(
+      old,
+      eventId: r'$old',
+      at: DateTime.utc(2026, 5, 31, 10),
+    );
+    final invite = Room(
+      id: '!invite:p2p-im.com',
+      client: client,
+      membership: Membership.invite,
+    );
+    invite.lastEvent = _messageEvent(
+      invite,
+      eventId: r'$invite',
+      at: DateTime.utc(2026, 6, 2, 10),
+    );
+    client.rooms.addAll([old, invite, recent]);
+
+    final prewarmed = <String>[];
+    final targets = <int>[];
+    final service = AppWarmupService(
+      client: client,
+      avatarPreloader: _NoopAvatarPreloader(),
+      loadCurrentUserProfile: () async => null,
+      maxPrewarmRoomTimelines: 1,
+      prewarmRecentRoomTimeline: (room, targetMessages) async {
+        prewarmed.add(room.id);
+        targets.add(targetMessages);
+      },
+    );
+
+    await service.warmup();
+
+    expect(prewarmed, ['!recent:p2p-im.com']);
+    expect(targets, [20]);
+  });
+
   test('warmup preloads missing or non-terminal AS call sessions', () async {
     final client = Client('DirexioWarmupCallTest')
       ..setUserId('@owner:p2p-im.com');
@@ -341,6 +395,24 @@ void main() {
       ['post_ch_old'],
     );
   });
+}
+
+Event _messageEvent(
+  Room room, {
+  required String eventId,
+  required DateTime at,
+}) {
+  return Event(
+    room: room,
+    eventId: eventId,
+    senderId: '@peer:p2p-im.com',
+    type: EventTypes.Message,
+    originServerTs: at,
+    content: {
+      'msgtype': MessageTypes.Text,
+      'body': 'hello',
+    },
+  );
 }
 
 class _MemoryAsCallSessionStore implements AsCallSessionStore {

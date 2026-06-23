@@ -40,12 +40,40 @@ AsFavoriteMessageDraft favoriteDraftFromMatrixMessage({
   }
 
   final link = firstUrlInText(displayBody);
-  final originalMediaUrl = _string(content['url']).isNotEmpty
-      ? _string(content['url'])
-      : _string(file['url']);
-  final originalThumbnailUrl = _string(info['thumbnail_url']).isNotEmpty
-      ? _string(info['thumbnail_url'])
-      : _string(thumbnailFile['url']);
+  final originalMediaUrl = _firstString([
+    content['url'],
+    content['media_url'],
+    content['mediaUrl'],
+    content['mxc_url'],
+    content['mxcUrl'],
+    content['org.matrix.msc1767.url'],
+    info['url'],
+    info['media_url'],
+    info['mediaUrl'],
+    info['mxc_url'],
+    info['mxcUrl'],
+    info['org.matrix.msc1767.url'],
+    file['url'],
+    file['media_url'],
+    file['mediaUrl'],
+    file['mxc_url'],
+    file['mxcUrl'],
+  ]);
+  final originalThumbnailUrl = _firstString([
+    info['thumbnail_url'],
+    info['thumbnailUrl'],
+    info['thumbnail_mxc_url'],
+    info['thumbnailMxcUrl'],
+    content['thumbnail_url'],
+    content['thumbnailUrl'],
+    content['thumbnail_mxc_url'],
+    content['thumbnailMxcUrl'],
+    thumbnailFile['url'],
+    thumbnailFile['media_url'],
+    thumbnailFile['mediaUrl'],
+    thumbnailFile['mxc_url'],
+    thumbnailFile['mxcUrl'],
+  ]);
   final messageType = _favoriteMessageType(msgType, link);
   final filename = _string(content['filename']).isNotEmpty
       ? _string(content['filename'])
@@ -132,6 +160,14 @@ Map<String, Object?> _map(Object? value) {
 
 String _string(Object? value) {
   if (value is String) return value.trim();
+  return '';
+}
+
+String _firstString(Iterable<Object?> values) {
+  for (final value in values) {
+    final text = _string(value);
+    if (text.isNotEmpty) return text;
+  }
   return '';
 }
 

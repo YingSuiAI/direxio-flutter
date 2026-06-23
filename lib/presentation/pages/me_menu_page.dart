@@ -1416,14 +1416,16 @@ class _FavoritePreviewState extends ConsumerState<_FavoritePreview> {
     super.initState();
     final favorite = widget.favorite;
     final hasThumbnail = favorite.thumbnailUrl.trim().isNotEmpty;
+    final useThumbnail = favorite.messageType == 'video' || hasThumbnail;
+    final previewUrl = _favoriteMediaUrl(favorite, thumbnail: useThumbnail);
     final shouldLoadPreview =
-        (favorite.messageType == 'image' && favorite.url.trim().isNotEmpty) ||
-            (favorite.messageType == 'video' && hasThumbnail);
+        (favorite.messageType == 'image' || favorite.messageType == 'video') &&
+            previewUrl.isNotEmpty;
     if (shouldLoadPreview) {
       _previewFuture = _downloadFavoriteMediaBytes(
         ref,
         favorite,
-        thumbnail: favorite.messageType == 'video' || hasThumbnail,
+        thumbnail: useThumbnail,
       );
     }
   }
@@ -1547,7 +1549,8 @@ String _favoriteTitle(AppLocalizations? l10n, AsFavoriteMessage favorite) {
     if (favorite.filename.isNotEmpty) return favorite.filename;
   }
   if (favorite.body.isNotEmpty) return favorite.body;
-  if (favorite.url.isNotEmpty) return favorite.url;
+  final mediaUrl = _favoriteMediaUrl(favorite);
+  if (mediaUrl.isNotEmpty) return mediaUrl;
   return l10n?.meFavoriteMessageFallback ?? '收藏消息';
 }
 
@@ -1754,7 +1757,8 @@ String _favoriteMessageBody(
     return favorite.filename.trim();
   }
   if (favorite.body.trim().isNotEmpty) return favorite.body.trim();
-  if (favorite.url.trim().isNotEmpty) return favorite.url.trim();
+  final mediaUrl = _favoriteMediaUrl(favorite);
+  if (mediaUrl.isNotEmpty) return mediaUrl;
   return _favoriteTypeLabel(l10n, favorite.messageType);
 }
 
@@ -1780,12 +1784,13 @@ Map<String, Object?> _favoriteMatrixContent(
       'body': body,
     };
   }
+  final mediaUrl = _favoriteMediaUrl(favorite);
   return {
     'msgtype': msgType,
     'body': body,
     if (favorite.filename.trim().isNotEmpty)
       'filename': favorite.filename.trim(),
-    if (favorite.url.trim().isNotEmpty) 'url': favorite.url.trim(),
+    if (mediaUrl.isNotEmpty) 'url': mediaUrl,
     'info': {
       if (favorite.mimeType.trim().isNotEmpty)
         'mimetype': favorite.mimeType.trim(),
@@ -1809,7 +1814,7 @@ Future<Uint8List> _downloadFavoriteMediaBytes(
   AsFavoriteMessage favorite, {
   bool thumbnail = false,
 }) async {
-  final raw = (thumbnail ? favorite.thumbnailUrl : favorite.url).trim();
+  final raw = _favoriteMediaUrl(favorite, thumbnail: thumbnail);
   final mxc = Uri.tryParse(raw);
   if (mxc == null || !mxc.isScheme('mxc')) {
     throw StateError('收藏媒体地址无效');
@@ -1883,7 +1888,7 @@ ImageProviderLoader? _favoriteImageProviderLoader(
   AsFavoriteMessage favorite, {
   bool thumbnail = false,
 }) {
-  final raw = (thumbnail ? favorite.thumbnailUrl : favorite.url).trim();
+  final raw = _favoriteMediaUrl(favorite, thumbnail: thumbnail);
   if (raw.isEmpty) return null;
   if (raw.startsWith('http://') || raw.startsWith('https://')) {
     return () async => NetworkImage(raw);
@@ -1897,6 +1902,18 @@ ImageProviderLoader? _favoriteImageProviderLoader(
           thumbnail: thumbnail,
         ),
       );
+}
+
+String _favoriteMediaUrl(
+  AsFavoriteMessage favorite, {
+  bool thumbnail = false,
+}) {
+  final primary = (thumbnail ? favorite.thumbnailUrl : favorite.url).trim();
+  if (primary.isNotEmpty) return primary;
+  if (!thumbnail && favorite.messageType == 'image') {
+    return favorite.thumbnailUrl.trim();
+  }
+  return '';
 }
 
 String _favoriteImagePreviewMeta(

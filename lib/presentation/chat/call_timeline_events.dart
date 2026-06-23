@@ -121,8 +121,10 @@ String callRecordText(
   if (reason == _missedReason) return '未接通';
 
   final answer = _matchingAnswer(event, roomEvents);
-  if (answer == null) return '未接通';
-  final duration = event.originServerTs.difference(answer.originServerTs);
+  final duration = answer == null
+      ? _callRecordEventDuration(event)
+      : event.originServerTs.difference(answer.originServerTs);
+  if (duration == null) return '未接通';
   return _formatCallDuration(duration);
 }
 
@@ -433,6 +435,25 @@ Duration _asSessionDuration(AsCallSession session) {
   if (answeredAt == null || endedAt == null) return Duration.zero;
   final duration = endedAt.difference(answeredAt);
   return duration.isNegative ? Duration.zero : duration;
+}
+
+Duration? _callRecordEventDuration(Event event) {
+  final durationMs = _durationMsValue(
+    event.content['duration_ms'] ?? event.content['duration'],
+  );
+  if (durationMs == null || durationMs <= 0) return null;
+  return Duration(milliseconds: durationMs);
+}
+
+int? _durationMsValue(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.round();
+  if (value is String) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    return int.tryParse(trimmed);
+  }
+  return null;
 }
 
 String? _callId(Event event) {

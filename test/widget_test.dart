@@ -1224,13 +1224,19 @@ class _IdleVoiceCallController implements VoiceCallController {
 }
 
 class _FavoritesAsClient extends _EmptyAsClient {
-  _FavoritesAsClient({this.videoThumbnail = true});
+  _FavoritesAsClient({
+    this.videoThumbnail = true,
+    this.imageUrl = 'mxc://p2p-im.com/image',
+    this.imageThumbnailUrl = '',
+  });
 
   static const generatedImageName =
       'image_picker_11111111-AAAA-BBBB-CCCC-generated-photo.jpg';
   static const generatedVideoName =
       'image_picker_22545629-08B6-4C45-B8ED-generated-video.mov';
   final bool videoThumbnail;
+  final String imageUrl;
+  final String imageThumbnailUrl;
   final deletedFavoriteIds = <int>{};
 
   @override
@@ -1319,11 +1325,11 @@ class _FavoritesAsClient extends _EmptyAsClient {
         senderId: '@alice:p2p-liyanan.com',
         senderName: 'Alice',
         body: generatedImageName,
-        url: 'mxc://p2p-im.com/image',
+        url: imageUrl,
         filename: generatedImageName,
         mimeType: 'image/jpeg',
         size: 102400,
-        thumbnailUrl: '',
+        thumbnailUrl: imageThumbnailUrl,
         thumbnailMimeType: 'image/jpeg',
         thumbnailSize: 0,
         width: 1280,
@@ -16298,6 +16304,54 @@ void main() {
     expect(find.text('消息详情'), findsNothing);
   });
 
+  testWidgets('me favorites image preview falls back to thumbnail URL',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+    });
+
+    final client = Client(
+      'DirexioFavoriteImageThumbnailFallbackTest',
+      httpClient: MockClient((request) async {
+        return http.Response.bytes(
+          _transparentPng,
+          200,
+          headers: {'content-type': 'image/png'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(
+            _FavoritesAsClient(
+              videoThumbnail: false,
+              imageUrl: '',
+              imageThumbnailUrl: 'mxc://p2p-im.com/image-thumb',
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('favorite-card-4')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.byIcon(Symbols.close), findsOneWidget);
+    expect(find.textContaining('收藏图片地址为空'), findsNothing);
+  });
+
   testWidgets('me favorites image preview uses cached media bytes',
       (tester) async {
     final requested = <Uri>[];
@@ -17004,6 +17058,81 @@ void main() {
     expect(find.text('Agent'), findsOneWidget);
     expect(find.text('离线'), findsOneWidget);
     expect(find.text('在线'), findsNothing);
+  });
+
+  testWidgets('private chat hides first-message empty state for cached preview',
+      (tester) async {
+    const roomId = '!cached-direct:p2p-im.com';
+    const peerMxid = '@alice:p2p-im.com';
+    final client = Client('DirexioCachedChatPreviewTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: peerMxid,
+      peerName: 'Alice',
+    );
+    final snapshotStore = _MemoryConversationSummaryStore(
+      ConversationSummarySnapshot(
+        userId: '@owner:p2p-im.com',
+        updatedAt: DateTime.utc(2026, 6, 23, 10),
+        entries: [
+          ConversationSummaryEntry(
+            roomId: roomId,
+            name: 'Alice',
+            lastMessage: '本地缓存消息',
+            previewTs: DateTime.utc(2026, 6, 23, 10).millisecondsSinceEpoch,
+            unread: 0,
+            isGroup: false,
+            isAgent: false,
+          ),
+        ],
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('开始你们的第一条消息'), findsNothing);
   });
 
   testWidgets('private chat header shows peer offline and typing status',

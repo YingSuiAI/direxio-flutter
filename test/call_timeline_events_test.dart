@@ -83,6 +83,28 @@ void main() {
     expect(callRecordText(missed, [invite, missed]), '未接通');
   });
 
+  test('formats completed call records from hangup duration without answer',
+      () {
+    final client = Client('CallTimelineDurationRecordTextTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final invite = _event(
+      room,
+      eventId: r'$invite',
+      type: EventTypes.CallInvite,
+      at: DateTime.utc(2026, 5, 30, 1),
+    );
+    final hangup = _event(
+      room,
+      eventId: r'$hangup',
+      type: EventTypes.CallHangup,
+      at: DateTime.utc(2026, 5, 30, 1, 0, 47),
+      extraContent: {'duration_ms': 27000},
+    );
+
+    expect(callRecordText(hangup, [invite, hangup]), '0:27');
+  });
+
   test('formats video call records from product call intent', () {
     final client = Client('CallTimelineVideoRecordTextTest')
       ..setUserId('@me:p2p-im.com');
@@ -828,6 +850,7 @@ Event _event(
   required DateTime at,
   String senderId = '@me:p2p-im.com',
   String reason = 'user_hangup',
+  Map<String, Object?> extraContent = const {},
 }) {
   return Event(
     room: room,
@@ -839,6 +862,7 @@ Event _event(
       'call_id': 'call-1',
       'version': 1,
       'reason': reason,
+      ...extraContent,
     },
   );
 }

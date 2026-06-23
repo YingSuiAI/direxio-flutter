@@ -2331,6 +2331,10 @@ class MatrixVoiceCallController implements VoiceCallController {
     _callEventSub = session.onCallEventChanged.stream.listen((event) {
       if (event == CallStateChange.kError) {
         _emitFailed(_callErrorText(session.hangupReason));
+      } else if (event == CallStateChange.kFeedsChanged) {
+        _debugLogSessionMedia('feeds-changed', session);
+        _emit(_stateFromSession(session));
+        _applySpeakerRoute(session);
       }
     });
   }

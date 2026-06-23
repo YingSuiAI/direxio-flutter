@@ -1003,7 +1003,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       return;
     }
     void rebuild() {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
       if (!_isChannelConversation) {
         _scheduleAsCallHistoryReloadForTimeline();
       }
@@ -1030,7 +1031,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       await ChatTimelineController(
         room: timeline.room,
         rebuild: () {
-          if (mounted) setState(() {});
+          if (!mounted) return;
+          setState(() {});
           _scheduleTimelineThumbnailWarmup();
           unawaited(_markCurrentTimelineRead());
         },
@@ -1279,6 +1281,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   Future<void> _markCurrentTimelineRead() async {
+    if (!mounted) return;
     final room = _room;
     final timeline = _timeline;
     if (room == null) return;
@@ -1299,6 +1302,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         timeline: timeline,
         asClient: ref.read(asClientProvider),
         onUnreadCleared: (readAt) {
+          if (!mounted) return;
           ref.read(asSyncCacheProvider.notifier).update(
                 (state) => state.withRoomUnreadCleared(room.id, readAt: readAt),
               );

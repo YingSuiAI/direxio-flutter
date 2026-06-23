@@ -10,6 +10,7 @@ This document is a current implementation inventory. It is not a roadmap and doe
 - Home conversations use ProductCore conversations, Matrix rooms, and local summary snapshots only as startup cache.
 - Direct/group/channel chat uses Matrix timelines for text, media, history, read state, local delete, and search.
 - Contacts, follows, pending requests, group metadata, channel metadata, public profiles, and public channel lists use the integrated P2P product API/bootstrap actions.
+- Group invite visibility uses Matrix room invites and `sync.bootstrap.pending.group_invites`; private chat invite messages are not the receiver contract.
 - Channel search uses the P2P public search action. Remote node URLs must be request-provided; the client must not infer a remote P2P URL from a Matrix room id.
 - Contact public channels use the `users.public_channels` action through `getUserPublicChannels`.
 - Owner profile updates go through the P2P product API and best-effort Matrix profile update.

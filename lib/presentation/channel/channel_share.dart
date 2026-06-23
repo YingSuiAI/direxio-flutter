@@ -107,6 +107,14 @@ String channelShareOpenRoute(
           payload.channelId.trim().isEmpty ? payload.roomId : payload.channelId,
     );
     if (productRoute != null) return productRoute;
+    final fallbackRoute = joinedTextChannelConversationRoute(
+      channelId: payload.channelId,
+      roomId: payload.roomId,
+      memberStatus: asChannelMemberStatusJoined,
+      channelType: payload.channelType,
+      name: payload.name,
+    );
+    if (fallbackRoute != null) return fallbackRoute;
   }
   return '/channel/$encodedRouteId/detail';
 }
@@ -141,6 +149,14 @@ String channelShareJoinedRoute(
     channelId: channelId.isEmpty ? payload.roomId : channelId,
   );
   if (productRoute != null) return productRoute;
+  final fallbackRoute = joinedTextChannelConversationRoute(
+    channelId: channelId,
+    roomId: joined.roomId.trim().isEmpty ? payload.roomId : joined.roomId,
+    memberStatus: joined.memberStatus,
+    channelType: joined.channelType,
+    name: joined.name.trim().isEmpty ? payload.name : joined.name,
+  );
+  if (fallbackRoute != null) return fallbackRoute;
   return '/channel/$encodedId/detail';
 }
 
@@ -261,6 +277,7 @@ Future<bool> showAndShareChannel(
   }
   final target = await showModalBottomSheet<ChatRecordForwardTarget>(
     context: context,
+    isScrollControlled: true,
     showDragHandle: true,
     builder: (ctx) => _ChannelShareTargetSheet(targets: targets),
   );
@@ -339,11 +356,7 @@ class ChannelSharePreviewCard extends StatelessWidget {
         ? payload.homeDomain.trim()
         : payload.description.trim();
     final typeLabel = _channelShareTypeLabel(payload);
-    final buttonTap = joining
-        ? null
-        : alreadyJoined
-            ? onTap
-            : onJoin;
+    final buttonTap = joining || alreadyJoined ? () {} : onJoin;
     return ChatCardBubbleFrame(
       onTap: onTap,
       onLongPressAt: onLongPressAt,
@@ -507,49 +520,58 @@ class _ChannelShareTargetSheet extends ConsumerWidget {
     final t = context.tk;
     final client = ref.watch(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
-    return SafeArea(
-      child: ListView.separated(
-        shrinkWrap: true,
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-        itemCount: targets.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text(
-                '分享频道到',
-                style: AppTheme.sans(
-                  size: 17,
-                  weight: FontWeight.w700,
-                  color: t.text,
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.64,
+      minChildSize: 0.36,
+      maxChildSize: 0.92,
+      builder: (context, scrollController) {
+        return SafeArea(
+          top: false,
+          child: ListView.separated(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            itemCount: targets.length + 1,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    '分享频道到',
+                    style: AppTheme.sans(
+                      size: 17,
+                      weight: FontWeight.w700,
+                      color: t.text,
+                    ),
+                  ),
+                );
+              }
+              final target = targets[index - 1];
+              final avatarUrl = _targetAvatarUrl(client, syncCache, target);
+              return ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: t.border.withValues(alpha: 0.16)),
                 ),
-              ),
-            );
-          }
-          final target = targets[index - 1];
-          final avatarUrl = _targetAvatarUrl(client, syncCache, target);
-          return ListTile(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: t.border.withValues(alpha: 0.16)),
-            ),
-            tileColor: t.surface,
-            leading: PortalAvatar(
-              seed: target.name,
-              size: 40,
-              imageUrl: avatarUrl,
-              shape: AvatarShape.squircle,
-            ),
-            title: Text(
-              target.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            onTap: () => Navigator.of(context).pop(target),
-          );
-        },
-      ),
+                tileColor: t.surface,
+                leading: PortalAvatar(
+                  seed: target.name,
+                  size: 40,
+                  imageUrl: avatarUrl,
+                  shape: AvatarShape.squircle,
+                ),
+                title: Text(
+                  target.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () => Navigator.of(context).pop(target),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

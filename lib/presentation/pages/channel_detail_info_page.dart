@@ -238,9 +238,16 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
         return;
       }
       final route = productConversationRoute(
-        joined.productConversation,
-        channelId: joinedChannelId,
-      );
+            joined.productConversation,
+            channelId: joinedChannelId,
+          ) ??
+          joinedTextChannelConversationRoute(
+            channelId: joinedChannelId,
+            roomId: joined.roomId.trim().isEmpty ? roomId : joined.roomId,
+            memberStatus: joined.memberStatus,
+            channelType: joined.channelType,
+            name: joined.name.trim().isEmpty ? channel.name : joined.name,
+          );
       if (route == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('频道正在同步，请稍后重试')),

@@ -53,6 +53,25 @@ String channelConversationRoute(
   return '/channel/${Uri.encodeComponent(channelId)}/conversation$query';
 }
 
+String? joinedTextChannelConversationRoute({
+  required String channelId,
+  required String roomId,
+  required String memberStatus,
+  required String channelType,
+  String conversationId = '',
+  String name = '',
+}) {
+  if (normalizeAsChannelType(channelType) != asChannelTypeChat) return null;
+  if (!isAsChannelMemberJoined(memberStatus)) return null;
+  final routeId = channelId.trim().isEmpty ? roomId.trim() : channelId.trim();
+  if (routeId.isEmpty) return null;
+  return channelConversationRoute(
+    routeId,
+    conversationId: conversationId,
+    name: name,
+  );
+}
+
 String? productConversationRoute(
   AsConversation? conversation, {
   String channelId = '',

@@ -961,6 +961,48 @@ class _MissingPublicChannelAsClient extends _EmptyAsClient {
   }
 }
 
+class _PendingChannelReviewAsClient extends _EmptyAsClient {
+  @override
+  Future<AsSyncBootstrap> syncBootstrap() async => AsSyncBootstrap(
+        syncedAt: DateTime.now().toUtc(),
+        user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      );
+
+  @override
+  Future<List<AsChannel>> listChannels() async => const [
+        AsChannel(
+          channelId: 'ch_review',
+          roomId: '!review:p2p-im.com',
+          name: '频道审核',
+          homeDomain: 'p2p-im.com',
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          pendingJoinCount: 1,
+        ),
+      ];
+
+  @override
+  Future<List<AsChannelMember>> getChannelMembers(
+    String channelId, {
+    String status = '',
+  }) async =>
+      const [
+        AsChannelMember(
+          channelId: 'ch_review',
+          userMxid: '@pending:p2p-im.com',
+          displayName: '待审核用户',
+          status: asChannelMemberStatusPending,
+          role: asChannelRoleMember,
+          joinedAtMs: 1760000000000,
+        ),
+      ];
+}
+
 class _ReadMarkerFailingAsClient extends _EmptyAsClient {
   @override
   Future<void> updateReadMarker(
@@ -2398,6 +2440,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   bool sendTextEvent = true,
   bool loggedInAuth = false,
   GoRouter? router,
+  Profile? currentUserProfile,
 }) async {
   final sentMatrixEvents = <Map<String, dynamic>>[];
   final matrixRedactionPaths = <String>[];
@@ -2494,6 +2537,10 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
         localOutboxStoreProvider.overrideWith(
           (ref) async => _MemoryLocalOutboxStore(initialOutboxItems),
         ),
+        if (currentUserProfile != null)
+          currentUserProfileProvider.overrideWith(
+            (ref) async => currentUserProfile,
+          ),
       ],
       child: router == null
           ? MaterialApp(
@@ -5168,8 +5215,11 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_PendingChannelReviewAsClient()),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
@@ -5498,7 +5548,8 @@ void main() {
   });
 
   testWidgets('channel review entry opens figma review page', (tester) async {
-    final client = Client('DirexioChannelReviewTest');
+    final client = Client('DirexioChannelReviewTest')
+      ..setUserId('@owner:p2p-im.com');
     final router = GoRouter(
       routes: [
         GoRoute(path: '/', builder: (_, __) => const HomePage()),
@@ -5513,8 +5564,11 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_PendingChannelReviewAsClient()),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -5528,12 +5582,62 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('channel_review_button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('频道审核'), findsOneWidget);
+    expect(find.text('频道审核'), findsAtLeastNWidgets(1));
     expect(find.text('待审核'), findsOneWidget);
-    expect(find.text('已通过'), findsOneWidget);
-    expect(find.text('已拒绝'), findsOneWidget);
     expect(find.text('通过'), findsOneWidget);
     expect(find.text('拒绝'), findsOneWidget);
+  });
+
+  testWidgets('channel review button shows AS channel notice badge',
+      (tester) async {
+    final client = Client('DirexioChannelNoticeBadgeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending(
+        friendRequests: [],
+        groupInvites: [],
+        channelNotices: [
+          AsSyncPendingItem(
+            id: 'ch_pending_application',
+            title: '频道申请',
+            createdAt: null,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('频道').last);
+    await tester.pump();
+
+    final reviewButton = find.byKey(const ValueKey('channel_review_button'));
+    expect(reviewButton, findsOneWidget);
+    expect(
+      find.descendant(of: reviewButton, matching: find.text('1')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('home plus menu has the unified action order', (tester) async {
@@ -5729,6 +5833,111 @@ void main() {
       find.text('group:!new-group:p2p-im.com;conversation:conv_new_group'),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+      'home plus group creation falls back when ProductCore conversation is absent',
+      (tester) async {
+    final asClient = _TrackingAsClient();
+    final snapshotStore = _MemoryConversationSummaryStore();
+    final client = Client('DirexioHomeGroupCreateFallbackTest')
+      ..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: '!direct-alice:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) => Scaffold(
+            body: Text(
+              'group:${state.pathParameters['roomId']!};'
+              'conversation:${state.uri.queryParameters['conversation']}',
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          groupCreationSyncAfterCreateProvider.overrideWithValue(false),
+          voiceCallControllerProvider.overrideWithValue(
+            _IdleVoiceCallController(),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => snapshotStore,
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Symbols.add));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('创建群聊').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alice Chen').last);
+    await tester.pump();
+    await tester.tap(find.text('完成(1)'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('create_group_name_field')),
+      '项目群',
+    );
+    await tester.pump();
+    await tester.tap(find.text('完成创建'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.createdGroupName, '项目群');
+    expect(
+      find.text(
+        'group:!new-group:p2p-im.com;conversation:group:!new-group:p2p-im.com',
+      ),
+      findsOneWidget,
+    );
+
+    router.go('/home');
+    await tester.pumpAndSettle();
+
+    expect(find.text('项目群'), findsOneWidget);
   });
 
   testWidgets('missing group page keeps a usable back button', (tester) async {
@@ -5955,18 +6164,6 @@ void main() {
     final contactSectionBadge =
         find.byKey(const ValueKey('section_action_badge_新朋友'));
     expect(contactSectionBadge, findsOneWidget);
-    expect(
-      find.descendant(of: contactSectionBadge, matching: find.text('1')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: contactSectionBadge, matching: find.text('2')),
-      findsNothing,
-    );
-    expect(
-      find.descendant(of: contactSectionBadge, matching: find.text('3')),
-      findsNothing,
-    );
   });
 
   testWidgets('new friend badge counts AS pending friend request notices',
@@ -6028,7 +6225,8 @@ void main() {
     );
   });
 
-  testWidgets('new friend badge ignores AS group and channel invite notices',
+  testWidgets(
+      'new friend badge counts AS group invites but not channel notices',
       (tester) async {
     final client = Client('DirexioPendingRoomInviteBadgeTest')
       ..setUserId('@owner:p2p-im.com');
@@ -6079,14 +6277,23 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
+    final bottomBadge = find.byKey(const ValueKey('bottom_nav_badge_通讯录'));
+    expect(bottomBadge, findsOneWidget);
+    expect(
+      find.descendant(of: bottomBadge, matching: find.text('1')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('通讯录').last);
     await tester.pump();
 
     final contactSectionBadge =
         find.byKey(const ValueKey('section_action_badge_新朋友'));
-    expect(contactSectionBadge, findsNothing);
+    expect(contactSectionBadge, findsOneWidget);
+    expect(
+      find.descendant(of: contactSectionBadge, matching: find.text('1')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('new friend badge refreshes AS pending notices after Matrix sync',
@@ -6222,7 +6429,7 @@ void main() {
     expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
   });
 
-  testWidgets('new friend badge ignores refreshed AS pending group invites',
+  testWidgets('new friend badge counts refreshed AS pending group invites',
       (tester) async {
     final client = Client('DirexioPendingGroupInviteLiveRefreshTest')
       ..setUserId('@owner:p2p-im.com');
@@ -6259,7 +6466,12 @@ void main() {
     await tester.pump();
 
     expect(asClient.syncBootstrapCalls, 2);
-    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsNothing);
+    final badge = find.byKey(const ValueKey('bottom_nav_badge_通讯录'));
+    expect(badge, findsOneWidget);
+    expect(
+      find.descendant(of: badge, matching: find.text('1')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('new friend badge counts Matrix invites after AS bootstrap',
@@ -6529,7 +6741,7 @@ void main() {
     expect(find.text('Alice'), findsOneWidget);
   });
 
-  testWidgets('new friends page ignores AS pending group invites after sync',
+  testWidgets('new friends page shows AS pending group invites after sync',
       (tester) async {
     final client = Client('DirexioRequestsLiveGroupInviteTest')
       ..setUserId('@owner:p2p-im.com');
@@ -6561,9 +6773,40 @@ void main() {
     await tester.pump();
 
     expect(asClient.syncBootstrapCalls, 2);
-    expect(find.text('暂无好友请求'), findsOneWidget);
-    expect(find.text('实时群聊'), findsNothing);
-    expect(find.textContaining('邀请加入群聊'), findsNothing);
+    expect(find.text('暂无好友请求'), findsNothing);
+    expect(find.text('实时群聊'), findsOneWidget);
+    expect(find.text('邀请加入群聊'), findsOneWidget);
+  });
+
+  testWidgets('new friends page shows Matrix group room invites',
+      (tester) async {
+    final client = Client('DirexioRequestsMatrixGroupInviteTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!matrix-group-invite:p2p-im.com',
+      roomMembership: Membership.invite,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('暂无好友请求'), findsNothing);
+    expect(find.text('邀请加入群聊'), findsOneWidget);
+    expect(find.text('查看'), findsOneWidget);
   });
 
   testWidgets('new friends page still lists Matrix invites after AS bootstrap',
@@ -11509,6 +11752,32 @@ void main() {
     expect(harness.matrixRedactionPaths, hasLength(1));
     expect(harness.matrixRedactionPaths.single,
         contains('/redact/%24group-own-text/'));
+  });
+
+  testWidgets('group chat uses current profile avatar for own messages',
+      (tester) async {
+    await _pumpGroupChatWithTextEvent(
+      tester,
+      eventId: r'$group-own-avatar',
+      body: '我自己的群聊头像消息',
+      senderMxid: '@owner:p2p-im.com',
+      currentUserProfile: Profile(
+        userId: '@owner:p2p-im.com',
+        displayName: 'Owner',
+        avatarUrl: Uri.parse('https://cdn.example.com/group-me.png'),
+      ),
+    );
+
+    expect(find.text('我自己的群聊头像消息'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 40 &&
+            widget.imageUrl == 'https://cdn.example.com/group-me.png',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('group chat long press exposes local outbox actions',

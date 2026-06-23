@@ -80,7 +80,7 @@ void main() {
     expect(joins, 0);
   });
 
-  testWidgets('shows already joined notice without joining again',
+  testWidgets('greys already joined button without joining again',
       (tester) async {
     var joins = 0;
     await tester.pumpWidget(
@@ -100,11 +100,12 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('加入群聊'));
+    await tester.tap(find.text('已在群里中'));
     await tester.pump();
 
     expect(joins, 0);
     expect(find.text('已在群里中'), findsOneWidget);
+    expect(find.text('加入群聊'), findsNothing);
   });
 
   testWidgets('uses compact chat-bubble dimensions', (tester) async {

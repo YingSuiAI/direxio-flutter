@@ -130,6 +130,36 @@ void main() {
     expect(entries.map((entry) => entry.roomId), ['!empty-group:p2p-im.com']);
   });
 
+  test('keeps open room-only summaries without message previews', () {
+    final snapshot = ConversationSummarySnapshot(
+      userId: '@owner:p2p-im.com',
+      updatedAt: DateTime.utc(2026, 6, 23),
+      entries: const [
+        ConversationSummaryEntry(
+          roomId: '!created-group:p2p-im.com',
+          kind: 'group',
+          name: '刚创建的群',
+          lastMessage: '',
+          previewTs: 0,
+          unread: 0,
+          isGroup: true,
+          isAgent: false,
+          canOpen: true,
+        ),
+      ],
+    );
+
+    final entries = conversationSummaryEntriesForUser(
+      snapshot,
+      userId: '@owner:p2p-im.com',
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+    );
+
+    expect(entries.map((entry) => entry.roomId), ['!created-group:p2p-im.com']);
+    expect(entries.single.name, '刚创建的群');
+  });
+
   test('sorts agent summaries before pinned and recent normal summaries', () {
     final entries = mergeConversationSummaryEntries(
       cachedEntries: const [],

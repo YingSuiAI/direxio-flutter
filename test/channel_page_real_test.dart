@@ -645,6 +645,7 @@ void main() {
       find.descendant(of: likeButton, matching: find.byType(Image)),
     );
     expect((heart.image as AssetImage).assetName, 'assets/images/like.png');
+    expect(find.byIcon(Symbols.star), findsNothing);
 
     await tester.tap(likeButton);
     await tester.pumpAndSettle();
@@ -1200,7 +1201,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('#综合讨论'), findsOneWidget);
-    expect(find.text('频道信息(32)'), findsOneWidget);
+    expect(find.text('频道信息'), findsOneWidget);
+    expect(find.textContaining('频道信息('), findsNothing);
     expect(find.text('频道详情'), findsOneWidget);
     expect(find.text('分享频道'), findsOneWidget);
     expect(find.text('举报频道'), findsOneWidget);
@@ -1259,7 +1261,8 @@ void main() {
 
     expect(asClient.requestedChannelId, 'ch_real');
     expect(asClient.requestedStatus, asChannelMemberStatusJoined);
-    expect(find.text('频道信息(2)'), findsOneWidget);
+    expect(find.text('频道信息'), findsOneWidget);
+    expect(find.textContaining('频道信息('), findsNothing);
     expect(find.text('2 名成员'), findsNothing);
     expect(find.text('Agent'), findsNothing);
     expect(
@@ -1322,14 +1325,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(asClient.requestedChannelId, 'ch_real');
-    expect(asClient.requestedStatus, asChannelMemberStatusJoined);
-    expect(find.text('频道信息(2)'), findsOneWidget);
-    expect(find.text('频道信息(3)'), findsNothing);
+    expect(asClient.requestedChannelId, isNull);
+    expect(asClient.requestedStatus, isNull);
+    expect(find.text('频道信息'), findsOneWidget);
+    expect(find.textContaining('频道信息('), findsNothing);
   });
 
-  testWidgets(
-      'channel info title falls back to metadata when members are empty',
+  testWidgets('channel info title omits member count when members are empty',
       (tester) async {
     final matrixClient = Client('ChannelInfoEmptyMembersTest')
       ..setUserId('@member:p2p-im.com')
@@ -1377,8 +1379,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('频道信息(32)'), findsOneWidget);
-    expect(find.text('频道信息(0)'), findsNothing);
+    expect(find.text('频道信息'), findsOneWidget);
+    expect(find.textContaining('频道信息('), findsNothing);
   });
 
   testWidgets('owned channel member avatar opens visitor public channels',
@@ -1723,7 +1725,8 @@ void main() {
 
     expect(find.text('举报频道'), findsNothing);
     expect(find.text('退出频道'), findsNothing);
-    expect(find.text('频道信息(2)'), findsOneWidget);
+    expect(find.text('频道信息'), findsOneWidget);
+    expect(find.textContaining('频道信息('), findsNothing);
     expect(find.text('2 名成员'), findsNothing);
   });
 
@@ -2325,7 +2328,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ChannelInfoPage), findsOneWidget);
-    expect(find.textContaining('频道信息('), findsOneWidget);
+    expect(find.text('频道信息'), findsOneWidget);
+    expect(find.textContaining('频道信息('), findsNothing);
     expect(find.text('频道详情'), findsOneWidget);
     expect(find.text('分享频道'), findsOneWidget);
     expect(find.text('解散频道'), findsOneWidget);

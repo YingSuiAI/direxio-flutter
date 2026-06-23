@@ -6,6 +6,7 @@ import 'package:portal_app/presentation/home/conversation_summary_writer.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/local_message_order_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
+import 'package:portal_app/presentation/chat/chat_record_forwarding.dart';
 import 'package:portal_app/presentation/utils/direct_contact_status.dart';
 import 'package:portal_app/presentation/utils/product_conversation_navigation.dart';
 
@@ -314,6 +315,59 @@ void main() {
       ['!recent:p2p-im.com'],
     );
     expect(result.shouldWriteStore, isTrue);
+  });
+
+  test('counts unread channel share cards even without Matrix notification',
+      () {
+    final client = Client('ConversationSummaryWriterChannelShareUnreadTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!direct:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.lastEvent = Event(
+      room: room,
+      eventId: r'$channel-share',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 23, 10),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '频道分享\n产品公告',
+        chatRecordMatrixMarkerKey: 'channel_share',
+      },
+    );
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: [room],
+      productConversations: [
+        _conversation(
+          id: 'conv_direct',
+          roomId: '!direct:p2p-im.com',
+          kind: asConversationKindDirect,
+          canOpen: true,
+          lastActivityAt: DateTime.utc(2026, 6, 23, 10),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    expect(result.displayEntries.single.unread, 1);
   });
 
   test('builds home summary projection that clears stale cached rows', () {

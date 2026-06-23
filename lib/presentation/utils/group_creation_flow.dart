@@ -238,7 +238,7 @@ AsConversation _fallbackGroupConversation(
 }) {
   final roomId = group.roomId.trim();
   return AsConversation(
-    conversationId: group.operation.conversationId.trim(),
+    conversationId: _createdGroupConversationId(group),
     roomId: roomId,
     kind: asConversationKindGroup,
     lifecycle: 'active',
@@ -261,6 +261,13 @@ AsConversation _fallbackGroupConversation(
       leave: true,
     ),
   );
+}
+
+String _createdGroupConversationId(AsGroupResult group) {
+  final operationConversationId = group.operation.conversationId.trim();
+  if (operationConversationId.isNotEmpty) return operationConversationId;
+  final roomId = group.roomId.trim();
+  return roomId.isEmpty ? '' : 'group:$roomId';
 }
 
 Future<String> _currentUserAvatarUrl(WidgetRef ref) async {

@@ -292,6 +292,26 @@ void main() {
     expect(conversationUnreadCount(matrixUnreadCount: 0), 0);
   });
 
+  test('detects channel share product messages', () {
+    final client = Client('MessagePreviewChannelShareDetectTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final event = Event(
+      room: room,
+      eventId: r'$channel-share',
+      senderId: '@peer:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 23),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '频道分享',
+        chatRecordMatrixMarkerKey: 'channel_share',
+      },
+    );
+
+    expect(isChannelShareEvent(event), isTrue);
+  });
+
   test('uses failed local outbox image as latest conversation preview', () {
     final client = Client('MessagePreviewFailedOutboxTest')
       ..setUserId('@me:p2p-im.com');

@@ -32,6 +32,17 @@ String roomEventPreviewText(Event? event, {required bool isAgent}) {
   return previewText(event.plaintextBody);
 }
 
+bool isChannelShareEvent(Event? event) {
+  if (event == null || event.type != EventTypes.Message) return false;
+  final content = event.content.map(
+    (key, value) => MapEntry(key.toString(), value),
+  );
+  final productType = (content[chatRecordMatrixMarkerKey] as String?) ??
+      (content['message_type'] as String?) ??
+      '';
+  return productType == _channelShareMessageType;
+}
+
 String conversationPreviewText({
   required Event? lastEvent,
   required LocalOutboxItem? latestFailedOutbox,

@@ -42,6 +42,7 @@ class GroupInviteCard extends StatelessWidget {
     final bodyColor = t.textMute;
     final buttonColor = t.accent;
     final buttonTextColor = t.onAccent;
+    final joinDisabled = joining || alreadyJoined;
     return ChatCardBubbleFrame(
       child: Column(
         children: [
@@ -94,29 +95,24 @@ class GroupInviteCard extends StatelessWidget {
             width: double.infinity,
             height: 30,
             child: Material(
-              color:
-                  joining ? buttonColor.withValues(alpha: 0.48) : buttonColor,
+              color: joinDisabled
+                  ? buttonColor.withValues(alpha: 0.48)
+                  : buttonColor,
               borderRadius: BorderRadius.circular(8),
               child: InkWell(
                 onTap: joining
                     ? null
                     : alreadyJoined
-                        ? () {
-                            final messenger = ScaffoldMessenger.maybeOf(
-                              context,
-                            );
-                            messenger?.hideCurrentSnackBar();
-                            messenger?.showSnackBar(
-                              SnackBar(content: Text(alreadyJoinedMessage)),
-                            );
-                          }
+                        ? null
                         : onJoin,
                 borderRadius: BorderRadius.circular(8),
                 child: Center(
                   child: Text(
                     joining
                         ? l10n?.groupInviteJoiningButton ?? '加入中…'
-                        : l10n?.groupInviteJoinButton ?? '加入群聊',
+                        : alreadyJoined
+                            ? alreadyJoinedMessage
+                            : l10n?.groupInviteJoinButton ?? '加入群聊',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.sans(

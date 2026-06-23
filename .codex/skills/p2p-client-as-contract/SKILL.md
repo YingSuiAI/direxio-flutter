@@ -70,6 +70,10 @@ Do not reconstruct a post-create or post-join chat route from channel id, room
 id, group name, or member count when the ProductCore conversation is missing or
 not openable.
 
+`groups.invite` notifies receivers through Matrix `rooms.invite`, with an
+optional metadata mirror in `sync.bootstrap.pending.group_invites`. Do not treat
+the receiver contract as a private-chat group invite message.
+
 ## Verification
 
 Run:

@@ -239,6 +239,63 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     }
   }
 
+  Future<void> _acceptGroupInvite({
+    required String roomId,
+    required String groupName,
+  }) async {
+    final cleanRoomId = roomId.trim();
+    if (cleanRoomId.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      final group = await ref.read(asClientProvider).joinGroup(
+            roomId: cleanRoomId,
+            groupName: groupName.trim(),
+          );
+      await recordProductConversationMutation(ref, group.productConversation);
+      await ref.read(matrixClientProvider).oneShotSync();
+      await _refreshBootstrap();
+      if (mounted) {
+        setState(() {
+          _notice = '已加入群聊';
+          _noticeIsError = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _notice = '加入群聊失败：$e';
+          _noticeIsError = true;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _rejectGroupInvite(Room room) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(matrixClientProvider).leaveRoom(room.id);
+      await ref.read(matrixClientProvider).oneShotSync();
+      await _refreshBootstrap();
+      if (mounted) {
+        setState(() {
+          _notice = '已拒绝群邀请';
+          _noticeIsError = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _notice = '拒绝群邀请失败：$e';
+          _noticeIsError = true;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _sendInviteFromSearch() async {
     final input = _searchCtrl.text.trim();
     if (input.isEmpty || _busy) return;
@@ -347,6 +404,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       for (final request in syncCache.bootstrap?.pending.friendRequests ??
           const <AsSyncPendingItem>[])
         request.id,
+      for (final room in _incomingGroupRoomInvites(client)) room.id,
+      for (final request in syncCache.bootstrap?.pending.groupInvites ??
+          const <AsSyncPendingItem>[])
+        request.id,
       for (final request in syncCache.bootstrap?.pending.channelNotices ??
           const <AsSyncPendingItem>[])
         request.id,
@@ -416,6 +477,16 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         if (request.id.trim().isNotEmpty &&
             !pendingInboundRoomIds.contains(request.id.trim()) &&
             !inviteRoomIds.contains(request.id.trim()))
+          request,
+    ];
+    final groupInviteRooms = _incomingGroupRoomInvites(client);
+    final groupInviteRoomIds =
+        groupInviteRooms.map((room) => room.id.trim()).toSet();
+    final pendingGroupInviteNotices = [
+      for (final request in syncCache.bootstrap?.pending.groupInvites ??
+          const <AsSyncPendingItem>[])
+        if (request.id.trim().isNotEmpty &&
+            !groupInviteRoomIds.contains(request.id.trim()))
           request,
     ];
     final pendingChannelNotices = [
@@ -497,6 +568,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       invites: invites,
                       contacts: pendingInboundContacts,
                       friendNotices: pendingFriendRequestNotices,
+                      groupInviteRooms: groupInviteRooms,
+                      groupInviteNotices: pendingGroupInviteNotices,
                       channelNotices: pendingChannelNotices,
                       busy: _busy,
                       onOpenProfile: _openAddContactProfile,
@@ -504,6 +577,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       onReject: _reject,
                       onAcceptContact: _acceptContact,
                       onRejectContact: _rejectContact,
+                      onAcceptGroupRoom: (room) => _acceptGroupInvite(
+                        roomId: room.id,
+                        groupName: _groupInviteName(room),
+                      ),
+                      onRejectGroupRoom: _rejectGroupInvite,
+                      onAcceptGroupNotice: (notice) => _acceptGroupInvite(
+                        roomId: notice.id,
+                        groupName: notice.title,
+                      ),
                     ),
                     if (pendingOutboundContacts.isNotEmpty) ...[
                       const _HiddenText('等待对方接受'),
@@ -563,6 +645,31 @@ List<Room> _incomingDirectContactInvites(Client client) {
     }
     return knownPendingRoomIds.add(room.id.trim());
   }).toList(growable: false);
+}
+
+List<Room> _incomingGroupRoomInvites(Client client) {
+  final agentMxid = portalAgentMxidForClient(client);
+  final knownPendingRoomIds = <String>{};
+  return client.rooms.where((room) {
+    final roomId = room.id.trim();
+    if (room.membership != Membership.invite || roomId.isEmpty) return false;
+    if (isPortalAgentDirectRoom(room, agentMxid: agentMxid)) return false;
+    if (isIncomingDirectContactInvite(room, agentMxid: agentMxid)) {
+      return false;
+    }
+    if (_isNativeChannelInvite(room)) return false;
+    return knownPendingRoomIds.add(roomId);
+  }).toList(growable: false);
+}
+
+String _groupInviteName(Room room) {
+  final name = room.getLocalizedDisplayname().trim();
+  return name.isEmpty || name.startsWith('Group with') ? '群邀请' : name;
+}
+
+bool _isNativeChannelInvite(Room room) {
+  final content = room.getState(nativeRoomProfileEventType)?.content;
+  return content?['room_type'] == nativeChannelRoomType;
 }
 
 class _RequestsHeader extends StatelessWidget {
@@ -1076,6 +1183,8 @@ class _PendingSection extends StatelessWidget {
     required this.invites,
     required this.contacts,
     required this.friendNotices,
+    required this.groupInviteRooms,
+    required this.groupInviteNotices,
     required this.channelNotices,
     required this.busy,
     required this.onOpenProfile,
@@ -1083,11 +1192,16 @@ class _PendingSection extends StatelessWidget {
     required this.onReject,
     required this.onAcceptContact,
     required this.onRejectContact,
+    required this.onAcceptGroupRoom,
+    required this.onRejectGroupRoom,
+    required this.onAcceptGroupNotice,
   });
   final Client client;
   final List<Room> invites;
   final List<AsSyncContact> contacts;
   final List<AsSyncPendingItem> friendNotices;
+  final List<Room> groupInviteRooms;
+  final List<AsSyncPendingItem> groupInviteNotices;
   final List<AsSyncPendingItem> channelNotices;
   final bool busy;
   final void Function(String mxid, String displayName) onOpenProfile;
@@ -1095,6 +1209,9 @@ class _PendingSection extends StatelessWidget {
   final void Function(Room) onReject;
   final void Function(AsSyncContact) onAcceptContact;
   final void Function(AsSyncContact) onRejectContact;
+  final void Function(Room) onAcceptGroupRoom;
+  final void Function(Room) onRejectGroupRoom;
+  final void Function(AsSyncPendingItem) onAcceptGroupNotice;
 
   @override
   Widget build(BuildContext context) {
@@ -1158,6 +1275,36 @@ class _PendingSection extends StatelessWidget {
           imageUrl: null,
           onTap: null,
           onAccept: null,
+          onReject: null,
+        ),
+      );
+    }
+    for (final room in groupInviteRooms) {
+      final name = _groupInviteName(room);
+      rows.add(
+        _PendingRow(
+          name: name,
+          message: '邀请加入群聊',
+          seed: room.id,
+          imageUrl: roomAvatarHttpUrl(room),
+          onTap: null,
+          onAccept: busy ? null : () => onAcceptGroupRoom(room),
+          onReject: busy ? null : () => onRejectGroupRoom(room),
+        ),
+      );
+    }
+    for (final notice in groupInviteNotices) {
+      final title = notice.title.trim();
+      final id = notice.id.trim();
+      final name = title.isEmpty ? '群邀请' : title;
+      rows.add(
+        _PendingRow(
+          name: name,
+          message: '邀请加入群聊',
+          seed: id.isEmpty ? name : id,
+          imageUrl: null,
+          onTap: null,
+          onAccept: busy ? null : () => onAcceptGroupNotice(notice),
           onReject: null,
         ),
       );

@@ -2780,8 +2780,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   );
                                   if (groupInvite != null) {
                                     final alreadyJoined = _isJoinedGroupRoom(
-                                      groupInvite.groupRoomId,
-                                    );
+                                          groupInvite.groupRoomId,
+                                        ) ||
+                                        isMe;
                                     return enter(
                                       Padding(
                                         padding: const EdgeInsets.symmetric(
@@ -2892,9 +2893,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         joining: _joiningChannelShareIds
                                             .contains(shareKey),
                                         alreadyJoined: channelShareIsJoined(
-                                          ref.read(asSyncCacheProvider),
-                                          channelSharePayload,
-                                        ),
+                                              ref.read(asSyncCacheProvider),
+                                              channelSharePayload,
+                                            ) ||
+                                            isMe,
                                         onJoin: () => unawaited(
                                           _joinChannelShare(
                                             channelSharePayload,

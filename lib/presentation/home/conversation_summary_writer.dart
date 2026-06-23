@@ -596,7 +596,21 @@ int conversationUnreadCountForSummary(
   );
   if (matrixUnread > 0) return matrixUnread;
 
+  if (room != null &&
+      isChannelShareEvent(room.lastEvent) &&
+      _lastEventIsUnreadForCurrentUser(room)) {
+    return 1;
+  }
+
   return 0;
+}
+
+bool _lastEventIsUnreadForCurrentUser(Room room) {
+  final lastEvent = room.lastEvent;
+  if (lastEvent == null) return false;
+  if (lastEvent.senderId == room.client.userID) return false;
+  final readAtMs = room.receiptState.global.latestOwnReceipt?.ts ?? 0;
+  return readAtMs < lastEvent.originServerTs.millisecondsSinceEpoch;
 }
 
 int conversationSortTime(

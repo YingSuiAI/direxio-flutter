@@ -188,6 +188,9 @@ class ConversationSummaryEntry {
     return lastMessage.trim().isNotEmpty ||
         previewTs > 0 ||
         unread > 0 ||
+        (roomId.trim().isNotEmpty &&
+            canOpen &&
+            (kind.trim().isNotEmpty || isGroup || isAgent)) ||
         (conversationId.trim().isNotEmpty && canOpen);
   }
 

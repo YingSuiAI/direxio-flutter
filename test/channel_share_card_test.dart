@@ -147,7 +147,7 @@ void main() {
     expect(opens, 0);
   });
 
-  testWidgets('channel share preview card joined button opens channel',
+  testWidgets('channel share preview card joined button is disabled',
       (tester) async {
     var joins = 0;
     var opens = 0;
@@ -179,7 +179,7 @@ void main() {
     await tester.pump();
 
     expect(joins, 0);
-    expect(opens, 1);
+    expect(opens, 0);
   });
 
   test('channel share route opens detail until channel is joined', () {
@@ -239,8 +239,7 @@ void main() {
     );
   });
 
-  test('channel share route returns detail when joined chat lacks ProductCore',
-      () {
+  test('channel share route opens joined text chat without ProductCore', () {
     const payload = ChannelSharePayload(
       channelId: 'ch_product',
       roomId: '!channel:p2p-im.com',
@@ -273,7 +272,7 @@ void main() {
 
     expect(
       channelShareOpenRoute(joined, payload),
-      '/channel/ch_product/detail',
+      '/channel/ch_product/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
     );
   });
 
@@ -359,7 +358,8 @@ void main() {
     );
   });
 
-  test('channel share joined route returns detail without ProductCore', () {
+  test('channel share joined text route opens conversation without ProductCore',
+      () {
     const payload = ChannelSharePayload(
       channelId: 'ch_product',
       roomId: '!channel:p2p-im.com',
@@ -372,11 +372,12 @@ void main() {
       homeDomain: 'p2p-im.com',
       name: '产品公告',
       memberStatus: asChannelMemberStatusJoined,
+      channelType: asChannelTypeChat,
     );
 
     expect(
       channelShareJoinedRoute(payload, joined),
-      '/channel/ch_product/detail',
+      '/channel/ch_product/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
     );
   });
 

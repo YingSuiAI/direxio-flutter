@@ -58,11 +58,14 @@ For `/channel/:id/conversation`, normal text/media messages send through Matrix 
 
 For channel share/invite cards, call `channels.invite_grant.create` first with `channel_id` or `room_id` plus `share_room_id`. Send the card through Matrix with the returned `grant_id`; card joins call `channels.join` with `grant_id` and `share_room_id`.
 
-After `channels.join` returns `joined`, chat-channel routes must use the
+After `channels.join` returns `joined`, chat-channel routes should prefer the
 returned ProductCore conversation (`AsChannel.productConversation`). If the
-conversation is missing or not openable, stay on the current/detail view and
-wait for projection; do not rebuild `/channel/:id/conversation` from local
-channel metadata. Post channels still route to their post list.
+conversation is missing or not openable but the joined channel is a text
+channel with a Matrix room id, open `/channel/:id/conversation` and let the
+router resolve the channel id to the Matrix room from joined bootstrap/channel
+metadata. Post channels still route to their post list. Pending, invite, or
+failed statuses must continue to stay on the current/detail view and wait for
+projection.
 
 ## Implementation Pattern
 

@@ -26,6 +26,7 @@ import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
+import '../providers/profile_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../providers/voice_call_provider.dart';
 import '../channel/channel_join_flow.dart';
@@ -1094,6 +1095,14 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     }
   }
 
+  void _ensureMissingGroupRoomRecovery() {
+    if (_roomRecovery.inFlight || _roomRecovery.attempted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _room != null) return;
+      unawaited(_recoverMissingGroupRoom());
+    });
+  }
+
   Future<void> _refreshBootstrapForRoomRecovery() async {
     try {
       final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
@@ -1225,13 +1234,21 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     Room room,
     AsSyncCacheState syncCache,
     String mxid,
+    Profile? currentUserProfile,
   ) {
     final trimmed = mxid.trim();
     if (trimmed.isEmpty) return null;
     final contact = syncCache.contactForUserId(trimmed);
     final member = room.unsafeGetUserFromMemoryOrFallback(trimmed);
-    return avatarHttpUrl(room.client, contact?.avatarUrl) ??
-        matrixContentHttpUrl(room.client, member.avatarUrl);
+    final memberAvatarUrl = matrixContentHttpUrl(room.client, member.avatarUrl);
+    final contactAvatarUrl = avatarHttpUrl(room.client, contact?.avatarUrl);
+    final currentUserId = room.client.userID?.trim() ?? '';
+    if (currentUserId.isNotEmpty && trimmed == currentUserId) {
+      return profileAvatarHttpUrl(currentUserProfile, room.client) ??
+          memberAvatarUrl ??
+          contactAvatarUrl;
+    }
+    return memberAvatarUrl ?? contactAvatarUrl;
   }
 
   void _scheduleTimelineThumbnailWarmup() {
@@ -2354,15 +2371,17 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       final summary = channel ?? group;
       final knownConversation = summary != null;
       final isChannel = _isChannelConversation || channel != null;
-      final recovering = (knownConversation || _isChannelConversation) &&
-          !_roomRecovery.failed;
+      final canRecover = knownConversation || _isChannelConversation;
+      final recoveryPending =
+          canRecover && !_roomRecovery.failed && !_roomRecovery.attempted;
+      final recovering = canRecover &&
+          !_roomRecovery.failed &&
+          (recoveryPending || _roomRecovery.inFlight);
       final fallbackTitle = isChannel ? '频道' : '群聊';
       final title = summary?.name.trim().isNotEmpty == true
           ? summary!.name.trim()
           : fallbackTitle;
-      if (recovering) {
-        unawaited(_recoverMissingGroupRoom());
-      }
+      if (recoveryPending) _ensureMissingGroupRoomRecovery();
       return Scaffold(
         body: ChatGlassBackground(
           child: Column(
@@ -2416,6 +2435,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       );
     }
     final t = context.tk;
+    final currentUserProfile =
+        ref.watch(currentUserProfileProvider).valueOrNull;
     final activeRoomId = room.id;
     final remarkName =
         ref.watch(groupRemarkNamesProvider)[activeRoomId]?.trim() ?? '';
@@ -2814,6 +2835,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     room,
                                     syncCache,
                                     callerId,
+                                    currentUserProfile,
                                   );
                                   return enter(
                                     _GroupAsCallRecordMessageBubble(
@@ -2871,6 +2893,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     room,
                                     syncCache,
                                     e.senderId,
+                                    currentUserProfile,
                                   );
                                   final senderAvatarTap = isChannelConversation
                                       ? null
@@ -2932,6 +2955,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                           room,
                                           syncCache,
                                           callerId,
+                                          currentUserProfile,
                                         ),
                                         onAvatarTap: isChannelConversation
                                             ? null
@@ -3172,10 +3196,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                               .contains(channelShareJoinId),
                                       channelShareAlreadyJoined:
                                           channelSharePayload != null &&
-                                              channelShareIsJoined(
-                                                ref.read(asSyncCacheProvider),
-                                                channelSharePayload,
-                                              ),
+                                              (channelShareIsJoined(
+                                                    ref.read(
+                                                        asSyncCacheProvider),
+                                                    channelSharePayload,
+                                                  ) ||
+                                                  isMe),
                                       onJoinChannelShare:
                                           channelSharePayload == null
                                               ? null

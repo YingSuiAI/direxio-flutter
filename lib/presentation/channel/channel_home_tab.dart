@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -181,10 +182,17 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
       context,
       AppLocalizations,
     );
+    final sourcePendingCount = _channelPendingCount(sourceChannels);
+    final noticePendingCount = _channelNoticePendingCount(syncCache);
     final pendingReviewCount = useRealChannels
-        ? ref.watch(_channelPendingReviewCountProvider).valueOrNull ??
-            _channelPendingCount(sourceChannels)
-        : _channelPendingCount(sourceChannels);
+        ? math.max(
+            math.max(
+              ref.watch(_channelPendingReviewCountProvider).valueOrNull ?? 0,
+              sourcePendingCount,
+            ),
+            noticePendingCount,
+          )
+        : sourcePendingCount;
 
     if (useRealChannels &&
         bootstrap == null &&
@@ -1554,9 +1562,17 @@ bool _channelIsTextType(ChannelInboxItem channel) {
 String? _channelRoute(ChannelInboxItem channel) {
   final channelId = Uri.encodeComponent(channel.id.trim());
   if (!_channelIsTextType(channel)) return '/channel/$channelId';
-  return productConversationRoute(
+  final productRoute = productConversationRoute(
     channel.productConversation,
     channelId: channel.id,
+  );
+  if (productRoute != null) return productRoute;
+  return joinedTextChannelConversationRoute(
+    channelId: channel.id,
+    roomId: channel.roomId,
+    memberStatus: channel.memberStatus,
+    channelType: channel.channelType,
+    name: channel.name,
   );
 }
 
@@ -1887,6 +1903,13 @@ int _channelPendingCount(List<ChannelInboxItem> channels) {
     0,
     (sum, channel) => sum + channel.pendingJoinCount,
   );
+}
+
+int _channelNoticePendingCount(AsSyncCacheState syncCache) {
+  return syncCache.bootstrap?.pending.channelNotices
+          .where((notice) => notice.id.trim().isNotEmpty)
+          .length ??
+      0;
 }
 
 String _channelInboxDisplayName(ChannelInboxItem channel) {

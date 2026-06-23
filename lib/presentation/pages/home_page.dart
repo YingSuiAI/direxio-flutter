@@ -760,13 +760,28 @@ List<String> _pendingFriendRequestRoomIds({
       if (isIncomingDirectContactInvite(room, agentMxid: agentMxid) &&
           room.id.trim().isNotEmpty)
         room.id.trim(),
+    for (final room in client.rooms)
+      if (room.membership == Membership.invite &&
+          room.id.trim().isNotEmpty &&
+          !isPortalAgentDirectRoom(room, agentMxid: agentMxid) &&
+          !isIncomingDirectContactInvite(room, agentMxid: agentMxid) &&
+          !_isNativeChannelInvite(room))
+        room.id.trim(),
     for (final contact in syncCache.pendingInboundContacts)
       if (contact.roomId.trim().isNotEmpty) contact.roomId.trim(),
     for (final request in syncCache.bootstrap?.pending.friendRequests ??
         const <AsSyncPendingItem>[])
       if (request.id.trim().isNotEmpty) request.id.trim(),
+    for (final request in syncCache.bootstrap?.pending.groupInvites ??
+        const <AsSyncPendingItem>[])
+      if (request.id.trim().isNotEmpty) request.id.trim(),
   };
   return roomIds.toList(growable: false);
+}
+
+bool _isNativeChannelInvite(Room room) {
+  final content = room.getState(nativeRoomProfileEventType)?.content;
+  return content?['room_type'] == nativeChannelRoomType;
 }
 
 String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';

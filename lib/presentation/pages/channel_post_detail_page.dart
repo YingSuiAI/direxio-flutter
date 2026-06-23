@@ -578,14 +578,6 @@ class _PostDetailBottomBar extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           _BottomStatButton(
-            icon: Symbols.star,
-            count: 0,
-            color: t.accent,
-            fill: 1,
-            onTap: null,
-          ),
-          const SizedBox(width: 10),
-          _BottomStatButton(
             icon: Symbols.chat_bubble,
             count: detail.commentCount,
             color: _detailIconColor(context),

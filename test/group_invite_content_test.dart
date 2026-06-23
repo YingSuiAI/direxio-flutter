@@ -10,6 +10,7 @@ void main() {
         'group_name': '产品测试群',
         'inviter_mxid': '@alice:p2p-liyanan.com',
         'inviter_display_name': 'Alice',
+        'inviter_avatar_url': 'https://example.com/alice.png',
       },
       eventId: r'$invite',
       directRoomId: '!dm:p2p-im.com',
@@ -19,6 +20,7 @@ void main() {
     expect(invite!.groupRoomId, '!group:p2p-im.com');
     expect(invite.groupName, '产品测试群');
     expect(invite.inviterMxid, '@alice:p2p-liyanan.com');
+    expect(invite.inviterAvatarUrl, 'https://example.com/alice.png');
     expect(invite.inviteEventId, r'$invite');
     expect(invite.directRoomId, '!dm:p2p-im.com');
   });

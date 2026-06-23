@@ -13,18 +13,15 @@ import 'auth_provider.dart';
 /// `access_token`, matching Direxio P2P backend P2P product API authentication.
 final asClientProvider = Provider<AsClient>((ref) {
   final client = ref.watch(matrixClientProvider);
+  final authNotifier = ref.read(authStateNotifierProvider.notifier);
   final portalToken =
       ref.watch(authStateNotifierProvider).valueOrNull?.portalToken;
   if (portalToken != null && portalToken.isNotEmpty) {
     return HttpAsClient.fromPortalSession(
       client,
       portalToken: portalToken,
-      onAuthenticationRefresh: () => ref
-          .read(authStateNotifierProvider.notifier)
-          .refreshPortalSessionForAsAdminToken(),
-      onAuthenticationFailed: () => ref
-          .read(authStateNotifierProvider.notifier)
-          .expireSessionDueInvalidTokenIfCurrent(portalToken),
+      onAuthenticationRefresh: authNotifier.refreshPortalSessionForAsAdminToken,
+      onAuthenticationFailed: authNotifier.expireSessionDueInvalidToken,
     );
   }
   debugPrint(
@@ -34,14 +31,10 @@ final asClientProvider = Provider<AsClient>((ref) {
   );
   return HttpAsClient.fromMatrixClient(
     client,
-    onAuthenticationRefresh: () => ref
-        .read(authStateNotifierProvider.notifier)
-        .refreshPortalSessionForAsAdminToken(),
+    onAuthenticationRefresh: authNotifier.refreshPortalSessionForAsAdminToken,
     onAuthenticationFailed: () {
       final failedToken = client.accessToken?.trim() ?? '';
-      return ref
-          .read(authStateNotifierProvider.notifier)
-          .expireSessionDueInvalidTokenIfCurrent(failedToken);
+      return authNotifier.expireSessionDueInvalidTokenIfCurrent(failedToken);
     },
   );
 });

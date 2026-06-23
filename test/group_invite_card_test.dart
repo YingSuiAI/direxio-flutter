@@ -4,6 +4,7 @@ import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/presentation/chat/chat_message_cards.dart';
 import 'package:portal_app/presentation/groups/group_invite_card.dart';
 import 'package:portal_app/presentation/groups/group_invite_content.dart';
+import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 
 void main() {
   testWidgets('renders group invite and invokes join action', (tester) async {
@@ -55,6 +56,31 @@ void main() {
 
     expect(find.text('Yanan 邀请你加入“产品测试群”'), findsOneWidget);
     expect(find.textContaining('owner'), findsNothing);
+  });
+
+  testWidgets('renders inviter avatar on invite card', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: GroupInviteCard(
+            inviterDisplayName: 'Yanan',
+            inviterAvatarUrl: 'https://example.com/yanan.png',
+            invite: const GroupInviteContent(
+              groupRoomId: '!group:p2p-im.com',
+              groupName: '产品测试群',
+              inviterDisplayName: 'owner',
+            ),
+            joining: false,
+            onJoin: () {},
+          ),
+        ),
+      ),
+    );
+
+    final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    expect(avatar.seed, 'Yanan');
+    expect(avatar.imageUrl, 'https://example.com/yanan.png');
   });
 
   testWidgets('disables join action while joining', (tester) async {

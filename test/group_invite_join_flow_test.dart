@@ -128,4 +128,28 @@ void main() {
 
     expect(group.roomId, '!group:p2p-im.com');
   });
+
+  test('waitForJoinedGroupMatrixRoom stops before callbacks when canceled',
+      () async {
+    var syncCalls = 0;
+    var bootstrapCalls = 0;
+
+    final joined = await waitForJoinedGroupMatrixRoom(
+      roomId: '!channel:p2p.test',
+      oneShotSync: () async {
+        syncCalls++;
+      },
+      refreshBootstrap: () async {
+        bootstrapCalls++;
+      },
+      hasJoinedMatrixRoom: (_) => false,
+      shouldContinue: () => false,
+      timeout: Duration.zero,
+      interval: Duration.zero,
+    );
+
+    expect(joined, isFalse);
+    expect(syncCalls, 0);
+    expect(bootstrapCalls, 0);
+  });
 }

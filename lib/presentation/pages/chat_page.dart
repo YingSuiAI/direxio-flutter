@@ -2810,6 +2810,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                               invite: groupInvite,
                                               inviterDisplayName:
                                                   isMe ? '我' : senderName,
+                                              inviterAvatarUrl: senderAvatarUrl,
                                               joining:
                                                   _joiningGroupInviteEventIds
                                                       .contains(e.eventId),

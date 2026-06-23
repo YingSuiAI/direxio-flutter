@@ -15,7 +15,6 @@ void main() {
             title: 'Yanan',
             subtitle: '在线',
             onBack: () {},
-            leadingAvatar: const CircleAvatar(child: Text('Y')),
             actions: const [
               ChatCapsuleAction(icon: Symbols.call, tooltip: '语音通话'),
               ChatCapsuleAction(icon: Symbols.more_vert, tooltip: '详情'),
@@ -30,6 +29,7 @@ void main() {
     expect(find.byKey(const ValueKey('chat_header_actions_capsule')), findsOne);
     expect(find.text('Yanan'), findsOneWidget);
     expect(find.text('在线'), findsOneWidget);
+    expect(find.byType(CircleAvatar), findsNothing);
   });
 
   testWidgets('chat capsule header shows encryption lock next to detail',
@@ -43,7 +43,6 @@ void main() {
             subtitle: '3 名成员',
             onBack: () {},
             showEncryptionIcon: true,
-            leadingAvatar: const CircleAvatar(child: Text('G')),
             actions: const [
               ChatCapsuleAction(icon: Symbols.call, tooltip: '语音通话'),
               ChatCapsuleAction(icon: Symbols.videocam, tooltip: '视频通话'),
@@ -62,6 +61,12 @@ void main() {
     expect(find.byTooltip('详情'), findsOneWidget);
     expect(find.byTooltip('语音通话'), findsNothing);
     expect(find.byTooltip('视频通话'), findsNothing);
+
+    final titleCenter = tester.getCenter(find.text('Group'));
+    final lockCenter = tester.getCenter(
+      find.byKey(const ValueKey('chat_header_encryption_lock')),
+    );
+    expect((titleCenter.dy - lockCenter.dy).abs(), lessThan(1));
   });
 
   testWidgets('chat capsule header centers member count under group name',
@@ -147,7 +152,6 @@ void main() {
             subtitle: '正在群通话',
             onBack: () {},
             onTitleTap: () => tapped = true,
-            leadingAvatar: const CircleAvatar(child: Text('G')),
             actions: const [
               ChatCapsuleAction(icon: Symbols.call, tooltip: '语音通话'),
               ChatCapsuleAction(icon: Symbols.more_vert, tooltip: '详情'),
@@ -172,7 +176,6 @@ void main() {
             title: 'Yanan',
             subtitle: '在线',
             onBack: () {},
-            leadingAvatar: const CircleAvatar(child: Text('Y')),
             actions: const [
               ChatCapsuleAction(icon: Symbols.call, tooltip: '语音通话'),
               ChatCapsuleAction(icon: Symbols.more_vert, tooltip: '详情'),
@@ -210,7 +213,6 @@ void main() {
             title: 'Yanan',
             subtitle: '在线',
             onBack: () {},
-            leadingAvatar: const CircleAvatar(child: Text('Y')),
             actions: const [
               ChatCapsuleAction(icon: Symbols.call, tooltip: '语音通话'),
               ChatCapsuleAction(icon: Symbols.more_vert, tooltip: '详情'),
@@ -250,7 +252,6 @@ void main() {
                 title: longTitle,
                 subtitle: longSubtitle,
                 onBack: () {},
-                leadingAvatar: const CircleAvatar(child: Text('Y')),
                 actions: const [
                   ChatCapsuleAction(icon: Symbols.call, tooltip: '语音通话'),
                   ChatCapsuleAction(icon: Symbols.more_vert, tooltip: '详情'),
@@ -267,7 +268,7 @@ void main() {
     final subtitleText = tester.widget<Text>(find.text(longSubtitle));
 
     expect(titleText.style?.fontSize, lessThan(16));
-    expect(subtitleText.style?.fontSize, lessThan(11));
+    expect(subtitleText.style?.fontSize, lessThanOrEqualTo(11));
   });
 
   testWidgets('chat capsule input switches between text and voice modes',

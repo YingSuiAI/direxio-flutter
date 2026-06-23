@@ -25,6 +25,7 @@ import 'package:portal_app/data/conversation_summary_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/data/matrix_message_search_client.dart';
 import 'package:portal_app/data/matrix_message_visibility_client.dart';
+import 'package:portal_app/data/media_thumbnail_cache.dart';
 import 'package:portal_app/presentation/channel/create_channel_sheet.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
@@ -74,12 +75,14 @@ import 'package:portal_app/presentation/providers/conversation_summary_provider.
 import 'package:portal_app/presentation/providers/home_hidden_conversations_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 import 'package:portal_app/presentation/providers/matrix_message_clients_provider.dart';
+import 'package:portal_app/presentation/providers/media_thumbnail_cache_provider.dart';
 import 'package:portal_app/presentation/providers/profile_provider.dart';
 import 'package:portal_app/presentation/providers/voice_call_provider.dart';
 import 'package:portal_app/presentation/chat/cached_thumbnail_image.dart';
 import 'package:portal_app/presentation/chat/chat_history_backfill_policy.dart';
 import 'package:portal_app/presentation/utils/group_creation_flow.dart';
 import 'package:portal_app/presentation/utils/room_read_state.dart';
+import 'package:portal_app/presentation/widgets/group_composite_avatar.dart';
 import 'package:portal_app/presentation/widgets/m3/glass_header.dart';
 import 'package:portal_app/presentation/widgets/m3/m3_search_field.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
@@ -179,6 +182,23 @@ void _mockAudioRecorderPlugins(WidgetTester tester) {
 class _FakeAuthStateNotifier extends AuthStateNotifier {
   @override
   Future<AuthState> build() async => const AuthState(isLoggedIn: false);
+}
+
+class _RecordingLogoutAuthStateNotifier extends AuthStateNotifier {
+  static int logoutCalls = 0;
+
+  @override
+  Future<AuthState> build() async => const AuthState(
+        isLoggedIn: true,
+        userId: '@owner:p2p-im.com',
+        homeserver: 'https://p2p-im.com',
+      );
+
+  @override
+  Future<void> logout() async {
+    logoutCalls++;
+    state = const AsyncData(AuthState(isLoggedIn: false));
+  }
 }
 
 class _LoggedInAuthStateNotifier extends AuthStateNotifier {
@@ -1511,6 +1531,26 @@ class _MemoryConversationSummaryStore implements ConversationSummaryStore {
   Future<void> clear() async {
     snapshot = null;
   }
+}
+
+class _MemoryMediaThumbnailCache implements MediaThumbnailCache {
+  final items = <String, Uint8List>{};
+
+  @override
+  Uint8List? peek(String key) => items[key.trim()];
+
+  @override
+  Future<Uint8List?> read(String key) async => items[key.trim()];
+
+  @override
+  Future<void> write(String key, List<int> bytes) async {
+    final normalized = key.trim();
+    if (normalized.isEmpty || bytes.isEmpty) return;
+    items[normalized] = Uint8List.fromList(bytes);
+  }
+
+  @override
+  Future<void> warm(Iterable<String> keys) async {}
 }
 
 class _MemoryFriendRequestReadStore implements FriendRequestReadStore {
@@ -4248,7 +4288,6 @@ void main() {
     final client = Client('DirexioCachedHomeConversationListTest')
       ..setUserId('@owner:p2p-im.com')
       ..homeserver = Uri.parse('https://p2p-im.com');
-    final conversationCompleter = Completer<List<AsConversation>>();
     final snapshotStore = _MemoryConversationSummaryStore(
       ConversationSummarySnapshot(
         userId: '@owner:p2p-im.com',
@@ -4264,6 +4303,16 @@ void main() {
             isAgent: false,
             avatarUrl: 'mxc://p2p-im.com/cached-avatar',
           ),
+          ConversationSummaryEntry(
+            roomId: '!cached-group:p2p-im.com',
+            name: '缓存群聊',
+            lastMessage: '群聊缓存消息',
+            previewTs: DateTime.utc(2026, 6, 21, 9).millisecondsSinceEpoch,
+            unread: 0,
+            isGroup: true,
+            isAgent: false,
+            avatarUrl: 'mxc://p2p-im.com/cached-group-avatar',
+          ),
         ],
       ),
     );
@@ -4271,8 +4320,25 @@ void main() {
       syncedAt: DateTime.utc(2026, 6, 21, 10),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
       rooms: const [],
-      contacts: const [],
-      groups: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@cached-direct:p2p-im.com',
+          displayName: '缓存联系人',
+          status: 'accepted',
+          roomId: '!cached-direct:p2p-im.com',
+          avatarUrl: '',
+        ),
+      ],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!cached-group:p2p-im.com',
+          name: '缓存群聊',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: 'join',
+        ),
+      ],
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
@@ -4285,9 +4351,7 @@ void main() {
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
-          asClientProvider.overrideWithValue(
-            _CompletingConversationsAsClient(conversationCompleter),
-          ),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -4303,11 +4367,23 @@ void main() {
 
     expect(find.text('缓存联系人'), findsOneWidget);
     expect(find.text('本地缓存消息'), findsOneWidget);
-    expect(find.text('4'), findsOneWidget);
+    expect(find.text('缓存群聊'), findsOneWidget);
+    expect(find.text('群聊缓存消息'), findsOneWidget);
     expect(
       tester.widgetList<PortalAvatar>(find.byType(PortalAvatar)).any((avatar) =>
           avatar.imageUrl?.contains('/download/p2p-im.com/cached-avatar') ??
           false),
+      isTrue,
+    );
+    expect(
+      tester
+          .widgetList<GroupCompositeAvatar>(
+            find.byType(GroupCompositeAvatar),
+          )
+          .any((avatar) =>
+              avatar.imageUrl
+                  ?.contains('/download/p2p-im.com/cached-group-avatar') ??
+              false),
       isTrue,
     );
     expect(find.text('还没有会话'), findsNothing);
@@ -4981,7 +5057,7 @@ void main() {
     expect(find.text('agent route !agent-old:p2p-im.com'), findsNothing);
   });
 
-  testWidgets('contacts Agent tap does not create room without agent room id',
+  testWidgets('contacts Agent tap opens existing Matrix room without agent id',
       (tester) async {
     var createRoomCalls = 0;
     final client = Client(
@@ -5065,11 +5141,91 @@ void main() {
     await tester.tap(find.text('通讯录'));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('contacts_agent_entry')));
+    await tester.pumpAndSettle();
+
+    expect(createRoomCalls, 0);
+    expect(find.text('Agent 会话还未同步'), findsNothing);
+    expect(find.text('agent route !agent-old:p2p-im.com'), findsOneWidget);
+  });
+
+  testWidgets('contacts Agent tap shows unsynced when no Agent room exists',
+      (tester) async {
+    var createRoomCalls = 0;
+    final client = Client(
+      'DirexioAgentContactNoRoomTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/createRoom')) {
+          createRoomCalls++;
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'test-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      agentRoomId: '',
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _StaticBootstrapAsClient(bootstrap);
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) => Text(
+            'agent route ${state.pathParameters['roomId']}',
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          asBootstrapRepositoryProvider.overrideWithValue(
+            AsBootstrapRepository(
+              loadBootstrap: asClient.syncBootstrap,
+              store: _MemoryAsBootstrapStore(),
+            ),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('通讯录'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('contacts_agent_entry')));
     await tester.pump();
 
     expect(createRoomCalls, 0);
     expect(find.text('Agent 会话还未同步'), findsOneWidget);
-    expect(find.text('agent route !agent-old:p2p-im.com'), findsNothing);
+    expect(find.textContaining('agent route'), findsNothing);
   });
 
   testWidgets('contacts list keeps each friend avatar separate',
@@ -10094,6 +10250,10 @@ void main() {
       expect(body['group_room_id'], '!new-group:p2p-im.com');
       expect(body['group_name'], 'Alice Chen、Bob Lin的群聊');
       expect(body['inviter_mxid'], '@owner:p2p-im.com');
+      expect(
+        body['inviter_avatar_url'],
+        'https://p2p-im.com/_matrix/media/v3/download/p2p-im.com/owner-avatar',
+      );
       expect(body['body'], '邀请加入群聊\nAlice Chen、Bob Lin的群聊');
     }
     final createdRoom = client.getRoomById('!new-group:p2p-im.com');
@@ -11451,8 +11611,7 @@ void main() {
     expect(matrixSendCalls, 1);
   });
 
-  testWidgets('group chat header uses cached composite avatar order',
-      (tester) async {
+  testWidgets('group chat header omits the title avatar', (tester) async {
     final client = Client('DirexioGroupChatCompositeHeaderAvatarTest')
       ..setUserId('@owner:p2p-im.com');
     client.homeserver = Uri.parse('https://p2p-im.com');
@@ -11522,13 +11681,6 @@ void main() {
             ),
           ),
           asClientProvider.overrideWithValue(_EmptyAsClient()),
-          groupAvatarMemberOrdersProvider.overrideWithValue(const {
-            '!group:p2p-im.com': [
-              '@bob:p2p-im.com',
-              '@owner:p2p-im.com',
-              '@alice:p2p-im.com',
-            ],
-          }),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -11544,33 +11696,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final headerAvatar = find
-        .byKey(const ValueKey('group_chat_header_avatar_!group:p2p-im.com'));
-    expect(headerAvatar, findsOneWidget);
-    final bobAvatar = find.descendant(
-      of: headerAvatar,
-      matching: find.byKey(const ValueKey('https://example.com/bob.png')),
-    );
-    final ownerAvatar = find.descendant(
-      of: headerAvatar,
-      matching: find.byKey(const ValueKey('https://example.com/owner.png')),
-    );
-    final aliceAvatar = find.descendant(
-      of: headerAvatar,
-      matching: find.byKey(const ValueKey('https://example.com/alice.png')),
-    );
     expect(
-      bobAvatar,
-      findsOneWidget,
+      find.byKey(const ValueKey('group_chat_header_avatar_!group:p2p-im.com')),
+      findsNothing,
     );
-    expect(ownerAvatar, findsOneWidget);
-    expect(aliceAvatar, findsOneWidget);
-    final bobTopLeft = tester.getTopLeft(bobAvatar);
-    final ownerTopLeft = tester.getTopLeft(ownerAvatar);
-    final aliceTopLeft = tester.getTopLeft(aliceAvatar);
-    expect(bobTopLeft.dy, ownerTopLeft.dy);
-    expect(bobTopLeft.dx, lessThan(ownerTopLeft.dx));
-    expect(aliceTopLeft.dy, greaterThan(bobTopLeft.dy));
     expect(find.text('真实群'), findsOneWidget);
   });
 
@@ -15580,6 +15709,50 @@ void main() {
     expect(find.text('语言'), findsNothing);
   });
 
+  testWidgets('me page language row keeps chevron aligned right',
+      (tester) async {
+    FlutterSecureStorage.setMockInitialValues({'language': '0'});
+    final client = Client('DirexioMeLocaleChevronTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: MePage(client: client),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final languageRow = find
+        .ancestor(
+          of: find.byIcon(Symbols.language),
+          matching: find.byType(InkWell),
+        )
+        .first;
+    final chevron = find.descendant(
+      of: languageRow,
+      matching: find.byIcon(Symbols.chevron_right),
+    );
+    final chevronElements = chevron.evaluate().toList(growable: false);
+
+    expect(chevronElements, hasLength(1));
+    expect(
+      tester.getRect(languageRow).right -
+          tester.getRect(find.byWidget(chevronElements.single.widget)).right,
+      closeTo(12, 1),
+    );
+  });
+
   testWidgets('me page keeps long uid within profile row height',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(320, 640));
@@ -15646,6 +15819,7 @@ void main() {
     expect(find.text('消息与通知'), findsOneWidget);
     expect(find.text('其他'), findsOneWidget);
     expect(find.text('退出登录'), findsOneWidget);
+    expect(find.text('注销登录'), findsOneWidget);
   });
 
   testWidgets('me favorites page renders AS favorite messages', (tester) async {
@@ -15926,9 +16100,15 @@ void main() {
     );
   });
 
-  testWidgets('me favorites image preview falls back to original media',
+  testWidgets('me favorites image lightbox falls back to original media',
       (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+    });
+
     final requested = <Uri>[];
+    final cache = _MemoryMediaThumbnailCache();
     final client = Client(
       'DirexioFavoritePreviewTest',
       httpClient: MockClient((request) async {
@@ -15947,6 +16127,7 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
+          mediaThumbnailCacheProvider.overrideWith((ref) async => cache),
           asClientProvider
               .overrideWithValue(_FavoritesAsClient(videoThumbnail: false)),
         ],
@@ -15958,6 +16139,14 @@ void main() {
     );
 
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('favorite-card-4')),
+      160,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const ValueKey('favorite-card-4')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
     expect(
       requested.any(
@@ -15967,7 +16156,7 @@ void main() {
     );
   });
 
-  testWidgets('me favorites image card opens favorite detail', (tester) async {
+  testWidgets('me favorites image card opens image preview', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1000));
     addTearDown(() async {
       await tester.binding.setSurfaceSize(null);
@@ -16005,8 +16194,54 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
 
-    expect(find.text('收藏详情'), findsOneWidget);
+    expect(find.byIcon(Symbols.close), findsOneWidget);
+    expect(find.textContaining('来自与 Alice 的私聊'), findsOneWidget);
+    expect(find.text('收藏详情'), findsNothing);
     expect(find.text('消息详情'), findsNothing);
+  });
+
+  testWidgets('me favorites image preview uses cached media bytes',
+      (tester) async {
+    final requested = <Uri>[];
+    final cache = _MemoryMediaThumbnailCache()
+      ..items['favorite-media:mxc://p2p-im.com/image'] = _transparentPng;
+    final client = Client(
+      'DirexioFavoriteImageCachedPreviewTest',
+      httpClient: MockClient((request) async {
+        requested.add(request.url);
+        return http.Response.bytes(
+          _transparentPng,
+          200,
+          headers: {'content-type': 'image/png'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          mediaThumbnailCacheProvider.overrideWith((ref) async => cache),
+          asClientProvider
+              .overrideWithValue(_FavoritesAsClient(videoThumbnail: false)),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      requested.any(
+        (uri) => uri.path.contains('/download/p2p-im.com/image'),
+      ),
+      isFalse,
+    );
   });
 
   testWidgets('me favorites media cards open favorite detail', (tester) async {
@@ -16454,6 +16689,46 @@ void main() {
     expect(find.text('关于我们'), findsOneWidget);
     expect(find.text('清空聊天记录'), findsOneWidget);
     expect(find.text('退出登录'), findsOneWidget);
+    expect(find.text('注销登录'), findsOneWidget);
+  });
+
+  testWidgets('settings deactivate login shows cancellation window',
+      (tester) async {
+    _RecordingLogoutAuthStateNotifier.logoutCalls = 0;
+    final router = GoRouter(
+      initialLocation: '/settings',
+      routes: [
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_RecordingLogoutAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('注销登录'));
+    await tester.tap(find.text('注销登录'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('注销登录'), findsWidgets);
+    expect(find.text('14天内，只要登录一次账号，注销就会自动取消'), findsOneWidget);
+    expect(find.text('取消'), findsOneWidget);
+    expect(find.text('确认'), findsOneWidget);
+
+    await tester.tap(find.text('确认'));
+    await tester.pumpAndSettle();
+
+    expect(_RecordingLogoutAuthStateNotifier.logoutCalls, 1);
   });
 
   testWidgets('settings page row icons use primary text color', (tester) async {
@@ -17601,7 +17876,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('https://example.com'), findsOneWidget);
+    expect(find.text('example.com'), findsOneWidget);
     expect(find.text('old-password'), findsNothing);
     final editableTexts = tester.widgetList<EditableText>(
       find.byType(EditableText),

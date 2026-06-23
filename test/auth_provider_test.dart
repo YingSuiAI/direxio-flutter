@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
+import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/matrix_token_refreshing_http_client.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
@@ -2629,7 +2630,7 @@ void main() {
     );
   });
 
-  test('session expiry keeps login secret for startup restore retry', () async {
+  test('session expiry clears saved login secret', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_token': 'expired-token',
       'matrix_homeserver': 'https://example.com',
@@ -2686,12 +2687,97 @@ void main() {
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
-      '11111111',
+      isNull,
     );
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.profileInitializedKey),
       'true',
+    );
+  });
+
+  test('AS 401 signed-in-elsewhere response expires local session', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'matrix-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'stale-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
+      AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final client = _NoSyncInitClient(
+      'AuthAsSignedInElsewhereExpiresSessionTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'sync.bootstrap') != null) {
+          return http.Response(
+            '{"error":"账号在其他设备登录，请重新登录"}',
+            401,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (_p2pAction(request, 'portal.auth') != null) {
+          return http.Response(
+            '{"error":"账号在其他设备登录，请重新登录"}',
+            401,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await expectLater(
+      container.read(asClientProvider).syncBootstrap(),
+      throwsA(
+        isA<AsClientException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          401,
+        ),
+      ),
+    );
+
+    expect(
+      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isFalse,
+    );
+    expect(container.read(sessionExpiredNoticeProvider), greaterThan(0));
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      isNull,
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
+      isNull,
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
+      isNull,
     );
   });
 

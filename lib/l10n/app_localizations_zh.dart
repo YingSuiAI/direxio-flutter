@@ -115,6 +115,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsLogoutConfirmMessage => '确定要退出登录吗？';
 
   @override
+  String get settingsDeactivateLogin => '注销登录';
+
+  @override
+  String get settingsDeactivateLoginConfirmTitle => '注销登录';
+
+  @override
+  String get settingsDeactivateLoginConfirmMessage => '14天内，只要登录一次账号，注销就会自动取消';
+
+  @override
   String get commonCancel => '取消';
 
   @override

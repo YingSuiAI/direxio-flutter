@@ -86,7 +86,7 @@ void main() {
 
     expect(asClient.requestedPublicRoomId, '!ch_product:p2p-im.com');
     expect(asClient.publicSearchCallCount, 0);
-    expect(find.text('接口返回频道'), findsOneWidget);
+    expect(find.text('接口返回频道（0）'), findsOneWidget);
     expect(find.text('申请加入'), findsOneWidget);
   });
 
@@ -147,7 +147,7 @@ void main() {
       asClient.requestedPublicRoomRemoteNodeBaseUri,
       Uri.parse('https://dendrite-a:8448/_p2p'),
     );
-    expect(find.text('接口返回频道'), findsOneWidget);
+    expect(find.text('接口返回频道（0）'), findsOneWidget);
 
     await tester.tap(find.text('申请加入'));
     await tester.pump();
@@ -228,10 +228,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.requestedPublicRoomId, '!ch_product:p2p-im.com');
-    expect(find.text('接口返回频道'), findsOneWidget);
+    expect(find.text('接口返回频道（0）'), findsOneWidget);
     expect(find.text('#接口返回频道'), findsNothing);
     expect(find.text('ID:!ch_product:p2p-im.com'), findsOneWidget);
     expect(find.text('接口返回频道说明'), findsOneWidget);
+    expect(find.text('分享频道'), findsNothing);
   });
 
   testWidgets('channel search opens joined chat through ProductCore route',

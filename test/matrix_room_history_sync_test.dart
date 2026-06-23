@@ -24,11 +24,13 @@ void main() {
     );
     final room = filter['room'] as Map<String, Object?>;
     final timeline = room['timeline'] as Map<String, Object?>;
+    final ephemeral = room['ephemeral'] as Map<String, Object?>;
 
     expect(filter['event_fields'], isNull);
     expect(room['rooms'], ['!room:example.com']);
     expect(timeline['limit'], 30);
     expect(timeline['not_types'], isNull);
+    expect(ephemeral['not_types'], ['m.receipt', 'm.typing']);
 
     final encoded = jsonEncode(filter);
     expect(encoded, contains('!room:example.com'));

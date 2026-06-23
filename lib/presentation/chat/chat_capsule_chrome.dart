@@ -382,10 +382,8 @@ class ChatCapsuleHeader extends StatelessWidget {
     required this.title,
     required this.onBack,
     required this.actions,
-    this.leadingAvatar,
     this.subtitle,
     this.subtitleStatus,
-    this.onAvatarTap,
     this.onTitleTap,
     this.showEncryptionIcon = false,
   });
@@ -394,8 +392,6 @@ class ChatCapsuleHeader extends StatelessWidget {
   final String? subtitle;
   final ChatCapsuleSubtitleStatus? subtitleStatus;
   final VoidCallback onBack;
-  final Widget? leadingAvatar;
-  final VoidCallback? onAvatarTap;
   final VoidCallback? onTitleTap;
   final List<ChatCapsuleAction> actions;
   final bool showEncryptionIcon;
@@ -441,14 +437,6 @@ class ChatCapsuleHeader extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (leadingAvatar != null) ...[
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: onAvatarTap,
-                          child: leadingAvatar,
-                        ),
-                        const SizedBox(width: 8),
-                      ],
                       Flexible(
                         child: GestureDetector(
                           key: const ValueKey('chat_header_title_capsule'),
@@ -476,17 +464,20 @@ class ChatCapsuleHeader extends StatelessWidget {
                                     if (showEncryptionIcon)
                                       Positioned(
                                         right: -16,
-                                        top: 2,
-                                        child: Tooltip(
-                                          message: '端对端加密',
-                                          child: Icon(
-                                            Symbols.lock,
-                                            key: const ValueKey(
-                                              'chat_header_encryption_lock',
+                                        top: 0,
+                                        bottom: 0,
+                                        child: Center(
+                                          child: Tooltip(
+                                            message: '端对端加密',
+                                            child: Icon(
+                                              Symbols.lock,
+                                              key: const ValueKey(
+                                                'chat_header_encryption_lock',
+                                              ),
+                                              size: 13,
+                                              color: t.accentCool,
+                                              fill: 1,
                                             ),
-                                            size: 13,
-                                            color: t.accentCool,
-                                            fill: 1,
                                           ),
                                         ),
                                       ),

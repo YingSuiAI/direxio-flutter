@@ -415,7 +415,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('综合讨论（32）'), findsOneWidget);
     expect(find.text('#综合讨论'), findsNothing);
     expect(find.text('频道帖子，成员可评论和互动'), findsNothing);
     expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
@@ -1169,7 +1169,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('综合讨论（32）'), findsOneWidget);
     expect(find.text('#综合讨论'), findsNothing);
     expect(find.text('频道信息'), findsOneWidget);
     expect(find.textContaining('频道信息('), findsNothing);
@@ -1241,7 +1241,41 @@ void main() {
     final memberGrid = tester.widget<SizedBox>(
       find.byKey(const ValueKey('channel_owner_member_grid')),
     );
-    expect(memberGrid.height, 106);
+    expect(memberGrid.height, 96);
+    final gridRect = tester.getRect(
+      find.byKey(const ValueKey('channel_owner_member_grid')),
+    );
+    final ownerRect = tester.getRect(
+      find.byKey(const ValueKey('channel_member_avatar_@owner:p2p-im.com')),
+    );
+    final alexRect = tester.getRect(
+      find.byKey(const ValueKey('channel_member_avatar_@alex:p2p-liyanan.com')),
+    );
+    final bobRect = tester.getRect(
+      find.byKey(const ValueKey('channel_member_avatar_@bob:p2p-im.com')),
+    );
+    final carolRect = tester.getRect(
+      find.byKey(const ValueKey('channel_member_avatar_@carol:p2p-im.com')),
+    );
+    final daveRect = tester.getRect(
+      find.byKey(const ValueKey('channel_member_avatar_@dave:p2p-im.com')),
+    );
+    final erinRect = tester.getRect(
+      find.byKey(const ValueKey('channel_member_avatar_@erin:p2p-im.com')),
+    );
+    final removeRect = tester.getRect(
+      find.byKey(const ValueKey('channel_remove_member_tile')),
+    );
+    expect(ownerRect.left, gridRect.left);
+    expect(alexRect.top, ownerRect.top);
+    expect(bobRect.top, ownerRect.top);
+    expect(carolRect.top, ownerRect.top);
+    expect(daveRect.top, ownerRect.top);
+    expect(erinRect.top, greaterThan(ownerRect.top));
+    expect(removeRect.top, erinRect.top);
+    final removeGap = removeRect.left - erinRect.right;
+    expect(removeGap, greaterThanOrEqualTo(12));
+    expect(removeGap, lessThanOrEqualTo(20));
     expect(
       find.byWidgetPredicate(
         (widget) =>
@@ -2057,12 +2091,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('频道详情'), findsOneWidget);
-    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('综合讨论（32）'), findsOneWidget);
     expect(find.text('#综合讨论'), findsNothing);
     expect(find.text('ID:!real:p2p-im.com'), findsOneWidget);
     expect(find.text('ID:ch_real'), findsNothing);
     expect(find.text('文字'), findsOneWidget);
     expect(find.text('频道介绍'), findsOneWidget);
+    expect(find.text('分享频道'), findsOneWidget);
     final avatarImage = tester.widget<Image>(
       find.descendant(
         of: find.byType(PortalAvatar),
@@ -2146,9 +2181,75 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('综合讨论（32）'), findsOneWidget);
     expect(find.text('#综合讨论'), findsNothing);
     expect(find.text('ID:!real:p2p-im.com'), findsOneWidget);
+  });
+
+  testWidgets('channel detail info ignores Matrix empty chat fallback',
+      (tester) async {
+    final client = Client('ChannelDetailInfoEmptyChatNameTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(
+      id: '!empty:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '@owner:p2p-im.com',
+        content: const {'membership': 'join'},
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_empty',
+          roomId: '!empty:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '频道介绍',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 1,
+          tags: const ['文字'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelDetailInfoPage(channelId: 'ch_empty'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('产品公告（1）'), findsOneWidget);
+    expect(find.text('Empty chat'), findsNothing);
+    expect(find.text('ID:!empty:p2p-im.com'), findsOneWidget);
   });
 
   testWidgets('channel conversation page renders figma chat surface',
@@ -2196,6 +2297,13 @@ void main() {
 
     expect(find.text('#综合讨论'), findsOneWidget);
     expect(find.text('32 名成员'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('chat_header_left_capsule')),
+        matching: find.byType(PortalAvatar),
+      ),
+      findsNothing,
+    );
     expect(find.text('频道已创建'), findsOneWidget);
     expect(find.text('Alice'), findsAtLeastNWidgets(1));
     expect(find.text('我正在考虑接受它！！'), findsAtLeastNWidgets(1));

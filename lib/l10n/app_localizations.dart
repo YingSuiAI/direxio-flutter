@@ -310,6 +310,24 @@ abstract class AppLocalizations {
   /// **'确定要退出登录吗？'**
   String get settingsLogoutConfirmMessage;
 
+  /// No description provided for @settingsDeactivateLogin.
+  ///
+  /// In zh, this message translates to:
+  /// **'注销登录'**
+  String get settingsDeactivateLogin;
+
+  /// No description provided for @settingsDeactivateLoginConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'注销登录'**
+  String get settingsDeactivateLoginConfirmTitle;
+
+  /// No description provided for @settingsDeactivateLoginConfirmMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'14天内，只要登录一次账号，注销就会自动取消'**
+  String get settingsDeactivateLoginConfirmMessage;
+
   /// No description provided for @commonCancel.
   ///
   /// In zh, this message translates to:

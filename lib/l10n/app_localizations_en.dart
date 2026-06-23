@@ -117,6 +117,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Are you sure you want to log out?';
 
   @override
+  String get settingsDeactivateLogin => 'Deactivate Login';
+
+  @override
+  String get settingsDeactivateLoginConfirmTitle => 'Deactivate Login';
+
+  @override
+  String get settingsDeactivateLoginConfirmMessage =>
+      'Within 14 days, logging in once will automatically cancel deactivation.';
+
+  @override
   String get commonCancel => 'Cancel';
 
   @override

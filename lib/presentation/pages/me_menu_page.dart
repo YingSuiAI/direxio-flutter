@@ -14,9 +14,11 @@ import '../../l10n/app_localizations.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_voice_player.dart';
+import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
+import '../widgets/async_image_preview.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
@@ -110,6 +112,10 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
   }
 
   Future<void> _handleFavoriteTap(AsFavoriteMessage favorite) async {
+    if (favorite.messageType == 'image') {
+      await _openFavoriteImage(context, ref, favorite);
+      return;
+    }
     final l10n = _l10n(context);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -1809,8 +1815,97 @@ Future<Uint8List> _downloadFavoriteMediaBytes(
     throw StateError('收藏媒体地址无效');
   }
 
+  final cacheKey = _favoriteMediaCacheKey(raw);
+  if (_shouldPersistFavoriteMediaBytes(favorite, thumbnail) &&
+      cacheKey.isNotEmpty) {
+    try {
+      final cache = await ref.read(mediaThumbnailCacheProvider.future);
+      final cached = await cache.read(cacheKey);
+      if (cached != null && cached.isNotEmpty) return cached;
+    } on Object {
+      // The in-memory Matrix cache below is still valid if disk cache is unavailable.
+    }
+  }
+
   final client = ref.read(matrixClientProvider);
-  return ref.read(matrixMediaBytesCacheProvider).read(client, mxc);
+  final bytes = await ref.read(matrixMediaBytesCacheProvider).read(client, mxc);
+  if (_shouldPersistFavoriteMediaBytes(favorite, thumbnail) &&
+      cacheKey.isNotEmpty &&
+      bytes.isNotEmpty) {
+    try {
+      final cache = await ref.read(mediaThumbnailCacheProvider.future);
+      await cache.write(cacheKey, bytes);
+    } on Object {
+      // Preview can still render from the Matrix cache when disk write fails.
+    }
+  }
+  return bytes;
+}
+
+String _favoriteMediaCacheKey(String raw) {
+  final value = raw.trim();
+  return value.isEmpty ? '' : 'favorite-media:$value';
+}
+
+bool _shouldPersistFavoriteMediaBytes(
+  AsFavoriteMessage favorite,
+  bool thumbnail,
+) {
+  return favorite.messageType == 'image' ||
+      (favorite.messageType == 'video' && thumbnail);
+}
+
+Future<void> _openFavoriteImage(
+  BuildContext context,
+  WidgetRef ref,
+  AsFavoriteMessage favorite,
+) {
+  final fullLoader = _favoriteImageProviderLoader(ref, favorite);
+  if (fullLoader == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('收藏图片地址为空，无法预览')),
+    );
+    return Future.value();
+  }
+  final previewLoader = favorite.thumbnailUrl.trim().isEmpty
+      ? null
+      : _favoriteImageProviderLoader(ref, favorite, thumbnail: true);
+  return showAsyncImagePreview(
+    context,
+    loadPreviewProvider: previewLoader,
+    loadProvider: fullLoader,
+    meta: _favoriteImagePreviewMeta(_l10n(context), favorite),
+  );
+}
+
+ImageProviderLoader? _favoriteImageProviderLoader(
+  WidgetRef ref,
+  AsFavoriteMessage favorite, {
+  bool thumbnail = false,
+}) {
+  final raw = (thumbnail ? favorite.thumbnailUrl : favorite.url).trim();
+  if (raw.isEmpty) return null;
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    return () async => NetworkImage(raw);
+  }
+  final uri = Uri.tryParse(raw);
+  if (uri == null || !uri.isScheme('mxc')) return null;
+  return () async => MemoryImage(
+        await _downloadFavoriteMediaBytes(
+          ref,
+          favorite,
+          thumbnail: thumbnail,
+        ),
+      );
+}
+
+String _favoriteImagePreviewMeta(
+  AppLocalizations? l10n,
+  AsFavoriteMessage favorite,
+) {
+  final source = _favoriteSourceLabel(l10n, favorite);
+  final time = _favoriteTimeLabel(favorite);
+  return time.isEmpty ? source : '$source · $time';
 }
 
 class _MeMenuSection extends StatelessWidget {

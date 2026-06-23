@@ -109,7 +109,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        channel.name,
+                        channelDisplayNameWithMemberCount(channel),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(
@@ -142,6 +142,12 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                 ),
                 const SizedBox(height: 5),
                 _IntroCard(text: _channelDescription(channel)),
+                if (!widget.showJoinButton) ...[
+                  const SizedBox(height: 16),
+                  _ShareChannelButton(
+                    onTap: () => _shareChannelDetail(context, ref, channel),
+                  ),
+                ],
               ],
             ),
             if (widget.showJoinButton)
@@ -262,6 +268,43 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
         SnackBar(content: Text('加入频道失败：$err')),
       );
     }
+  }
+}
+
+Future<void> _shareChannelDetail(
+  BuildContext context,
+  WidgetRef ref,
+  ChannelInfoData channel,
+) async {
+  try {
+    final sent = await showAndShareChannel(
+      context,
+      ref,
+      payload: channelSharePayloadFromChannel(
+        channelId: channel.id,
+        roomId: channel.roomId,
+        homeDomain: channel.domain,
+        name: channel.name,
+        description: channel.description,
+        avatarUrl: channel.avatarUrl,
+        visibility: channel.visibility,
+        joinPolicy: channel.joinPolicy,
+        commentsEnabled: channel.commentsEnabled,
+        channelType: channel.channelType,
+        tags: channel.tags,
+      ),
+      currentRoomId: channel.roomId,
+      currentRoomName: channel.name,
+    );
+    if (!context.mounted || !sent) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已分享频道')),
+    );
+  } catch (err) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('分享频道失败：$err')),
+    );
   }
 }
 
@@ -410,6 +453,48 @@ class _IntroCard extends StatelessWidget {
           weight: FontWeight.w500,
           color: context.tk.textMute,
         ).copyWith(height: 20 / 12),
+      ),
+    );
+  }
+}
+
+class _ShareChannelButton extends StatelessWidget {
+  const _ShareChannelButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.tk.surface,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Container(
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Symbols.ios_share,
+                size: 20,
+                color: context.tk.text,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '分享频道',
+                style: AppTheme.sans(
+                  size: 15,
+                  weight: FontWeight.w600,
+                  color: context.tk.text,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

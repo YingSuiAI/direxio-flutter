@@ -934,8 +934,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: currentPortalToken.trim(),
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
       onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
-      onAuthenticationFailed: () =>
-          expireSessionDueInvalidTokenIfCurrent(currentPortalToken.trim()),
+      onAuthenticationFailed: expireSessionDueInvalidToken,
     );
     final profile = await asClient.updateOwnerProfile(
       displayName: cleanDisplayName,
@@ -1188,8 +1187,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: currentPortalToken.trim(),
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
       onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
-      onAuthenticationFailed: () =>
-          expireSessionDueInvalidTokenIfCurrent(currentPortalToken.trim()),
+      onAuthenticationFailed: expireSessionDueInvalidToken,
     );
     var session = await asClient.changePortalPassword(
       oldPassword: cleanOldPassword,
@@ -2194,6 +2192,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     await _storage.delete(key: 'matrix_user_id');
     await _storage.delete(key: 'matrix_device_id');
     await _storage.delete(key: AuthStateNotifier.accessTokenKey);
+    await _storage.delete(key: lastLoginPortalTokenKey);
     await _storage.delete(key: _matrixTokenAppliedAtKey);
     ref.read(sessionExpiredNoticeProvider.notifier).state++;
     if (publishState) {

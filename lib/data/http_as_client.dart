@@ -1945,13 +1945,35 @@ class HttpAsClient implements AsClient {
     try {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
-        return decoded['errcode'] == 'M_UNKNOWN_TOKEN' ||
-            decoded['error'] == 'M_UNKNOWN_TOKEN';
+        final errcode = decoded['errcode']?.toString().trim();
+        if (errcode == 'M_UNKNOWN_TOKEN') return true;
+        final message = _authFailureMessage(decoded);
+        return message == 'm_unknown_token' ||
+            message.contains('unknown token') ||
+            message.contains('invalid token') ||
+            message.contains('token expired') ||
+            message.contains('expired token') ||
+            message.contains('unauthorized') ||
+            message.contains('重新登录') ||
+            message.contains('其他设备');
       }
     } catch (_) {
       // Non-JSON 401 responses are not treated as session expiry.
     }
     return false;
+  }
+
+  static String _authFailureMessage(Map<String, dynamic> decoded) {
+    return [
+      decoded['error'],
+      decoded['message'],
+      decoded['msg'],
+      decoded['detail'],
+    ]
+        .whereType<Object>()
+        .map((value) => value.toString().trim().toLowerCase())
+        .where((value) => value.isNotEmpty)
+        .join(' ');
   }
 
   static String _requireToken(String? token) {

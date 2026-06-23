@@ -13,7 +13,9 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/profile_provider.dart';
 import '../home/conversation_summary_writer.dart';
+import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/product_conversation_navigation.dart';
@@ -72,11 +74,20 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
           );
       productConversation =
           invitedGroup.productConversation ?? productConversation;
+      final currentUserProfile =
+          await ref.read(currentUserProfileProvider.future).catchError(
+                (_) => null,
+              );
       _sendGroupInviteCards(
         client,
         contacts: invitedContacts,
         groupRoomId: roomId,
         groupName: group.name.trim().isEmpty ? result.name : group.name,
+        inviterAvatarUrl: profileAvatarHttpUrl(
+              currentUserProfile,
+              client,
+            ) ??
+            '',
       );
     }
     final resolvedConversation = productConversation ??
@@ -143,6 +154,7 @@ void _sendGroupInviteCards(
   required List<AsSyncContact> contacts,
   required String groupRoomId,
   required String groupName,
+  String inviterAvatarUrl = '',
 }) {
   final roomId = groupRoomId.trim();
   if (roomId.isEmpty || contacts.isEmpty) return;
@@ -156,6 +168,7 @@ void _sendGroupInviteCards(
         groupRoomId: roomId,
         groupName: title,
         inviterMxid: inviterMxid,
+        inviterAvatarUrl: inviterAvatarUrl,
       ),
   ];
   unawaited(_observeGroupInviteCardSends(client, sends));
@@ -186,6 +199,7 @@ Future<bool> _sendSingleGroupInviteCard(
   required String groupRoomId,
   required String groupName,
   required String inviterMxid,
+  String inviterAvatarUrl = '',
 }) async {
   final directRoomId = contact.roomId.trim();
   if (directRoomId.isEmpty) {
@@ -202,6 +216,8 @@ Future<bool> _sendSingleGroupInviteCard(
       'group_room_id': groupRoomId,
       'group_name': groupName,
       if (inviterMxid.isNotEmpty) 'inviter_mxid': inviterMxid,
+      if (inviterAvatarUrl.trim().isNotEmpty)
+        'inviter_avatar_url': inviterAvatarUrl.trim(),
       'direct_room_id': directRoomId,
     });
     return true;

@@ -17,6 +17,9 @@ Map<String, Object?> matrixRoomHistorySyncFilterJson({
         'limit': limit,
         'lazy_load_members': true,
       },
+      'ephemeral': {
+        'not_types': ['m.receipt', 'm.typing'],
+      },
     },
   };
 }

@@ -181,7 +181,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       const SizedBox(height: 15),
       Center(
         child: Text(
-          '#${channel.name}',
+          channelDisplayNameWithMemberCount(channel),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppTheme.sans(
@@ -647,9 +647,10 @@ class _OwnerMemberGrid extends StatelessWidget {
   final ValueChanged<AsChannelMember> onOpenMember;
   final VoidCallback onRemove;
 
-  static const int _columns = 4;
-  static const double _tileHeight = 48;
-  static const double _expandedHeight = 106;
+  static const int _columns = 5;
+  static const int _maxVisibleRows = 4;
+  static const double _tileSize = 40;
+  static const double _gap = 16;
 
   @override
   Widget build(BuildContext context) {
@@ -679,41 +680,59 @@ class _OwnerMemberGrid extends StatelessWidget {
           shape: AvatarShape.squircle,
         ),
       _RemoveMemberTile(
+        key: const ValueKey('channel_remove_member_tile'),
         isLoading: isLoading,
         onTap: onRemove,
       ),
     ];
-    final height = children.length > _columns ? _expandedHeight : _tileHeight;
-    return SizedBox(
-      key: const ValueKey('channel_owner_member_grid'),
-      height: height,
-      child: GridView.builder(
-        primary: false,
-        padding: EdgeInsets.zero,
-        itemCount: children.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _columns,
-          mainAxisSpacing: 10,
-          crossAxisSpacing: 10,
-          mainAxisExtent: _tileHeight,
-        ),
-        itemBuilder: (context, index) {
-          return Align(
-            alignment: Alignment.topCenter,
-            child: SizedBox(
-              width: 40,
-              height: 40,
-              child: children[index],
+    final rows = (children.length / _columns).ceil().clamp(1, _maxVisibleRows);
+    final height = rows * _tileSize + (rows - 1) * _gap;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        const preferredWidth = _columns * _tileSize + (_columns - 1) * _gap;
+        final compactGap =
+            (((availableWidth - _columns * _tileSize) / (_columns - 1))
+                    .clamp(4.0, _gap))
+                .toDouble();
+        final gap = availableWidth < preferredWidth ? compactGap : _gap;
+        final contentWidth = _columns * _tileSize + (_columns - 1) * gap;
+        return SizedBox(
+          key: const ValueKey('channel_owner_member_grid'),
+          height: height,
+          child: SingleChildScrollView(
+            primary: false,
+            padding: EdgeInsets.zero,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                key: const ValueKey('channel_owner_member_grid_content'),
+                width: contentWidth,
+                child: Wrap(
+                  spacing: gap,
+                  runSpacing: _gap,
+                  children: children
+                      .map(
+                        (child) => SizedBox(
+                          width: _tileSize,
+                          height: _tileSize,
+                          child: child,
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _RemoveMemberTile extends StatelessWidget {
   const _RemoveMemberTile({
+    super.key,
     required this.isLoading,
     required this.onTap,
   });

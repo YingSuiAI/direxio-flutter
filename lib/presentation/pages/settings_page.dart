@@ -108,6 +108,39 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  Future<void> _deactivateLogin() async {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n?.settingsDeactivateLoginConfirmTitle ?? '注销登录'),
+        content: Text(
+          l10n?.settingsDeactivateLoginConfirmMessage ??
+              '14天内，只要登录一次账号，注销就会自动取消',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l10n?.commonCancel ?? '取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              l10n?.commonOk ?? '确认',
+              style: TextStyle(color: context.tk.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(authStateNotifierProvider.notifier).logout();
+    }
+  }
+
   Future<void> _showLanguagePicker() async {
     final selected = ref.read(appLocaleProvider).mode;
     final picked = await showModalBottomSheet<AppLocaleMode>(
@@ -310,6 +343,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     _LogoutButton(
                       label: l10n?.settingsLogout ?? '退出登录',
                       onTap: _logout,
+                    ),
+                    const SizedBox(height: 12),
+                    _LogoutButton(
+                      label: l10n?.settingsDeactivateLogin ?? '注销登录',
+                      onTap: _deactivateLogin,
                     ),
                   ],
                 ),

@@ -64,29 +64,35 @@ Future<bool> waitForJoinedGroupMatrixRoom({
   required Future<void> Function() oneShotSync,
   required Future<void> Function() refreshBootstrap,
   required HasJoinedMatrixRoom hasJoinedMatrixRoom,
+  bool Function()? shouldContinue,
   Duration timeout = const Duration(seconds: 20),
   Duration interval = const Duration(seconds: 2),
 }) async {
   final trimmedRoomId = roomId.trim();
   if (trimmedRoomId.isEmpty) return false;
   final deadline = DateTime.now().add(timeout);
+  bool active() => shouldContinue?.call() ?? true;
 
   while (true) {
+    if (!active()) return false;
     if (hasJoinedMatrixRoom(trimmedRoomId)) {
       await refreshBootstrap();
       return true;
     }
     try {
+      if (!active()) return false;
       await oneShotSync();
     } on Object {
       // A failed sync is transient during federated joins. Keep polling until
       // the joined room is visible locally or the caller's timeout expires.
     }
     try {
+      if (!active()) return false;
       await refreshBootstrap();
     } on Object {
       // Bootstrap is a projection cache; Matrix room visibility is the gate.
     }
+    if (!active()) return false;
     if (hasJoinedMatrixRoom(trimmedRoomId)) return true;
 
     final remaining = deadline.difference(DateTime.now());
@@ -96,5 +102,6 @@ Future<bool> waitForJoinedGroupMatrixRoom({
       await Future<void>.delayed(delay);
     }
   }
+  if (!active()) return false;
   return hasJoinedMatrixRoom(trimmedRoomId);
 }

@@ -281,24 +281,38 @@ class _MeActionRow extends StatelessWidget {
                 ),
               ),
               if (trailingText case final text?)
-                Flexible(
-                  child: Text(
-                    text,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: AppTheme.sans(
-                      size: 13,
-                      color: _homeMutedColor(context),
-                    ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 140),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          text,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: AppTheme.sans(
+                            size: 13,
+                            color: _homeMutedColor(context),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Symbols.chevron_right,
+                        size: 22,
+                        color: _homeMutedColor(context),
+                      ),
+                    ],
                   ),
+                )
+              else
+                Icon(
+                  Symbols.chevron_right,
+                  size: 22,
+                  color: _homeMutedColor(context),
                 ),
-              if (trailingText != null) const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right,
-                size: 22,
-                color: _homeMutedColor(context),
-              ),
             ],
           ),
         ),

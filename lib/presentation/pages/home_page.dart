@@ -1785,7 +1785,7 @@ class _ConvRow extends StatelessWidget {
               ? GroupCompositeAvatar(
                   seed: name,
                   size: _conversationTileAvatarSize,
-                  imageUrl: null,
+                  imageUrl: groupAvatarMembers.isEmpty ? avatarUrl : null,
                   members: groupAvatarMembers,
                 )
               : PortalAvatar(
@@ -2315,7 +2315,13 @@ String _resolvedAgentContactRoomId(
 }) {
   if (!isLoggedIn) return '';
   final bootstrapRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
-  return bootstrapRoomId;
+  if (bootstrapRoomId.isNotEmpty) return bootstrapRoomId;
+  final agentMxid = portalAgentMxidForClient(client);
+  for (final room in client.rooms) {
+    if (room.membership != Membership.join) continue;
+    if (isPortalAgentDirectRoom(room, agentMxid: agentMxid)) return room.id;
+  }
+  return '';
 }
 
 class _ContactListEntry {

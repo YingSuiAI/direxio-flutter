@@ -4,6 +4,7 @@ class GroupInviteContent {
     required this.groupName,
     this.inviterMxid = '',
     this.inviterDisplayName = '',
+    this.inviterAvatarUrl = '',
     this.inviteEventId = '',
     this.directRoomId = '',
   });
@@ -15,6 +16,7 @@ class GroupInviteContent {
   final String groupName;
   final String inviterMxid;
   final String inviterDisplayName;
+  final String inviterAvatarUrl;
   final String inviteEventId;
   final String directRoomId;
 
@@ -33,6 +35,7 @@ class GroupInviteContent {
       groupName: name.isEmpty ? '群聊' : name,
       inviterMxid: _string(content['inviter_mxid']),
       inviterDisplayName: _string(content['inviter_display_name']),
+      inviterAvatarUrl: _string(content['inviter_avatar_url']),
       inviteEventId: eventId.trim(),
       directRoomId: directRoomId.trim(),
     );

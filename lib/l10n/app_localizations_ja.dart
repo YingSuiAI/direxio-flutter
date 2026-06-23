@@ -116,6 +116,16 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsLogoutConfirmMessage => 'ログアウトしてもよろしいですか？';
 
   @override
+  String get settingsDeactivateLogin => 'ログインを無効化';
+
+  @override
+  String get settingsDeactivateLoginConfirmTitle => 'ログインを無効化';
+
+  @override
+  String get settingsDeactivateLoginConfirmMessage =>
+      '14日以内に一度ログインすると、無効化は自動的にキャンセルされます。';
+
+  @override
   String get commonCancel => 'キャンセル';
 
   @override

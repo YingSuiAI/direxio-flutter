@@ -12,6 +12,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_summary_writer.dart';
@@ -71,6 +72,15 @@ Future<void> showInviteGroupMembersFlow(
     final inviterMxid =
         ref.read(asSyncCacheProvider).bootstrap?.user.userId ?? '';
     final matrixClient = ref.read(matrixClientProvider);
+    final currentUserProfile =
+        await ref.read(currentUserProfileProvider.future).catchError(
+              (_) => null,
+            );
+    final inviterAvatarUrl = profileAvatarHttpUrl(
+          currentUserProfile,
+          matrixClient,
+        ) ??
+        '';
     for (final contact in sendableContacts) {
       try {
         final directRoomId = contact.roomId.trim();
@@ -84,6 +94,8 @@ Future<void> showInviteGroupMembersFlow(
           'group_room_id': trimmedRoomId,
           'group_name': groupName,
           if (inviterMxid.trim().isNotEmpty) 'inviter_mxid': inviterMxid,
+          if (inviterAvatarUrl.trim().isNotEmpty)
+            'inviter_avatar_url': inviterAvatarUrl,
           'direct_room_id': directRoomId,
         });
         sentCount++;

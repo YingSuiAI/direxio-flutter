@@ -61,13 +61,11 @@ import '../utils/avatar_url.dart';
 import '../utils/chat_event_attachment.dart';
 import '../utils/conversation_capability_policy.dart';
 import '../utils/direct_contact_status.dart';
-import '../utils/group_avatar_members.dart';
 import 'group_call_member_select_page.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
-import '../widgets/group_composite_avatar.dart';
 import '../widgets/portal_avatar.dart';
 
 void _groupChatGestureLog(String message) {
@@ -964,6 +962,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _messageScrollCtrl.addListener(_onMessageScroll);
     _matrixMembershipLeft = _currentRoomHasLeftMatrixMembership();
     _matrixSyncSub = ref.read(matrixClientProvider).onSync.stream.listen((_) {
+      if (!mounted) return;
       final left = _currentRoomHasLeftMatrixMembership();
       if (!mounted || left == _matrixMembershipLeft) return;
       setState(() {
@@ -1048,16 +1047,19 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final result = await _roomRecovery.runAttempt(
       force: force,
       attempt: () async {
+        if (!mounted) return false;
         var syncCache = ref.read(asSyncCacheProvider);
         var summary = _conversationSummary(syncCache);
         if (summary == null && syncCache.bootstrap == null) {
           try {
+            if (!mounted) return false;
             final bootstrap =
                 await ref.read(asBootstrapRepositoryProvider).refresh();
             if (!mounted) return false;
             ref.read(asSyncCacheProvider.notifier).update(
                   (state) => state.copyWith(bootstrap: bootstrap),
                 );
+            if (!mounted) return false;
             syncCache = ref.read(asSyncCacheProvider);
             summary = _conversationSummary(syncCache);
           } on Object catch (e) {
@@ -1082,6 +1084,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
           },
           timeout: const Duration(seconds: 45),
           interval: const Duration(seconds: 2),
+          shouldContinue: () => mounted,
         );
         return mounted && _room != null;
       },
@@ -1107,6 +1110,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   Future<void> _refreshBootstrapForRoomRecovery() async {
     try {
+      if (!mounted) return;
       final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
       if (!mounted) return;
       ref.read(asSyncCacheProvider.notifier).update(
@@ -1118,6 +1122,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   Future<void> _syncMissingGroupRoomFromServer(String roomId) async {
+    if (!mounted) return;
     final client = ref.read(matrixClientProvider);
     await syncMissingRoomHistoryFromServer(
       roomId: roomId,
@@ -2446,7 +2451,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         remarkName.isNotEmpty ? remarkName : room.getLocalizedDisplayname();
     final memberCount = room.summary.mJoinedMemberCount ?? 0;
     final syncCache = ref.watch(asSyncCacheProvider);
-    final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
     final currentChannel = _currentChannelSummary(syncCache);
     final explicitChannelId = widget.channelId?.trim() ?? '';
     final resolvedChannelId = explicitChannelId.isNotEmpty
@@ -2463,22 +2467,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final headerMemberCount = isChannelConversation && channelMemberCount > 0
         ? channelMemberCount
         : memberCount;
-    final headerAvatarMembers = isChannelConversation
-        ? null
-        : stableGroupAvatarMembersForRoom(
-            room: room,
-            syncCache: syncCache,
-            cachedMemberOrder:
-                groupAvatarMemberOrders[activeRoomId] ?? const [],
-            currentUserProfile: currentUserProfile,
-          );
-    if (headerAvatarMembers != null) {
-      scheduleGroupAvatarMemberOrderPersist(
-        ref,
-        activeRoomId,
-        headerAvatarMembers,
-      );
-    }
     final rawTimelineEvents = _timeline?.events ?? const <Event>[];
     final callRecordContextEvents = isChannelConversation
         ? const <Event>[]
@@ -2561,18 +2549,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final productConversations =
         ref.watch(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
-    final headerConversation = productConversationForRoom(
-      productConversations,
-      activeRoomId,
-      kinds: {
-        if (isChannelConversation) asConversationKindChannel,
-      },
-    );
-    final headerAvatarUrl = isChannelConversation
-        ? avatarHttpUrl(room.client, headerConversation?.avatarUrl) ??
-            avatarHttpUrl(room.client, currentChannel?.avatarUrl) ??
-            roomAvatarHttpUrl(room)
-        : null;
     final capabilityPolicy = _groupCapabilityPolicy(
       productConversations,
       room,
@@ -2655,22 +2631,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                       subtitle: activeGroupCall == null
                           ? '$headerMemberCount 名成员'
                           : '正在群通话',
-                      leadingAvatar: isChannelConversation
-                          ? PortalAvatar(
-                              seed: channelTitle,
-                              size: 36,
-                              imageUrl: headerAvatarUrl,
-                              shape: AvatarShape.squircle,
-                            )
-                          : GroupCompositeAvatar(
-                              key: ValueKey(
-                                'group_chat_header_avatar_$activeRoomId',
-                              ),
-                              seed: channelTitle,
-                              size: 36,
-                              imageUrl: null,
-                              members: headerAvatarMembers?.members ?? const [],
-                            ),
                       onTitleTap: activeGroupCall == null
                           ? null
                           : () => context.push(

@@ -43,6 +43,11 @@ class ChannelInfoData {
   final int memberCount;
 }
 
+String channelDisplayNameWithMemberCount(ChannelInfoData channel) {
+  final count = channel.memberCount < 0 ? 0 : channel.memberCount;
+  return '${channel.name}（$count）';
+}
+
 ChannelInfoData channelInfoDataFromSharePayload(ChannelSharePayload payload) {
   final description = payload.description.trim();
   final name = _displayChannelName(payload.displayName, roomId: payload.roomId);
@@ -206,7 +211,7 @@ String _displayChannelName(
 }) {
   final trimmed = name.trim();
   final roomName = matrixRoomName?.trim() ?? '';
-  if (roomName.isNotEmpty && !_looksLikeMatrixRoomId(roomName)) return roomName;
+  if (_isUsableChannelDisplayName(roomName)) return roomName;
   if (trimmed.isNotEmpty && !_looksLikeMatrixRoomId(trimmed)) return trimmed;
   return '未命名频道';
 }
@@ -214,7 +219,8 @@ String _displayChannelName(
 String _matrixRoomName(Client client, String roomId) {
   final room = client.getRoomById(roomId.trim());
   if (room == null) return '';
-  return room.getLocalizedDisplayname();
+  final name = room.getLocalizedDisplayname().trim();
+  return _isUsableChannelDisplayName(name) ? name : '';
 }
 
 String _matrixRoomAvatar(Client client, String roomId) {
@@ -223,4 +229,10 @@ String _matrixRoomAvatar(Client client, String roomId) {
 
 bool _looksLikeMatrixRoomId(String text) {
   return text.startsWith('!') && text.contains(':');
+}
+
+bool _isUsableChannelDisplayName(String text) {
+  final trimmed = text.trim();
+  if (trimmed.isEmpty || _looksLikeMatrixRoomId(trimmed)) return false;
+  return trimmed != 'Empty chat';
 }

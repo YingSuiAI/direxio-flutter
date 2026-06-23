@@ -52,30 +52,6 @@ class HttpAsClient implements AsClient {
     );
   }
 
-  /// Backward-compatible constructor for sessions created before P2P API token auth auth.
-  /// New Direxio P2P backend deployments expect [fromPortalSession] instead.
-  factory HttpAsClient.fromMatrixClient(
-    Client client, {
-    Uri? baseUri,
-    FutureOr<String?> Function()? onAuthenticationRefresh,
-    FutureOr<void> Function()? onAuthenticationFailed,
-  }) {
-    final token = client.accessToken;
-    final homeserver = client.homeserver;
-    if (token == null || token.isEmpty || homeserver == null) {
-      throw AsClientException('Matrix session is not initialized');
-    }
-    return HttpAsClient(
-      baseUri: baseUri ?? defaultAdminBaseUri(homeserver),
-      accessToken: token,
-      authSource: 'access_token',
-      accessTokenForDebug: token,
-      onAuthenticationRefresh: onAuthenticationRefresh,
-      onAuthenticationFailed: onAuthenticationFailed,
-      httpClient: client.httpClient,
-    );
-  }
-
   final Uri _baseUri;
   String _portalToken;
   final String? _authSource;
@@ -191,13 +167,41 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<List<AsConversation>> listConversations() async {
+    final body = await _getJson('conversations');
+    final raw = body['conversations'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => AsConversation.fromJson(item.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<AsConversation> getConversation({
+    String conversationId = '',
+    String roomId = '',
+  }) async {
+    final conversation = conversationId.trim();
+    final room = roomId.trim();
+    if (conversation.isEmpty && room.isEmpty) {
+      throw ArgumentError('conversationId or roomId is required');
+    }
+    final body = await _getJson(
+      'conversations/detail',
+      queryParameters: {
+        if (conversation.isNotEmpty) 'conversation_id': conversation,
+        if (room.isNotEmpty) 'room_id': room,
+      },
+    );
+    return AsConversation.fromJson(body);
+  }
+
+  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,
   }) async* {
-    if (!_isUnifiedBase(_baseUri)) {
-      throw AsClientException('SSE event stream requires a /_p2p base URI');
-    }
     final queryParameters = <String, String>{
       if (since != null && since > 0) 'since': since.toString(),
     };
@@ -452,6 +456,36 @@ class HttpAsClient implements AsClient {
       );
       rethrow;
     }
+  }
+
+  @override
+  Future<List<ContactEntry>> listContacts() async {
+    final body = await _getJson('contacts');
+    final raw = body['contacts'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => ContactEntry.fromJson(item.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<Map<String, dynamic>> reactivateContact({
+    required String roomId,
+    required String requesterMxid,
+    Uri? remoteNodeBaseUri,
+  }) {
+    return _requestJson(
+      'POST',
+      'contacts/reactivate',
+      body: {
+        'room_id': roomId.trim(),
+        'requester_mxid': requesterMxid.trim(),
+        if (remoteNodeBaseUri != null)
+          'remote_node_base_url': remoteNodeBaseUri.toString(),
+      },
+      allowedStatusCodes: const {200},
+    );
   }
 
   @override
@@ -1807,11 +1841,16 @@ class HttpAsClient implements AsClient {
 
   static Uri _normalizeBaseUri(Uri baseUri) {
     final rawPath = baseUri.path.trim();
-    final path = rawPath.isEmpty || rawPath == '/' || rawPath == '/_as'
-        ? '/_p2p'
+    final normalizedPath = rawPath.endsWith('/') && rawPath.length > 1
+        ? rawPath.substring(0, rawPath.length - 1)
         : rawPath;
-    return baseUri.replace(
-        path: path.endsWith('/') ? path.substring(0, path.length - 1) : path);
+    final path = normalizedPath.isEmpty || normalizedPath == '/'
+        ? '/_p2p'
+        : normalizedPath;
+    if (path != '/_p2p') {
+      throw AsClientException('P2P product API base URI must end with /_p2p');
+    }
+    return baseUri.replace(path: path);
   }
 
   static String _extractErrorMessage(http.Response response) {
@@ -2040,21 +2079,6 @@ List<String> _serverNamesForRemoteNode(Uri? remoteNodeBaseUri) {
   return [port == null ? host : '$host:$port'];
 }
 
-Map<String, String>? _mergeQueryParameters(
-  Map<String, String>? queryParameters,
-  Map<String, Object?>? extraParams,
-) {
-  if (extraParams == null || extraParams.isEmpty) return queryParameters;
-  final merged = <String, String>{
-    if (queryParameters != null) ...queryParameters,
-  };
-  for (final entry in extraParams.entries) {
-    final value = entry.value?.toString().trim() ?? '';
-    if (value.isNotEmpty) merged[entry.key] = value;
-  }
-  return merged;
-}
-
 String _actionFor(String method, String path) {
   final clean = path.trim().replaceAll(RegExp(r'^/+|/+$'), '');
   final segments = clean.split('/');
@@ -2195,10 +2219,19 @@ String _actionFor(String method, String path) {
   if (method == 'PUT' && clean == 'profile') return 'profile.update';
   if (method == 'GET' && clean == 'sync/bootstrap') return 'sync.bootstrap';
   if (method == 'PUT' && clean == 'sync/read-marker') return 'sync.read_marker';
+  if (method == 'GET' && clean == 'conversations') {
+    return 'conversations.list';
+  }
+  if (method == 'GET' && clean == 'conversations/detail') {
+    return 'conversations.get';
+  }
   if (method == 'GET' && clean == 'portal/status') return 'portal.status';
   if (method == 'PUT' && clean == 'portal/password') return 'portal.password';
   if (method == 'POST' && clean == 'reports') return 'reports.submit';
   if (method == 'GET' && clean == 'contacts') return 'contacts.list';
+  if (method == 'POST' && clean == 'contacts/reactivate') {
+    return 'contacts.reactivate';
+  }
   if (method == 'POST' && clean == 'contacts/requests') {
     return 'contacts.request';
   }
@@ -2304,7 +2337,9 @@ Map<String, Object?> _actionParams(
       params['filename'] = Uri.decodeComponent(segments[2]);
     } else if (segments[1] == 'requests' && segments.length >= 3) {
       params['room_id'] = Uri.decodeComponent(segments[2]);
-    } else if (segments[1] != 'export' && segments[1] != 'import') {
+    } else if (segments[1] != 'export' &&
+        segments[1] != 'import' &&
+        segments[1] != 'reactivate') {
       params['room_id'] = Uri.decodeComponent(segments[1]);
     }
   }
@@ -2384,9 +2419,6 @@ int _paramInt(Map<String, Object?> params, String key) {
 
 String _encodeStrictPathComponent(String value) =>
     Uri.encodeComponent(value).replaceAll('!', '%21');
-
-bool _isUnifiedBase(Uri baseUri) =>
-    baseUri.path == '/_p2p' || baseUri.path.startsWith('/_p2p/');
 
 String _friendRequestTarget(Object? body) {
   if (body is! Map) return '<unknown>';

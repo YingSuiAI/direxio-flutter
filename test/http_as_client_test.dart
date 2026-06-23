@@ -51,6 +51,114 @@ void main() {
     expect(cBase.toString(), 'http://127.0.0.1:38008/_p2p');
   });
 
+  test('rejects legacy AS base URI for P2P product API client', () {
+    expect(
+      () => HttpAsClient(
+        baseUri: Uri.parse('https://example.com/_as'),
+        portalToken: 'portal-token',
+      ),
+      throwsA(isA<AsClientException>()),
+    );
+  });
+
+  test('conversation helpers use unified conversation actions', () async {
+    final seen = <Map<String, dynamic>>[];
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        seen.add(body);
+        if (body['action'] == 'conversations.list') {
+          return _jsonResponse({
+            'conversations': [
+              {
+                'conversation_id': 'conv_direct',
+                'room_id': '!direct:p2p-im.com',
+                'kind': 'direct',
+                'lifecycle': 'active',
+                'title': 'Alice',
+              },
+            ],
+          }, 200);
+        }
+        return _jsonResponse({
+          'conversation_id': 'conv_direct',
+          'room_id': '!direct:p2p-im.com',
+          'kind': 'direct',
+          'lifecycle': 'active',
+          'title': 'Alice',
+        }, 200);
+      }),
+    );
+
+    final conversations = await client.listConversations();
+    final conversation =
+        await client.getConversation(roomId: '!direct:p2p-im.com');
+
+    expect(conversations.single.conversationId, 'conv_direct');
+    expect(conversation.roomId, '!direct:p2p-im.com');
+    expect(seen, [
+      {'action': 'conversations.list', 'params': <String, dynamic>{}},
+      {
+        'action': 'conversations.get',
+        'params': {'room_id': '!direct:p2p-im.com'},
+      },
+    ]);
+  });
+
+  test('contact list and reactivation use backend actions', () async {
+    final seen = <Map<String, dynamic>>[];
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        seen.add(body);
+        if (body['action'] == 'contacts.list') {
+          expect(request.url.path, '/_p2p/query');
+          return _jsonResponse({
+            'contacts': [
+              {
+                'peer_mxid': '@alice:p2p-im.com',
+                'room_id': '!alice:p2p-im.com',
+                'status': 'accepted',
+              },
+            ],
+          }, 200);
+        }
+        expect(request.url.path, '/_p2p/command');
+        return _jsonResponse({
+          'status': 'invited',
+          'room_id': '!alice:p2p-im.com',
+        }, 200);
+      }),
+    );
+
+    final contacts = await client.listContacts();
+    final reactivated = await client.reactivateContact(
+      roomId: '!alice:p2p-im.com',
+      requesterMxid: '@owner:p2p-im.com',
+      remoteNodeBaseUri: Uri.parse('https://remote.example/_p2p'),
+    );
+
+    expect(contacts.single.peerMxid, '@alice:p2p-im.com');
+    expect(reactivated['status'], 'invited');
+    expect(seen, [
+      {'action': 'contacts.list', 'params': <String, dynamic>{}},
+      {
+        'action': 'contacts.reactivate',
+        'params': {
+          'room_id': '!alice:p2p-im.com',
+          'requester_mxid': '@owner:p2p-im.com',
+          'remote_node_base_url': 'https://remote.example/_p2p',
+        },
+      },
+    ]);
+  });
+
   test('changePortalPassword uses unified portal password action', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),

@@ -298,6 +298,17 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
+  Future<List<AsConversation>> listConversations() async => const [];
+
+  @override
+  Future<AsConversation> getConversation({
+    String conversationId = '',
+    String roomId = '',
+  }) async {
+    throw AsClientException('test conversation is not available');
+  }
+
+  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,
@@ -789,6 +800,23 @@ class _EmptyAsClient implements AsClient {
         status: 'pending_outbound',
         remark: remark.trim(),
       );
+
+  @override
+  Future<List<ContactEntry>> listContacts() async => const [];
+
+  @override
+  Future<Map<String, dynamic>> reactivateContact({
+    required String roomId,
+    required String requesterMxid,
+    Uri? remoteNodeBaseUri,
+  }) async =>
+      {
+        'status': 'invited',
+        'room_id': roomId.trim(),
+        'requester_mxid': requesterMxid.trim(),
+        if (remoteNodeBaseUri != null)
+          'remote_node_base_url': remoteNodeBaseUri.toString(),
+      };
 
   @override
   Future<ContactEntry> acceptContactRequest({

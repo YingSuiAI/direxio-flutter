@@ -2206,6 +2206,20 @@ abstract class AsClient {
   /// P2P product API action.
   Future<AsSyncBootstrap> syncBootstrap();
 
+  /// P2P product API action.
+  Future<List<AsConversation>> listConversations() {
+    throw AsClientException(
+        'listConversations is not supported by this client');
+  }
+
+  /// P2P product API action.
+  Future<AsConversation> getConversation({
+    String conversationId = '',
+    String roomId = '',
+  }) {
+    throw AsClientException('getConversation is not supported by this client');
+  }
+
   /// GET /_p2p/events?since= SSE refresh stream.
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
@@ -2261,6 +2275,21 @@ abstract class AsClient {
     String domain = '',
     String remark = '',
   });
+
+  /// P2P product API action.
+  Future<List<ContactEntry>> listContacts() {
+    throw AsClientException('listContacts is not supported by this client');
+  }
+
+  /// P2P product API action.
+  Future<Map<String, dynamic>> reactivateContact({
+    required String roomId,
+    required String requesterMxid,
+    Uri? remoteNodeBaseUri,
+  }) {
+    throw AsClientException(
+        'reactivateContact is not supported by this client');
+  }
 
   /// P2P product API action.
   Future<ContactEntry> acceptContactRequest({

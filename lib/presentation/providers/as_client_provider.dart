@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/as_client.dart';
@@ -24,19 +23,7 @@ final asClientProvider = Provider<AsClient>((ref) {
       onAuthenticationFailed: authNotifier.expireSessionDueInvalidToken,
     );
   }
-  debugPrint(
-    'asClientProvider missing access_token; falling back to Matrix '
-    'access token for P2P product API. This will fail on P2P API token auth with '
-    'M_UNKNOWN_TOKEN.',
-  );
-  return HttpAsClient.fromMatrixClient(
-    client,
-    onAuthenticationRefresh: authNotifier.refreshPortalSessionForAsAdminToken,
-    onAuthenticationFailed: () {
-      final failedToken = client.accessToken?.trim() ?? '';
-      return authNotifier.expireSessionDueInvalidTokenIfCurrent(failedToken);
-    },
-  );
+  throw AsClientException('P2P portal token is required');
 });
 
 final agentStatusProvider = StreamProvider.autoDispose<AgentStatus>((ref) {

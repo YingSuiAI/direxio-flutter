@@ -79,6 +79,21 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<List<AsConversation>> listConversations() async {
+    await Future.delayed(_latency);
+    return const [];
+  }
+
+  @override
+  Future<AsConversation> getConversation({
+    String conversationId = '',
+    String roomId = '',
+  }) async {
+    await Future.delayed(_latency);
+    throw AsClientException('mock conversation is not available');
+  }
+
+  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,
@@ -235,6 +250,28 @@ class MockAsClient implements AsClient {
       status: 'pending_outbound',
       remark: remark.trim(),
     );
+  }
+
+  @override
+  Future<List<ContactEntry>> listContacts() async {
+    await Future.delayed(_latency);
+    return const [];
+  }
+
+  @override
+  Future<Map<String, dynamic>> reactivateContact({
+    required String roomId,
+    required String requesterMxid,
+    Uri? remoteNodeBaseUri,
+  }) async {
+    await Future.delayed(_latency);
+    return {
+      'status': 'invited',
+      'room_id': roomId.trim(),
+      'requester_mxid': requesterMxid.trim(),
+      if (remoteNodeBaseUri != null)
+        'remote_node_base_url': remoteNodeBaseUri.toString(),
+    };
   }
 
   @override

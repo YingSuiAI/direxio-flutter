@@ -25,9 +25,9 @@ Do not add or restore P2P ordinary message/search/backup action clients. These a
 
 Ordinary message send, media send, history, unread, message search, and recall must use Matrix Client-Server APIs. Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both.
 
-Do not add duplicate list APIs or duplicate client flows. If data already arrives through `/_as/sync/bootstrap`, prefer extending that contract and the client model.
+Do not add duplicate list APIs or duplicate client flows. If data already arrives through `/_p2p/query` action `sync.bootstrap`, prefer extending that contract and the client model.
 
-Keep `/_as/sync/bootstrap` metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields.
+Keep `sync.bootstrap` metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields.
 
 Keep auth responsibilities explicit. AS Admin API calls use the current portal/session bearer credential defined by the contract; Matrix-native behavior should still flow through the Matrix SDK or Matrix API layer.
 

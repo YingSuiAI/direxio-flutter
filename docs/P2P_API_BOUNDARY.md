@@ -1,6 +1,6 @@
 # Direxio Client API Boundary
 
-Last verified from current code: 2026-06-22
+Last verified from current code: 2026-06-23
 
 This document records the current P2P product API / Matrix boundary used by the Flutter client. It intentionally omits historical change logs.
 
@@ -8,13 +8,15 @@ This document records the current P2P product API / Matrix boundary used by the 
 
 - P2P product API calls use the portal token as bearer auth.
 - Matrix Client-Server API calls use the Matrix access token managed by the Matrix SDK.
-- Code paths that temporarily fall back to Matrix token for P2P product API calls are compatibility warnings, not the intended contract.
+- P2P product API clients must use a `/_p2p` base URI and send action envelopes to `/_p2p/query` or `/_p2p/command`.
+- Matrix access tokens are never a fallback credential for P2P product API calls.
 
 ## P2P Product API Responsibilities
 
 - Requests use `POST /_p2p/query` or `POST /_p2p/command` with an `action` and `params` body.
 - Portal actions: `portal.bootstrap`, `portal.auth`, `portal.status`, `portal.password`.
 - Bootstrap metadata action: `sync.bootstrap` for contacts, groups, channels, pending requests, user profile, and product summaries.
+- Conversation actions: `conversations.list`, `conversations.get`.
 - Contact actions: `contacts.list`, `contacts.request`, `contacts.reactivate`, `contacts.requests.accept`, `contacts.requests.reject`, `contacts.requests.delete`, `contacts.update`, `contacts.delete`.
 - Contact request remarks travel as `remark` on `contacts.request` and may be mirrored in contact or `sync.bootstrap.pending.friend_requests` metadata for the verifier UI.
 - Accepted-contact remark updates use `contacts.update` with `room_id` and `display_name`; the backend stores the remark as the contact `display_name`, not as a separate `remark` field.

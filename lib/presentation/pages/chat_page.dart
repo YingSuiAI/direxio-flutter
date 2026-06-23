@@ -512,6 +512,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (roomId.isEmpty) return false;
     if (syncCache.contactForRoom(roomId) != null) return true;
     final bootstrap = syncCache.bootstrap;
+    final fallbackAgentRoomId = fallbackPortalAgentRoomIdForClient(
+          ref.read(matrixClientProvider),
+        ) ??
+        '';
+    if (fallbackAgentRoomId.isNotEmpty && fallbackAgentRoomId == roomId) {
+      return true;
+    }
     if (bootstrap == null) return false;
     if (bootstrap.agentRoomId.trim() == roomId) return true;
     bool hasRoom(List<AsSyncRoomSummary> rooms) {

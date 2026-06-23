@@ -234,6 +234,22 @@ void main() {
     );
   });
 
+  test('ended call status keeps the final elapsed timer', () {
+    final connectedAt = DateTime.utc(2026, 5, 30, 1);
+    final endedAt = connectedAt.add(const Duration(seconds: 42));
+
+    expect(
+      callStatusDisplayText(
+        VoiceCallUiState(
+          status: VoiceCallStatus.ended,
+          connectedAt: connectedAt,
+        ),
+        now: endedAt,
+      ),
+      '0:42',
+    );
+  });
+
   test('stale unanswered calls should auto close the call page', () {
     expect(
       callPageShouldAutoCloseForState(

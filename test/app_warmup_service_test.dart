@@ -94,7 +94,7 @@ void main() {
     ]);
   });
 
-  test('warmup preloads AS contact and channel avatars from bootstrap metadata',
+  test('warmup preloads home conversation avatars from bootstrap metadata',
       () async {
     final avatarPreloader = _RecordingAvatarPreloader();
     final client = Client('DirexioWarmupContactAvatarTest')
@@ -125,7 +125,16 @@ void main() {
             status: 'accepted',
           ),
         ],
-        groups: const [],
+        groups: const [
+          AsSyncRoomSummary(
+            channelId: 'group_product',
+            roomId: '!group:p2p-im.com',
+            name: '产品群',
+            avatarUrl: 'https://cdn.example.com/group.png',
+            unreadCount: 0,
+            lastActivityAt: null,
+          ),
+        ],
         channels: const [
           AsSyncRoomSummary(
             channelId: 'ch_product',
@@ -147,6 +156,10 @@ void main() {
       contains(contains('/download/p2p-liyanan.com/lee-avatar')),
     );
     expect(avatarPreloader.urls, contains('https://cdn.example.com/test.png'));
+    expect(
+      avatarPreloader.urls,
+      contains('https://cdn.example.com/group.png'),
+    );
     expect(
       avatarPreloader.urls,
       contains('https://cdn.example.com/channel.png'),

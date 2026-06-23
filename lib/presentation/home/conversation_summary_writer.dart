@@ -104,6 +104,7 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
   required LocalMessageOrderState messageOrder,
   required Map<String, String> groupRemarkNames,
   required String? currentUserId,
+  bool includeDefaultAgentConversation = false,
 }) {
   final productList = productConversations.toList(growable: false);
   final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
@@ -123,6 +124,7 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
     outbox: outbox,
     messageOrder: messageOrder,
     pinnedConversationIds: pinnedConversationIds,
+    includeDefaultAgentConversation: includeDefaultAgentConversation,
   );
   for (final conversation in visibleConversations) {
     final product = conversation.product;
@@ -163,6 +165,7 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
   required LocalOutboxState outbox,
   required LocalMessageOrderState messageOrder,
   required Set<String> pinnedConversationIds,
+  bool includeDefaultAgentConversation = false,
 }) {
   final asRoomSummariesByRoomId = <String, AsSyncRoomSummary>{
     for (final room in syncCache.bootstrap?.rooms ?? const [])
@@ -188,6 +191,7 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
 
   final agentMxid = portalAgentMxidForClient(client);
   final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+  final fallbackAgentRoomId = fallbackPortalAgentRoomIdForClient(client) ?? '';
   var fallbackAgentShown = false;
   for (final room in rooms) {
     if (room.membership != Membership.join) continue;
@@ -263,6 +267,14 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
       !visibleRoomIds.contains(canonicalAgentRoomId)) {
     addVisibleConversation(
       VisibleHomeConversation.agentBootstrap(canonicalAgentRoomId),
+    );
+  } else if (includeDefaultAgentConversation &&
+      canonicalAgentRoomId.isEmpty &&
+      fallbackAgentRoomId.isNotEmpty &&
+      !visibleConversations.any((conversation) => conversation.isAgent) &&
+      !visibleRoomIds.contains(fallbackAgentRoomId)) {
+    addVisibleConversation(
+      VisibleHomeConversation.agentBootstrap(fallbackAgentRoomId),
     );
   }
 

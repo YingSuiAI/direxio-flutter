@@ -21,6 +21,7 @@ import 'auth_provider.dart';
 import 'channel_provider.dart';
 import 'media_thumbnail_cache_provider.dart';
 import 'profile_provider.dart';
+import 'product_conversations_provider.dart';
 
 typedef AsBootstrapLoader = Future<AsSyncBootstrap> Function();
 typedef CachedAsBootstrapLoader = Future<AsSyncBootstrap?> Function();
@@ -216,6 +217,10 @@ class AppWarmupService {
     final urls = <String>[];
     _addUnique(urls, profileAvatarHttpUrl(profile, client));
     if (bootstrap != null) {
+      for (final conversation
+          in bootstrapProductConversations(bootstrap).take(maxRoomAvatars)) {
+        _addUnique(urls, avatarHttpUrl(client, conversation.avatarUrl));
+      }
       for (final room in bootstrap.rooms.take(maxRoomAvatars)) {
         _addUnique(urls, avatarHttpUrl(client, room.avatarUrl));
       }

@@ -399,8 +399,18 @@ class _ChatRecordMediaImage extends ConsumerWidget {
     }
     final uri = Uri.tryParse(raw);
     if (uri == null || !uri.isScheme('mxc')) return _fallback(t);
+    final encryptedThumbnail = item.encryptedThumbnailFile;
+    final encryptedFile = item.encryptedFile;
     return FutureBuilder<Uint8List>(
-      future: _downloadMxcBytes(ref, uri),
+      future: encryptedThumbnail.isNotEmpty
+          ? _downloadEncryptedMxcBytes(
+              ref,
+              encryptedThumbnail,
+              thumbnail: true,
+            )
+          : encryptedFile.isNotEmpty && item.thumbnailUrl == item.mediaUrl
+              ? _downloadEncryptedMxcBytes(ref, encryptedFile)
+              : _downloadMxcBytes(ref, uri),
       builder: (context, snapshot) {
         final bytes = snapshot.data;
         if (bytes != null && bytes.isNotEmpty) {
@@ -644,4 +654,15 @@ String _formatBytes(int bytes) {
 Future<Uint8List> _downloadMxcBytes(WidgetRef ref, Uri mxc) async {
   final client = ref.read(matrixClientProvider);
   return ref.read(matrixMediaBytesCacheProvider).read(client, mxc);
+}
+
+Future<Uint8List> _downloadEncryptedMxcBytes(
+  WidgetRef ref,
+  Map<String, Object?> file, {
+  bool thumbnail = false,
+}) async {
+  final client = ref.read(matrixClientProvider);
+  return ref
+      .read(matrixMediaBytesCacheProvider)
+      .readEncryptedAttachment(client, file, thumbnail: thumbnail);
 }

@@ -1007,6 +1007,11 @@ DateTime? nextVoiceCallConnectedAt({
   required VoiceCallStatus nextStatus,
   required DateTime now,
 }) {
+  if ((nextStatus == VoiceCallStatus.ended ||
+          nextStatus == VoiceCallStatus.failed) &&
+      previousConnectedAt != null) {
+    return previousConnectedAt;
+  }
   if (nextStatus != VoiceCallStatus.connected) return null;
   return previousStatus == VoiceCallStatus.connected
       ? previousConnectedAt ?? now

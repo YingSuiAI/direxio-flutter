@@ -12,6 +12,7 @@ import '../providers/conversation_preferences_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/group_avatar_members.dart';
+import '../utils/avatar_url.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/group_composite_avatar.dart';
@@ -87,6 +88,10 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           groupAvatarMembers,
         );
       }
+      final avatarUrl = avatarHttpUrl(client, conversation.avatarUrl) ??
+          avatarHttpUrl(client, group?.avatarUrl) ??
+          (room == null ? null : roomAvatarHttpUrl(room)) ??
+          '';
       items.add(
         _GroupItem(
           id: roomId,
@@ -107,6 +112,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           unread: (group?.unreadCount ?? 0) > 0
               ? group!.unreadCount
               : room?.notificationCount ?? 0,
+          avatarUrl: avatarUrl,
           isOwner: group?.isOwned ?? false,
           productConversation: _openableGroupConversationForList(conversation),
         ),
@@ -376,6 +382,7 @@ class _GroupItem {
     required this.id,
     required this.name,
     required this.preview,
+    this.avatarUrl = '',
     this.avatarMembers = const [],
     required this.time,
     required this.unread,
@@ -385,6 +392,7 @@ class _GroupItem {
   final String id;
   final String name;
   final String preview;
+  final String avatarUrl;
   final List<GroupCompositeAvatarMember> avatarMembers;
   final String time;
   final int unread;
@@ -422,8 +430,10 @@ class _GroupRow extends StatelessWidget {
                 key: ValueKey('group_avatar_${item.id}'),
                 seed: name,
                 size: 48,
-                imageUrl: null,
-                members: item.avatarMembers,
+                imageUrl: item.avatarUrl,
+                members: item.avatarUrl.trim().isEmpty
+                    ? item.avatarMembers
+                    : const [],
                 radius: 12,
               ),
               const SizedBox(width: 8),

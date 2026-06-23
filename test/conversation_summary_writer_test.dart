@@ -375,6 +375,85 @@ void main() {
     expect(productConversationRoute(conversation), '/chat/!agent%3Ap2p-im.com');
   });
 
+  test('builds default Agent conversation without synced agent room', () {
+    final client = Client('ConversationSummaryWriterFallbackAgentTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: const [],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+      includeDefaultAgentConversation: true,
+    );
+
+    final entry = result.displayEntries.single;
+    final conversation =
+        result.productConversationsByRoomId['!agent:p2p-im.com'];
+    expect(entry.name, 'Agent');
+    expect(entry.isAgent, isTrue);
+    expect(entry.lastMessage, defaultAgentConversationPreview);
+    expect(conversation?.isAgent, isTrue);
+    expect(conversation?.canOpen, isTrue);
+    expect(productConversationRoute(conversation), '/chat/!agent%3Ap2p-im.com');
+  });
+
+  test('does not duplicate fallback Agent when ProductCore Agent exists', () {
+    final client = Client('ConversationSummaryWriterSingleAgentFallbackTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: [
+        AsConversation(
+          conversationId: 'conv_agent',
+          roomId: '!agent-product:p2p-im.com',
+          kind: asConversationKindAgent,
+          lifecycle: 'active',
+          title: 'Agent',
+          avatarUrl: '',
+          lastActivityAt: DateTime.utc(2026, 6, 23, 12),
+          capabilities: const AsConversationCapabilities(open: true),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+      includeDefaultAgentConversation: true,
+    );
+
+    expect(result.displayEntries, hasLength(1));
+    expect(result.displayEntries.single.roomId, '!agent-product:p2p-im.com');
+    expect(result.displayEntries.single.isAgent, isTrue);
+    expect(
+      result.productConversationsByRoomId.containsKey('!agent:p2p-im.com'),
+      isFalse,
+    );
+  });
+
   test('uses bootstrap agent room id over stale ProductCore agent room', () {
     final client = Client('ConversationSummaryWriterCanonicalAgentTest')
       ..setUserId('@owner:p2p-im.com');

@@ -84,9 +84,18 @@ class ChatRecordItem {
     return body;
   }
 
-  String get mediaUrl => _stringValue(content['url']).trim();
+  Map<String, Object?> get encryptedFile => _objectMap(content['file']);
+
+  String get mediaUrl {
+    final value = _stringValue(content['url']).trim();
+    if (value.isNotEmpty) return value;
+    return _stringValue(encryptedFile['url']).trim();
+  }
 
   Map<String, Object?> get info => _objectMap(content['info']);
+
+  Map<String, Object?> get encryptedThumbnailFile =>
+      _objectMap(info['thumbnail_file']);
 
   String get mimeType => _stringValue(info['mimetype']).trim();
 
@@ -95,6 +104,9 @@ class ChatRecordItem {
   String get thumbnailUrl {
     final value = _stringValue(info['thumbnail_url']).trim();
     if (value.isNotEmpty) return value;
+    final encryptedThumbnailUrl =
+        _stringValue(encryptedThumbnailFile['url']).trim();
+    if (encryptedThumbnailUrl.isNotEmpty) return encryptedThumbnailUrl;
     return mediaUrl;
   }
 

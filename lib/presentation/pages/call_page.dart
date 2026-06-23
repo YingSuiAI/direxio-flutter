@@ -89,7 +89,9 @@ String callStatusDisplayText(
   final stateError = state.error?.trim();
   if (overrideText?.trim().isNotEmpty ?? false) return overrideText!.trim();
   if (stateError != null && stateError.isNotEmpty) return stateError;
-  if (state.status == VoiceCallStatus.connected && state.connectedAt != null) {
+  if ((state.status == VoiceCallStatus.connected ||
+          state.status == VoiceCallStatus.ended) &&
+      state.connectedAt != null) {
     return _formatCallElapsed(now.difference(state.connectedAt!));
   }
   return voiceCallStatusLabel(state);

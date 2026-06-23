@@ -795,7 +795,16 @@ void main() {
         nextStatus: VoiceCallStatus.ended,
         now: newConnectedAt,
       ),
-      isNull,
+      oldConnectedAt,
+    );
+    expect(
+      nextVoiceCallConnectedAt(
+        previousStatus: VoiceCallStatus.connected,
+        previousConnectedAt: oldConnectedAt,
+        nextStatus: VoiceCallStatus.failed,
+        now: newConnectedAt,
+      ),
+      oldConnectedAt,
     );
   });
 

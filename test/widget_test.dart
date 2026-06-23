@@ -5174,7 +5174,8 @@ void main() {
     expect(find.text('agent route !agent-old:p2p-im.com'), findsOneWidget);
   });
 
-  testWidgets('contacts Agent tap shows unsynced when no Agent room exists',
+  testWidgets(
+      'contacts Agent tap opens default route when no Agent room exists',
       (tester) async {
     var createRoomCalls = 0;
     final client = Client(
@@ -5247,11 +5248,11 @@ void main() {
     await tester.tap(find.text('通讯录'));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('contacts_agent_entry')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(createRoomCalls, 0);
-    expect(find.text('Agent 会话还未同步'), findsOneWidget);
-    expect(find.textContaining('agent route'), findsNothing);
+    expect(find.text('Agent 会话还未同步'), findsNothing);
+    expect(find.text('agent route !agent:p2p-im.com'), findsOneWidget);
   });
 
   testWidgets('contacts list keeps each friend avatar separate',
@@ -7658,6 +7659,85 @@ void main() {
     );
   });
 
+  testWidgets('chat list group avatar prefers explicit group image',
+      (tester) async {
+    const roomId = '!group-explicit-avatar:p2p-im.com';
+    const avatarUrl = 'https://example.com/group.png';
+    final client = Client('DirexioHomeGroupExplicitAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '头像群',
+      members: const {
+        '@alice:p2p-im.com': 'Alice',
+        '@bob:p2p-im.com': 'Bob',
+      },
+      memberAvatarUrls: const {
+        '@alice:p2p-im.com': 'https://example.com/alice.png',
+        '@bob:p2p-im.com': 'https://example.com/bob.png',
+      },
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 16),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '头像群',
+          avatarUrl: avatarUrl,
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final groupRow = find.byKey(const ValueKey('home_conversation_$roomId'));
+    expect(groupRow, findsOneWidget);
+    final avatars = tester.widgetList<GroupCompositeAvatar>(
+      find.descendant(
+        of: groupRow,
+        matching: find.byType(GroupCompositeAvatar),
+      ),
+    );
+    expect(
+      avatars.any((avatar) => avatar.imageUrl == avatarUrl),
+      isTrue,
+    );
+    expect(
+      find.descendant(
+        of: groupRow,
+        matching: find.byKey(const ValueKey('https://example.com/alice.png')),
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('viewing new friends clears unread badges but keeps request',
       (tester) async {
     final client = Client('DirexioFriendRequestReadBadgeTest')
@@ -9999,7 +10079,7 @@ void main() {
         findsOneWidget);
   });
 
-  testWidgets('groups list renders ProductCore group avatar', (tester) async {
+  testWidgets('groups list renders bootstrap group avatar', (tester) async {
     const roomId = '!group:p2p-im.com';
     const avatarUrl = 'https://cdn.example.com/group.png';
     final client = Client('DirexioGroupsProductAvatarTest')
@@ -10013,7 +10093,7 @@ void main() {
         AsSyncRoomSummary(
           roomId: roomId,
           name: '产品群',
-          avatarUrl: '',
+          avatarUrl: avatarUrl,
           unreadCount: 0,
           lastActivityAt: null,
         ),
@@ -10055,7 +10135,89 @@ void main() {
       find.byKey(const ValueKey('group_avatar_!group:p2p-im.com')),
       findsOneWidget,
     );
-    expect(find.byType(PortalAvatar), findsNothing);
+    final avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
+    expect(
+      avatars.any((avatar) => avatar.imageUrl == avatarUrl),
+      isTrue,
+    );
+  });
+
+  testWidgets(
+      'groups list falls back to Matrix room avatar before opening chat',
+      (tester) async {
+    const roomId = '!group-room-avatar:p2p-im.com';
+    const avatarUrl = 'https://cdn.example.com/room-group.png';
+    final client = Client('DirexioGroupsRoomAvatarFallbackTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '真实群',
+      members: const {},
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomAvatar,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: const {'url': avatarUrl},
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 21, 14),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(const [
+              AsConversation(
+                conversationId: 'conv_group_room_avatar',
+                roomId: roomId,
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '真实群',
+                avatarUrl: '',
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ]),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const GroupsListPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final groupAvatar = find.byKey(const ValueKey('group_avatar_$roomId'));
+    expect(groupAvatar, findsOneWidget);
+    final avatars = tester.widgetList<PortalAvatar>(
+      find.descendant(of: groupAvatar, matching: find.byType(PortalAvatar)),
+    );
+    expect(
+      avatars.any((avatar) => avatar.imageUrl == avatarUrl),
+      isTrue,
+    );
   });
 
   testWidgets('groups list labels image previews instead of filenames',

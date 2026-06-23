@@ -21,6 +21,13 @@ String? portalAgentMxidForClient(Client client) {
       : WellKnownService.agentMxidForDomain(serverName);
 }
 
+String? fallbackPortalAgentRoomIdForClient(Client client) {
+  final serverName =
+      serverNameFromMxid(client.userID) ?? client.homeserver?.host.trim();
+  if (serverName == null || serverName.isEmpty) return null;
+  return '!agent:$serverName';
+}
+
 bool isPortalAgentDirectRoom(Room room, {String? agentMxid}) {
   final resolvedAgentMxid = agentMxid ?? portalAgentMxidForClient(room.client);
   return resolvedAgentMxid != null &&

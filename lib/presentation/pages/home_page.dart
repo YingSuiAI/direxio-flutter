@@ -658,6 +658,7 @@ int _visibleHomeUnreadTotal({
     messageOrder: ref.watch(localMessageOrderProvider),
     groupRemarkNames: ref.watch(groupRemarkNamesProvider),
     currentUserId: currentUserId,
+    includeDefaultAgentConversation: true,
   );
   return homeSummary.displayEntries.fold<int>(
     0,
@@ -1478,6 +1479,7 @@ class _ChatList extends ConsumerWidget {
       messageOrder: messageOrder,
       groupRemarkNames: groupRemarkNames,
       currentUserId: currentUserId,
+      includeDefaultAgentConversation: true,
     );
     recordHomeConversationSummaryProjection(
       ref,
@@ -2243,15 +2245,9 @@ Future<void> _openAgentContactChat(
     roomId = await _refreshAgentContactRoomId(ref, client);
   }
   if (roomId.isEmpty) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Agent 会话还未同步'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-    return;
+    roomId = fallbackPortalAgentRoomIdForClient(client) ?? '';
   }
+  if (roomId.isEmpty) return;
   if (!context.mounted) return;
   context.push('/chat/${Uri.encodeComponent(roomId)}');
 }

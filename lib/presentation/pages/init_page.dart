@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../../core/theme/design_tokens.dart';
@@ -171,6 +172,10 @@ class _InitPageState extends ConsumerState<InitPage> {
               displayName,
             );
         final avatarUrl = await _uploadSelectedAvatar();
+        await ref.read(asClientProvider).updateOwnerProfile(
+              displayName: displayName,
+              avatarUrl: avatarUrl,
+            );
         final userId = ref.read(matrixClientProvider).userID;
         if (userId != null && userId.trim().isNotEmpty) {
           await cacheCurrentUserProfile(

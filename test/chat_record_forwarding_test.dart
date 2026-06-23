@@ -64,6 +64,51 @@ void main() {
     expect(item.height, 480);
   });
 
+  test('chat record item reads encrypted media and thumbnail files', () {
+    final item = ChatRecordItem.fromMap({
+      'sender_id': '@owner:p2p-im.com',
+      'sender_name': 'Yanan',
+      'is_me': true,
+      'body': 'photo.jpg',
+      'message_type': MessageTypes.Image,
+      'origin_server_ts': 1779685200000,
+      'content': {
+        'msgtype': MessageTypes.Image,
+        'body': 'photo.jpg',
+        'file': {
+          'url': 'mxc://p2p-im.com/encrypted-photo',
+          'key': {
+            'kty': 'oct',
+            'key_ops': ['encrypt', 'decrypt'],
+            'alg': 'A256CTR',
+            'k': 'media-key',
+          },
+          'iv': 'media-iv',
+          'hashes': {'sha256': 'media-sha'},
+        },
+        'info': {
+          'mimetype': 'image/jpeg',
+          'thumbnail_file': {
+            'url': 'mxc://p2p-im.com/encrypted-thumb',
+            'key': {
+              'kty': 'oct',
+              'key_ops': ['encrypt', 'decrypt'],
+              'alg': 'A256CTR',
+              'k': 'thumb-key',
+            },
+            'iv': 'thumb-iv',
+            'hashes': {'sha256': 'thumb-sha'},
+          },
+        },
+      },
+    });
+
+    expect(item.mediaUrl, 'mxc://p2p-im.com/encrypted-photo');
+    expect(item.thumbnailUrl, 'mxc://p2p-im.com/encrypted-thumb');
+    expect(item.encryptedFile['iv'], 'media-iv');
+    expect(item.encryptedThumbnailFile['iv'], 'thumb-iv');
+  });
+
   test('group chat record payload keeps source room type as group', () {
     final payload = buildChatRecordPayload(
       sourceRoomId: '!group:p2p-im.com',

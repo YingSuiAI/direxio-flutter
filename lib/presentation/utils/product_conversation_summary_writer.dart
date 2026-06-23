@@ -28,12 +28,13 @@ void recordHomeConversationSummaryProjection(
   required ConversationSummaryProjection projection,
 }) {
   if (!projection.shouldWriteStore) return;
+  final notifier = ref.read(conversationSummaryProvider.notifier);
   unawaited(
     Future.microtask(
-      () => ref.read(conversationSummaryProvider.notifier).replaceForUser(
-            userId: userId,
-            entries: projection.storeEntries,
-          ),
+      () => notifier.replaceForUser(
+        userId: userId,
+        entries: projection.storeEntries,
+      ),
     ),
   );
 }

@@ -145,7 +145,7 @@ String _groupInviteFailureMessage(Object error) {
   if (error is AsClientException && error.statusCode == 403) {
     final message = error.message.toLowerCase();
     if (message.contains('group invite requires owner or admin')) {
-      return '该群只有群主/管理员可添加成员';
+      return '该群只有群主可添加成员';
     }
   }
   return '发送群邀请失败: $error';

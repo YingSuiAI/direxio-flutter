@@ -340,16 +340,20 @@ void main() {
       'avatar_url': '',
       'unread_count': 0,
       'intro': '频道介绍字段',
+      'muted': true,
     });
     final channel = AsChannel.fromJson({
       'channel_id': 'ch_intro',
       'room_id': '!intro:p2p-im.com',
       'name': '产品公告',
       'intro': '频道介绍字段',
+      'muted': true,
     });
 
     expect(summary.description, '频道介绍字段');
+    expect(summary.muted, isTrue);
     expect(channel.description, '频道介绍字段');
+    expect(channel.muted, isTrue);
   });
 
   test('listChannels treats null channels envelope as empty list', () async {
@@ -392,8 +396,25 @@ void main() {
             'user': {'user_id': '@owner:example.com'},
             'rooms': [],
             'contacts': [],
-            'groups': [],
-            'channels': [],
+            'groups': [
+              {
+                'room_id': '!group:example.com',
+                'name': 'Group',
+                'avatar_url': '',
+                'unread_count': 0,
+                'muted': true,
+              }
+            ],
+            'channels': [
+              {
+                'channel_id': 'ch_1',
+                'room_id': '!channel:example.com',
+                'name': 'Channel',
+                'avatar_url': '',
+                'unread_count': 0,
+                'muted': true,
+              }
+            ],
             'pending': {},
           },
           200,
@@ -3421,8 +3442,25 @@ void main() {
                 'visible_after_ts': 1770000000123,
               }
             ],
-            'groups': [],
-            'channels': [],
+            'groups': [
+              {
+                'room_id': '!group:example.com',
+                'name': 'Group',
+                'avatar_url': '',
+                'unread_count': 0,
+                'muted': true,
+              }
+            ],
+            'channels': [
+              {
+                'channel_id': 'ch_1',
+                'room_id': '!channel:example.com',
+                'name': 'Channel',
+                'avatar_url': '',
+                'unread_count': 0,
+                'muted': true,
+              }
+            ],
             'pending': {
               'friend_requests': [],
               'group_invites': [],
@@ -3456,6 +3494,8 @@ void main() {
     expect(bootstrap.contacts.single.domain, 'p2p-liyanan.com');
     expect(bootstrap.contacts.single.status, 'accepted');
     expect(bootstrap.contacts.single.visibleAfterTs, 1770000000123);
+    expect(bootstrap.groups.single.muted, isTrue);
+    expect(bootstrap.channels.single.muted, isTrue);
   });
 
   test('authenticatePortal posts password to auth', () async {

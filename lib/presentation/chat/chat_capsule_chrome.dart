@@ -456,36 +456,42 @@ class ChatCapsuleHeader extends StatelessWidget {
                           onTap: onTitleTap,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Flexible(
-                                    child: _HeaderTextLine(
+                              Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: showEncryptionIcon ? 16 : 0,
+                                ),
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  alignment: Alignment.center,
+                                  children: [
+                                    _HeaderTextLine(
                                       text: title,
                                       baseSize: _chatHeaderTitleSize,
                                       minScale: 0.82,
                                       weight: FontWeight.w600,
                                       color: t.text,
                                     ),
-                                  ),
-                                  if (showEncryptionIcon) ...[
-                                    const SizedBox(width: 3),
-                                    Tooltip(
-                                      message: '端对端加密',
-                                      child: Icon(
-                                        Symbols.lock,
-                                        key: const ValueKey(
-                                          'chat_header_encryption_lock',
+                                    if (showEncryptionIcon)
+                                      Positioned(
+                                        right: -16,
+                                        top: 2,
+                                        child: Tooltip(
+                                          message: '端对端加密',
+                                          child: Icon(
+                                            Symbols.lock,
+                                            key: const ValueKey(
+                                              'chat_header_encryption_lock',
+                                            ),
+                                            size: 13,
+                                            color: t.accentCool,
+                                            fill: 1,
+                                          ),
                                         ),
-                                        size: 13,
-                                        color: t.accentCool,
-                                        fill: 1,
                                       ),
-                                    ),
                                   ],
-                                ],
+                                ),
                               ),
                               if (subtitle != null &&
                                   subtitle!.trim().isNotEmpty) ...[

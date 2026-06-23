@@ -117,8 +117,8 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       displayName: isSelf && currentProfileName?.isNotEmpty == true
           ? currentProfileName!
           : _firstNonEmpty([
-              peerMemberName,
               acceptedContact?.displayName,
+              peerMemberName,
               room?.getLocalizedDisplayname(),
             ]),
       domain: acceptedContact?.domain ?? domain,

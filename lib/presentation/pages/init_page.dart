@@ -90,9 +90,10 @@ class _InitPageState extends ConsumerState<InitPage> {
     final confirmPortalToken = _confirmPortalTokenCtrl.text.trim();
     if (_avatarBytes == null) {
       setState(() {
-        _weakHint = l10n?.initAvatarRequired ?? '请设置头像';
+        _weakHint = null;
         _error = null;
       });
+      _showCenterWeakHint(context, l10n?.initAvatarRequired ?? '请设置头像');
       return;
     }
     if (!isLoggedIn && domain.isEmpty) {
@@ -373,11 +374,26 @@ class _InitAvatarPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const pageTokens = PortalTokens.dark;
+    if (imageBytes == null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          key: const ValueKey('init_avatar_placeholder_frame'),
+          width: 96,
+          height: 97,
+          child: Image.asset(
+            'assets/images/2d-logo.png',
+            key: const ValueKey('init_avatar_placeholder_asset'),
+            fit: BoxFit.contain,
+          ),
+        ),
+      );
+    }
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
-        width: 105,
-        height: 105,
+        width: 96,
+        height: 96,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -388,18 +404,11 @@ class _InitAvatarPicker extends StatelessWidget {
                   color: pageTokens.surface.withValues(alpha: 0.92),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: imageBytes == null
-                    ? Icon(
-                        Symbols.person,
-                        size: 58,
-                        fill: 1,
-                        color: pageTokens.primaryContainer,
-                      )
-                    : Image.memory(
-                        imageBytes!,
-                        key: const ValueKey('init_avatar_preview'),
-                        fit: BoxFit.cover,
-                      ),
+                child: Image.memory(
+                  imageBytes!,
+                  key: const ValueKey('init_avatar_preview'),
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             Positioned(
@@ -518,6 +527,7 @@ class _WeakHint extends StatelessWidget {
   Widget build(BuildContext context) {
     const pageTokens = PortalTokens.dark;
     return Text(
+      key: const ValueKey('init_inline_weak_hint'),
       message,
       style: AppTheme.sans(
         size: 12,
@@ -525,6 +535,51 @@ class _WeakHint extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showCenterWeakHint(BuildContext context, String message) {
+  final overlay = Overlay.maybeOf(context);
+  if (overlay == null) return;
+  final t = context.tk;
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => IgnorePointer(
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            key: const ValueKey('init_center_weak_hint'),
+            constraints: const BoxConstraints(maxWidth: 260),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: BoxDecoration(
+              color: t.text.withValues(alpha: 0.86),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: t.text.withValues(alpha: 0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTheme.sans(
+                size: 14,
+                weight: FontWeight.w500,
+                color: t.bg,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  overlay.insert(entry);
+  Future<void>.delayed(const Duration(milliseconds: 1200), () {
+    if (entry.mounted) entry.remove();
+  });
 }
 
 class _ErrorBanner extends StatelessWidget {

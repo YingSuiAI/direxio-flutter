@@ -95,11 +95,8 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
                 children: [
-                  // 成员头像换行 + 邀请
                   M3Card(
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                    child: _GroupMemberGrid(
                       children: [
                         for (final m in members)
                           _MemberChip(
@@ -491,6 +488,14 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
         userId,
         content,
       );
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: userId,
+          stateKey: userId,
+          content: Map<String, Object?>.from(content),
+        ),
+      );
       if (!mounted) return;
       setState(() {});
       _toast(this.context, '群昵称已更新');
@@ -709,6 +714,42 @@ class _GroupTextEditDialogState extends State<_GroupTextEditDialog> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _GroupMemberGrid extends StatelessWidget {
+  const _GroupMemberGrid({required this.children});
+
+  static const int _columns = 4;
+  static const double _tileHeight = 70;
+  static const double _expandedHeight = 152;
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final height = children.length > _columns ? _expandedHeight : _tileHeight;
+    return SizedBox(
+      key: const ValueKey('group_info_member_grid'),
+      height: height,
+      child: GridView.builder(
+        primary: false,
+        padding: EdgeInsets.zero,
+        itemCount: children.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _columns,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          mainAxisExtent: _tileHeight,
+        ),
+        itemBuilder: (context, index) {
+          return Align(
+            alignment: Alignment.topCenter,
+            child: children[index],
+          );
+        },
+      ),
     );
   }
 }

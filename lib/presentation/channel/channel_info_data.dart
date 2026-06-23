@@ -20,6 +20,7 @@ class ChannelInfoData {
     required this.memberStatus,
     required this.isOwned,
     required this.commentsEnabled,
+    required this.muted,
     required this.channelType,
     required this.tags,
     required this.memberCount,
@@ -36,6 +37,7 @@ class ChannelInfoData {
   final String memberStatus;
   final bool isOwned;
   final bool commentsEnabled;
+  final bool muted;
   final String channelType;
   final List<String> tags;
   final int memberCount;
@@ -56,6 +58,7 @@ ChannelInfoData channelInfoDataFromSharePayload(ChannelSharePayload payload) {
     memberStatus: '',
     isOwned: false,
     commentsEnabled: payload.commentsEnabled,
+    muted: false,
     channelType: payload.channelType,
     tags: payload.tags,
     memberCount: 32,
@@ -78,6 +81,7 @@ ChannelInfoData channelInfoDataFromAsChannel(AsChannel channel) {
     isOwned: channel.role == asChannelRoleOwner ||
         channel.role == asChannelRoleAdmin,
     commentsEnabled: channel.commentsEnabled,
+    muted: channel.muted,
     channelType: channel.channelType,
     tags: channel.tags,
     memberCount: channel.memberCount,
@@ -123,6 +127,7 @@ ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
               channel.role == asChannelRoleOwner ||
               channel.role == asChannelRoleAdmin,
           commentsEnabled: channel.commentsEnabled,
+          muted: channel.muted || (bootstrapChannel?.muted ?? false),
           channelType: channel.channelType,
           tags: channel.tags,
           memberCount: channel.memberCount,
@@ -144,6 +149,7 @@ ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
     memberStatus: '',
     isOwned: false,
     commentsEnabled: true,
+    muted: false,
     channelType: asChannelTypeChat,
     tags: const [],
     memberCount: 0,

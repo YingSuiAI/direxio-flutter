@@ -637,6 +637,7 @@ class MockAsClient implements AsClient {
       visibility: existing.visibility,
       joinPolicy: existing.joinPolicy,
       commentsEnabled: existing.commentsEnabled,
+      muted: existing.muted,
       channelType: existing.channelType,
       role: asChannelRoleMember,
       memberStatus: memberStatus,
@@ -703,6 +704,7 @@ class MockAsClient implements AsClient {
       visibility: existing.visibility,
       joinPolicy: existing.joinPolicy,
       commentsEnabled: existing.commentsEnabled,
+      muted: existing.muted,
       role: asChannelRoleMember,
       memberStatus: existing.joinPolicy == asChannelJoinPolicyApproval
           ? asChannelMemberStatusPending
@@ -849,6 +851,7 @@ class MockAsClient implements AsClient {
       visibility: channel.visibility,
       joinPolicy: channel.joinPolicy,
       commentsEnabled: channel.commentsEnabled,
+      muted: channel.muted,
       role: channel.role,
       memberStatus: channel.memberStatus,
       memberCount: memberCount,
@@ -928,6 +931,7 @@ class MockAsClient implements AsClient {
       visibility: channel.visibility,
       joinPolicy: channel.joinPolicy,
       commentsEnabled: channel.commentsEnabled,
+      muted: channel.muted,
       role: channel.role,
       memberStatus: channel.memberStatus,
       memberCount: channel.memberCount,

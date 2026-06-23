@@ -5101,8 +5101,10 @@ void main() {
         ),
       ),
     );
+    await tester.pump();
 
-    expect(find.text('owner'), findsOneWidget);
+    expect(find.text('搜索聊天记录'), findsOneWidget);
+    expect(find.text('推荐给朋友'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
   });
 
@@ -9916,6 +9918,48 @@ void main() {
     expect(find.text('移除'), findsOneWidget);
   });
 
+  testWidgets('group info member avatars wrap into a scrollable grid',
+      (tester) async {
+    final client = Client('DirexioGroupInfoMemberGridTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {
+        '@alice:p2p-im.com': 'Alice',
+        '@bob:p2p-im.com': 'Bob',
+        '@carol:p2p-im.com': 'Carol',
+        '@dave:p2p-im.com': 'Dave',
+        '@erin:p2p-im.com': 'Erin',
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final memberGrid = tester.widget<SizedBox>(
+      find.byKey(const ValueKey('group_info_member_grid')),
+    );
+    expect(memberGrid.height, 152);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('group_info_member_grid')),
+        matching: find.byType(GridView),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('group info member avatar opens contact home for friend actions',
       (tester) async {
     final client = Client('DirexioGroupInfoMemberProfileTest')
@@ -10214,7 +10258,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.inviteGroupMembersCalls, 1);
-    expect(find.text('该群只有群主/管理员可添加成员'), findsOneWidget);
+    expect(find.text('该群只有群主可添加成员'), findsOneWidget);
     expect(find.textContaining('发送群邀请失败'), findsNothing);
   });
 
@@ -10325,6 +10369,54 @@ void main() {
     expect(find.text('已解除全员禁言'), findsOneWidget);
   });
 
+  testWidgets('group management mute switch reflects bootstrap mute state',
+      (tester) async {
+    final asClient = _TrackingAsClient();
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          isOwned: true,
+          muted: true,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupManagePage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.widget<Switch>(find.byType(Switch).first).value, isTrue);
+
+    await tester.tap(find.byType(Switch).first);
+    await tester.pumpAndSettle();
+
+    expect(asClient.unmuteGroupCalls, 1);
+    expect(asClient.unmutedGroupRoomId, '!group:p2p-im.com');
+  });
+
   testWidgets('group management edits group name through AS', (tester) async {
     final asClient = _TrackingAsClient();
     final client = Client('DirexioGroupManageRenameTest')
@@ -10428,9 +10520,9 @@ void main() {
 
     expect(find.text('添加成员权限'), findsOneWidget);
     expect(find.text('所有成员可添加'), findsOneWidget);
-    expect(find.text('群主/管理员可添加'), findsOneWidget);
+    expect(find.text('群主可添加'), findsOneWidget);
 
-    await tester.tap(find.text('群主/管理员可添加'));
+    await tester.tap(find.text('群主可添加'));
     await tester.pumpAndSettle();
 
     expect(asClient.updateGroupInvitePolicyCalls, 1);
@@ -16418,10 +16510,24 @@ void main() {
     );
     await tester.pump();
 
+    final placeholderFrame = tester.widget<SizedBox>(
+      find.byKey(const ValueKey('init_avatar_placeholder_frame')),
+    );
+    expect(placeholderFrame.width, 96);
+    expect(placeholderFrame.height, 97);
+    final placeholder = tester.widget<Image>(
+      find.byKey(const ValueKey('init_avatar_placeholder_asset')),
+    );
+    expect(placeholder.image, const AssetImage('assets/images/2d-logo.png'));
+
     await tester.tap(find.text('确认'));
     await tester.pump();
 
+    expect(find.byKey(const ValueKey('init_inline_weak_hint')), findsNothing);
+    expect(find.byKey(const ValueKey('init_center_weak_hint')), findsOneWidget);
     expect(find.text('请设置头像'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1200));
+    expect(find.byKey(const ValueKey('init_center_weak_hint')), findsNothing);
   });
 
   testWidgets('login page does not default to a real node', (tester) async {

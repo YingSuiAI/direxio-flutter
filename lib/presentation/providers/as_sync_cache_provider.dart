@@ -504,6 +504,36 @@ class AsSyncCacheState {
     );
   }
 
+  AsSyncCacheState withChannelMuted(
+    String channelIdOrRoomId, {
+    required bool muted,
+  }) {
+    final trimmed = channelIdOrRoomId.trim();
+    final current = bootstrap;
+    if (trimmed.isEmpty || current == null) return this;
+    var changed = false;
+    final channels = current.channels.map((channel) {
+      final matches = channel.channelId.trim() == trimmed ||
+          channel.roomId.trim() == trimmed;
+      if (!matches || channel.muted == muted) return channel;
+      changed = true;
+      return channel.withMuted(muted);
+    }).toList(growable: false);
+    if (!changed) return this;
+    return copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: current.syncedAt,
+        user: current.user,
+        agentRoomId: current.agentRoomId,
+        rooms: current.rooms,
+        contacts: current.contacts,
+        groups: current.groups,
+        channels: channels,
+        pending: current.pending,
+      ),
+    );
+  }
+
   AsSyncCacheState withGroupInvitePolicy(
     String roomId,
     String invitePolicy,
@@ -520,6 +550,29 @@ class AsSyncCacheState {
         groups: current.groups.map((group) {
           if (group.roomId.trim() != trimmed) return group;
           return group.withInvitePolicy(invitePolicy);
+        }).toList(growable: false),
+        channels: current.channels,
+        pending: current.pending,
+      ),
+    );
+  }
+
+  AsSyncCacheState withGroupMuted(
+    String roomId, {
+    required bool muted,
+  }) {
+    final trimmed = roomId.trim();
+    final current = bootstrap;
+    if (trimmed.isEmpty || current == null) return this;
+    return copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: current.syncedAt,
+        user: current.user,
+        rooms: current.rooms,
+        contacts: current.contacts,
+        groups: current.groups.map((group) {
+          if (group.roomId.trim() != trimmed) return group;
+          return group.withMuted(muted);
         }).toList(growable: false),
         channels: current.channels,
         pending: current.pending,

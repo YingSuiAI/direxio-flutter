@@ -81,7 +81,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
                       children: [
                         _SwitchRow(
                           label: '全员禁言',
-                          value: _muted,
+                          value: _displayedGroupMuted(),
                           busy: _muteChanging,
                           onChanged: _setGroupMuted,
                         ),
@@ -92,7 +92,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
                       children: [
                         const _SectionHeader(label: '添加成员权限'),
                         _PolicyRow(
-                          label: '群主/管理员可添加',
+                          label: '群主可添加',
                           selected: currentInvitePolicy ==
                               groupInvitePolicyOwnerAdmin,
                           enabled: !_updatingInvitePolicy,
@@ -170,6 +170,18 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
       }
     }
     return groupInvitePolicyAllMembers;
+  }
+
+  bool _displayedGroupMuted() {
+    if (_muteChanging) return _muted;
+    final groups = ref.watch(asSyncCacheProvider).bootstrap?.groups ??
+        const <AsSyncRoomSummary>[];
+    for (final group in groups) {
+      if (group.roomId.trim() == widget.roomId.trim()) {
+        return group.muted;
+      }
+    }
+    return _muted;
   }
 
   String _currentGroupName() {
@@ -343,7 +355,7 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
 
   Future<void> _setGroupMuted(bool muted) async {
     if (_muteChanging) return;
-    final previous = _muted;
+    final previous = _displayedGroupMuted();
     setState(() {
       _muted = muted;
       _muteChanging = true;
@@ -356,6 +368,9 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
         await asClient.unmuteGroup(widget.roomId);
       }
       if (!mounted) return;
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.withGroupMuted(widget.roomId, muted: muted),
+          );
       _showSnack(muted ? '已开启全员禁言' : '已解除全员禁言');
     } on Object catch (e) {
       if (!mounted) return;

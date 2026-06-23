@@ -838,6 +838,7 @@ class AsSyncRoomSummary {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
+    this.muted = false,
     this.channelType = asChannelTypePost,
     this.role = '',
     this.memberStatus = '',
@@ -861,6 +862,7 @@ class AsSyncRoomSummary {
   final String visibility;
   final String joinPolicy;
   final bool commentsEnabled;
+  final bool muted;
   final String channelType;
   final String role;
   final String memberStatus;
@@ -897,6 +899,7 @@ class AsSyncRoomSummary {
       joinPolicy:
           _normalizeChannelJoinPolicy(json['join_policy'] as String? ?? ''),
       commentsEnabled: json['comments_enabled'] as bool? ?? true,
+      muted: _parseNullableBool(json['muted']) ?? false,
       channelType:
           normalizeAsChannelType(json['channel_type'] as String? ?? ''),
       role: role,
@@ -926,6 +929,7 @@ class AsSyncRoomSummary {
       visibility: visibility,
       joinPolicy: joinPolicy,
       commentsEnabled: commentsEnabled,
+      muted: muted,
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
@@ -952,6 +956,7 @@ class AsSyncRoomSummary {
       visibility: visibility,
       joinPolicy: joinPolicy,
       commentsEnabled: commentsEnabled,
+      muted: muted,
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
@@ -984,6 +989,7 @@ class AsSyncRoomSummary {
       visibility: visibility,
       joinPolicy: joinPolicy,
       commentsEnabled: commentsEnabled,
+      muted: muted,
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
@@ -1010,6 +1016,7 @@ class AsSyncRoomSummary {
       visibility: visibility,
       joinPolicy: joinPolicy,
       commentsEnabled: commentsEnabled,
+      muted: muted,
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
@@ -1036,9 +1043,38 @@ class AsSyncRoomSummary {
       visibility: visibility,
       joinPolicy: joinPolicy,
       commentsEnabled: enabled,
+      muted: muted,
       channelType: channelType,
       role: role,
       memberStatus: memberStatus,
+      lifecycle: lifecycle,
+      memberCount: memberCount,
+      pendingJoinCount: pendingJoinCount,
+    );
+  }
+
+  AsSyncRoomSummary withMuted(bool muted) {
+    return AsSyncRoomSummary(
+      channelId: channelId,
+      roomId: roomId,
+      homeDomain: homeDomain,
+      name: name,
+      avatarUrl: avatarUrl,
+      unreadCount: unreadCount,
+      lastActivityAt: lastActivityAt,
+      description: description,
+      topic: topic,
+      isOwned: isOwned,
+      tags: tags,
+      invitePolicy: invitePolicy,
+      visibility: visibility,
+      joinPolicy: joinPolicy,
+      commentsEnabled: commentsEnabled,
+      muted: muted,
+      channelType: channelType,
+      role: role,
+      memberStatus: memberStatus,
+      lifecycle: lifecycle,
       memberCount: memberCount,
       pendingJoinCount: pendingJoinCount,
     );
@@ -1061,6 +1097,7 @@ class AsSyncRoomSummary {
       'visibility': visibility,
       'join_policy': joinPolicy,
       'comments_enabled': commentsEnabled,
+      'muted': muted,
       'channel_type': channelType,
       if (role.trim().isNotEmpty) 'role': role,
       if (memberStatus.trim().isNotEmpty) 'member_status': memberStatus,
@@ -1082,6 +1119,7 @@ class AsChannel {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
+    this.muted = false,
     this.channelType = asChannelTypePost,
     this.role = '',
     this.memberStatus = '',
@@ -1102,6 +1140,7 @@ class AsChannel {
   final String visibility;
   final String joinPolicy;
   final bool commentsEnabled;
+  final bool muted;
   final String channelType;
   final String role;
   final String memberStatus;
@@ -1128,6 +1167,7 @@ class AsChannel {
       joinPolicy:
           _normalizeChannelJoinPolicy(json['join_policy'] as String? ?? ''),
       commentsEnabled: json['comments_enabled'] as bool? ?? true,
+      muted: _parseNullableBool(json['muted']) ?? false,
       channelType:
           normalizeAsChannelType(json['channel_type'] as String? ?? ''),
       role: json['role'] as String? ?? '',
@@ -1155,6 +1195,7 @@ class AsChannel {
       'visibility': visibility,
       'join_policy': joinPolicy,
       'comments_enabled': commentsEnabled,
+      'muted': muted,
       'channel_type': channelType,
       if (role.trim().isNotEmpty) 'role': role,
       if (memberStatus.trim().isNotEmpty) 'member_status': memberStatus,
@@ -1665,6 +1706,7 @@ class AsGroupResult {
     this.role = '',
     this.status = '',
     this.invitePolicy = groupInvitePolicyAllMembers,
+    this.muted = false,
     this.operation = const AsOperation(),
     this.productConversation,
   });
@@ -1676,6 +1718,7 @@ class AsGroupResult {
   final String role;
   final String status;
   final String invitePolicy;
+  final bool muted;
   final AsOperation operation;
   final AsConversation? productConversation;
 
@@ -1690,6 +1733,7 @@ class AsGroupResult {
       invitePolicy: _normalizeGroupInvitePolicy(
         json['invite_policy'] as String? ?? '',
       ),
+      muted: _parseNullableBool(json['muted']) ?? false,
       operation: AsOperation.fromJson(
         (json['operation'] as Map?)?.cast<String, dynamic>(),
       ),

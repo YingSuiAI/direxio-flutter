@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/conversation_summary_store.dart';
 import 'package:portal_app/presentation/home/conversation_summary_writer.dart';
+import 'package:portal_app/presentation/utils/message_preview.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/local_message_order_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
@@ -224,6 +225,63 @@ void main() {
     expect(result.productConversationsByRoomId[roomId]?.canOpen, isTrue);
   });
 
+  test('direct contact remark overrides ProductCore conversation title', () {
+    final client = Client('ConversationSummaryWriterDirectRemarkTest')
+      ..setUserId('@owner:p2p-im.com');
+    const roomId = '!direct:p2p-im.com';
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: [
+        AsConversation(
+          conversationId: 'conv_direct',
+          roomId: roomId,
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          title: 'Product Alice',
+          avatarUrl: '',
+          peerMxid: '@alice:p2p-im.com',
+          lastActivityAt: DateTime.utc(2026, 6, 22, 13),
+          capabilities: const AsConversationCapabilities(open: true),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: AsSyncCacheState(
+        bootstrap: AsSyncBootstrap(
+          syncedAt: DateTime.utc(2026, 6, 22, 12),
+          user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+          rooms: const [],
+          contacts: const [
+            AsSyncContact(
+              userId: '@alice:p2p-im.com',
+              displayName: '备注 Alice',
+              avatarUrl: '',
+              roomId: roomId,
+              domain: 'p2p-im.com',
+              status: 'accepted',
+            ),
+          ],
+          groups: const [],
+          channels: const [],
+          pending: const AsSyncPending.empty(),
+        ),
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    expect(result.storeEntries.single.name, '备注 Alice');
+  });
+
   test('builds openable fallback conversation for Agent rooms', () {
     final client = Client('ConversationSummaryWriterAgentFallbackTest')
       ..setUserId('@owner:p2p-im.com');
@@ -269,6 +327,115 @@ void main() {
     expect(conversation?.isAgent, isTrue);
     expect(conversation?.canOpen, isTrue);
     expect(productConversationRoute(conversation), '/chat/!agent%3Ap2p-im.com');
+  });
+
+  test('builds default Agent conversation from bootstrap before room hydrates',
+      () {
+    final client = Client('ConversationSummaryWriterBootstrapAgentTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: const [],
+      productConversationsLoaded: true,
+      syncCache: AsSyncCacheState(
+        bootstrap: AsSyncBootstrap(
+          syncedAt: DateTime.utc(2026, 6, 23, 12),
+          user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+          agentRoomId: '!agent:p2p-im.com',
+          rooms: const [],
+          contacts: const [],
+          groups: const [],
+          channels: const [],
+          pending: const AsSyncPending.empty(),
+        ),
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    final entry = result.displayEntries.single;
+    final conversation =
+        result.productConversationsByRoomId['!agent:p2p-im.com'];
+    expect(entry.name, 'Agent');
+    expect(entry.isAgent, isTrue);
+    expect(entry.lastMessage, defaultAgentConversationPreview);
+    expect(conversation?.isAgent, isTrue);
+    expect(conversation?.canOpen, isTrue);
+    expect(productConversationRoute(conversation), '/chat/!agent%3Ap2p-im.com');
+  });
+
+  test('uses Matrix peer member avatar when ProductCore avatar is missing', () {
+    final client = Client('ConversationSummaryWriterPeerAvatarTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(
+      id: '!direct:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '@owner:p2p-im.com',
+        content: const {'membership': 'join'},
+      ),
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@alice:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {
+          'membership': 'join',
+          'avatar_url': 'mxc://p2p-im.com/alice-avatar',
+        },
+      ),
+    );
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: [room],
+      productConversations: [
+        const AsConversation(
+          conversationId: 'conv_direct',
+          roomId: '!direct:p2p-im.com',
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          title: 'Alice',
+          avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: true),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    final avatarUrl = result.displayEntries.single.avatarUrl;
+    expect(avatarUrl, contains('/download/p2p-im.com/alice-avatar'));
   });
 
   test('builds home summary projection from ProductCore live inputs', () {

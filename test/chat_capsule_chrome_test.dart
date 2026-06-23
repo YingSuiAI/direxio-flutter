@@ -64,6 +64,32 @@ void main() {
     expect(find.byTooltip('视频通话'), findsNothing);
   });
 
+  testWidgets('chat capsule header centers member count under group name',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: ChatCapsuleHeader(
+            title: '项目群',
+            subtitle: '12 名成员',
+            onBack: () {},
+            showEncryptionIcon: true,
+            actions: const [
+              ChatCapsuleAction(icon: Symbols.more_vert, tooltip: '详情'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final title = tester.getCenter(find.text('项目群'));
+    final subtitle = tester.getCenter(find.text('12 名成员'));
+
+    expect((title.dx - subtitle.dx).abs(), lessThan(1));
+  });
+
   testWidgets('chat capsule header hides right capsule without actions',
       (tester) async {
     await tester.pumpWidget(

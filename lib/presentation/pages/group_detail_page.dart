@@ -278,6 +278,14 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
         userId,
         content,
       );
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: userId,
+          stateKey: userId,
+          content: Map<String, Object?>.from(content),
+        ),
+      );
       if (!mounted) return;
       setState(() {});
       _toast(this.context, '群昵称已更新');
@@ -521,12 +529,21 @@ class _Member {
 
 class _MemberStrip extends StatelessWidget {
   const _MemberStrip({required this.members, required this.onInvite});
+  static const int _columns = 4;
+  static const double _tileHeight = 70;
+  static const double _expandedHeight = 152;
+
   final List<_Member> members;
   final VoidCallback onInvite;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final children = <Widget>[
+      for (final member in members) _MemberTile(member: member),
+      _InviteTile(onTap: onInvite),
+    ];
+    final height = children.length > _columns ? _expandedHeight : _tileHeight;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -534,18 +551,23 @@ class _MemberStrip extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: t.border.withValues(alpha: 0.3)),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Row(
-          children: [
-            for (var i = 0; i < members.length; i++) ...[
-              _MemberTile(member: members[i]),
-              if (i != members.length - 1) const SizedBox(width: 12),
-            ],
-            const SizedBox(width: 12),
-            _InviteTile(onTap: onInvite),
-          ],
+      child: SizedBox(
+        key: const ValueKey('group_detail_member_grid'),
+        height: height,
+        child: GridView.builder(
+          primary: false,
+          padding: EdgeInsets.zero,
+          itemCount: children.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _columns,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            mainAxisExtent: _tileHeight,
+          ),
+          itemBuilder: (context, index) => Align(
+            alignment: Alignment.topCenter,
+            child: children[index],
+          ),
         ),
       ),
     );

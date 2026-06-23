@@ -1268,6 +1268,10 @@ void main() {
     expect(
         find.byKey(const ValueKey('channel_member_avatar_@agent:p2p-im.com')),
         findsNothing);
+    final memberGrid = tester.widget<SizedBox>(
+      find.byKey(const ValueKey('channel_owner_member_grid')),
+    );
+    expect(memberGrid.height, 106);
     expect(
       find.byWidgetPredicate(
         (widget) =>
@@ -1595,7 +1599,7 @@ void main() {
           isOwned: true,
           role: asChannelRoleOwner,
           memberStatus: asChannelMemberStatusJoined,
-          commentsEnabled: false,
+          muted: true,
           memberCount: 1,
         ),
       ],
@@ -1682,13 +1686,8 @@ void main() {
     );
     expect(asClient.mutedChannelId, 'ch_real');
     expect(
-      container
-          .read(asSyncCacheProvider)
-          .bootstrap!
-          .channels
-          .single
-          .commentsEnabled,
-      isFalse,
+      container.read(asSyncCacheProvider).bootstrap!.channels.single.muted,
+      isTrue,
     );
   });
 
@@ -2657,6 +2656,42 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
         role: asChannelRoleMember,
         status: 'join',
         joinedAtMs: 1780712460000,
+      ),
+      AsChannelMember(
+        channelId: 'ch_real',
+        userMxid: '@bob:p2p-im.com',
+        displayName: 'Bob',
+        domain: 'p2p-im.com',
+        role: asChannelRoleMember,
+        status: asChannelMemberStatusJoined,
+        joinedAtMs: 1780712470000,
+      ),
+      AsChannelMember(
+        channelId: 'ch_real',
+        userMxid: '@carol:p2p-im.com',
+        displayName: 'Carol',
+        domain: 'p2p-im.com',
+        role: asChannelRoleMember,
+        status: asChannelMemberStatusJoined,
+        joinedAtMs: 1780712480000,
+      ),
+      AsChannelMember(
+        channelId: 'ch_real',
+        userMxid: '@dave:p2p-im.com',
+        displayName: 'Dave',
+        domain: 'p2p-im.com',
+        role: asChannelRoleMember,
+        status: asChannelMemberStatusJoined,
+        joinedAtMs: 1780712490000,
+      ),
+      AsChannelMember(
+        channelId: 'ch_real',
+        userMxid: '@erin:p2p-im.com',
+        displayName: 'Erin',
+        domain: 'p2p-im.com',
+        role: asChannelRoleMember,
+        status: asChannelMemberStatusJoined,
+        joinedAtMs: 1780712500000,
       ),
       AsChannelMember(
         channelId: 'ch_real',

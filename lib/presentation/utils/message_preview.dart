@@ -5,9 +5,10 @@ import '../chat/call_timeline_events.dart';
 import '../chat/chat_record_forwarding.dart';
 
 const _channelShareMessageType = 'channel_share';
+const defaultAgentConversationPreview = '开始我们的聊天吧～';
 
 String roomEventPreviewText(Event? event, {required bool isAgent}) {
-  final fallback = isAgent ? '让 Agent 帮你总结、回复和创作' : '';
+  final fallback = isAgent ? defaultAgentConversationPreview : '';
   if (event == null) return fallback;
   final callText = callPreviewText(event);
   if (callText.isNotEmpty) return callText;

@@ -219,11 +219,9 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   List<Widget> _ownerContent(BuildContext context, ChannelInfoData channel) {
     final displayMembers =
         _members.where(_isJoinedChannelMember).toList(growable: false);
-    final visibleTotalCount =
-        displayMembers.isEmpty ? channel.memberCount : displayMembers.length;
     final visibleMemberCount = displayMembers.isEmpty
-        ? channel.memberCount.clamp(0, 12)
-        : displayMembers.length.clamp(0, 12);
+        ? channel.memberCount.clamp(0, 8)
+        : displayMembers.length;
     return [
       const SizedBox(height: 24),
       FutureBuilder<List<AsChannelMember>>(
@@ -233,7 +231,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
               displayMembers.isEmpty;
           return _OwnerMemberGrid(
             channel: channel,
-            members: displayMembers.take(visibleMemberCount).toList(),
+            members: displayMembers,
             placeholderCount: displayMembers.isEmpty ? visibleMemberCount : 0,
             isLoading: isLoading,
             client: ref.read(matrixClientProvider),
@@ -243,10 +241,6 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
           );
         },
       ),
-      if (visibleTotalCount > visibleMemberCount) ...[
-        const SizedBox(height: 14),
-        const _ExpandMembersHint(),
-      ],
       const SizedBox(height: 21),
       _InfoActionRow(
         label: '频道详情',
@@ -275,7 +269,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
 
   bool _displayedChannelMuted(ChannelInfoData channel) {
     if (_muteChanging) return _muted;
-    return !channel.commentsEnabled;
+    return channel.muted;
   }
 
   Future<void> _showRemoveMemberSheet() async {
@@ -448,7 +442,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         await asClient.unmuteChannel(channel.id);
       }
       if (!mounted) return;
-      _updateCachedChannelCommentsEnabled(channel, commentsEnabled: !muted);
+      _updateCachedChannelMuted(channel, muted: muted);
       _showSnack(context, muted ? '已开启全员禁言' : '已解除全员禁言');
     } catch (err) {
       if (!mounted) return;
@@ -459,23 +453,23 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     }
   }
 
-  void _updateCachedChannelCommentsEnabled(
+  void _updateCachedChannelMuted(
     ChannelInfoData channel, {
-    required bool commentsEnabled,
+    required bool muted,
   }) {
     final channelId = channel.id.trim();
     final roomId = channel.roomId.trim();
     ref.read(asSyncCacheProvider.notifier).update((state) {
-      final next = state.withChannelCommentsEnabled(
+      final next = state.withChannelMuted(
         channelId.isNotEmpty ? channelId : roomId,
-        commentsEnabled: commentsEnabled,
+        muted: muted,
       );
       if (!identical(next, state) || roomId.isEmpty || roomId == channelId) {
         return next;
       }
-      return next.withChannelCommentsEnabled(
+      return next.withChannelMuted(
         roomId,
-        commentsEnabled: commentsEnabled,
+        muted: muted,
       );
     });
   }
@@ -653,41 +647,67 @@ class _OwnerMemberGrid extends StatelessWidget {
   final ValueChanged<AsChannelMember> onOpenMember;
   final VoidCallback onRemove;
 
+  static const int _columns = 4;
+  static const double _tileHeight = 48;
+  static const double _expandedHeight = 106;
+
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        for (final member in members)
-          InkWell(
-            key: ValueKey('channel_member_avatar_${member.userMxid}'),
-            borderRadius: BorderRadius.circular(8),
-            onTap: member.userMxid.trim() == currentUserId.trim()
-                ? null
-                : () => onOpenMember(member),
-            child: PortalAvatar(
-              seed: _memberName(member),
-              size: 40,
-              imageUrl: channelMemberAvatarUrl(
-                client,
-                member,
-                roomId: channel.roomId,
-              ),
-              shape: AvatarShape.squircle,
-            ),
-          ),
-        for (var index = 0; index < placeholderCount; index++)
-          PortalAvatar(
-            seed: '${channel.id}-member-$index',
+    final children = <Widget>[
+      for (final member in members)
+        InkWell(
+          key: ValueKey('channel_member_avatar_${member.userMxid}'),
+          borderRadius: BorderRadius.circular(8),
+          onTap: member.userMxid.trim() == currentUserId.trim()
+              ? null
+              : () => onOpenMember(member),
+          child: PortalAvatar(
+            seed: _memberName(member),
             size: 40,
+            imageUrl: channelMemberAvatarUrl(
+              client,
+              member,
+              roomId: channel.roomId,
+            ),
             shape: AvatarShape.squircle,
           ),
-        _RemoveMemberTile(
-          isLoading: isLoading,
-          onTap: onRemove,
         ),
-      ],
+      for (var index = 0; index < placeholderCount; index++)
+        PortalAvatar(
+          seed: '${channel.id}-member-$index',
+          size: 40,
+          shape: AvatarShape.squircle,
+        ),
+      _RemoveMemberTile(
+        isLoading: isLoading,
+        onTap: onRemove,
+      ),
+    ];
+    final height = children.length > _columns ? _expandedHeight : _tileHeight;
+    return SizedBox(
+      key: const ValueKey('channel_owner_member_grid'),
+      height: height,
+      child: GridView.builder(
+        primary: false,
+        padding: EdgeInsets.zero,
+        itemCount: children.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _columns,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          mainAxisExtent: _tileHeight,
+        ),
+        itemBuilder: (context, index) {
+          return Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: children[index],
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -727,33 +747,6 @@ class _RemoveMemberTile extends StatelessWidget {
                 color: context.tk.textMute,
               ),
       ),
-    );
-  }
-}
-
-class _ExpandMembersHint extends StatelessWidget {
-  const _ExpandMembersHint();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          '展开更多成员',
-          style: AppTheme.sans(
-            size: 13,
-            weight: FontWeight.w500,
-            color: context.tk.textMute,
-          ).copyWith(height: 20 / 13),
-        ),
-        const SizedBox(width: 2),
-        Icon(
-          Symbols.keyboard_arrow_down,
-          size: 12,
-          color: context.tk.textMute,
-        ),
-      ],
     );
   }
 }

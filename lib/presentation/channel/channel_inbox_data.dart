@@ -17,6 +17,7 @@ class ChannelInboxItem {
     this.visibility = asChannelVisibilityPublic,
     this.joinPolicy = asChannelJoinPolicyOpen,
     this.commentsEnabled = true,
+    this.muted = false,
     this.channelType = asChannelTypeChat,
     this.role = asChannelRoleMember,
     this.memberStatus = asChannelMemberStatusJoined,
@@ -43,6 +44,7 @@ class ChannelInboxItem {
   final String visibility;
   final String joinPolicy;
   final bool commentsEnabled;
+  final bool muted;
   final String channelType;
   final String role;
   final String memberStatus;
@@ -86,6 +88,7 @@ class ChannelInboxItem {
     String? visibility,
     String? joinPolicy,
     bool? commentsEnabled,
+    bool? muted,
     String? channelType,
     String? role,
     String? memberStatus,
@@ -108,6 +111,7 @@ class ChannelInboxItem {
       visibility: visibility ?? this.visibility,
       joinPolicy: joinPolicy ?? this.joinPolicy,
       commentsEnabled: commentsEnabled ?? this.commentsEnabled,
+      muted: muted ?? this.muted,
       channelType: channelType ?? this.channelType,
       role: role ?? this.role,
       memberStatus: memberStatus ?? this.memberStatus,
@@ -189,6 +193,7 @@ class ChannelInboxData {
           visibility: channel.visibility,
           joinPolicy: channel.joinPolicy,
           commentsEnabled: channel.commentsEnabled,
+          muted: channel.muted,
           channelType: normalizeAsChannelType(channel.channelType),
           role: channel.role,
           memberStatus: channel.memberStatus,
@@ -311,6 +316,7 @@ class ChannelInboxData {
         joinPolicy: _preferReadableText(
             channel.joinPolicy, bootstrapChannel?.joinPolicy),
         commentsEnabled: channel.commentsEnabled,
+        muted: channel.muted,
         channelType: normalizeAsChannelType(
           _preferReadableText(
               channel.channelType, bootstrapChannel?.channelType),

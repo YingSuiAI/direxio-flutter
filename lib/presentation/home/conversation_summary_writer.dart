@@ -31,6 +31,14 @@ class VisibleHomeConversation {
     );
   }
 
+  factory VisibleHomeConversation.agentBootstrap(String roomId) {
+    return VisibleHomeConversation._(
+      roomId: roomId.trim(),
+      product: _fallbackAgentConversationForRoomId(roomId),
+      isAgent: true,
+    );
+  }
+
   factory VisibleHomeConversation.product(
     AsConversation conversation,
     Room? room, [
@@ -211,6 +219,13 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
     );
   }
 
+  if (canonicalAgentRoomId.isNotEmpty &&
+      !visibleRoomIds.contains(canonicalAgentRoomId)) {
+    addVisibleConversation(
+      VisibleHomeConversation.agentBootstrap(canonicalAgentRoomId),
+    );
+  }
+
   for (final group in asGroupSummariesByRoomId.values) {
     final roomId = group.roomId.trim();
     if (directContactRoomIds.contains(roomId)) continue;
@@ -281,14 +296,26 @@ AsConversation? _openableFallbackForGroupConversation(
 }
 
 AsConversation _fallbackAgentConversation(Room room) {
+  return _fallbackAgentConversationForRoomId(
+    room.id,
+    lastActivityAt: room.lastEvent?.originServerTs,
+  );
+}
+
+AsConversation _fallbackAgentConversationForRoomId(
+  String roomId, {
+  DateTime? lastActivityAt,
+}) {
+  final trimmedRoomId = roomId.trim();
   return AsConversation(
     conversationId: '',
-    roomId: room.id,
+    roomId: trimmedRoomId,
     kind: asConversationKindAgent,
     lifecycle: 'active',
     title: 'Agent',
     avatarUrl: '',
-    lastActivityAt: room.lastEvent?.originServerTs,
+    lastMessage: defaultAgentConversationPreview,
+    lastActivityAt: lastActivityAt,
     memberCount: 2,
     membership: 'join',
     hydrationState: 'ready',
@@ -438,6 +465,9 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
       ? 'Agent'
       : conversationDisplayName(
           conversation,
+          directContactDisplayName: syncCache
+              .acceptedContactForRoom(conversation.roomId)
+              ?.displayName,
           groupRemarkNames: groupRemarkNames,
         );
   final product = conversation.product;
@@ -499,10 +529,34 @@ String? directPeerMemberAvatarUrl(
   Room? room,
   String? peerUserId,
 ) {
-  final peerId = peerUserId?.trim() ?? '';
-  if (room == null || peerId.isEmpty) return null;
+  final peerId = (peerUserId?.trim().isNotEmpty ?? false)
+      ? peerUserId!.trim()
+      : room == null
+          ? ''
+          : productDirectPeerMxid(room)?.trim() ?? '';
+  if (room == null) return null;
+  if (peerId.isEmpty) return _firstOtherMemberAvatarUrl(client, room);
+  final memberState = room.getState(EventTypes.RoomMember, peerId);
+  final memberStateAvatar = matrixContentHttpUrl(
+    client,
+    memberState?.asUser(room).avatarUrl,
+  );
+  if (memberStateAvatar != null) return memberStateAvatar;
   final member = room.unsafeGetUserFromMemoryOrFallback(peerId);
   return matrixContentHttpUrl(client, member.avatarUrl);
+}
+
+String? _firstOtherMemberAvatarUrl(Client client, Room room) {
+  final self = client.userID;
+  final memberStates = room.states[EventTypes.RoomMember]?.values ??
+      const <StrippedStateEvent>[];
+  for (final state in memberStates) {
+    final mxid = state.stateKey;
+    if (mxid == null || mxid.isEmpty || mxid == self) continue;
+    final avatar = matrixContentHttpUrl(client, state.asUser(room).avatarUrl);
+    if (avatar != null) return avatar;
+  }
+  return null;
 }
 
 LocalOutboxItem? latestFailedMediaOutboxForConversation(
@@ -542,11 +596,16 @@ LocalOutboxItem? latestFailedMediaOutboxForConversation(
 
 String conversationDisplayName(
   VisibleHomeConversation conversation, {
+  String? directContactDisplayName,
   Map<String, String> groupRemarkNames = const {},
 }) {
   if (conversation.isGroup) {
     final remark = groupRemarkNames[conversation.roomId]?.trim() ?? '';
     if (remark.isNotEmpty) return remark;
+  }
+  if (!conversation.isGroup && !conversation.isAgent) {
+    final contactName = directContactDisplayName?.trim() ?? '';
+    if (contactName.isNotEmpty) return contactName;
   }
   final productTitle = conversation.product?.title.trim() ?? '';
   if (productTitle.isNotEmpty) return productTitle;
@@ -587,6 +646,7 @@ String _conversationPreviewTextForConversation(
   if (text.isNotEmpty) return text;
   final productLastMessage = conversation.product?.lastMessage.trim() ?? '';
   if (productLastMessage.isNotEmpty) return productLastMessage;
+  if (conversation.isAgent) return defaultAgentConversationPreview;
   return '';
 }
 

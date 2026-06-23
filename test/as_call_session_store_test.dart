@@ -51,6 +51,47 @@ void main() {
     expect(loaded.single.durationMs, 24000);
   });
 
+  test('upsert keeps local duration when AS refresh is sparse', () async {
+    final answeredAt = DateTime.parse('2026-05-31T10:00:05Z');
+    final endedAt = DateTime.parse('2026-05-31T10:00:47Z');
+    await store.upsert(_session(
+      callId: 'call-1',
+      state: asCallStateEnded,
+      answeredAt: answeredAt,
+      endedAt: endedAt,
+      durationMs: 42000,
+    ));
+
+    await store.upsert(_session(
+      callId: 'call-1',
+      state: asCallStateEnded,
+      durationMs: 0,
+    ));
+
+    final loaded = await store.read('call-1');
+
+    expect(loaded?.state, asCallStateEnded);
+    expect(loaded?.answeredAt, answeredAt);
+    expect(loaded?.endedAt, endedAt);
+    expect(loaded?.durationMs, 42000);
+  });
+
+  test('upsert does not downgrade local terminal call to ringing', () async {
+    await store.upsert(_session(
+      callId: 'call-1',
+      state: asCallStateEnded,
+      endedAt: DateTime.parse('2026-05-31T10:00:24Z'),
+      durationMs: 24000,
+    ));
+
+    await store.upsert(_session(callId: 'call-1', state: asCallStateRinging));
+
+    final loaded = await store.read('call-1');
+
+    expect(loaded?.state, asCallStateEnded);
+    expect(loaded?.durationMs, 24000);
+  });
+
   test('reads stable room snapshots newest first', () async {
     await store.upsertAll([
       _session(

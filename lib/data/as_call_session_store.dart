@@ -131,7 +131,8 @@ class FileAsCallSessionStore implements AsCallSessionStore {
       for (final session in await readAll()) session.callId.trim(): session,
     };
     for (final session in normalized) {
-      byCallId[session.callId.trim()] = session;
+      final callId = session.callId.trim();
+      byCallId[callId] = _mergeSnapshot(byCallId[callId], session);
     }
     final next = byCallId.values.toList(growable: false)
       ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
@@ -150,6 +151,48 @@ class FileAsCallSessionStore implements AsCallSessionStore {
 
   DateTime _stableTimestamp(AsCallSession session) {
     return session.endedAt ?? session.answeredAt ?? session.createdAt;
+  }
+
+  AsCallSession _mergeSnapshot(
+    AsCallSession? existing,
+    AsCallSession incoming,
+  ) {
+    if (existing == null) return incoming;
+    final existingTerminal = asCallSessionSnapshotIsTerminal(existing);
+    final incomingTerminal = asCallSessionSnapshotIsTerminal(incoming);
+    final state =
+        existingTerminal && !incomingTerminal ? existing.state : incoming.state;
+    return AsCallSession(
+      callId: incoming.callId,
+      roomId:
+          incoming.roomId.trim().isNotEmpty ? incoming.roomId : existing.roomId,
+      roomType: incoming.roomType.trim().isNotEmpty
+          ? incoming.roomType
+          : existing.roomType,
+      mediaType: incoming.mediaType.trim().isNotEmpty
+          ? incoming.mediaType
+          : existing.mediaType,
+      createdByMxid: incoming.createdByMxid.trim().isNotEmpty
+          ? incoming.createdByMxid
+          : existing.createdByMxid,
+      state: state,
+      createdAt: incoming.createdAt.isBefore(existing.createdAt)
+          ? incoming.createdAt
+          : existing.createdAt,
+      invitedUserIds: incoming.invitedUserIds.isNotEmpty
+          ? incoming.invitedUserIds
+          : existing.invitedUserIds,
+      answeredAt: incoming.answeredAt ?? existing.answeredAt,
+      endedAt: incoming.endedAt ?? existing.endedAt,
+      endedByMxid: incoming.endedByMxid.trim().isNotEmpty
+          ? incoming.endedByMxid
+          : existing.endedByMxid,
+      endReason: incoming.endReason.trim().isNotEmpty
+          ? incoming.endReason
+          : existing.endReason,
+      durationMs:
+          incoming.durationMs > 0 ? incoming.durationMs : existing.durationMs,
+    );
   }
 
   Future<void> _write(List<AsCallSession> sessions) async {

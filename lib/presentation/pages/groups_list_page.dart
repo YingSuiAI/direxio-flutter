@@ -6,6 +6,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/app_localizations_zh.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
@@ -19,6 +21,13 @@ import '../widgets/group_composite_avatar.dart';
 import '../widgets/m3/m3_search_field.dart';
 
 const _groupsToolbarHeight = 62.0;
+
+final AppLocalizations _fallbackGroupsListL10n = AppLocalizationsZh();
+
+AppLocalizations _groupsListL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations) ??
+      _fallbackGroupsListL10n;
+}
 
 /// `s-groups-list` — 群聊列表 (index.html L1566-1643)
 ///
@@ -36,6 +45,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _groupsListL10n(context);
     final client = ref.watch(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
     final productConversationsAsync = ref.watch(productConversationsProvider);
@@ -101,14 +111,14 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
                   ? productTitle
                   : groupName.isNotEmpty
                       ? groupName
-                      : room?.getLocalizedDisplayname() ?? '群聊',
+                      : room?.getLocalizedDisplayname() ?? l10n.contactsGroups,
           preview: lastEvent == null
               ? _previewText(group?.topic ?? '')
               : roomEventPreviewText(lastEvent, isAgent: false),
           avatarMembers: groupAvatarMembers?.members ?? const [],
           time: lastActivityAt == null
               ? ''
-              : _formatTime(lastActivityAt.millisecondsSinceEpoch),
+              : _formatTime(lastActivityAt.millisecondsSinceEpoch, l10n),
           unread: (group?.unreadCount ?? 0) > 0
               ? group!.unreadCount
               : room?.notificationCount ?? 0,
@@ -130,23 +140,26 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
       body: Column(
         children: [
           _GroupsToolbar(
-            title: '群聊',
+            title: l10n.contactsGroups,
             onBack: () => Navigator.of(context).maybePop(),
             onCreate: () => showCreateGroupFlow(context, ref),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: _SearchBar(onChanged: (v) => setState(() => _query = v)),
+            child: _SearchBar(
+              hint: l10n.groupsListSearchHint,
+              onChanged: (v) => setState(() => _query = v),
+            ),
           ),
           Expanded(
             child: filtered.isEmpty
                 ? Center(
                     child: Text(
                       productConversationsAsync.isLoading
-                          ? '正在同步群聊'
+                          ? l10n.groupsListSyncing
                           : _query.isEmpty
-                              ? '还没有群聊'
-                              : '没有匹配的群聊',
+                              ? l10n.groupsListEmpty
+                              : l10n.groupsListNoMatches,
                       style: AppTheme.sans(size: 13, color: t.textMute),
                     ),
                   )
@@ -273,12 +286,13 @@ bool _isJoinedGroupRole(String? role) {
 }
 
 class _SearchBar extends StatelessWidget {
-  const _SearchBar({required this.onChanged});
+  const _SearchBar({required this.hint, required this.onChanged});
+  final String hint;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return M3SearchField(hint: '搜索群聊', onChanged: onChanged);
+    return M3SearchField(hint: hint, onChanged: onChanged);
   }
 }
 
@@ -545,6 +559,7 @@ class _OwnerBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _groupsListL10n(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
@@ -552,7 +567,7 @@ class _OwnerBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        '群主',
+        l10n.groupsListOwnerBadge,
         style: AppTheme.sans(
           size: 10,
           weight: FontWeight.w600,
@@ -570,15 +585,17 @@ String _previewText(String raw) {
       .trim();
 }
 
-String _formatTime(int ts) {
+String _formatTime(
+  int ts,
+  AppLocalizations l10n,
+) {
   final dt = DateTime.fromMillisecondsSinceEpoch(ts);
   final now = DateTime.now();
   final diffDays = now.difference(dt).inDays;
   if (diffDays == 0) return DateFormat('HH:mm').format(dt);
-  if (diffDays == 1) return '昨天';
+  if (diffDays == 1) return l10n.groupsListYesterday;
   if (diffDays < 7) {
-    const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-    return weekdays[dt.weekday - 1];
+    return DateFormat.E(l10n.localeName).format(dt);
   }
-  return DateFormat('MM/dd').format(dt);
+  return DateFormat.Md(l10n.localeName).format(dt);
 }

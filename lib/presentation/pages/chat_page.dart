@@ -22,6 +22,7 @@ import '../providers/matrix_message_clients_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../providers/profile_provider.dart';
+import '../providers/voice_call_provider.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_share.dart';
 import '../chat/cached_thumbnail_image.dart';
@@ -67,8 +68,10 @@ import '../../data/as_call_session_store.dart';
 import '../../data/conversation_summary_store.dart';
 import '../../data/local_outbox_store.dart';
 import '../../data/matrix_room_history_sync.dart';
+import '../../l10n/app_localizations.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../call/voice_call_controller.dart';
 
 void _chatGestureLog(String message) {
   debugPrint('[chat gesture] $message');
@@ -349,6 +352,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final ChatVoicePlayer _voicePlayer = ChatVoicePlayer();
   final ChatVoiceRecorder _voiceRecorder = ChatVoiceRecorder();
   bool _stoppingVoiceRecording = false;
+  StreamSubscription<VoiceCallUiState>? _voiceCallStateSub;
+  Timer? _callHistoryFastReloadTimer;
+  Timer? _callHistorySlowReloadTimer;
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
 
@@ -626,6 +632,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
       setState(_missingRoomRecovery.reset);
     });
+    _voiceCallStateSub ??= ref
+        .read(voiceCallControllerProvider)
+        .stateStream
+        .listen(_handleVoiceCallHistoryState);
     unawaited(_loadLocalAsCallHistory());
     _initTimeline();
   }
@@ -854,6 +864,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     try {
       final store = await ref.read(asCallSessionStoreProvider.future);
       final sessions = await store.readRoomStable(widget.roomId);
+      debugPrint(
+        'chat direct call history local room=${widget.roomId} '
+        'count=${sessions.length}',
+      );
       if (!mounted) return;
       _replaceRoomAsCallHistory(sessions);
     } on Object catch (e) {
@@ -894,6 +908,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         roomId: widget.roomId,
         limit: 100,
       );
+      debugPrint(
+        'chat direct call history AS room=${widget.roomId} '
+        'count=${sessions.length}',
+      );
       await store.upsertAll(sessions);
       final stable = await store.readRoomStable(widget.roomId);
       if (!mounted) return;
@@ -905,6 +923,34 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  void _handleVoiceCallHistoryState(VoiceCallUiState state) {
+    if (!mounted || state.roomId != widget.roomId) return;
+    if (state.status != VoiceCallStatus.ended &&
+        state.status != VoiceCallStatus.failed) {
+      return;
+    }
+    debugPrint(
+      'chat direct call history schedule after call '
+      'room=${widget.roomId} call_id=${state.callId ?? ""} '
+      'status=${state.status.name}',
+    );
+    unawaited(_loadLocalAsCallHistory());
+    _callHistoryFastReloadTimer?.cancel();
+    _callHistorySlowReloadTimer?.cancel();
+    _callHistoryFastReloadTimer = Timer(
+      const Duration(milliseconds: 150),
+      () {
+        if (mounted) unawaited(_loadLocalAsCallHistory());
+      },
+    );
+    _callHistorySlowReloadTimer = Timer(
+      const Duration(milliseconds: 900),
+      () {
+        if (mounted) unawaited(_loadLocalAsCallHistory());
+      },
+    );
+  }
+
   void _replaceRoomAsCallHistory(Iterable<AsCallSession> sessions) {
     final next = <String, AsCallSession>{};
     for (final session in sessions) {
@@ -914,6 +960,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       _asCallSessionCache[callId] = session;
     }
     if (!mounted) return;
+    debugPrint(
+      'chat direct call history replace room=${widget.roomId} '
+      'terminal=${next.values.where(asCallSessionSnapshotIsTerminal).length} '
+      'total=${next.length}',
+    );
     setState(() {
       _roomAsCallHistory
         ..clear()
@@ -1002,6 +1053,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _targetEventScrollTimer?.cancel();
     _initialTimelineEntranceTimer?.cancel();
     _asCallHistoryReloadTimer?.cancel();
+    _callHistoryFastReloadTimer?.cancel();
+    _callHistorySlowReloadTimer?.cancel();
+    unawaited(_voiceCallStateSub?.cancel());
     _timeline?.cancelSubscriptions();
     _flashingMessageTimer?.cancel();
     _voicePlayer.playback.removeListener(_onVoicePlaybackChanged);
@@ -2419,6 +2473,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   Widget build(BuildContext context) {
     final room = _room;
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final syncCache = ref.watch(asSyncCacheProvider);
     final summaryState = ref.watch(conversationSummaryProvider);
     final currentUserProfile =
@@ -2467,12 +2525,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final id = event.eventId.trim();
       return id.isEmpty || !_locallyHiddenEventIds.contains(id);
     }).toList(growable: false);
-    final asCallRecords = asCallSessionsForGroupTimeline(
+    final asCallRecords = asCallSessionsForDirectTimeline(
       sessions: _roomAsCallHistory.values,
       roomId: widget.roomId,
       rawTimelineEvents: rawTimelineEvents,
-      visibleEvents: filteredEvents,
       callRecordContextEvents: callRecordContextEvents,
+    );
+    debugPrint(
+      'chat direct call history merge room=${widget.roomId} '
+      'as_records=${asCallRecords.length} '
+      'ids=${asCallRecords.map((session) => session.callId).join(",")}',
     );
     final visibleEvents = groupTimelineEventsReplacingAsCallSnapshots(
       visibleEvents: filteredEvents,
@@ -2719,7 +2781,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   ? const SizedBox.shrink()
                                   : Center(
                                       child: Text(
-                                        '开始你们的第一条消息',
+                                        isAgent
+                                            ? l10n?.agentChatEmptyTitle ??
+                                                '开始我们的聊天吧'
+                                            : '开始你们的第一条消息',
                                         style: AppTheme.sans(
                                           size: 13,
                                           color: t.textMute,
@@ -2952,6 +3017,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               );
                             },
                             asCall: (session) {
+                              debugPrint(
+                                'chat direct call history render '
+                                'call_id=${session.callId} '
+                                'state=${session.state} '
+                                'duration_ms=${session.durationMs} '
+                                'answered_at=${session.answeredAt?.toIso8601String() ?? ""} '
+                                'ended_at=${session.endedAt?.toIso8601String() ?? ""} '
+                                'text=${asCallSessionRecordText(session)}',
+                              );
                               final callerId = session.createdByMxid.trim();
                               final isMe = authUserId != null &&
                                   callerId.isNotEmpty &&

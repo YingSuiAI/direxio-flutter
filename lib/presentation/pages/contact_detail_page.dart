@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../data/as_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -28,6 +29,10 @@ import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/report_reason_dialog.dart';
+
+AppLocalizations? _contactDetailL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
+}
 
 class ContactDetailPage extends ConsumerStatefulWidget {
   const ContactDetailPage({
@@ -73,6 +78,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _contactDetailL10n(context);
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
     final productConversations =
@@ -212,7 +218,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     const SizedBox(height: 24),
                     _UserHeader(
                       name: displayName,
-                      badge: _roleBadge(acceptedContact?.domain),
+                      badge: _roleBadge(acceptedContact?.domain, l10n),
                       uid: uidDomain,
                       onUidTap: () => _copyUid(context, uidDomain),
                       avatarUrl: avatarUrl,
@@ -253,7 +259,11 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                       onSearch: hideChatAvatarEntries
                           ? null
                           : roomId == null
-                              ? () => _toast(context, '缺少联系人房间信息，无法搜索聊天')
+                              ? () => _toast(
+                                    context,
+                                    l10n?.contactRoomMissingSearch ??
+                                        '缺少联系人房间信息，无法搜索聊天',
+                                  )
                               : () => context.push(
                                     '/room-search/${Uri.encodeComponent(roomId)}',
                                   ),
@@ -261,7 +271,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     if (!isSelf) ...[
                       const SizedBox(height: 26),
                       _ContactSettingRow(
-                        label: '设置备注',
+                        label: l10n?.contactSetRemark ?? '设置备注',
                         onTap: () => _showRemarkDialog(
                           context,
                           userId: userId,
@@ -274,14 +284,14 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     if (!hideRecommendFriend) ...[
                       SizedBox(height: isSelf ? 26 : 16),
                       _ContactSettingRow(
-                        label: '推荐给朋友',
+                        label: l10n?.contactRecommendFriend ?? '推荐给朋友',
                         onTap: () => _shareContact(displayName, userId),
                       ),
                     ],
                     if (!hideChatAvatarEntries) ...[
                       const SizedBox(height: 16),
                       _ContactSwitchRow(
-                        label: '消息免打扰',
+                        label: l10n?.contactMuteMessages ?? '消息免打扰',
                         value: muted,
                         onChanged: (value) => setConversationMuted(
                           ref,
@@ -291,14 +301,18 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                       ),
                       const SizedBox(height: 16),
                       _ContactSettingRow(
-                        label: '拉黑用户',
+                        label: l10n?.contactBlockUserDetail ?? '拉黑用户',
                         onTap: room == null
-                            ? () => _toast(context, '拉黑用户失败: 缺少联系人房间信息')
+                            ? () => _toast(
+                                  context,
+                                  l10n?.contactRoomMissingBlock ??
+                                      '拉黑用户失败: 缺少联系人房间信息',
+                                )
                             : () => _confirmBlockContact(context, room.id),
                       ),
                       const SizedBox(height: 16),
                       _ContactSettingRow(
-                        label: '举报用户',
+                        label: l10n?.contactReportUser ?? '举报用户',
                         onTap: () => _showReportDialog(
                           context,
                           reportedDomain: uidDomain,
@@ -311,8 +325,12 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
             ),
             if (!isSelf)
               _DeleteFriendButton(
+                label: l10n?.contactDeleteFriend ?? '删除好友',
                 onTap: room == null
-                    ? () => _toast(context, '删除好友失败: 缺少联系人房间信息')
+                    ? () => _toast(
+                          context,
+                          l10n?.contactRoomMissingDelete ?? '删除好友失败: 缺少联系人房间信息',
+                        )
                     : () => _confirmDeleteContact(context, room.id),
               ),
           ],
@@ -346,6 +364,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     required VoidCallback? onAddFriend,
   }) {
     final t = context.tk;
+    final l10n = _contactDetailL10n(context);
     final pending = _isPendingContact(contactStatus);
     return Scaffold(
       backgroundColor: t.bg,
@@ -375,19 +394,19 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                 ),
                 const SizedBox(height: 24),
                 _AvatarProfileMenuRow(
-                  label: '他的频道',
+                  label: l10n?.contactHisChannels ?? '他的频道',
                   onTap: onChannels,
                   previewChannels: publicChannels,
                 ),
                 const SizedBox(height: 14),
                 if (onRecommend != null)
                   _AvatarProfileMenuRow(
-                    label: '把他推荐给朋友',
+                    label: l10n?.contactRecommendHim ?? '把他推荐给朋友',
                     onTap: onRecommend,
                   ),
               ] else ...[
                 _AvatarProfileMenuRow(
-                  label: '他的频道',
+                  label: l10n?.contactHisChannels ?? '他的频道',
                   onTap: onChannels,
                   previewChannels: publicChannels,
                 ),
@@ -395,7 +414,9 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                   const SizedBox(height: 14),
                   _AddFriendRow(
                     busy: _friendActionBusy,
-                    text: pending ? '已申请' : '添加好友',
+                    text: pending
+                        ? l10n?.contactFriendRequested ?? '已申请'
+                        : l10n?.contactAddFriend ?? '添加好友',
                     onTap: pending || _friendActionBusy ? null : onAddFriend,
                   ),
                 ],
@@ -435,12 +456,13 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         }),
       );
       if (!context.mounted) return;
+      final l10n = _contactDetailL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             contact.status.trim() == 'accepted'
-                ? '已恢复旧会话，可以继续聊天。'
-                : '好友请求已发送，等待对方接受。',
+                ? l10n?.contactFriendRequestRestored ?? '已恢复旧会话，可以继续聊天。'
+                : l10n?.contactFriendRequestSent ?? '好友请求已发送，等待对方接受。',
           ),
         ),
       );
@@ -448,8 +470,13 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       debugPrint(
           'send friend request from contact detail failed: $e\n$stackTrace');
       if (!context.mounted) return;
+      final l10n = _contactDetailL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('发送好友请求失败: $e')),
+        SnackBar(
+          content: Text(
+            l10n?.addContactRequestFailed('$e') ?? '发送好友请求失败: $e',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _friendActionBusy = false);
@@ -458,26 +485,27 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
 
   Future<void> _confirmDeleteContact(
       BuildContext context, String roomId) async {
+    final l10n = _contactDetailL10n(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-          '删除好友',
+          l10n?.contactDeleteConfirmTitle ?? '删除好友',
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '删除后将不再显示该联系人，会话关系也会同步更新。',
+          l10n?.contactDeleteConfirmBody ?? '删除后将不再显示该联系人，会话关系也会同步更新。',
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n?.commonCancel ?? '取消'),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
-              '删除',
+              l10n?.contactDeleteAction ?? '删除',
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -492,8 +520,9 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     await _removeContact(
       context,
       roomId,
-      successMessage: '已删除好友',
-      failurePrefix: '删除好友失败',
+      successMessage: l10n?.contactDeleted ?? '已删除好友',
+      failureMessage: (error) =>
+          l10n?.contactDeleteFailed(error) ?? '删除好友失败: $error',
     );
   }
 
@@ -502,26 +531,27 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     String roomId,
   ) async {
     if (_blocking) return;
+    final l10n = _contactDetailL10n(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-          '拉黑用户',
+          l10n?.contactBlockConfirmTitle ?? '拉黑用户',
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '拉黑后将移除该联系人和会话关系。',
+          l10n?.contactBlockConfirmBody ?? '拉黑后将移除该联系人和会话关系。',
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
+            child: Text(l10n?.commonCancel ?? '取消'),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
-              '拉黑',
+              l10n?.contactBlockAction ?? '拉黑',
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -538,8 +568,9 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       await _removeContact(
         context,
         roomId,
-        successMessage: '已拉黑用户',
-        failurePrefix: '拉黑用户失败',
+        successMessage: l10n?.contactBlocked ?? '已拉黑用户',
+        failureMessage: (error) =>
+            l10n?.contactBlockFailed(error) ?? '拉黑用户失败: $error',
       );
     } finally {
       if (mounted) setState(() => _blocking = false);
@@ -569,13 +600,19 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
             reason: reason.trim(),
           );
       if (!context.mounted) return;
+      final l10n = _contactDetailL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('举报已提交')),
+        SnackBar(content: Text(l10n?.contactReportSubmitted ?? '举报已提交')),
       );
     } catch (error) {
       if (!context.mounted) return;
+      final l10n = _contactDetailL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('举报提交失败: $error')),
+        SnackBar(
+          content: Text(
+            l10n?.contactReportSubmitFailed('$error') ?? '举报提交失败: $error',
+          ),
+        ),
       );
     }
   }
@@ -592,13 +629,14 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       builder: (_) => _ContactRemarkDialog(initialValue: currentName),
     );
     if (!context.mounted || next == null) return;
+    final l10n = _contactDetailL10n(context);
     if (next.trim().isEmpty) {
-      _toast(context, '备注不能为空');
+      _toast(context, l10n?.contactRemarkEmpty ?? '备注不能为空');
       return;
     }
     final cleanRoomId = roomId.trim();
     if (cleanRoomId.isEmpty) {
-      _toast(context, '缺少联系人房间信息，无法保存备注');
+      _toast(context, l10n?.contactRoomMissingRemark ?? '缺少联系人房间信息，无法保存备注');
       return;
     }
     ContactEntry updated;
@@ -610,7 +648,10 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
           );
     } catch (error) {
       if (!context.mounted) return;
-      _toast(context, '备注更新失败: $error');
+      _toast(
+        context,
+        l10n?.contactRemarkUpdateFailed('$error') ?? '备注更新失败: $error',
+      );
       return;
     }
     if (!context.mounted) return;
@@ -633,25 +674,27 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         }),
       );
     }
-    _toast(context, '备注已更新');
+    _toast(context, l10n?.contactRemarkUpdated ?? '备注已更新');
   }
 
   Future<void> _shareContact(String displayName, String userId) async {
+    final l10n = _contactDetailL10n(context);
     final name = displayName.trim().isEmpty ? userId : displayName.trim();
-    await Share.share('推荐联系人：$name\n$userId');
+    await Share.share(
+        l10n?.contactShareText(name, userId) ?? '推荐联系人：$name\n$userId');
   }
 
   Future<void> _copyUid(BuildContext context, String uid) async {
     await Clipboard.setData(ClipboardData(text: uid));
     if (!context.mounted) return;
-    _toast(context, '已复制 UID');
+    _toast(context, _contactDetailL10n(context)?.meUidCopied ?? '已复制 UID');
   }
 
   Future<void> _removeContact(
     BuildContext context,
     String roomId, {
     required String successMessage,
-    required String failurePrefix,
+    required String Function(String error) failureMessage,
   }) async {
     final client = ref.read(matrixClientProvider);
     try {
@@ -682,7 +725,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$failurePrefix: $e')),
+        SnackBar(content: Text(failureMessage('$e'))),
       );
     }
   }
@@ -883,12 +926,13 @@ class _AvatarProfileActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _contactDetailL10n(context);
     return Row(
       children: [
         Expanded(
           child: _AvatarProfileActionCard(
             icon: Symbols.chat_bubble,
-            label: '发消息',
+            label: l10n?.contactSendMessage ?? '发消息',
             onTap: onMessage,
           ),
         ),
@@ -896,7 +940,7 @@ class _AvatarProfileActions extends StatelessWidget {
         Expanded(
           child: _AvatarProfileActionCard(
             icon: Symbols.call,
-            label: '音频通话',
+            label: l10n?.contactVoiceCall ?? '音频通话',
             onTap: onVoice,
           ),
         ),
@@ -904,7 +948,7 @@ class _AvatarProfileActions extends StatelessWidget {
         Expanded(
           child: _AvatarProfileActionCard(
             icon: Symbols.videocam,
-            label: '视频通话',
+            label: l10n?.contactVideoCall ?? '视频通话',
             onTap: onVideo,
           ),
         ),
@@ -1115,12 +1159,13 @@ class _QuickActionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _contactDetailL10n(context);
     return Row(
       children: [
         Expanded(
           child: _ContactQuickAction(
             icon: Symbols.chat_bubble,
-            label: '发消息',
+            label: l10n?.contactSendMessage ?? '发消息',
             onTap: onMessage,
           ),
         ),
@@ -1129,7 +1174,7 @@ class _QuickActionGrid extends StatelessWidget {
           Expanded(
             child: _ContactQuickAction(
               icon: Symbols.call,
-              label: '语音通话',
+              label: l10n?.groupChatVoiceCall ?? '语音通话',
               onTap: onVoice,
             ),
           ),
@@ -1137,7 +1182,7 @@ class _QuickActionGrid extends StatelessWidget {
           Expanded(
             child: _ContactQuickAction(
               icon: Symbols.videocam,
-              label: '视频通话',
+              label: l10n?.contactVideoCall ?? '视频通话',
               onTap: onVideo,
             ),
           ),
@@ -1147,7 +1192,7 @@ class _QuickActionGrid extends StatelessWidget {
           Expanded(
             child: _ContactQuickAction(
               icon: Symbols.search,
-              label: '搜索聊天',
+              label: l10n?.contactSearchChat ?? '搜索聊天',
               onTap: onSearch,
             ),
           ),
@@ -1310,8 +1355,12 @@ class _ContactSwitchRow extends StatelessWidget {
 }
 
 class _DeleteFriendButton extends StatelessWidget {
-  const _DeleteFriendButton({required this.onTap});
+  const _DeleteFriendButton({
+    required this.label,
+    required this.onTap,
+  });
 
+  final String label;
   final VoidCallback onTap;
 
   @override
@@ -1335,7 +1384,7 @@ class _DeleteFriendButton extends StatelessWidget {
                 border: Border.all(color: t.danger),
               ),
               child: Text(
-                '删除好友',
+                label,
                 style: AppTheme.sans(
                   size: 14,
                   weight: FontWeight.w500,
@@ -1372,9 +1421,10 @@ class _ContactRemarkDialogState extends State<_ContactRemarkDialog> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _contactDetailL10n(context);
     return AlertDialog(
       title: Text(
-        '设置备注',
+        l10n?.contactSetRemark ?? '设置备注',
         style: AppTheme.sans(size: 17, weight: FontWeight.w600),
       ),
       content: TextField(
@@ -1382,7 +1432,7 @@ class _ContactRemarkDialogState extends State<_ContactRemarkDialog> {
         autofocus: true,
         maxLength: 32,
         decoration: InputDecoration(
-          hintText: '输入备注名',
+          hintText: l10n?.contactRemarkHint ?? '输入备注名',
           hintStyle: AppTheme.sans(size: 15, color: t.textMute),
         ),
         style: AppTheme.sans(size: 15, color: t.text),
@@ -1391,14 +1441,14 @@ class _ContactRemarkDialogState extends State<_ContactRemarkDialog> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
-            '取消',
+            l10n?.commonCancel ?? '取消',
             style: AppTheme.sans(size: 15, color: t.textMute),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
           child: Text(
-            '保存',
+            l10n?.contactRemarkSave ?? '保存',
             style: AppTheme.sans(
               size: 15,
               weight: FontWeight.w600,
@@ -1424,9 +1474,11 @@ bool _isPendingContact(String? status) {
   return normalized == 'pending_outbound' || normalized == 'pending_inbound';
 }
 
-String _roleBadge(String? domain) {
+String _roleBadge(String? domain, AppLocalizations? l10n) {
   final value = domain?.trim().toLowerCase() ?? '';
-  if (value.contains('agent') || value.contains('support')) return '客服经理';
+  if (value.contains('agent') || value.contains('support')) {
+    return l10n?.contactSupportManager ?? '客服经理';
+  }
   return '';
 }
 

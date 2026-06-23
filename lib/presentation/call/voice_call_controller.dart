@@ -99,6 +99,7 @@ class AsCallStateReporter {
   final AsClient _asClient;
   final AsCallSessionStore? _store;
   final _connectedCallIds = <String>{};
+  final _connectedAtByCallId = <String, DateTime>{};
   final _terminalCallIds = <String>{};
   final _locallyTerminalCallIds = <String>{};
 
@@ -170,17 +171,34 @@ class AsCallStateReporter {
     return call;
   }
 
-  Future<void> reportConnected(AsCallSession? call) async {
+  Future<void> reportConnected(
+    AsCallSession? call, {
+    DateTime? connectedAt,
+  }) async {
     if (call == null ||
         _connectedCallIds.contains(call.callId) ||
         _terminalCallIds.contains(call.callId)) {
       return;
     }
+    _connectedAtByCallId[call.callId] =
+        (connectedAt ?? call.answeredAt ?? DateTime.now()).toUtc();
+    await _storeCall(
+      call.copyWith(
+        state: asCallStateConnected,
+        answeredAt: _connectedAtByCallId[call.callId],
+      ),
+    );
     final updated = await _asClient.updateCallEvent(
       callId: call.callId,
       event: asCallStateConnected,
     );
-    unawaited(_storeCall(updated));
+    final updatedConnectedAt = updated.answeredAt;
+    if (connectedAt == null && updatedConnectedAt != null) {
+      _connectedAtByCallId[call.callId] = updatedConnectedAt.toUtc();
+    }
+    unawaited(_storeCall(updated.copyWith(
+      answeredAt: _connectedAtByCallId[call.callId],
+    )));
     _connectedCallIds.add(call.callId);
   }
 
@@ -237,18 +255,35 @@ class AsCallStateReporter {
     if (call == null || _terminalCallIds.contains(call.callId)) return;
     _locallyTerminalCallIds.add(call.callId);
     final completedAt = endedAt ?? DateTime.now().toUtc();
+    final effectiveConnectedAt = connectedAt?.toUtc() ??
+        _connectedAtByCallId[call.callId] ??
+        call.answeredAt?.toUtc();
+    final durationMs = _callDurationMs(effectiveConnectedAt, completedAt);
+    final local = call.copyWith(
+      state: event,
+      answeredAt: effectiveConnectedAt,
+      endedAt: completedAt,
+      endReason: reason,
+      durationMs: durationMs,
+    );
+    await _storeCall(local);
     final updated = await _asClient.updateCallEvent(
       callId: call.callId,
       event: event,
       reason: reason,
-      durationMs: _callDurationMs(connectedAt, completedAt),
+      durationMs: durationMs,
     );
-    debugPrint(
-      'p2p-as-call-terminal call_id=${updated.callId} '
-      'event=$event reason=$reason duration_ms=${updated.durationMs}',
+    final stored = updated.copyWith(
+      answeredAt: effectiveConnectedAt,
+      endedAt: updated.endedAt ?? completedAt,
+      durationMs: updated.durationMs > 0 ? updated.durationMs : durationMs,
     );
-    await _storeCall(updated);
+    await _storeCall(stored);
     _terminalCallIds.add(call.callId);
+    debugPrint(
+      'p2p-as-call-terminal call_id=${call.callId} '
+      'event=$event reason=$reason duration_ms=$durationMs',
+    );
   }
 
   Future<void> _storeCall(AsCallSession call) async {
@@ -1612,8 +1647,13 @@ class MatrixVoiceCallController implements VoiceCallController {
   @override
   Future<void> reject() async {
     final session = _activeSession;
+    final asCall = _activeAsCall;
     if (session != null && !session.callHasEnded) {
       await session.reject();
+    }
+    await _reportAsCallMissed(asCall, reason: 'rejected');
+    if (_state.status != VoiceCallStatus.ended) {
+      _emit(_state.copyWith(status: VoiceCallStatus.ended));
     }
     await _resetActiveSession(emitIdle: false);
   }
@@ -1631,6 +1671,13 @@ class MatrixVoiceCallController implements VoiceCallController {
       reason: 'user_hangup',
       connectedAt: connectedAt,
     );
+    if (_state.status != VoiceCallStatus.ended) {
+      debugPrint(
+        'p2p-call-local-hangup-ended room=${_state.roomId ?? ""} '
+        'call_id=${_state.callId ?? ""}',
+      );
+      _emit(_state.copyWith(status: VoiceCallStatus.ended));
+    }
     await _resetActiveSession(emitIdle: false);
   }
 
@@ -1896,7 +1943,10 @@ class MatrixVoiceCallController implements VoiceCallController {
       }
       _emitGroupSessionState(resolvedGroupCall);
       if (_groupState.status == GroupCallStatus.connected) {
-        unawaited(_reportAsCallConnected(asCall));
+        unawaited(_reportAsCallConnected(
+          asCall,
+          connectedAt: _groupState.connectedAt,
+        ));
       }
     } catch (error) {
       if (localJoinPublishedBeforeEnter) {
@@ -2229,7 +2279,10 @@ class MatrixVoiceCallController implements VoiceCallController {
       roomName: roomName,
     );
     if (_groupState.status == GroupCallStatus.connected) {
-      unawaited(_reportAsCallConnected(_activeGroupAsCall));
+      unawaited(_reportAsCallConnected(
+        _activeGroupAsCall,
+        connectedAt: _groupState.connectedAt,
+      ));
     }
     _groupStateSub = groupCall.onGroupCallState.stream.listen((_) {
       final connectedAt = _groupState.connectedAt;
@@ -2243,7 +2296,10 @@ class MatrixVoiceCallController implements VoiceCallController {
       unawaited(_debugLogGroupSessionStats('state', groupCall));
       _emitGroupSessionState(groupCall);
       if (_groupState.status == GroupCallStatus.connected) {
-        unawaited(_reportAsCallConnected(_activeGroupAsCall));
+        unawaited(_reportAsCallConnected(
+          _activeGroupAsCall,
+          connectedAt: _groupState.connectedAt,
+        ));
       }
       if (groupCall.state == GroupCallState.ended &&
           shouldReportGroupCallEndedFromMatrixEnd(
@@ -2294,7 +2350,10 @@ class MatrixVoiceCallController implements VoiceCallController {
     _debugLogSessionMedia('bind', session);
     _emit(_stateFromSession(session));
     if (_state.status == VoiceCallStatus.connected) {
-      unawaited(_reportAsCallConnected(_activeAsCall));
+      unawaited(_reportAsCallConnected(
+        _activeAsCall,
+        connectedAt: _state.connectedAt,
+      ));
     }
     _applySpeakerRoute(session);
     _callStateSub = session.onCallStateChanged.stream.listen((_) {
@@ -2304,7 +2363,10 @@ class MatrixVoiceCallController implements VoiceCallController {
       _applySpeakerRoute(session);
       if (_state.status == VoiceCallStatus.connected) {
         _rememberConnectedCall(session);
-        unawaited(_reportAsCallConnected(_activeAsCall));
+        unawaited(_reportAsCallConnected(
+          _activeAsCall,
+          connectedAt: _state.connectedAt,
+        ));
         _outgoingNoResponseTimer?.cancel();
         _outgoingNoResponseTimer = null;
       }
@@ -3144,11 +3206,14 @@ class MatrixVoiceCallController implements VoiceCallController {
         call.state == asCallStateFailed;
   }
 
-  Future<void> _reportAsCallConnected(AsCallSession? call) async {
+  Future<void> _reportAsCallConnected(
+    AsCallSession? call, {
+    DateTime? connectedAt,
+  }) async {
     final reporter = _asCallReporter;
     if (reporter == null || call == null) return;
     try {
-      await reporter.reportConnected(call);
+      await reporter.reportConnected(call, connectedAt: connectedAt);
     } catch (error) {
       debugPrint('p2p-as-call-connected failed: $error');
     }
@@ -3802,7 +3867,10 @@ class MatrixVoiceCallController implements VoiceCallController {
     );
     _emitGroup(nextState);
     if (isJoined && next.length >= 2) {
-      unawaited(_reportAsCallConnected(_activeGroupAsCall));
+      unawaited(_reportAsCallConnected(
+        _activeGroupAsCall,
+        connectedAt: _groupState.connectedAt,
+      ));
     }
     final session = _activeGroupSession;
     if (session != null) {

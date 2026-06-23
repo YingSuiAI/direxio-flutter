@@ -11,6 +11,7 @@ import '../../data/as_client.dart';
 import '../../data/matrix_message_search_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../channel/channel_inbox_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -22,6 +23,10 @@ import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
+
+AppLocalizations? _searchL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
+}
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
@@ -60,12 +65,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   Future<void> _search(String query) async {
     final serial = ++_searchSerial;
+    final l10n = _searchL10n(context);
     setState(() => _loading = true);
     final client = ref.read(matrixClientProvider);
     final productConversations = await _productConversations();
     if (!mounted || serial != _searchSerial) return;
     final directoryResults =
-        _localDirectoryResults(query, client, productConversations);
+        _localDirectoryResults(query, client, productConversations, l10n);
     final remoteMessageResultsFuture = _remoteMessageResults(query);
     final cachedMessageResults =
         await _cachedMessageResults(query, client, productConversations);
@@ -92,6 +98,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 result,
                 client,
                 productConversations,
+                l10n,
               ),
             )
             .whereType<_GlobalSearchResult>(),
@@ -161,9 +168,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       return const SizedBox.shrink();
     }
     if (_results.isEmpty) {
+      final l10n = _searchL10n(context);
       return Center(
         child: Text(
-          '没有找到包含「$_lastQuery」的内容',
+          l10n?.globalSearchNoResults(_lastQuery) ?? '没有找到包含「$_lastQuery」的内容',
           style: AppTheme.sans(size: 13, color: context.tk.textMute),
         ),
       );
@@ -173,7 +181,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       itemCount: _results.length,
       itemBuilder: (context, i) {
         final r = _results[i];
-        return _SearchResultTile(result: r, query: _lastQuery);
+        return _SearchResultTile(
+          result: r,
+          query: _lastQuery,
+          l10n: _searchL10n(context),
+        );
       },
     );
   }
@@ -182,6 +194,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     String query,
     Client client,
     Iterable<AsConversation> productConversations,
+    AppLocalizations? l10n,
   ) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return const [];
@@ -220,7 +233,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         _GlobalSearchResult.local(
           type: isContact ? _SearchResultType.contact : _SearchResultType.group,
           title: name,
-          subtitle: isContact ? (peerMxid ?? room.id) : '群聊',
+          subtitle: isContact
+              ? (peerMxid ?? room.id)
+              : l10n?.globalSearchGroupLabel ?? '群聊',
           route: route,
         ),
       );
@@ -383,6 +398,7 @@ class _GlobalSearchResult {
     MatrixMessageSearchResult result,
     Client client,
     Iterable<AsConversation> productConversations,
+    AppLocalizations? l10n,
   ) {
     final room = client.getRoomById(result.roomId);
     var senderName = result.senderId.trim();
@@ -399,7 +415,9 @@ class _GlobalSearchResult {
     if (route == null) return null;
     return _GlobalSearchResult(
       type: _SearchResultType.message,
-      title: senderName.isEmpty ? '消息' : senderName,
+      title: senderName.isEmpty
+          ? l10n?.globalSearchMessageFallback ?? '消息'
+          : senderName,
       subtitle: result.body,
       route: route,
       eventId: result.eventId,
@@ -453,19 +471,24 @@ class _GlobalSearchResult {
         _SearchResultType.channel => Symbols.campaign,
       };
 
-  String get label => switch (type) {
-        _SearchResultType.message => '消息',
-        _SearchResultType.contact => '联系人',
-        _SearchResultType.group => '群聊',
-        _SearchResultType.channel => '频道',
+  String label(AppLocalizations? l10n) => switch (type) {
+        _SearchResultType.message => l10n?.globalSearchMessageLabel ?? '消息',
+        _SearchResultType.contact => l10n?.globalSearchContactLabel ?? '联系人',
+        _SearchResultType.group => l10n?.globalSearchGroupLabel ?? '群聊',
+        _SearchResultType.channel => l10n?.globalSearchChannelLabel ?? '频道',
       };
 }
 
 class _SearchResultTile extends StatelessWidget {
-  const _SearchResultTile({required this.result, required this.query});
+  const _SearchResultTile({
+    required this.result,
+    required this.query,
+    required this.l10n,
+  });
 
   final _GlobalSearchResult result;
   final String query;
+  final AppLocalizations? l10n;
 
   @override
   Widget build(BuildContext context) {
@@ -476,7 +499,11 @@ class _SearchResultTile extends StatelessWidget {
       child: InkWell(
         onTap: targetRoute == null
             ? () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('频道详情功能待接入')),
+                  SnackBar(
+                    content: Text(
+                      l10n?.globalSearchChannelDetailPending ?? '频道详情功能待接入',
+                    ),
+                  ),
                 )
             : () => context.push(targetRoute),
         child: SizedBox(
@@ -559,7 +586,7 @@ class _SearchToolbar extends StatelessWidget {
                 child: _SearchBackButton(onTap: onBack),
               ),
               Text(
-                '搜索',
+                _searchL10n(context)?.globalSearchTitle ?? '搜索',
                 style: AppTheme.sans(
                   size: 16,
                   weight: FontWeight.w600,
@@ -625,7 +652,7 @@ class _SearchInput extends StatelessWidget {
     return M3SearchField(
       controller: controller,
       focusNode: focusNode,
-      hint: '搜索',
+      hint: _searchL10n(context)?.globalSearchHint ?? '搜索',
       autofocus: true,
       onChanged: onChanged,
     );

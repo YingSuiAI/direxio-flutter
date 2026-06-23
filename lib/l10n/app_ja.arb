@@ -207,12 +207,89 @@
   "contactReportTodo": "報告機能はまだ接続されていません",
   "contactFriendRequested": "申請済み",
   "contactApplyFriend": "友だち申請",
+  "contactSetRemark": "備考を設定",
+  "contactRecommendFriend": "友だちにすすめる",
+  "contactRecommendHim": "この人を友だちにすすめる",
+  "contactSearchChat": "チャットを検索",
+  "contactDeleteFriend": "友だちを削除",
+  "contactBlockUserDetail": "ユーザーをブロック",
+  "contactHisChannels": "彼のチャンネル",
+  "contactAddFriend": "友だちを追加",
+  "contactSupportManager": "サポートマネージャー",
+  "contactRoomMissingSearch": "連絡先のルーム情報がないため、チャットを検索できません",
+  "contactRoomMissingBlock": "ユーザーのブロックに失敗しました: 連絡先のルーム情報がありません",
+  "contactRoomMissingDelete": "友だちの削除に失敗しました: 連絡先のルーム情報がありません",
+  "contactRoomMissingRemark": "連絡先のルーム情報がないため、備考を保存できません",
+  "contactFriendRequestRestored": "以前の会話を復元しました。続けてチャットできます。",
+  "contactFriendRequestSent": "友だち申請を送信しました。承認を待っています。",
+  "contactDeleteConfirmTitle": "友だちを削除",
+  "contactDeleteConfirmBody": "削除すると、この連絡先は表示されなくなり、会話の関係も同期して更新されます。",
+  "contactDeleteAction": "削除",
+  "contactDeleted": "友だちを削除しました",
+  "contactDeleteFailed": "友だちの削除に失敗しました: {error}",
+  "@contactDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactBlockConfirmTitle": "ユーザーをブロック",
+  "contactBlockConfirmBody": "ブロックすると、この連絡先と会話の関係が削除されます。",
+  "contactBlockAction": "ブロック",
+  "contactBlocked": "ユーザーをブロックしました",
+  "contactBlockFailed": "ユーザーのブロックに失敗しました: {error}",
+  "@contactBlockFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactReportSubmitted": "報告を送信しました",
+  "contactReportSubmitFailed": "報告の送信に失敗しました: {error}",
+  "@contactReportSubmitFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactRemarkEmpty": "備考は空にできません",
+  "contactRemarkUpdateFailed": "備考の更新に失敗しました: {error}",
+  "@contactRemarkUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactRemarkUpdated": "備考を更新しました",
+  "contactRemarkHint": "備考名を入力",
+  "contactRemarkSave": "保存",
+  "contactShareText": "おすすめの連絡先：{name}\n{userId}",
+  "@contactShareText": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "userId": {
+        "type": "String"
+      }
+    }
+  },
   "contactsSearchHint": "ID / ニックネーム / メール",
   "contactsNewFriends": "新しい友だち",
   "contactsNewGroup": "新しいグループチャット",
   "contactsMyGroups": "自分のグループ",
   "contactsGroups": "グループチャット",
   "contactsFollows": "フォロー",
+  "groupsListSearchHint": "グループチャットを検索",
+  "groupsListSyncing": "グループチャットを同期中",
+  "groupsListEmpty": "グループチャットはまだありません",
+  "groupsListNoMatches": "一致するグループチャットはありません",
+  "groupsListOwnerBadge": "オーナー",
+  "groupsListYesterday": "昨日",
   "requestsSearchHint": "検索",
   "requestsPendingHidden": "承認待ち",
   "requestsWaitingPeerAccept": "相手の承認待ち",
@@ -577,6 +654,22 @@
   "channelSearchUnnamed": "名称未設定のチャンネル",
   "channelSearchPublicChannel": "公開チャンネル",
   "channelSearchPublicApproval": "公開チャンネル · 参加には承認が必要",
+  "globalSearchTitle": "検索",
+  "globalSearchHint": "検索",
+  "globalSearchNoResults": "「{query}」を含む内容は見つかりません",
+  "@globalSearchNoResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "globalSearchMessageFallback": "メッセージ",
+  "globalSearchMessageLabel": "メッセージ",
+  "globalSearchContactLabel": "連絡先",
+  "globalSearchGroupLabel": "グループチャット",
+  "globalSearchChannelLabel": "チャンネル",
+  "globalSearchChannelDetailPending": "チャンネル詳細はまだ利用できません",
   "channelPostEmptyTitle": "チャンネル投稿はまだありません",
   "channelPostEmptySubtitle": "投稿するとここに表示されます。",
   "channelPostPublish": "投稿",
@@ -773,5 +866,6 @@
     }
   },
   "commonMe": "自分",
-  "commonJustNow": "たった今"
+  "commonJustNow": "たった今",
+  "agentChatEmptyTitle": "チャットを始めましょう"
 }

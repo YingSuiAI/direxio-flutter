@@ -538,6 +538,115 @@ class AppLocalizationsZh extends AppLocalizations {
   String get contactApplyFriend => '申请好友';
 
   @override
+  String get contactSetRemark => '设置备注';
+
+  @override
+  String get contactRecommendFriend => '推荐给朋友';
+
+  @override
+  String get contactRecommendHim => '把他推荐给朋友';
+
+  @override
+  String get contactSearchChat => '搜索聊天';
+
+  @override
+  String get contactDeleteFriend => '删除好友';
+
+  @override
+  String get contactBlockUserDetail => '拉黑用户';
+
+  @override
+  String get contactHisChannels => '他的频道';
+
+  @override
+  String get contactAddFriend => '添加好友';
+
+  @override
+  String get contactSupportManager => '客服经理';
+
+  @override
+  String get contactRoomMissingSearch => '缺少联系人房间信息，无法搜索聊天';
+
+  @override
+  String get contactRoomMissingBlock => '拉黑用户失败: 缺少联系人房间信息';
+
+  @override
+  String get contactRoomMissingDelete => '删除好友失败: 缺少联系人房间信息';
+
+  @override
+  String get contactRoomMissingRemark => '缺少联系人房间信息，无法保存备注';
+
+  @override
+  String get contactFriendRequestRestored => '已恢复旧会话，可以继续聊天。';
+
+  @override
+  String get contactFriendRequestSent => '好友请求已发送，等待对方接受。';
+
+  @override
+  String get contactDeleteConfirmTitle => '删除好友';
+
+  @override
+  String get contactDeleteConfirmBody => '删除后将不再显示该联系人，会话关系也会同步更新。';
+
+  @override
+  String get contactDeleteAction => '删除';
+
+  @override
+  String get contactDeleted => '已删除好友';
+
+  @override
+  String contactDeleteFailed(String error) {
+    return '删除好友失败: $error';
+  }
+
+  @override
+  String get contactBlockConfirmTitle => '拉黑用户';
+
+  @override
+  String get contactBlockConfirmBody => '拉黑后将移除该联系人和会话关系。';
+
+  @override
+  String get contactBlockAction => '拉黑';
+
+  @override
+  String get contactBlocked => '已拉黑用户';
+
+  @override
+  String contactBlockFailed(String error) {
+    return '拉黑用户失败: $error';
+  }
+
+  @override
+  String get contactReportSubmitted => '举报已提交';
+
+  @override
+  String contactReportSubmitFailed(String error) {
+    return '举报提交失败: $error';
+  }
+
+  @override
+  String get contactRemarkEmpty => '备注不能为空';
+
+  @override
+  String contactRemarkUpdateFailed(String error) {
+    return '备注更新失败: $error';
+  }
+
+  @override
+  String get contactRemarkUpdated => '备注已更新';
+
+  @override
+  String get contactRemarkHint => '输入备注名';
+
+  @override
+  String get contactRemarkSave => '保存';
+
+  @override
+  String contactShareText(String name, String userId) {
+    return '推荐联系人：$name\n$userId';
+  }
+
+  @override
   String get contactsSearchHint => 'ID/昵称/邮箱';
 
   @override
@@ -554,6 +663,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get contactsFollows => '关注';
+
+  @override
+  String get groupsListSearchHint => '搜索群聊';
+
+  @override
+  String get groupsListSyncing => '正在同步群聊';
+
+  @override
+  String get groupsListEmpty => '还没有群聊';
+
+  @override
+  String get groupsListNoMatches => '没有匹配的群聊';
+
+  @override
+  String get groupsListOwnerBadge => '群主';
+
+  @override
+  String get groupsListYesterday => '昨天';
 
   @override
   String get requestsSearchHint => '搜索';
@@ -1088,6 +1215,35 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelSearchPublicApproval => '公开频道 · 加入需审核';
 
   @override
+  String get globalSearchTitle => '搜索';
+
+  @override
+  String get globalSearchHint => '搜索';
+
+  @override
+  String globalSearchNoResults(String query) {
+    return '没有找到包含「$query」的内容';
+  }
+
+  @override
+  String get globalSearchMessageFallback => '消息';
+
+  @override
+  String get globalSearchMessageLabel => '消息';
+
+  @override
+  String get globalSearchContactLabel => '联系人';
+
+  @override
+  String get globalSearchGroupLabel => '群聊';
+
+  @override
+  String get globalSearchChannelLabel => '频道';
+
+  @override
+  String get globalSearchChannelDetailPending => '频道详情功能待接入';
+
+  @override
   String get channelPostEmptyTitle => '还没有频道内容';
 
   @override
@@ -1374,4 +1530,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get commonJustNow => '刚刚';
+
+  @override
+  String get agentChatEmptyTitle => '开始我们的聊天吧';
 }

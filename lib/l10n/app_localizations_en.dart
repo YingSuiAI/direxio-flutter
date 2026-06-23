@@ -557,6 +557,123 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactApplyFriend => 'Add Friend';
 
   @override
+  String get contactSetRemark => 'Set Remark';
+
+  @override
+  String get contactRecommendFriend => 'Recommend to Friends';
+
+  @override
+  String get contactRecommendHim => 'Recommend him to friends';
+
+  @override
+  String get contactSearchChat => 'Search Chat';
+
+  @override
+  String get contactDeleteFriend => 'Delete Friend';
+
+  @override
+  String get contactBlockUserDetail => 'Block User';
+
+  @override
+  String get contactHisChannels => 'His Channels';
+
+  @override
+  String get contactAddFriend => 'Add Friend';
+
+  @override
+  String get contactSupportManager => 'Support Manager';
+
+  @override
+  String get contactRoomMissingSearch =>
+      'Missing contact room information. Cannot search chat.';
+
+  @override
+  String get contactRoomMissingBlock =>
+      'Failed to block user: missing contact room information';
+
+  @override
+  String get contactRoomMissingDelete =>
+      'Failed to delete friend: missing contact room information';
+
+  @override
+  String get contactRoomMissingRemark =>
+      'Missing contact room information. Cannot save remark.';
+
+  @override
+  String get contactFriendRequestRestored =>
+      'Previous conversation restored. You can continue chatting.';
+
+  @override
+  String get contactFriendRequestSent =>
+      'Friend request sent. Waiting for acceptance.';
+
+  @override
+  String get contactDeleteConfirmTitle => 'Delete Friend';
+
+  @override
+  String get contactDeleteConfirmBody =>
+      'After deletion, this contact will no longer appear and the conversation relationship will be updated.';
+
+  @override
+  String get contactDeleteAction => 'Delete';
+
+  @override
+  String get contactDeleted => 'Friend deleted';
+
+  @override
+  String contactDeleteFailed(String error) {
+    return 'Failed to delete friend: $error';
+  }
+
+  @override
+  String get contactBlockConfirmTitle => 'Block User';
+
+  @override
+  String get contactBlockConfirmBody =>
+      'Blocking will remove this contact and conversation relationship.';
+
+  @override
+  String get contactBlockAction => 'Block';
+
+  @override
+  String get contactBlocked => 'User blocked';
+
+  @override
+  String contactBlockFailed(String error) {
+    return 'Failed to block user: $error';
+  }
+
+  @override
+  String get contactReportSubmitted => 'Report submitted';
+
+  @override
+  String contactReportSubmitFailed(String error) {
+    return 'Failed to submit report: $error';
+  }
+
+  @override
+  String get contactRemarkEmpty => 'Remark cannot be empty';
+
+  @override
+  String contactRemarkUpdateFailed(String error) {
+    return 'Failed to update remark: $error';
+  }
+
+  @override
+  String get contactRemarkUpdated => 'Remark updated';
+
+  @override
+  String get contactRemarkHint => 'Enter a remark';
+
+  @override
+  String get contactRemarkSave => 'Save';
+
+  @override
+  String contactShareText(String name, String userId) {
+    return 'Recommended contact: $name\n$userId';
+  }
+
+  @override
   String get contactsSearchHint => 'ID / Nickname / Email';
 
   @override
@@ -573,6 +690,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get contactsFollows => 'Following';
+
+  @override
+  String get groupsListSearchHint => 'Search group chats';
+
+  @override
+  String get groupsListSyncing => 'Syncing group chats';
+
+  @override
+  String get groupsListEmpty => 'No group chats yet';
+
+  @override
+  String get groupsListNoMatches => 'No matching group chats';
+
+  @override
+  String get groupsListOwnerBadge => 'Owner';
+
+  @override
+  String get groupsListYesterday => 'Yesterday';
 
   @override
   String get requestsSearchHint => 'Search';
@@ -1126,6 +1261,36 @@ class AppLocalizationsEn extends AppLocalizations {
       'Public channel · Approval required';
 
   @override
+  String get globalSearchTitle => 'Search';
+
+  @override
+  String get globalSearchHint => 'Search';
+
+  @override
+  String globalSearchNoResults(String query) {
+    return 'No content found for \"$query\"';
+  }
+
+  @override
+  String get globalSearchMessageFallback => 'Message';
+
+  @override
+  String get globalSearchMessageLabel => 'Message';
+
+  @override
+  String get globalSearchContactLabel => 'Contact';
+
+  @override
+  String get globalSearchGroupLabel => 'Group chat';
+
+  @override
+  String get globalSearchChannelLabel => 'Channel';
+
+  @override
+  String get globalSearchChannelDetailPending =>
+      'Channel details are not available yet';
+
+  @override
   String get channelPostEmptyTitle => 'No channel posts yet';
 
   @override
@@ -1417,4 +1582,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonJustNow => 'Just now';
+
+  @override
+  String get agentChatEmptyTitle => 'Start our chat';
 }

@@ -12,6 +12,7 @@ import 'package:matrix/matrix.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 import '../../l10n/app_localizations.dart';
+import '../../l10n/app_localizations_zh.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
@@ -71,6 +72,13 @@ import '../widgets/portal_avatar.dart';
 
 void _groupChatGestureLog(String message) {
   debugPrint('[group chat gesture] $message');
+}
+
+final AppLocalizations _fallbackGroupChatL10n = AppLocalizationsZh();
+
+AppLocalizations _groupChatL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations) ??
+      _fallbackGroupChatL10n;
 }
 
 Future<void> _popGroupChatOrHome(BuildContext context) async {
@@ -422,7 +430,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       );
     } on Object catch (e) {
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.groupChatVoiceRecordFailed('$e')),
@@ -444,7 +452,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (recording == null) return;
       if (recording.durationMs < 700) {
         if (!mounted) return;
-        final l10n = AppLocalizations.of(context);
+        final l10n = _groupChatL10n(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(l10n.groupChatRecordingTooShort),
@@ -529,8 +537,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
           displayName: displayName.trim().isEmpty
               ? _fallbackDisplayNameForMxid(
                   id,
-                  unknownMember:
-                      AppLocalizations.of(context).groupChatUnknownMember,
+                  unknownMember: _groupChatL10n(context).groupChatUnknownMember,
                 )
               : displayName.trim(),
         ),
@@ -553,7 +560,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     try {
       final roomId = payload.roomId.trim();
       if (roomId.isEmpty) {
-        final l10n = AppLocalizations.of(context);
+        final l10n = _groupChatL10n(context);
         throw StateError(l10n.groupChatCannotOpen(l10n.groupChatChannel));
       }
       final channelId = payload.channelId.trim();
@@ -582,7 +589,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       context.push(channelShareJoinedRoute(payload, joined), extra: payload);
     } on Object catch (e) {
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.channelJoinFailed('$e'))),
       );
@@ -711,7 +718,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   void _showQuotedMessageUnavailable() {
     if (!mounted) return;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.groupChatOriginalMessageUnavailable)),
     );
@@ -860,7 +867,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('open group file failed: $err');
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatOpenFailed('$err'))),
       );
@@ -877,7 +884,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('open group video failed: $err');
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatPlaybackFailed('$err'))),
       );
@@ -895,7 +902,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('play group voice failed: $err');
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatPlaybackFailed('$err'))),
       );
@@ -924,7 +931,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (eventId.isNotEmpty) {
         setState(() => _downloadedFileEventIds.add(eventId));
       }
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -935,7 +942,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('download group file failed: $err');
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatDownloadFailed('$err'))),
       );
@@ -1239,7 +1246,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     String mxid,
   ) {
     final trimmed = mxid.trim();
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     if (trimmed.isEmpty) return l10n.groupChatUnknownMember;
     for (final member in room.getParticipants()) {
       if (member.id.trim() != trimmed) continue;
@@ -1348,7 +1355,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   ) {
     final localPreview = _localReplyPreviews[event.eventId.trim()];
     if (localPreview != null) return localPreview;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     final fallbackPreview = _groupReplyPreviewFromMatrixFallbackBody(
       event.body,
       l10n,
@@ -1441,7 +1448,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final nickname = member.displayName.trim().isEmpty
         ? _fallbackDisplayNameForMxid(
             member.userId,
-            unknownMember: AppLocalizations.of(context).groupChatUnknownMember,
+            unknownMember: _groupChatL10n(context).groupChatUnknownMember,
           )
         : member.displayName.trim();
     final mentionText = '@$nickname ';
@@ -1529,7 +1536,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         await ref.read(localOutboxProvider.notifier).failItem(pendingId);
       }
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatSendFailed('$e'))),
       );
@@ -1694,7 +1701,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   void _showGroupCannotSendToast(BuildContext context) {
     if (!context.mounted) return;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     final isChannelConversation = widget.channelId?.trim().isNotEmpty ?? false;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1747,7 +1754,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     )) {
       return trimmedFallback;
     }
-    return AppLocalizations.of(context).groupChatChannel;
+    return _groupChatL10n(context).groupChatChannel;
   }
 
   bool _isReadableChannelTitle(
@@ -1863,7 +1870,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final bytes = item.bytes;
     if (bytes == null || bytes.isEmpty) {
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       final label = switch (item.messageKind) {
         LocalOutboxMessageKind.image => l10n.groupChatImage,
         LocalOutboxMessageKind.video => l10n.groupChatVideo,
@@ -1975,7 +1982,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (e) {
       await ref.read(localOutboxProvider.notifier).failItem(item.id);
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatSendFailed('$e'))),
       );
@@ -2012,7 +2019,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'copy':
         await Clipboard.setData(ClipboardData(text: event.body));
         if (mounted) {
-          final l10n = AppLocalizations.of(context);
+          final l10n = _groupChatL10n(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(l10n.groupChatCopied),
@@ -2070,12 +2077,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
           ClipboardData(
             text: _groupOutboxCopyText(
               item,
-              AppLocalizations.of(context),
+              _groupChatL10n(context),
             ),
           ),
         );
         if (mounted) {
-          final l10n = AppLocalizations.of(context);
+          final l10n = _groupChatL10n(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(l10n.groupChatCopied),
@@ -2087,7 +2094,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'delete':
         await ref.read(localOutboxProvider.notifier).completeItem(item.id);
         if (mounted) {
-          final l10n = AppLocalizations.of(context);
+          final l10n = _groupChatL10n(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(l10n.groupChatDeleted),
@@ -2098,7 +2105,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         break;
       case 'fav':
         if (mounted) {
-          final l10n = AppLocalizations.of(context);
+          final l10n = _groupChatL10n(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(l10n.groupChatCannotFavoriteSending),
@@ -2112,7 +2119,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'quote':
       case 'recall':
         if (mounted) {
-          final l10n = AppLocalizations.of(context);
+          final l10n = _groupChatL10n(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(l10n.groupChatActionAvailableAfterSent),
@@ -2126,13 +2133,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   Future<void> _recallEvent(Event event) async {
     if (!event.canRedact) {
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatNoRecallPermission)),
       );
       return;
     }
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -2210,7 +2217,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('delete group message for me failed: $err');
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatDeleteFailed('$err'))),
       );
@@ -2245,7 +2252,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('delete selected group messages for me failed: $err');
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatDeleteFailed('$err'))),
       );
@@ -2267,7 +2274,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final eventId = event.eventId.trim();
     if (eventId.isEmpty || _favoritingEventIds.contains(eventId)) return;
     if (mounted) {
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       setState(() => _favoritingEventIds.add(eventId));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -2280,7 +2287,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       final draft = await _favoriteDraftForEvent(event);
       await ref.read(asClientProvider).favoriteMessage(draft);
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.groupChatFavorited),
@@ -2290,7 +2297,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('favorite group message failed: $err');
       if (mounted) {
-        final l10n = AppLocalizations.of(context);
+        final l10n = _groupChatL10n(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.groupChatFavoriteFailed('$err'))),
         );
@@ -2398,13 +2405,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         _multiSelect = false;
         _selected.clear();
       });
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatForwardedRecord)),
       );
     } on Object catch (err) {
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.groupChatForwardFailed('$err'))),
       );
@@ -2428,7 +2435,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final room = _room;
     if (room == null) {
       final t = context.tk;
-      final l10n = AppLocalizations.of(context);
+      final l10n = _groupChatL10n(context);
       final syncCache = ref.watch(asSyncCacheProvider);
       final channel = _currentChannelSummary(syncCache);
       final group = channel == null ? _groupSummary(syncCache) : null;
@@ -2663,7 +2670,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       reserveBottomOverlay: false,
     ).add(const EdgeInsets.symmetric(vertical: 12));
     final voiceCallController = ref.watch(voiceCallControllerProvider);
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
 
     return Scaffold(
       body: ChatGlassBackground(
@@ -3605,7 +3612,7 @@ class _GroupMentionMemberSheetState extends State<_GroupMentionMemberSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     final keyword = _keyword.trim().toLowerCase();
     final members = keyword.isEmpty
         ? widget.members
@@ -4267,7 +4274,7 @@ class _GroupMessageSelectCheckmark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     return Semantics(
       button: true,
       label: selected
@@ -4797,7 +4804,7 @@ class _GroupPendingTextBubble extends StatelessWidget {
           const SizedBox(width: 8),
           _MemberAvatar(
             seed: 'me',
-            name: AppLocalizations.of(context).groupChatMe,
+            name: _groupChatL10n(context).groupChatMe,
           ),
         ],
       ),
@@ -4819,7 +4826,7 @@ class _GroupQuotedMessageBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     final senderColor = isMe ? t.onAccent.withValues(alpha: 0.88) : t.accent;
     final bodyColor = isMe ? t.onAccent.withValues(alpha: 0.78) : t.textMute;
     final block = Container(
@@ -5284,7 +5291,7 @@ class _GroupPendingMediaBubble extends StatelessWidget {
           const SizedBox(width: 8),
           _MemberAvatar(
             seed: 'me',
-            name: AppLocalizations.of(context).groupChatMe,
+            name: _groupChatL10n(context).groupChatMe,
           ),
         ],
       ),
@@ -5373,7 +5380,7 @@ class _GroupFileOutboxStatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     if (status == LocalOutboxItemStatus.sending) {
       return SizedBox(
         width: 20,
@@ -5410,7 +5417,7 @@ class _GroupInlineOutboxStatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     if (status == LocalOutboxItemStatus.sending) {
       return SizedBox(
         width: 14,
@@ -5449,7 +5456,7 @@ class _GroupFileDownloadStatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     if (downloading) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -5648,7 +5655,7 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     const dark = Color(0xFF4A4A4A);
     const divider = Color(0x17FFFFFF);
     const itemW = 68.6;
@@ -5907,7 +5914,7 @@ class _GroupRemovedComposerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final l10n = AppLocalizations.of(context);
+    final l10n = _groupChatL10n(context);
     return Container(
       height: 56,
       width: double.infinity,

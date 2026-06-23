@@ -37,6 +37,35 @@ List<AsCallSession> asCallSessionsForGroupTimeline({
   return selected;
 }
 
+List<AsCallSession> asCallSessionsForDirectTimeline({
+  required Iterable<AsCallSession> sessions,
+  required String roomId,
+  required Iterable<Event> rawTimelineEvents,
+  required Iterable<Event> callRecordContextEvents,
+}) {
+  final trimmedRoomId = roomId.trim();
+  if (trimmedRoomId.isEmpty) return const [];
+  final rawCallIds =
+      _callIdsForEvents(rawTimelineEvents, callRecordContextEvents);
+  final selected = <AsCallSession>[];
+  for (final session in sessions) {
+    final callId = session.callId.trim();
+    if (callId.isEmpty ||
+        session.roomId.trim() != trimmedRoomId ||
+        !asCallSessionSnapshotIsTerminal(session) ||
+        rawCallIds.contains(callId)) {
+      continue;
+    }
+    selected.add(session);
+  }
+  selected.sort(
+    (a, b) => asCallSessionStableTimestamp(b).compareTo(
+      asCallSessionStableTimestamp(a),
+    ),
+  );
+  return selected;
+}
+
 List<Event> groupTimelineEventsReplacingAsCallSnapshots({
   required Iterable<Event> visibleEvents,
   required Iterable<Event> callRecordContextEvents,

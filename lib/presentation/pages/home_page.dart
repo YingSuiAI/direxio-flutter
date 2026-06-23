@@ -1771,7 +1771,7 @@ class _ConvRow extends StatelessWidget {
               ? GroupCompositeAvatar(
                   seed: name,
                   size: _conversationTileAvatarSize,
-                  imageUrl: groupAvatarMembers.isEmpty ? avatarUrl : null,
+                  imageUrl: avatarUrl,
                   members: groupAvatarMembers,
                 )
               : PortalAvatar(

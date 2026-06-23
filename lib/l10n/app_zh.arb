@@ -210,12 +210,89 @@
   "contactReportTodo": "举报功能待接入",
   "contactFriendRequested": "已申请",
   "contactApplyFriend": "申请好友",
+  "contactSetRemark": "设置备注",
+  "contactRecommendFriend": "推荐给朋友",
+  "contactRecommendHim": "把他推荐给朋友",
+  "contactSearchChat": "搜索聊天",
+  "contactDeleteFriend": "删除好友",
+  "contactBlockUserDetail": "拉黑用户",
+  "contactHisChannels": "他的频道",
+  "contactAddFriend": "添加好友",
+  "contactSupportManager": "客服经理",
+  "contactRoomMissingSearch": "缺少联系人房间信息，无法搜索聊天",
+  "contactRoomMissingBlock": "拉黑用户失败: 缺少联系人房间信息",
+  "contactRoomMissingDelete": "删除好友失败: 缺少联系人房间信息",
+  "contactRoomMissingRemark": "缺少联系人房间信息，无法保存备注",
+  "contactFriendRequestRestored": "已恢复旧会话，可以继续聊天。",
+  "contactFriendRequestSent": "好友请求已发送，等待对方接受。",
+  "contactDeleteConfirmTitle": "删除好友",
+  "contactDeleteConfirmBody": "删除后将不再显示该联系人，会话关系也会同步更新。",
+  "contactDeleteAction": "删除",
+  "contactDeleted": "已删除好友",
+  "contactDeleteFailed": "删除好友失败: {error}",
+  "@contactDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactBlockConfirmTitle": "拉黑用户",
+  "contactBlockConfirmBody": "拉黑后将移除该联系人和会话关系。",
+  "contactBlockAction": "拉黑",
+  "contactBlocked": "已拉黑用户",
+  "contactBlockFailed": "拉黑用户失败: {error}",
+  "@contactBlockFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactReportSubmitted": "举报已提交",
+  "contactReportSubmitFailed": "举报提交失败: {error}",
+  "@contactReportSubmitFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactRemarkEmpty": "备注不能为空",
+  "contactRemarkUpdateFailed": "备注更新失败: {error}",
+  "@contactRemarkUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactRemarkUpdated": "备注已更新",
+  "contactRemarkHint": "输入备注名",
+  "contactRemarkSave": "保存",
+  "contactShareText": "推荐联系人：{name}\n{userId}",
+  "@contactShareText": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "userId": {
+        "type": "String"
+      }
+    }
+  },
   "contactsSearchHint": "ID/昵称/邮箱",
   "contactsNewFriends": "新朋友",
   "contactsNewGroup": "新的群聊",
   "contactsMyGroups": "我的群组",
   "contactsGroups": "群聊",
   "contactsFollows": "关注",
+  "groupsListSearchHint": "搜索群聊",
+  "groupsListSyncing": "正在同步群聊",
+  "groupsListEmpty": "还没有群聊",
+  "groupsListNoMatches": "没有匹配的群聊",
+  "groupsListOwnerBadge": "群主",
+  "groupsListYesterday": "昨天",
   "requestsSearchHint": "搜索",
   "requestsPendingHidden": "待接受",
   "requestsWaitingPeerAccept": "等待对方接受",
@@ -580,6 +657,22 @@
   "channelSearchUnnamed": "未命名频道",
   "channelSearchPublicChannel": "公开频道",
   "channelSearchPublicApproval": "公开频道 · 加入需审核",
+  "globalSearchTitle": "搜索",
+  "globalSearchHint": "搜索",
+  "globalSearchNoResults": "没有找到包含「{query}」的内容",
+  "@globalSearchNoResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "globalSearchMessageFallback": "消息",
+  "globalSearchMessageLabel": "消息",
+  "globalSearchContactLabel": "联系人",
+  "globalSearchGroupLabel": "群聊",
+  "globalSearchChannelLabel": "频道",
+  "globalSearchChannelDetailPending": "频道详情功能待接入",
   "channelPostEmptyTitle": "还没有频道内容",
   "channelPostEmptySubtitle": "发布后会显示在这里",
   "channelPostPublish": "发表",
@@ -776,5 +869,6 @@
     }
   },
   "commonMe": "我",
-  "commonJustNow": "刚刚"
+  "commonJustNow": "刚刚",
+  "agentChatEmptyTitle": "开始我们的聊天吧"
 }

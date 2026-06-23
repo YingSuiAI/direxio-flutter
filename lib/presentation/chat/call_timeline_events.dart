@@ -3,6 +3,13 @@ import 'package:matrix/matrix.dart';
 import '../../data/as_client.dart';
 
 const _missedReason = 'invite_timeout';
+const _rejectedReasons = {
+  'reject',
+  'rejected',
+  'user_reject',
+  'user_rejected',
+  'user_busy',
+};
 const _productCallIntentEventType = 'p2p.call.intent.v1';
 const _productGroupCallInviteEventType = 'p2p.group_call.invite.v1';
 const _productGroupCallJoinEventType = 'p2p.group_call.join.v1';
@@ -312,6 +319,7 @@ String? _callRecordTextFromAsSession(
   required bool isGroupCall,
 }) {
   if (session == null) return null;
+  if (_asSessionWasRejected(session)) return '已拒绝';
   if (session.state == asCallStateMissed ||
       session.state == asCallStateFailed) {
     return '未接通';
@@ -321,7 +329,15 @@ String? _callRecordTextFromAsSession(
     return null;
   }
   final duration = _asSessionDuration(session);
-  if (session.answeredAt == null && duration.inSeconds <= 0) {
+  if (session.state == asCallStateEnded && session.endedAt != null) {
+    if (session.answeredAt == null && duration.inSeconds <= 0) {
+      return '未接通';
+    }
+    return _formatCallDuration(duration);
+  }
+  if (session.state != asCallStateEnded &&
+      session.answeredAt == null &&
+      duration.inSeconds <= 0) {
     return '未接通';
   }
   return _formatCallDuration(duration);
@@ -432,8 +448,9 @@ Duration _asSessionDuration(AsCallSession session) {
   }
   final answeredAt = session.answeredAt;
   final endedAt = session.endedAt;
-  if (answeredAt == null || endedAt == null) return Duration.zero;
-  final duration = endedAt.difference(answeredAt);
+  if (endedAt == null) return Duration.zero;
+  final startedAt = answeredAt ?? session.createdAt;
+  final duration = endedAt.difference(startedAt);
   return duration.isNegative ? Duration.zero : duration;
 }
 
@@ -464,6 +481,11 @@ String? _callId(Event event) {
 String? _reason(Event event) {
   final value = event.content['reason'];
   return value is String ? value : null;
+}
+
+bool _asSessionWasRejected(AsCallSession session) {
+  final reason = session.endReason.trim().toLowerCase();
+  return _rejectedReasons.contains(reason);
 }
 
 String _formatCallDuration(Duration duration) {

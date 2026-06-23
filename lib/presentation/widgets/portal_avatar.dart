@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:matrix/matrix.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../providers/auth_provider.dart';
 
 enum AvatarShape { circle, squircle }
 
@@ -45,6 +48,10 @@ class PortalAvatar extends StatelessWidget {
     final radius = shape == AvatarShape.circle
         ? BorderRadius.circular(size / 2)
         : BorderRadius.circular(size * 0.225);
+    final imageHeaders = avatarImageHeadersForUrl(
+      _matrixClientOf(context),
+      imageUrl,
+    );
 
     return Container(
       width: size,
@@ -63,8 +70,11 @@ class PortalAvatar extends StatelessWidget {
             )
           : imageUrl != null
               ? Image.network(
-                  key: ValueKey(imageUrl),
+                  key: ValueKey(
+                    Object.hash(imageUrl, imageHeaders?['authorization']),
+                  ),
                   imageUrl!,
+                  headers: imageHeaders,
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
@@ -92,6 +102,33 @@ class PortalAvatar extends StatelessWidget {
         style: AppTheme.sans(
             size: size * 0.42, color: fg, weight: FontWeight.w600),
       );
+}
+
+@visibleForTesting
+Map<String, String>? avatarImageHeadersForUrl(Client? client, String? url) {
+  final token = client?.accessToken?.trim() ?? '';
+  if (token.isEmpty) return null;
+  final homeserver = client?.homeserver;
+  if (homeserver == null || homeserver.host.isEmpty) return null;
+  final uri = Uri.tryParse(url?.trim() ?? '');
+  if (uri == null || uri.host.isEmpty) return null;
+  if (!_sameOrigin(uri, homeserver)) return null;
+  return {'authorization': 'Bearer $token'};
+}
+
+Client? _matrixClientOf(BuildContext context) {
+  try {
+    return ProviderScope.containerOf(context, listen: false)
+        .read(matrixClientProvider);
+  } catch (_) {
+    return null;
+  }
+}
+
+bool _sameOrigin(Uri left, Uri right) {
+  return left.scheme == right.scheme &&
+      left.host.toLowerCase() == right.host.toLowerCase() &&
+      left.port == right.port;
 }
 
 /// 在线状态绿点 —— 叠在头像右下角。

@@ -1139,6 +1139,204 @@ abstract class AppLocalizations {
   /// **'申请好友'**
   String get contactApplyFriend;
 
+  /// No description provided for @contactSetRemark.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置备注'**
+  String get contactSetRemark;
+
+  /// No description provided for @contactRecommendFriend.
+  ///
+  /// In zh, this message translates to:
+  /// **'推荐给朋友'**
+  String get contactRecommendFriend;
+
+  /// No description provided for @contactRecommendHim.
+  ///
+  /// In zh, this message translates to:
+  /// **'把他推荐给朋友'**
+  String get contactRecommendHim;
+
+  /// No description provided for @contactSearchChat.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索聊天'**
+  String get contactSearchChat;
+
+  /// No description provided for @contactDeleteFriend.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除好友'**
+  String get contactDeleteFriend;
+
+  /// No description provided for @contactBlockUserDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉黑用户'**
+  String get contactBlockUserDetail;
+
+  /// No description provided for @contactHisChannels.
+  ///
+  /// In zh, this message translates to:
+  /// **'他的频道'**
+  String get contactHisChannels;
+
+  /// No description provided for @contactAddFriend.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加好友'**
+  String get contactAddFriend;
+
+  /// No description provided for @contactSupportManager.
+  ///
+  /// In zh, this message translates to:
+  /// **'客服经理'**
+  String get contactSupportManager;
+
+  /// No description provided for @contactRoomMissingSearch.
+  ///
+  /// In zh, this message translates to:
+  /// **'缺少联系人房间信息，无法搜索聊天'**
+  String get contactRoomMissingSearch;
+
+  /// No description provided for @contactRoomMissingBlock.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉黑用户失败: 缺少联系人房间信息'**
+  String get contactRoomMissingBlock;
+
+  /// No description provided for @contactRoomMissingDelete.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除好友失败: 缺少联系人房间信息'**
+  String get contactRoomMissingDelete;
+
+  /// No description provided for @contactRoomMissingRemark.
+  ///
+  /// In zh, this message translates to:
+  /// **'缺少联系人房间信息，无法保存备注'**
+  String get contactRoomMissingRemark;
+
+  /// No description provided for @contactFriendRequestRestored.
+  ///
+  /// In zh, this message translates to:
+  /// **'已恢复旧会话，可以继续聊天。'**
+  String get contactFriendRequestRestored;
+
+  /// No description provided for @contactFriendRequestSent.
+  ///
+  /// In zh, this message translates to:
+  /// **'好友请求已发送，等待对方接受。'**
+  String get contactFriendRequestSent;
+
+  /// No description provided for @contactDeleteConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除好友'**
+  String get contactDeleteConfirmTitle;
+
+  /// No description provided for @contactDeleteConfirmBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除后将不再显示该联系人，会话关系也会同步更新。'**
+  String get contactDeleteConfirmBody;
+
+  /// No description provided for @contactDeleteAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get contactDeleteAction;
+
+  /// No description provided for @contactDeleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除好友'**
+  String get contactDeleted;
+
+  /// No description provided for @contactDeleteFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除好友失败: {error}'**
+  String contactDeleteFailed(String error);
+
+  /// No description provided for @contactBlockConfirmTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉黑用户'**
+  String get contactBlockConfirmTitle;
+
+  /// No description provided for @contactBlockConfirmBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉黑后将移除该联系人和会话关系。'**
+  String get contactBlockConfirmBody;
+
+  /// No description provided for @contactBlockAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉黑'**
+  String get contactBlockAction;
+
+  /// No description provided for @contactBlocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拉黑用户'**
+  String get contactBlocked;
+
+  /// No description provided for @contactBlockFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'拉黑用户失败: {error}'**
+  String contactBlockFailed(String error);
+
+  /// No description provided for @contactReportSubmitted.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报已提交'**
+  String get contactReportSubmitted;
+
+  /// No description provided for @contactReportSubmitFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报提交失败: {error}'**
+  String contactReportSubmitFailed(String error);
+
+  /// No description provided for @contactRemarkEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'备注不能为空'**
+  String get contactRemarkEmpty;
+
+  /// No description provided for @contactRemarkUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'备注更新失败: {error}'**
+  String contactRemarkUpdateFailed(String error);
+
+  /// No description provided for @contactRemarkUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'备注已更新'**
+  String get contactRemarkUpdated;
+
+  /// No description provided for @contactRemarkHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入备注名'**
+  String get contactRemarkHint;
+
+  /// No description provided for @contactRemarkSave.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get contactRemarkSave;
+
+  /// No description provided for @contactShareText.
+  ///
+  /// In zh, this message translates to:
+  /// **'推荐联系人：{name}\n{userId}'**
+  String contactShareText(String name, String userId);
+
   /// No description provided for @contactsSearchHint.
   ///
   /// In zh, this message translates to:
@@ -1174,6 +1372,42 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'关注'**
   String get contactsFollows;
+
+  /// No description provided for @groupsListSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索群聊'**
+  String get groupsListSearchHint;
+
+  /// No description provided for @groupsListSyncing.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在同步群聊'**
+  String get groupsListSyncing;
+
+  /// No description provided for @groupsListEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有群聊'**
+  String get groupsListEmpty;
+
+  /// No description provided for @groupsListNoMatches.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有匹配的群聊'**
+  String get groupsListNoMatches;
+
+  /// No description provided for @groupsListOwnerBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'群主'**
+  String get groupsListOwnerBadge;
+
+  /// No description provided for @groupsListYesterday.
+  ///
+  /// In zh, this message translates to:
+  /// **'昨天'**
+  String get groupsListYesterday;
 
   /// No description provided for @requestsSearchHint.
   ///
@@ -2123,6 +2357,60 @@ abstract class AppLocalizations {
   /// **'公开频道 · 加入需审核'**
   String get channelSearchPublicApproval;
 
+  /// No description provided for @globalSearchTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索'**
+  String get globalSearchTitle;
+
+  /// No description provided for @globalSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索'**
+  String get globalSearchHint;
+
+  /// No description provided for @globalSearchNoResults.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到包含「{query}」的内容'**
+  String globalSearchNoResults(String query);
+
+  /// No description provided for @globalSearchMessageFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息'**
+  String get globalSearchMessageFallback;
+
+  /// No description provided for @globalSearchMessageLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息'**
+  String get globalSearchMessageLabel;
+
+  /// No description provided for @globalSearchContactLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'联系人'**
+  String get globalSearchContactLabel;
+
+  /// No description provided for @globalSearchGroupLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊'**
+  String get globalSearchGroupLabel;
+
+  /// No description provided for @globalSearchChannelLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道'**
+  String get globalSearchChannelLabel;
+
+  /// No description provided for @globalSearchChannelDetailPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道详情功能待接入'**
+  String get globalSearchChannelDetailPending;
+
   /// No description provided for @channelPostEmptyTitle.
   ///
   /// In zh, this message translates to:
@@ -2632,6 +2920,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'刚刚'**
   String get commonJustNow;
+
+  /// No description provided for @agentChatEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始我们的聊天吧'**
+  String get agentChatEmptyTitle;
 }
 
 class _AppLocalizationsDelegate

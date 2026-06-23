@@ -207,12 +207,89 @@
   "contactReportTodo": "Report feature is not connected yet",
   "contactFriendRequested": "Requested",
   "contactApplyFriend": "Add Friend",
+  "contactSetRemark": "Set Remark",
+  "contactRecommendFriend": "Recommend to Friends",
+  "contactRecommendHim": "Recommend him to friends",
+  "contactSearchChat": "Search Chat",
+  "contactDeleteFriend": "Delete Friend",
+  "contactBlockUserDetail": "Block User",
+  "contactHisChannels": "His Channels",
+  "contactAddFriend": "Add Friend",
+  "contactSupportManager": "Support Manager",
+  "contactRoomMissingSearch": "Missing contact room information. Cannot search chat.",
+  "contactRoomMissingBlock": "Failed to block user: missing contact room information",
+  "contactRoomMissingDelete": "Failed to delete friend: missing contact room information",
+  "contactRoomMissingRemark": "Missing contact room information. Cannot save remark.",
+  "contactFriendRequestRestored": "Previous conversation restored. You can continue chatting.",
+  "contactFriendRequestSent": "Friend request sent. Waiting for acceptance.",
+  "contactDeleteConfirmTitle": "Delete Friend",
+  "contactDeleteConfirmBody": "After deletion, this contact will no longer appear and the conversation relationship will be updated.",
+  "contactDeleteAction": "Delete",
+  "contactDeleted": "Friend deleted",
+  "contactDeleteFailed": "Failed to delete friend: {error}",
+  "@contactDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactBlockConfirmTitle": "Block User",
+  "contactBlockConfirmBody": "Blocking will remove this contact and conversation relationship.",
+  "contactBlockAction": "Block",
+  "contactBlocked": "User blocked",
+  "contactBlockFailed": "Failed to block user: {error}",
+  "@contactBlockFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactReportSubmitted": "Report submitted",
+  "contactReportSubmitFailed": "Failed to submit report: {error}",
+  "@contactReportSubmitFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactRemarkEmpty": "Remark cannot be empty",
+  "contactRemarkUpdateFailed": "Failed to update remark: {error}",
+  "@contactRemarkUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "contactRemarkUpdated": "Remark updated",
+  "contactRemarkHint": "Enter a remark",
+  "contactRemarkSave": "Save",
+  "contactShareText": "Recommended contact: {name}\n{userId}",
+  "@contactShareText": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "userId": {
+        "type": "String"
+      }
+    }
+  },
   "contactsSearchHint": "ID / Nickname / Email",
   "contactsNewFriends": "New Friends",
   "contactsNewGroup": "New Group Chat",
   "contactsMyGroups": "My Groups",
   "contactsGroups": "Groups",
   "contactsFollows": "Following",
+  "groupsListSearchHint": "Search group chats",
+  "groupsListSyncing": "Syncing group chats",
+  "groupsListEmpty": "No group chats yet",
+  "groupsListNoMatches": "No matching group chats",
+  "groupsListOwnerBadge": "Owner",
+  "groupsListYesterday": "Yesterday",
   "requestsSearchHint": "Search",
   "requestsPendingHidden": "Pending",
   "requestsWaitingPeerAccept": "Waiting for acceptance",
@@ -577,6 +654,22 @@
   "channelSearchUnnamed": "Untitled channel",
   "channelSearchPublicChannel": "Public channel",
   "channelSearchPublicApproval": "Public channel · Approval required",
+  "globalSearchTitle": "Search",
+  "globalSearchHint": "Search",
+  "globalSearchNoResults": "No content found for \"{query}\"",
+  "@globalSearchNoResults": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "globalSearchMessageFallback": "Message",
+  "globalSearchMessageLabel": "Message",
+  "globalSearchContactLabel": "Contact",
+  "globalSearchGroupLabel": "Group chat",
+  "globalSearchChannelLabel": "Channel",
+  "globalSearchChannelDetailPending": "Channel details are not available yet",
   "channelPostEmptyTitle": "No channel posts yet",
   "channelPostEmptySubtitle": "Posts will appear here after publishing.",
   "channelPostPublish": "Post",
@@ -773,5 +866,6 @@
     }
   },
   "commonMe": "Me",
-  "commonJustNow": "Just now"
+  "commonJustNow": "Just now",
+  "agentChatEmptyTitle": "Start our chat"
 }

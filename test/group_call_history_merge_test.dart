@@ -5,7 +5,7 @@ import 'package:portal_app/presentation/chat/call_timeline_events.dart';
 import 'package:portal_app/presentation/chat/group_call_history_merge.dart';
 
 void main() {
-  test('AS snapshots replace visible Matrix direct call records', () {
+  test('AS snapshots do not replace visible Matrix direct call records', () {
     final client = Client('DirectCallHistoryMergeTest')
       ..setUserId('@owner:p2p-im.com');
     final room = Room(id: '!direct:p2p-im.com', client: client);
@@ -28,6 +28,14 @@ void main() {
       at: DateTime.utc(2026, 6, 2, 10, 0, 1),
       content: {'call_id': 'matrix-call'},
     );
+    final answer = _directCallEvent(
+      room,
+      eventId: r'$answer',
+      type: EventTypes.CallAnswer,
+      senderId: '@peer:p2p-im.com',
+      at: DateTime.utc(2026, 6, 2, 10, 0, 3),
+      content: {'call_id': 'matrix-call'},
+    );
     final hangup = _directCallEvent(
       room,
       eventId: r'$hangup',
@@ -37,9 +45,9 @@ void main() {
       content: {'call_id': 'matrix-call'},
     );
     final callContext =
-        callRecordContextEventsForTimeline([intent, invite, hangup]);
+        callRecordContextEventsForTimeline([intent, invite, answer, hangup]);
     final visibleEvents =
-        chatDisplayEventsForTimeline([intent, invite, hangup]);
+        chatDisplayEventsForTimeline([intent, invite, answer, hangup]);
     final snapshot = _session(
       callId: 'direct-call',
       roomId: '!direct:p2p-im.com',
@@ -50,11 +58,10 @@ void main() {
       durationMs: 42000,
     );
 
-    final snapshots = asCallSessionsForGroupTimeline(
+    final snapshots = asCallSessionsForDirectTimeline(
       sessions: [snapshot],
       roomId: '!direct:p2p-im.com',
-      rawTimelineEvents: [intent, invite, hangup],
-      visibleEvents: visibleEvents,
+      rawTimelineEvents: [intent, invite, answer, hangup],
       callRecordContextEvents: callContext,
     );
     final events = groupTimelineEventsReplacingAsCallSnapshots(
@@ -63,9 +70,9 @@ void main() {
       asCallSessions: snapshots,
     );
 
-    expect(snapshots.map((session) => session.callId), ['direct-call']);
-    expect(asCallSessionRecordText(snapshots.single), '0:42');
-    expect(events, isEmpty);
+    expect(snapshots, isEmpty);
+    expect(events, [hangup]);
+    expect(callRecordText(events.single, callContext), '0:42');
   });
 
   test('AS snapshots replace visible Matrix group call records', () {
@@ -187,6 +194,39 @@ void main() {
     expect(
       snapshots.map((session) => '${session.callId}:${session.mediaType}'),
       ['call-new-video:video', 'call-old-voice:voice'],
+    );
+  });
+
+  test('direct AS snapshots fill calls absent from local Matrix timeline', () {
+    final snapshots = asCallSessionsForDirectTimeline(
+      sessions: [
+        _session(
+          callId: 'direct-old-voice',
+          roomId: '!direct:p2p-im.com',
+          roomType: 'direct',
+          mediaType: asCallMediaTypeVoice,
+          state: asCallStateEnded,
+          createdAt: DateTime.utc(2026, 6, 2, 9),
+          endedAt: DateTime.utc(2026, 6, 2, 9, 1),
+        ),
+        _session(
+          callId: 'direct-new-video',
+          roomId: '!direct:p2p-im.com',
+          roomType: 'direct',
+          mediaType: asCallMediaTypeVideo,
+          state: asCallStateEnded,
+          createdAt: DateTime.utc(2026, 6, 2, 10),
+          endedAt: DateTime.utc(2026, 6, 2, 10, 1),
+        ),
+      ],
+      roomId: '!direct:p2p-im.com',
+      rawTimelineEvents: const [],
+      callRecordContextEvents: const [],
+    );
+
+    expect(
+      snapshots.map((session) => '${session.callId}:${session.mediaType}'),
+      ['direct-new-video:video', 'direct-old-voice:voice'],
     );
   });
 

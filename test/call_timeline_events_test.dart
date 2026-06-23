@@ -237,6 +237,39 @@ void main() {
     expect(
       asCallSessionRecordText(
         AsCallSession(
+          callId: 'direct-call-rejected',
+          roomId: '!direct:p2p-im.com',
+          roomType: 'direct',
+          mediaType: asCallMediaTypeVoice,
+          createdByMxid: '@owner:p2p-im.com',
+          state: asCallStateEnded,
+          createdAt: DateTime.utc(2026, 6, 2, 10),
+          answeredAt: DateTime.utc(2026, 6, 2, 10, 0, 3),
+          endedAt: DateTime.utc(2026, 6, 2, 10, 0, 45),
+          endReason: 'rejected',
+          durationMs: 42000,
+        ),
+      ),
+      '已拒绝',
+    );
+    expect(
+      asCallSessionRecordText(
+        AsCallSession(
+          callId: 'direct-call-without-answer',
+          roomId: '!direct:p2p-im.com',
+          roomType: 'direct',
+          mediaType: asCallMediaTypeVoice,
+          createdByMxid: '@owner:p2p-im.com',
+          state: asCallStateEnded,
+          createdAt: DateTime.utc(2026, 6, 2, 10),
+          endedAt: DateTime.utc(2026, 6, 2, 10, 0, 45),
+        ),
+      ),
+      '0:45',
+    );
+    expect(
+      asCallSessionRecordText(
+        AsCallSession(
           callId: 'group-call-2',
           roomId: '!group:p2p-im.com',
           roomType: 'group',

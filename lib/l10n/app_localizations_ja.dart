@@ -543,6 +543,116 @@ class AppLocalizationsJa extends AppLocalizations {
   String get contactApplyFriend => '友だち申請';
 
   @override
+  String get contactSetRemark => '備考を設定';
+
+  @override
+  String get contactRecommendFriend => '友だちにすすめる';
+
+  @override
+  String get contactRecommendHim => 'この人を友だちにすすめる';
+
+  @override
+  String get contactSearchChat => 'チャットを検索';
+
+  @override
+  String get contactDeleteFriend => '友だちを削除';
+
+  @override
+  String get contactBlockUserDetail => 'ユーザーをブロック';
+
+  @override
+  String get contactHisChannels => '彼のチャンネル';
+
+  @override
+  String get contactAddFriend => '友だちを追加';
+
+  @override
+  String get contactSupportManager => 'サポートマネージャー';
+
+  @override
+  String get contactRoomMissingSearch => '連絡先のルーム情報がないため、チャットを検索できません';
+
+  @override
+  String get contactRoomMissingBlock => 'ユーザーのブロックに失敗しました: 連絡先のルーム情報がありません';
+
+  @override
+  String get contactRoomMissingDelete => '友だちの削除に失敗しました: 連絡先のルーム情報がありません';
+
+  @override
+  String get contactRoomMissingRemark => '連絡先のルーム情報がないため、備考を保存できません';
+
+  @override
+  String get contactFriendRequestRestored => '以前の会話を復元しました。続けてチャットできます。';
+
+  @override
+  String get contactFriendRequestSent => '友だち申請を送信しました。承認を待っています。';
+
+  @override
+  String get contactDeleteConfirmTitle => '友だちを削除';
+
+  @override
+  String get contactDeleteConfirmBody =>
+      '削除すると、この連絡先は表示されなくなり、会話の関係も同期して更新されます。';
+
+  @override
+  String get contactDeleteAction => '削除';
+
+  @override
+  String get contactDeleted => '友だちを削除しました';
+
+  @override
+  String contactDeleteFailed(String error) {
+    return '友だちの削除に失敗しました: $error';
+  }
+
+  @override
+  String get contactBlockConfirmTitle => 'ユーザーをブロック';
+
+  @override
+  String get contactBlockConfirmBody => 'ブロックすると、この連絡先と会話の関係が削除されます。';
+
+  @override
+  String get contactBlockAction => 'ブロック';
+
+  @override
+  String get contactBlocked => 'ユーザーをブロックしました';
+
+  @override
+  String contactBlockFailed(String error) {
+    return 'ユーザーのブロックに失敗しました: $error';
+  }
+
+  @override
+  String get contactReportSubmitted => '報告を送信しました';
+
+  @override
+  String contactReportSubmitFailed(String error) {
+    return '報告の送信に失敗しました: $error';
+  }
+
+  @override
+  String get contactRemarkEmpty => '備考は空にできません';
+
+  @override
+  String contactRemarkUpdateFailed(String error) {
+    return '備考の更新に失敗しました: $error';
+  }
+
+  @override
+  String get contactRemarkUpdated => '備考を更新しました';
+
+  @override
+  String get contactRemarkHint => '備考名を入力';
+
+  @override
+  String get contactRemarkSave => '保存';
+
+  @override
+  String contactShareText(String name, String userId) {
+    return 'おすすめの連絡先：$name\n$userId';
+  }
+
+  @override
   String get contactsSearchHint => 'ID / ニックネーム / メール';
 
   @override
@@ -559,6 +669,24 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get contactsFollows => 'フォロー';
+
+  @override
+  String get groupsListSearchHint => 'グループチャットを検索';
+
+  @override
+  String get groupsListSyncing => 'グループチャットを同期中';
+
+  @override
+  String get groupsListEmpty => 'グループチャットはまだありません';
+
+  @override
+  String get groupsListNoMatches => '一致するグループチャットはありません';
+
+  @override
+  String get groupsListOwnerBadge => 'オーナー';
+
+  @override
+  String get groupsListYesterday => '昨日';
 
   @override
   String get requestsSearchHint => '検索';
@@ -1095,6 +1223,35 @@ class AppLocalizationsJa extends AppLocalizations {
   String get channelSearchPublicApproval => '公開チャンネル · 参加には承認が必要';
 
   @override
+  String get globalSearchTitle => '検索';
+
+  @override
+  String get globalSearchHint => '検索';
+
+  @override
+  String globalSearchNoResults(String query) {
+    return '「$query」を含む内容は見つかりません';
+  }
+
+  @override
+  String get globalSearchMessageFallback => 'メッセージ';
+
+  @override
+  String get globalSearchMessageLabel => 'メッセージ';
+
+  @override
+  String get globalSearchContactLabel => '連絡先';
+
+  @override
+  String get globalSearchGroupLabel => 'グループチャット';
+
+  @override
+  String get globalSearchChannelLabel => 'チャンネル';
+
+  @override
+  String get globalSearchChannelDetailPending => 'チャンネル詳細はまだ利用できません';
+
+  @override
   String get channelPostEmptyTitle => 'チャンネル投稿はまだありません';
 
   @override
@@ -1382,4 +1539,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get commonJustNow => 'たった今';
+
+  @override
+  String get agentChatEmptyTitle => 'チャットを始めましょう';
 }

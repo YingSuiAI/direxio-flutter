@@ -138,18 +138,12 @@ class _GroupCompositeAvatarCell extends StatelessWidget {
         shape: AvatarShape.squircle,
       );
     }
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Image.network(
-        key: ValueKey(url),
-        url,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => ColoredBox(color: context.tk.surfaceHigh),
-      ),
+    return PortalAvatar(
+      key: ValueKey('group_composite_avatar_member_${member.seed}_$url'),
+      seed: member.seed,
+      size: size,
+      imageUrl: url,
+      shape: AvatarShape.squircle,
     );
   }
 }

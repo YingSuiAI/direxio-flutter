@@ -8972,7 +8972,7 @@ void main() {
   testWidgets('add contact detail opens chat for accepted contact',
       (tester) async {
     const roomId = '!alice-chat:p2p-im.com';
-    const conversationId = 'conv_alice_chat';
+    const conversationId = 'bootstrap:$roomId';
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 16, 12),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -14812,6 +14812,37 @@ void main() {
     expect(find.text('P2P IM 官方'), findsNothing);
   });
 
+  testWidgets('global search uses localized chrome and empty state',
+      (tester) async {
+    final client = Client('DirexioSearchLocaleTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const SearchPage(),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    expect(find.text('Search'), findsWidgets);
+
+    await tester.enterText(find.byType(TextField), 'Alice');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(find.text('No content found for "Alice"'), findsOneWidget);
+  });
+
   testWidgets('global search does not expose mock contact routes',
       (tester) async {
     final client = Client('DirexioSearchMockNoOpenTest');
@@ -15019,6 +15050,33 @@ void main() {
     expect(copied?.text, 'portal.local');
   });
 
+  testWidgets('contact detail uses localized user info actions',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ContactDetailPage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Message'), findsOneWidget);
+    expect(find.text('Voice call'), findsOneWidget);
+    expect(find.text('Video Call'), findsOneWidget);
+    expect(find.text('Search Chat'), findsOneWidget);
+    expect(find.text('Set Remark'), findsOneWidget);
+    expect(find.text('Recommend to Friends'), findsOneWidget);
+    expect(find.text('Mute Messages'), findsOneWidget);
+    expect(find.text('Block User'), findsOneWidget);
+    expect(find.text('Report User'), findsOneWidget);
+    expect(find.text('Delete Friend'), findsOneWidget);
+  });
+
   testWidgets('contact detail without room does not hydrate mock profile',
       (tester) async {
     await tester.pumpWidget(
@@ -15182,16 +15240,7 @@ void main() {
       syncedAt: DateTime.utc(2026, 6, 21, 14),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
       rooms: const [],
-      contacts: const [
-        AsSyncContact(
-          userId: peerMxid,
-          displayName: 'Alice',
-          avatarUrl: '',
-          roomId: roomId,
-          domain: 'p2p-im.com',
-          status: 'accepted',
-        ),
-      ],
+      contacts: const [],
       groups: const [],
       channels: const [],
       pending: const AsSyncPending.empty(),
@@ -15725,27 +15774,40 @@ void main() {
         'body': '这是一条 cached-history-needle 历史消息',
       },
     );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 25, 10),
+      user: const AsSyncUser(userId: '@owner:example.com'),
+      rooms: [
+        AsSyncRoomSummary(
+          roomId: '!cached:example.com',
+          name: 'Alice Chen',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.utc(2026, 5, 25, 10),
+        ),
+      ],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:example.com',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: '!cached:example.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
-          asClientProvider.overrideWithValue(
-            _ConversationListAsClient(
-              const [
-                AsConversation(
-                  conversationId: 'conv_cached_direct',
-                  roomId: '!cached:example.com',
-                  kind: asConversationKindDirect,
-                  lifecycle: 'active',
-                  peerMxid: '@alice:example.com',
-                  title: 'Alice Chen',
-                  avatarUrl: '',
-                  capabilities: AsConversationCapabilities(open: true),
-                ),
-              ],
-            ),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const SearchPage()),

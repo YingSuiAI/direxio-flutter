@@ -480,6 +480,35 @@ void main() {
     ]);
   });
 
+  test('AS call reporter keeps connected time for fast local hangup', () async {
+    final asClient = _RecordingAsClient();
+    final store = _MemoryAsCallSessionStore();
+    final reporter = AsCallStateReporter(asClient, store: store);
+    final connectedAt = DateTime.utc(2026, 5, 31, 9, 0, 0);
+    final endedAt = connectedAt.add(const Duration(seconds: 42));
+
+    final call = await reporter.createCall(
+      roomId: '!direct:p2p-im.com',
+      callType: ProductCallType.voice,
+    );
+    await reporter.reportConnected(call, connectedAt: connectedAt);
+    await reporter.reportEnded(
+      call,
+      reason: 'user_hangup',
+      endedAt: endedAt,
+    );
+
+    expect(asClient.events.last, {
+      'call_id': 'as-call-1',
+      'event': 'ended',
+      'reason': 'user_hangup',
+      'duration_ms': 42000,
+    });
+    final ended = await store.read(call.callId);
+    expect(ended?.answeredAt, connectedAt);
+    expect(ended?.durationMs, 42000);
+  });
+
   test('AS call reporter records missed and failed calls once', () async {
     final asClient = _RecordingAsClient();
     final reporter = AsCallStateReporter(asClient);
@@ -513,10 +542,34 @@ void main() {
     ]);
   });
 
+  test('AS call reporter records rejected calls without duration', () async {
+    final asClient = _RecordingAsClient();
+    final store = _MemoryAsCallSessionStore();
+    final reporter = AsCallStateReporter(asClient, store: store);
+
+    final call = await reporter.createCall(
+      roomId: '!direct:p2p-im.com',
+      callType: ProductCallType.voice,
+    );
+    await reporter.reportMissed(call, reason: 'rejected');
+
+    expect(asClient.events.single, {
+      'call_id': 'as-call-1',
+      'event': 'missed',
+      'reason': 'rejected',
+      'duration_ms': 0,
+    });
+    final stored = await store.read(call.callId);
+    expect(stored?.state, asCallStateMissed);
+    expect(stored?.endReason, 'rejected');
+    expect(stored?.durationMs, 0);
+  });
+
   test('AS call reporter keeps local terminal state when AS update fails',
       () async {
     final asClient = _RecordingAsClient()..failNextEvent = true;
-    final reporter = AsCallStateReporter(asClient);
+    final store = _MemoryAsCallSessionStore();
+    final reporter = AsCallStateReporter(asClient, store: store);
 
     final call = await reporter.createCall(
       roomId: '!direct:p2p-im.com',
@@ -535,6 +588,11 @@ void main() {
 
     expect(reporter.locallyTerminalCallIds, contains(call.callId));
     expect(reporter.terminalCallIds, isNot(contains(call.callId)));
+    final stored = await store.read(call.callId);
+    expect(stored?.state, asCallStateEnded);
+    expect(stored?.answeredAt, DateTime.utc(2026, 5, 31, 9, 0, 0));
+    expect(stored?.endedAt, DateTime.utc(2026, 5, 31, 9, 0, 3));
+    expect(stored?.durationMs, 3000);
   });
 
   test('AS call reporter clears stale connected calls when local state is idle',

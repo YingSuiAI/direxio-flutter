@@ -221,6 +221,7 @@ class MockAsClient implements AsClient {
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
     String remark = '',
   }) async {
@@ -228,6 +229,7 @@ class MockAsClient implements AsClient {
     return ContactEntry(
       peerMxid: mxid,
       displayName: displayName,
+      avatarUrl: avatarUrl,
       domain: domain,
       roomId: '!mock-contact:portal.local',
       status: 'pending_outbound',
@@ -240,12 +242,14 @@ class MockAsClient implements AsClient {
     required String roomId,
     required String peerMxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
   }) async {
     await Future.delayed(_latency);
     return ContactEntry(
       peerMxid: peerMxid,
       displayName: displayName,
+      avatarUrl: avatarUrl,
       domain: domain,
       roomId: roomId,
       status: 'accepted',
@@ -285,12 +289,14 @@ class MockAsClient implements AsClient {
   Future<ContactEntry> updateContact({
     required String roomId,
     required String displayName,
+    String avatarUrl = '',
     String domain = '',
   }) async {
     await Future.delayed(_latency);
     return ContactEntry(
       peerMxid: '@mock:portal.local',
       displayName: displayName.trim(),
+      avatarUrl: avatarUrl.trim(),
       domain: domain.trim(),
       roomId: roomId,
       status: 'accepted',
@@ -407,6 +413,7 @@ class MockAsClient implements AsClient {
       );
     } else {
       final terminalState = switch (normalizedEvent) {
+        asCallStateRejected => asCallStateRejected,
         asCallStateMissed => asCallStateMissed,
         asCallStateFailed => asCallStateFailed,
         _ => asCallStateEnded,

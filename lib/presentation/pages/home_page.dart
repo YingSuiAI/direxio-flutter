@@ -487,14 +487,12 @@ class _HomePageState extends ConsumerState<HomePage>
       _attachVoiceCallController(client);
     }
 
-    final unreadTotal = _tab == 0
-        ? _visibleHomeUnreadTotal(
-            ref: ref,
-            client: client,
-            syncCache: syncCache,
-            currentUserId: client.userID ?? authState.valueOrNull?.userId,
-          )
-        : 0;
+    final unreadTotal = _visibleHomeUnreadTotal(
+      ref: ref,
+      client: client,
+      syncCache: syncCache,
+      currentUserId: client.userID ?? authState.valueOrNull?.userId,
+    );
 
     return Scaffold(
       backgroundColor: _homeBgColor(context),
@@ -543,11 +541,12 @@ class _HomePageState extends ConsumerState<HomePage>
         onTap: (i) => setState(() => _tab = i),
         onSearchTap: () => context.push('/search'),
         items: [
-          const _HomeNavItem(
+          _HomeNavItem(
             iconAsset: _assetTabChatsNormal,
             activeIconAsset: _assetTabChatsSelected,
             inactiveIconAsset: _assetTabChatsNormal,
             labelIndex: 0,
+            badge: unreadTotal > 0 ? _formatBadgeCount(unreadTotal) : null,
           ),
           _HomeNavItem(
             iconAsset: _assetTabContactsNormal,

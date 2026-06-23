@@ -199,6 +199,19 @@ class AsCallStateReporter {
     );
   }
 
+  Future<void> reportRejected(
+    AsCallSession? call, {
+    required String reason,
+    DateTime? endedAt,
+  }) {
+    return _reportTerminal(
+      call,
+      event: asCallStateRejected,
+      reason: reason,
+      endedAt: endedAt,
+    );
+  }
+
   Future<void> reportMissed(
     AsCallSession? call, {
     required String reason,
@@ -724,6 +737,14 @@ bool p2pCallTerminalShouldAutoRead({
   return reason != _p2pCallMissedReason;
 }
 
+Map<String, Object> p2pMissedCallHangupContent(String callId) {
+  return {
+    'call_id': callId.trim(),
+    'version': 1,
+    'reason': _p2pCallMissedReason,
+  };
+}
+
 bool p2pIncomingCallShouldRing({
   required bool callHasEnded,
   required bool terminalEventKnown,
@@ -986,6 +1007,23 @@ String voiceCallStatusLabel(VoiceCallUiState state) {
     VoiceCallStatus.connected => state.isVideo ? '视频通话中' : '通话中',
     VoiceCallStatus.ended => '通话已结束',
     VoiceCallStatus.failed => '通话失败',
+  };
+}
+
+String voiceCallTerminalMessage(
+  AsCallSession call, {
+  String? localUserId,
+}) {
+  final endedBy = call.endedByMxid.trim();
+  final local = localUserId?.trim() ?? '';
+  final endedByOther =
+      endedBy.isNotEmpty && local.isNotEmpty && endedBy != local;
+  return switch (call.state) {
+    asCallStateRejected => endedByOther ? '对方已拒绝' : '已拒绝通话',
+    asCallStateEnded => endedByOther ? '对方已挂断' : '通话已结束',
+    asCallStateMissed => '未接听',
+    asCallStateFailed => '通话失败',
+    _ => '通话已结束',
   };
 }
 
@@ -1471,6 +1509,37 @@ class MatrixVoiceCallController implements VoiceCallController {
   @override
   Stream<GroupCallUiState> get groupStateStream => _groupStateController.stream;
 
+  Future<void> applyCallUpdate(AsCallSession call) async {
+    if (_disposed) return;
+    final callId = call.callId.trim();
+    if (callId.isEmpty) return;
+    if (_activeAsCall?.callId == callId) {
+      _activeAsCall = call;
+    }
+    if (_activeGroupAsCall?.callId == callId) {
+      _activeGroupAsCall = call;
+    }
+    if (!_asCallIsTerminal(call)) return;
+
+    final directMatches = _activeAsCall?.callId == callId ||
+        _state.callId?.trim() == callId ||
+        _activeSession?.callId.trim() == callId;
+    if (directMatches && _state.status != VoiceCallStatus.idle) {
+      final message = voiceCallTerminalMessage(
+        call,
+        localUserId: _client?.userID,
+      );
+      final session = _activeSession;
+      _emit(_state.copyWith(status: VoiceCallStatus.ended, error: message));
+      try {
+        await session?.cleanUp();
+      } catch (error) {
+        debugPrint('p2p-call-remote-cleanup failed: $error');
+      }
+      await _resetActiveSession(emitIdle: false);
+    }
+  }
+
   @override
   Future<void> attachClient(Client client) async {
     if (_disposed || !client.isLogged()) return;
@@ -1608,9 +1677,11 @@ class MatrixVoiceCallController implements VoiceCallController {
   @override
   Future<void> reject() async {
     final session = _activeSession;
+    final asCall = _activeAsCall;
     if (session != null && !session.callHasEnded) {
       await session.reject();
     }
+    await _reportAsCallRejected(asCall, reason: 'user_reject');
     await _resetActiveSession(emitIdle: false);
   }
 
@@ -2861,12 +2932,17 @@ class MatrixVoiceCallController implements VoiceCallController {
     }
     _startOutgoingInFlight = false;
     final asCall = _activeAsCall;
+    var sentMatrixTerminalEvent = false;
     if (decision.sendHangup && session != null) {
       try {
         await session.hangup(reason: CallErrorCode.inviteTimeout);
+        sentMatrixTerminalEvent = true;
       } catch (error) {
         debugPrint('p2p-call-no-response hangup failed: $error');
       }
+    }
+    if (!sentMatrixTerminalEvent) {
+      await _sendMissedCallHangupFallback(asCall);
     }
     await _reportAsCallMissed(
       asCall,
@@ -3136,6 +3212,7 @@ class MatrixVoiceCallController implements VoiceCallController {
 
   bool _asCallIsTerminal(AsCallSession call) {
     return call.state == asCallStateEnded ||
+        call.state == asCallStateRejected ||
         call.state == asCallStateMissed ||
         call.state == asCallStateFailed;
   }
@@ -3178,6 +3255,37 @@ class MatrixVoiceCallController implements VoiceCallController {
       await reporter.reportMissed(call, reason: reason);
     } catch (error) {
       debugPrint('p2p-as-call-missed failed: $error');
+    }
+  }
+
+  Future<void> _sendMissedCallHangupFallback(AsCallSession? call) async {
+    final callId = call?.callId.trim();
+    final roomId = call?.roomId.trim();
+    if (callId == null || callId.isEmpty || roomId == null || roomId.isEmpty) {
+      return;
+    }
+    final room = _client?.getRoomById(roomId);
+    if (room == null) return;
+    try {
+      await room.sendEvent(
+        p2pMissedCallHangupContent(callId),
+        type: EventTypes.CallHangup,
+      );
+    } catch (error) {
+      debugPrint('p2p-call-no-response-terminal-event failed: $error');
+    }
+  }
+
+  Future<void> _reportAsCallRejected(
+    AsCallSession? call, {
+    required String reason,
+  }) async {
+    final reporter = _asCallReporter;
+    if (reporter == null || call == null) return;
+    try {
+      await reporter.reportRejected(call, reason: reason);
+    } catch (error) {
+      debugPrint('p2p-as-call-rejected failed: $error');
     }
   }
 

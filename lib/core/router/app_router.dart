@@ -427,6 +427,7 @@ GoRouter appRouter(Ref ref) {
           AddContactVerificationPage(
             userId: state.pathParameters['userId']!,
             displayName: state.uri.queryParameters['name'],
+            avatarUrl: state.uri.queryParameters['avatar'],
           ),
         ),
       ),

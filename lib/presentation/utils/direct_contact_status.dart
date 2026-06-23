@@ -93,6 +93,18 @@ String? productDirectPeerDomain(Room room) {
   return _profileString(profile, 'domain');
 }
 
+String? productDirectPeerRequestRemark(Room room) {
+  final peerMxid = productDirectPeerMxid(room);
+  final profile = _nativeDirectProfile(room);
+  if (peerMxid == null || profile == null) return null;
+  if (_profileString(profile, 'requester_mxid') != peerMxid) return null;
+  for (final key in const ['remark', 'request_message', 'message', 'reason']) {
+    final value = _profileString(profile, key);
+    if (value != null) return value;
+  }
+  return null;
+}
+
 Membership? directChatPeerMembership(Room room) {
   final peerMxid = productDirectPeerMxid(room);
   if (peerMxid == null) return null;

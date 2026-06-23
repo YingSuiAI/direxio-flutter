@@ -48,6 +48,65 @@ void main() {
     await controller.stop();
   });
 
+  test('call changed events update calls without full refresh', () async {
+    final streams = <StreamController<AsEventStreamEvent>>[];
+    var matrixSyncCalls = 0;
+    var bootstrapCalls = 0;
+    final calls = <AsCallSession>[];
+
+    final controller = AsEventStreamRefreshController(
+      openEvents: ({int? since, String? lastEventId}) {
+        final stream = StreamController<AsEventStreamEvent>();
+        streams.add(stream);
+        return stream.stream;
+      },
+      syncMatrixConversations: () async {
+        matrixSyncCalls++;
+      },
+      loadBootstrap: () async {
+        bootstrapCalls++;
+        return _bootstrap();
+      },
+      onBootstrapLoaded: (_) {},
+      onCallChanged: calls.add,
+      reconnectDelay: const Duration(milliseconds: 5),
+    );
+
+    controller.start();
+    streams.single.add(AsEventStreamEvent(
+      seq: 12,
+      type: 'call.changed',
+      roomId: '!room:example.com',
+      payload: {
+        'call': {
+          'call_id': 'call-1',
+          'room_id': '!room:example.com',
+          'room_type': 'direct',
+          'media_type': 'voice',
+          'created_by_mxid': '@alice:example.com',
+          'state': asCallStateRejected,
+          'created_at': '2026-06-20T10:00:00Z',
+          'ended_at': '2026-06-20T10:00:05Z',
+          'ended_by_mxid': '@bob:example.com',
+          'end_reason': 'user_reject',
+          'duration_ms': 0,
+        },
+      },
+      createdAt: DateTime.utc(2026, 6, 20),
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(calls, hasLength(1));
+    expect(calls.single.callId, 'call-1');
+    expect(calls.single.state, asCallStateRejected);
+    expect(calls.single.endedByMxid, '@bob:example.com');
+    expect(matrixSyncCalls, 0);
+    expect(bootstrapCalls, 0);
+    expect(controller.lastSeq, 12);
+
+    await controller.stop();
+  });
+
   test('events queued during refresh run one follow-up refresh', () async {
     final streams = <StreamController<AsEventStreamEvent>>[];
     final syncCompleter = Completer<void>();

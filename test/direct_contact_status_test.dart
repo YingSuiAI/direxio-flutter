@@ -75,6 +75,7 @@ void main() {
       roomMembership: Membership.invite,
       requesterMxid: '@alice:example.com',
       targetMxid: '@owner:example.com',
+      remark: '我是 Alice，请通过好友申请',
     );
 
     expect(room.isDirectChat, isFalse);
@@ -84,6 +85,7 @@ void main() {
     expect(productDirectPeerDisplayName(room), 'Alice');
     expect(productDirectPeerAvatarUrl(room), 'mxc://example.com/alice');
     expect(productDirectPeerDomain(room), 'example.com');
+    expect(productDirectPeerRequestRemark(room), '我是 Alice，请通过好友申请');
   });
 
   test('native direct profile resolves outgoing target peer', () {
@@ -214,6 +216,7 @@ Room _nativeDirectProfileRoom({
   Membership roomMembership = Membership.join,
   required String requesterMxid,
   required String targetMxid,
+  String remark = '',
 }) {
   final client = Client('DirexioNativeDirectContactTest')
     ..setUserId('@owner:example.com');
@@ -240,6 +243,7 @@ Room _nativeDirectProfileRoom({
         'display_name': 'Alice',
         'avatar_url': 'mxc://example.com/alice',
         'domain': 'example.com',
+        if (remark.isNotEmpty) 'remark': remark,
         'dissolved': false,
       },
     ),

@@ -12,6 +12,7 @@ import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.RenderMode
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
@@ -27,6 +28,8 @@ class MainActivity : FlutterActivity() {
 
     private var pendingSave: PendingSave? = null
     private val videoToolsExecutor = Executors.newSingleThreadExecutor()
+
+    override fun getRenderMode(): RenderMode = RenderMode.texture
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

@@ -10,6 +10,7 @@ bool shouldRefreshAsCallSessionSnapshot(AsCallSession? session) {
 
 bool asCallSessionSnapshotIsTerminal(AsCallSession session) {
   return session.state == asCallStateEnded ||
+      session.state == asCallStateRejected ||
       session.state == asCallStateMissed ||
       session.state == asCallStateFailed;
 }

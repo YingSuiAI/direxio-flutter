@@ -32,11 +32,17 @@ class AddContactDetailPage extends ConsumerStatefulWidget {
 
 class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
   void _openVerification() {
-    final query = widget.displayName == null || widget.displayName!.isEmpty
-        ? ''
-        : '?name=${Uri.encodeQueryComponent(widget.displayName!)}';
+    final query = Uri(
+      queryParameters: {
+        if (widget.displayName?.trim().isNotEmpty == true)
+          'name': widget.displayName!.trim(),
+        if (widget.avatarUrl?.trim().isNotEmpty == true)
+          'avatar': widget.avatarUrl!.trim(),
+      },
+    ).query;
     context.push(
-      '/add-contact/verify/${Uri.encodeComponent(widget.userId)}$query',
+      '/add-contact/verify/${Uri.encodeComponent(widget.userId)}'
+      '${query.isEmpty ? '' : '?$query'}',
     );
   }
 

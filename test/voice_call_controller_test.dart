@@ -97,6 +97,49 @@ void main() {
     );
   });
 
+  test('voice call terminal message identifies remote end states', () {
+    final remoteEnded = AsCallSession(
+      callId: 'call-1',
+      roomId: '!direct:p2p-im.com',
+      roomType: 'direct',
+      mediaType: asCallMediaTypeVoice,
+      createdByMxid: '@owner:p2p-im.com',
+      state: asCallStateEnded,
+      createdAt: DateTime.utc(2026, 5, 31, 8, 0, 0),
+      endedByMxid: '@alice:p2p-im.com',
+    );
+    final remoteRejected = remoteEnded.copyWith(
+      state: asCallStateRejected,
+      endedByMxid: '@alice:p2p-im.com',
+    );
+    final localRejected = remoteEnded.copyWith(
+      state: asCallStateRejected,
+      endedByMxid: '@owner:p2p-im.com',
+    );
+
+    expect(
+      voiceCallTerminalMessage(
+        remoteEnded,
+        localUserId: '@owner:p2p-im.com',
+      ),
+      '对方已挂断',
+    );
+    expect(
+      voiceCallTerminalMessage(
+        remoteRejected,
+        localUserId: '@owner:p2p-im.com',
+      ),
+      '对方已拒绝',
+    );
+    expect(
+      voiceCallTerminalMessage(
+        localRejected,
+        localUserId: '@owner:p2p-im.com',
+      ),
+      '已拒绝通话',
+    );
+  });
+
   test('product call type maps to Matrix call type', () {
     expect(matrixCallTypeForProduct(ProductCallType.voice), CallType.kVoice);
     expect(matrixCallTypeForProduct(ProductCallType.video), CallType.kVideo);
@@ -377,6 +420,11 @@ void main() {
   test('outgoing no-response timeout is exactly 1 minute', () {
     expect(outgoingCallNoResponseTimeout, const Duration(minutes: 1));
     expect(peerNoResponseMessage, '对方暂无响应，已结束拨打');
+    expect(p2pMissedCallHangupContent(' call-1 '), {
+      'call_id': 'call-1',
+      'version': 1,
+      'reason': 'invite_timeout',
+    });
   });
 
   test('absolute no-response timeout can finish before Matrix session exists',
@@ -480,9 +528,17 @@ void main() {
     ]);
   });
 
-  test('AS call reporter records missed and failed calls once', () async {
+  test('AS call reporter records rejected, missed, and failed calls once',
+      () async {
     final asClient = _RecordingAsClient();
     final reporter = AsCallStateReporter(asClient);
+
+    final rejected = await reporter.createCall(
+      roomId: '!direct:p2p-im.com',
+      callType: ProductCallType.voice,
+    );
+    await reporter.reportRejected(rejected, reason: 'user_reject');
+    await reporter.reportRejected(rejected, reason: 'user_reject');
 
     final missed = await reporter.createCall(
       roomId: '!direct:p2p-im.com',
@@ -500,12 +556,18 @@ void main() {
     expect(asClient.events, [
       {
         'call_id': 'as-call-1',
+        'event': 'rejected',
+        'reason': 'user_reject',
+        'duration_ms': 0,
+      },
+      {
+        'call_id': 'as-call-2',
         'event': 'missed',
         'reason': 'invite_timeout',
         'duration_ms': 0,
       },
       {
-        'call_id': 'as-call-2',
+        'call_id': 'as-call-3',
         'event': 'failed',
         'reason': 'network_error',
         'duration_ms': 0,

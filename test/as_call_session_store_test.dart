@@ -131,6 +131,12 @@ void main() {
     );
     expect(
       shouldRefreshAsCallSessionSnapshot(
+        _session(callId: 'rejected', state: asCallStateRejected),
+      ),
+      isFalse,
+    );
+    expect(
+      shouldRefreshAsCallSessionSnapshot(
         _session(callId: 'missed', state: asCallStateMissed),
       ),
       isFalse,

@@ -24,6 +24,12 @@ import '../widgets/m3/m3_search_field.dart';
 const _requestsToolbarHeight = 62.0;
 const _requestsSearchGap = 12.0;
 
+typedef _OpenAddContactProfile = void Function(
+  String mxid,
+  String displayName, {
+  String? avatarUrl,
+});
+
 /// `s-new-friends` — 新朋友 (index.html L1494-1564)
 class RequestsPage extends ConsumerStatefulWidget {
   const RequestsPage({super.key});
@@ -83,6 +89,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             roomId: room.id,
             peerMxid: peerMXID,
             domain: _domainFromMxid(peerMXID),
+            avatarUrl: _avatarUrlForRoomPeer(room, peerMXID) ?? '',
             displayName: contactDisplayNameFromIdentity(
               mxid: peerMXID,
               displayName: room.getLocalizedDisplayname(),
@@ -167,6 +174,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             roomId: pending.roomId,
             peerMxid: pending.userId,
             domain: pending.domain,
+            avatarUrl:
+                _avatarUrlForContact(ref.read(matrixClientProvider), pending) ??
+                    '',
             displayName: contactDisplayNameFromIdentity(
               mxid: pending.userId,
               displayName: pending.displayName,
@@ -280,6 +290,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       final contact = await ref.read(asClientProvider).createContactRequest(
             mxid: target.mxid,
             displayName: target.displayName,
+            avatarUrl: target.avatarUrl ?? '',
             domain: _domainFromMxid(target.mxid),
           );
       ref.read(asSyncCacheProvider.notifier).update(
@@ -350,6 +361,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       for (final request in syncCache.bootstrap?.pending.friendRequests ??
           const <AsSyncPendingItem>[])
         friendRequestReadKeyForPendingItem(request),
+      for (final request in syncCache.bootstrap?.pending.groupInvites ??
+          const <AsSyncPendingItem>[])
+        friendRequestReadKeyForPendingItem(request),
       for (final request in syncCache.bootstrap?.pending.channelNotices ??
           const <AsSyncPendingItem>[])
         friendRequestReadKeyForPendingItem(request),
@@ -392,6 +406,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             displayName: owner.displayName,
             domain: domain,
           ),
+          avatarUrl: owner.avatarUrl,
         );
       case PortalAvailability.notDeployed:
         throw const FormatException('该域名不是产品用户');
@@ -420,6 +435,11 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
             !pendingInboundRoomIds.contains(request.id.trim()) &&
             !inviteRoomIds.contains(request.id.trim()))
           request,
+    ];
+    final pendingGroupNotices = [
+      for (final request in syncCache.bootstrap?.pending.groupInvites ??
+          const <AsSyncPendingItem>[])
+        if (request.id.trim().isNotEmpty) request,
     ];
     final pendingChannelNotices = [
       for (final request in syncCache.bootstrap?.pending.channelNotices ??
@@ -502,6 +522,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       invites: invites,
                       contacts: pendingInboundContacts,
                       friendNotices: pendingFriendRequestNotices,
+                      groupNotices: pendingGroupNotices,
                       channelNotices: pendingChannelNotices,
                       busy: _busy,
                       onOpenProfile: _openAddContactProfile,
@@ -551,13 +572,23 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
     );
   }
 
-  void _openAddContactProfile(String mxid, String displayName) {
+  void _openAddContactProfile(
+    String mxid,
+    String displayName, {
+    String? avatarUrl,
+  }) {
     final id = mxid.trim();
     if (id.isEmpty) return;
-    final query = displayName.trim().isEmpty
-        ? ''
-        : '?name=${Uri.encodeQueryComponent(displayName.trim())}';
-    context.push('/add-contact/detail/${Uri.encodeComponent(id)}$query');
+    final query = Uri(
+      queryParameters: {
+        if (displayName.trim().isNotEmpty) 'name': displayName.trim(),
+        if (avatarUrl?.trim().isNotEmpty == true) 'avatar': avatarUrl!.trim(),
+      },
+    ).query;
+    context.push(
+      '/add-contact/detail/${Uri.encodeComponent(id)}'
+      '${query.isEmpty ? '' : '?$query'}',
+    );
   }
 
   void _openContactProfile(String mxid) {
@@ -777,9 +808,15 @@ bool _peerRejectedRequest(Client client, String roomId, String peerMxid) {
 }
 
 class _InviteTarget {
-  const _InviteTarget({required this.mxid, required this.displayName});
+  const _InviteTarget({
+    required this.mxid,
+    required this.displayName,
+    this.avatarUrl,
+  });
+
   final String mxid;
   final String displayName;
+  final String? avatarUrl;
 }
 
 String _normalizeDomainInput(String input) {
@@ -1087,6 +1124,7 @@ class _PendingSection extends StatelessWidget {
     required this.invites,
     required this.contacts,
     required this.friendNotices,
+    required this.groupNotices,
     required this.channelNotices,
     required this.busy,
     required this.onOpenProfile,
@@ -1099,9 +1137,10 @@ class _PendingSection extends StatelessWidget {
   final List<Room> invites;
   final List<AsSyncContact> contacts;
   final List<AsSyncPendingItem> friendNotices;
+  final List<AsSyncPendingItem> groupNotices;
   final List<AsSyncPendingItem> channelNotices;
   final bool busy;
-  final void Function(String mxid, String displayName) onOpenProfile;
+  final _OpenAddContactProfile onOpenProfile;
   final void Function(Room) onAccept;
   final void Function(Room) onReject;
   final void Function(AsSyncContact) onAcceptContact;
@@ -1123,10 +1162,19 @@ class _PendingSection extends StatelessWidget {
       rows.add(
         _PendingRow(
           name: name,
-          message: _contactRequestMessage(contact, fallback: mxid),
+          message: _contactRequestMessage(
+            contact,
+            fallback: '请求添加你为朋友',
+          ),
           seed: mxid.isEmpty ? name : mxid,
           imageUrl: _avatarUrlForContact(client, contact),
-          onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
+          onTap: mxid.isEmpty
+              ? null
+              : () => onOpenProfile(
+                    mxid,
+                    name,
+                    avatarUrl: _avatarUrlForContact(client, contact),
+                  ),
           onAccept: busy ? null : () => onAcceptContact(contact),
           onReject: busy ? null : () => onRejectContact(contact),
         ),
@@ -1144,14 +1192,20 @@ class _PendingSection extends StatelessWidget {
         domain: productDirectPeerDomain(room) ?? domainFromMxid(inviterId),
         fallback: room.getLocalizedDisplayname(),
       );
+      final remark = productDirectPeerRequestRemark(room);
       rows.add(
         _PendingRow(
           name: name,
-          message: inviterId.isEmpty ? '请求加为好友' : inviterId,
+          message: remark ?? '请求添加你为朋友',
           seed: inviterId.isEmpty ? name : inviterId,
           imageUrl: _avatarUrlForRoomPeer(room, inviterId),
-          onTap:
-              inviterId.isEmpty ? null : () => onOpenProfile(inviterId, name),
+          onTap: inviterId.isEmpty
+              ? null
+              : () => onOpenProfile(
+                    inviterId,
+                    name,
+                    avatarUrl: _avatarUrlForRoomPeer(room, inviterId),
+                  ),
           onAccept: busy ? null : () => onAccept(room),
           onReject: busy ? null : () => onReject(room),
         ),
@@ -1166,7 +1220,26 @@ class _PendingSection extends StatelessWidget {
           name: name,
           message: _pendingNoticeMessage(
             notice,
-            fallback: id.isEmpty ? '好友申请通知' : id,
+            fallback: '请求添加你为朋友',
+          ),
+          seed: id.isEmpty ? name : id,
+          imageUrl: null,
+          onTap: null,
+          onAccept: null,
+          onReject: null,
+        ),
+      );
+    }
+    for (final notice in groupNotices) {
+      final title = notice.title.trim();
+      final id = notice.id.trim();
+      final name = title.isEmpty ? '群聊通知' : title;
+      rows.add(
+        _PendingRow(
+          name: name,
+          message: _roomNoticeMessage(
+            notice,
+            fallback: '邀请你加入群聊',
           ),
           seed: id.isEmpty ? name : id,
           imageUrl: null,
@@ -1183,7 +1256,10 @@ class _PendingSection extends StatelessWidget {
       rows.add(
         _PendingRow(
           name: name,
-          message: id.isEmpty ? '频道通知' : id,
+          message: _roomNoticeMessage(
+            notice,
+            fallback: '邀请你加入频道',
+          ),
           seed: id.isEmpty ? name : id,
           imageUrl: null,
           onTap: null,
@@ -1213,7 +1289,7 @@ String _pendingNoticeMessage(
   final remark = notice.remark.trim();
   if (remark.isNotEmpty) return remark;
   final normalizedFallback = fallback.trim();
-  return normalizedFallback.isEmpty ? '好友申请通知' : normalizedFallback;
+  return normalizedFallback.isEmpty ? '请求添加你为朋友' : normalizedFallback;
 }
 
 String _contactRequestMessage(
@@ -1223,7 +1299,17 @@ String _contactRequestMessage(
   final remark = contact.remark.trim();
   if (remark.isNotEmpty) return remark;
   final normalizedFallback = fallback.trim();
-  return normalizedFallback.isEmpty ? '请求加为好友' : normalizedFallback;
+  return normalizedFallback.isEmpty ? '请求添加你为朋友' : normalizedFallback;
+}
+
+String _roomNoticeMessage(
+  AsSyncPendingItem notice, {
+  required String fallback,
+}) {
+  final remark = notice.remark.trim();
+  if (remark.isNotEmpty) return remark;
+  final normalizedFallback = fallback.trim();
+  return normalizedFallback.isEmpty ? '邀请你加入群聊' : normalizedFallback;
 }
 
 class _PendingRow extends StatelessWidget {
@@ -1432,7 +1518,7 @@ class _OutgoingSection extends StatelessWidget {
   });
   final Client client;
   final List<AsSyncContact> contacts;
-  final void Function(String mxid, String displayName) onOpenProfile;
+  final _OpenAddContactProfile onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -1457,7 +1543,7 @@ class _RejectedInboundSection extends StatelessWidget {
   });
   final Client client;
   final List<AsSyncContact> contacts;
-  final void Function(String mxid, String displayName) onOpenProfile;
+  final _OpenAddContactProfile onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -1482,7 +1568,7 @@ class _RejectedInboundRow extends StatelessWidget {
   });
   final Client client;
   final AsSyncContact contact;
-  final void Function(String mxid, String displayName) onOpenProfile;
+  final _OpenAddContactProfile onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -1497,7 +1583,13 @@ class _RejectedInboundRow extends StatelessWidget {
       imageUrl: _avatarUrlForContact(client, contact),
       name: name,
       message: '请求添加你为朋友',
-      onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
+      onTap: mxid.isEmpty
+          ? null
+          : () => onOpenProfile(
+                mxid,
+                name,
+                avatarUrl: _avatarUrlForContact(client, contact),
+              ),
       trailing: const _RequestStatusText(text: '已拒绝'),
     );
   }
@@ -1511,7 +1603,7 @@ class _OutgoingRow extends StatelessWidget {
   });
   final Client client;
   final AsSyncContact contact;
-  final void Function(String mxid, String displayName) onOpenProfile;
+  final _OpenAddContactProfile onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -1526,8 +1618,14 @@ class _OutgoingRow extends StatelessWidget {
       seed: mxid.isEmpty ? name : mxid,
       imageUrl: _avatarUrlForContact(client, contact),
       name: name,
-      message: isRejected ? '我:请求添加你为朋友' : '请求添加你为朋友',
-      onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
+      message: '申请添加对方为朋友',
+      onTap: mxid.isEmpty
+          ? null
+          : () => onOpenProfile(
+                mxid,
+                name,
+                avatarUrl: _avatarUrlForContact(client, contact),
+              ),
       trailing: _RequestStatusText(
         text: isRejected ? '已拒绝' : '等待接受',
         hiddenText: isRejected ? '对方已拒绝' : null,
@@ -1596,7 +1694,7 @@ class _AcceptedRow extends StatelessWidget {
       seed: mxid.isEmpty ? name : mxid,
       imageUrl: _avatarUrlForContact(client, contact),
       name: name,
-      message: '请求添加你为朋友',
+      message: '已成为朋友',
       onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid),
       trailing: const _RequestStatusText(text: '已添加'),
     );

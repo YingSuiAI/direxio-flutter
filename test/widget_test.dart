@@ -2125,6 +2125,7 @@ Room _addUndirectedJoinedRoom(
   required String peerName,
   String peerAvatarUrl = '',
   Membership peerMembership = Membership.join,
+  bool includePeerMemberAvatar = true,
 }) {
   final room = Room(
     id: roomId,
@@ -2164,7 +2165,8 @@ Room _addUndirectedJoinedRoom(
       content: {
         'membership': peerMembership.name,
         'displayname': peerName,
-        if (peerAvatarUrl.isNotEmpty) 'avatar_url': peerAvatarUrl,
+        if (includePeerMemberAvatar && peerAvatarUrl.isNotEmpty)
+          'avatar_url': peerAvatarUrl,
       },
     ),
   );
@@ -3986,6 +3988,107 @@ void main() {
     expect(find.text('Active B'), findsWidgets);
     expect(find.text('Pending B'), findsNothing);
     expect(find.text('还没有会话'), findsNothing);
+  });
+
+  testWidgets('messages keep removed group and open read-only chat',
+      (tester) async {
+    const roomId = '!removed-home:p2p-im.com';
+    final client = Client(
+      'DirexioRemovedGroupHomeListTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '被移除群聊',
+      membership: Membership.leave,
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final asClient = _ConversationListAsClient(
+      const [
+        AsConversation(
+          conversationId: 'conv_removed_home',
+          roomId: roomId,
+          kind: asConversationKindGroup,
+          lifecycle: 'active',
+          title: '被移除群聊',
+          avatarUrl: '',
+          membership: 'removed',
+          capabilities: AsConversationCapabilities(open: false),
+        ),
+      ],
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '被移除群聊',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: 'removed',
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) => GroupChatPage(
+            roomId: state.pathParameters['roomId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('被移除群聊'), findsWidgets);
+
+    await tester.tap(find.byKey(const ValueKey('home_conversation_$roomId')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('无法在已退出的群聊中发送消息'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
   });
 
   testWidgets('messages prefer direct contact over stale group for same room',
@@ -6067,6 +6170,70 @@ void main() {
             widget is PortalAvatar &&
             widget.size == 28 &&
             widget.imageUrl == 'https://matrix.example.com/alice.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'contacts use direct room profile avatar when member avatar empty',
+      (tester) async {
+    final client = Client('DirexioContactsProfileAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice-profile:p2p-im.com',
+      peerMxid: '@alice:p2p-liyanan.com',
+      peerName: 'Alice',
+      peerAvatarUrl: 'https://profile.example.com/alice.png',
+      includePeerMemberAvatar: false,
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice-profile:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('通讯录').last);
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 28 &&
+            widget.imageUrl == 'https://profile.example.com/alice.png',
       ),
       findsOneWidget,
     );
@@ -8634,6 +8801,86 @@ void main() {
     expect(find.text('待加入群'), findsNothing);
     expect(find.text('等待同意群'), findsNothing);
     expect(find.text('未同意群'), findsNothing);
+  });
+
+  testWidgets('groups list keeps removed groups as history', (tester) async {
+    const roomId = '!removed-list:p2p-im.com';
+    final client = Client('DirexioGroupsKeepRemovedGroupTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '被移除的群',
+      membership: Membership.leave,
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '被移除的群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: 'removed',
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/groups',
+      routes: [
+        GoRoute(path: '/groups', builder: (_, __) => const GroupsListPage()),
+        GoRoute(
+          path: '/group/:roomId',
+          builder: (_, state) =>
+              Text('group:${state.pathParameters['roomId']}'),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(const [
+              AsConversation(
+                conversationId: 'conv_removed_list',
+                roomId: roomId,
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '被移除的群',
+                avatarUrl: '',
+                membership: 'removed',
+                capabilities: AsConversationCapabilities(open: false),
+              ),
+            ]),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('被移除的群'), findsOneWidget);
+
+    await tester.tap(find.text('被移除的群'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('group:$roomId'), findsOneWidget);
   });
 
   testWidgets('groups list hides bootstrap groups missing ProductCore record',

@@ -115,7 +115,7 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
     final product = conversation.product;
     final roomId = product?.roomId.trim() ?? '';
     if (product == null || roomId.isEmpty) continue;
-    productConversationsByRoomId.putIfAbsent(roomId, () => product);
+    productConversationsByRoomId[roomId] = product;
   }
   final liveSummaryEntries = [
     for (final conversation in visibleConversations)
@@ -257,9 +257,10 @@ AsConversation? _openableFallbackForGroupConversation(
   required AsSyncRoomSummary? roomSummary,
 }) {
   if (!conversation.isGroup) return null;
-  if (!_isActiveConversation(conversation)) return null;
+  final historyVisible = _isExitedGroupConversation(conversation);
+  if (!_isActiveConversation(conversation) && !historyVisible) return null;
   final roomJoined = room?.membership == Membership.join;
-  if (!roomJoined && roomSummary == null) return null;
+  if (!roomJoined && room == null && roomSummary == null) return null;
   return _fallbackGroupConversation(
     roomId: conversation.roomId,
     conversationId: conversation.conversationId,
@@ -275,6 +276,7 @@ AsConversation? _openableFallbackForGroupConversation(
         : roomSummary?.memberCount ?? 0,
     role: conversation.role,
     membership: conversation.membership,
+    canSend: !historyVisible,
   );
 }
 
@@ -306,6 +308,29 @@ bool _isActiveConversation(AsConversation conversation) {
       lifecycle != 'dissolved';
 }
 
+bool _isExitedGroupConversation(AsConversation conversation) {
+  if (!conversation.isGroup) return false;
+  return _isExitedGroupStatus(conversation.lifecycle) ||
+      _isExitedGroupStatus(conversation.membership) ||
+      _isExitedGroupStatus(conversation.relationshipStatus) ||
+      _isExitedGroupStatus(conversation.projectionState);
+}
+
+bool _isExitedGroupStatus(String? status) {
+  switch (status?.trim().toLowerCase()) {
+    case 'leave':
+    case 'left':
+    case 'ban':
+    case 'banned':
+    case 'kick':
+    case 'kicked':
+    case 'remove':
+    case 'removed':
+      return true;
+  }
+  return false;
+}
+
 AsConversation _fallbackGroupConversationForSummary(AsSyncRoomSummary group) {
   return _fallbackGroupConversation(
     roomId: group.roomId,
@@ -327,6 +352,7 @@ AsConversation _fallbackGroupConversation({
   int memberCount = 0,
   String role = '',
   String membership = '',
+  bool canSend = true,
 }) {
   final trimmedRoomId = roomId.trim();
   return AsConversation(
@@ -341,12 +367,12 @@ AsConversation _fallbackGroupConversation({
     membership: membership.trim().isEmpty ? 'join' : membership.trim(),
     role: role.trim(),
     hydrationState: 'ready',
-    capabilities: const AsConversationCapabilities(
+    capabilities: AsConversationCapabilities(
       open: true,
-      send: true,
-      sendMedia: true,
-      call: true,
-      invite: true,
+      send: canSend,
+      sendMedia: canSend,
+      call: canSend,
+      invite: canSend,
     ),
   );
 }
@@ -462,6 +488,9 @@ String? conversationAvatarUrl(
 String? contactListAvatarUrl(Client client, AsSyncContact contact) {
   final room = client.getRoomById(contact.roomId.trim());
   return directPeerMemberAvatarUrl(client, room, contact.userId) ??
+      (room == null
+          ? null
+          : avatarHttpUrl(client, productDirectPeerAvatarUrl(room))) ??
       avatarHttpUrl(client, contact.avatarUrl);
 }
 

@@ -24,8 +24,8 @@ String? portalAgentMxidForClient(Client client) {
 bool isPortalAgentDirectRoom(Room room, {String? agentMxid}) {
   final resolvedAgentMxid = agentMxid ?? portalAgentMxidForClient(room.client);
   return resolvedAgentMxid != null &&
-          (room.directChatMatrixID == resolvedAgentMxid ||
-              _summaryLooksLikeAgentDirectRoom(room, resolvedAgentMxid));
+      (room.directChatMatrixID == resolvedAgentMxid ||
+          _summaryLooksLikeAgentDirectRoom(room, resolvedAgentMxid));
 }
 
 bool _summaryLooksLikeAgentDirectRoom(Room room, String agentMxid) {
@@ -66,7 +66,10 @@ String? productDirectPeerAvatarUrl(Room room) {
   final peerMxid = productDirectPeerMxid(room);
   final profile = _nativeDirectProfile(room);
   if (peerMxid == null || profile == null) return null;
-  if (_profileString(profile, 'requester_mxid') != peerMxid) return null;
+  if (_profileString(profile, 'requester_mxid') != peerMxid &&
+      _profileString(profile, 'target_mxid') != peerMxid) {
+    return null;
+  }
   return _profileString(profile, 'avatar_url');
 }
 

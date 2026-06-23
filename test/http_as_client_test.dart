@@ -2702,11 +2702,13 @@ void main() {
     final member = AsChannelMember.fromJson({
       'channel_id': 'ch1',
       'user_mxid': '@alice:p2p-liyanan.com',
+      'avatar_url': 'mxc://p2p-liyanan.com/alice-avatar',
       'membership': 'invite',
       'joined_at': 1781870000000,
     });
 
     expect(member.status, asChannelMemberStatusInvite);
+    expect(member.avatarUrl, 'mxc://p2p-liyanan.com/alice-avatar');
     expect(member.joinedAtMs, 1781870000000);
   });
 

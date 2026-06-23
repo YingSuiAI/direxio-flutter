@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
 class BiAnalyticsService {
@@ -101,8 +104,100 @@ class BiAnalyticsEvent {
   final String phoneModel;
   final int reportTime;
   final Map<String, Object?> payload;
+
+  Map<String, Object?> toJson() {
+    return {
+      'eventType': eventType,
+      'deviceNo': deviceNo,
+      if (phoneModel.trim().isNotEmpty) 'phoneModel': phoneModel,
+      'reportTime': reportTime,
+      if (payload.isNotEmpty) 'payload': payload,
+    };
+  }
 }
 
 void reportBiInBackground(Future<void> Function() task) {
   unawaited(task().catchError((Object _) {}));
+}
+
+class HttpBiAnalyticsReporter {
+  HttpBiAnalyticsReporter({
+    required Uri baseUri,
+    required String secret,
+    http.Client? httpClient,
+  })  : _baseUri = _normalizeBaseUri(baseUri),
+        _secret = secret.trim(),
+        _http = httpClient ?? http.Client();
+
+  final Uri _baseUri;
+  final String _secret;
+  final http.Client _http;
+
+  Future<void> call(BiAnalyticsEvent event) async {
+    if (_secret.isEmpty) return;
+    final nonce = '${DateTime.now().microsecondsSinceEpoch}-'
+        '${event.deviceNo.hashCode.toUnsigned(32)}';
+    final body = canonicalBiJson(event.toJson());
+    final signature = buildBiSignature(
+      secret: _secret,
+      nonce: nonce,
+      canonicalBody: body,
+    );
+    final response = await _http.post(
+      _resolve('bi/events/report'),
+      headers: {
+        'content-type': 'application/json',
+        'X-BI-Nonce': nonce,
+        'X-BI-Signature': signature,
+      },
+      body: body,
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError('BI report failed: HTTP ${response.statusCode}');
+    }
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is Map && decoded['code'] != null && decoded['code'] != 0) {
+      throw StateError(
+          'BI report failed: ${decoded['msg'] ?? decoded['code']}');
+    }
+  }
+
+  Uri _resolve(String path) {
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    final basePath =
+        _baseUri.path.endsWith('/') ? _baseUri.path : '${_baseUri.path}/';
+    return _baseUri.replace(path: '$basePath$cleanPath');
+  }
+
+  static Uri _normalizeBaseUri(Uri baseUri) {
+    final path =
+        baseUri.path == '/' ? '' : baseUri.path.replaceAll(RegExp(r'/+$'), '');
+    return baseUri.replace(path: path, queryParameters: const {});
+  }
+}
+
+String buildBiSignature({
+  required String secret,
+  required String nonce,
+  required String canonicalBody,
+}) {
+  final input = '$secret\n$nonce\n$canonicalBody';
+  return md5.convert(utf8.encode(input)).toString();
+}
+
+String canonicalBiJson(Object? value) {
+  if (value is Map) {
+    final entries = value.entries
+        .where((entry) => entry.key != null)
+        .map((entry) => MapEntry(entry.key.toString(), entry.value))
+        .toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return '{${entries.map((entry) {
+      return '${jsonEncode(entry.key)}:${canonicalBiJson(entry.value)}';
+    }).join(',')}}';
+  }
+  if (value is Iterable) {
+    return '[${value.map(canonicalBiJson).join(',')}]';
+  }
+  return jsonEncode(value);
 }

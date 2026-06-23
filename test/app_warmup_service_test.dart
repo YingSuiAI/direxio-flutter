@@ -94,7 +94,8 @@ void main() {
     ]);
   });
 
-  test('warmup preloads AS contact avatars from bootstrap metadata', () async {
+  test('warmup preloads AS contact and channel avatars from bootstrap metadata',
+      () async {
     final avatarPreloader = _RecordingAvatarPreloader();
     final client = Client('DirexioWarmupContactAvatarTest')
       ..homeserver = Uri.parse('https://p2p-im.com');
@@ -125,7 +126,16 @@ void main() {
           ),
         ],
         groups: const [],
-        channels: const [],
+        channels: const [
+          AsSyncRoomSummary(
+            channelId: 'ch_product',
+            roomId: '!channel:p2p-im.com',
+            name: '产品公告',
+            avatarUrl: 'https://cdn.example.com/channel.png',
+            unreadCount: 0,
+            lastActivityAt: null,
+          ),
+        ],
         pending: const AsSyncPending.empty(),
       ),
     );
@@ -137,6 +147,10 @@ void main() {
       contains(contains('/download/p2p-liyanan.com/lee-avatar')),
     );
     expect(avatarPreloader.urls, contains('https://cdn.example.com/test.png'));
+    expect(
+      avatarPreloader.urls,
+      contains('https://cdn.example.com/channel.png'),
+    );
   });
 
   test('warmup applies cached bootstrap before slow network bootstrap',

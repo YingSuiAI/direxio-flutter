@@ -1,12 +1,16 @@
 // 创建账号页 —— 沿用 s-login 的 M3 视觉语言。
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../providers/auth_provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../widgets/avatar_adjust_sheet.dart';
 
 class InitPage extends ConsumerStatefulWidget {
   const InitPage({super.key});
@@ -23,6 +27,8 @@ class _InitPageState extends ConsumerState<InitPage> {
   bool _loading = false;
   bool _obscure = true;
   String? _error;
+  String? _weakHint;
+  Uint8List? _avatarBytes;
 
   @override
   void dispose() {
@@ -33,41 +39,127 @@ class _InitPageState extends ConsumerState<InitPage> {
     super.dispose();
   }
 
+  Future<void> _pickAvatar() async {
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 92,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      requestFullMetadata: false,
+    );
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    await showAvatarAdjustSheet(
+      context,
+      imageBytes: bytes,
+      onConfirm: (adjustedBytes) async {
+        setState(() {
+          _avatarBytes = adjustedBytes;
+          _weakHint = null;
+        });
+      },
+    );
+  }
+
+  Future<String> _uploadSelectedAvatar() async {
+    final bytes = _avatarBytes;
+    if (bytes == null) return '';
+    final client = ref.read(matrixClientProvider);
+    final userId = client.userID?.trim() ?? '';
+    if (userId.isEmpty) return '';
+    final uploaded = await client.uploadContent(
+      bytes,
+      filename: 'avatar.png',
+      contentType: 'image/png',
+    );
+    await client.setAvatarUrl(userId, uploaded);
+    return uploaded.toString();
+  }
+
   Future<void> _register() async {
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
     );
+    final auth = ref.read(authStateNotifierProvider).valueOrNull;
+    final isLoggedIn = auth?.isLoggedIn == true;
+    final domain = _domainCtrl.text.trim();
+    final displayName = _displayNameCtrl.text.trim();
     final portalToken = _portalTokenCtrl.text.trim();
     final confirmPortalToken = _confirmPortalTokenCtrl.text.trim();
+    if (_avatarBytes == null) {
+      setState(() {
+        _weakHint = '请设置头像';
+        _error = null;
+      });
+      return;
+    }
+    if (!isLoggedIn && domain.isEmpty) {
+      setState(() {
+        _weakHint = '请填写 Portal 域名';
+        _error = null;
+      });
+      return;
+    }
+    if (displayName.isEmpty) {
+      setState(() {
+        _weakHint = '请填写用户昵称';
+        _error = null;
+      });
+      return;
+    }
+    if (portalToken.isEmpty) {
+      setState(() {
+        _weakHint = '请填写长期登录口令';
+        _error = null;
+      });
+      return;
+    }
+    if (confirmPortalToken.isEmpty) {
+      setState(() {
+        _weakHint = '请再次输入长期登录口令';
+        _error = null;
+      });
+      return;
+    }
     if (portalToken.length < 8) {
-      setState(() => _error = l10n?.initPasswordTooShort ?? '密码至少 8 位');
+      setState(() {
+        _weakHint = l10n?.initPasswordTooShort ?? '密码至少 8 位';
+        _error = null;
+      });
       return;
     }
     if (portalToken != confirmPortalToken) {
-      setState(() => _error = l10n?.initPasswordMismatch ?? '两次输入的密码不一致');
+      setState(() {
+        _weakHint = l10n?.initPasswordMismatch ?? '两次输入的密码不一致';
+        _error = null;
+      });
       return;
     }
     setState(() {
       _loading = true;
       _error = null;
+      _weakHint = null;
     });
     try {
-      final auth = ref.read(authStateNotifierProvider).valueOrNull;
-      if (auth?.isLoggedIn == true) {
+      if (isLoggedIn) {
+        final avatarUrl = await _uploadSelectedAvatar();
         await ref
             .read(authStateNotifierProvider.notifier)
             .completeOwnerProfileSetup(
-              displayName: _displayNameCtrl.text.trim(),
+              displayName: displayName,
               newPortalToken: portalToken,
+              avatarUrl: avatarUrl,
             );
         if (mounted) context.go('/home');
       } else {
         await ref.read(authStateNotifierProvider.notifier).register(
-              _domainCtrl.text.trim(),
+              domain,
               portalToken,
-              _displayNameCtrl.text.trim(),
+              displayName,
             );
+        await _uploadSelectedAvatar();
       }
     } catch (e) {
       setState(() => _error = e.toString());
@@ -114,9 +206,12 @@ class _InitPageState extends ConsumerState<InitPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Align(
+                        Align(
                           alignment: Alignment.center,
-                          child: _DirexioLogoMark(),
+                          child: _InitAvatarPicker(
+                            imageBytes: _avatarBytes,
+                            onTap: _loading ? null : _pickAvatar,
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Text(
@@ -153,6 +248,7 @@ class _InitPageState extends ConsumerState<InitPage> {
                           icon: Symbols.person,
                           hint: l10n?.initDisplayNameHint ?? '用户昵称',
                           tokens: pageTokens,
+                          onChanged: (_) => _clearWeakHint(),
                         ),
                         const SizedBox(height: 15),
                         _InitPillInputField(
@@ -163,6 +259,7 @@ class _InitPageState extends ConsumerState<InitPage> {
                               : l10n?.initPasswordHint ?? '登录密码',
                           obscure: _obscure,
                           onSubmitted: (_) => _register(),
+                          onChanged: (_) => _clearWeakHint(),
                           tokens: pageTokens,
                           trailing: IconButton(
                             icon: Icon(
@@ -185,6 +282,7 @@ class _InitPageState extends ConsumerState<InitPage> {
                               : l10n?.initConfirmPasswordHint ?? '再次输入登录密码',
                           obscure: _obscure,
                           onSubmitted: (_) => _register(),
+                          onChanged: (_) => _clearWeakHint(),
                           tokens: pageTokens,
                         ),
                         const SizedBox(height: 10),
@@ -195,6 +293,10 @@ class _InitPageState extends ConsumerState<InitPage> {
                             color: pageTokens.textMute,
                           ),
                         ),
+                        if (_weakHint != null) ...[
+                          const SizedBox(height: 8),
+                          _WeakHint(message: _weakHint!),
+                        ],
                         if (_error != null) ...[
                           const SizedBox(height: 12),
                           _ErrorBanner(message: _error!),
@@ -252,21 +354,75 @@ class _InitPageState extends ConsumerState<InitPage> {
       ),
     );
   }
+
+  void _clearWeakHint() {
+    if (_weakHint == null) return;
+    setState(() => _weakHint = null);
+  }
 }
 
-class _DirexioLogoMark extends StatelessWidget {
-  const _DirexioLogoMark();
+class _InitAvatarPicker extends StatelessWidget {
+  const _InitAvatarPicker({
+    required this.imageBytes,
+    required this.onTap,
+  });
+
+  final Uint8List? imageBytes;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(27),
-      child: Image.asset(
-        'assets/images/logo.png',
-        key: const ValueKey('init_logo_asset'),
-        width: 96,
-        height: 96,
-        fit: BoxFit.cover,
+    const pageTokens = PortalTokens.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 105,
+        height: 105,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: pageTokens.surface.withValues(alpha: 0.92),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: imageBytes == null
+                    ? Icon(
+                        Symbols.person,
+                        size: 58,
+                        fill: 1,
+                        color: pageTokens.primaryContainer,
+                      )
+                    : Image.memory(
+                        imageBytes!,
+                        key: const ValueKey('init_avatar_preview'),
+                        fit: BoxFit.cover,
+                      ),
+              ),
+            ),
+            Positioned(
+              right: 4,
+              bottom: 8,
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: pageTokens.textMute,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: pageTokens.surface, width: 2),
+                ),
+                child: Icon(
+                  Symbols.photo_camera,
+                  size: 17,
+                  fill: 1,
+                  color: pageTokens.text,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -282,6 +438,7 @@ class _InitPillInputField extends StatelessWidget {
     this.keyboardType,
     this.trailing,
     this.onSubmitted,
+    this.onChanged,
   });
 
   final TextEditingController controller;
@@ -292,6 +449,7 @@ class _InitPillInputField extends StatelessWidget {
   final TextInputType? keyboardType;
   final Widget? trailing;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -325,6 +483,7 @@ class _InitPillInputField extends StatelessWidget {
               obscureText: obscure,
               keyboardType: keyboardType,
               onSubmitted: onSubmitted,
+              onChanged: onChanged,
               style: AppTheme.sans(size: 16, color: tokens.text),
               cursorColor: tokens.text,
               decoration: InputDecoration(
@@ -345,6 +504,24 @@ class _InitPillInputField extends StatelessWidget {
           if (trailing != null) trailing!,
           const SizedBox(width: 12),
         ],
+      ),
+    );
+  }
+}
+
+class _WeakHint extends StatelessWidget {
+  const _WeakHint({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    const pageTokens = PortalTokens.dark;
+    return Text(
+      message,
+      style: AppTheme.sans(
+        size: 12,
+        color: pageTokens.accent.withValues(alpha: 0.9),
       ),
     );
   }

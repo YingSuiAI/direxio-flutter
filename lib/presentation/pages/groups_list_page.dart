@@ -64,7 +64,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
       if (roomId.isEmpty) continue;
       if (directContactRoomIds.contains(roomId)) continue;
       final group = groupsByRoomId[roomId];
-      if (!_isJoinedGroupForList(group, conversation)) continue;
+      if (!_isVisibleGroupForList(group, conversation)) continue;
       final room = client.getRoomById(roomId);
       final lastEvent = room?.lastEvent;
       final lastActivityAt = lastEvent?.originServerTs ??
@@ -95,7 +95,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
               ? group!.unreadCount
               : room?.notificationCount ?? 0,
           isOwner: group?.isOwned ?? false,
-          productConversation: conversation,
+          productConversation: _openableGroupConversationForList(conversation),
         ),
       );
     }
@@ -143,14 +143,21 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
   }
 }
 
-bool _isJoinedGroupForList(
+bool _isVisibleGroupForList(
   AsSyncRoomSummary? group,
   AsConversation conversation,
 ) {
-  if (_isNonJoinedGroupStatus(group?.memberStatus) ||
-      _isNonJoinedGroupStatus(conversation.membership) ||
-      _isNonJoinedGroupStatus(conversation.relationshipStatus) ||
-      _isNonJoinedGroupStatus(conversation.projectionState)) {
+  if (_isExitedGroupStatus(group?.memberStatus) ||
+      _isExitedGroupStatus(conversation.lifecycle) ||
+      _isExitedGroupStatus(conversation.membership) ||
+      _isExitedGroupStatus(conversation.relationshipStatus) ||
+      _isExitedGroupStatus(conversation.projectionState)) {
+    return true;
+  }
+  if (_isHiddenGroupStatus(group?.memberStatus) ||
+      _isHiddenGroupStatus(conversation.membership) ||
+      _isHiddenGroupStatus(conversation.relationshipStatus) ||
+      _isHiddenGroupStatus(conversation.projectionState)) {
     return false;
   }
   if (_isJoinedGroupStatus(group?.memberStatus) ||
@@ -169,6 +176,31 @@ bool _isJoinedGroupForList(
       conversation.projectionState.trim().isEmpty;
 }
 
+AsConversation _openableGroupConversationForList(AsConversation conversation) {
+  if (conversation.canOpen) return conversation;
+  return AsConversation(
+    conversationId: conversation.conversationId,
+    roomId: conversation.roomId,
+    kind: conversation.kind,
+    lifecycle: conversation.lifecycle,
+    title: conversation.title,
+    avatarUrl: conversation.avatarUrl,
+    peerMxid: conversation.peerMxid,
+    lastEventId: conversation.lastEventId,
+    lastMessage: conversation.lastMessage,
+    lastActivityAt: conversation.lastActivityAt,
+    projectionState: conversation.projectionState,
+    projectionReason: conversation.projectionReason,
+    memberCount: conversation.memberCount,
+    membership: conversation.membership,
+    relationshipStatus: conversation.relationshipStatus,
+    role: conversation.role,
+    hydrationState: conversation.hydrationState,
+    hydrationReason: conversation.hydrationReason,
+    capabilities: const AsConversationCapabilities(open: true),
+  );
+}
+
 bool _isJoinedGroupStatus(String? status) {
   switch (status?.trim().toLowerCase()) {
     case 'join':
@@ -180,7 +212,7 @@ bool _isJoinedGroupStatus(String? status) {
   return false;
 }
 
-bool _isNonJoinedGroupStatus(String? status) {
+bool _isHiddenGroupStatus(String? status) {
   switch (status?.trim().toLowerCase()) {
     case 'invite':
     case 'invited':
@@ -191,8 +223,19 @@ bool _isNonJoinedGroupStatus(String? status) {
     case 'request':
     case 'rejected':
     case 'reject':
+      return true;
+  }
+  return false;
+}
+
+bool _isExitedGroupStatus(String? status) {
+  switch (status?.trim().toLowerCase()) {
     case 'left':
     case 'leave':
+    case 'kick':
+    case 'kicked':
+    case 'remove':
+    case 'removed':
     case 'ban':
     case 'banned':
       return true;

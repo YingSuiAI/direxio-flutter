@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,8 +12,10 @@ import '../../data/as_client.dart';
 import '../channel/channel_confirm_dialog.dart';
 import '../channel/channel_info_data.dart';
 import '../channel/channel_leave_flow.dart';
+import '../channel/channel_member_avatar.dart';
 import '../channel/channel_share.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/app_warmup_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
@@ -36,6 +40,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   List<AsChannelMember> _members = const [];
   bool _removingMember = false;
   bool _muteChanging = false;
+  final Set<String> _preloadedMemberAvatarUrls = {};
 
   @override
   void initState() {
@@ -85,6 +90,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             status: asChannelMemberStatusJoined,
           );
       final visibleMembers = _visibleChannelMembers(members, client);
+      _preloadMemberAvatars(client, visibleMembers);
       if (mounted) {
         setState(() => _members = visibleMembers);
       }
@@ -95,6 +101,38 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       }
       return const [];
     }
+  }
+
+  void _preloadMemberAvatars(
+    Client client,
+    Iterable<AsChannelMember> members,
+  ) {
+    final roomId = _currentChannelRoomId();
+    for (final member in members) {
+      final url = channelMemberAvatarUrl(
+        client,
+        member,
+        roomId: roomId,
+      );
+      if (url == null || !_preloadedMemberAvatarUrls.add(url)) continue;
+      unawaited(ref.read(avatarPreloaderProvider).preload(url));
+    }
+  }
+
+  String _currentChannelRoomId() {
+    final target = widget.channelId.trim();
+    final bootstrap = ref.read(asSyncCacheProvider).bootstrap;
+    if (bootstrap != null) {
+      for (final channel in bootstrap.channels) {
+        final channelId = channel.channelId.trim();
+        final roomId = channel.roomId.trim();
+        if ((channelId.isNotEmpty && channelId == target) ||
+            (roomId.isNotEmpty && roomId == target)) {
+          return roomId.isEmpty ? target : roomId;
+        }
+      }
+    }
+    return target;
   }
 
   @override
@@ -198,6 +236,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             members: displayMembers.take(visibleMemberCount).toList(),
             placeholderCount: displayMembers.isEmpty ? visibleMemberCount : 0,
             isLoading: isLoading,
+            client: ref.read(matrixClientProvider),
             currentUserId: ref.read(matrixClientProvider).userID ?? '',
             onOpenMember: _openMemberHome,
             onRemove: _showRemoveMemberSheet,
@@ -246,6 +285,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         : _members;
     if (!mounted) return;
     final client = ref.read(matrixClientProvider);
+    final channelRoomId = _currentChannelRoomId();
     final currentUserId = client.userID?.trim() ?? '';
     final candidates = members.where((member) {
       final userMxid = member.userMxid.trim();
@@ -294,6 +334,11 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
                         leading: PortalAvatar(
                           seed: member.userMxid,
                           size: 38,
+                          imageUrl: channelMemberAvatarUrl(
+                            client,
+                            member,
+                            roomId: channelRoomId,
+                          ),
                           shape: AvatarShape.squircle,
                         ),
                         title: Text(
@@ -593,6 +638,7 @@ class _OwnerMemberGrid extends StatelessWidget {
     required this.members,
     required this.placeholderCount,
     required this.isLoading,
+    required this.client,
     required this.currentUserId,
     required this.onOpenMember,
     required this.onRemove,
@@ -602,6 +648,7 @@ class _OwnerMemberGrid extends StatelessWidget {
   final List<AsChannelMember> members;
   final int placeholderCount;
   final bool isLoading;
+  final Client client;
   final String currentUserId;
   final ValueChanged<AsChannelMember> onOpenMember;
   final VoidCallback onRemove;
@@ -622,6 +669,11 @@ class _OwnerMemberGrid extends StatelessWidget {
             child: PortalAvatar(
               seed: _memberName(member),
               size: 40,
+              imageUrl: channelMemberAvatarUrl(
+                client,
+                member,
+                roomId: channel.roomId,
+              ),
               shape: AvatarShape.squircle,
             ),
           ),

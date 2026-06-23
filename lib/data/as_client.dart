@@ -1448,6 +1448,7 @@ class AsChannelMember {
     required this.status,
     this.domain = '',
     this.displayName = '',
+    this.avatarUrl = '',
     this.joinedAtMs = 0,
   });
 
@@ -1455,6 +1456,7 @@ class AsChannelMember {
   final String userMxid;
   final String domain;
   final String displayName;
+  final String avatarUrl;
   final String role;
   final String status;
   final int joinedAtMs;
@@ -1465,6 +1467,10 @@ class AsChannelMember {
       userMxid: json['user_mxid'] as String? ?? '',
       domain: json['domain'] as String? ?? '',
       displayName: json['display_name'] as String? ?? '',
+      avatarUrl: _firstString(
+        json,
+        const ['avatar_url', 'profile_avatar_url', 'user_avatar_url'],
+      ),
       role: json['role'] as String? ?? asChannelRoleMember,
       status: _normalizeChannelMemberStatus(
         _firstString(json, const ['status', 'member_status', 'membership']),

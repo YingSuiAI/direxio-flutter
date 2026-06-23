@@ -1,0 +1,326 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import 'as_client.dart';
+
+class ImPublicApiException implements Exception {
+  ImPublicApiException(this.message, {this.statusCode, this.code});
+
+  final String message;
+  final int? statusCode;
+  final int? code;
+
+  @override
+  String toString() => 'ImPublicApiException($statusCode/$code): $message';
+}
+
+class ImPublicClient {
+  ImPublicClient({
+    required Uri baseUri,
+    http.Client? httpClient,
+  })  : _baseUri = _normalizeBaseUri(baseUri),
+        _http = httpClient ?? http.Client();
+
+  final Uri _baseUri;
+  final http.Client _http;
+
+  Future<ImPublicUploadedFile> uploadImageBytes(
+    List<int> bytes, {
+    required String filename,
+    String contentType = 'application/octet-stream',
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      _resolve('im/image/upload'),
+    );
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: filename,
+    ));
+    final response = await http.Response.fromStream(await _http.send(request));
+    final data = _decodeEnvelope(response);
+    return ImPublicUploadedFile.fromJson(
+      (data['file'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<List<ImPublicTag>> listTags() async {
+    final data = await _get('im/tag/public/list');
+    final raw = data['list'] as List? ?? const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => ImPublicTag.fromJson(item.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  Future<ImPublicChannelPage> listChannels({
+    int page = 1,
+    int pageSize = 10,
+    int status = 1,
+    String ownerDomain = '',
+    String keyword = '',
+    String sortBy = 'createdAt',
+    bool desc = false,
+  }) async {
+    final data = await _get('im/channel/list', queryParameters: {
+      'page': '$page',
+      'pageSize': '$pageSize',
+      'status': '$status',
+      if (ownerDomain.trim().isNotEmpty) 'ownerDomain': ownerDomain.trim(),
+      if (keyword.trim().isNotEmpty) 'keyword': keyword.trim(),
+      if (sortBy.trim().isNotEmpty) 'sortBy': sortBy.trim(),
+      'desc': desc.toString(),
+    });
+    return ImPublicChannelPage.fromJson(data);
+  }
+
+  Future<void> joinChannelDirectory({
+    required String channelDomain,
+    required String roomId,
+    int? tagId,
+  }) async {
+    await _post('im/channel/join', {
+      'channelDomain': channelDomain.trim(),
+      'room_id': roomId.trim(),
+      if (tagId != null) 'tagId': tagId,
+    });
+  }
+
+  Future<int> getReportCount({
+    required String reportedDomain,
+    int targetType = 1,
+  }) async {
+    final data = await _get('im/report/count', queryParameters: {
+      'reportedDomain': reportedDomain.trim(),
+      'targetType': '$targetType',
+    });
+    return _parseInt(data['count']);
+  }
+
+  Future<void> submitReport({
+    required String reporterDomain,
+    required String reportedDomain,
+    required String reason,
+    int targetType = 1,
+    List<String> images = const [],
+  }) async {
+    await _post('im/report', {
+      'reporterDomain': reporterDomain.trim(),
+      'reportedDomain': reportedDomain.trim(),
+      'targetType': targetType,
+      'reason': reason.trim(),
+      if (images.isNotEmpty)
+        'images': images.map((image) => image.trim()).toList(growable: false),
+    });
+  }
+
+  Future<Map<String, dynamic>> _get(
+    String path, {
+    Map<String, String> queryParameters = const {},
+  }) async {
+    final response = await _http.get(
+      _resolve(path, queryParameters: queryParameters),
+    );
+    return _decodeEnvelope(response);
+  }
+
+  Future<Map<String, dynamic>> _post(
+      String path, Map<String, Object?> body) async {
+    final response = await _http.post(
+      _resolve(path),
+      headers: {'content-type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    return _decodeEnvelope(response);
+  }
+
+  Map<String, dynamic> _decodeEnvelope(http.Response response) {
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map) {
+      throw ImPublicApiException(
+        'Invalid IM public response',
+        statusCode: response.statusCode,
+      );
+    }
+    final map = decoded.cast<String, dynamic>();
+    final code = _parseInt(map['code']);
+    if (response.statusCode < 200 || response.statusCode >= 300 || code != 0) {
+      throw ImPublicApiException(
+        (map['msg'] as String?)?.trim().isNotEmpty == true
+            ? (map['msg'] as String).trim()
+            : 'IM public request failed',
+        statusCode: response.statusCode,
+        code: code,
+      );
+    }
+    final data = map['data'];
+    if (data is Map) return data.cast<String, dynamic>();
+    return const {};
+  }
+
+  Uri _resolve(String path, {Map<String, String> queryParameters = const {}}) {
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    final basePath =
+        _baseUri.path.endsWith('/') ? _baseUri.path : '${_baseUri.path}/';
+    final uri = _baseUri.replace(path: '$basePath$cleanPath');
+    if (queryParameters.isEmpty) return uri;
+    final merged = <String, String>{
+      ...uri.queryParameters,
+      ...queryParameters,
+    };
+    return uri.replace(queryParameters: merged);
+  }
+
+  static Uri _normalizeBaseUri(Uri baseUri) {
+    final path =
+        baseUri.path == '/' ? '' : baseUri.path.replaceAll(RegExp(r'/+$'), '');
+    return baseUri.replace(path: path, queryParameters: const {});
+  }
+}
+
+class ImPublicUploadedFile {
+  const ImPublicUploadedFile({
+    required this.url,
+    required this.fileName,
+    required this.size,
+  });
+
+  final String url;
+  final String fileName;
+  final int size;
+
+  factory ImPublicUploadedFile.fromJson(Map<String, dynamic> json) {
+    return ImPublicUploadedFile(
+      url: json['url'] as String? ?? '',
+      fileName:
+          json['fileName'] as String? ?? json['file_name'] as String? ?? '',
+      size: _parseInt(json['size']),
+    );
+  }
+}
+
+class ImPublicTag {
+  const ImPublicTag({
+    required this.id,
+    required this.name,
+    required this.color,
+    required this.status,
+    required this.sort,
+  });
+
+  final int id;
+  final String name;
+  final String color;
+  final int status;
+  final int sort;
+
+  factory ImPublicTag.fromJson(Map<String, dynamic> json) {
+    return ImPublicTag(
+      id: _parseInt(json['ID'] ?? json['id']),
+      name: json['name'] as String? ?? '',
+      color: json['color'] as String? ?? '',
+      status: _parseInt(json['status']),
+      sort: _parseInt(json['sort']),
+    );
+  }
+}
+
+class ImPublicChannelPage {
+  const ImPublicChannelPage({
+    required this.items,
+    required this.total,
+    required this.page,
+    required this.pageSize,
+  });
+
+  final List<ImPublicChannelListing> items;
+  final int total;
+  final int page;
+  final int pageSize;
+
+  factory ImPublicChannelPage.fromJson(Map<String, dynamic> json) {
+    final raw = json['list'] as List? ?? const [];
+    return ImPublicChannelPage(
+      items: raw
+          .whereType<Map>()
+          .map((item) => ImPublicChannelListing.fromJson(
+                item.cast<String, dynamic>(),
+              ))
+          .toList(growable: false),
+      total: _parseInt(json['total']),
+      page: _parseInt(json['page']),
+      pageSize: _parseInt(json['pageSize'] ?? json['page_size']),
+    );
+  }
+}
+
+class ImPublicChannelListing {
+  const ImPublicChannelListing({
+    required this.id,
+    required this.channelDomain,
+    required this.roomId,
+    required this.ownerDomain,
+    required this.intro,
+    required this.channel,
+    required this.tagId,
+    required this.tag,
+    required this.status,
+    required this.syncStatus,
+    required this.failureCount,
+    required this.reportCount,
+    required this.joinCount,
+    required this.lastJoinTime,
+  });
+
+  final int id;
+  final String channelDomain;
+  final String roomId;
+  final String ownerDomain;
+  final String intro;
+  final AsChannel channel;
+  final int tagId;
+  final ImPublicTag? tag;
+  final int status;
+  final int syncStatus;
+  final int failureCount;
+  final int reportCount;
+  final int joinCount;
+  final DateTime? lastJoinTime;
+
+  factory ImPublicChannelListing.fromJson(Map<String, dynamic> json) {
+    final detail =
+        (json['channelDetail'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return ImPublicChannelListing(
+      id: _parseInt(json['ID'] ?? json['id']),
+      channelDomain: json['channelDomain'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
+      ownerDomain: json['ownerDomain'] as String? ?? '',
+      intro: json['intro'] as String? ?? '',
+      channel: AsChannel.fromJson(detail),
+      tagId: _parseInt(json['tagId']),
+      tag: json['tag'] is Map
+          ? ImPublicTag.fromJson((json['tag'] as Map).cast<String, dynamic>())
+          : null,
+      status: _parseInt(json['status']),
+      syncStatus: _parseInt(json['syncStatus']),
+      failureCount: _parseInt(json['failureCount']),
+      reportCount: _parseInt(json['reportCount']),
+      joinCount: _parseInt(json['joinCount']),
+      lastJoinTime: _parseDateTime(json['lastJoinTime']),
+    );
+  }
+}
+
+int _parseInt(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim()) ?? 0;
+  return 0;
+}
+
+DateTime? _parseDateTime(Object? value) {
+  if (value is! String || value.trim().isEmpty) return null;
+  return DateTime.tryParse(value.trim());
+}

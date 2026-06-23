@@ -861,6 +861,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   Future<void> completeOwnerProfileSetup({
     required String displayName,
     required String newPortalToken,
+    String avatarUrl = '',
   }) async {
     final cleanDisplayName = displayName.trim();
     if (cleanDisplayName.isEmpty) {
@@ -891,8 +892,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: currentPortalToken.trim(),
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
     );
-    final profile =
-        await asClient.updateOwnerProfile(displayName: cleanDisplayName);
+    final profile = await asClient.updateOwnerProfile(
+      displayName: cleanDisplayName,
+      avatarUrl: avatarUrl.trim(),
+    );
     var session = await asClient.changePortalPassword(
       oldPassword: currentLoginPassword,
       newPassword: cleanToken,
@@ -936,6 +939,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
     if (userId.isNotEmpty) {
       await client.setDisplayName(userId, cleanDisplayName);
+      final cleanAvatarUrl = avatarUrl.trim();
+      if (cleanAvatarUrl.isNotEmpty) {
+        await client.setAvatarUrl(userId, Uri.parse(cleanAvatarUrl));
+      }
     }
     final savedDisplayName = profile.displayName.trim().isNotEmpty
         ? profile.displayName.trim()

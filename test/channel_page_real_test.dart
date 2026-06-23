@@ -1268,6 +1268,14 @@ void main() {
     expect(
         find.byKey(const ValueKey('channel_member_avatar_@agent:p2p-im.com')),
         findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.imageUrl == 'https://cdn.example.com/alex-channel.png',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byIcon(Symbols.remove));
     await tester.pumpAndSettle();
@@ -1275,6 +1283,14 @@ void main() {
     expect(find.text('移除频道成员'), findsOneWidget);
     expect(find.text('Alex Chen'), findsOneWidget);
     expect(find.text('@agent:p2p-im.com'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.imageUrl == 'https://cdn.example.com/alex-channel.png',
+      ),
+      findsAtLeastNWidgets(2),
+    );
   });
 
   testWidgets('member channel info refreshes joined members from AS',
@@ -2636,6 +2652,7 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
         channelId: 'ch_real',
         userMxid: '@alex:p2p-liyanan.com',
         displayName: 'Alex Chen',
+        avatarUrl: 'https://cdn.example.com/alex-channel.png',
         domain: 'p2p-liyanan.com',
         role: asChannelRoleMember,
         status: 'join',

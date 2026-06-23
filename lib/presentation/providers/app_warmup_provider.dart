@@ -212,6 +212,9 @@ class AppWarmupService {
       for (final contact in bootstrap.contacts.take(maxRoomAvatars)) {
         _addUnique(urls, avatarHttpUrl(client, contact.avatarUrl));
       }
+      for (final channel in bootstrap.channels.take(maxRoomAvatars)) {
+        _addUnique(urls, avatarHttpUrl(client, channel.avatarUrl));
+      }
     }
 
     for (final room in _recentJoinedRooms().take(maxRoomAvatars)) {

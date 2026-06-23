@@ -54,6 +54,12 @@ build routes, and map route type from ProductCore `kind`; do not let contact
 detail, home rows, group lists, or channel conversation routes infer direct vs
 group from raw Matrix rooms or bootstrap-only metadata.
 
+Exited or removed group conversations remain visible in the home conversation
+list and Contacts -> Groups as read-only history. They must still open the
+group chat route, where the composer is replaced by the exited-group send block.
+Do not treat `left`, `removed`, `kicked`, or `banned` like pending/invite group
+states that should be hidden from the user's existing chat history.
+
 The logged-in home conversation list must show the Agent conversation first by
 default, ahead of pinned and recent normal conversations. Once live
 ProductCore/Matrix conversation entries are available, use that merged live

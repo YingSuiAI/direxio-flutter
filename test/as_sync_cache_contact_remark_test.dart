@@ -3,6 +3,55 @@ import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 
 void main() {
+  test('copyWith preserves real auth agent room id when bootstrap omits it',
+      () {
+    final state = AsSyncCacheState(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        agentRoomId: '!real-agent-room:example.com',
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    final next = state.copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026, 6, 23),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    expect(next.bootstrap?.agentRoomId, '!real-agent-room:example.com');
+  });
+
+  test('copyWith drops legacy pseudo agent room ids', () {
+    const state = AsSyncCacheState();
+
+    final next = state.copyWith(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        agentRoomId: '!agent:example.com',
+        rooms: const [],
+        contacts: const [],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    );
+
+    expect(next.bootstrap?.agentRoomId, isEmpty);
+  });
+
   test('withContactDisplayName updates bootstrap contact name', () {
     final state = AsSyncCacheState(
       bootstrap: AsSyncBootstrap(

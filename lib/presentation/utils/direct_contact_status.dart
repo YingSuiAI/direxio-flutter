@@ -21,11 +21,16 @@ String? portalAgentMxidForClient(Client client) {
       : WellKnownService.agentMxidForDomain(serverName);
 }
 
-String? fallbackPortalAgentRoomIdForClient(Client client) {
+String? legacyPortalAgentRoomIdForClient(Client client) {
   final serverName =
       serverNameFromMxid(client.userID) ?? client.homeserver?.host.trim();
   if (serverName == null || serverName.isEmpty) return null;
   return '!agent:$serverName';
+}
+
+bool isLegacyPortalAgentRoomIdForClient(Client client, String roomId) {
+  final legacyRoomId = legacyPortalAgentRoomIdForClient(client);
+  return legacyRoomId != null && roomId.trim() == legacyRoomId;
 }
 
 bool isPortalAgentDirectRoom(Room room, {String? agentMxid}) {

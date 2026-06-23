@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/http_as_client.dart';
 import 'package:portal_app/data/local_endpoint_resolver.dart';
@@ -2100,6 +2102,23 @@ void main() {
     expect(events.single.payload['reason'], 'call');
   });
 
+  test('streamEvents bypasses Matrix response stream timeout wrapper',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: FixedTimeoutHttpClient(
+        _DelayedSseClient(const Duration(milliseconds: 20)),
+        const Duration(milliseconds: 1),
+      ),
+    );
+
+    final events = await client.streamEvents().toList();
+
+    expect(events.single.seq, 44);
+    expect(events.single.type, 'sync.bootstrap.changed');
+  });
+
   test('changePortalPassword posts password payload to AS admin API', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),
@@ -3529,7 +3548,7 @@ void main() {
             'access_token': 'matrix-access-token',
             'user_id': '@owner:example.com',
             'homeserver': 'https://example.com',
-            'agent_room_id': '!agent:example.com',
+            'agent_room_id': '!agent-room:example.com',
             'initialized': true,
             'password_initialized': false,
             'profile_initialized': false,
@@ -3543,7 +3562,7 @@ void main() {
     expect(session.userId, '@owner:example.com');
     expect(session.homeserver, 'https://example.com');
     expect(session.deviceId, isNull);
-    expect(session.agentRoomId, '!agent:example.com');
+    expect(session.agentRoomId, '!agent-room:example.com');
     expect(session.initialized, isTrue);
     expect(session.passwordInitialized, isFalse);
     expect(session.profileInitialized, isFalse);
@@ -3581,4 +3600,32 @@ void main() {
     expect(session.passwordInitialized, isFalse);
     expect(session.profileInitialized, isFalse);
   });
+}
+
+class _DelayedSseClient extends http.BaseClient {
+  _DelayedSseClient(this.delay);
+
+  final Duration delay;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    return http.StreamedResponse(
+      http.ByteStream(_delayedSse()),
+      200,
+      headers: {'content-type': 'text/event-stream; charset=utf-8'},
+      request: request,
+    );
+  }
+
+  Stream<List<int>> _delayedSse() async* {
+    await Future<void>.delayed(delay);
+    yield utf8.encode(
+      [
+        'id: 44',
+        'event: sync.bootstrap.changed',
+        'data: {"seq":44,"type":"sync.bootstrap.changed","payload":{"reason":"keepalive"},"created_at":"2026-06-20T00:00:00Z"}',
+        '',
+      ].join('\n'),
+    );
+  }
 }

@@ -2205,6 +2205,7 @@ Room _addTestRoom(
   required String roomId,
   required Membership roomMembership,
   String? directPeerMxid,
+  String? directPeerName,
   Membership directPeerMembership = Membership.join,
 }) {
   final room = Room(
@@ -2235,7 +2236,11 @@ Room _addTestRoom(
         type: EventTypes.RoomMember,
         senderId: directPeerMxid,
         stateKey: directPeerMxid,
-        content: {'membership': directPeerMembership.name},
+        content: {
+          'membership': directPeerMembership.name,
+          if (directPeerName?.trim().isNotEmpty == true)
+            'displayname': directPeerName!.trim(),
+        },
       ),
     );
   }
@@ -2934,7 +2939,7 @@ void main() {
   test('markRoomLocallyRead clears Matrix unread counters immediately', () {
     final client = Client('DirexioTest');
     final room = Room(
-      id: '!agent:example.com',
+      id: '!room:example.com',
       client: client,
       notificationCount: 3,
       highlightCount: 1,
@@ -4940,7 +4945,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('agent route !agent-new:p2p-im.com;conversation conv_agent'),
+      find.text(
+        'agent route !agent-new:p2p-im.com;'
+        'conversation bootstrap:!agent-new:p2p-im.com',
+      ),
       findsOneWidget,
     );
   });
@@ -4963,7 +4971,7 @@ void main() {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 22, 10),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      agentRoomId: '!agent:p2p-im.com',
+      agentRoomId: '!agent-room:p2p-im.com',
       rooms: const [],
       contacts: const [],
       groups: const [],
@@ -5017,7 +5025,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Agent 会话还未同步'), findsNothing);
-    expect(find.text('agent route !agent:p2p-im.com'), findsOneWidget);
+    expect(find.text('agent route !agent-room:p2p-im.com'), findsOneWidget);
   });
 
   testWidgets('contacts Agent tap prefers cached login agent room id',
@@ -5174,8 +5182,7 @@ void main() {
     expect(find.text('agent route !agent-old:p2p-im.com'), findsOneWidget);
   });
 
-  testWidgets(
-      'contacts Agent tap opens default route when no Agent room exists',
+  testWidgets('contacts Agent tap warns when no Agent room exists',
       (tester) async {
     var createRoomCalls = 0;
     final client = Client(
@@ -5251,8 +5258,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(createRoomCalls, 0);
-    expect(find.text('Agent 会话还未同步'), findsNothing);
-    expect(find.text('agent route !agent:p2p-im.com'), findsOneWidget);
+    expect(find.text('Agent 会话还未同步'), findsOneWidget);
+    expect(find.text('agent route !agent:p2p-im.com'), findsNothing);
   });
 
   testWidgets('contacts list keeps each friend avatar separate',
@@ -17145,14 +17152,15 @@ void main() {
 
   testWidgets('agent chat back falls home when chat is the root route',
       (tester) async {
-    const roomId = '!agent:p2p-im.com';
+    const roomId = '!agent-room:p2p-im.com';
     final client = Client('DirexioTest')..setUserId('@owner:p2p-im.com');
-    _addTestRoom(
+    final room = _addTestRoom(
       client,
       roomId: roomId,
       roomMembership: Membership.join,
       directPeerMxid: '@agent:p2p-im.com',
     );
+    room.summary.mHeroes = ['@agent:p2p-im.com'];
     final router = GoRouter(
       initialLocation: '/chat/${Uri.encodeComponent(roomId)}',
       routes: [
@@ -17194,12 +17202,14 @@ void main() {
 
   testWidgets('agent chat header uses AS connection status', (tester) async {
     final client = Client('DirexioTest')..setUserId('@owner:p2p-im.com');
-    _addTestRoom(
+    final room = _addTestRoom(
       client,
-      roomId: '!agent:p2p-im.com',
+      roomId: '!agent-room:p2p-im.com',
       roomMembership: Membership.join,
       directPeerMxid: '@agent:p2p-im.com',
+      directPeerName: 'Direxio AI',
     );
+    room.summary.mHeroes = ['@agent:p2p-im.com'];
 
     await tester.pumpWidget(
       ProviderScope(
@@ -17211,13 +17221,14 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const ChatPage(roomId: '!agent:p2p-im.com'),
+          home: const ChatPage(roomId: '!agent-room:p2p-im.com'),
         ),
       ),
     );
     await tester.pump();
 
-    expect(find.text('Agent'), findsOneWidget);
+    expect(find.text('Direxio AI'), findsOneWidget);
+    expect(find.text('Agent'), findsNothing);
     expect(find.text('离线'), findsOneWidget);
     expect(find.text('在线'), findsNothing);
   });

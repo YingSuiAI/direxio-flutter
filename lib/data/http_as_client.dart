@@ -218,8 +218,9 @@ class HttpAsClient implements AsClient {
       }
 
       final stopwatch = Stopwatch()..start();
+      final httpClient = _streamingHttpClient(_http);
       try {
-        streamed = await _http.send(request).timeout(_timeout);
+        streamed = await httpClient.send(request).timeout(_timeout);
       } catch (error, stackTrace) {
         stopwatch.stop();
         ApiLogger.failure(
@@ -2559,4 +2560,9 @@ Stream<AsEventStreamEvent> _decodeSseEvents(Stream<String> lines) async* {
   }
   final trailing = buildEvent();
   if (trailing != null) yield trailing;
+}
+
+http.Client _streamingHttpClient(http.Client client) {
+  if (client is TimeoutHttpClient) return client.inner;
+  return client;
 }

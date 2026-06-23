@@ -50,6 +50,7 @@ import '../chat/red_packet_message.dart';
 import '../groups/group_invite_card.dart';
 import '../groups/group_invite_content.dart';
 import '../groups/group_invite_join_flow.dart';
+import '../utils/agent_identity.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/conversation_capability_policy.dart';
 import '../utils/direct_contact_status.dart';
@@ -512,13 +513,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (roomId.isEmpty) return false;
     if (syncCache.contactForRoom(roomId) != null) return true;
     final bootstrap = syncCache.bootstrap;
-    final fallbackAgentRoomId = fallbackPortalAgentRoomIdForClient(
-          ref.read(matrixClientProvider),
-        ) ??
-        '';
-    if (fallbackAgentRoomId.isNotEmpty && fallbackAgentRoomId == roomId) {
-      return true;
-    }
     if (bootstrap == null) return false;
     if (bootstrap.agentRoomId.trim() == roomId) return true;
     bool hasRoom(List<AsSyncRoomSummary> rooms) {
@@ -1189,7 +1183,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         joinedPersonPeerMxid(room) ??
         contact?.userId ??
         '';
-    if (isPortalAgentDirectRoom(room)) return 'Agent';
+    if (isPortalAgentDirectRoom(room)) return agentDisplayNameForRoom(room);
     return directContactDisplayName(contact, room, peerMxid: mxid);
   }
 
@@ -2309,7 +2303,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final canStartCall = capabilityPolicy.canCall;
     final isWaitingForAccept = isProductDirect && !isAgent && !canSendMessages;
     final name = isAgent
-        ? 'Agent'
+        ? agentDisplayNameForRoom(room)
         : directContactDisplayName(contact, room, peerMxid: mxid);
     final peerMember = mxid.trim().isEmpty
         ? null

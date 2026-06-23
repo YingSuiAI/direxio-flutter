@@ -119,7 +119,7 @@ void main() {
         ),
         _conversation(
           id: 'conv_agent',
-          roomId: '!agent:p2p-im.com',
+          roomId: '!agent-room:p2p-im.com',
           kind: asConversationKindAgent,
           canOpen: true,
           lastActivityAt: DateTime.utc(2026, 6, 22, 8),
@@ -133,7 +133,7 @@ void main() {
 
     expect(
       visible.map((conversation) => conversation.roomId),
-      ['!agent:p2p-im.com', '!pinned:p2p-im.com', '!recent:p2p-im.com'],
+      ['!agent-room:p2p-im.com', '!pinned:p2p-im.com', '!recent:p2p-im.com'],
     );
   });
 
@@ -286,11 +286,22 @@ void main() {
     final client = Client('ConversationSummaryWriterAgentFallbackTest')
       ..setUserId('@owner:p2p-im.com');
     final room = Room(
-      id: '!agent:p2p-im.com',
+      id: '!agent-room:p2p-im.com',
       client: client,
       membership: Membership.join,
     );
     room.summary.mHeroes = ['@agent:p2p-im.com'];
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@agent:p2p-im.com',
+        stateKey: '@agent:p2p-im.com',
+        content: const {
+          'membership': 'join',
+          'displayname': 'Direxio AI',
+        },
+      ),
+    );
     final result = buildHomeConversationSummaryProjection(
       client: client,
       rooms: [room],
@@ -300,7 +311,7 @@ void main() {
         bootstrap: AsSyncBootstrap(
           syncedAt: DateTime.utc(2026, 6, 22, 12),
           user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-          agentRoomId: '!agent:p2p-im.com',
+          agentRoomId: '!agent-room:p2p-im.com',
           rooms: const [],
           contacts: const [],
           groups: const [],
@@ -322,11 +333,16 @@ void main() {
     );
 
     final conversation =
-        result.productConversationsByRoomId['!agent:p2p-im.com'];
+        result.productConversationsByRoomId['!agent-room:p2p-im.com'];
     expect(result.storeEntries.single.isAgent, isTrue);
+    expect(result.storeEntries.single.name, 'Direxio AI');
     expect(conversation?.isAgent, isTrue);
+    expect(conversation?.title, 'Direxio AI');
     expect(conversation?.canOpen, isTrue);
-    expect(productConversationRoute(conversation), '/chat/!agent%3Ap2p-im.com');
+    expect(
+      productConversationRoute(conversation),
+      '/chat/!agent-room%3Ap2p-im.com',
+    );
   });
 
   test('builds default Agent conversation from bootstrap before room hydrates',
@@ -343,7 +359,7 @@ void main() {
         bootstrap: AsSyncBootstrap(
           syncedAt: DateTime.utc(2026, 6, 23, 12),
           user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-          agentRoomId: '!agent:p2p-im.com',
+          agentRoomId: '!agent-room:p2p-im.com',
           rooms: const [],
           contacts: const [],
           groups: const [],
@@ -366,16 +382,19 @@ void main() {
 
     final entry = result.displayEntries.single;
     final conversation =
-        result.productConversationsByRoomId['!agent:p2p-im.com'];
+        result.productConversationsByRoomId['!agent-room:p2p-im.com'];
     expect(entry.name, 'Agent');
     expect(entry.isAgent, isTrue);
     expect(entry.lastMessage, defaultAgentConversationPreview);
     expect(conversation?.isAgent, isTrue);
     expect(conversation?.canOpen, isTrue);
-    expect(productConversationRoute(conversation), '/chat/!agent%3Ap2p-im.com');
+    expect(
+      productConversationRoute(conversation),
+      '/chat/!agent-room%3Ap2p-im.com',
+    );
   });
 
-  test('builds default Agent conversation without synced agent room', () {
+  test('does not build legacy Agent pseudo room without synced agent room', () {
     final client = Client('ConversationSummaryWriterFallbackAgentTest')
       ..setUserId('@owner:p2p-im.com');
 
@@ -399,15 +418,11 @@ void main() {
       includeDefaultAgentConversation: true,
     );
 
-    final entry = result.displayEntries.single;
-    final conversation =
-        result.productConversationsByRoomId['!agent:p2p-im.com'];
-    expect(entry.name, 'Agent');
-    expect(entry.isAgent, isTrue);
-    expect(entry.lastMessage, defaultAgentConversationPreview);
-    expect(conversation?.isAgent, isTrue);
-    expect(conversation?.canOpen, isTrue);
-    expect(productConversationRoute(conversation), '/chat/!agent%3Ap2p-im.com');
+    expect(result.displayEntries, isEmpty);
+    expect(
+      result.productConversationsByRoomId.containsKey('!agent:p2p-im.com'),
+      isFalse,
+    );
   });
 
   test('does not duplicate fallback Agent when ProductCore Agent exists', () {

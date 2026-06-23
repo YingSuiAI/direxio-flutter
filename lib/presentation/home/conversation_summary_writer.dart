@@ -7,6 +7,7 @@ import '../../data/local_outbox_store.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
+import '../utils/agent_identity.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
@@ -32,10 +33,13 @@ class VisibleHomeConversation {
     );
   }
 
-  factory VisibleHomeConversation.agentBootstrap(String roomId) {
+  factory VisibleHomeConversation.agentBootstrap(
+    String roomId, {
+    String title = defaultAgentDisplayName,
+  }) {
     return VisibleHomeConversation._(
       roomId: roomId.trim(),
-      product: _fallbackAgentConversationForRoomId(roomId),
+      product: _fallbackAgentConversationForRoomId(roomId, title: title),
       isAgent: true,
     );
   }
@@ -107,13 +111,21 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
   bool includeDefaultAgentConversation = false,
 }) {
   final productList = productConversations.toList(growable: false);
-  final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+  final bootstrapAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+  final canonicalAgentRoomId =
+      isLegacyPortalAgentRoomIdForClient(client, bootstrapAgentRoomId)
+          ? ''
+          : bootstrapAgentRoomId;
   final productConversationsByRoomId = {
     for (final conversation in productList)
       if (conversation.roomId.trim().isNotEmpty)
-        if (!(conversation.isAgent &&
-            canonicalAgentRoomId.isNotEmpty &&
-            conversation.roomId.trim() != canonicalAgentRoomId))
+        if (!isLegacyPortalAgentRoomIdForClient(
+              client,
+              conversation.roomId,
+            ) &&
+            !(conversation.isAgent &&
+                canonicalAgentRoomId.isNotEmpty &&
+                conversation.roomId.trim() != canonicalAgentRoomId))
           conversation.roomId.trim(): conversation,
   };
   final visibleConversations = visibleHomeConversationsForSummary(
@@ -190,8 +202,11 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
   }
 
   final agentMxid = portalAgentMxidForClient(client);
-  final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
-  final fallbackAgentRoomId = fallbackPortalAgentRoomIdForClient(client) ?? '';
+  final bootstrapAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+  final canonicalAgentRoomId =
+      isLegacyPortalAgentRoomIdForClient(client, bootstrapAgentRoomId)
+          ? ''
+          : bootstrapAgentRoomId;
   var fallbackAgentShown = false;
   for (final room in rooms) {
     if (room.membership != Membership.join) continue;
@@ -208,6 +223,9 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
 
   for (final conversation in productConversations) {
     if (conversation.isChannel) continue;
+    if (isLegacyPortalAgentRoomIdForClient(client, conversation.roomId)) {
+      continue;
+    }
     if (conversation.isAgent && canonicalAgentRoomId.isNotEmpty) {
       final canonicalRoom = client.getRoomById(canonicalAgentRoomId);
       addVisibleConversation(
@@ -215,6 +233,11 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
           _fallbackAgentConversationForRoomId(
             canonicalAgentRoomId,
             conversationId: conversation.conversationId,
+            title: agentDisplayNameForRoom(
+              canonicalRoom,
+              client: client,
+              fallbackTitle: conversation.title,
+            ),
             lastActivityAt: conversation.lastActivityAt ??
                 canonicalRoom?.lastEvent?.originServerTs,
           ),
@@ -265,16 +288,12 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
 
   if (canonicalAgentRoomId.isNotEmpty &&
       !visibleRoomIds.contains(canonicalAgentRoomId)) {
+    final canonicalRoom = client.getRoomById(canonicalAgentRoomId);
     addVisibleConversation(
-      VisibleHomeConversation.agentBootstrap(canonicalAgentRoomId),
-    );
-  } else if (includeDefaultAgentConversation &&
-      canonicalAgentRoomId.isEmpty &&
-      fallbackAgentRoomId.isNotEmpty &&
-      !visibleConversations.any((conversation) => conversation.isAgent) &&
-      !visibleRoomIds.contains(fallbackAgentRoomId)) {
-    addVisibleConversation(
-      VisibleHomeConversation.agentBootstrap(fallbackAgentRoomId),
+      VisibleHomeConversation.agentBootstrap(
+        canonicalAgentRoomId,
+        title: agentDisplayNameForRoom(canonicalRoom, client: client),
+      ),
     );
   }
 
@@ -392,6 +411,7 @@ AsConversation _fallbackDirectConversationForContact(
 AsConversation _fallbackAgentConversation(Room room) {
   return _fallbackAgentConversationForRoomId(
     room.id,
+    title: agentDisplayNameForRoom(room),
     lastActivityAt: room.lastEvent?.originServerTs,
   );
 }
@@ -399,15 +419,17 @@ AsConversation _fallbackAgentConversation(Room room) {
 AsConversation _fallbackAgentConversationForRoomId(
   String roomId, {
   String conversationId = '',
+  String title = defaultAgentDisplayName,
   DateTime? lastActivityAt,
 }) {
   final trimmedRoomId = roomId.trim();
+  final trimmedTitle = title.trim();
   return AsConversation(
     conversationId: conversationId.trim(),
     roomId: trimmedRoomId,
     kind: asConversationKindAgent,
     lifecycle: 'active',
-    title: 'Agent',
+    title: trimmedTitle.isNotEmpty ? trimmedTitle : defaultAgentDisplayName,
     avatarUrl: '',
     lastMessage: defaultAgentConversationPreview,
     lastActivityAt: lastActivityAt,
@@ -556,15 +578,13 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
     lastEventSortTime: lastEventSortTime,
     cleared: cleared,
   );
-  final displayName = conversation.isAgent
-      ? 'Agent'
-      : conversationDisplayName(
-          conversation,
-          directContactDisplayName: syncCache
-              .acceptedContactForRoom(conversation.roomId)
-              ?.displayName,
-          groupRemarkNames: groupRemarkNames,
-        );
+  final displayName = conversationDisplayName(
+    conversation,
+    client: client,
+    directContactDisplayName:
+        syncCache.acceptedContactForRoom(conversation.roomId)?.displayName,
+    groupRemarkNames: groupRemarkNames,
+  );
   final product = conversation.product;
   final directContact = conversation.isGroup || conversation.isAgent
       ? null
@@ -819,9 +839,17 @@ LocalOutboxItem? latestFailedMediaOutboxForConversation(
 
 String conversationDisplayName(
   VisibleHomeConversation conversation, {
+  Client? client,
   String? directContactDisplayName,
   Map<String, String> groupRemarkNames = const {},
 }) {
+  if (conversation.isAgent) {
+    return agentDisplayNameForRoom(
+      conversation.room,
+      client: client,
+      fallbackTitle: conversation.product?.title ?? '',
+    );
+  }
   if (conversation.isGroup) {
     final remark = groupRemarkNames[conversation.roomId]?.trim() ?? '';
     if (remark.isNotEmpty) return remark;

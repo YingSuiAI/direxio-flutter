@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import '../../data/as_call_session_store.dart';
 import '../../data/as_client.dart';
 import '../../data/channel_post_store.dart';
+import '../../data/matrix_sync_timeouts.dart';
 import '../../data/media_thumbnail_cache.dart';
 import 'as_client_provider.dart';
 import 'as_bootstrap_store_provider.dart';
@@ -176,6 +177,7 @@ class AppWarmupService {
     this.preloadConcurrency = 3,
     this.profileTimeout = const Duration(seconds: 6),
     this.syncTimeout = const Duration(seconds: 10),
+    this.matrixSyncTimeout = matrixForegroundSyncTimeout,
   });
 
   final Client client;
@@ -202,6 +204,7 @@ class AppWarmupService {
   final int preloadConcurrency;
   final Duration profileTimeout;
   final Duration syncTimeout;
+  final Duration matrixSyncTimeout;
 
   Future<void> warmup() async {
     final cachedBootstrapFuture = _loadCachedBootstrapMetadata();
@@ -299,7 +302,7 @@ class AppWarmupService {
     final sync = syncMatrixConversations;
     if (sync == null || !client.isLogged()) return;
     try {
-      await sync().timeout(syncTimeout);
+      await sync().timeout(matrixSyncTimeout);
     } catch (e) {
       debugPrint('app warmup Matrix conversation sync failed: $e');
     }

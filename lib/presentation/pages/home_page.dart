@@ -36,6 +36,7 @@ import '../call/voice_call_display_name.dart';
 import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/group_avatar_members.dart';
+import '../utils/agent_identity.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
@@ -44,6 +45,7 @@ import '../widgets/m3/m3_search_field.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../../data/matrix_sync_timeouts.dart';
 import 'me_home_tab.dart';
 
 const _homeBg = Color(0xFFFAFAFA);
@@ -350,7 +352,7 @@ class _HomePageState extends ConsumerState<HomePage>
 
   Future<void> _refreshAfterResume(Client client) async {
     try {
-      await client.oneShotSync().timeout(const Duration(seconds: 12));
+      await client.oneShotSync().timeout(matrixForegroundSyncTimeout);
       _scheduleAsBootstrapRefreshIfNeeded(refreshExisting: true);
     } catch (e) {
       debugPrint('Matrix resume sync failed: $e');
@@ -2143,6 +2145,18 @@ class _ContactList extends ConsumerWidget {
         if (b == '#') return -1;
         return a.compareTo(b);
       });
+    final agentContactRoomId = _resolvedAgentContactRoomId(
+      client,
+      syncCache,
+      isLoggedIn: isLoggedIn,
+    );
+    final agentContactRoom = agentContactRoomId.isEmpty
+        ? null
+        : client.getRoomById(agentContactRoomId);
+    final agentContactName = agentDisplayNameForRoom(
+      agentContactRoom,
+      client: client,
+    );
 
     return Stack(
       children: [
@@ -2181,6 +2195,7 @@ class _ContactList extends ConsumerWidget {
               emptyFallback: const SizedBox.shrink(),
               children: [
                 _AgentContactEntryTile(
+                  title: agentContactName,
                   onTap: () => unawaited(
                     _openAgentContactChat(
                       context,
@@ -2245,9 +2260,12 @@ Future<void> _openAgentContactChat(
     roomId = await _refreshAgentContactRoomId(ref, client);
   }
   if (roomId.isEmpty) {
-    roomId = fallbackPortalAgentRoomIdForClient(client) ?? '';
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Agent 会话还未同步')),
+    );
+    return;
   }
-  if (roomId.isEmpty) return;
   if (!context.mounted) return;
   context.push('/chat/${Uri.encodeComponent(roomId)}');
 }
@@ -2293,7 +2311,10 @@ String _resolvedAgentContactRoomId(
 }) {
   if (!isLoggedIn) return '';
   final bootstrapRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
-  if (bootstrapRoomId.isNotEmpty) return bootstrapRoomId;
+  if (bootstrapRoomId.isNotEmpty &&
+      !isLegacyPortalAgentRoomIdForClient(client, bootstrapRoomId)) {
+    return bootstrapRoomId;
+  }
   final agentMxid = portalAgentMxidForClient(client);
   for (final room in client.rooms) {
     if (room.membership != Membership.join) continue;
@@ -2676,8 +2697,12 @@ class _ContactEntryTile extends StatelessWidget {
 }
 
 class _AgentContactEntryTile extends StatelessWidget {
-  const _AgentContactEntryTile({required this.onTap});
+  const _AgentContactEntryTile({
+    required this.title,
+    required this.onTap,
+  });
 
+  final String title;
   final VoidCallback onTap;
 
   @override
@@ -2696,7 +2721,7 @@ class _AgentContactEntryTile extends StatelessWidget {
           fill: 1,
         ),
       ),
-      title: 'Agent',
+      title: title,
     );
   }
 }

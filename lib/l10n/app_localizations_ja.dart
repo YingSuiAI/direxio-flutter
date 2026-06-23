@@ -395,6 +395,79 @@ class AppLocalizationsJa extends AppLocalizations {
   String get initExistingAccountLogin => 'すでにアカウントをお持ちですか？ログイン';
 
   @override
+  String get initAvatarRequired => 'アバターを設定してください';
+
+  @override
+  String get initPortalDomainRequired => 'Portal ドメインを入力してください';
+
+  @override
+  String get initDisplayNameRequired => '表示名を入力してください';
+
+  @override
+  String get initOwnerTokenRequired => '長期ログインパスフレーズを入力してください';
+
+  @override
+  String get initConfirmOwnerTokenRequired => '長期ログインパスフレーズをもう一度入力してください';
+
+  @override
+  String get setupScanTitle => 'スキャンしてサーバーを追加';
+
+  @override
+  String get setupScanHint => 'Portal 設定ページの QR コードをスキャンしてください';
+
+  @override
+  String get setupManualEntry => '手動入力';
+
+  @override
+  String get setupManualTitle => 'Portal を手動で追加';
+
+  @override
+  String get setupManualPortalLabel => 'Portal URL または QR リンク';
+
+  @override
+  String get setupManualPortalHint => 'p2p-im.com または p2pim://setup?...';
+
+  @override
+  String get setupManualCodeLabel => '一回限りの設定コード';
+
+  @override
+  String get setupManualCodeHint => '8文字の小文字または数字';
+
+  @override
+  String get setupManualContinue => '続ける';
+
+  @override
+  String get setupInvalidCode => '8文字の設定コードを入力してください';
+
+  @override
+  String get setupPasswordTitle => 'ログインパスフレーズを設定';
+
+  @override
+  String get setupPasswordQrCodeWillExpire => '設定後、この QR 設定コードは無効になります';
+
+  @override
+  String get setupPasswordEnterCodeAndPassword =>
+      'この Portal の設定コードを入力し、ログインパスフレーズを設定してください';
+
+  @override
+  String get setupCodeHint => '設定コード';
+
+  @override
+  String get setupNewPasswordHint => '新しいログインパスフレーズ';
+
+  @override
+  String get setupConfirmNewPasswordHint => 'ログインパスフレーズを再入力';
+
+  @override
+  String get setupPasswordSaving => '設定中…';
+
+  @override
+  String get setupPasswordDone => '設定を完了';
+
+  @override
+  String get setupPasswordMismatch => '2回入力したパスフレーズが一致しません';
+
+  @override
   String get addContactTitle => '友だちを追加';
 
   @override

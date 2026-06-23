@@ -95,40 +95,40 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
                 children: [
-                  // 成员头像横滚 + 邀请
+                  // 成员头像换行 + 邀请
                   M3Card(
-                    child: SizedBox(
-                      height: 72,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: [
-                          for (final m in members)
-                            _MemberChip(
-                              key: ValueKey('group_info_member_${m.id}'),
-                              name: m.calcDisplayname(),
-                              avatarUrl:
-                                  matrixContentHttpUrl(client, m.avatarUrl),
-                            ),
-                          _InviteChip(
-                            onTap: () => showInviteGroupMembersFlow(
-                              context,
-                              ref,
-                              roomId: widget.roomId,
-                              existingMemberMxids: existingMemberMxids,
-                            ),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        for (final m in members)
+                          _MemberChip(
+                            key: ValueKey('group_info_member_${m.id}'),
+                            userId: m.id,
+                            name: m.calcDisplayname(),
+                            avatarUrl:
+                                matrixContentHttpUrl(client, m.avatarUrl),
+                            onTap: () => _openMemberProfile(m.id),
                           ),
-                          if (canManageGroup)
-                            _RemoveMemberChip(
-                              onTap: _removingMember
-                                  ? null
-                                  : () => _showRemoveMemberSheet(
-                                        context,
-                                        room,
-                                        members,
-                                      ),
-                            ),
-                        ],
-                      ),
+                        _InviteChip(
+                          onTap: () => showInviteGroupMembersFlow(
+                            context,
+                            ref,
+                            roomId: widget.roomId,
+                            existingMemberMxids: existingMemberMxids,
+                          ),
+                        ),
+                        if (canManageGroup)
+                          _RemoveMemberChip(
+                            onTap: _removingMember
+                                ? null
+                                : () => _showRemoveMemberSheet(
+                                      context,
+                                      room,
+                                      members,
+                                    ),
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -252,6 +252,17 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final self = room.client.userID;
     if (self == null || self.isEmpty) return false;
     return room.getPowerLevelByUserId(self) >= 50;
+  }
+
+  void _openMemberProfile(String userId) {
+    final mxid = userId.trim();
+    if (!mxid.startsWith('@') || !mxid.contains(':')) return;
+    final self = ref.read(matrixClientProvider).userID?.trim();
+    if (self != null && self == mxid) {
+      context.push('/me/profile');
+      return;
+    }
+    context.push('/contact-home/${Uri.encodeComponent(mxid)}');
   }
 
   bool _canDissolveGroup(Room room) {
@@ -703,32 +714,47 @@ class _GroupTextEditDialogState extends State<_GroupTextEditDialog> {
 }
 
 class _MemberChip extends StatelessWidget {
-  const _MemberChip({super.key, required this.name, this.avatarUrl});
+  const _MemberChip({
+    super.key,
+    required this.userId,
+    required this.name,
+    this.avatarUrl,
+    required this.onTap,
+  });
+  final String userId;
   final String name;
   final String? avatarUrl;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     final short = name.split(' ').first;
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PortalAvatar(seed: name, size: 48, imageUrl: avatarUrl),
-          const SizedBox(height: 4),
-          SizedBox(
-            width: 52,
-            child: Text(
-              short,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: AppTheme.sans(size: 10, color: t.textMute),
-            ),
+    return SizedBox(
+      width: 52,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PortalAvatar(seed: userId, size: 48, imageUrl: avatarUrl),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 52,
+                child: Text(
+                  short,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppTheme.sans(size: 10, color: t.textMute),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -741,8 +767,8 @@ class _InviteChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
+    return SizedBox(
+      width: 52,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -777,8 +803,8 @@ class _RemoveMemberChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
+    return SizedBox(
+      width: 52,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),

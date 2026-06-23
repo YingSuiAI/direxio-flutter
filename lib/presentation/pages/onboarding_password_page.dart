@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/setup_payload.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
@@ -38,17 +39,21 @@ class _OnboardingPasswordPageState
   }
 
   Future<void> _submit() async {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final setupCode =
         widget.payload.hasCode ? widget.payload.code : _setupCodeCtrl.text;
     final password = _passwordCtrl.text.trim();
     final confirm = _confirmCtrl.text.trim();
     setState(() => _error = null);
     if (!SetupPayload.isValidSetupCode(setupCode)) {
-      setState(() => _error = '请输入 8 位设置码');
+      setState(() => _error = l10n?.setupInvalidCode ?? '请输入 8 位设置码');
       return;
     }
     if (password != confirm) {
-      setState(() => _error = '两次输入的口令不一致');
+      setState(() => _error = l10n?.setupPasswordMismatch ?? '两次输入的口令不一致');
       return;
     }
 
@@ -72,12 +77,16 @@ class _OnboardingPasswordPageState
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
           GlassHeader.detail(
-            title: '设置登录口令',
+            title: l10n?.setupPasswordTitle ?? '设置登录口令',
             onBack: () => context.go('/login'),
           ),
           Expanded(
@@ -108,8 +117,10 @@ class _OnboardingPasswordPageState
                       const SizedBox(height: 6),
                       Text(
                         widget.payload.hasCode
-                            ? '设置后，当前二维码设置码会失效'
-                            : '输入该 Portal 的设置码并设置登录口令',
+                            ? l10n?.setupPasswordQrCodeWillExpire ??
+                                '设置后，当前二维码设置码会失效'
+                            : l10n?.setupPasswordEnterCodeAndPassword ??
+                                '输入该 Portal 的设置码并设置登录口令',
                         textAlign: TextAlign.center,
                         style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
@@ -118,7 +129,7 @@ class _OnboardingPasswordPageState
                         M3InputField(
                           controller: _setupCodeCtrl,
                           icon: Symbols.password,
-                          hint: '设置码',
+                          hint: l10n?.setupCodeHint ?? '设置码',
                           onSubmitted: (_) => _submit(),
                         ),
                         const SizedBox(height: 12),
@@ -126,7 +137,7 @@ class _OnboardingPasswordPageState
                       M3InputField(
                         controller: _passwordCtrl,
                         icon: Symbols.key,
-                        hint: '新登录口令',
+                        hint: l10n?.setupNewPasswordHint ?? '新登录口令',
                         obscure: _obscure,
                         trailing: IconButton(
                           icon: Icon(
@@ -143,7 +154,7 @@ class _OnboardingPasswordPageState
                       M3InputField(
                         controller: _confirmCtrl,
                         icon: Symbols.verified_user,
-                        hint: '再次输入登录口令',
+                        hint: l10n?.setupConfirmNewPasswordHint ?? '再次输入登录口令',
                         obscure: _obscure,
                         onSubmitted: (_) => _submit(),
                       ),
@@ -153,7 +164,9 @@ class _OnboardingPasswordPageState
                       ],
                       const SizedBox(height: 20),
                       M3PrimaryButton(
-                        label: _loading ? '设置中…' : '完成设置',
+                        label: _loading
+                            ? l10n?.setupPasswordSaving ?? '设置中…'
+                            : l10n?.setupPasswordDone ?? '完成设置',
                         onPressed: _loading ? null : _submit,
                       ),
                     ],

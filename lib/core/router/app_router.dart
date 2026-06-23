@@ -4,9 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../theme/app_theme.dart';
 import '../theme/design_tokens.dart';
 import '../../presentation/pages/login_page.dart';
 import '../../presentation/pages/init_page.dart';
@@ -709,53 +707,7 @@ class _AuthRestorePageState extends State<_AuthRestorePage> {
     final t = context.tk;
     return Scaffold(
       backgroundColor: t.bg,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                color: t.primaryContainer,
-                borderRadius: BorderRadius.circular(96 * 0.225),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                Symbols.communication,
-                size: 48,
-                color: t.onPrimaryContainer,
-                fill: 1,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Portal IM',
-              style: AppTheme.sans(
-                size: 20,
-                weight: FontWeight.w700,
-                color: t.text,
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.2,
-                color: t.accent,
-              ),
-            ),
-          ],
-        ),
-      ),
+      body: const SizedBox.expand(),
     );
   }
 }

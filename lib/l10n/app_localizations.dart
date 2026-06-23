@@ -851,6 +851,150 @@ abstract class AppLocalizations {
   /// **'已有账号？登录'**
   String get initExistingAccountLogin;
 
+  /// No description provided for @initAvatarRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请设置头像'**
+  String get initAvatarRequired;
+
+  /// No description provided for @initPortalDomainRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写 Portal 域名'**
+  String get initPortalDomainRequired;
+
+  /// No description provided for @initDisplayNameRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写用户昵称'**
+  String get initDisplayNameRequired;
+
+  /// No description provided for @initOwnerTokenRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写长期登录口令'**
+  String get initOwnerTokenRequired;
+
+  /// No description provided for @initConfirmOwnerTokenRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请再次输入长期登录口令'**
+  String get initConfirmOwnerTokenRequired;
+
+  /// No description provided for @setupScanTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫码添加服务器'**
+  String get setupScanTitle;
+
+  /// No description provided for @setupScanHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'扫描 Portal 设置页上的二维码'**
+  String get setupScanHint;
+
+  /// No description provided for @setupManualEntry.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动输入'**
+  String get setupManualEntry;
+
+  /// No description provided for @setupManualTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'手动添加 Portal'**
+  String get setupManualTitle;
+
+  /// No description provided for @setupManualPortalLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'Portal URL 或二维码链接'**
+  String get setupManualPortalLabel;
+
+  /// No description provided for @setupManualPortalHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'p2p-im.com 或 p2pim://setup?...'**
+  String get setupManualPortalHint;
+
+  /// No description provided for @setupManualCodeLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'一次性设置码'**
+  String get setupManualCodeLabel;
+
+  /// No description provided for @setupManualCodeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'8 位小写字母或数字'**
+  String get setupManualCodeHint;
+
+  /// No description provided for @setupManualContinue.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续'**
+  String get setupManualContinue;
+
+  /// No description provided for @setupInvalidCode.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入 8 位设置码'**
+  String get setupInvalidCode;
+
+  /// No description provided for @setupPasswordTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置登录口令'**
+  String get setupPasswordTitle;
+
+  /// No description provided for @setupPasswordQrCodeWillExpire.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置后，当前二维码设置码会失效'**
+  String get setupPasswordQrCodeWillExpire;
+
+  /// No description provided for @setupPasswordEnterCodeAndPassword.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入该 Portal 的设置码并设置登录口令'**
+  String get setupPasswordEnterCodeAndPassword;
+
+  /// No description provided for @setupCodeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置码'**
+  String get setupCodeHint;
+
+  /// No description provided for @setupNewPasswordHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'新登录口令'**
+  String get setupNewPasswordHint;
+
+  /// No description provided for @setupConfirmNewPasswordHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'再次输入登录口令'**
+  String get setupConfirmNewPasswordHint;
+
+  /// No description provided for @setupPasswordSaving.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置中…'**
+  String get setupPasswordSaving;
+
+  /// No description provided for @setupPasswordDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成设置'**
+  String get setupPasswordDone;
+
+  /// No description provided for @setupPasswordMismatch.
+  ///
+  /// In zh, this message translates to:
+  /// **'两次输入的口令不一致'**
+  String get setupPasswordMismatch;
+
   /// No description provided for @addContactTitle.
   ///
   /// In zh, this message translates to:

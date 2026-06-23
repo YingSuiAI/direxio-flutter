@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
@@ -119,13 +118,6 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                             ),
                   ),
                   const SizedBox(height: 12),
-                  _ChatInfoRow(
-                    label: '推荐给朋友',
-                    onTap: peerId == null || isSelf
-                        ? () => _toast(context, '当前联系人无法推荐')
-                        : () => _shareContact(name, peerId),
-                  ),
-                  const SizedBox(height: 12),
                   _ChatInfoSwitchRow(
                     label: '消息免打扰',
                     value: muted,
@@ -206,11 +198,6 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
       );
     }
     _toast(context, '备注已更新');
-  }
-
-  Future<void> _shareContact(String displayName, String userId) async {
-    final name = displayName.trim().isEmpty ? userId : displayName.trim();
-    await Share.share('推荐联系人：$name\n$userId');
   }
 
   Future<void> _showReportDialog(

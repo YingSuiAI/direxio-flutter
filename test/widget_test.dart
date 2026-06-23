@@ -50,6 +50,7 @@ import 'package:portal_app/presentation/pages/group_info_page.dart';
 import 'package:portal_app/presentation/pages/group_manage_page.dart';
 import 'package:portal_app/presentation/pages/groups_list_page.dart';
 import 'package:portal_app/presentation/groups/group_member_invite_flow.dart';
+import 'package:portal_app/presentation/pages/init_page.dart';
 import 'package:portal_app/presentation/pages/me_account_page.dart';
 import 'package:portal_app/presentation/pages/me_home_tab.dart';
 import 'package:portal_app/presentation/pages/me_menu_page.dart';
@@ -3178,6 +3179,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('owner'), findsOneWidget);
+    expect(find.text('推荐给朋友'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
   });
 
@@ -9914,6 +9916,94 @@ void main() {
     expect(find.text('移除'), findsOneWidget);
   });
 
+  testWidgets('group info member avatar opens contact home for friend actions',
+      (tester) async {
+    final client = Client('DirexioGroupInfoMemberProfileTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 8),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation:
+          '/group-info/${Uri.encodeComponent('!group:p2p-im.com')}',
+      routes: [
+        GoRoute(
+          path: '/group-info/:roomId',
+          builder: (_, state) => GroupInfoPage(
+            roomId: state.pathParameters['roomId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/contact-home/:userId',
+          builder: (_, state) => ContactHomePage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/me/profile',
+          builder: (_, __) => const Scaffold(body: Text('我的资料')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(
+      find.byKey(const ValueKey('group_info_member_@alice:p2p-im.com')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ContactHomePage), findsOneWidget);
+    expect(find.text('alice'), findsOneWidget);
+    expect(find.text('p2p-im.com'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('contact_home_add_friend_button')),
+        matching: find.text('加好友'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('group owner can remove member from group info', (tester) async {
     final client = Client('DirexioGroupInfoRemoveMemberTest')
       ..setUserId('@owner:p2p-im.com');
@@ -16309,6 +16399,29 @@ void main() {
     expect(find.text('或'), findsNothing);
     expect(find.text('扫码添加服务器'), findsNothing);
     expect(find.text('初始化 Portal'), findsNothing);
+  });
+
+  testWidgets('init page shows weak prompt for required avatar',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(375, 812));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const InitPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('确认'));
+    await tester.pump();
+
+    expect(find.text('请设置头像'), findsOneWidget);
   });
 
   testWidgets('login page does not default to a real node', (tester) async {

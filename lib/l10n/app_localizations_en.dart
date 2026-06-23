@@ -401,6 +401,82 @@ class AppLocalizationsEn extends AppLocalizations {
   String get initExistingAccountLogin => 'Already have an account? Log in';
 
   @override
+  String get initAvatarRequired => 'Please set an avatar';
+
+  @override
+  String get initPortalDomainRequired => 'Please enter a Portal domain';
+
+  @override
+  String get initDisplayNameRequired => 'Please enter a display name';
+
+  @override
+  String get initOwnerTokenRequired =>
+      'Please enter a long-term login passphrase';
+
+  @override
+  String get initConfirmOwnerTokenRequired =>
+      'Please re-enter the long-term login passphrase';
+
+  @override
+  String get setupScanTitle => 'Scan to add server';
+
+  @override
+  String get setupScanHint => 'Scan the QR code on the Portal setup page';
+
+  @override
+  String get setupManualEntry => 'Enter manually';
+
+  @override
+  String get setupManualTitle => 'Add Portal manually';
+
+  @override
+  String get setupManualPortalLabel => 'Portal URL or QR link';
+
+  @override
+  String get setupManualPortalHint => 'p2p-im.com or p2pim://setup?...';
+
+  @override
+  String get setupManualCodeLabel => 'One-time setup code';
+
+  @override
+  String get setupManualCodeHint => '8 lowercase letters or digits';
+
+  @override
+  String get setupManualContinue => 'Continue';
+
+  @override
+  String get setupInvalidCode => 'Enter an 8-character setup code';
+
+  @override
+  String get setupPasswordTitle => 'Set login passphrase';
+
+  @override
+  String get setupPasswordQrCodeWillExpire =>
+      'After setup, this QR setup code will expire';
+
+  @override
+  String get setupPasswordEnterCodeAndPassword =>
+      'Enter this Portal\'s setup code and set a login passphrase';
+
+  @override
+  String get setupCodeHint => 'Setup code';
+
+  @override
+  String get setupNewPasswordHint => 'New login passphrase';
+
+  @override
+  String get setupConfirmNewPasswordHint => 'Re-enter login passphrase';
+
+  @override
+  String get setupPasswordSaving => 'Setting up…';
+
+  @override
+  String get setupPasswordDone => 'Finish setup';
+
+  @override
+  String get setupPasswordMismatch => 'The two passphrases do not match';
+
+  @override
   String get addContactTitle => 'Add Friend';
 
   @override

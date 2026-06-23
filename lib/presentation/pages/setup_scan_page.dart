@@ -6,6 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/setup_payload.dart';
+import '../../l10n/app_localizations.dart';
 import '../widgets/m3/glass_header.dart';
 
 class SetupScanPage extends StatefulWidget {
@@ -76,12 +77,16 @@ class _SetupScanPageState extends State<SetupScanPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
           GlassHeader.detail(
-            title: '扫码添加服务器',
+            title: l10n?.setupScanTitle ?? '扫码添加服务器',
             onBack: () => context.go('/login'),
           ),
           Expanded(
@@ -126,7 +131,9 @@ class _SetupScanPageState extends State<SetupScanPage> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                _error ?? '扫描 Portal 设置页上的二维码',
+                                _error ??
+                                    l10n?.setupScanHint ??
+                                    '扫描 Portal 设置页上的二维码',
                                 style: AppTheme.sans(
                                   size: 14,
                                   color: Colors.white,
@@ -143,7 +150,7 @@ class _SetupScanPageState extends State<SetupScanPage> {
                             onPressed: _openManualEntry,
                             icon: const Icon(Symbols.keyboard, size: 18),
                             label: Text(
-                              '手动输入',
+                              l10n?.setupManualEntry ?? '手动输入',
                               style: AppTheme.sans(
                                 size: 15,
                                 weight: FontWeight.w600,
@@ -214,6 +221,10 @@ class _ManualSetupSheetState extends State<_ManualSetupSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -241,7 +252,7 @@ class _ManualSetupSheetState extends State<_ManualSetupSheet> {
               ),
               const SizedBox(height: 18),
               Text(
-                '手动添加 Portal',
+                l10n?.setupManualTitle ?? '手动添加 Portal',
                 style: AppTheme.sans(
                   size: 18,
                   weight: FontWeight.w700,
@@ -253,10 +264,12 @@ class _ManualSetupSheetState extends State<_ManualSetupSheet> {
                 key: const ValueKey('manual_setup_portal_field'),
                 controller: _portalCtrl,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Symbols.link),
-                  labelText: 'Portal URL 或二维码链接',
-                  hintText: 'p2p-im.com 或 p2pim://setup?...',
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Symbols.link),
+                  labelText:
+                      l10n?.setupManualPortalLabel ?? 'Portal URL 或二维码链接',
+                  hintText: l10n?.setupManualPortalHint ??
+                      'p2p-im.com 或 p2pim://setup?...',
                 ),
               ),
               const SizedBox(height: 12),
@@ -265,10 +278,10 @@ class _ManualSetupSheetState extends State<_ManualSetupSheet> {
                 controller: _codeCtrl,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _submit(),
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Symbols.password),
-                  labelText: '一次性设置码',
-                  hintText: '8 位小写字母或数字',
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Symbols.password),
+                  labelText: l10n?.setupManualCodeLabel ?? '一次性设置码',
+                  hintText: l10n?.setupManualCodeHint ?? '8 位小写字母或数字',
                 ),
               ),
               if (_error != null) ...[
@@ -282,7 +295,7 @@ class _ManualSetupSheetState extends State<_ManualSetupSheet> {
               FilledButton(
                 key: const ValueKey('manual_setup_continue_button'),
                 onPressed: _submit,
-                child: const Text('继续'),
+                child: Text(l10n?.setupManualContinue ?? '继续'),
               ),
             ],
           ),

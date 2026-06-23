@@ -392,6 +392,78 @@ class AppLocalizationsZh extends AppLocalizations {
   String get initExistingAccountLogin => '已有账号？登录';
 
   @override
+  String get initAvatarRequired => '请设置头像';
+
+  @override
+  String get initPortalDomainRequired => '请填写 Portal 域名';
+
+  @override
+  String get initDisplayNameRequired => '请填写用户昵称';
+
+  @override
+  String get initOwnerTokenRequired => '请填写长期登录口令';
+
+  @override
+  String get initConfirmOwnerTokenRequired => '请再次输入长期登录口令';
+
+  @override
+  String get setupScanTitle => '扫码添加服务器';
+
+  @override
+  String get setupScanHint => '扫描 Portal 设置页上的二维码';
+
+  @override
+  String get setupManualEntry => '手动输入';
+
+  @override
+  String get setupManualTitle => '手动添加 Portal';
+
+  @override
+  String get setupManualPortalLabel => 'Portal URL 或二维码链接';
+
+  @override
+  String get setupManualPortalHint => 'p2p-im.com 或 p2pim://setup?...';
+
+  @override
+  String get setupManualCodeLabel => '一次性设置码';
+
+  @override
+  String get setupManualCodeHint => '8 位小写字母或数字';
+
+  @override
+  String get setupManualContinue => '继续';
+
+  @override
+  String get setupInvalidCode => '请输入 8 位设置码';
+
+  @override
+  String get setupPasswordTitle => '设置登录口令';
+
+  @override
+  String get setupPasswordQrCodeWillExpire => '设置后，当前二维码设置码会失效';
+
+  @override
+  String get setupPasswordEnterCodeAndPassword => '输入该 Portal 的设置码并设置登录口令';
+
+  @override
+  String get setupCodeHint => '设置码';
+
+  @override
+  String get setupNewPasswordHint => '新登录口令';
+
+  @override
+  String get setupConfirmNewPasswordHint => '再次输入登录口令';
+
+  @override
+  String get setupPasswordSaving => '设置中…';
+
+  @override
+  String get setupPasswordDone => '完成设置';
+
+  @override
+  String get setupPasswordMismatch => '两次输入的口令不一致';
+
+  @override
   String get addContactTitle => '添加好友';
 
   @override

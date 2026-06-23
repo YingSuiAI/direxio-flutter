@@ -90,35 +90,35 @@ class _InitPageState extends ConsumerState<InitPage> {
     final confirmPortalToken = _confirmPortalTokenCtrl.text.trim();
     if (_avatarBytes == null) {
       setState(() {
-        _weakHint = '请设置头像';
+        _weakHint = l10n?.initAvatarRequired ?? '请设置头像';
         _error = null;
       });
       return;
     }
     if (!isLoggedIn && domain.isEmpty) {
       setState(() {
-        _weakHint = '请填写 Portal 域名';
+        _weakHint = l10n?.initPortalDomainRequired ?? '请填写 Portal 域名';
         _error = null;
       });
       return;
     }
     if (displayName.isEmpty) {
       setState(() {
-        _weakHint = '请填写用户昵称';
+        _weakHint = l10n?.initDisplayNameRequired ?? '请填写用户昵称';
         _error = null;
       });
       return;
     }
     if (portalToken.isEmpty) {
       setState(() {
-        _weakHint = '请填写长期登录口令';
+        _weakHint = l10n?.initOwnerTokenRequired ?? '请填写长期登录口令';
         _error = null;
       });
       return;
     }
     if (confirmPortalToken.isEmpty) {
       setState(() {
-        _weakHint = '请再次输入长期登录口令';
+        _weakHint = l10n?.initConfirmOwnerTokenRequired ?? '请再次输入长期登录口令';
         _error = null;
       });
       return;

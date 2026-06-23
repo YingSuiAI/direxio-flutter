@@ -278,9 +278,6 @@ class _EmptyAsClient implements AsClient {
       );
 
   @override
-  Future<List<AsConversation>> listConversations() async => const [];
-
-  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,
@@ -1070,7 +1067,9 @@ class _ConversationListAsClient extends _EmptyAsClient {
   final List<AsConversation> conversations;
 
   @override
-  Future<List<AsConversation>> listConversations() async => conversations;
+  Future<AsSyncBootstrap> syncBootstrap() async {
+    return _bootstrapFromConversations(conversations);
+  }
 }
 
 class _StatefulPendingContactAsClient extends _EmptyAsClient {
@@ -1562,7 +1561,9 @@ class _NeverListChannelsWithConversationsAsClient
   final List<AsConversation> conversations;
 
   @override
-  Future<List<AsConversation>> listConversations() async => conversations;
+  Future<AsSyncBootstrap> syncBootstrap() async {
+    return _bootstrapFromConversations(conversations);
+  }
 }
 
 class _TrackingAsClient extends _EmptyAsClient {
@@ -1964,8 +1965,8 @@ class _CompletingConversationsAsClient extends _EmptyAsClient {
   final Completer<List<AsConversation>> conversationCompleter;
 
   @override
-  Future<List<AsConversation>> listConversations() {
-    return conversationCompleter.future;
+  Future<AsSyncBootstrap> syncBootstrap() async {
+    return _bootstrapFromConversations(await conversationCompleter.future);
   }
 }
 
@@ -2013,21 +2014,68 @@ class _RefreshingBootstrapAsClient extends _EmptyAsClient {
       pending: const AsSyncPending.empty(),
     );
   }
+}
 
-  @override
-  Future<List<AsConversation>> listConversations() async {
-    if (syncBootstrapCalls < 2) return const [];
-    return const [
-      AsConversation(
-        conversationId: 'conv_current',
-        roomId: '!accepted:p2p-im.com',
-        kind: asConversationKindDirect,
-        lifecycle: 'active',
-        title: 'Yanan',
-        avatarUrl: '',
-      ),
-    ];
+AsSyncBootstrap _bootstrapFromConversations(
+  List<AsConversation> conversations,
+) {
+  final rooms = <AsSyncRoomSummary>[];
+  final contacts = <AsSyncContact>[];
+  final groups = <AsSyncRoomSummary>[];
+  final channels = <AsSyncRoomSummary>[];
+  var agentRoomId = '';
+
+  for (final conversation in conversations) {
+    final roomId = conversation.roomId.trim();
+    if (roomId.isEmpty) continue;
+    if (conversation.isDirect) {
+      contacts.add(AsSyncContact(
+        userId: conversation.peerMxid.trim().isNotEmpty
+            ? conversation.peerMxid.trim()
+            : '@peer:p2p-im.com',
+        displayName: conversation.title,
+        avatarUrl: conversation.avatarUrl,
+        roomId: roomId,
+        status: 'accepted',
+      ));
+      rooms.add(_summaryFromConversation(conversation));
+    } else if (conversation.isGroup) {
+      groups.add(_summaryFromConversation(conversation));
+    } else if (conversation.isChannel) {
+      channels.add(_summaryFromConversation(conversation));
+    } else if (conversation.isAgent) {
+      agentRoomId = roomId;
+      rooms.add(_summaryFromConversation(conversation));
+    }
   }
+
+  return AsSyncBootstrap(
+    syncedAt: DateTime.now().toUtc(),
+    user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+    agentRoomId: agentRoomId,
+    rooms: rooms,
+    contacts: contacts,
+    groups: groups,
+    channels: channels,
+    pending: const AsSyncPending.empty(),
+  );
+}
+
+AsSyncRoomSummary _summaryFromConversation(AsConversation conversation) {
+  return AsSyncRoomSummary(
+    channelId: conversation.isChannel ? conversation.conversationId.trim() : '',
+    roomId: conversation.roomId.trim(),
+    name: conversation.title.trim(),
+    avatarUrl: conversation.avatarUrl.trim(),
+    unreadCount: 0,
+    lastActivityAt: conversation.lastActivityAt,
+    memberStatus: conversation.membership.trim().isNotEmpty
+        ? conversation.membership.trim()
+        : asChannelMemberStatusJoined,
+    role: conversation.role.trim(),
+    memberCount: conversation.memberCount,
+    commentsEnabled: conversation.commentsEnabled,
+  );
 }
 
 class _RefreshingFriendRequestBootstrapAsClient extends _EmptyAsClient {
@@ -3142,7 +3190,7 @@ void main() {
   });
 
   testWidgets(
-      'messages wait for ProductCore conversations before rendering rooms',
+      'messages render bootstrap contacts instead of undirected room fallback',
       (tester) async {
     final client = Client('DirexioUndirectedRoomMetadataTest')
       ..setUserId('@owner:p2p-im.com');
@@ -3152,7 +3200,31 @@ void main() {
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'owner',
     );
-    final conversationCompleter = Completer<List<AsConversation>>();
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 22, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [
+        AsSyncRoomSummary(
+          roomId: '!owner:p2p-im.com',
+          name: 'owner',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      contacts: const [
+        AsSyncContact(
+          userId: '@owner:p2p-liyanan.com',
+          displayName: 'owner',
+          avatarUrl: '',
+          roomId: '!owner:p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
 
     await tester.pumpWidget(
       ProviderScope(
@@ -3161,8 +3233,8 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_MemberLoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
-          asClientProvider.overrideWithValue(
-            _CompletingConversationsAsClient(conversationCompleter),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
@@ -3172,24 +3244,8 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('Group with'), findsNothing);
-    expect(find.text('正在同步消息'), findsOneWidget);
-
-    conversationCompleter.complete(const [
-      AsConversation(
-        conversationId: 'conv_owner',
-        roomId: '!owner:p2p-im.com',
-        kind: asConversationKindDirect,
-        lifecycle: 'active',
-        title: 'owner',
-        avatarUrl: '',
-      ),
-    ]);
-    await tester.pump();
-    await tester.pump();
-
     expect(find.text('owner'), findsOneWidget);
     expect(find.text('推荐给朋友'), findsNothing);
-    expect(find.textContaining('Group with'), findsNothing);
   });
 
   testWidgets('messages open direct chats with ProductCore conversation id',
@@ -4187,7 +4243,8 @@ void main() {
   testWidgets('messages render cached home conversations before rooms hydrate',
       (tester) async {
     final client = Client('DirexioCachedHomeConversationListTest')
-      ..setUserId('@owner:p2p-im.com');
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
     final conversationCompleter = Completer<List<AsConversation>>();
     final snapshotStore = _MemoryConversationSummaryStore(
       ConversationSummarySnapshot(
@@ -4202,7 +4259,7 @@ void main() {
             unread: 4,
             isGroup: false,
             isAgent: false,
-            avatarUrl: 'https://cdn.example.com/cached.png',
+            avatarUrl: 'mxc://p2p-im.com/cached-avatar',
           ),
         ],
       ),
@@ -4244,6 +4301,12 @@ void main() {
     expect(find.text('缓存联系人'), findsOneWidget);
     expect(find.text('本地缓存消息'), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
+    expect(
+      tester.widgetList<PortalAvatar>(find.byType(PortalAvatar)).any((avatar) =>
+          avatar.imageUrl?.contains('/download/p2p-im.com/cached-avatar') ??
+          false),
+      isTrue,
+    );
     expect(find.text('还没有会话'), findsNothing);
   });
 
@@ -4699,6 +4762,82 @@ void main() {
     expect(find.text('Agent'), findsOneWidget);
     expect(find.text('canonical agent message'), findsOneWidget);
     expect(find.text('legacy agent message'), findsNothing);
+  });
+
+  testWidgets('messages Agent tap uses bootstrap agent room id',
+      (tester) async {
+    final client = Client('DirexioCanonicalAgentTapTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addHeroSummaryRoom(
+      client,
+      roomId: '!agent-old:p2p-im.com',
+      peerMxid: '@agent:p2p-im.com',
+      peerName: 'Agent',
+    );
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': DateTime.utc(2026, 5, 27, 10).toIso8601String(),
+      'agent_room_id': '!agent-new:p2p-im.com',
+      'user': {'user_id': '@owner:p2p-im.com'},
+      'rooms': [],
+      'contacts': [],
+      'groups': [],
+      'channels': [],
+      'pending': {},
+    });
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) => Text(
+            'agent route ${state.pathParameters['roomId']};'
+            'conversation ${state.uri.queryParameters['conversation']}',
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(const [
+              AsConversation(
+                conversationId: 'conv_agent',
+                roomId: '!agent-old:p2p-im.com',
+                kind: asConversationKindAgent,
+                lifecycle: 'active',
+                title: 'Agent',
+                avatarUrl: '',
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ]),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Agent'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('agent route !agent-new:p2p-im.com;conversation conv_agent'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('contacts Agent tap refreshes bootstrap before unsynced notice',

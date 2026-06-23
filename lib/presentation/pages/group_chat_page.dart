@@ -2542,6 +2542,21 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final productConversations =
         ref.watch(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
+    final headerConversation = productConversationForRoom(
+      productConversations,
+      activeRoomId,
+      kinds: {
+        if (isChannelConversation) asConversationKindChannel,
+        if (!isChannelConversation) asConversationKindGroup,
+      },
+    );
+    final currentGroup =
+        isChannelConversation ? null : _groupSummary(syncCache);
+    final headerAvatarUrl =
+        avatarHttpUrl(room.client, headerConversation?.avatarUrl) ??
+            avatarHttpUrl(room.client, currentChannel?.avatarUrl) ??
+            avatarHttpUrl(room.client, currentGroup?.avatarUrl) ??
+            roomAvatarHttpUrl(room);
     final capabilityPolicy = _groupCapabilityPolicy(
       productConversations,
       room,
@@ -2624,6 +2639,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                       subtitle: activeGroupCall == null
                           ? '$headerMemberCount 名成员'
                           : '正在群通话',
+                      leadingAvatar: PortalAvatar(
+                        seed: channelTitle,
+                        size: 36,
+                        imageUrl: headerAvatarUrl,
+                        shape: AvatarShape.squircle,
+                      ),
                       onTitleTap: activeGroupCall == null
                           ? null
                           : () => context.push(

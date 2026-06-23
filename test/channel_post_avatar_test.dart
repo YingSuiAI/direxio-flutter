@@ -95,9 +95,6 @@ class _PostAvatarAsClient extends MockAsClient {
   final AsChannelPost post;
 
   @override
-  Future<List<AsConversation>> listConversations() async => const [];
-
-  @override
   Future<List<AsChannelPost>> getChannelPosts(
     String channelId, {
     int limit = 50,

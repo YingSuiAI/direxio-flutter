@@ -694,6 +694,17 @@ String _roomMemberProfileSignature(Client client, Room room) {
   }).join(';');
 }
 
+String? _homeAvatarUrl(Client client, String? avatarUrl) {
+  final normalized = avatarHttpUrl(client, avatarUrl);
+  if (normalized != null) return normalized;
+  final value = avatarUrl?.trim() ?? '';
+  final uri = Uri.tryParse(value);
+  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+    return null;
+  }
+  return value;
+}
+
 class _ChatsTopBar extends StatelessWidget {
   const _ChatsTopBar({
     required this.title,
@@ -1585,6 +1596,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final client = ref.watch(matrixClientProvider);
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
       itemCount: entries.length,
@@ -1601,7 +1613,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
           unread: entry.unread,
           isAgent: entry.isAgent,
           isGroup: entry.isGroup,
-          avatarUrl: entry.avatarUrl.trim().isEmpty ? null : entry.avatarUrl,
+          avatarUrl: _homeAvatarUrl(client, entry.avatarUrl),
           isPinned: pinnedConversationIds.contains(roomId),
           onTap: () {
             final route = productConversation == null
@@ -2159,7 +2171,8 @@ class _ContactList extends ConsumerWidget {
           domain: contact.domain,
         ),
         mxid: peerMxid,
-        avatarUrl: contactListAvatarUrl(client, contact),
+        avatarUrl:
+            _homeAvatarUrl(client, contactListAvatarUrl(client, contact)),
       );
     }).toList();
     final groupedContacts = _groupContactsByInitial(contacts);

@@ -870,8 +870,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final cleanToken = _validatePortalLoginToken(newPortalToken);
     final client = ref.read(matrixClientProvider);
     final auth = state.valueOrNull;
-    final currentPortalToken = auth?.portalToken ??
-        await _storage.read(key: AuthStateNotifier.accessTokenKey);
+    final currentPortalToken = await _currentAsBearerToken(auth);
     if (currentPortalToken == null || currentPortalToken.trim().isEmpty) {
       throw StateError('当前 P2P 登录态缺失，请重新登录');
     }
@@ -891,6 +890,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       client,
       portalToken: currentPortalToken.trim(),
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+      onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
+      onAuthenticationFailed: () =>
+          expireSessionDueInvalidTokenIfCurrent(currentPortalToken.trim()),
     );
     final profile = await asClient.updateOwnerProfile(
       displayName: cleanDisplayName,
@@ -998,6 +1000,22 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     return restored.portalToken;
   }
 
+  Future<String?> _currentAsBearerToken(AuthState? auth) async {
+    final stored =
+        (await _storage.read(key: AuthStateNotifier.accessTokenKey))?.trim();
+    if (stored != null && stored.isNotEmpty) return stored;
+    final stateToken = auth?.portalToken?.trim();
+    if (stateToken != null && stateToken.isNotEmpty) return stateToken;
+    return null;
+  }
+
+  Future<String?> _portalLoginTokenForRefresh(AuthState? auth) async {
+    final loginToken =
+        (await _storage.read(key: lastLoginPortalTokenKey))?.trim();
+    if (loginToken != null && loginToken.isNotEmpty) return loginToken;
+    return _currentAsBearerToken(auth);
+  }
+
   Future<AuthState?> _refreshPortalSessionFromStoredLogin() async {
     if (_sessionExpiredLocally) return null;
     final client = ref.read(matrixClientProvider);
@@ -1007,9 +1025,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         Uri.tryParse(await _storage.read(key: 'matrix_homeserver') ?? '') ??
         Uri.tryParse(await _storage.read(key: lastLoginHomeserverKey) ?? '');
     if (homeserver == null) return null;
-    final portalToken = auth?.portalToken ??
-        await _storage.read(key: AuthStateNotifier.accessTokenKey) ??
-        await _storage.read(key: lastLoginPortalTokenKey);
+    final portalToken = await _portalLoginTokenForRefresh(auth);
     return _restorePortalSession(
       client,
       homeserver: homeserver.toString(),
@@ -1113,8 +1129,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
     final client = ref.read(matrixClientProvider);
     final auth = state.valueOrNull;
-    final currentPortalToken = auth?.portalToken ??
-        await _storage.read(key: AuthStateNotifier.accessTokenKey);
+    final currentPortalToken = await _currentAsBearerToken(auth);
     if (currentPortalToken == null || currentPortalToken.trim().isEmpty) {
       throw StateError('当前登录口令缺失，请重新登录');
     }
@@ -1129,6 +1144,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       client,
       portalToken: currentPortalToken.trim(),
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+      onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
+      onAuthenticationFailed: () =>
+          expireSessionDueInvalidTokenIfCurrent(currentPortalToken.trim()),
     );
     var session = await asClient.changePortalPassword(
       oldPassword: cleanOldPassword,

@@ -375,6 +375,64 @@ void main() {
     expect(productConversationRoute(conversation), '/chat/!agent%3Ap2p-im.com');
   });
 
+  test('uses bootstrap agent room id over stale ProductCore agent room', () {
+    final client = Client('ConversationSummaryWriterCanonicalAgentTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: [
+        AsConversation(
+          conversationId: 'conv_agent',
+          roomId: '!agent-old:p2p-im.com',
+          kind: asConversationKindAgent,
+          lifecycle: 'active',
+          title: 'Agent',
+          avatarUrl: '',
+          lastActivityAt: DateTime.utc(2026, 6, 23, 12),
+          capabilities: const AsConversationCapabilities(open: true),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: AsSyncCacheState(
+        bootstrap: AsSyncBootstrap(
+          syncedAt: DateTime.utc(2026, 6, 23, 12),
+          user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+          agentRoomId: '!agent-new:p2p-im.com',
+          rooms: const [],
+          contacts: const [],
+          groups: const [],
+          channels: const [],
+          pending: const AsSyncPending.empty(),
+        ),
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    expect(result.displayEntries, hasLength(1));
+    expect(result.displayEntries.single.roomId, '!agent-new:p2p-im.com');
+    final conversation =
+        result.productConversationsByRoomId['!agent-new:p2p-im.com'];
+    expect(conversation?.conversationId, 'conv_agent');
+    expect(
+      productConversationRoute(conversation),
+      '/chat/!agent-new%3Ap2p-im.com?conversation=conv_agent',
+    );
+    expect(result.productConversationsByRoomId['!agent-old:p2p-im.com'],
+        isNot(isA<AsConversation>()));
+  });
+
   test('uses Matrix peer member avatar when ProductCore avatar is missing', () {
     final client = Client('ConversationSummaryWriterPeerAvatarTest')
       ..setUserId('@owner:p2p-im.com')
@@ -436,6 +494,156 @@ void main() {
 
     final avatarUrl = result.displayEntries.single.avatarUrl;
     expect(avatarUrl, contains('/download/p2p-im.com/alice-avatar'));
+  });
+
+  test('uses synced Matrix room avatar when contact room id is stale', () {
+    final client = Client('ConversationSummaryWriterContactAvatarFallbackTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(
+      id: '!actual-direct:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@alice:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {
+          'membership': 'join',
+          'avatar_url': 'mxc://p2p-im.com/alice-contact-avatar',
+        },
+      ),
+    );
+
+    final avatarUrl = contactListAvatarUrl(
+      client,
+      const AsSyncContact(
+        userId: '@alice:p2p-im.com',
+        displayName: 'Alice',
+        avatarUrl: '',
+        roomId: '!stale-direct:p2p-im.com',
+        domain: 'p2p-im.com',
+        status: 'accepted',
+      ),
+    );
+
+    expect(avatarUrl, contains('/download/p2p-im.com/alice-contact-avatar'));
+  });
+
+  test('uses peer avatar from synced Matrix rooms for product-only row', () {
+    final client = Client('ConversationSummaryWriterProductAvatarFallbackTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(
+      id: '!actual-direct:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@alice:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {
+          'membership': 'join',
+          'avatar_url': 'mxc://p2p-im.com/alice-product-avatar',
+        },
+      ),
+    );
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: [room],
+      productConversations: const [
+        AsConversation(
+          conversationId: 'conv_direct',
+          roomId: '!product-direct:p2p-im.com',
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          peerMxid: '@alice:p2p-im.com',
+          title: 'Alice',
+          avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: true),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    final avatarUrl = result.displayEntries.single.avatarUrl;
+    expect(avatarUrl, contains('/download/p2p-im.com/alice-product-avatar'));
+  });
+
+  test('uses accepted contact avatar when product row has no peer avatar', () {
+    final client = Client('ConversationSummaryWriterContactAvatarTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: 'mxc://p2p-im.com/alice-bootstrap-avatar',
+          roomId: '!direct:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: const [
+        AsConversation(
+          conversationId: 'conv_direct',
+          roomId: '!direct:p2p-im.com',
+          kind: asConversationKindDirect,
+          lifecycle: 'active',
+          title: 'Alice',
+          avatarUrl: '',
+          capabilities: AsConversationCapabilities(open: true),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState().copyWith(bootstrap: bootstrap),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    final avatarUrl = result.displayEntries.single.avatarUrl;
+    expect(avatarUrl, contains('/download/p2p-im.com/alice-bootstrap-avatar'));
   });
 
   test('builds home summary projection from ProductCore live inputs', () {

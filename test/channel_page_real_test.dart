@@ -456,24 +456,7 @@ void main() {
         overrides: [
           _channelPostStoreOverride(),
           asClientProvider.overrideWithValue(
-            _PostingChannelAsClient(
-              conversations: const [
-                AsConversation(
-                  conversationId: 'conv_channel',
-                  roomId: '!real:p2p-im.com',
-                  kind: asConversationKindChannel,
-                  lifecycle: 'active',
-                  title: '综合讨论',
-                  avatarUrl: '',
-                  capabilities: AsConversationCapabilities(
-                    open: true,
-                    postCreate: false,
-                    commentCreate: true,
-                    reactionToggle: true,
-                  ),
-                ),
-              ],
-            ),
+            _PostingChannelAsClient(),
           ),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
@@ -925,23 +908,7 @@ void main() {
   testWidgets(
       'channel post detail follows ProductCore comment and reaction capability',
       (tester) async {
-    final asClient = _PostingChannelAsClient(
-      conversations: const [
-        AsConversation(
-          conversationId: 'conv_channel',
-          roomId: '!real:p2p-im.com',
-          kind: asConversationKindChannel,
-          lifecycle: 'active',
-          title: '产品公告',
-          avatarUrl: '',
-          capabilities: AsConversationCapabilities(
-            open: true,
-            commentCreate: false,
-            reactionToggle: false,
-          ),
-        ),
-      ],
-    );
+    final asClient = _PostingChannelAsClient();
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -961,6 +928,8 @@ void main() {
           isOwned: true,
           role: asChannelRoleOwner,
           memberStatus: asChannelMemberStatusJoined,
+          commentsEnabled: false,
+          muted: true,
           channelType: asChannelTypePost,
         ),
       ],
@@ -2743,46 +2712,6 @@ Finder _ownerSwitchFinder() {
 
 class _NoPostChannelAsClient extends MockAsClient {
   @override
-  Future<List<AsConversation>> listConversations() async {
-    return const [
-      AsConversation(
-        conversationId: 'conv_real',
-        roomId: '!real:p2p-im.com',
-        kind: asConversationKindChannel,
-        lifecycle: 'active',
-        title: '产品公告',
-        avatarUrl: '',
-        capabilities: AsConversationCapabilities(
-          open: true,
-          postCreate: true,
-          commentCreate: true,
-          reactionToggle: true,
-          postRecall: true,
-          commentRecall: true,
-          commentsEnabled: true,
-        ),
-      ),
-      AsConversation(
-        conversationId: 'conv_private',
-        roomId: '!private:p2p-im.com',
-        kind: asConversationKindChannel,
-        lifecycle: 'active',
-        title: '私密帖子',
-        avatarUrl: '',
-        capabilities: AsConversationCapabilities(
-          open: true,
-          postCreate: true,
-          commentCreate: true,
-          reactionToggle: true,
-          postRecall: true,
-          commentRecall: true,
-          commentsEnabled: true,
-        ),
-      ),
-    ];
-  }
-
-  @override
   Future<List<AsChannelPost>> getChannelPosts(
     String channelId, {
     int limit = 50,
@@ -2839,26 +2768,6 @@ Future<void> _pumpRealChannelPage(
   await tester.pumpAndSettle();
 }
 
-const _postingChannelConversations = [
-  AsConversation(
-    conversationId: 'conv_channel',
-    roomId: '!real:p2p-im.com',
-    kind: asConversationKindChannel,
-    lifecycle: 'active',
-    title: '产品公告',
-    avatarUrl: '',
-    capabilities: AsConversationCapabilities(
-      open: true,
-      postCreate: true,
-      commentCreate: true,
-      reactionToggle: true,
-      postRecall: true,
-      commentRecall: true,
-      commentsEnabled: true,
-    ),
-  ),
-];
-
 class _PostingChannelAsClient extends MockAsClient {
   _PostingChannelAsClient({
     this.postBody,
@@ -2867,7 +2776,6 @@ class _PostingChannelAsClient extends MockAsClient {
     this.postId = 'post1',
     this.comments = const [],
     this.commentReactionCount = 1,
-    this.conversations = _postingChannelConversations,
   });
 
   final String? postBody;
@@ -2876,7 +2784,6 @@ class _PostingChannelAsClient extends MockAsClient {
   final String postId;
   final List<AsChannelComment> comments;
   final int commentReactionCount;
-  final List<AsConversation> conversations;
   final List<int> requestedCommentPages = [];
   final List<int> requestedCommentPageSizes = [];
   final List<AsChannelComment> createdComments = [];
@@ -2894,9 +2801,6 @@ class _PostingChannelAsClient extends MockAsClient {
   String? toggledCommentChannelId;
   String? toggledCommentPostId;
   String? toggledCommentId;
-
-  @override
-  Future<List<AsConversation>> listConversations() async => conversations;
 
   @override
   Future<List<AsChannelPost>> getChannelPosts(

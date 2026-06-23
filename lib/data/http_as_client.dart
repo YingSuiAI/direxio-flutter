@@ -191,14 +191,6 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Future<List<AsConversation>> listConversations() async {
-    final body = await _getJson('conversations');
-    return _parseConversations(
-      body['conversations'] ?? body['results'] ?? body,
-    );
-  }
-
-  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,
@@ -1510,9 +1502,10 @@ class HttpAsClient implements AsClient {
           );
     final unifiedParams = _actionParams(path, queryParameters: queryParameters)
       ..addAll(extraParams ?? const <String, Object?>{});
+    final action = _actionFor('GET', path);
     final requestBody = unified
         ? jsonEncode({
-            'action': _actionFor('GET', path),
+            'action': action,
             'params': unifiedParams,
           })
         : null;
@@ -1541,6 +1534,7 @@ class HttpAsClient implements AsClient {
         elapsed: stopwatch.elapsed,
         error: error,
         stackTrace: stackTrace,
+        apiName: unified ? action : path,
         requestBody: requestBody,
       );
       rethrow;
@@ -1552,6 +1546,7 @@ class HttpAsClient implements AsClient {
       uri: uri,
       statusCode: response.statusCode,
       elapsed: stopwatch.elapsed,
+      apiName: unified ? action : path,
       requestBody: requestBody,
       responseBody: response.body,
     );
@@ -1573,6 +1568,7 @@ class HttpAsClient implements AsClient {
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
         responseBody: response.body,
+        apiName: unified ? action : path,
         error: error,
         stackTrace: stackTrace,
       );
@@ -1590,6 +1586,7 @@ class HttpAsClient implements AsClient {
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
         responseBody: response.body,
+        apiName: unified ? action : path,
         error: error,
       );
       throw error;
@@ -1663,6 +1660,7 @@ class HttpAsClient implements AsClient {
           elapsed: stopwatch.elapsed,
           error: error,
           stackTrace: stackTrace,
+          apiName: action,
           requestBody: requestBody,
         );
         rethrow;
@@ -1675,6 +1673,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         statusCode: response.statusCode,
         elapsed: requestElapsed,
+        apiName: action,
         requestBody: requestBody,
         responseBody: response.body,
       );
@@ -1708,6 +1707,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: requestElapsed,
         statusCode: response.statusCode,
+        apiName: action,
         requestBody: requestBody,
         responseBody: response.body,
         error: error,
@@ -1726,6 +1726,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: requestElapsed,
         statusCode: response.statusCode,
+        apiName: action,
         requestBody: requestBody,
         responseBody: response.body,
         error: error,
@@ -1742,6 +1743,7 @@ class HttpAsClient implements AsClient {
     Object? body,
     Set<int> allowedStatusCodes = const {200},
   }) async {
+    final apiName = _actionFor(method, path);
     final uri = _resolve(path, queryParameters: queryParameters);
     final request = http.Request(method, uri);
     request.headers['Authorization'] = 'Bearer $_portalToken';
@@ -1784,6 +1786,7 @@ class HttpAsClient implements AsClient {
         elapsed: stopwatch.elapsed,
         error: error,
         stackTrace: stackTrace,
+        apiName: apiName,
         requestBody: requestBody,
       );
       rethrow;
@@ -1795,6 +1798,7 @@ class HttpAsClient implements AsClient {
       uri: uri,
       statusCode: response.statusCode,
       elapsed: stopwatch.elapsed,
+      apiName: apiName,
       requestBody: requestBody,
       responseBody: response.body,
     );
@@ -1818,6 +1822,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
+        apiName: apiName,
         requestBody: requestBody,
         responseBody: response.body,
         error: error,
@@ -1836,6 +1841,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
+        apiName: apiName,
         requestBody: requestBody,
         responseBody: response.body,
         error: error,
@@ -1883,14 +1889,6 @@ class HttpAsClient implements AsClient {
     return raw
         .whereType<Map>()
         .map((item) => AsChannel.fromJson(item.cast<String, dynamic>()))
-        .toList(growable: false);
-  }
-
-  static List<AsConversation> _parseConversations(Object? value) {
-    final raw = value as List? ?? const [];
-    return raw
-        .whereType<Map>()
-        .map((item) => AsConversation.fromJson(item.cast<String, dynamic>()))
         .toList(growable: false);
   }
 
@@ -1947,7 +1945,8 @@ class HttpAsClient implements AsClient {
     try {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) {
-        return decoded['error'] == 'M_UNKNOWN_TOKEN';
+        return decoded['errcode'] == 'M_UNKNOWN_TOKEN' ||
+            decoded['error'] == 'M_UNKNOWN_TOKEN';
       }
     } catch (_) {
       // Non-JSON 401 responses are not treated as session expiry.
@@ -1970,11 +1969,11 @@ class HttpAsClient implements AsClient {
   }) async {
     final unified = _isUnifiedBase(baseUri);
     final uri = _resolveStatic(baseUri, unified ? 'command' : path);
+    final apiName = path == 'bootstrap' ? 'portal.bootstrap' : 'portal.auth';
     final requestBody = jsonEncode(
       unified
           ? {
-              'action':
-                  path == 'bootstrap' ? 'portal.bootstrap' : 'portal.auth',
+              'action': apiName,
               'params': body,
             }
           : body,
@@ -2001,6 +2000,7 @@ class HttpAsClient implements AsClient {
         elapsed: stopwatch.elapsed,
         error: error,
         stackTrace: stackTrace,
+        apiName: apiName,
         requestBody: requestBody,
       );
       rethrow;
@@ -2012,6 +2012,7 @@ class HttpAsClient implements AsClient {
       uri: uri,
       statusCode: response.statusCode,
       elapsed: stopwatch.elapsed,
+      apiName: apiName,
       requestBody: requestBody,
       responseBody: response.body,
     );
@@ -2032,6 +2033,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
+        apiName: apiName,
         requestBody: requestBody,
         responseBody: response.body,
         error: error,
@@ -2050,6 +2052,7 @@ class HttpAsClient implements AsClient {
         uri: uri,
         elapsed: stopwatch.elapsed,
         statusCode: response.statusCode,
+        apiName: apiName,
         requestBody: requestBody,
         responseBody: response.body,
         error: error,
@@ -2282,9 +2285,6 @@ String _actionFor(String method, String path) {
   if (method == 'GET' && clean == 'profile') return 'profile.get';
   if (method == 'PUT' && clean == 'profile') return 'profile.update';
   if (method == 'GET' && clean == 'sync/bootstrap') return 'sync.bootstrap';
-  if (method == 'GET' && clean == 'conversations') {
-    return 'conversations.list';
-  }
   if (method == 'PUT' && clean == 'sync/read-marker') return 'sync.read_marker';
   if (method == 'GET' && clean == 'portal/status') return 'portal.status';
   if (method == 'PUT' && clean == 'portal/password') return 'portal.password';

@@ -1970,9 +1970,6 @@ abstract class AsClient {
   /// P2P product API action.
   Future<AsSyncBootstrap> syncBootstrap();
 
-  /// GET /_p2p/conversations
-  Future<List<AsConversation>> listConversations() async => const [];
-
   /// GET /_p2p/events?since= SSE refresh stream.
   Stream<AsEventStreamEvent> streamEvents({
     int? since,

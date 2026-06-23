@@ -18,6 +18,7 @@ class ApiLogger {
     required Uri uri,
     required int statusCode,
     required Duration elapsed,
+    String? apiName,
     String? requestBody,
     String? responseBody,
   }) {
@@ -28,6 +29,7 @@ class ApiLogger {
       uri: uri,
       statusCode: statusCode,
       elapsed: elapsed,
+      apiName: apiName,
       requestBody: requestBody,
       responseBody: responseBody,
     );
@@ -47,6 +49,7 @@ class ApiLogger {
     StackTrace? stackTrace,
     String? responseBody,
     String? requestBody,
+    String? apiName,
     int? statusCode,
   }) {
     developer.log(
@@ -57,6 +60,7 @@ class ApiLogger {
         statusCode: statusCode,
         elapsed: elapsed,
         error: error,
+        apiName: apiName,
         requestBody: requestBody,
         responseBody: responseBody,
       ),
@@ -74,12 +78,17 @@ class ApiLogger {
     required Duration elapsed,
     int? statusCode,
     Object? error,
+    String? apiName,
     String? requestBody,
     String? responseBody,
   }) {
     final status = statusCode == null ? 'ERR' : statusCode.toString();
+    final resolvedApiName = apiName?.trim().isNotEmpty == true
+        ? apiName!.trim()
+        : _apiNameFromUri(uri);
     final parts = [
       '[$service]',
+      'api=$resolvedApiName',
       method,
       _redactUri(uri),
       '->',
@@ -88,10 +97,16 @@ class ApiLogger {
     ];
     if (error != null) parts.add('error=$error');
     final requestPreview = _previewRequestBody(requestBody);
-    if (requestPreview != null) parts.add('request=$requestPreview');
-    final responsePreview = _preview(responseBody);
-    if (responsePreview != null) parts.add('body=$responsePreview');
+    if (requestPreview != null) parts.add('params=$requestPreview');
+    final responsePreview = _previewResponseBody(responseBody);
+    if (responsePreview != null) parts.add('result=$responsePreview');
     return parts.join(' ');
+  }
+
+  static String _apiNameFromUri(Uri uri) {
+    final path = uri.path.trim().replaceAll(RegExp(r'^/+|/+$'), '');
+    if (path.isEmpty) return uri.host;
+    return path.replaceAll('/', '.');
   }
 
   static String _redactUri(Uri uri) {
@@ -126,10 +141,31 @@ class ApiLogger {
     if (trimmed == null || trimmed.isEmpty) return null;
     try {
       final decoded = jsonDecode(trimmed);
+      final params = _actionParamsPreview(decoded);
+      if (params != null) return _preview(jsonEncode(params));
       return _preview(jsonEncode(_redactSensitiveJson(decoded)));
     } catch (_) {
       return _preview(trimmed);
     }
+  }
+
+  static String? _previewResponseBody(String? body) {
+    final trimmed = body?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    try {
+      return _preview(jsonEncode(_redactSensitiveJson(jsonDecode(trimmed))));
+    } catch (_) {
+      return _preview(trimmed);
+    }
+  }
+
+  static Object? _actionParamsPreview(Object? value) {
+    if (value is Map &&
+        value.containsKey('action') &&
+        value['params'] != null) {
+      return _redactSensitiveJson(value['params']);
+    }
+    return null;
   }
 
   static Object? _redactSensitiveJson(Object? value) {

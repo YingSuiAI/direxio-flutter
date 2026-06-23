@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
@@ -60,7 +59,7 @@ class PortalAvatar extends StatelessWidget {
               height: size,
               fit: BoxFit.cover,
               gaplessPlayback: true,
-              errorBuilder: (_, __, ___) => _letter(letter, fg),
+              errorBuilder: (_, error, ___) => _imageError(letter, fg, error),
             )
           : imageUrl != null
               ? Image.network(
@@ -70,10 +69,22 @@ class PortalAvatar extends StatelessWidget {
                   height: size,
                   fit: BoxFit.cover,
                   gaplessPlayback: true,
-                  errorBuilder: (_, __, ___) => _letter(letter, fg),
+                  errorBuilder: (_, error, ___) =>
+                      _imageError(letter, fg, error),
                 )
               : _letter(letter, fg),
     );
+  }
+
+  Widget _imageError(String letter, Color fg, Object error) {
+    if (kDebugMode) {
+      debugPrint(
+        '[avatar.image] failed seed=$seed '
+        'url=${imageUrl?.trim().isEmpty == false ? imageUrl : '<memory>'} '
+        'error=$error',
+      );
+    }
+    return _letter(letter, fg);
   }
 
   Widget _letter(String letter, Color fg) => Text(

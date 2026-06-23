@@ -79,12 +79,6 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<List<AsConversation>> listConversations() async {
-    await Future.delayed(_latency);
-    return const [];
-  }
-
-  @override
   Stream<AsEventStreamEvent> streamEvents({
     int? since,
     String? lastEventId,

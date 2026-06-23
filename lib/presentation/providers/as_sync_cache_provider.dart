@@ -31,11 +31,17 @@ class AsSyncCacheState {
         .toSet();
   }
 
-  AsSyncContact _localEntryToSyncContact(ContactEntry contact) {
+  AsSyncContact _localEntryToSyncContact(
+    ContactEntry contact, {
+    String fallbackAvatarUrl = '',
+  }) {
     return AsSyncContact(
       userId: contact.peerMxid,
       displayName: contact.displayName,
-      avatarUrl: '',
+      avatarUrl: _firstNonEmpty(
+        contact.productConversation?.avatarUrl,
+        fallbackAvatarUrl,
+      ),
       roomId: contact.roomId,
       domain: contact.domain,
       status: contact.status,
@@ -89,12 +95,24 @@ class AsSyncCacheState {
       byRoomNoPeer[roomId] = _preferredContact(current, contact);
     }
 
-    for (final contact in bootstrap?.contacts ?? const <AsSyncContact>[]) {
+    final bootstrapContacts = bootstrap?.contacts ?? const <AsSyncContact>[];
+    for (final contact in bootstrapContacts) {
       if (shadowedPeerIds.contains(contact.userId.trim())) continue;
       addContact(contact);
     }
     for (final contact in localContactEntriesByRoomId.values) {
-      addContact(_localEntryToSyncContact(contact));
+      final peerMxid = contact.peerMxid.trim();
+      final bootstrapContact = peerMxid.isEmpty
+          ? null
+          : bootstrapContacts
+              .where((item) => item.userId.trim() == peerMxid)
+              .firstOrNull;
+      addContact(
+        _localEntryToSyncContact(
+          contact,
+          fallbackAvatarUrl: bootstrapContact?.avatarUrl ?? '',
+        ),
+      );
     }
     final peerRooms = byPeer.values
         .map((contact) => contact.roomId.trim())
@@ -637,6 +655,12 @@ class AsSyncCacheState {
 }
 
 int _maxInt(int a, int b) => a >= b ? a : b;
+
+String _firstNonEmpty(String? first, String? second) {
+  final firstValue = first?.trim() ?? '';
+  if (firstValue.isNotEmpty) return firstValue;
+  return second?.trim() ?? '';
+}
 
 AsSyncContact _preferredContact(AsSyncContact current, AsSyncContact next) {
   final currentRank = _contactStatusRank(current.status);

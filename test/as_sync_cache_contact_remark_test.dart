@@ -59,6 +59,68 @@ void main() {
     );
   });
 
+  test('local optimistic contact keeps ProductCore conversation avatar', () {
+    const entry = ContactEntry(
+      peerMxid: '@bob:example.com',
+      displayName: 'Bob',
+      domain: 'example.com',
+      roomId: '!bob:example.com',
+      status: 'accepted',
+      productConversation: AsConversation(
+        conversationId: 'conv_bob',
+        roomId: '!bob:example.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        title: 'Bob',
+        avatarUrl: 'mxc://example/bob-product',
+      ),
+    );
+    const state = AsSyncCacheState(
+      localContactEntriesByRoomId: {'!bob:example.com': entry},
+    );
+
+    expect(
+      state.acceptedContactForUserId('@bob:example.com')?.avatarUrl,
+      'mxc://example/bob-product',
+    );
+  });
+
+  test('local optimistic contact preserves bootstrap avatar fallback', () {
+    final state = AsSyncCacheState(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        rooms: const [],
+        contacts: const [
+          AsSyncContact(
+            userId: '@bob:example.com',
+            displayName: 'Bob',
+            avatarUrl: 'mxc://example/bob-bootstrap',
+            roomId: '!bob:example.com',
+            domain: 'example.com',
+            status: 'accepted',
+          ),
+        ],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+      localContactEntriesByRoomId: const {
+        '!bob:example.com': ContactEntry(
+          peerMxid: '@bob:example.com',
+          displayName: 'Bob 备注',
+          domain: 'example.com',
+          roomId: '!bob:example.com',
+          status: 'accepted',
+        ),
+      },
+    );
+
+    final contact = state.acceptedContactForUserId('@bob:example.com');
+    expect(contact?.displayName, 'Bob 备注');
+    expect(contact?.avatarUrl, 'mxc://example/bob-bootstrap');
+  });
+
   test('bootstrap accepted contact replaces local optimistic pending request',
       () {
     const pending = ContactEntry(

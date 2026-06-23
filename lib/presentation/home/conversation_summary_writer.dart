@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../data/as_client.dart';
@@ -105,10 +106,14 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
   required String? currentUserId,
 }) {
   final productList = productConversations.toList(growable: false);
+  final canonicalAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
   final productConversationsByRoomId = {
     for (final conversation in productList)
       if (conversation.roomId.trim().isNotEmpty)
-        conversation.roomId.trim(): conversation,
+        if (!(conversation.isAgent &&
+            canonicalAgentRoomId.isNotEmpty &&
+            conversation.roomId.trim() != canonicalAgentRoomId))
+          conversation.roomId.trim(): conversation,
   };
   final visibleConversations = visibleHomeConversationsForSummary(
     client: client,
@@ -199,6 +204,22 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
 
   for (final conversation in productConversations) {
     if (conversation.isChannel) continue;
+    if (conversation.isAgent && canonicalAgentRoomId.isNotEmpty) {
+      final canonicalRoom = client.getRoomById(canonicalAgentRoomId);
+      addVisibleConversation(
+        VisibleHomeConversation.product(
+          _fallbackAgentConversationForRoomId(
+            canonicalAgentRoomId,
+            conversationId: conversation.conversationId,
+            lastActivityAt: conversation.lastActivityAt ??
+                canonicalRoom?.lastEvent?.originServerTs,
+          ),
+          canonicalRoom,
+          asRoomSummariesByRoomId[canonicalAgentRoomId],
+        ),
+      );
+      continue;
+    }
     final roomId = conversation.roomId.trim();
     final room = client.getRoomById(roomId);
     final groupSummary = asGroupSummariesByRoomId[roomId];
@@ -304,11 +325,12 @@ AsConversation _fallbackAgentConversation(Room room) {
 
 AsConversation _fallbackAgentConversationForRoomId(
   String roomId, {
+  String conversationId = '',
   DateTime? lastActivityAt,
 }) {
   final trimmedRoomId = roomId.trim();
   return AsConversation(
-    conversationId: '',
+    conversationId: conversationId.trim(),
     roomId: trimmedRoomId,
     kind: asConversationKindAgent,
     lifecycle: 'active',
@@ -471,6 +493,9 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
           groupRemarkNames: groupRemarkNames,
         );
   final product = conversation.product;
+  final directContact = conversation.isGroup || conversation.isAgent
+      ? null
+      : syncCache.acceptedContactForRoom(conversation.roomId);
   return ConversationSummaryEntry(
     conversationId: product?.conversationId ?? '',
     roomId: conversation.roomId.trim(),
@@ -484,7 +509,13 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
     isGroup: conversation.isGroup,
     isAgent: conversation.isAgent,
     canOpen: product?.canOpen ?? true,
-    avatarUrl: conversationAvatarUrl(client, conversation, room) ?? '',
+    avatarUrl: conversationAvatarUrl(
+          client,
+          conversation,
+          room,
+          directContact: directContact,
+        ) ??
+        '',
   );
 }
 
@@ -497,31 +528,128 @@ bool _conversationHasUnreadSignal(VisibleHomeConversation conversation) {
 String? conversationAvatarUrl(
   Client client,
   VisibleHomeConversation conversation,
-  Room? room,
-) {
+  Room? room, {
+  AsSyncContact? directContact,
+}) {
   if (conversation.isAgent) return null;
   final productAvatar = avatarHttpUrl(client, conversation.product?.avatarUrl);
   if (conversation.isGroup) {
-    return productAvatar ?? (room == null ? null : roomAvatarHttpUrl(room));
+    final roomAvatar = room == null ? null : roomAvatarHttpUrl(room);
+    final resolved = productAvatar ?? roomAvatar;
+    _debugAvatarResolution(
+      source: 'conversation_group',
+      roomId: conversation.roomId,
+      productPeerMxid: conversation.product?.peerMxid,
+      contactPeerMxid: directContact?.userId,
+      productAvatar: conversation.product?.avatarUrl,
+      contactAvatar: directContact?.avatarUrl,
+      roomAvatar: roomAvatar,
+      resolved: resolved,
+      hasRoom: room != null,
+    );
+    return resolved;
   }
 
-  return productAvatar ??
-      directPeerMemberAvatarUrl(
-        client,
-        room,
-        conversation.product?.peerMxid,
-      ) ??
-      avatarHttpUrl(client, conversation.roomSummary?.avatarUrl) ??
-      (room == null ? null : roomAvatarHttpUrl(room));
+  final productPeerAvatar = directPeerMemberAvatarUrl(
+    client,
+    room,
+    conversation.product?.peerMxid,
+  );
+  final contactPeerAvatar = directPeerMemberAvatarUrl(
+    client,
+    room,
+    directContact?.userId,
+  );
+  final productPeerAvatarInRooms =
+      directPeerAvatarUrlInRooms(client, conversation.product?.peerMxid);
+  final contactPeerAvatarInRooms =
+      directPeerAvatarUrlInRooms(client, directContact?.userId);
+  final contactAvatar = avatarHttpUrl(client, directContact?.avatarUrl);
+  final roomSummaryAvatar =
+      avatarHttpUrl(client, conversation.roomSummary?.avatarUrl);
+  final roomAvatar = room == null ? null : roomAvatarHttpUrl(room);
+  final resolved = productAvatar ??
+      productPeerAvatar ??
+      contactPeerAvatar ??
+      productPeerAvatarInRooms ??
+      contactPeerAvatarInRooms ??
+      contactAvatar ??
+      roomSummaryAvatar ??
+      roomAvatar;
+  _debugAvatarResolution(
+    source: 'conversation_direct',
+    roomId: conversation.roomId,
+    productPeerMxid: conversation.product?.peerMxid,
+    contactPeerMxid: directContact?.userId,
+    productAvatar: conversation.product?.avatarUrl,
+    contactAvatar: directContact?.avatarUrl,
+    roomAvatar: roomAvatar,
+    resolved: resolved,
+    hasRoom: room != null,
+  );
+  return resolved;
 }
 
 String? contactListAvatarUrl(Client client, AsSyncContact contact) {
   final room = client.getRoomById(contact.roomId.trim());
-  return directPeerMemberAvatarUrl(client, room, contact.userId) ??
-      (room == null
-          ? null
-          : avatarHttpUrl(client, productDirectPeerAvatarUrl(room))) ??
-      avatarHttpUrl(client, contact.avatarUrl);
+  final memberAvatar = directPeerMemberAvatarUrl(client, room, contact.userId);
+  final roomProfileAvatar = room == null
+      ? null
+      : avatarHttpUrl(client, productDirectPeerAvatarUrl(room));
+  final syncedRoomAvatar = directPeerAvatarUrlInRooms(client, contact.userId);
+  final contactAvatar = avatarHttpUrl(client, contact.avatarUrl);
+  final resolved =
+      memberAvatar ?? roomProfileAvatar ?? syncedRoomAvatar ?? contactAvatar;
+  _debugAvatarResolution(
+    source: 'contact_list',
+    roomId: contact.roomId,
+    contactPeerMxid: contact.userId,
+    contactAvatar: contact.avatarUrl,
+    roomAvatar: roomProfileAvatar,
+    resolved: resolved,
+    hasRoom: room != null,
+  );
+  return resolved;
+}
+
+void _debugAvatarResolution({
+  required String source,
+  required String roomId,
+  String? productPeerMxid,
+  String? contactPeerMxid,
+  String? productAvatar,
+  String? contactAvatar,
+  String? roomAvatar,
+  String? resolved,
+  required bool hasRoom,
+}) {
+  if (!kDebugMode) return;
+  debugPrint(
+    '[home.avatar] source=$source '
+    'room=${_avatarLogValue(roomId)} '
+    'has_room=$hasRoom '
+    'product_peer=${_avatarLogValue(productPeerMxid)} '
+    'contact_peer=${_avatarLogValue(contactPeerMxid)} '
+    'product_avatar=${_avatarLogValue(productAvatar)} '
+    'contact_avatar=${_avatarLogValue(contactAvatar)} '
+    'room_avatar=${_avatarLogValue(roomAvatar)} '
+    'resolved=${_avatarLogValue(resolved)}',
+  );
+}
+
+String _avatarLogValue(String? value) {
+  final trimmed = value?.trim() ?? '';
+  return trimmed.isEmpty ? '<empty>' : trimmed;
+}
+
+String? directPeerAvatarUrlInRooms(Client client, String? peerUserId) {
+  final peerId = peerUserId?.trim() ?? '';
+  if (peerId.isEmpty) return null;
+  for (final room in client.rooms) {
+    final avatar = directPeerMemberAvatarUrl(client, room, peerId);
+    if (avatar != null) return avatar;
+  }
+  return null;
 }
 
 String? directPeerMemberAvatarUrl(
@@ -543,7 +671,9 @@ String? directPeerMemberAvatarUrl(
   );
   if (memberStateAvatar != null) return memberStateAvatar;
   final member = room.unsafeGetUserFromMemoryOrFallback(peerId);
-  return matrixContentHttpUrl(client, member.avatarUrl);
+  return matrixContentHttpUrl(client, member.avatarUrl) ??
+      _participantAvatarUrl(client, room, peerId) ??
+      _firstOtherMemberAvatarUrl(client, room);
 }
 
 String? _firstOtherMemberAvatarUrl(Client client, Room room) {
@@ -555,6 +685,20 @@ String? _firstOtherMemberAvatarUrl(Client client, Room room) {
     if (mxid == null || mxid.isEmpty || mxid == self) continue;
     final avatar = matrixContentHttpUrl(client, state.asUser(room).avatarUrl);
     if (avatar != null) return avatar;
+  }
+  for (final member in room.getParticipants()) {
+    final mxid = member.id.trim();
+    if (mxid.isEmpty || mxid == self) continue;
+    final avatar = matrixContentHttpUrl(client, member.avatarUrl);
+    if (avatar != null) return avatar;
+  }
+  return null;
+}
+
+String? _participantAvatarUrl(Client client, Room room, String peerId) {
+  for (final member in room.getParticipants()) {
+    if (member.id.trim() != peerId) continue;
+    return matrixContentHttpUrl(client, member.avatarUrl);
   }
   return null;
 }

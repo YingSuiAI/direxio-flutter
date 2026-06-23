@@ -2260,6 +2260,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final productConversations =
         ref.watch(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
+    final productConversation = productDirectConversationForPeer(
+      productConversations,
+      peerMxid: mxid,
+      roomId: widget.roomId,
+    );
     final capabilityPolicy = _privateRoomCapabilityPolicy(
       productConversations,
       room,
@@ -2276,7 +2281,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ? null
         : room.unsafeGetUserFromMemoryOrFallback(mxid);
     final peerAvatarUrl =
-        matrixContentHttpUrl(room.client, peerMember?.avatarUrl) ??
+        avatarHttpUrl(room.client, productConversation?.avatarUrl) ??
+            matrixContentHttpUrl(room.client, peerMember?.avatarUrl) ??
             avatarHttpUrl(room.client, contact?.avatarUrl);
     final peerReadEventIds = _peerReadEventIds(
       room: room,
@@ -2364,6 +2370,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   title: name,
                   subtitle: headerSubtitle,
                   subtitleStatus: headerSubtitleStatus,
+                  leadingAvatar: PortalAvatar(
+                    seed: isAgent ? 'Agent' : mxid,
+                    size: 36,
+                    imageUrl: isAgent ? null : peerAvatarUrl,
+                    shape: AvatarShape.squircle,
+                  ),
+                  onAvatarTap: isAgent || mxid.trim().isEmpty
+                      ? null
+                      : () => _openContactDetail(mxid),
                   onBack: () => unawaited(_popChatOrHome(context)),
                   showEncryptionIcon: true,
                   actions: isAgent

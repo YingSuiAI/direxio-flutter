@@ -1995,6 +1995,210 @@ void main() {
     );
   });
 
+  test('profile setup uses latest stored AS bearer token', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'false',
+    });
+    final profileAuthorizations = <String>[];
+    final passwordAuthorizations = <String>[];
+    final client = Client(
+      'AuthProfileSetupUsesLatestStoredAsBearerTokenTest',
+      httpClient: MockClient((request) async {
+        if (_p2pAction(request, 'profile.update') != null) {
+          profileAuthorizations.add(request.headers['Authorization'] ?? '');
+          return http.Response(
+            '{"user_id":"@owner:example.com",'
+            '"display_name":"Alice","domain":"example.com"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.password') != null) {
+          passwordAuthorizations.add(request.headers['Authorization'] ?? '');
+          return http.Response(
+            '{"access_token":"final-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com","device_id":"DEVICE1",'
+            '"profile_initialized":true}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path.startsWith('/_matrix/client/v3/profile/')) {
+          return http.Response('{}', 200);
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'Direxio',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+    await const FlutterSecureStorage().write(
+      key: AuthStateNotifier.accessTokenKey,
+      value: 'fresh-admin-token',
+    );
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .completeOwnerProfileSetup(
+          displayName: 'Alice',
+          newPortalToken: '12345678',
+        );
+
+    expect(profileAuthorizations, ['Bearer fresh-admin-token']);
+    expect(passwordAuthorizations, ['Bearer fresh-admin-token']);
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+    expect(auth?.portalToken, 'final-token');
+  });
+
+  test('profile setup refreshes AS bearer after unknown token', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'false',
+    });
+    final profileAuthorizations = <String>[];
+    final authPasswords = <String>[];
+    final client = Client(
+      'AuthProfileSetupRefreshesAsBearerAfterUnknownTokenTest',
+      httpClient: MockClient((request) async {
+        final profileUpdate = _p2pAction(request, 'profile.update');
+        if (profileUpdate != null) {
+          final authorization = request.headers['Authorization'] ?? '';
+          profileAuthorizations.add(authorization);
+          if (authorization == 'Bearer old-admin-token') {
+            return http.Response(
+              '{"errcode":"M_UNKNOWN_TOKEN","error":"Unknown token"}',
+              401,
+            );
+          }
+          expect(authorization, 'Bearer fresh-admin-token');
+          return http.Response(
+            '{"user_id":"@owner:example.com",'
+            '"display_name":"Alice","domain":"example.com"}',
+            200,
+          );
+        }
+        final portalAuth = _p2pAction(request, 'portal.auth');
+        if (portalAuth != null) {
+          authPasswords.add(
+            (portalAuth['params'] as Map<String, dynamic>)['password']
+                as String,
+          );
+          return http.Response(
+            '{"access_token":"fresh-admin-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com","device_id":"DEVICE1",'
+            '"profile_initialized":false}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.password') != null) {
+          expect(request.headers['Authorization'], 'Bearer fresh-admin-token');
+          return http.Response(
+            '{"access_token":"final-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com","device_id":"DEVICE1",'
+            '"profile_initialized":true}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/keys/upload') {
+          return http.Response('{"one_time_key_counts":{}}', 200);
+        }
+        if (request.url.path.startsWith('/_matrix/client/v3/profile/')) {
+          return http.Response('{}', 200);
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'Direxio',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+    await const FlutterSecureStorage().write(
+      key: AuthStateNotifier.accessTokenKey,
+      value: 'old-admin-token',
+    );
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .completeOwnerProfileSetup(
+          displayName: 'Alice',
+          newPortalToken: '12345678',
+        );
+
+    expect(profileAuthorizations, [
+      'Bearer old-admin-token',
+      'Bearer fresh-admin-token',
+    ]);
+    expect(authPasswords, isNotEmpty);
+    expect(authPasswords, everyElement('11111111'));
+    final auth = container.read(authStateNotifierProvider).valueOrNull;
+    expect(auth?.portalToken, 'final-token');
+  });
+
   test('password change keeps initialized flag when response omits it',
       () async {
     FlutterSecureStorage.setMockInitialValues({

@@ -303,6 +303,46 @@ void main() {
     );
   });
 
+  test('fresh iOS install clears stale secure session only for new app state',
+      () {
+    expect(
+      shouldClearStaleIosKeychainAfterFreshInstall(
+        isIos: true,
+        markerExists: false,
+        hasExistingLocalState: false,
+        hasSecureSessionState: true,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldClearStaleIosKeychainAfterFreshInstall(
+        isIos: true,
+        markerExists: false,
+        hasExistingLocalState: true,
+        hasSecureSessionState: true,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldClearStaleIosKeychainAfterFreshInstall(
+        isIos: false,
+        markerExists: false,
+        hasExistingLocalState: false,
+        hasSecureSessionState: true,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldClearStaleIosKeychainAfterFreshInstall(
+        isIos: true,
+        markerExists: true,
+        hasExistingLocalState: false,
+        hasSecureSessionState: true,
+      ),
+      isFalse,
+    );
+  });
+
   test('restores auth state when Matrix client is already logged in', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(

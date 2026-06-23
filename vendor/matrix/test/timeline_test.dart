@@ -377,6 +377,36 @@ void main() {
       expect(timeline.events[1].receipts[0].user.id, '@bob:example.com');
     });
 
+    test('Receipt update is ignored when client user id is not initialized',
+        () async {
+      final clientWithoutUser = Client('receipt-null-user-test');
+      final roomWithoutUser = Room(
+        id: '!receipt-null-user:example.com',
+        client: clientWithoutUser,
+        prev_batch: 'batch',
+        roomAccountData: {},
+      );
+      final content = ReceiptEventContent.fromJson({
+        '\$event': {
+          'm.read': {
+            '@alice:example.com': {
+              'ts': 1436451550453,
+            },
+          },
+        },
+      });
+
+      final receiptState = roomWithoutUser.receiptState;
+      await receiptState.update(content, roomWithoutUser);
+
+      expect(
+        receiptState.global.otherUsers['@alice:example.com']?.eventId,
+        '\$event',
+      );
+      expect(receiptState.global.latestOwnReceipt, isNull);
+      await clientWithoutUser.dispose(closeDatabase: true);
+    });
+
     test('Sending both receipts at the same time sets the latest receipt',
         () async {
       await client.handleSync(SyncUpdate(

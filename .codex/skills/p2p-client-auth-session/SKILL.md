@@ -35,6 +35,11 @@ session state if the portal refresh fails due to timeout, network, or 5xx
 server errors. Keep the stored Matrix/portal credentials and retry later; only
 non-retryable AS auth rejection such as 4xx should expire the restored session.
 
+On iOS, direct app uninstall/reinstall must not restore stale Keychain login
+state. Use non-Keychain app-local install state to detect a fresh install and
+clear old secure session credentials before auth restore. Normal logout must
+also clear secure session credentials and return to the login route.
+
 ## Implementation Pattern
 
 Keep route guards and redirect behavior in `lib/core/router/`.

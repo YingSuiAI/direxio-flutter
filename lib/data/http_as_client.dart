@@ -205,42 +205,56 @@ class HttpAsClient implements AsClient {
       'events',
       queryParameters: queryParameters.isEmpty ? null : queryParameters,
     );
-    final request = http.Request('GET', uri);
-    request.headers['Authorization'] = 'Bearer $_portalToken';
-    request.headers['Accept'] = 'text/event-stream';
     final replayId = lastEventId?.trim() ?? '';
-    if (replayId.isNotEmpty) {
-      request.headers['Last-Event-ID'] = replayId;
-    }
 
-    final stopwatch = Stopwatch()..start();
     late http.StreamedResponse streamed;
-    try {
-      streamed = await _http.send(request).timeout(_timeout);
-    } catch (error, stackTrace) {
+    Duration elapsed = Duration.zero;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final request = http.Request('GET', uri);
+      request.headers['Authorization'] = 'Bearer $_portalToken';
+      request.headers['Accept'] = 'text/event-stream';
+      if (replayId.isNotEmpty) {
+        request.headers['Last-Event-ID'] = replayId;
+      }
+
+      final stopwatch = Stopwatch()..start();
+      try {
+        streamed = await _http.send(request).timeout(_timeout);
+      } catch (error, stackTrace) {
+        stopwatch.stop();
+        ApiLogger.failure(
+          service: 'P2P events',
+          method: 'GET',
+          uri: uri,
+          elapsed: stopwatch.elapsed,
+          error: error,
+          stackTrace: stackTrace,
+        );
+        rethrow;
+      }
       stopwatch.stop();
-      ApiLogger.failure(
-        service: 'P2P events',
-        method: 'GET',
-        uri: uri,
-        elapsed: stopwatch.elapsed,
-        error: error,
-        stackTrace: stackTrace,
-      );
-      rethrow;
-    }
-    stopwatch.stop();
-    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      elapsed = stopwatch.elapsed;
+      if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
+        break;
+      }
       final response = await http.Response.fromStream(streamed);
       ApiLogger.response(
         service: 'P2P events',
         method: 'GET',
         uri: uri,
         statusCode: response.statusCode,
-        elapsed: stopwatch.elapsed,
+        elapsed: elapsed,
         responseBody: response.body,
       );
       if (_isAuthenticationFailureResponse(response)) {
+        if (attempt == 0) {
+          final refreshedToken =
+              (await _onAuthenticationRefresh?.call())?.trim();
+          if (refreshedToken != null && refreshedToken.isNotEmpty) {
+            _portalToken = refreshedToken;
+            continue;
+          }
+        }
         await _onAuthenticationFailed?.call();
       }
       throw AsClientException(
@@ -253,7 +267,7 @@ class HttpAsClient implements AsClient {
       method: 'GET',
       uri: uri,
       statusCode: streamed.statusCode,
-      elapsed: stopwatch.elapsed,
+      elapsed: elapsed,
     );
     yield* _decodeSseEvents(
       streamed.stream.transform(utf8.decoder).transform(const LineSplitter()),

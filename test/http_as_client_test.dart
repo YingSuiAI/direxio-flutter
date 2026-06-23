@@ -2014,6 +2014,48 @@ void main() {
     expect(events.single.payload['reason'], 'contacts');
   });
 
+  test('streamEvents refreshes token and retries once on M_UNKNOWN_TOKEN',
+      () async {
+    final authorizations = <String>[];
+    var refreshCalls = 0;
+    var expired = false;
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'stale-token',
+      onAuthenticationRefresh: () {
+        refreshCalls++;
+        return 'fresh-token';
+      },
+      onAuthenticationFailed: () {
+        expired = true;
+      },
+      httpClient: MockClient((request) async {
+        authorizations.add(request.headers['Authorization'] ?? '');
+        if (authorizations.length == 1) {
+          return _jsonResponse({'error': 'M_UNKNOWN_TOKEN'}, 401);
+        }
+        return http.Response(
+          [
+            'id: 43',
+            'event: sync.bootstrap.changed',
+            r'data: {"seq":43,"type":"sync.bootstrap.changed","payload":{"reason":"call"},"created_at":"2026-06-20T00:00:00Z"}',
+            '',
+          ].join('\n'),
+          200,
+          headers: {'content-type': 'text/event-stream; charset=utf-8'},
+        );
+      }),
+    );
+
+    final events = await client.streamEvents().toList();
+
+    expect(authorizations, ['Bearer stale-token', 'Bearer fresh-token']);
+    expect(refreshCalls, 1);
+    expect(expired, isFalse);
+    expect(events.single.seq, 43);
+    expect(events.single.payload['reason'], 'call');
+  });
+
   test('changePortalPassword posts password payload to AS admin API', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_as'),

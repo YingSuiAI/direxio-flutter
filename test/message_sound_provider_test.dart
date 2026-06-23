@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/presentation/providers/message_sound_provider.dart';
@@ -72,6 +73,7 @@ void main() {
         patterns.add(pattern);
       },
       hapticFallback: () async {},
+      defaultTargetPlatformProvider: () => TargetPlatform.android,
     );
 
     await player.vibrate();
@@ -79,6 +81,27 @@ void main() {
     expect(patterns, [
       [0, 200, 100, 200],
     ]);
+  });
+
+  test('message vibration uses haptics on iOS instead of vibration pattern',
+      () async {
+    var hapticCount = 0;
+    final patterns = <List<int>>[];
+    final player = MessageVibrationPlayer(
+      hasVibrator: () async => true,
+      vibrateDevice: ({List<int> pattern = const []}) async {
+        patterns.add(pattern);
+      },
+      hapticFallback: () async {
+        hapticCount++;
+      },
+      defaultTargetPlatformProvider: () => TargetPlatform.iOS,
+    );
+
+    await player.vibrate();
+
+    expect(patterns, isEmpty);
+    expect(hapticCount, 1);
   });
 
   test('message vibration falls back to haptics on vibration errors', () async {
@@ -91,6 +114,7 @@ void main() {
       hapticFallback: () async {
         hapticCount++;
       },
+      defaultTargetPlatformProvider: () => TargetPlatform.android,
     );
 
     await player.vibrate();

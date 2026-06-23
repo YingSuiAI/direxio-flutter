@@ -273,11 +273,23 @@ Future<String?> _fetchTokenDeviceId({
 class AuthStateNotifier extends _$AuthStateNotifier {
   static const _storage = FlutterSecureStorage();
   static const _startupRestoreTimeout = Duration(seconds: 12);
+  static const _freshInstallMarkerFileName = 'portal_im_install_marker_v1';
   static const accessTokenKey = 'access_token';
   static const lastLoginHomeserverKey = 'last_login_homeserver';
   static const lastLoginPortalTokenKey = 'last_login_portal_token';
   static const profileInitializedKey = 'profile_initialized';
   static const _matrixTokenAppliedAtKey = 'matrix_token_applied_at_ms';
+  static const _sessionStorageKeys = <String>[
+    'matrix_token',
+    'matrix_homeserver',
+    'matrix_user_id',
+    'matrix_device_id',
+    accessTokenKey,
+    lastLoginHomeserverKey,
+    lastLoginPortalTokenKey,
+    profileInitializedKey,
+    _matrixTokenAppliedAtKey,
+  ];
   bool _sessionExpiredLocally = false;
   bool _isMounted = false;
   DateTime? _lastMatrixTokenAppliedAt;
@@ -331,6 +343,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   }
 
   Future<AuthState> _buildRestoredAuthState() async {
+    if (await _clearStaleIosKeychainAfterFreshInstallIfNeeded()) {
+      return const AuthState(isLoggedIn: false);
+    }
     final client = ref.watch(matrixClientProvider);
     final storedValues = await Future.wait<String?>([
       _storage.read(key: 'matrix_token'),
@@ -486,6 +501,60 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       if (portalRestored != null) return portalRestored;
     }
     return const AuthState(isLoggedIn: false);
+  }
+
+  Future<bool> _clearStaleIosKeychainAfterFreshInstallIfNeeded() async {
+    if (kIsWeb || !Platform.isIOS) return false;
+    final supportDir = await getApplicationSupportDirectory();
+    final marker = File('${supportDir.path}/$_freshInstallMarkerFileName');
+    if (await marker.exists()) return false;
+
+    final hasExistingLocalState = await _applicationSupportHasExistingState(
+      supportDir,
+      marker.path,
+    );
+    final hasSecureSessionState = await _secureStorageHasSessionState();
+    if (shouldClearStaleIosKeychainAfterFreshInstall(
+      isIos: Platform.isIOS,
+      markerExists: false,
+      hasExistingLocalState: hasExistingLocalState,
+      hasSecureSessionState: hasSecureSessionState,
+    )) {
+      await _storage.deleteAll();
+      await marker.create(recursive: true);
+      debugPrint(
+        'fresh iOS install detected; cleared stale Keychain session state',
+      );
+      return true;
+    }
+
+    await marker.create(recursive: true);
+    return false;
+  }
+
+  Future<bool> _applicationSupportHasExistingState(
+    Directory supportDir,
+    String markerPath,
+  ) async {
+    try {
+      if (!await supportDir.exists()) return false;
+      await for (final entity in supportDir.list(followLinks: false)) {
+        if (entity.path == markerPath) continue;
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('failed to inspect install marker state: $e');
+      return true;
+    }
+  }
+
+  Future<bool> _secureStorageHasSessionState() async {
+    for (final key in _sessionStorageKeys) {
+      final value = await _storage.read(key: key);
+      if (value?.trim().isNotEmpty ?? false) return true;
+    }
+    return false;
   }
 
   Future<AuthState?> _storedAuthStateForRetry({
@@ -1974,6 +2043,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       'portal_im_channel_posts.json',
       'portal_im_chat_clear_state.json',
       'conversation_summary.json',
+      'current_user_profile.json',
     ]);
   }
 
@@ -2290,6 +2360,19 @@ bool? _parseStoredBool(String? value) {
   if (clean == 'true') return true;
   if (clean == 'false') return false;
   return null;
+}
+
+@visibleForTesting
+bool shouldClearStaleIosKeychainAfterFreshInstall({
+  required bool isIos,
+  required bool markerExists,
+  required bool hasExistingLocalState,
+  required bool hasSecureSessionState,
+}) {
+  return isIos &&
+      !markerExists &&
+      !hasExistingLocalState &&
+      hasSecureSessionState;
 }
 
 class _PortalLoginResult {

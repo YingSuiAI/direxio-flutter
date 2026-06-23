@@ -245,7 +245,7 @@ class LatestReceiptState {
     Room room,
   ) async {
     final List<LatestReceiptStateForTimeline> updatedTimelines = [];
-    final ownUserid = room.client.userID!;
+    final ownUserid = room.client.userID;
 
     content.receipts.forEach((eventId, receiptsByType) {
       receiptsByType.forEach((receiptType, receiptsByUser) {
@@ -263,7 +263,7 @@ class LatestReceiptState {
 
           final receiptData =
               LatestReceiptStateData(eventId, receipt.originServerTs);
-          if (user == ownUserid) {
+          if (ownUserid != null && user == ownUserid) {
             if (receiptType == ReceiptType.mReadPrivate) {
               timeline.ownPrivate = receiptData;
             } else if (receiptType == ReceiptType.mRead) {

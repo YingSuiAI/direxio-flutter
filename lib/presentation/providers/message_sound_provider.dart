@@ -122,14 +122,21 @@ class MessageVibrationPlayer {
     this.hasVibrator = Vibration.hasVibrator,
     this.vibrateDevice = Vibration.vibrate,
     this.hapticFallback = HapticFeedback.heavyImpact,
+    this.defaultTargetPlatformProvider = _defaultTargetPlatform,
   });
 
   final Future<bool?> Function() hasVibrator;
   final Future<void> Function({List<int> pattern}) vibrateDevice;
   final Future<void> Function() hapticFallback;
+  final TargetPlatform Function() defaultTargetPlatformProvider;
 
   Future<void> vibrate() async {
     try {
+      final platform = defaultTargetPlatformProvider();
+      if (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS) {
+        await hapticFallback();
+        return;
+      }
       final supported = await hasVibrator();
       if (supported == true) {
         await vibrateDevice(pattern: const [0, 200, 100, 200]);
@@ -144,6 +151,8 @@ class MessageVibrationPlayer {
     }
   }
 }
+
+TargetPlatform _defaultTargetPlatform() => defaultTargetPlatform;
 
 final AudioContext _messageSoundAudioContext = AudioContext(
   android: const AudioContextAndroid(

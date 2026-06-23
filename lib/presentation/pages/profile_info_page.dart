@@ -72,6 +72,12 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
             displayName: displayName,
             avatarUrl: avatarMxc.toString(),
           );
+          await cacheCurrentUserProfile(
+            ref,
+            userId: matrixUserId,
+            displayName: displayName,
+            avatarUrl: avatarMxc.toString(),
+          );
           ref.invalidate(currentUserProfileProvider);
           await ref.read(currentUserProfileProvider.future);
           ref.invalidate(appWarmupProvider);
@@ -270,6 +276,21 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         }
       }
       _updateProfile(_personalProfileFromOwner(data, ownerProfile));
+      await cacheCurrentUserProfile(
+        ref,
+        userId: userId,
+        displayName: ownerProfile.displayName.trim().isNotEmpty
+            ? ownerProfile.displayName.trim()
+            : cleanDisplayName ?? data.displayName ?? '',
+        avatarUrl: ownerProfile.avatarUrl.trim().isNotEmpty
+            ? ownerProfile.avatarUrl.trim()
+            : ref
+                    .read(currentUserProfileProvider)
+                    .valueOrNull
+                    ?.avatarUrl
+                    ?.toString() ??
+                '',
+      );
       ref.invalidate(currentUserProfileProvider);
       await ref.read(currentUserProfileProvider.future);
       ref.invalidate(appWarmupProvider);

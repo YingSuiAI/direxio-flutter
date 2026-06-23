@@ -45,6 +45,11 @@ class ContactDetailPage extends ConsumerStatefulWidget {
   ConsumerState<ContactDetailPage> createState() => _ContactDetailPageState();
 }
 
+final _avatarProfilePublicChannelsProvider =
+    FutureProvider.autoDispose.family<List<AsChannel>, String>((ref, userId) {
+  return ref.read(asClientProvider).getUserPublicChannels(userId);
+});
+
 class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
   bool _blocking = false;
   bool _friendActionBusy = false;
@@ -138,6 +143,9 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final hideChatAvatarEntries = widget.fromChatAvatar;
     final hideRecommendFriend = widget.fromChatInfo;
     final existingContact = syncCache.contactForUserId(userId);
+    final avatarProfileChannels = widget.fromChatAvatar
+        ? ref.watch(_avatarProfilePublicChannelsProvider(userId))
+        : null;
 
     if (widget.fromChatAvatar) {
       return _buildChatAvatarProfile(
@@ -170,6 +178,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         onChannels: () => context.push(
           '/contact-channels/${Uri.encodeComponent(userId)}',
         ),
+        publicChannels: avatarProfileChannels?.valueOrNull ?? const [],
         onRecommend: isSelf ? null : () => _shareContact(displayName, userId),
         onAddFriend: isSelf || _isPendingContact(existingContact?.status)
             ? null
@@ -332,6 +341,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     required VoidCallback? onVoice,
     required VoidCallback? onVideo,
     required VoidCallback onChannels,
+    required List<AsChannel> publicChannels,
     required VoidCallback? onRecommend,
     required VoidCallback? onAddFriend,
   }) {
@@ -367,6 +377,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                 _AvatarProfileMenuRow(
                   label: '他的频道',
                   onTap: onChannels,
+                  previewChannels: publicChannels,
                 ),
                 const SizedBox(height: 14),
                 if (onRecommend != null)
@@ -378,7 +389,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                 _AvatarProfileMenuRow(
                   label: '他的频道',
                   onTap: onChannels,
-                  previewSeeds: const ['channel-a', 'channel-b', 'channel-c'],
+                  previewChannels: publicChannels,
                 ),
                 if (!isSelf) ...[
                   const SizedBox(height: 14),
@@ -954,12 +965,12 @@ class _AvatarProfileMenuRow extends StatelessWidget {
   const _AvatarProfileMenuRow({
     required this.label,
     required this.onTap,
-    this.previewSeeds = const [],
+    this.previewChannels = const [],
   });
 
   final String label;
   final VoidCallback onTap;
-  final List<String> previewSeeds;
+  final List<AsChannel> previewChannels;
 
   @override
   Widget build(BuildContext context) {
@@ -986,16 +997,11 @@ class _AvatarProfileMenuRow extends StatelessWidget {
                     color: t.text,
                   ).copyWith(letterSpacing: -0.4),
                 ),
-                if (previewSeeds.isNotEmpty) ...[
+                if (previewChannels.isNotEmpty) ...[
                   const SizedBox(width: 14),
-                  for (final seed in previewSeeds.take(3)) ...[
-                    PortalAvatar(
-                      seed: seed,
-                      size: 30,
-                      shape: AvatarShape.squircle,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
+                  _AvatarProfileChannelPreviews(
+                    channels: previewChannels,
+                  ),
                 ],
                 const Spacer(),
                 Icon(
@@ -1008,6 +1014,38 @@ class _AvatarProfileMenuRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AvatarProfileChannelPreviews extends StatelessWidget {
+  const _AvatarProfileChannelPreviews({required this.channels});
+
+  final List<AsChannel> channels;
+
+  @override
+  Widget build(BuildContext context) {
+    final client =
+        ProviderScope.containerOf(context).read(matrixClientProvider);
+    final previews = channels.take(3).toList(growable: false);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < previews.length; i++) ...[
+          PortalAvatar(
+            key: ValueKey(
+              'avatar_profile_channel_${previews[i].channelId}',
+            ),
+            seed: previews[i].name.trim().isEmpty
+                ? previews[i].channelId
+                : previews[i].name.trim(),
+            size: 32,
+            imageUrl: avatarHttpUrl(client, previews[i].avatarUrl),
+            shape: AvatarShape.squircle,
+          ),
+          if (i != previews.length - 1) const SizedBox(width: 6),
+        ],
+      ],
     );
   }
 }

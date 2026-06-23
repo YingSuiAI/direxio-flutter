@@ -101,8 +101,8 @@ class AsEventStreamRefreshController {
       lastEventId: _lastSeq > 0 ? _lastSeq.toString() : null,
     ).listen(
       _handleEvent,
-      onError: (Object error, StackTrace stackTrace) {
-        _onError?.call(error, stackTrace);
+      onError: (Object error, StackTrace? stackTrace) {
+        _onError?.call(error, stackTrace ?? StackTrace.current);
         _scheduleReconnect();
       },
       onDone: _scheduleReconnect,

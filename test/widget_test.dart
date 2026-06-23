@@ -1092,6 +1092,26 @@ class _ConversationListAsClient extends _EmptyAsClient {
   }
 }
 
+class _ConversationListWithPublicChannelsAsClient
+    extends _ConversationListAsClient {
+  _ConversationListWithPublicChannelsAsClient(
+    super.conversations, {
+    this.userPublicChannels = const [],
+  });
+
+  final List<AsChannel> userPublicChannels;
+  String? requestedUserPublicChannelsUserId;
+
+  @override
+  Future<List<AsChannel>> getUserPublicChannels(
+    String userId, {
+    Uri? baseUri,
+  }) async {
+    requestedUserPublicChannelsUserId = userId;
+    return userPublicChannels;
+  }
+}
+
 class _StatefulPendingContactAsClient extends _EmptyAsClient {
   var _accepted = false;
 
@@ -9502,8 +9522,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
-          asClientProvider
-              .overrideWithValue(_ConversationListAsClient(const [])),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -13386,7 +13405,7 @@ void main() {
     expect(find.text('多选'), findsOneWidget);
   });
 
-  testWidgets('group chat member avatar opens visitor public channels',
+  testWidgets('group chat member avatar opens chat avatar profile',
       (tester) async {
     const roomId = '!group:p2p-im.com';
     final router = GoRouter(
@@ -13399,9 +13418,11 @@ void main() {
           ),
         ),
         GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactDetailPage(
             userId: state.pathParameters['userId']!,
+            fromChatAvatar:
+                state.uri.queryParameters['source'] == 'chat_avatar',
           ),
         ),
         GoRoute(
@@ -13436,18 +13457,13 @@ void main() {
     avatar.onTap!();
     await tester.pumpAndSettle();
 
-    expect(find.byType(ContactHomePage), findsOneWidget);
-    expect(harness.asClient.requestedUserPublicChannelsUserId,
-        '@alice:p2p-im.com');
-    expect(find.text('Alice 群成员公开频道'), findsOneWidget);
-    expect(find.text('还没有公开频道'), findsNothing);
-
-    await tester.tap(find.text('Alice 群成员公开频道'));
-    await tester.pumpAndSettle();
-
-    expect(harness.asClient.requestedPublicChannelRoomId,
-        '!alice-public:p2p-im.com');
-    expect(find.text('申请加入'), findsOneWidget);
+    expect(find.byType(ContactDetailPage), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('他的频道'), findsOneWidget);
+    expect(find.text('添加好友'), findsOneWidget);
+    expect(find.text('发消息'), findsNothing);
+    expect(find.text('音频通话'), findsNothing);
+    expect(find.text('视频通话'), findsNothing);
   });
 
   testWidgets('group chat long pressing member avatar inserts mention',
@@ -15005,6 +15021,29 @@ void main() {
       channels: const [],
       pending: const AsSyncPending.empty(),
     );
+    final asClient = _ConversationListWithPublicChannelsAsClient(
+      const [],
+      userPublicChannels: const [
+        AsChannel(
+          channelId: 'ch_avatar_1',
+          roomId: '!avatar-1:p2p-im.com',
+          name: 'Alice 频道一',
+          avatarUrl: 'https://example.com/channel-1.png',
+        ),
+        AsChannel(
+          channelId: 'ch_avatar_2',
+          roomId: '!avatar-2:p2p-im.com',
+          name: 'Alice 频道二',
+          avatarUrl: 'https://example.com/channel-2.png',
+        ),
+        AsChannel(
+          channelId: 'ch_avatar_3',
+          roomId: '!avatar-3:p2p-im.com',
+          name: 'Alice 频道三',
+          avatarUrl: 'https://example.com/channel-3.png',
+        ),
+      ],
+    );
     final router = GoRouter(
       initialLocation:
           '/contact/${Uri.encodeComponent(peerMxid)}?source=chat_avatar',
@@ -15027,8 +15066,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
-          asClientProvider
-              .overrideWithValue(_ConversationListAsClient(const [])),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -15045,6 +15083,17 @@ void main() {
     expect(find.text('发消息'), findsOneWidget);
     expect(find.text('音频通话'), findsOneWidget);
     expect(find.text('视频通话'), findsOneWidget);
+    expect(asClient.requestedUserPublicChannelsUserId, peerMxid);
+    for (final channelId in const [
+      'ch_avatar_1',
+      'ch_avatar_2',
+      'ch_avatar_3',
+    ]) {
+      expect(
+        find.byKey(ValueKey('avatar_profile_channel_$channelId')),
+        findsOneWidget,
+      );
+    }
     expect(find.text('把他推荐给朋友'), findsOneWidget);
     expect(find.text('添加好友'), findsNothing);
   });

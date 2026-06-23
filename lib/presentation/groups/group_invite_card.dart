@@ -3,7 +3,6 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/chat_message_cards.dart';
-import '../widgets/portal_avatar.dart';
 import 'group_invite_content.dart';
 
 const groupInviteCardMaxWidthFactor = chatMessageCardMaxWidthFactor;
@@ -15,7 +14,6 @@ class GroupInviteCard extends StatelessWidget {
     required this.joining,
     required this.onJoin,
     this.inviterDisplayName = '',
-    this.inviterAvatarUrl,
     this.alreadyJoined = false,
   });
 
@@ -23,7 +21,6 @@ class GroupInviteCard extends StatelessWidget {
   final bool joining;
   final VoidCallback onJoin;
   final String inviterDisplayName;
-  final String? inviterAvatarUrl;
   final bool alreadyJoined;
 
   @override
@@ -40,11 +37,6 @@ class GroupInviteCard extends StatelessWidget {
             : invite.inviterDisplayName;
     final fallbackInviter = l10n?.groupInviteFallbackInviter ?? '对方';
     final displayInviter = inviter.trim().isEmpty ? fallbackInviter : inviter;
-    final displayInviterAvatarUrl = inviterAvatarUrl?.trim().isNotEmpty == true
-        ? inviterAvatarUrl!.trim()
-        : invite.inviterAvatarUrl.trim().isNotEmpty
-            ? invite.inviterAvatarUrl.trim()
-            : null;
     final alreadyJoinedMessage = l10n?.groupInviteAlreadyJoined ?? '已在群里中';
     final titleColor = t.text;
     final bodyColor = t.textMute;
@@ -94,11 +86,7 @@ class GroupInviteCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                PortalAvatar(
-                  seed: displayInviter,
-                  size: 46,
-                  imageUrl: displayInviterAvatarUrl,
-                ),
+                ChatGroupAvatarTile(seed: invite.groupName, size: 46),
               ],
             ),
           ),

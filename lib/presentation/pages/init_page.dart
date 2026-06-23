@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../providers/auth_provider.dart';
+import '../providers/profile_provider.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
@@ -153,6 +154,15 @@ class _InitPageState extends ConsumerState<InitPage> {
               newPortalToken: portalToken,
               avatarUrl: avatarUrl,
             );
+        final userId = ref.read(matrixClientProvider).userID ?? auth?.userId;
+        if (userId != null && userId.trim().isNotEmpty) {
+          await cacheCurrentUserProfile(
+            ref,
+            userId: userId,
+            displayName: displayName,
+            avatarUrl: avatarUrl,
+          );
+        }
         if (mounted) context.go('/home');
       } else {
         await ref.read(authStateNotifierProvider.notifier).register(
@@ -160,7 +170,16 @@ class _InitPageState extends ConsumerState<InitPage> {
               portalToken,
               displayName,
             );
-        await _uploadSelectedAvatar();
+        final avatarUrl = await _uploadSelectedAvatar();
+        final userId = ref.read(matrixClientProvider).userID;
+        if (userId != null && userId.trim().isNotEmpty) {
+          await cacheCurrentUserProfile(
+            ref,
+            userId: userId,
+            displayName: displayName,
+            avatarUrl: avatarUrl,
+          );
+        }
       }
     } catch (e) {
       setState(() => _error = e.toString());

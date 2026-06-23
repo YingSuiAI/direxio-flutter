@@ -170,7 +170,6 @@ class ChatPage extends ConsumerStatefulWidget {
 class _ChatPageState extends ConsumerState<ChatPage> {
   final _msgCtrl = TextEditingController();
   Timeline? _timeline;
-  bool _loading = true;
   bool _readMarkerInFlight = false;
   bool _readMarkerQueued = false;
   bool _thumbnailWarmupInFlight = false;
@@ -487,7 +486,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       rebuild: rebuild,
       debugLabel: 'private',
     ).openInitialTimeline();
-    if (mounted) setState(() => _loading = false);
+    if (mounted) setState(() {});
     _scheduleTimelineThumbnailWarmup();
     unawaited(_markCurrentTimelineRead());
   }
@@ -2401,828 +2400,785 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           messageLayer: Listener(
             behavior: HitTestBehavior.translucent,
             onPointerDown: (_) => _closePanels(),
-            child: _loading
-                ? Center(
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+            child: timelineItems.isEmpty && topSystemNoticeText == null
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      final emptyHeight = math.max(
+                        0.0,
+                        constraints.maxHeight - messagePadding.vertical,
+                      );
+                      return RefreshIndicator(
                         color: t.accent,
-                      ),
-                    ),
-                  )
-                : timelineItems.isEmpty && topSystemNoticeText == null
-                    ? LayoutBuilder(
-                        builder: (context, constraints) {
-                          final emptyHeight = math.max(
-                            0.0,
-                            constraints.maxHeight - messagePadding.vertical,
-                          );
-                          return RefreshIndicator(
-                            color: t.accent,
-                            onRefresh: _requestOlderMessages,
-                            child: ListView(
-                              controller: _messageScrollCtrl,
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: messagePadding,
-                              children: [
-                                SizedBox(
-                                  height: emptyHeight,
-                                  child: Center(
-                                    child: Text(
-                                      '开始你们的第一条消息',
-                                      style: AppTheme.sans(
-                                        size: 13,
-                                        color: t.textMute,
-                                      ),
-                                    ),
+                        onRefresh: _requestOlderMessages,
+                        child: ListView(
+                          controller: _messageScrollCtrl,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: messagePadding,
+                          children: [
+                            SizedBox(
+                              height: emptyHeight,
+                              child: Center(
+                                child: Text(
+                                  '开始你们的第一条消息',
+                                  style: AppTheme.sans(
+                                    size: 13,
+                                    color: t.textMute,
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
-                          );
-                        },
-                      )
-                    : ChatTimelineListMotion(
-                        itemCount: timelineItems.length +
-                            (topSystemNoticeText == null ? 0 : 1),
-                        newestItemKey: newestTimelineItemKey,
-                        child: RefreshIndicator(
-                          color: t.accent,
-                          onRefresh: _requestOlderMessages,
-                          child: ListView.builder(
-                            controller: _messageScrollCtrl,
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: messagePadding,
-                            itemCount: timelineItems.length + 1,
-                            itemBuilder: (context, i) {
-                              if (i == 0) {
-                                if (topSystemNoticeText != null) {
-                                  return _SChatSystemNotice(
-                                    text: topSystemNoticeText,
-                                  );
-                                }
-                                return const _E2eFooter();
-                              }
-                              final itemIndex = i - 1;
-                              final itemKey =
-                                  displayTimelineItemKeys[itemIndex];
-                              final contextMenuPlacement =
-                                  _messageContextMenuPlacement(
-                                itemIndex,
-                                displayTimelineItems.length,
+                          ],
+                        ),
+                      );
+                    },
+                  )
+                : ChatTimelineListMotion(
+                    itemCount: timelineItems.length +
+                        (topSystemNoticeText == null ? 0 : 1),
+                    newestItemKey: newestTimelineItemKey,
+                    child: RefreshIndicator(
+                      color: t.accent,
+                      onRefresh: _requestOlderMessages,
+                      child: ListView.builder(
+                        controller: _messageScrollCtrl,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: messagePadding,
+                        itemCount: timelineItems.length + 1,
+                        itemBuilder: (context, i) {
+                          if (i == 0) {
+                            if (topSystemNoticeText != null) {
+                              return _SChatSystemNotice(
+                                text: topSystemNoticeText,
                               );
-                              Widget enter(
-                                Widget child, {
-                                required bool isMe,
-                                required Object id,
-                                GlobalKey? anchorKey,
-                                bool flashing = false,
-                              }) {
-                                return chatMessageEntrance(
-                                  key: ValueKey('private_message_enter_$id'),
-                                  isMe: isMe,
-                                  index: itemIndex,
-                                  enabled: _initialTimelineEntrances
-                                      .contains(itemKey),
-                                  child: anchorKey == null
-                                      ? _MessageJumpFlash(
-                                          flashing: flashing,
-                                          child: child,
-                                        )
-                                      : KeyedSubtree(
-                                          key: anchorKey,
-                                          child: _MessageJumpFlash(
-                                            flashing: flashing,
-                                            child: child,
-                                          ),
+                            }
+                            return const _E2eFooter();
+                          }
+                          final itemIndex = i - 1;
+                          final itemKey = displayTimelineItemKeys[itemIndex];
+                          final contextMenuPlacement =
+                              _messageContextMenuPlacement(
+                            itemIndex,
+                            displayTimelineItems.length,
+                          );
+                          Widget enter(
+                            Widget child, {
+                            required bool isMe,
+                            required Object id,
+                            GlobalKey? anchorKey,
+                            bool flashing = false,
+                          }) {
+                            return chatMessageEntrance(
+                              key: ValueKey('private_message_enter_$id'),
+                              isMe: isMe,
+                              index: itemIndex,
+                              enabled:
+                                  _initialTimelineEntrances.contains(itemKey),
+                              child: anchorKey == null
+                                  ? _MessageJumpFlash(
+                                      flashing: flashing,
+                                      child: child,
+                                    )
+                                  : KeyedSubtree(
+                                      key: anchorKey,
+                                      child: _MessageJumpFlash(
+                                        flashing: flashing,
+                                        child: child,
+                                      ),
+                                    ),
+                            );
+                          }
+
+                          return displayTimelineItems[itemIndex].when(
+                            outbox: (pending) {
+                              if (pending.messageKind ==
+                                  LocalOutboxMessageKind.text) {
+                                return enter(
+                                  _SChatBubble(
+                                    key: ValueKey(pending.id),
+                                    isMe: true,
+                                    text: pending.text,
+                                    time: _formatMsgTime(pending.createdAt),
+                                    showRead: false,
+                                    avatarSeed: 'me',
+                                    outboxStatus: _InlineOutboxStatusIcon(
+                                      status: pending.status,
+                                      label: '消息',
+                                      onRetry: () => unawaited(
+                                        _retryFailedTextMessage(pending),
+                                      ),
+                                    ),
+                                    onLongPressAt: (pos) =>
+                                        _onLongPressOutboxItem(
+                                      context,
+                                      pending,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: true,
+                                  id: pending.id,
+                                );
+                              }
+                              if (_isVoiceOutboxItem(pending)) {
+                                final playback = _voicePlayer.playback.value;
+                                final isPlaying =
+                                    playback.messageId == pending.id &&
+                                        playback.playing;
+                                return enter(
+                                  _SChatVoiceBubble(
+                                    key: ValueKey(pending.id),
+                                    isMe: true,
+                                    time: _formatMsgTime(pending.createdAt),
+                                    showRead: false,
+                                    avatarSeed: 'me',
+                                    durationSeconds:
+                                        _voiceDurationSecondsFromMs(
+                                      pending.durationMs,
+                                    ),
+                                    selected: false,
+                                    multiSelect: false,
+                                    isPlaying: isPlaying,
+                                    currentPlaySeconds:
+                                        playback.position.inSeconds,
+                                    onTap: null,
+                                    onLongPressAt: (pos) =>
+                                        _onLongPressOutboxItem(
+                                      context,
+                                      pending,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: true,
+                                  id: pending.id,
+                                );
+                              }
+                              if (pending.messageKind ==
+                                  LocalOutboxMessageKind.file) {
+                                return enter(
+                                  _SChatFileBubble(
+                                    key: ValueKey(pending.id),
+                                    isMe: true,
+                                    time: _formatMsgTime(pending.createdAt),
+                                    showRead: false,
+                                    avatarSeed: 'me',
+                                    leadingIcon: Symbols.description,
+                                    fileName: pending.filename,
+                                    sizeLabel: outboxFileSizeLabel(pending),
+                                    trailing: _FileOutboxStatusIcon(
+                                      status: pending.status,
+                                      label: '文件',
+                                      onRetry: () => unawaited(
+                                        _retryFailedMediaUpload(pending),
+                                      ),
+                                    ),
+                                    selected: false,
+                                    multiSelect: false,
+                                    onTap: null,
+                                    onLongPressAt: (pos) =>
+                                        _onLongPressOutboxItem(
+                                      context,
+                                      pending,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: true,
+                                  id: pending.id,
+                                );
+                              }
+                              final isPendingVideo = pending.messageKind ==
+                                  LocalOutboxMessageKind.video;
+                              final displayBytes =
+                                  pending.thumbnailBytes ?? pending.bytes;
+                              return enter(
+                                _SChatImageBubble(
+                                  key: ValueKey(pending.id),
+                                  isMe: true,
+                                  time: _formatMsgTime(pending.createdAt),
+                                  showRead: false,
+                                  avatarSeed: 'me',
+                                  mediaSize: isPendingVideo
+                                      ? chatMessageDefaultMediaSize
+                                      : chatMediaBubbleSizeFor(
+                                          width: pending.width,
+                                          height: pending.height,
                                         ),
+                                  thumb: pending.status ==
+                                          LocalOutboxItemStatus.failed
+                                      ? FailedLocalOutboxImageThumb(
+                                          bytes: displayBytes,
+                                          placeholderIcon: isPendingVideo
+                                              ? Symbols.movie
+                                              : Symbols.image,
+                                          overlay: isPendingVideo
+                                              ? const _VideoPlayOverlay()
+                                              : null,
+                                          onRetry: () => unawaited(
+                                            _retryFailedMediaUpload(
+                                              pending,
+                                            ),
+                                          ),
+                                        )
+                                      : PendingLocalOutboxImageThumb(
+                                          bytes: displayBytes!,
+                                          overlay: isPendingVideo
+                                              ? const _VideoPlayOverlay()
+                                              : null,
+                                        ),
+                                  selected: false,
+                                  multiSelect: false,
+                                  onTap: () {
+                                    final bytes = pending.bytes;
+                                    if (bytes == null) return;
+                                    if (isPendingVideo) return;
+                                    _openImgPreview(
+                                      context,
+                                      provider: MemoryImage(bytes),
+                                      meta:
+                                          '我 · ${_formatMsgTime(pending.createdAt)}',
+                                    );
+                                  },
+                                  onLongPressAt: (pos) =>
+                                      _onLongPressOutboxItem(
+                                    context,
+                                    pending,
+                                    pos,
+                                    placement: contextMenuPlacement,
+                                  ),
+                                ),
+                                isMe: true,
+                                id: pending.id,
+                              );
+                            },
+                            event: (e) {
+                              if (isCallRecordEvent(e)) {
+                                final selected = _selected.contains(e.eventId);
+                                void toggle() => setState(() {
+                                      if (selected) {
+                                        _selected.remove(e.eventId);
+                                      } else {
+                                        _selected.add(e.eventId);
+                                      }
+                                    });
+                                final asCallId = asCallIdForCallRecord(
+                                  e,
+                                  callRecordContextEvents,
+                                );
+                                final asCallSession = asCallId == null
+                                    ? null
+                                    : _asCallSessionCache[asCallId];
+                                final callerEvent = callRecordSenderEvent(
+                                  e,
+                                  callRecordContextEvents,
+                                );
+                                final callerId = callRecordSenderId(
+                                  e,
+                                  callRecordContextEvents,
+                                );
+                                final isMe = callerId.trim().isNotEmpty &&
+                                    _isEventFromCurrentUser(
+                                      callerEvent ?? e,
+                                      authUserId,
+                                    );
+                                final callerName = callerEvent
+                                        ?.senderFromMemoryOrFallback
+                                        .calcDisplayname() ??
+                                    e.senderFromMemoryOrFallback
+                                        .calcDisplayname();
+                                final callerAvatarUrl = _senderAvatarUrl(
+                                  callerEvent ?? e,
+                                  currentUserProfile,
+                                  fallbackUserId: authUserId,
+                                );
+                                final avatarTap = isMe
+                                    ? null
+                                    : _senderAvatarTap(callerEvent ?? e, isMe);
+                                return enter(
+                                  _SChatCallRecordBubble(
+                                    isMe: isMe,
+                                    isVideo: callRecordIsVideo(
+                                      e,
+                                      callRecordContextEvents,
+                                      asCallSession: asCallSession,
+                                    ),
+                                    text: callRecordText(
+                                      e,
+                                      callRecordContextEvents,
+                                      asCallSession: asCallSession,
+                                      asCallSessionPending: asCallId != null &&
+                                          asCallSession == null,
+                                    ),
+                                    time: _formatMsgTime(e.originServerTs),
+                                    showRead: false,
+                                    avatarSeed: callerName,
+                                    avatarUrl: callerAvatarUrl,
+                                    onAvatarTap: avatarTap,
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
+                                    onTap: _multiSelect ? toggle : null,
+                                    onLongPressAt: (pos) => _onLongPressEvent(
+                                      context,
+                                      e,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: isMe,
+                                  id: e.eventId,
+                                );
+                              }
+                              final isMe =
+                                  _isEventFromCurrentUser(e, authUserId);
+                              final anchorKey = _messageAnchorKey(e.eventId);
+                              final flashing =
+                                  _flashingMessageEventId == e.eventId.trim();
+                              final selected = _selected.contains(e.eventId);
+                              final senderName = _eventSenderDisplayName(
+                                e,
+                                isMe: isMe,
+                                peerDisplayName: name,
+                              );
+                              final senderAvatarUrl = _senderAvatarUrl(
+                                e,
+                                currentUserProfile,
+                                fallbackUserId: authUserId,
+                              );
+                              final localOrder =
+                                  messageOrder.entryForEvent(e.eventId);
+                              final time = _formatMsgTime(
+                                localOrder?.createdAt ?? e.originServerTs,
+                              );
+                              final avatarTap = _senderAvatarTap(e, isMe);
+                              void toggle() => setState(() {
+                                    if (selected) {
+                                      _selected.remove(e.eventId);
+                                    } else {
+                                      _selected.add(e.eventId);
+                                    }
+                                  });
+
+                              final groupInvite = GroupInviteContent.tryParse(
+                                Map<String, Object?>.from(e.content),
+                                eventId: e.eventId,
+                                directRoomId: widget.roomId,
+                              );
+                              if (groupInvite != null) {
+                                final alreadyJoined = _isJoinedGroupRoom(
+                                      groupInvite.groupRoomId,
+                                    ) ||
+                                    isMe;
+                                return enter(
+                                  _SGroupInviteBubble(
+                                    isMe: isMe,
+                                    invite: groupInvite,
+                                    time: time,
+                                    showRead: isMe &&
+                                        peerReadEventIds.contains(e.eventId),
+                                    avatarSeed: senderName,
+                                    avatarUrl: senderAvatarUrl,
+                                    onAvatarTap: avatarTap,
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
+                                    inviterDisplayName: isMe ? '我' : senderName,
+                                    joining: _joiningGroupInviteEventIds
+                                        .contains(e.eventId),
+                                    alreadyJoined: alreadyJoined,
+                                    onJoin: () => unawaited(
+                                      _joinGroupInvite(groupInvite),
+                                    ),
+                                    onTap: _multiSelect ? toggle : null,
+                                  ),
+                                  isMe: isMe,
+                                  id: e.eventId,
+                                  anchorKey: anchorKey,
+                                  flashing: flashing,
                                 );
                               }
 
-                              return displayTimelineItems[itemIndex].when(
-                                outbox: (pending) {
-                                  if (pending.messageKind ==
-                                      LocalOutboxMessageKind.text) {
-                                    return enter(
-                                      _SChatBubble(
-                                        key: ValueKey(pending.id),
-                                        isMe: true,
-                                        text: pending.text,
-                                        time: _formatMsgTime(pending.createdAt),
-                                        showRead: false,
-                                        avatarSeed: 'me',
-                                        outboxStatus: _InlineOutboxStatusIcon(
-                                          status: pending.status,
-                                          label: '消息',
-                                          onRetry: () => unawaited(
-                                            _retryFailedTextMessage(pending),
-                                          ),
-                                        ),
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressOutboxItem(
-                                          context,
-                                          pending,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: true,
-                                      id: pending.id,
-                                    );
-                                  }
-                                  if (_isVoiceOutboxItem(pending)) {
-                                    final playback =
-                                        _voicePlayer.playback.value;
-                                    final isPlaying =
-                                        playback.messageId == pending.id &&
-                                            playback.playing;
-                                    return enter(
-                                      _SChatVoiceBubble(
-                                        key: ValueKey(pending.id),
-                                        isMe: true,
-                                        time: _formatMsgTime(pending.createdAt),
-                                        showRead: false,
-                                        avatarSeed: 'me',
-                                        durationSeconds:
-                                            _voiceDurationSecondsFromMs(
-                                          pending.durationMs,
-                                        ),
-                                        selected: false,
-                                        multiSelect: false,
-                                        isPlaying: isPlaying,
-                                        currentPlaySeconds:
-                                            playback.position.inSeconds,
-                                        onTap: null,
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressOutboxItem(
-                                          context,
-                                          pending,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: true,
-                                      id: pending.id,
-                                    );
-                                  }
-                                  if (pending.messageKind ==
-                                      LocalOutboxMessageKind.file) {
-                                    return enter(
-                                      _SChatFileBubble(
-                                        key: ValueKey(pending.id),
-                                        isMe: true,
-                                        time: _formatMsgTime(pending.createdAt),
-                                        showRead: false,
-                                        avatarSeed: 'me',
-                                        leadingIcon: Symbols.description,
-                                        fileName: pending.filename,
-                                        sizeLabel: outboxFileSizeLabel(pending),
-                                        trailing: _FileOutboxStatusIcon(
-                                          status: pending.status,
-                                          label: '文件',
-                                          onRetry: () => unawaited(
-                                            _retryFailedMediaUpload(pending),
-                                          ),
-                                        ),
-                                        selected: false,
-                                        multiSelect: false,
-                                        onTap: null,
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressOutboxItem(
-                                          context,
-                                          pending,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: true,
-                                      id: pending.id,
-                                    );
-                                  }
-                                  final isPendingVideo = pending.messageKind ==
-                                      LocalOutboxMessageKind.video;
-                                  final displayBytes =
-                                      pending.thumbnailBytes ?? pending.bytes;
-                                  return enter(
-                                    _SChatImageBubble(
-                                      key: ValueKey(pending.id),
-                                      isMe: true,
-                                      time: _formatMsgTime(pending.createdAt),
-                                      showRead: false,
-                                      avatarSeed: 'me',
-                                      mediaSize: isPendingVideo
-                                          ? chatMessageDefaultMediaSize
-                                          : chatMediaBubbleSizeFor(
-                                              width: pending.width,
-                                              height: pending.height,
-                                            ),
-                                      thumb: pending.status ==
-                                              LocalOutboxItemStatus.failed
-                                          ? FailedLocalOutboxImageThumb(
-                                              bytes: displayBytes,
-                                              placeholderIcon: isPendingVideo
-                                                  ? Symbols.movie
-                                                  : Symbols.image,
-                                              overlay: isPendingVideo
-                                                  ? const _VideoPlayOverlay()
-                                                  : null,
-                                              onRetry: () => unawaited(
-                                                _retryFailedMediaUpload(
-                                                  pending,
-                                                ),
-                                              ),
-                                            )
-                                          : PendingLocalOutboxImageThumb(
-                                              bytes: displayBytes!,
-                                              overlay: isPendingVideo
-                                                  ? const _VideoPlayOverlay()
-                                                  : null,
-                                            ),
-                                      selected: false,
-                                      multiSelect: false,
-                                      onTap: () {
-                                        final bytes = pending.bytes;
-                                        if (bytes == null) return;
-                                        if (isPendingVideo) return;
-                                        _openImgPreview(
-                                          context,
-                                          provider: MemoryImage(bytes),
-                                          meta:
-                                              '我 · ${_formatMsgTime(pending.createdAt)}',
-                                        );
-                                      },
-                                      onLongPressAt: (pos) =>
-                                          _onLongPressOutboxItem(
-                                        context,
-                                        pending,
-                                        pos,
-                                        placement: contextMenuPlacement,
-                                      ),
-                                    ),
-                                    isMe: true,
-                                    id: pending.id,
-                                  );
-                                },
-                                event: (e) {
-                                  if (isCallRecordEvent(e)) {
-                                    final selected =
-                                        _selected.contains(e.eventId);
-                                    void toggle() => setState(() {
-                                          if (selected) {
-                                            _selected.remove(e.eventId);
-                                          } else {
-                                            _selected.add(e.eventId);
-                                          }
-                                        });
-                                    final asCallId = asCallIdForCallRecord(
-                                      e,
-                                      callRecordContextEvents,
-                                    );
-                                    final asCallSession = asCallId == null
-                                        ? null
-                                        : _asCallSessionCache[asCallId];
-                                    final callerEvent = callRecordSenderEvent(
-                                      e,
-                                      callRecordContextEvents,
-                                    );
-                                    final callerId = callRecordSenderId(
-                                      e,
-                                      callRecordContextEvents,
-                                    );
-                                    final isMe = callerId.trim().isNotEmpty &&
-                                        _isEventFromCurrentUser(
-                                          callerEvent ?? e,
-                                          authUserId,
-                                        );
-                                    final callerName = callerEvent
-                                            ?.senderFromMemoryOrFallback
-                                            .calcDisplayname() ??
-                                        e.senderFromMemoryOrFallback
-                                            .calcDisplayname();
-                                    final callerAvatarUrl = _senderAvatarUrl(
-                                      callerEvent ?? e,
-                                      currentUserProfile,
-                                      fallbackUserId: authUserId,
-                                    );
-                                    final avatarTap = isMe
-                                        ? null
-                                        : _senderAvatarTap(
-                                            callerEvent ?? e, isMe);
-                                    return enter(
-                                      _SChatCallRecordBubble(
-                                        isMe: isMe,
-                                        isVideo: callRecordIsVideo(
-                                          e,
-                                          callRecordContextEvents,
-                                          asCallSession: asCallSession,
-                                        ),
-                                        text: callRecordText(
-                                          e,
-                                          callRecordContextEvents,
-                                          asCallSession: asCallSession,
-                                          asCallSessionPending:
-                                              asCallId != null &&
-                                                  asCallSession == null,
-                                        ),
-                                        time: _formatMsgTime(e.originServerTs),
-                                        showRead: false,
-                                        avatarSeed: callerName,
-                                        avatarUrl: callerAvatarUrl,
-                                        onAvatarTap: avatarTap,
-                                        selected: selected,
-                                        multiSelect: _multiSelect,
-                                        onTap: _multiSelect ? toggle : null,
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressEvent(
-                                          context,
-                                          e,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: isMe,
-                                      id: e.eventId,
-                                    );
-                                  }
-                                  final isMe =
-                                      _isEventFromCurrentUser(e, authUserId);
-                                  final anchorKey =
-                                      _messageAnchorKey(e.eventId);
-                                  final flashing = _flashingMessageEventId ==
-                                      e.eventId.trim();
-                                  final selected =
-                                      _selected.contains(e.eventId);
-                                  final senderName = _eventSenderDisplayName(
-                                    e,
+                              if (e.messageType == MessageTypes.Notice) {
+                                return _SChatSystemNotice(text: e.body);
+                              }
+
+                              final channelSharePayload =
+                                  channelSharePayloadFromContent(
+                                Map<String, Object?>.from(e.content),
+                              );
+                              final redPacketPayload =
+                                  redPacketPayloadFromContent(
+                                Map<String, Object?>.from(e.content),
+                                body: e.body,
+                              );
+                              if (redPacketPayload != null) {
+                                return enter(
+                                  _SBusinessCardBubble(
                                     isMe: isMe,
-                                    peerDisplayName: name,
-                                  );
-                                  final senderAvatarUrl = _senderAvatarUrl(
-                                    e,
-                                    currentUserProfile,
-                                    fallbackUserId: authUserId,
-                                  );
-                                  final localOrder =
-                                      messageOrder.entryForEvent(e.eventId);
-                                  final time = _formatMsgTime(
-                                    localOrder?.createdAt ?? e.originServerTs,
-                                  );
-                                  final avatarTap = _senderAvatarTap(e, isMe);
-                                  void toggle() => setState(() {
-                                        if (selected) {
-                                          _selected.remove(e.eventId);
-                                        } else {
-                                          _selected.add(e.eventId);
-                                        }
-                                      });
-
-                                  final groupInvite =
-                                      GroupInviteContent.tryParse(
-                                    Map<String, Object?>.from(e.content),
-                                    eventId: e.eventId,
-                                    directRoomId: widget.roomId,
-                                  );
-                                  if (groupInvite != null) {
-                                    final alreadyJoined = _isJoinedGroupRoom(
-                                          groupInvite.groupRoomId,
-                                        ) ||
-                                        isMe;
-                                    return enter(
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 8,
+                                    time: time,
+                                    showRead: isMe &&
+                                        peerReadEventIds.contains(
+                                          e.eventId,
                                         ),
-                                        child: Align(
-                                          alignment: isMe
-                                              ? Alignment.centerRight
-                                              : Alignment.centerLeft,
-                                          child: ConstrainedBox(
-                                            constraints: BoxConstraints(
-                                              maxWidth: MediaQuery.of(context)
-                                                      .size
-                                                      .width *
-                                                  groupInviteCardMaxWidthFactor,
+                                    avatarSeed: senderName,
+                                    avatarUrl: senderAvatarUrl,
+                                    onAvatarTap: avatarTap,
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
+                                    onTap: _multiSelect
+                                        ? toggle
+                                        : () => _openRedPacketDetail(
+                                              redPacketPayload,
                                             ),
-                                            child: GroupInviteCard(
-                                              invite: groupInvite,
-                                              inviterDisplayName:
-                                                  isMe ? '我' : senderName,
-                                              inviterAvatarUrl: senderAvatarUrl,
-                                              joining:
-                                                  _joiningGroupInviteEventIds
-                                                      .contains(e.eventId),
-                                              alreadyJoined: alreadyJoined,
-                                              onJoin: () => unawaited(
-                                                _joinGroupInvite(groupInvite),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                                    onLongPressAt: (pos) => _onLongPressEvent(
+                                      context,
+                                      e,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                    child: RedPacketMessageCard(
+                                      payload: redPacketPayload,
                                       isMe: isMe,
-                                      id: e.eventId,
-                                      anchorKey: anchorKey,
-                                      flashing: flashing,
-                                    );
-                                  }
-
-                                  if (e.messageType == MessageTypes.Notice) {
-                                    return _SChatSystemNotice(text: e.body);
-                                  }
-
-                                  final channelSharePayload =
-                                      channelSharePayloadFromContent(
-                                    Map<String, Object?>.from(e.content),
-                                  );
-                                  final redPacketPayload =
-                                      redPacketPayloadFromContent(
-                                    Map<String, Object?>.from(e.content),
-                                    body: e.body,
-                                  );
-                                  if (redPacketPayload != null) {
-                                    return enter(
-                                      _SBusinessCardBubble(
-                                        isMe: isMe,
-                                        time: time,
-                                        showRead: isMe &&
-                                            peerReadEventIds.contains(
-                                              e.eventId,
-                                            ),
-                                        avatarSeed: senderName,
-                                        avatarUrl: senderAvatarUrl,
-                                        onAvatarTap: avatarTap,
-                                        selected: selected,
-                                        multiSelect: _multiSelect,
-                                        onTap: _multiSelect
-                                            ? toggle
-                                            : () => _openRedPacketDetail(
-                                                  redPacketPayload,
-                                                ),
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressEvent(
-                                          context,
-                                          e,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                        child: RedPacketMessageCard(
-                                          payload: redPacketPayload,
-                                          isMe: isMe,
-                                          selected: selected,
-                                        ),
-                                      ),
-                                      isMe: isMe,
-                                      id: e.eventId,
-                                      anchorKey: anchorKey,
-                                      flashing: flashing,
-                                    );
-                                  }
-                                  if (channelSharePayload != null) {
-                                    final shareKey = channelShareJoinKey(
-                                        channelSharePayload);
-                                    return enter(
-                                      _SChannelShareBubble(
-                                        isMe: isMe,
-                                        payload: channelSharePayload,
-                                        time: time,
-                                        showRead: isMe &&
-                                            peerReadEventIds.contains(
-                                              e.eventId,
-                                            ),
-                                        avatarSeed: senderName,
-                                        avatarUrl: senderAvatarUrl,
-                                        onAvatarTap: avatarTap,
-                                        selected: selected,
-                                        multiSelect: _multiSelect,
-                                        joining: _joiningChannelShareIds
-                                            .contains(shareKey),
-                                        alreadyJoined: channelShareIsJoined(
-                                              ref.read(asSyncCacheProvider),
-                                              channelSharePayload,
-                                            ) ||
-                                            isMe,
-                                        onJoin: () => unawaited(
-                                          _joinChannelShare(
-                                            channelSharePayload,
-                                          ),
-                                        ),
-                                        onTap: _multiSelect
-                                            ? toggle
-                                            : () => context.push(
-                                                  channelShareOpenRoute(
-                                                    ref.read(
-                                                      asSyncCacheProvider,
-                                                    ),
-                                                    channelSharePayload,
-                                                    productConversations: ref
-                                                            .read(
-                                                              productConversationsProvider,
-                                                            )
-                                                            .valueOrNull ??
-                                                        const [],
-                                                  ),
-                                                  extra: channelSharePayload,
-                                                ),
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressEvent(
-                                          context,
-                                          e,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: isMe,
-                                      id: e.eventId,
-                                      anchorKey: anchorKey,
-                                      flashing: flashing,
-                                    );
-                                  }
-
-                                  final chatRecordPayload =
-                                      chatRecordPayloadFromContent(
-                                    Map<String, Object?>.from(e.content),
-                                  );
-                                  if (chatRecordPayload != null) {
-                                    return enter(
-                                      _SChatRecordBubble(
-                                        isMe: isMe,
-                                        payload: chatRecordPayload,
-                                        time: time,
-                                        showRead: isMe &&
-                                            peerReadEventIds.contains(
-                                              e.eventId,
-                                            ),
-                                        avatarSeed: senderName,
-                                        avatarUrl: senderAvatarUrl,
-                                        onAvatarTap: avatarTap,
-                                        selected: selected,
-                                        multiSelect: _multiSelect,
-                                        onTap: _multiSelect
-                                            ? toggle
-                                            : () => _openChatRecordDetail(
-                                                  context,
-                                                  chatRecordPayload,
-                                                ),
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressEvent(
-                                          context,
-                                          e,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: isMe,
-                                      id: e.eventId,
-                                      anchorKey: anchorKey,
-                                      flashing: flashing,
-                                    );
-                                  }
-
-                                  // 图片消息 → 缩略图气泡，点击全屏预览
-                                  if (e.messageType == MessageTypes.Image &&
-                                      e.hasAttachment) {
-                                    return enter(
-                                      _SChatImageBubble(
-                                        isMe: isMe,
-                                        time: time,
-                                        showRead: isMe &&
-                                            peerReadEventIds.contains(
-                                              e.eventId,
-                                            ),
-                                        avatarSeed: senderName,
-                                        avatarUrl: senderAvatarUrl,
-                                        onAvatarTap: avatarTap,
-                                        mediaSize:
-                                            chatMediaBubbleSizeForEvent(e),
-                                        thumb: _MatrixThumb(
-                                          key: ValueKey(
-                                            'matrix_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
-                                          ),
-                                          event: e,
-                                        ),
-                                        selected: selected,
-                                        multiSelect: _multiSelect,
-                                        onTap: _multiSelect
-                                            ? toggle
-                                            : () => _openImageEvent(
-                                                  e,
-                                                  '${isMe ? '我' : senderName} · $time',
-                                                ),
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressEvent(
-                                          context,
-                                          e,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: isMe,
-                                      id: e.eventId,
-                                      anchorKey: anchorKey,
-                                      flashing: flashing,
-                                    );
-                                  }
-
-                                  if (e.messageType == MessageTypes.Video &&
-                                      e.hasAttachment) {
-                                    final eventId = e.eventId.trim();
-                                    return enter(
-                                      _SChatImageBubble(
-                                        isMe: isMe,
-                                        time: time,
-                                        showRead: isMe &&
-                                            peerReadEventIds.contains(
-                                              e.eventId,
-                                            ),
-                                        avatarSeed: senderName,
-                                        avatarUrl: senderAvatarUrl,
-                                        onAvatarTap: avatarTap,
-                                        mediaSize: chatMessageDefaultMediaSize,
-                                        thumb: _MatrixThumb(
-                                          key: ValueKey(
-                                            'matrix_video_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
-                                          ),
-                                          event: e,
-                                          fallbackIcon: Symbols.movie,
-                                          fit: BoxFit.cover,
-                                        ),
-                                        statusOverlay: _multiSelect
-                                            ? null
-                                            : _ImageDownloadStatusBadge(
-                                                label: '视频',
-                                                downloading:
-                                                    _downloadingFileEventIds
-                                                        .contains(eventId),
-                                                downloaded:
-                                                    _downloadedFileEventIds
-                                                        .contains(eventId),
-                                                onDownload: () => unawaited(
-                                                  _downloadFileEvent(e),
-                                                ),
-                                              ),
-                                        centerOverlay:
-                                            const _VideoPlayOverlay(),
-                                        selected: selected,
-                                        multiSelect: _multiSelect,
-                                        onTap: _multiSelect
-                                            ? toggle
-                                            : () => _openVideoEvent(e),
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressEvent(
-                                          context,
-                                          e,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: isMe,
-                                      id: e.eventId,
-                                      anchorKey: anchorKey,
-                                      flashing: flashing,
-                                    );
-                                  }
-
-                                  if (_isVoiceEvent(e)) {
-                                    final playback =
-                                        _voicePlayer.playback.value;
-                                    final eventId = e.eventId.trim();
-                                    final isPlaying =
-                                        playback.messageId == eventId &&
-                                            playback.playing;
-                                    return enter(
-                                      _SChatVoiceBubble(
-                                        isMe: isMe,
-                                        time: time,
-                                        showRead: isMe &&
-                                            peerReadEventIds.contains(
-                                              e.eventId,
-                                            ),
-                                        avatarSeed: senderName,
-                                        avatarUrl: senderAvatarUrl,
-                                        onAvatarTap: avatarTap,
-                                        durationSeconds:
-                                            _voiceDurationSecondsForEvent(e),
-                                        selected: selected,
-                                        multiSelect: _multiSelect,
-                                        isPlaying: isPlaying,
-                                        currentPlaySeconds:
-                                            playback.position.inSeconds,
-                                        onSeek: isPlaying
-                                            ? (seconds) =>
-                                                _seekVoiceEvent(e, seconds)
-                                            : null,
-                                        onTap: _multiSelect
-                                            ? toggle
-                                            : () => _openFileEvent(e),
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressEvent(
-                                          context,
-                                          e,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: isMe,
-                                      id: e.eventId,
-                                      anchorKey: anchorKey,
-                                      flashing: flashing,
-                                    );
-                                  }
-
-                                  // 文件附件 → 文件卡片，点击预览，右侧下载。
-                                  if (e.messageType == MessageTypes.File &&
-                                      !_isVoiceEvent(e) &&
-                                      e.hasAttachment) {
-                                    final size = e.infoMap['size'];
-                                    final sizeBytes = size is int ? size : 0;
-                                    final kind = fileKindLabel(
-                                        e.attachmentMimetype, e.body);
-                                    final sizeLabel = sizeBytes > 0
-                                        ? '$kind · ${formatByteSize(sizeBytes)}'
-                                        : kind;
-                                    return enter(
-                                      _SChatFileBubble(
-                                        isMe: isMe,
-                                        time: time,
-                                        showRead: isMe &&
-                                            peerReadEventIds.contains(
-                                              e.eventId,
-                                            ),
-                                        avatarSeed: senderName,
-                                        avatarUrl: senderAvatarUrl,
-                                        onAvatarTap: avatarTap,
-                                        leadingIcon: Symbols.description,
-                                        fileName: e.body,
-                                        sizeLabel: sizeLabel,
-                                        trailing: _FileDownloadStatusIcon(
-                                          label: '文件',
-                                          downloading: _downloadingFileEventIds
-                                              .contains(e.eventId.trim()),
-                                          downloaded: _downloadedFileEventIds
-                                              .contains(e.eventId.trim()),
-                                          onDownload: () => unawaited(
-                                            _downloadFileEvent(e),
-                                          ),
-                                        ),
-                                        selected: selected,
-                                        multiSelect: _multiSelect,
-                                        onTap: _multiSelect
-                                            ? toggle
-                                            : () => _openFileEvent(e),
-                                        onLongPressAt: (pos) =>
-                                            _onLongPressEvent(
-                                          context,
-                                          e,
-                                          pos,
-                                          placement: contextMenuPlacement,
-                                        ),
-                                      ),
-                                      isMe: isMe,
-                                      id: e.eventId,
-                                      anchorKey: anchorKey,
-                                      flashing: flashing,
-                                    );
-                                  }
-
-                                  return enter(
-                                    _SChatBubble(
-                                      isMe: isMe,
-                                      text: _messageDisplayText(e),
-                                      quote: _replyPreviewForEvent(
-                                        e,
-                                        messageEvents,
-                                      ),
-                                      onTapQuote: _scrollToQuotedEvent,
-                                      time: time,
-                                      showRead: isMe &&
-                                          peerReadEventIds.contains(e.eventId),
-                                      avatarSeed: senderName,
-                                      avatarUrl: senderAvatarUrl,
-                                      onAvatarTap: avatarTap,
                                       selected: selected,
-                                      multiSelect: _multiSelect,
-                                      onTap: _multiSelect ? toggle : null,
-                                      onLongPressAt: (pos) => _onLongPressEvent(
-                                        context,
-                                        e,
-                                        pos,
-                                        placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: isMe,
+                                  id: e.eventId,
+                                  anchorKey: anchorKey,
+                                  flashing: flashing,
+                                );
+                              }
+                              if (channelSharePayload != null) {
+                                final shareKey =
+                                    channelShareJoinKey(channelSharePayload);
+                                return enter(
+                                  _SChannelShareBubble(
+                                    isMe: isMe,
+                                    payload: channelSharePayload,
+                                    time: time,
+                                    showRead: isMe &&
+                                        peerReadEventIds.contains(
+                                          e.eventId,
+                                        ),
+                                    avatarSeed: senderName,
+                                    avatarUrl: senderAvatarUrl,
+                                    onAvatarTap: avatarTap,
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
+                                    joining: _joiningChannelShareIds
+                                        .contains(shareKey),
+                                    alreadyJoined: channelShareIsJoined(
+                                          ref.read(asSyncCacheProvider),
+                                          channelSharePayload,
+                                        ) ||
+                                        isMe,
+                                    onJoin: () => unawaited(
+                                      _joinChannelShare(
+                                        channelSharePayload,
                                       ),
                                     ),
+                                    onTap: _multiSelect
+                                        ? toggle
+                                        : () => context.push(
+                                              channelShareOpenRoute(
+                                                ref.read(
+                                                  asSyncCacheProvider,
+                                                ),
+                                                channelSharePayload,
+                                                productConversations: ref
+                                                        .read(
+                                                          productConversationsProvider,
+                                                        )
+                                                        .valueOrNull ??
+                                                    const [],
+                                              ),
+                                              extra: channelSharePayload,
+                                            ),
+                                    onLongPressAt: (pos) => _onLongPressEvent(
+                                      context,
+                                      e,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: isMe,
+                                  id: e.eventId,
+                                  anchorKey: anchorKey,
+                                  flashing: flashing,
+                                );
+                              }
+
+                              final chatRecordPayload =
+                                  chatRecordPayloadFromContent(
+                                Map<String, Object?>.from(e.content),
+                              );
+                              if (chatRecordPayload != null) {
+                                return enter(
+                                  _SChatRecordBubble(
                                     isMe: isMe,
-                                    id: e.eventId,
-                                    anchorKey: anchorKey,
-                                    flashing: flashing,
-                                  );
-                                },
+                                    payload: chatRecordPayload,
+                                    time: time,
+                                    showRead: isMe &&
+                                        peerReadEventIds.contains(
+                                          e.eventId,
+                                        ),
+                                    avatarSeed: senderName,
+                                    avatarUrl: senderAvatarUrl,
+                                    onAvatarTap: avatarTap,
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
+                                    onTap: _multiSelect
+                                        ? toggle
+                                        : () => _openChatRecordDetail(
+                                              context,
+                                              chatRecordPayload,
+                                            ),
+                                    onLongPressAt: (pos) => _onLongPressEvent(
+                                      context,
+                                      e,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: isMe,
+                                  id: e.eventId,
+                                  anchorKey: anchorKey,
+                                  flashing: flashing,
+                                );
+                              }
+
+                              // 图片消息 → 缩略图气泡，点击全屏预览
+                              if (e.messageType == MessageTypes.Image &&
+                                  e.hasAttachment) {
+                                return enter(
+                                  _SChatImageBubble(
+                                    isMe: isMe,
+                                    time: time,
+                                    showRead: isMe &&
+                                        peerReadEventIds.contains(
+                                          e.eventId,
+                                        ),
+                                    avatarSeed: senderName,
+                                    avatarUrl: senderAvatarUrl,
+                                    onAvatarTap: avatarTap,
+                                    mediaSize: chatMediaBubbleSizeForEvent(e),
+                                    thumb: _MatrixThumb(
+                                      key: ValueKey(
+                                        'matrix_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
+                                      ),
+                                      event: e,
+                                    ),
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
+                                    onTap: _multiSelect
+                                        ? toggle
+                                        : () => _openImageEvent(
+                                              e,
+                                              '${isMe ? '我' : senderName} · $time',
+                                            ),
+                                    onLongPressAt: (pos) => _onLongPressEvent(
+                                      context,
+                                      e,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: isMe,
+                                  id: e.eventId,
+                                  anchorKey: anchorKey,
+                                  flashing: flashing,
+                                );
+                              }
+
+                              if (e.messageType == MessageTypes.Video &&
+                                  e.hasAttachment) {
+                                final eventId = e.eventId.trim();
+                                return enter(
+                                  _SChatImageBubble(
+                                    isMe: isMe,
+                                    time: time,
+                                    showRead: isMe &&
+                                        peerReadEventIds.contains(
+                                          e.eventId,
+                                        ),
+                                    avatarSeed: senderName,
+                                    avatarUrl: senderAvatarUrl,
+                                    onAvatarTap: avatarTap,
+                                    mediaSize: chatMessageDefaultMediaSize,
+                                    thumb: _MatrixThumb(
+                                      key: ValueKey(
+                                        'matrix_video_thumb_${e.eventId}_${e.originServerTs.millisecondsSinceEpoch}',
+                                      ),
+                                      event: e,
+                                      fallbackIcon: Symbols.movie,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    statusOverlay: _multiSelect
+                                        ? null
+                                        : _ImageDownloadStatusBadge(
+                                            label: '视频',
+                                            downloading:
+                                                _downloadingFileEventIds
+                                                    .contains(eventId),
+                                            downloaded: _downloadedFileEventIds
+                                                .contains(eventId),
+                                            onDownload: () => unawaited(
+                                              _downloadFileEvent(e),
+                                            ),
+                                          ),
+                                    centerOverlay: const _VideoPlayOverlay(),
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
+                                    onTap: _multiSelect
+                                        ? toggle
+                                        : () => _openVideoEvent(e),
+                                    onLongPressAt: (pos) => _onLongPressEvent(
+                                      context,
+                                      e,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: isMe,
+                                  id: e.eventId,
+                                  anchorKey: anchorKey,
+                                  flashing: flashing,
+                                );
+                              }
+
+                              if (_isVoiceEvent(e)) {
+                                final playback = _voicePlayer.playback.value;
+                                final eventId = e.eventId.trim();
+                                final isPlaying =
+                                    playback.messageId == eventId &&
+                                        playback.playing;
+                                return enter(
+                                  _SChatVoiceBubble(
+                                    isMe: isMe,
+                                    time: time,
+                                    showRead: isMe &&
+                                        peerReadEventIds.contains(
+                                          e.eventId,
+                                        ),
+                                    avatarSeed: senderName,
+                                    avatarUrl: senderAvatarUrl,
+                                    onAvatarTap: avatarTap,
+                                    durationSeconds:
+                                        _voiceDurationSecondsForEvent(e),
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
+                                    isPlaying: isPlaying,
+                                    currentPlaySeconds:
+                                        playback.position.inSeconds,
+                                    onSeek: isPlaying
+                                        ? (seconds) =>
+                                            _seekVoiceEvent(e, seconds)
+                                        : null,
+                                    onTap: _multiSelect
+                                        ? toggle
+                                        : () => _openFileEvent(e),
+                                    onLongPressAt: (pos) => _onLongPressEvent(
+                                      context,
+                                      e,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: isMe,
+                                  id: e.eventId,
+                                  anchorKey: anchorKey,
+                                  flashing: flashing,
+                                );
+                              }
+
+                              // 文件附件 → 文件卡片，点击预览，右侧下载。
+                              if (e.messageType == MessageTypes.File &&
+                                  !_isVoiceEvent(e) &&
+                                  e.hasAttachment) {
+                                final size = e.infoMap['size'];
+                                final sizeBytes = size is int ? size : 0;
+                                final kind =
+                                    fileKindLabel(e.attachmentMimetype, e.body);
+                                final sizeLabel = sizeBytes > 0
+                                    ? '$kind · ${formatByteSize(sizeBytes)}'
+                                    : kind;
+                                return enter(
+                                  _SChatFileBubble(
+                                    isMe: isMe,
+                                    time: time,
+                                    showRead: isMe &&
+                                        peerReadEventIds.contains(
+                                          e.eventId,
+                                        ),
+                                    avatarSeed: senderName,
+                                    avatarUrl: senderAvatarUrl,
+                                    onAvatarTap: avatarTap,
+                                    leadingIcon: Symbols.description,
+                                    fileName: e.body,
+                                    sizeLabel: sizeLabel,
+                                    trailing: _FileDownloadStatusIcon(
+                                      label: '文件',
+                                      downloading: _downloadingFileEventIds
+                                          .contains(e.eventId.trim()),
+                                      downloaded: _downloadedFileEventIds
+                                          .contains(e.eventId.trim()),
+                                      onDownload: () => unawaited(
+                                        _downloadFileEvent(e),
+                                      ),
+                                    ),
+                                    selected: selected,
+                                    multiSelect: _multiSelect,
+                                    onTap: _multiSelect
+                                        ? toggle
+                                        : () => _openFileEvent(e),
+                                    onLongPressAt: (pos) => _onLongPressEvent(
+                                      context,
+                                      e,
+                                      pos,
+                                      placement: contextMenuPlacement,
+                                    ),
+                                  ),
+                                  isMe: isMe,
+                                  id: e.eventId,
+                                  anchorKey: anchorKey,
+                                  flashing: flashing,
+                                );
+                              }
+
+                              return enter(
+                                _SChatBubble(
+                                  isMe: isMe,
+                                  text: _messageDisplayText(e),
+                                  quote: _replyPreviewForEvent(
+                                    e,
+                                    messageEvents,
+                                  ),
+                                  onTapQuote: _scrollToQuotedEvent,
+                                  time: time,
+                                  showRead: isMe &&
+                                      peerReadEventIds.contains(e.eventId),
+                                  avatarSeed: senderName,
+                                  avatarUrl: senderAvatarUrl,
+                                  onAvatarTap: avatarTap,
+                                  selected: selected,
+                                  multiSelect: _multiSelect,
+                                  onTap: _multiSelect ? toggle : null,
+                                  onLongPressAt: (pos) => _onLongPressEvent(
+                                    context,
+                                    e,
+                                    pos,
+                                    placement: contextMenuPlacement,
+                                  ),
+                                ),
+                                isMe: isMe,
+                                id: e.eventId,
+                                anchorKey: anchorKey,
+                                flashing: flashing,
                               );
                             },
-                          ),
-                        ),
+                          );
+                        },
                       ),
+                    ),
+                  ),
           ),
           bottomOverlay: Column(
             mainAxisSize: MainAxisSize.min,
@@ -4059,6 +4015,68 @@ class _SChannelShareBubble extends StatelessWidget {
             onLongPressAt: (position) => onLongPressAt?.call(
               _messageContextAnchorFor(cardKey, position),
             ),
+          ),
+          _bubbleTimeRow(context, time, showRead),
+        ],
+      ),
+    );
+  }
+}
+
+class _SGroupInviteBubble extends StatelessWidget {
+  const _SGroupInviteBubble({
+    required this.isMe,
+    required this.invite,
+    required this.time,
+    required this.showRead,
+    required this.avatarSeed,
+    this.avatarUrl,
+    this.onAvatarTap,
+    this.selected = false,
+    this.multiSelect = false,
+    this.inviterDisplayName = '',
+    this.joining = false,
+    this.alreadyJoined = false,
+    this.onJoin,
+    this.onTap,
+  });
+
+  final bool isMe;
+  final GroupInviteContent invite;
+  final String time;
+  final bool showRead;
+  final String avatarSeed;
+  final String? avatarUrl;
+  final VoidCallback? onAvatarTap;
+  final bool selected;
+  final bool multiSelect;
+  final String inviterDisplayName;
+  final bool joining;
+  final bool alreadyJoined;
+  final VoidCallback? onJoin;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _bubbleRow(
+      context: context,
+      isMe: isMe,
+      multiSelect: multiSelect,
+      selected: selected,
+      avatarSeed: avatarSeed,
+      avatarUrl: avatarUrl,
+      onAvatarTap: onAvatarTap,
+      onSelectTap: onTap,
+      child: Column(
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          GroupInviteCard(
+            invite: invite,
+            inviterDisplayName: inviterDisplayName,
+            joining: joining,
+            alreadyJoined: alreadyJoined,
+            onJoin: onJoin ?? () {},
           ),
           _bubbleTimeRow(context, time, showRead),
         ],

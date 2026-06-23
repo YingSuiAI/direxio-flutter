@@ -5803,14 +5803,17 @@ void main() {
 
   testWidgets('chat info uses AS contact metadata for undirected direct rooms',
       (tester) async {
+    const roomId = '!owner:p2p-im.com';
     final client = Client('DirexioChatInfoDirectMetadataTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
-      roomId: '!owner:p2p-im.com',
+      roomId: roomId,
       peerMxid: '@owner:p2p-liyanan.com',
       peerName: 'owner',
     );
+    final bootstrapStore = _MemoryAsBootstrapStore();
+    final asClient = _TrackingAsClient();
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 26, 10),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -5820,7 +5823,7 @@ void main() {
           userId: '@owner:p2p-liyanan.com',
           displayName: 'owner',
           avatarUrl: '',
-          roomId: '!owner:p2p-im.com',
+          roomId: roomId,
           domain: 'p2p-liyanan.com',
           status: 'accepted',
         ),
@@ -5837,13 +5840,15 @@ void main() {
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
+          asBootstrapStoreProvider.overrideWith((ref) async => bootstrapStore),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const ChatInfoPage(roomId: '!owner:p2p-im.com'),
+          home: const ChatInfoPage(roomId: roomId),
         ),
       ),
     );
@@ -5852,6 +5857,18 @@ void main() {
     expect(find.text('搜索聊天记录'), findsOneWidget);
     expect(find.text('推荐给朋友'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
+
+    await tester.tap(find.text('设置备注'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, 'Owner Remark');
+    await tester.tap(find.widgetWithText(TextButton, '保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('备注已更新'), findsOneWidget);
+    expect(asClient.updateContactCalls, 1);
+    expect(asClient.updatedContactRoomId, roomId);
+    expect(asClient.updatedContactDisplayName, 'Owner Remark');
+    expect(asClient.updatedContactDomain, 'p2p-liyanan.com');
   });
 
   testWidgets('chat info rejects mock conversation ids', (tester) async {

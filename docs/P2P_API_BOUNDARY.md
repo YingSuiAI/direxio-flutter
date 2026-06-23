@@ -17,6 +17,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Bootstrap metadata action: `sync.bootstrap` for contacts, groups, channels, pending requests, user profile, and product summaries.
 - Contact actions: `contacts.list`, `contacts.request`, `contacts.reactivate`, `contacts.requests.accept`, `contacts.requests.reject`, `contacts.requests.delete`, `contacts.update`, `contacts.delete`.
 - Contact request remarks travel as `remark` on `contacts.request` and may be mirrored in contact or `sync.bootstrap.pending.friend_requests` metadata for the verifier UI.
+- Accepted-contact remark updates use `contacts.update` with `room_id` and `display_name`; the backend stores the remark as the contact `display_name`, not as a separate `remark` field.
 - Follow/favorite/report actions: `follows.*`, `favorites.*`, `reports.submit`.
 - Favorite message snapshots may include `sender_avatar_url`; the favorites UI uses it for the source sender avatar when present.
 - Group actions: `groups.create`, `groups.update`, `groups.invite`, `groups.join`, `groups.list`, `groups.members`, `groups.leave`, `groups.dissolve`, member moderation, mute, and invite policy actions.

@@ -276,6 +276,7 @@ class AsCallStateReporter {
     final stored = updated.copyWith(
       answeredAt: effectiveConnectedAt,
       endedAt: updated.endedAt ?? completedAt,
+      endReason: reason,
       durationMs: updated.durationMs > 0 ? updated.durationMs : durationMs,
     );
     await _storeCall(stored);

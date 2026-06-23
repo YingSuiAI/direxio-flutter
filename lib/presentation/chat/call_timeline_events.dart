@@ -328,17 +328,10 @@ String? _callRecordTextFromAsSession(
       session.state != asCallStateConnected) {
     return null;
   }
+  if (session.answeredAt == null) return '未接通';
   final duration = _asSessionDuration(session);
   if (session.state == asCallStateEnded && session.endedAt != null) {
-    if (session.answeredAt == null && duration.inSeconds <= 0) {
-      return '未接通';
-    }
     return _formatCallDuration(duration);
-  }
-  if (session.state != asCallStateEnded &&
-      session.answeredAt == null &&
-      duration.inSeconds <= 0) {
-    return '未接通';
   }
   return _formatCallDuration(duration);
 }
@@ -448,9 +441,8 @@ Duration _asSessionDuration(AsCallSession session) {
   }
   final answeredAt = session.answeredAt;
   final endedAt = session.endedAt;
-  if (endedAt == null) return Duration.zero;
-  final startedAt = answeredAt ?? session.createdAt;
-  final duration = endedAt.difference(startedAt);
+  if (answeredAt == null || endedAt == null) return Duration.zero;
+  final duration = endedAt.difference(answeredAt);
   return duration.isNegative ? Duration.zero : duration;
 }
 

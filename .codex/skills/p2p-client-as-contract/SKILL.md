@@ -31,6 +31,9 @@ Keep `/_as/sync/bootstrap` metadata-only. Do not add historical read message bod
 
 Keep auth responsibilities explicit. AS Admin API calls use the current portal/session bearer credential defined by the contract; Matrix-native behavior should still flow through the Matrix SDK or Matrix API layer.
 
+Accepted-contact remark updates use `contacts.update` with `room_id` and
+`display_name`; the backend stores that remark as contact `display_name`.
+
 ## Change Order
 
 1. Update `AsClient` types and method signatures first.

@@ -265,7 +265,7 @@ void main() {
           endedAt: DateTime.utc(2026, 6, 2, 10, 0, 45),
         ),
       ),
-      '0:45',
+      '未接通',
     );
     expect(
       asCallSessionRecordText(

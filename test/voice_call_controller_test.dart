@@ -543,7 +543,7 @@ void main() {
   });
 
   test('AS call reporter records rejected calls without duration', () async {
-    final asClient = _RecordingAsClient();
+    final asClient = _RecordingAsClient()..returnSparseCallEvent = true;
     final store = _MemoryAsCallSessionStore();
     final reporter = AsCallStateReporter(asClient, store: store);
 
@@ -1080,6 +1080,7 @@ class _RecordingAsClient extends MockAsClient {
   final _calls = <String, AsCallSession>{};
   int _nextCall = 1;
   bool failNextEvent = false;
+  bool returnSparseCallEvent = false;
 
   @override
   Future<AsCallSession> createCall({
@@ -1122,6 +1123,19 @@ class _RecordingAsClient extends MockAsClient {
       'duration_ms': durationMs,
     });
     final current = _calls[callId]!;
+    if (returnSparseCallEvent) {
+      final sparse = AsCallSession(
+        callId: current.callId,
+        roomId: current.roomId,
+        roomType: current.roomType,
+        mediaType: current.mediaType,
+        createdByMxid: current.createdByMxid,
+        state: event,
+        createdAt: current.createdAt,
+      );
+      _calls[callId] = sparse;
+      return sparse;
+    }
     final next = current.copyWith(
       state: event,
       endReason: reason,

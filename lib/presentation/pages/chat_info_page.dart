@@ -114,6 +114,8 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                         : () => _showRemarkDialog(
                               context,
                               userId: peerId,
+                              roomId: widget.roomId,
+                              domain: acceptedContact?.domain ?? '',
                               currentName: name,
                             ),
                   ),
@@ -169,6 +171,8 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
   Future<void> _showRemarkDialog(
     BuildContext context, {
     required String userId,
+    required String roomId,
+    required String domain,
     required String currentName,
   }) async {
     final next = await showDialog<String>(
@@ -180,10 +184,29 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
       _toast(context, '备注不能为空');
       return;
     }
+    final cleanRoomId = roomId.trim();
+    if (cleanRoomId.isEmpty) {
+      _toast(context, '缺少联系人房间信息，无法保存备注');
+      return;
+    }
+    ContactEntry updated;
+    try {
+      updated = await ref.read(asClientProvider).updateContact(
+            roomId: cleanRoomId,
+            displayName: next,
+            domain: domain,
+          );
+    } catch (error) {
+      if (!context.mounted) return;
+      _toast(context, '备注更新失败: $error');
+      return;
+    }
+    if (!context.mounted) return;
     ref.read(asSyncCacheProvider.notifier).update(
           (state) => state.withContactDisplayName(
             userId: userId,
-            displayName: next,
+            displayName:
+                updated.displayName.trim().isEmpty ? next : updated.displayName,
           ),
         );
     final bootstrap = ref.read(asSyncCacheProvider).bootstrap;

@@ -16,6 +16,7 @@ const asCallMediaTypeVideo = 'video';
 const asCallStateRinging = 'ringing';
 const asCallStateConnected = 'connected';
 const asCallStateEnded = 'ended';
+const asCallStateRejected = 'rejected';
 const asCallStateMissed = 'missed';
 const asCallStateFailed = 'failed';
 const asChannelVisibilityPublic = 'public';
@@ -396,6 +397,7 @@ class ContactEntry {
     required this.domain,
     required this.roomId,
     required this.status,
+    this.avatarUrl = '',
     this.remark = '',
     this.visibleAfterTs = 0,
     this.deletedEventIds = const [],
@@ -408,6 +410,7 @@ class ContactEntry {
   final String domain;
   final String roomId;
   final String status;
+  final String avatarUrl;
   final String remark;
   final int visibleAfterTs;
   final List<String> deletedEventIds;
@@ -420,6 +423,7 @@ class ContactEntry {
         domain: j['domain'] as String? ?? '',
         roomId: j['room_id'] as String? ?? '',
         status: j['status'] as String? ?? '',
+        avatarUrl: j['avatar_url'] as String? ?? '',
         remark: _firstString(j, const [
           'remark',
           'request_message',
@@ -2192,6 +2196,7 @@ abstract class AsClient {
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
     String remark = '',
   });
@@ -2201,6 +2206,7 @@ abstract class AsClient {
     required String roomId,
     required String peerMxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
   });
 
@@ -2219,6 +2225,7 @@ abstract class AsClient {
   Future<ContactEntry> updateContact({
     required String roomId,
     required String displayName,
+    String avatarUrl = '',
     String domain = '',
   });
 

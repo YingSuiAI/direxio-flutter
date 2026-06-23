@@ -138,6 +138,7 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
       final contact = await ref.read(asClientProvider).createContactRequest(
             mxid: home.userId,
             displayName: home.displayName,
+            avatarUrl: home.avatarUrl ?? '',
             domain: home.domain,
           );
       final restored = contact.status.trim() == 'accepted';

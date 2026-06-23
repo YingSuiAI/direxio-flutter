@@ -1025,7 +1025,7 @@ void main() {
             '{"access_token":"fresh-matrix-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
-            '"agent_room_id":"!agent:example.com"}',
+            '"agent_room_id":"!agent-room:example.com"}',
             200,
           );
         }
@@ -1080,7 +1080,7 @@ void main() {
     expect(auth?.requiresProfileSetup, isFalse);
     expect(
       container.read(asSyncCacheProvider).bootstrap?.agentRoomId,
-      '!agent:example.com',
+      '!agent-room:example.com',
     );
     expect(client.accessToken, 'fresh-matrix-token');
     expect(authHeaders['profile.get'], 'Bearer fresh-matrix-token');

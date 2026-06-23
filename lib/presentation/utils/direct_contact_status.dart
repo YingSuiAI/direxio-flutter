@@ -21,11 +21,16 @@ String? portalAgentMxidForClient(Client client) {
       : WellKnownService.agentMxidForDomain(serverName);
 }
 
-String? fallbackPortalAgentRoomIdForClient(Client client) {
+String? legacyPortalAgentRoomIdForClient(Client client) {
   final serverName =
       serverNameFromMxid(client.userID) ?? client.homeserver?.host.trim();
   if (serverName == null || serverName.isEmpty) return null;
   return '!agent:$serverName';
+}
+
+bool isLegacyPortalAgentRoomIdForClient(Client client, String roomId) {
+  final legacyRoomId = legacyPortalAgentRoomIdForClient(client);
+  return legacyRoomId != null && roomId.trim() == legacyRoomId;
 }
 
 bool isPortalAgentDirectRoom(Room room, {String? agentMxid}) {
@@ -86,6 +91,18 @@ String? productDirectPeerDomain(Room room) {
   if (peerMxid == null || profile == null) return null;
   if (_profileString(profile, 'requester_mxid') != peerMxid) return null;
   return _profileString(profile, 'domain');
+}
+
+String? productDirectPeerRequestRemark(Room room) {
+  final peerMxid = productDirectPeerMxid(room);
+  final profile = _nativeDirectProfile(room);
+  if (peerMxid == null || profile == null) return null;
+  if (_profileString(profile, 'requester_mxid') != peerMxid) return null;
+  for (final key in const ['remark', 'request_message', 'message', 'reason']) {
+    final value = _profileString(profile, key);
+    if (value != null) return value;
+  }
+  return null;
 }
 
 Membership? directChatPeerMembership(Room room) {

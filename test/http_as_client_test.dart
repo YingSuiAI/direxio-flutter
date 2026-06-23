@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/http_as_client.dart';
 import 'package:portal_app/data/local_endpoint_resolver.dart';
@@ -54,7 +56,7 @@ void main() {
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.method, 'GET');
+        expect(request.method, 'POST');
         expect(request.url.path, '/_p2p/command');
         expect(jsonDecode(request.body), {
           'action': 'portal.password',
@@ -171,6 +173,7 @@ void main() {
           'params': {
             'room_id': '!alice:p2p-im.com',
             'display_name': 'Alice Remark',
+            'avatar_url': 'mxc://p2p-im.com/alice',
             'domain': 'p2p-im.com',
           },
         });
@@ -178,6 +181,7 @@ void main() {
           jsonEncode({
             'peer_mxid': '@alice:p2p-im.com',
             'display_name': 'Alice Remark',
+            'avatar_url': 'mxc://p2p-im.com/alice',
             'domain': 'p2p-im.com',
             'room_id': '!alice:p2p-im.com',
             'status': 'accepted',
@@ -190,10 +194,12 @@ void main() {
     final contact = await client.updateContact(
       roomId: '!alice:p2p-im.com',
       displayName: '  Alice Remark  ',
+      avatarUrl: '  mxc://p2p-im.com/alice  ',
       domain: 'p2p-im.com',
     );
 
     expect(contact.displayName, 'Alice Remark');
+    expect(contact.avatarUrl, 'mxc://p2p-im.com/alice');
     expect(contact.status, 'accepted');
   });
 
@@ -389,7 +395,7 @@ void main() {
       },
       httpClient: MockClient((request) async {
         expect(request.headers['Authorization'], 'Bearer bad-token');
-        return _jsonResponse({'error': 'invalid token'}, 401);
+        return _jsonResponse({'error': 'permission denied'}, 401);
       }),
     );
 
@@ -398,7 +404,7 @@ void main() {
       throwsA(
         isA<AsClientException>()
             .having((error) => error.statusCode, 'statusCode', 401)
-            .having((error) => error.message, 'message', 'invalid token'),
+            .having((error) => error.message, 'message', 'permission denied'),
       ),
     );
     expect(expired, isFalse);
@@ -570,6 +576,7 @@ void main() {
         expect(jsonDecode(request.body), {
           'mxid': '@alice:p2p-liyanan.com',
           'display_name': 'Alice',
+          'avatar_url': 'mxc://p2p-liyanan.com/alice',
           'domain': 'p2p-liyanan.com',
           'remark': '我是 Bob',
         });
@@ -577,6 +584,7 @@ void main() {
           utf8.encode(jsonEncode({
             'peer_mxid': '@alice:p2p-liyanan.com',
             'display_name': 'Alice',
+            'avatar_url': 'mxc://p2p-liyanan.com/alice',
             'domain': 'p2p-liyanan.com',
             'room_id': '!alice:p2p-im.com',
             'status': 'pending_outbound',
@@ -591,6 +599,7 @@ void main() {
     final contact = await client.createContactRequest(
       mxid: '@alice:p2p-liyanan.com',
       displayName: 'Alice',
+      avatarUrl: 'mxc://p2p-liyanan.com/alice',
       domain: 'p2p-liyanan.com',
       remark: '我是 Bob',
     );
@@ -599,6 +608,7 @@ void main() {
     expect(contact.roomId, '!alice:p2p-im.com');
     expect(contact.status, 'pending_outbound');
     expect(contact.remark, '我是 Bob');
+    expect(contact.avatarUrl, 'mxc://p2p-liyanan.com/alice');
   });
 
   test('acceptContactRequest posts decision identity to AS', () async {
@@ -617,12 +627,14 @@ void main() {
         expect(jsonDecode(request.body), {
           'peer_mxid': '@alice:p2p-liyanan.com',
           'display_name': 'Alice',
+          'avatar_url': 'mxc://p2p-liyanan.com/alice',
           'domain': 'p2p-liyanan.com',
         });
         return http.Response(
           jsonEncode({
             'peer_mxid': '@alice:p2p-liyanan.com',
             'display_name': 'Alice',
+            'avatar_url': 'mxc://p2p-liyanan.com/alice',
             'domain': 'p2p-liyanan.com',
             'room_id': '!alice:p2p-im.com',
             'status': 'accepted',
@@ -636,11 +648,13 @@ void main() {
       roomId: '!alice:p2p-im.com',
       peerMxid: '@alice:p2p-liyanan.com',
       displayName: 'Alice',
+      avatarUrl: 'mxc://p2p-liyanan.com/alice',
       domain: 'p2p-liyanan.com',
     );
 
     expect(seen.url.path, '/_as/contacts/requests/!alice%3Ap2p-im.com/accept');
     expect(contact.roomId, '!alice:p2p-im.com');
+    expect(contact.avatarUrl, 'mxc://p2p-liyanan.com/alice');
     expect(contact.status, 'accepted');
   });
 
@@ -785,7 +799,7 @@ void main() {
       baseUri: Uri.parse('https://p2p-im.com/_as'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
+        expect(request.method, 'GET');
         expect(request.url.path, '/_as/calls/call_abc');
         return http.Response(
           jsonEncode({
@@ -815,7 +829,7 @@ void main() {
       baseUri: Uri.parse('https://p2p-im.com/_as'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
+        expect(request.method, 'GET');
         expect(request.url.path, '/_as/calls/active');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return http.Response(
@@ -2098,6 +2112,23 @@ void main() {
     expect(expired, isFalse);
     expect(events.single.seq, 43);
     expect(events.single.payload['reason'], 'call');
+  });
+
+  test('streamEvents bypasses Matrix response stream timeout wrapper',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: FixedTimeoutHttpClient(
+        _DelayedSseClient(const Duration(milliseconds: 20)),
+        const Duration(milliseconds: 1),
+      ),
+    );
+
+    final events = await client.streamEvents().toList();
+
+    expect(events.single.seq, 44);
+    expect(events.single.type, 'sync.bootstrap.changed');
   });
 
   test('changePortalPassword posts password payload to AS admin API', () async {
@@ -3529,7 +3560,7 @@ void main() {
             'access_token': 'matrix-access-token',
             'user_id': '@owner:example.com',
             'homeserver': 'https://example.com',
-            'agent_room_id': '!agent:example.com',
+            'agent_room_id': '!agent-room:example.com',
             'initialized': true,
             'password_initialized': false,
             'profile_initialized': false,
@@ -3543,7 +3574,7 @@ void main() {
     expect(session.userId, '@owner:example.com');
     expect(session.homeserver, 'https://example.com');
     expect(session.deviceId, isNull);
-    expect(session.agentRoomId, '!agent:example.com');
+    expect(session.agentRoomId, '!agent-room:example.com');
     expect(session.initialized, isTrue);
     expect(session.passwordInitialized, isFalse);
     expect(session.profileInitialized, isFalse);
@@ -3581,4 +3612,32 @@ void main() {
     expect(session.passwordInitialized, isFalse);
     expect(session.profileInitialized, isFalse);
   });
+}
+
+class _DelayedSseClient extends http.BaseClient {
+  _DelayedSseClient(this.delay);
+
+  final Duration delay;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    return http.StreamedResponse(
+      http.ByteStream(_delayedSse()),
+      200,
+      headers: {'content-type': 'text/event-stream; charset=utf-8'},
+      request: request,
+    );
+  }
+
+  Stream<List<int>> _delayedSse() async* {
+    await Future<void>.delayed(delay);
+    yield utf8.encode(
+      [
+        'id: 44',
+        'event: sync.bootstrap.changed',
+        'data: {"seq":44,"type":"sync.bootstrap.changed","payload":{"reason":"keepalive"},"created_at":"2026-06-20T00:00:00Z"}',
+        '',
+      ].join('\n'),
+    );
+  }
 }

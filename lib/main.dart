@@ -20,7 +20,6 @@ import 'presentation/providers/bi_analytics_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
 import 'presentation/providers/push_notification_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
-import 'presentation/widgets/user_action_debounce.dart';
 
 bool _sessionExpiredDialogShowing = false;
 
@@ -136,10 +135,8 @@ class PortalApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       builder: (context, child) {
-        return UserActionDebounce(
-          child: _StartupSplashOverlay(
-            child: AppGlassBackground(child: child ?? const SizedBox.shrink()),
-          ),
+        return _StartupSplashOverlay(
+          child: AppGlassBackground(child: child ?? const SizedBox.shrink()),
         );
       },
     );

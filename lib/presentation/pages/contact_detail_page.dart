@@ -138,10 +138,18 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     );
     final avatarUrl = isSelf
         ? profileAvatarHttpUrl(currentUserProfile, client)
-        : (room == null
+        : _firstNonEmpty([
+            room == null
                 ? null
-                : matrixContentHttpUrl(client, peerMember?.avatarUrl)) ??
-            avatarHttpUrl(client, acceptedContact?.avatarUrl);
+                : matrixContentHttpUrl(client, peerMember?.avatarUrl),
+            avatarHttpUrl(client, acceptedContact?.avatarUrl),
+          ]);
+    final identityAvatarUrl = isSelf
+        ? currentUserProfile?.avatarUrl?.toString()
+        : _firstNonEmpty([
+            peerMember?.avatarUrl?.toString(),
+            acceptedContact?.avatarUrl,
+          ]);
     final roomId = room?.id;
     final preferenceKey = roomId ?? userId;
     final mutedConversationIds = ref.watch(mutedConversationIdsProvider);
@@ -192,6 +200,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                   context,
                   userId: userId,
                   displayName: displayName,
+                  avatarUrl: identityAvatarUrl,
                   domain: acceptedContact?.domain ?? domain,
                 ),
       );
@@ -278,6 +287,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                           roomId: acceptedContact?.roomId ?? roomId ?? '',
                           domain: acceptedContact?.domain ?? domain,
                           currentName: displayName,
+                          avatarUrl: identityAvatarUrl,
                         ),
                       ),
                     ],
@@ -432,6 +442,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     BuildContext context, {
     required String userId,
     required String displayName,
+    String? avatarUrl,
     required String domain,
   }) async {
     if (_friendActionBusy) return;
@@ -440,6 +451,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       final contact = await ref.read(asClientProvider).createContactRequest(
             mxid: userId,
             displayName: displayName,
+            avatarUrl: avatarUrl ?? '',
             domain: domain,
           );
       ref.read(asSyncCacheProvider.notifier).update(
@@ -623,6 +635,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     required String roomId,
     required String domain,
     required String currentName,
+    String? avatarUrl,
   }) async {
     final next = await showDialog<String>(
       context: context,
@@ -644,6 +657,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       updated = await ref.read(asClientProvider).updateContact(
             roomId: cleanRoomId,
             displayName: next,
+            avatarUrl: avatarUrl ?? '',
             domain: domain,
           );
     } catch (error) {

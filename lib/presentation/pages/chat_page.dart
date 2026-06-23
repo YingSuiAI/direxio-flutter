@@ -53,6 +53,7 @@ import '../chat/red_packet_message.dart';
 import '../groups/group_invite_card.dart';
 import '../groups/group_invite_content.dart';
 import '../groups/group_invite_join_flow.dart';
+import '../utils/agent_identity.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/conversation_capability_policy.dart';
 import '../utils/direct_contact_status.dart';
@@ -364,16 +365,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final syncCache = ref.read(asSyncCacheProvider);
     final bootstrap = syncCache.bootstrap;
     final targetRoomId = widget.roomId.trim();
-    final fallbackAgentRoomId =
-        fallbackPortalAgentRoomIdForClient(client) ?? '';
     final agentMxid = portalAgentMxidForClient(client);
     final productConversations =
         ref.read(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
     final targetProducts = productConversations
-        .where((conversation) =>
-            conversation.roomId.trim() == targetRoomId ||
-            (conversation.isAgent && targetRoomId == fallbackAgentRoomId))
+        .where((conversation) => conversation.roomId.trim() == targetRoomId)
         .map((conversation) =>
             '${conversation.conversationId}:${conversation.kind}:${conversation.roomId}:life=${conversation.lifecycle}:proj=${conversation.projectionState}:hydr=${conversation.hydrationState}:${conversation.title}')
         .join('|');
@@ -384,7 +381,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     debugPrint(
       '[chat-missing-room] phase=$phase targetRoomId=$targetRoomId '
       'error=${error ?? ""} userId=${client.userID} homeserver=${client.homeserver} '
-      'agentMxid=$agentMxid fallbackAgentRoomId=$fallbackAgentRoomId '
+      'agentMxid=$agentMxid '
       'bootstrapAgentRoomId=${bootstrap?.agentRoomId ?? ""} '
       'knownConversation=${_isKnownConversationRoom(syncCache)} '
       'recoveryInFlight=${_missingRoomRecovery.inFlight} '
@@ -688,13 +685,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (roomId.isEmpty) return false;
     if (syncCache.contactForRoom(roomId) != null) return true;
     final bootstrap = syncCache.bootstrap;
-    final fallbackAgentRoomId = fallbackPortalAgentRoomIdForClient(
-          ref.read(matrixClientProvider),
-        ) ??
-        '';
-    if (fallbackAgentRoomId.isNotEmpty && fallbackAgentRoomId == roomId) {
-      return true;
-    }
     if (bootstrap == null) return false;
     if (bootstrap.agentRoomId.trim() == roomId) return true;
     bool hasRoom(List<AsSyncRoomSummary> rooms) {
@@ -1493,7 +1483,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         joinedPersonPeerMxid(room) ??
         contact?.userId ??
         '';
-    if (isPortalAgentDirectRoom(room)) return 'Agent';
+    if (isPortalAgentDirectRoom(room)) return agentDisplayNameForRoom(room);
     return directContactDisplayName(contact, room, peerMxid: mxid);
   }
 
@@ -2643,7 +2633,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final canStartCall = capabilityPolicy.canCall;
     final isWaitingForAccept = isProductDirect && !isAgent && !canSendMessages;
     final name = isAgent
-        ? 'Agent'
+        ? agentDisplayNameForRoom(room)
         : directContactDisplayName(contact, room, peerMxid: mxid);
     final peerMember = mxid.trim().isEmpty
         ? null

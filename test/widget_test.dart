@@ -776,12 +776,14 @@ class _EmptyAsClient implements AsClient {
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
     String remark = '',
   }) async =>
       ContactEntry(
         peerMxid: mxid,
         displayName: displayName,
+        avatarUrl: avatarUrl,
         domain: domain,
         roomId: '!contact:example.com',
         status: 'pending_outbound',
@@ -793,11 +795,13 @@ class _EmptyAsClient implements AsClient {
     required String roomId,
     required String peerMxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
   }) async =>
       ContactEntry(
         peerMxid: peerMxid,
         displayName: displayName,
+        avatarUrl: avatarUrl,
         domain: domain,
         roomId: roomId,
         status: 'accepted',
@@ -831,11 +835,13 @@ class _EmptyAsClient implements AsClient {
   Future<ContactEntry> updateContact({
     required String roomId,
     required String displayName,
+    String avatarUrl = '',
     String domain = '',
   }) async =>
       ContactEntry(
         peerMxid: '@contact:example.com',
         displayName: displayName.trim(),
+        avatarUrl: avatarUrl.trim(),
         domain: domain.trim(),
         roomId: roomId,
         status: 'accepted',
@@ -1126,6 +1132,7 @@ class _StatefulPendingContactAsClient extends _EmptyAsClient {
     required String roomId,
     required String peerMxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
   }) async {
     _accepted = true;
@@ -1133,6 +1140,7 @@ class _StatefulPendingContactAsClient extends _EmptyAsClient {
       roomId: roomId,
       peerMxid: peerMxid,
       displayName: displayName,
+      avatarUrl: avatarUrl,
       domain: domain,
     );
   }
@@ -1637,6 +1645,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   Object? createContactRequestError;
   String? createdContactMxid;
   String? createdContactDisplayName;
+  String? createdContactAvatarUrl;
   String? createdContactDomain;
   String? createdContactRemark;
   AsConversation? createdContactProductConversation;
@@ -1645,6 +1654,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   int updateContactCalls = 0;
   String? updatedContactRoomId;
   String? updatedContactDisplayName;
+  String? updatedContactAvatarUrl;
   String? updatedContactDomain;
   int createGroupCalls = 0;
   String? createdGroupName;
@@ -1690,12 +1700,14 @@ class _TrackingAsClient extends _EmptyAsClient {
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
     String remark = '',
   }) async {
     createContactRequestCalls++;
     createdContactMxid = mxid;
     createdContactDisplayName = displayName;
+    createdContactAvatarUrl = avatarUrl;
     createdContactDomain = domain;
     createdContactRemark = remark;
     final error = createContactRequestError;
@@ -1703,6 +1715,7 @@ class _TrackingAsClient extends _EmptyAsClient {
     return ContactEntry(
       peerMxid: mxid,
       displayName: displayName,
+      avatarUrl: avatarUrl,
       domain: domain,
       roomId: '!new-request:example.com',
       status: 'pending_outbound',
@@ -1754,15 +1767,18 @@ class _TrackingAsClient extends _EmptyAsClient {
   Future<ContactEntry> updateContact({
     required String roomId,
     required String displayName,
+    String avatarUrl = '',
     String domain = '',
   }) async {
     updateContactCalls++;
     updatedContactRoomId = roomId;
     updatedContactDisplayName = displayName;
+    updatedContactAvatarUrl = avatarUrl;
     updatedContactDomain = domain;
     return ContactEntry(
       peerMxid: '@alice:portal.local',
       displayName: displayName.trim(),
+      avatarUrl: avatarUrl.trim(),
       domain: domain.trim(),
       roomId: roomId,
       status: 'accepted',
@@ -2000,12 +2016,14 @@ class _PendingInboundAddContactAsClient extends _EmptyAsClient {
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
     String remark = '',
   }) async {
     return ContactEntry(
       peerMxid: mxid,
       displayName: displayName,
+      avatarUrl: avatarUrl,
       domain: domain,
       roomId: '!incoming:portal.local',
       status: 'pending_inbound',
@@ -2205,6 +2223,7 @@ Room _addTestRoom(
   required String roomId,
   required Membership roomMembership,
   String? directPeerMxid,
+  String? directPeerName,
   Membership directPeerMembership = Membership.join,
 }) {
   final room = Room(
@@ -2235,7 +2254,11 @@ Room _addTestRoom(
         type: EventTypes.RoomMember,
         senderId: directPeerMxid,
         stateKey: directPeerMxid,
-        content: {'membership': directPeerMembership.name},
+        content: {
+          'membership': directPeerMembership.name,
+          if (directPeerName?.trim().isNotEmpty == true)
+            'displayname': directPeerName!.trim(),
+        },
       ),
     );
   }
@@ -2934,7 +2957,7 @@ void main() {
   test('markRoomLocallyRead clears Matrix unread counters immediately', () {
     final client = Client('DirexioTest');
     final room = Room(
-      id: '!agent:example.com',
+      id: '!room:example.com',
       client: client,
       notificationCount: 3,
       highlightCount: 1,
@@ -4940,7 +4963,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('agent route !agent-new:p2p-im.com;conversation conv_agent'),
+      find.text(
+        'agent route !agent-new:p2p-im.com;'
+        'conversation bootstrap:!agent-new:p2p-im.com',
+      ),
       findsOneWidget,
     );
   });
@@ -4963,7 +4989,7 @@ void main() {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 22, 10),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
-      agentRoomId: '!agent:p2p-im.com',
+      agentRoomId: '!agent-room:p2p-im.com',
       rooms: const [],
       contacts: const [],
       groups: const [],
@@ -5017,7 +5043,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Agent 会话还未同步'), findsNothing);
-    expect(find.text('agent route !agent:p2p-im.com'), findsOneWidget);
+    expect(find.text('agent route !agent-room:p2p-im.com'), findsOneWidget);
   });
 
   testWidgets('contacts Agent tap prefers cached login agent room id',
@@ -5174,8 +5200,7 @@ void main() {
     expect(find.text('agent route !agent-old:p2p-im.com'), findsOneWidget);
   });
 
-  testWidgets(
-      'contacts Agent tap opens default route when no Agent room exists',
+  testWidgets('contacts Agent tap warns when no Agent room exists',
       (tester) async {
     var createRoomCalls = 0;
     final client = Client(
@@ -5251,8 +5276,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(createRoomCalls, 0);
-    expect(find.text('Agent 会话还未同步'), findsNothing);
-    expect(find.text('agent route !agent:p2p-im.com'), findsOneWidget);
+    expect(find.text('Agent 会话还未同步'), findsOneWidget);
+    expect(find.text('agent route !agent:p2p-im.com'), findsNothing);
   });
 
   testWidgets('contacts list keeps each friend avatar separate',
@@ -7584,6 +7609,75 @@ void main() {
     );
   });
 
+  testWidgets('chat tab badge shows Matrix unread message count',
+      (tester) async {
+    const roomId = '!direct-unread:p2p-im.com';
+    final client = Client('DirexioHomeChatTabUnreadBadgeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: '@alice:p2p-im.com',
+      peerName: 'Alice',
+    );
+    room.notificationCount = 3;
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 17),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: 'Alice',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider
+              .overrideWithValue(_StaticBootstrapAsClient(bootstrap)),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final chatTabBadge = find.byKey(const ValueKey('bottom_nav_badge_消息'));
+    expect(chatTabBadge, findsOneWidget);
+    expect(
+      find.descendant(of: chatTabBadge, matching: find.text('3')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('chat list group avatar includes members without avatar images',
       (tester) async {
     const roomId = '!group-avatar-members:p2p-im.com';
@@ -8131,6 +8225,8 @@ void main() {
 
     expect(find.text('等待对方接受'), findsWidgets);
     expect(find.text('owner'), findsOneWidget);
+    expect(find.text('申请添加对方为朋友'), findsOneWidget);
+    expect(find.text('请求添加你为朋友'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
     expect(
       find.byWidgetPredicate(
@@ -8190,6 +8286,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('请求添加你为朋友'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) =>
@@ -8199,6 +8296,117 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('new friends Matrix direct invite shows request remark in sheet',
+      (tester) async {
+    final client = Client('DirexioRequestsMatrixInviteRemarkTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!direct-invite:p2p-im.com',
+      client: client,
+      membership: Membership.invite,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: 'io.direxio.room.profile',
+        senderId: '@c:p2p-c.com',
+        stateKey: '',
+        content: {
+          'room_type': 'io.direxio.room.direct',
+          'requester_mxid': '@c:p2p-c.com',
+          'target_mxid': '@owner:p2p-im.com',
+          'display_name': 'C',
+          'domain': 'p2p-c.com',
+          'remark': '我是 C，请通过好友申请',
+        },
+      ),
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@c:p2p-c.com',
+        stateKey: '@owner:p2p-im.com',
+        content: {'membership': Membership.invite.name},
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('C'), findsWidgets);
+    expect(find.text('我是 C，请通过好友申请'), findsOneWidget);
+
+    await tester.tap(find.text('查看'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('我是 C，请通过好友申请'), findsWidgets);
+  });
+
+  testWidgets('new friends page uses directional copy for room notices',
+      (tester) async {
+    final client = Client('DirexioRequestsRoomNoticeCopyTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 14),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending(
+        friendRequests: [],
+        groupInvites: [
+          AsSyncPendingItem(
+            id: '!group-invite:p2p-im.com',
+            title: '项目群',
+            createdAt: null,
+          ),
+        ],
+        channelNotices: [
+          AsSyncPendingItem(
+            id: '!channel-invite:p2p-im.com',
+            title: '产品频道',
+            createdAt: null,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('项目群'), findsOneWidget);
+    expect(find.text('邀请你加入群聊'), findsOneWidget);
+    expect(find.text('产品频道'), findsOneWidget);
+    expect(find.text('邀请你加入频道'), findsOneWidget);
   });
 
   testWidgets('new friends search matches add friend Figma list style',
@@ -8295,6 +8503,7 @@ void main() {
     expect(find.text('已拒绝'), findsAtLeastNWidgets(1));
     expect(find.text('对方已拒绝'), findsOneWidget);
     expect(find.text('owner'), findsOneWidget);
+    expect(find.text('申请添加对方为朋友'), findsOneWidget);
     expect(find.text('等待接受'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
   });
@@ -9177,6 +9386,64 @@ void main() {
     expect(avatar.imageUrl, 'https://cdn.example.com/alice.png');
   });
 
+  testWidgets('add contact detail forwards avatar url to verification route',
+      (tester) async {
+    final asClient = _TrackingAsClient();
+    final router = GoRouter(
+      initialLocation:
+          '/add-contact/detail/%40alice%3Aportal.local?name=Alice&avatar=mxc%3A%2F%2Fportal.local%2Falice',
+      routes: [
+        GoRoute(
+          path: '/add-contact/detail/:userId',
+          builder: (_, state) => AddContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+            avatarUrl: state.uri.queryParameters['avatar'],
+          ),
+        ),
+        GoRoute(
+          path: '/add-contact/verify/:userId',
+          builder: (_, state) => AddContactVerificationPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+            avatarUrl: state.uri.queryParameters['avatar'],
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('添加好友'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('发送申请'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(asClient.createdContactMxid, '@alice:portal.local');
+    expect(asClient.createdContactAvatarUrl, 'mxc://portal.local/alice');
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('add contact detail does not hydrate mock profile',
       (tester) async {
     await tester.pumpWidget(
@@ -9279,6 +9546,7 @@ void main() {
             '/verify': (_) => const AddContactVerificationPage(
                   userId: '@alice:portal.local',
                   displayName: 'Alice Chen',
+                  avatarUrl: 'mxc://portal.local/alice',
                 ),
           },
         ),
@@ -9301,6 +9569,7 @@ void main() {
 
     expect(asClient.createContactRequestCalls, 1);
     expect(asClient.createdContactMxid, '@alice:portal.local');
+    expect(asClient.createdContactAvatarUrl, 'mxc://portal.local/alice');
     expect(asClient.createdContactRemark, '我是 Niki');
     expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
     await tester.pumpAndSettle();
@@ -15467,7 +15736,7 @@ void main() {
         AsSyncContact(
           userId: '@alice:portal.local',
           displayName: 'Alice',
-          avatarUrl: '',
+          avatarUrl: 'mxc://portal.local/alice',
           roomId: '!alice:p2p-im.com',
           domain: 'portal.local',
           status: 'accepted',
@@ -15511,6 +15780,7 @@ void main() {
     expect(asClient.updateContactCalls, 1);
     expect(asClient.updatedContactRoomId, '!alice:p2p-im.com');
     expect(asClient.updatedContactDisplayName, 'Alice 备注');
+    expect(asClient.updatedContactAvatarUrl, 'mxc://portal.local/alice');
     expect(asClient.updatedContactDomain, 'portal.local');
   });
 
@@ -17309,14 +17579,15 @@ void main() {
 
   testWidgets('agent chat back falls home when chat is the root route',
       (tester) async {
-    const roomId = '!agent:p2p-im.com';
+    const roomId = '!agent-room:p2p-im.com';
     final client = Client('DirexioTest')..setUserId('@owner:p2p-im.com');
-    _addTestRoom(
+    final room = _addTestRoom(
       client,
       roomId: roomId,
       roomMembership: Membership.join,
       directPeerMxid: '@agent:p2p-im.com',
     );
+    room.summary.mHeroes = ['@agent:p2p-im.com'];
     final router = GoRouter(
       initialLocation: '/chat/${Uri.encodeComponent(roomId)}',
       routes: [
@@ -17358,12 +17629,14 @@ void main() {
 
   testWidgets('agent chat header uses AS connection status', (tester) async {
     final client = Client('DirexioTest')..setUserId('@owner:p2p-im.com');
-    _addTestRoom(
+    final room = _addTestRoom(
       client,
-      roomId: '!agent:p2p-im.com',
+      roomId: '!agent-room:p2p-im.com',
       roomMembership: Membership.join,
       directPeerMxid: '@agent:p2p-im.com',
+      directPeerName: 'Direxio AI',
     );
+    room.summary.mHeroes = ['@agent:p2p-im.com'];
 
     await tester.pumpWidget(
       ProviderScope(
@@ -17375,13 +17648,14 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const ChatPage(roomId: '!agent:p2p-im.com'),
+          home: const ChatPage(roomId: '!agent-room:p2p-im.com'),
         ),
       ),
     );
     await tester.pump();
 
-    expect(find.text('Agent'), findsOneWidget);
+    expect(find.text('Direxio AI'), findsOneWidget);
+    expect(find.text('Agent'), findsNothing);
     expect(find.text('离线'), findsOneWidget);
     expect(find.text('在线'), findsNothing);
   });

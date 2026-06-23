@@ -218,8 +218,9 @@ class HttpAsClient implements AsClient {
       }
 
       final stopwatch = Stopwatch()..start();
+      final httpClient = _streamingHttpClient(_http);
       try {
-        streamed = await _http.send(request).timeout(_timeout);
+        streamed = await httpClient.send(request).timeout(_timeout);
       } catch (error, stackTrace) {
         stopwatch.stop();
         ApiLogger.failure(
@@ -412,12 +413,14 @@ class HttpAsClient implements AsClient {
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
     String remark = '',
   }) async {
     final requestBody = {
       'mxid': mxid.trim(),
       if (displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
+      if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
       if (domain.trim().isNotEmpty) 'domain': domain.trim(),
       if (remark.trim().isNotEmpty) 'remark': remark.trim(),
     };
@@ -456,12 +459,14 @@ class HttpAsClient implements AsClient {
     required String roomId,
     required String peerMxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
   }) {
     return _contactDecision(
       roomId: roomId,
       peerMxid: peerMxid,
       displayName: displayName,
+      avatarUrl: avatarUrl,
       domain: domain,
       action: 'accept',
     );
@@ -488,6 +493,7 @@ class HttpAsClient implements AsClient {
     required String peerMxid,
     required String action,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
   }) async {
     final body = await _requestJson(
@@ -496,6 +502,7 @@ class HttpAsClient implements AsClient {
       body: {
         'peer_mxid': peerMxid.trim(),
         if (displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
+        if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
         if (domain.trim().isNotEmpty) 'domain': domain.trim(),
       },
       allowedStatusCodes: const {200},
@@ -517,6 +524,7 @@ class HttpAsClient implements AsClient {
   Future<ContactEntry> updateContact({
     required String roomId,
     required String displayName,
+    String avatarUrl = '',
     String domain = '',
   }) async {
     final body = await _requestJson(
@@ -524,6 +532,7 @@ class HttpAsClient implements AsClient {
       'contacts/${Uri.encodeComponent(roomId)}',
       body: {
         'display_name': displayName.trim(),
+        if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
         if (domain.trim().isNotEmpty) 'domain': domain.trim(),
       },
       allowedStatusCodes: const {200},
@@ -2455,6 +2464,7 @@ Map<String, dynamic> _contactEntryLogJson(ContactEntry contact) {
   return {
     'peer_mxid': contact.peerMxid,
     'display_name': contact.displayName,
+    'avatar_url': contact.avatarUrl,
     'domain': contact.domain,
     'room_id': contact.roomId,
     'status': contact.status,
@@ -2559,4 +2569,9 @@ Stream<AsEventStreamEvent> _decodeSseEvents(Stream<String> lines) async* {
   }
   final trailing = buildEvent();
   if (trailing != null) yield trailing;
+}
+
+http.Client _streamingHttpClient(http.Client client) {
+  if (client is TimeoutHttpClient) return client.inner;
+  return client;
 }

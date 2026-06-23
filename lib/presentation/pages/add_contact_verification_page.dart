@@ -18,10 +18,12 @@ class AddContactVerificationPage extends ConsumerStatefulWidget {
     super.key,
     required this.userId,
     this.displayName,
+    this.avatarUrl,
   });
 
   final String userId;
   final String? displayName;
+  final String? avatarUrl;
 
   @override
   ConsumerState<AddContactVerificationPage> createState() =>
@@ -42,7 +44,11 @@ class _AddContactVerificationPageState
 
   Future<void> _sendRequest() async {
     if (_loading || _requested) return;
-    final profile = _profileForAddContact(widget.userId, widget.displayName);
+    final profile = _profileForAddContact(
+      widget.userId,
+      widget.displayName,
+      avatarUrl: widget.avatarUrl,
+    );
     setState(() => _loading = true);
     try {
       final isLoggedIn =
@@ -51,6 +57,7 @@ class _AddContactVerificationPageState
         final contact = await ref.read(asClientProvider).createContactRequest(
               mxid: widget.userId,
               displayName: profile.name,
+              avatarUrl: profile.avatarUrl ?? '',
               domain: profile.domain,
               remark: _messageController.text,
             );
@@ -364,13 +371,19 @@ class _AddContactProfile {
   const _AddContactProfile({
     required this.name,
     required this.domain,
+    this.avatarUrl,
   });
 
   final String name;
   final String domain;
+  final String? avatarUrl;
 }
 
-_AddContactProfile _profileForAddContact(String userId, String? displayName) {
+_AddContactProfile _profileForAddContact(
+  String userId,
+  String? displayName, {
+  String? avatarUrl,
+}) {
   final domain = domainFromMxid(userId);
   final name = contactDisplayNameFromIdentity(
     mxid: userId,
@@ -378,7 +391,11 @@ _AddContactProfile _profileForAddContact(String userId, String? displayName) {
     domain: domain,
     fallback: displayName ?? userId,
   );
-  return _AddContactProfile(name: name, domain: domain);
+  return _AddContactProfile(
+    name: name,
+    domain: domain,
+    avatarUrl: avatarUrl?.trim().isNotEmpty == true ? avatarUrl!.trim() : null,
+  );
 }
 
 String _requestSentText(BuildContext context) {

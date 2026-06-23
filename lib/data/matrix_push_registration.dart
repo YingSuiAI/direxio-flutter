@@ -9,7 +9,7 @@ const direxioMatrixPusherAppId = 'io.direxio.app.android';
 const direxioAndroidPackageName = 'com.direxio.ai';
 const direxioPushGatewayUrl = String.fromEnvironment(
   'DIREXIO_PUSH_GATEWAY_URL',
-  defaultValue: 'https://push.direxio.ai/_matrix/push/v1/notify',
+  defaultValue: '',
 );
 
 const _storedPushTokenKey = 'matrix_push.fcm_token';

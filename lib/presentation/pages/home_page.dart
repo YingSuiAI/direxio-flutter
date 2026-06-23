@@ -36,6 +36,7 @@ import '../call/voice_call_display_name.dart';
 import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/group_avatar_members.dart';
+import '../utils/agent_identity.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
@@ -44,6 +45,7 @@ import '../widgets/m3/m3_search_field.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../../data/matrix_sync_timeouts.dart';
 import 'me_home_tab.dart';
 
 const _homeBg = Color(0xFFFAFAFA);
@@ -350,7 +352,7 @@ class _HomePageState extends ConsumerState<HomePage>
 
   Future<void> _refreshAfterResume(Client client) async {
     try {
-      await client.oneShotSync().timeout(const Duration(seconds: 12));
+      await client.oneShotSync().timeout(matrixForegroundSyncTimeout);
       _scheduleAsBootstrapRefreshIfNeeded(refreshExisting: true);
     } catch (e) {
       debugPrint('Matrix resume sync failed: $e');
@@ -485,14 +487,12 @@ class _HomePageState extends ConsumerState<HomePage>
       _attachVoiceCallController(client);
     }
 
-    final unreadTotal = _tab == 0
-        ? _visibleHomeUnreadTotal(
-            ref: ref,
-            client: client,
-            syncCache: syncCache,
-            currentUserId: client.userID ?? authState.valueOrNull?.userId,
-          )
-        : 0;
+    final unreadTotal = _visibleHomeUnreadTotal(
+      ref: ref,
+      client: client,
+      syncCache: syncCache,
+      currentUserId: client.userID ?? authState.valueOrNull?.userId,
+    );
 
     return Scaffold(
       backgroundColor: _homeBgColor(context),
@@ -541,11 +541,12 @@ class _HomePageState extends ConsumerState<HomePage>
         onTap: (i) => setState(() => _tab = i),
         onSearchTap: () => context.push('/search'),
         items: [
-          const _HomeNavItem(
+          _HomeNavItem(
             iconAsset: _assetTabChatsNormal,
             activeIconAsset: _assetTabChatsSelected,
             inactiveIconAsset: _assetTabChatsNormal,
             labelIndex: 0,
+            badge: unreadTotal > 0 ? _formatBadgeCount(unreadTotal) : null,
           ),
           _HomeNavItem(
             iconAsset: _assetTabContactsNormal,
@@ -2143,6 +2144,18 @@ class _ContactList extends ConsumerWidget {
         if (b == '#') return -1;
         return a.compareTo(b);
       });
+    final agentContactRoomId = _resolvedAgentContactRoomId(
+      client,
+      syncCache,
+      isLoggedIn: isLoggedIn,
+    );
+    final agentContactRoom = agentContactRoomId.isEmpty
+        ? null
+        : client.getRoomById(agentContactRoomId);
+    final agentContactName = agentDisplayNameForRoom(
+      agentContactRoom,
+      client: client,
+    );
 
     return Stack(
       children: [
@@ -2181,6 +2194,7 @@ class _ContactList extends ConsumerWidget {
               emptyFallback: const SizedBox.shrink(),
               children: [
                 _AgentContactEntryTile(
+                  title: agentContactName,
                   onTap: () => unawaited(
                     _openAgentContactChat(
                       context,
@@ -2254,10 +2268,12 @@ Future<void> _openAgentContactChat(
     debugPrint('[agent-chat-open] resolved after refresh roomId=$roomId');
   }
   if (roomId.isEmpty) {
-    roomId = fallbackPortalAgentRoomIdForClient(client) ?? '';
-    debugPrint('[agent-chat-open] resolved fallback roomId=$roomId');
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Agent 会话还未同步')),
+    );
+    return;
   }
-  if (roomId.isEmpty) return;
   _debugAgentContactChatState(
     'open',
     ref: ref,
@@ -2325,7 +2341,6 @@ void _debugAgentContactChatState(
   String targetRoomId = '',
 }) {
   final bootstrap = syncCache.bootstrap;
-  final fallbackRoomId = fallbackPortalAgentRoomIdForClient(client) ?? '';
   final agentMxid = portalAgentMxidForClient(client);
   final productConversations =
       ref.read(productConversationsProvider).valueOrNull ??
@@ -2342,7 +2357,7 @@ void _debugAgentContactChatState(
   debugPrint(
     '[agent-chat-open] phase=$phase targetRoomId=$targetRoomId '
     'isLoggedIn=$isLoggedIn userId=${client.userID} homeserver=${client.homeserver} '
-    'agentMxid=$agentMxid fallbackRoomId=$fallbackRoomId '
+    'agentMxid=$agentMxid '
     'bootstrapAgentRoomId=${bootstrap?.agentRoomId ?? ""} '
     'bootstrapUser=${bootstrap?.user.userId ?? ""} '
     'productAgentConversations=[$agentProducts] matrixRooms=[$roomSummary]',
@@ -2356,7 +2371,10 @@ String _resolvedAgentContactRoomId(
 }) {
   if (!isLoggedIn) return '';
   final bootstrapRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
-  if (bootstrapRoomId.isNotEmpty) return bootstrapRoomId;
+  if (bootstrapRoomId.isNotEmpty &&
+      !isLegacyPortalAgentRoomIdForClient(client, bootstrapRoomId)) {
+    return bootstrapRoomId;
+  }
   final agentMxid = portalAgentMxidForClient(client);
   for (final room in client.rooms) {
     if (room.membership != Membership.join) continue;
@@ -2739,8 +2757,12 @@ class _ContactEntryTile extends StatelessWidget {
 }
 
 class _AgentContactEntryTile extends StatelessWidget {
-  const _AgentContactEntryTile({required this.onTap});
+  const _AgentContactEntryTile({
+    required this.title,
+    required this.onTap,
+  });
 
+  final String title;
   final VoidCallback onTap;
 
   @override
@@ -2759,7 +2781,7 @@ class _AgentContactEntryTile extends StatelessWidget {
           fill: 1,
         ),
       ),
-      title: 'Agent',
+      title: title,
     );
   }
 }

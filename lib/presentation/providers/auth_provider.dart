@@ -15,6 +15,7 @@ import '../../data/http_as_client.dart';
 import '../../data/local_endpoint_resolver.dart';
 import '../../data/matrix_privacy_sync.dart';
 import '../../data/matrix_push_registration.dart';
+import '../../data/matrix_sync_timeouts.dart';
 import '../../data/matrix_token_refreshing_http_client.dart';
 import '../../data/well_known_service.dart';
 import '../../data/bi_analytics_service.dart';
@@ -925,7 +926,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<void> _syncMatrixRoomsAfterLogin(Client client) async {
     try {
-      await client.oneShotSync().timeout(const Duration(seconds: 12));
+      await client.oneShotSync().timeout(matrixForegroundSyncTimeout);
     } catch (e) {
       debugPrint('post-login Matrix room sync failed: $e');
     }

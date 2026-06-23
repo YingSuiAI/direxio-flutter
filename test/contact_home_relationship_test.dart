@@ -112,12 +112,14 @@ class _RelationshipAsClient extends Fake implements AsClient {
   Future<ContactEntry> createContactRequest({
     required String mxid,
     String displayName = '',
+    String avatarUrl = '',
     String domain = '',
     String remark = '',
   }) async {
     return ContactEntry(
       peerMxid: mxid,
       displayName: displayName,
+      avatarUrl: avatarUrl,
       domain: domain,
       roomId: '!pending:p2p-im.com',
       status: 'pending_outbound',

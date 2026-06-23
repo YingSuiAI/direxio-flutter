@@ -233,21 +233,30 @@ class AsSyncCacheState {
   }) {
     final nextReadMarkers =
         localReadMarkersByRoomId ?? this.localReadMarkersByRoomId;
-    final nextBootstrap = bootstrap == null
+    final effectiveBootstrap = bootstrap == null
+        ? null
+        : _bootstrapWithPreservedAgentRoomId(
+            bootstrap,
+            previousAgentRoomId: this.bootstrap?.agentRoomId,
+          );
+    final nextBootstrap = effectiveBootstrap == null
         ? this.bootstrap
-        : applyLocalReadMarkersToBootstrap(bootstrap, nextReadMarkers);
+        : applyLocalReadMarkersToBootstrap(
+            effectiveBootstrap,
+            nextReadMarkers,
+          );
     var nextLocalStatuses =
         localContactStatusesByRoomId ?? this.localContactStatusesByRoomId;
     var nextLocalEntries =
         localContactEntriesByRoomId ?? this.localContactEntriesByRoomId;
-    if (bootstrap != null && localContactStatusesByRoomId == null) {
+    if (effectiveBootstrap != null && localContactStatusesByRoomId == null) {
       // A bootstrap response is authoritative for P2P contact state. Local
       // Optimistic pending entries are only a short bridge between a mutation
       // and the next successful bootstrap; keeping omitted pending rooms would
       // leave stale requests stuck in the UI. Locally derived outbound rejects
       // are preserved so the requester sees "已拒绝" instead of a disappearing
       // row when the P2P API has already cleaned up the pending Matrix room.
-      final bootstrapRoomIds = bootstrap.contacts
+      final bootstrapRoomIds = effectiveBootstrap.contacts
           .map((contact) => contact.roomId.trim())
           .where((roomId) => roomId.isNotEmpty)
           .toSet();
@@ -261,12 +270,12 @@ class AsSyncCacheState {
           });
       }
     }
-    if (bootstrap != null && localContactEntriesByRoomId == null) {
-      final bootstrapRoomIds = bootstrap.contacts
+    if (effectiveBootstrap != null && localContactEntriesByRoomId == null) {
+      final bootstrapRoomIds = effectiveBootstrap.contacts
           .map((contact) => contact.roomId.trim())
           .where((roomId) => roomId.isNotEmpty)
           .toSet();
-      final bootstrapPeerIds = bootstrap.contacts
+      final bootstrapPeerIds = effectiveBootstrap.contacts
           .map((contact) => contact.userId.trim())
           .where((userId) => userId.isNotEmpty)
           .toSet();
@@ -662,6 +671,33 @@ class AsSyncCacheState {
       ),
     );
   }
+}
+
+AsSyncBootstrap _bootstrapWithPreservedAgentRoomId(
+  AsSyncBootstrap next, {
+  String? previousAgentRoomId,
+}) {
+  final incomingAgentRoomId = _validAgentRoomId(next.agentRoomId);
+  final preservedAgentRoomId = incomingAgentRoomId.isNotEmpty
+      ? incomingAgentRoomId
+      : _validAgentRoomId(previousAgentRoomId ?? '');
+  if (preservedAgentRoomId == next.agentRoomId.trim()) return next;
+  return AsSyncBootstrap(
+    syncedAt: next.syncedAt,
+    user: next.user,
+    agentRoomId: preservedAgentRoomId,
+    rooms: next.rooms,
+    contacts: next.contacts,
+    groups: next.groups,
+    channels: next.channels,
+    pending: next.pending,
+  );
+}
+
+String _validAgentRoomId(String roomId) {
+  final trimmed = roomId.trim();
+  if (trimmed.startsWith('!agent:')) return '';
+  return trimmed;
 }
 
 int _maxInt(int a, int b) => a >= b ? a : b;

@@ -73,6 +73,11 @@ Do not reconstruct a post-create or post-join chat route from channel id, room
 id, group name, or member count when the ProductCore conversation is missing or
 not openable.
 
+`channels.join_request.approve` and `channels.join_request.reject` return a
+top-level approval/join status. Preserve it separately from the returned channel
+metadata so `approved`, `joining`, and `join_failed` are not mistaken for
+`joined`.
+
 `groups.invite` notifies receivers through Matrix `rooms.invite`, with an
 optional metadata mirror in `sync.bootstrap.pending.group_invites`. Do not treat
 the receiver contract as a private-chat group invite message.

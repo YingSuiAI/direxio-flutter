@@ -34,6 +34,23 @@ Future<bool> waitForJoinedChannelProjection(
   Duration timeout = const Duration(seconds: 12),
   Duration interval = const Duration(seconds: 2),
 }) async {
+  final channel = await waitForJoinedChannelProjectionData(
+    ref,
+    channelId: channelId,
+    roomId: roomId,
+    timeout: timeout,
+    interval: interval,
+  );
+  return channel != null;
+}
+
+Future<AsChannel?> waitForJoinedChannelProjectionData(
+  WidgetRef ref, {
+  required String channelId,
+  required String roomId,
+  Duration timeout = const Duration(seconds: 12),
+  Duration interval = const Duration(seconds: 2),
+}) async {
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
     final AsSyncBootstrap bootstrap;
@@ -43,14 +60,18 @@ Future<bool> waitForJoinedChannelProjection(
             (state) => state.copyWith(bootstrap: bootstrap),
           );
     } catch (_) {
-      return false;
+      return null;
     }
     if (_bootstrapHasJoinedChannel(
       bootstrap,
       channelId: channelId,
       roomId: roomId,
     )) {
-      return true;
+      return _joinedChannelFromBootstrap(
+        bootstrap,
+        channelId: channelId,
+        roomId: roomId,
+      );
     }
     final remaining = deadline.difference(DateTime.now());
     if (remaining <= Duration.zero) break;
@@ -58,7 +79,7 @@ Future<bool> waitForJoinedChannelProjection(
       remaining < interval ? remaining : interval,
     );
   }
-  return false;
+  return null;
 }
 
 Future<AsChannel> joinChannelWithInviteProjectionRetry(
@@ -115,6 +136,19 @@ bool _bootstrapHasJoinedChannel(
   required String channelId,
   required String roomId,
 }) {
+  return _joinedChannelFromBootstrap(
+        bootstrap,
+        channelId: channelId,
+        roomId: roomId,
+      ) !=
+      null;
+}
+
+AsChannel? _joinedChannelFromBootstrap(
+  AsSyncBootstrap bootstrap, {
+  required String channelId,
+  required String roomId,
+}) {
   final cleanChannelId = channelId.trim();
   final cleanRoomId = roomId.trim();
   for (final channel in bootstrap.channels) {
@@ -124,8 +158,31 @@ bool _bootstrapHasJoinedChannel(
         cleanRoomId.isNotEmpty && channel.roomId.trim() == cleanRoomId;
     if ((idMatches || roomMatches) &&
         isAsChannelMemberJoined(channel.memberStatus)) {
-      return true;
+      return _channelFromBootstrapSummary(channel);
     }
   }
-  return false;
+  return null;
+}
+
+AsChannel _channelFromBootstrapSummary(AsSyncRoomSummary summary) {
+  return AsChannel(
+    channelId: summary.channelId,
+    roomId: summary.roomId,
+    homeDomain: summary.homeDomain,
+    name: summary.name,
+    description: summary.description,
+    avatarUrl: summary.avatarUrl,
+    visibility: summary.visibility,
+    joinPolicy: summary.joinPolicy,
+    commentsEnabled: summary.commentsEnabled,
+    muted: summary.muted,
+    channelType: summary.channelType,
+    role: summary.role,
+    memberStatus: summary.memberStatus,
+    lifecycle: summary.lifecycle,
+    memberCount: summary.memberCount,
+    pendingJoinCount: summary.pendingJoinCount,
+    tags: summary.tags,
+    latestActivityAt: summary.lastActivityAt,
+  );
 }

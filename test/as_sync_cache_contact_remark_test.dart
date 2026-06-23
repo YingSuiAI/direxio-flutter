@@ -211,6 +211,42 @@ void main() {
     );
   });
 
+  test('normalizes backend rejected contact mutation by previous direction',
+      () {
+    final state = AsSyncCacheState(
+      bootstrap: AsSyncBootstrap(
+        syncedAt: DateTime.utc(2026),
+        user: const AsSyncUser(userId: '@owner:example.com'),
+        rooms: const [],
+        contacts: const [
+          AsSyncContact(
+            userId: '@alice:example.com',
+            displayName: 'Alice',
+            avatarUrl: '',
+            roomId: '!request:example.com',
+            domain: 'example.com',
+            status: 'pending_inbound',
+          ),
+        ],
+        groups: const [],
+        channels: const [],
+        pending: const AsSyncPending.empty(),
+      ),
+    ).withContactEntry(
+      const ContactEntry(
+        peerMxid: '@alice:example.com',
+        displayName: 'Alice',
+        domain: 'example.com',
+        roomId: '!request:example.com',
+        status: 'rejected',
+      ),
+    );
+
+    expect(state.pendingInboundContacts, isEmpty);
+    expect(state.rejectedInboundContacts, hasLength(1));
+    expect(state.rejectedInboundContacts.single.status, 'rejected_inbound');
+  });
+
   test('contacts dedupe by peer mxid and prefer accepted direct room', () {
     final state = AsSyncCacheState(
       bootstrap: AsSyncBootstrap(

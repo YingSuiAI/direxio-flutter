@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,8 +19,10 @@ import '../providers/as_client_provider.dart';
 import '../providers/app_warmup_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/user_profile_directory_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/direct_contact_status.dart';
+import '../utils/user_profile_directory.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/report_reason_dialog.dart';
@@ -41,6 +44,8 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   bool _removingMember = false;
   bool _muteChanging = false;
   final Set<String> _preloadedMemberAvatarUrls = {};
+  final Map<String, String> _memberProfileAvatarUrls = {};
+  final Set<String> _resolvingMemberProfileAvatars = {};
 
   @override
   void initState() {
@@ -74,6 +79,8 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     setState(() {
       _membersFuture = null;
       _members = const [];
+      _memberProfileAvatarUrls.clear();
+      _resolvingMemberProfileAvatars.clear();
     });
   }
 
@@ -89,13 +96,30 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             widget.channelId,
             status: asChannelMemberStatusJoined,
           );
-      final visibleMembers = _visibleChannelMembers(members, client);
+      var visibleMembers = _visibleChannelMembers(members, client);
+      if (visibleMembers.isEmpty) {
+        visibleMembers = await _matrixRoomChannelMembers(client);
+      }
+      _debugLogMemberAvatarState(
+        client: client,
+        stage: 'loaded',
+        members: visibleMembers,
+        rawCount: members.length,
+      );
       _preloadMemberAvatars(client, visibleMembers);
+      unawaited(_resolveMissingMemberProfileAvatars(client, visibleMembers));
       if (mounted) {
         setState(() => _members = visibleMembers);
       }
       return visibleMembers;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          '[channel.member.avatar] load failed channel=${widget.channelId} '
+          'error=$error',
+        );
+        debugPrint('$stackTrace');
+      }
       if (mounted) {
         setState(() => _members = const []);
       }
@@ -103,19 +127,212 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     }
   }
 
+  Future<List<AsChannelMember>> _matrixRoomChannelMembers(Client client) async {
+    final roomId = _currentChannelRoomId();
+    final room = roomId.trim().isEmpty ? null : client.getRoomById(roomId);
+    if (room == null) {
+      if (kDebugMode) {
+        debugPrint(
+          '[channel.member.avatar] matrix fallback skipped '
+          'channel=${widget.channelId} room=$roomId reason=room_not_found',
+        );
+      }
+      return const [];
+    }
+    final memoryMembers = _matrixUsersToChannelMembers(
+      room.getParticipants(const [Membership.join]),
+      room,
+      client,
+    );
+    if (memoryMembers.isNotEmpty) {
+      if (kDebugMode) {
+        debugPrint(
+          '[channel.member.avatar] matrix memory fallback '
+          'channel=${widget.channelId} room=${room.id} '
+          'count=${memoryMembers.length}',
+        );
+      }
+      return memoryMembers;
+    }
+    try {
+      final users = await room.requestParticipants(
+        const [Membership.join],
+        true,
+        true,
+      );
+      final members = _matrixUsersToChannelMembers(users, room, client);
+      if (kDebugMode) {
+        debugPrint(
+          '[channel.member.avatar] matrix fallback channel=${widget.channelId} '
+          'room=${room.id} count=${members.length}',
+        );
+      }
+      return members;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[channel.member.avatar] matrix fallback failed '
+          'channel=${widget.channelId} room=${room.id} error=$error',
+        );
+      }
+      return const [];
+    }
+  }
+
+  List<AsChannelMember> _matrixUsersToChannelMembers(
+    Iterable<User> users,
+    Room room,
+    Client client,
+  ) {
+    return users
+        .map(
+          (user) => AsChannelMember(
+            channelId: widget.channelId,
+            roomId: room.id,
+            userMxid: user.id,
+            displayName: user.displayName ?? '',
+            avatarUrl: user.avatarUrl?.toString() ?? '',
+            domain: _domainFromMxid(user.id),
+            role: user.id == client.userID
+                ? asChannelRoleOwner
+                : asChannelRoleMember,
+            status: asChannelMemberStatusJoined,
+          ),
+        )
+        .where((member) => !_isAgentChannelMember(member, client))
+        .toList(growable: false);
+  }
+
   void _preloadMemberAvatars(
     Client client,
     Iterable<AsChannelMember> members,
   ) {
     final roomId = _currentChannelRoomId();
+    final directory = ref.read(userProfileDirectoryProvider);
     for (final member in members) {
       final url = channelMemberAvatarUrl(
         client,
         member,
         roomId: roomId,
+        directory: directory,
+        fallbackAvatarUrl: _memberProfileAvatarUrls[member.userMxid] ?? '',
       );
       if (url == null || !_preloadedMemberAvatarUrls.add(url)) continue;
       unawaited(ref.read(avatarPreloaderProvider).preload(url));
+    }
+  }
+
+  void _debugLogMemberAvatarState({
+    required Client client,
+    required String stage,
+    required Iterable<AsChannelMember> members,
+    int? rawCount,
+  }) {
+    if (!kDebugMode) return;
+    final list = members.toList(growable: false);
+    final roomId = _currentChannelRoomId();
+    final directory = ref.read(userProfileDirectoryProvider);
+    debugPrint(
+      '[channel.member.avatar] stage=$stage channel=${widget.channelId} '
+      'room=$roomId raw_count=${rawCount ?? list.length} '
+      'visible_count=${list.length} client_user=${client.userID ?? '<empty>'}',
+    );
+    for (final member in list) {
+      final mxid = member.userMxid.trim();
+      String? roomAvatar;
+      for (final id in <String>{roomId.trim(), member.roomId.trim()}) {
+        if (id.isEmpty) continue;
+        final room = client.getRoomById(id);
+        if (room == null) continue;
+        roomAvatar = matrixContentHttpUrl(
+          client,
+          room.unsafeGetUserFromMemoryOrFallback(mxid).avatarUrl,
+        );
+        if (roomAvatar != null) break;
+      }
+      final directoryAvatar = directory.avatarUrlFor(
+        mxid,
+        fallbackAvatarUrl: member.avatarUrl,
+      );
+      final profileFallback = _memberProfileAvatarUrls[mxid] ?? '';
+      final resolved = channelMemberAvatarUrl(
+        client,
+        member,
+        roomId: roomId,
+        directory: directory,
+        fallbackAvatarUrl: profileFallback,
+      );
+      debugPrint(
+        '[channel.member.avatar] member user=${mxid.isEmpty ? '<empty>' : mxid} '
+        'name=${member.displayName.trim().isEmpty ? '<empty>' : member.displayName.trim()} '
+        'status=${member.status} role=${member.role} '
+        'member_room=${member.roomId.trim().isEmpty ? '<empty>' : member.roomId.trim()} '
+        'as_avatar=${member.avatarUrl.trim().isEmpty ? '<empty>' : member.avatarUrl.trim()} '
+        'room_avatar=${roomAvatar ?? '<empty>'} '
+        'directory_avatar=${directoryAvatar ?? '<empty>'} '
+        'profile_fallback=${profileFallback.isEmpty ? '<empty>' : profileFallback} '
+        'resolved=${resolved ?? '<empty>'}',
+      );
+    }
+  }
+
+  Future<void> _resolveMissingMemberProfileAvatars(
+    Client client,
+    Iterable<AsChannelMember> members,
+  ) async {
+    final roomId = _currentChannelRoomId();
+    final directory = ref.read(userProfileDirectoryProvider);
+    for (final member in members) {
+      final mxid = member.userMxid.trim();
+      if (mxid.isEmpty ||
+          _memberProfileAvatarUrls.containsKey(mxid) ||
+          !_resolvingMemberProfileAvatars.add(mxid)) {
+        continue;
+      }
+      final existing = channelMemberAvatarUrl(
+        client,
+        member,
+        roomId: roomId,
+        directory: directory,
+      );
+      if (existing != null) {
+        _resolvingMemberProfileAvatars.remove(mxid);
+        continue;
+      }
+      try {
+        final profile = await client.getProfileFromUserId(
+          mxid,
+          cache: true,
+          getFromRooms: true,
+        );
+        final avatarUrl = profileAvatarHttpUrl(profile, client);
+        if (kDebugMode) {
+          debugPrint(
+            '[channel.member.avatar] profile user=$mxid '
+            'display=${profile.displayName ?? '<empty>'} '
+            'avatar=${avatarUrl ?? '<empty>'}',
+          );
+        }
+        if (avatarUrl == null || !mounted) continue;
+        setState(() => _memberProfileAvatarUrls[mxid] = avatarUrl);
+        _debugLogMemberAvatarState(
+          client: client,
+          stage: 'profile-resolved',
+          members: members,
+        );
+        if (_preloadedMemberAvatarUrls.add(avatarUrl)) {
+          unawaited(ref.read(avatarPreloaderProvider).preload(avatarUrl));
+        }
+      } catch (error) {
+        if (kDebugMode) {
+          debugPrint(
+            '[channel.member.avatar] profile failed user=$mxid error=$error',
+          );
+        }
+        // Profile lookup is a best-effort fallback for old member records.
+      } finally {
+        _resolvingMemberProfileAvatars.remove(mxid);
+      }
     }
   }
 
@@ -219,10 +436,13 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
               loadedMembers.isEmpty;
           return _OwnerMemberGrid(
             channel: channel,
+            channelRoomId: _currentChannelRoomId(),
             members: loadedMembers,
+            profileAvatarUrls: _memberProfileAvatarUrls,
             placeholderCount: loadedMembers.isEmpty ? visibleMemberCount : 0,
             isLoading: isLoading,
             client: ref.read(matrixClientProvider),
+            profileDirectory: ref.watch(userProfileDirectoryProvider),
             currentUserId: ref.read(matrixClientProvider).userID ?? '',
             onOpenMember: _openMemberHome,
             onRemove: _showRemoveMemberSheet,
@@ -275,6 +495,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     if (!mounted) return;
     final client = ref.read(matrixClientProvider);
     final channelRoomId = _currentChannelRoomId();
+    final directory = ref.read(userProfileDirectoryProvider);
     final currentUserId = client.userID?.trim() ?? '';
     final candidates = members.where((member) {
       final userMxid = member.userMxid.trim();
@@ -327,6 +548,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
                             client,
                             member,
                             roomId: channelRoomId,
+                            directory: directory,
                           ),
                           shape: AvatarShape.squircle,
                         ),
@@ -663,20 +885,26 @@ class _DangerCenterRow extends StatelessWidget {
 class _OwnerMemberGrid extends StatelessWidget {
   const _OwnerMemberGrid({
     required this.channel,
+    required this.channelRoomId,
     required this.members,
+    required this.profileAvatarUrls,
     required this.placeholderCount,
     required this.isLoading,
     required this.client,
+    required this.profileDirectory,
     required this.currentUserId,
     required this.onOpenMember,
     required this.onRemove,
   });
 
   final ChannelInfoData channel;
+  final String channelRoomId;
   final List<AsChannelMember> members;
+  final Map<String, String> profileAvatarUrls;
   final int placeholderCount;
   final bool isLoading;
   final Client client;
+  final UserProfileDirectory profileDirectory;
   final String currentUserId;
   final ValueChanged<AsChannelMember> onOpenMember;
   final VoidCallback onRemove;
@@ -702,7 +930,10 @@ class _OwnerMemberGrid extends StatelessWidget {
             imageUrl: channelMemberAvatarUrl(
               client,
               member,
-              roomId: channel.roomId,
+              roomId:
+                  channelRoomId.trim().isEmpty ? channel.roomId : channelRoomId,
+              directory: profileDirectory,
+              fallbackAvatarUrl: profileAvatarUrls[member.userMxid] ?? '',
             ),
             shape: AvatarShape.squircle,
           ),
@@ -840,6 +1071,13 @@ String _memberName(AsChannelMember member) {
     if (colon > 1) return userMxid.substring(1, colon);
   }
   return userMxid.isEmpty ? '频道成员' : userMxid;
+}
+
+String _domainFromMxid(String mxid) {
+  final value = mxid.trim();
+  final colon = value.indexOf(':');
+  if (colon < 0 || colon == value.length - 1) return '';
+  return value.substring(colon + 1);
 }
 
 class _MuteRow extends StatelessWidget {

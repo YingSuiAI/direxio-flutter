@@ -44,7 +44,7 @@ class AsSyncCacheState {
       ),
       roomId: contact.roomId,
       domain: contact.domain,
-      status: contact.status,
+      status: _normalizeContactStatusForDisplay(contact.status),
       remark: contact.remark,
       visibleAfterTs: contact.visibleAfterTs,
       deletedEventIds: contact.deletedEventIds,
@@ -72,6 +72,7 @@ class AsSyncCacheState {
     final shadowedPeerIds = _localContactPeerIds;
 
     void addContact(AsSyncContact contact) {
+      contact = _normalizeSyncContactForDisplay(contact);
       final userId = contact.userId.trim();
       final roomId = contact.roomId.trim();
       final status = contact.status.trim();
@@ -309,11 +310,22 @@ class AsSyncCacheState {
 
   AsSyncCacheState withContactEntry(ContactEntry contact) {
     final roomId = contact.roomId.trim();
-    final status = contact.status.trim();
+    var status = contact.status.trim();
     if (roomId.isEmpty || status.isEmpty) return this;
     final statuses = Map<String, String>.from(localContactStatusesByRoomId);
     final entries = Map<String, ContactEntry>.from(localContactEntriesByRoomId);
     final peerMxid = contact.peerMxid.trim();
+    status = _normalizeContactMutationStatus(
+      status,
+      previousStatus: _previousContactStatus(
+        roomId: roomId,
+        peerMxid: peerMxid,
+        statuses: statuses,
+        entries: entries,
+        bootstrapContacts: bootstrap?.contacts ?? const <AsSyncContact>[],
+      ),
+    );
+    contact = _contactEntryWithStatus(contact, status);
     if (peerMxid.isNotEmpty) {
       for (final entry in entries.entries.toList()) {
         if (entry.value.peerMxid.trim() == peerMxid) {
@@ -671,6 +683,89 @@ class AsSyncCacheState {
       ),
     );
   }
+}
+
+String _previousContactStatus({
+  required String roomId,
+  required String peerMxid,
+  required Map<String, String> statuses,
+  required Map<String, ContactEntry> entries,
+  required List<AsSyncContact> bootstrapContacts,
+}) {
+  final roomStatus = statuses[roomId]?.trim() ?? '';
+  if (roomStatus.isNotEmpty) return roomStatus;
+  final entryStatus = entries[roomId]?.status.trim() ?? '';
+  if (entryStatus.isNotEmpty) return entryStatus;
+  for (final entry in entries.values) {
+    if (peerMxid.isNotEmpty && entry.peerMxid.trim() == peerMxid) {
+      final status = entry.status.trim();
+      if (status.isNotEmpty) return status;
+    }
+  }
+  for (final contact in bootstrapContacts) {
+    if (contact.roomId.trim() == roomId ||
+        (peerMxid.isNotEmpty && contact.userId.trim() == peerMxid)) {
+      final status = contact.status.trim();
+      if (status.isNotEmpty) return status;
+    }
+  }
+  return '';
+}
+
+String _normalizeContactMutationStatus(
+  String status, {
+  required String previousStatus,
+}) {
+  final normalized = status.trim();
+  if (normalized == 'rejected' || normalized == 'reject') {
+    final previous = previousStatus.trim();
+    if (previous == 'pending_outbound' || previous == 'rejected_outbound') {
+      return 'rejected_outbound';
+    }
+    return 'rejected_inbound';
+  }
+  return _normalizeContactStatusForDisplay(normalized);
+}
+
+String _normalizeContactStatusForDisplay(String status) {
+  final normalized = status.trim();
+  if (normalized == 'rejected' || normalized == 'reject') {
+    return 'rejected_inbound';
+  }
+  return normalized;
+}
+
+AsSyncContact _normalizeSyncContactForDisplay(AsSyncContact contact) {
+  final status = _normalizeContactStatusForDisplay(contact.status);
+  if (status == contact.status) return contact;
+  return AsSyncContact(
+    userId: contact.userId,
+    displayName: contact.displayName,
+    avatarUrl: contact.avatarUrl,
+    roomId: contact.roomId,
+    domain: contact.domain,
+    status: status,
+    remark: contact.remark,
+    visibleAfterTs: contact.visibleAfterTs,
+    deletedEventIds: contact.deletedEventIds,
+  );
+}
+
+ContactEntry _contactEntryWithStatus(ContactEntry contact, String status) {
+  if (contact.status == status) return contact;
+  return ContactEntry(
+    peerMxid: contact.peerMxid,
+    displayName: contact.displayName,
+    domain: contact.domain,
+    roomId: contact.roomId,
+    status: status,
+    avatarUrl: contact.avatarUrl,
+    remark: contact.remark,
+    visibleAfterTs: contact.visibleAfterTs,
+    deletedEventIds: contact.deletedEventIds,
+    operation: contact.operation,
+    productConversation: contact.productConversation,
+  );
 }
 
 AsSyncBootstrap _bootstrapWithPreservedAgentRoomId(

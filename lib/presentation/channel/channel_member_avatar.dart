@@ -8,22 +8,35 @@ String? channelMemberAvatarUrl(
   Client client,
   AsChannelMember member, {
   String roomId = '',
+  UserProfileDirectory? directory,
+  String fallbackAvatarUrl = '',
 }) {
-  final directory = UserProfileDirectory.fromSources(
-    client: client,
-    extraChannelMembers: [member],
-  );
-  final resolved = directory.avatarUrlFor(
-    member.userMxid,
-    fallbackAvatarUrl: member.avatarUrl,
-  );
-  if (resolved != null) return resolved;
+  final asAvatar = avatarHttpUrl(client, member.avatarUrl);
+  if (asAvatar != null) return asAvatar;
 
-  final room = roomId.trim().isEmpty ? null : client.getRoomById(roomId.trim());
   final mxid = member.userMxid.trim();
-  if (room == null || mxid.isEmpty) return null;
-  return matrixContentHttpUrl(
-    client,
-    room.unsafeGetUserFromMemoryOrFallback(mxid).avatarUrl,
+  if (mxid.isNotEmpty) {
+    for (final id in <String>{roomId.trim(), member.roomId.trim()}) {
+      if (id.isEmpty) continue;
+      final room = client.getRoomById(id);
+      if (room == null) continue;
+      final roomMemberAvatar = matrixContentHttpUrl(
+        client,
+        room.unsafeGetUserFromMemoryOrFallback(mxid).avatarUrl,
+      );
+      if (roomMemberAvatar != null) return roomMemberAvatar;
+    }
+  }
+
+  final resolvedDirectory = directory ??
+      UserProfileDirectory.fromSources(
+        client: client,
+        extraChannelMembers: [member],
+      );
+  final directoryAvatar = resolvedDirectory.avatarUrlFor(
+    member.userMxid,
+    fallbackAvatarUrl:
+        fallbackAvatarUrl.trim().isEmpty ? member.avatarUrl : fallbackAvatarUrl,
   );
+  return avatarHttpUrl(client, directoryAvatar);
 }

@@ -450,6 +450,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         .map((contact) => contact.roomId.trim())
         .where((roomId) => roomId.isNotEmpty)
         .toSet();
+    final knownContactRoomIds = syncCache.contacts
+        .map((contact) => contact.roomId.trim())
+        .where((roomId) => roomId.isNotEmpty)
+        .toSet();
     final invites = _incomingDirectContactInvites(client)
         .where((room) => !pendingInboundRoomIds.contains(room.id.trim()))
         .toList(growable: false);
@@ -459,6 +463,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
           const <AsSyncPendingItem>[])
         if (request.id.trim().isNotEmpty &&
             !pendingInboundRoomIds.contains(request.id.trim()) &&
+            !knownContactRoomIds.contains(request.id.trim()) &&
             !inviteRoomIds.contains(request.id.trim()))
           request,
     ];
@@ -1258,6 +1263,7 @@ class _PendingSection extends StatelessWidget {
       final id = notice.id.trim();
       final name =
           title.isEmpty ? l10n?.requestsFriendNoticeTitle ?? '好友申请' : title;
+      final isRejected = _pendingFriendNoticeRejected(notice);
       rows.add(
         _PendingRow(
           name: name,
@@ -1271,6 +1277,7 @@ class _PendingSection extends StatelessWidget {
           onTap: null,
           onAccept: null,
           onReject: null,
+          statusText: isRejected ? l10n?.requestsRejected ?? '已拒绝' : null,
         ),
       );
     }
@@ -1343,6 +1350,15 @@ String _pendingNoticeMessage(
       : normalizedFallback;
 }
 
+bool _pendingFriendNoticeRejected(AsSyncPendingItem notice) {
+  final remark = notice.remark.trim().toLowerCase();
+  if (remark.isEmpty) return false;
+  return remark.contains('已拒绝') ||
+      remark.contains('拒绝') ||
+      remark.contains('rejected') ||
+      remark.contains('reject');
+}
+
 String _contactRequestMessage(
   BuildContext context,
   AsSyncContact contact, {
@@ -1378,6 +1394,7 @@ class _PendingRow extends StatelessWidget {
     required this.onTap,
     required this.onAccept,
     required this.onReject,
+    this.statusText,
   });
   final String name;
   final String message;
@@ -1386,6 +1403,7 @@ class _PendingRow extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
+  final String? statusText;
 
   @override
   Widget build(BuildContext context) {
@@ -1395,10 +1413,12 @@ class _PendingRow extends StatelessWidget {
       name: name,
       message: message,
       onTap: onTap,
-      trailing: _ViewRequestButton(
-        enabled: onAccept != null || onReject != null,
-        onTap: () => _showRequestActions(context),
-      ),
+      trailing: statusText == null
+          ? _ViewRequestButton(
+              enabled: onAccept != null || onReject != null,
+              onTap: () => _showRequestActions(context),
+            )
+          : _RequestStatusText(text: statusText!),
     );
   }
 
@@ -1684,7 +1704,7 @@ class _OutgoingRow extends StatelessWidget {
       imageUrl: _avatarUrlForContact(client, contact),
       name: name,
       message: isRejected
-          ? l10n?.requestsMyRequestAsFriend ?? '我:请求添加你为朋友'
+          ? l10n?.requestsMyRequestAsFriend ?? '申请添加对方为朋友'
           : '申请添加对方为朋友',
       onTap: mxid.isEmpty
           ? null

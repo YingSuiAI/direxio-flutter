@@ -31,7 +31,7 @@ lib/
 ├── core/
 │   ├── router/        go_router routes and route guards
 │   └── theme/         design_tokens.dart + app_theme.dart
-├── data/              AS/Matrix boundary and local stores
+├── data/              P2P/Matrix boundary and local stores
 └── presentation/
     ├── pages/         route pages
     ├── channel/       channel inbox, share, and create/review flows
@@ -64,6 +64,7 @@ lib/
   - `pending` -> `pending`
   - `reject`, `rejected` -> `rejected`
 - Treat only `isAsChannelMemberJoined(status)` as joined. `invite` and `pending` are waiting states and must not unlock channel sending.
+- Channel join-request review actions return top-level statuses such as `approved`, `joining`, `joined`, and `join_failed`; approving a request must not be treated as joined unless the returned status is `joined`.
 - Channel list entries with terminal lifecycle such as `deleted`, `left`, `dissolve`, or `dissolved` must be hidden even if stale membership still says `joined`.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
 - Channel invite/share cards first create `channels.invite_grant.create` with `channel_id` or `room_id` plus `share_room_id`; receivers call `channels.join` with `grant_id` and `share_room_id`.
@@ -90,7 +91,7 @@ lib/
 
 - New-device bootstrap must not load historical read message bodies.
 - Unread and message history come from Matrix `/sync` and `/rooms/{roomID}/messages`, not P2P bootstrap or P2P action facades.
-- Local clear/delete/hide actions must not imply server deletion unless the AS/Matrix API call actually deletes server state.
+- Local clear/delete/hide actions must not imply server deletion unless the P2P/Matrix API call actually deletes server state.
 
 ## Channel Rules
 

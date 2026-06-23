@@ -172,7 +172,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
       pinnedChannelKeys,
     );
     final visibleChannels = visibleSourceChannels
-        .where((channel) => !_channelIsDissolved(channel))
+        .where((channel) => !_channelIsTerminal(channel))
         .toList(growable: false);
     final activeChannelKeys = _activeChannelKeys(
       syncCache,
@@ -569,17 +569,20 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
   Future<void> _resolve(int index, _ReviewStatus status) async {
     final item = _items[index];
     try {
+      var nextStatus = status;
       if (status == _ReviewStatus.approved) {
-        await ref
+        final result = await ref
             .read(asClientProvider)
             .approveChannelJoin(item.channelId, item.userMxid);
+        nextStatus = _reviewStatusFromJoinResult(result.status);
       } else if (status == _ReviewStatus.rejected) {
-        await ref
+        final result = await ref
             .read(asClientProvider)
             .rejectChannelJoin(item.channelId, item.userMxid);
+        nextStatus = _reviewStatusFromJoinResult(result.status);
       }
       setState(() {
-        _items[index] = item.copyWith(status: status);
+        _items[index] = item.copyWith(status: nextStatus);
       });
       ref.invalidate(_channelPendingReviewCountProvider);
       ref.invalidate(_channelListProvider);
@@ -591,6 +594,23 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
                 status == _ReviewStatus.approved ? '同意失败：$err' : '拒绝失败：$err')),
       );
     }
+  }
+}
+
+_ReviewStatus _reviewStatusFromJoinResult(String status) {
+  switch (status) {
+    case asChannelMemberStatusJoined:
+      return _ReviewStatus.joined;
+    case asChannelMemberStatusJoining:
+      return _ReviewStatus.joining;
+    case asChannelMemberStatusApproved:
+      return _ReviewStatus.approved;
+    case asChannelMemberStatusJoinFailed:
+      return _ReviewStatus.joinFailed;
+    case asChannelMemberStatusRejected:
+      return _ReviewStatus.rejected;
+    default:
+      return _ReviewStatus.approved;
   }
 }
 
@@ -743,6 +763,7 @@ class _ReviewCard extends StatelessWidget {
               bottom: 14,
               height: 34,
               child: _ReviewActionButton(
+                key: ValueKey('channel-review-approve-${item.userMxid}'),
                 label: '通过',
                 foreground: context.tk.onAccent,
                 background: context.tk.accent,
@@ -755,6 +776,7 @@ class _ReviewCard extends StatelessWidget {
               bottom: 14,
               height: 34,
               child: _ReviewActionButton(
+                key: ValueKey('channel-review-reject-${item.userMxid}'),
                 label: '拒绝',
                 foreground: _channelMutedColor(context),
                 background: _channelSoftFillColor(context),
@@ -1409,9 +1431,24 @@ class _ReviewStatusPill extends StatelessWidget {
           _channelStatusTextColor(context, _ReviewStatus.pending),
         ),
       _ReviewStatus.approved => (
-          '已通过',
+          '已同意',
           _channelStatusBgColor(context, _ReviewStatus.approved),
           _channelStatusTextColor(context, _ReviewStatus.approved),
+        ),
+      _ReviewStatus.joining => (
+          '加入中',
+          _channelStatusBgColor(context, _ReviewStatus.joining),
+          _channelStatusTextColor(context, _ReviewStatus.joining),
+        ),
+      _ReviewStatus.joined => (
+          '已加入',
+          _channelStatusBgColor(context, _ReviewStatus.joined),
+          _channelStatusTextColor(context, _ReviewStatus.joined),
+        ),
+      _ReviewStatus.joinFailed => (
+          '加入失败',
+          _channelStatusBgColor(context, _ReviewStatus.joinFailed),
+          _channelStatusTextColor(context, _ReviewStatus.joinFailed),
         ),
       _ReviewStatus.rejected => (
           '已拒绝',
@@ -1438,6 +1475,7 @@ class _ReviewStatusPill extends StatelessWidget {
 
 class _ReviewActionButton extends StatelessWidget {
   const _ReviewActionButton({
+    super.key,
     required this.label,
     required this.foreground,
     required this.background,
@@ -1524,7 +1562,7 @@ class _GlassRoundButton extends StatelessWidget {
   }
 }
 
-enum _ReviewStatus { pending, approved, rejected }
+enum _ReviewStatus { pending, approved, joining, joined, joinFailed, rejected }
 
 class _ReviewItem {
   const _ReviewItem({
@@ -1747,7 +1785,7 @@ void _openChannelInboxItem(
   required bool validateExists,
   required Set<String> activeChannelKeys,
 }) {
-  if (_channelIsDissolved(channel) ||
+  if (_channelIsTerminal(channel) ||
       (validateExists &&
           !_activeChannelKeysContain(activeChannelKeys, channel))) {
     ScaffoldMessenger.of(context)
@@ -1771,7 +1809,10 @@ Set<String> _activeChannelKeys(
 ) {
   final keys = <String>{};
   for (final channel in syncCache.bootstrap?.channels ?? const []) {
-    if (_channelStatusIsDissolved(channel.memberStatus)) continue;
+    if (_channelStatusIsTerminal(channel.memberStatus) ||
+        _channelLifecycleIsTerminal(channel.lifecycle)) {
+      continue;
+    }
     _addChannelKeys(keys, channel.channelId, channel.roomId);
   }
   for (final entry in localCreatedChannels) {
@@ -1863,21 +1904,38 @@ Set<String> _channelListKeys(ChannelInboxItem channel) {
 Set<String> _hiddenChannelKeys(AsSyncCacheState syncCache) {
   final keys = <String>{};
   for (final channel in syncCache.bootstrap?.channels ?? const []) {
-    if (!_channelStatusIsDissolved(channel.memberStatus)) continue;
+    if (!_channelStatusIsTerminal(channel.memberStatus) &&
+        !_channelLifecycleIsTerminal(channel.lifecycle)) {
+      continue;
+    }
     _addChannelKeys(keys, channel.channelId, channel.roomId);
   }
   return keys;
 }
 
-bool _channelIsDissolved(ChannelInboxItem channel) {
-  return _channelStatusIsDissolved(channel.memberStatus);
+bool _channelIsTerminal(ChannelInboxItem channel) {
+  return _channelStatusIsTerminal(channel.memberStatus) ||
+      _channelLifecycleIsTerminal(channel.productConversation?.lifecycle ?? '');
 }
 
-bool _channelStatusIsDissolved(String status) {
+bool _channelStatusIsTerminal(String status) {
   final normalized = status.trim().toLowerCase();
   return normalized == 'removed' ||
       normalized == 'left' ||
+      normalized == 'leave' ||
       normalized == 'dissolved' ||
+      normalized == 'dissolve' ||
+      normalized == 'deleted' ||
+      normalized == 'closed';
+}
+
+bool _channelLifecycleIsTerminal(String lifecycle) {
+  final normalized = lifecycle.trim().toLowerCase();
+  return normalized == 'removed' ||
+      normalized == 'left' ||
+      normalized == 'leave' ||
+      normalized == 'dissolved' ||
+      normalized == 'dissolve' ||
       normalized == 'deleted' ||
       normalized == 'closed';
 }
@@ -2076,12 +2134,18 @@ Color _channelStatusBgColor(BuildContext context, _ReviewStatus status) {
     return switch (status) {
       _ReviewStatus.pending => context.tk.surfaceHigh,
       _ReviewStatus.approved => context.tk.secondaryContainer,
+      _ReviewStatus.joining => context.tk.surfaceHigh,
+      _ReviewStatus.joined => context.tk.secondaryContainer,
+      _ReviewStatus.joinFailed => context.tk.danger.withValues(alpha: 0.18),
       _ReviewStatus.rejected => context.tk.danger.withValues(alpha: 0.18),
     };
   }
   return switch (status) {
     _ReviewStatus.pending => const Color(0xFFFFF2DF),
     _ReviewStatus.approved => const Color(0xFFE4F8ED),
+    _ReviewStatus.joining => const Color(0xFFFFF2DF),
+    _ReviewStatus.joined => const Color(0xFFE4F8ED),
+    _ReviewStatus.joinFailed => const Color(0xFFFFE4E4),
     _ReviewStatus.rejected => const Color(0xFFFFE4E4),
   };
 }
@@ -2091,12 +2155,18 @@ Color _channelStatusTextColor(BuildContext context, _ReviewStatus status) {
     return switch (status) {
       _ReviewStatus.pending => context.tk.textMute,
       _ReviewStatus.approved => context.tk.tertiaryFixed,
+      _ReviewStatus.joining => context.tk.textMute,
+      _ReviewStatus.joined => context.tk.tertiaryFixed,
+      _ReviewStatus.joinFailed => context.tk.danger,
       _ReviewStatus.rejected => context.tk.danger,
     };
   }
   return switch (status) {
     _ReviewStatus.pending => const Color(0xFFF69A18),
     _ReviewStatus.approved => const Color(0xFF00A954),
+    _ReviewStatus.joining => const Color(0xFFF69A18),
+    _ReviewStatus.joined => const Color(0xFF00A954),
+    _ReviewStatus.joinFailed => const Color(0xFFCF0404),
     _ReviewStatus.rejected => const Color(0xFFCF0404),
   };
 }

@@ -643,29 +643,46 @@ class _PublicChannelScaffoldState
         discoveredChannel: channel,
         remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
       );
-      setState(() {
-        _joining = false;
-        _future = Future.value(joined);
-      });
       if (!mounted) return;
-      if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
-        );
-        return;
-      }
       if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
+        setState(() {
+          _joining = false;
+          _future = Future.value(joined);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
         );
         return;
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
+        setState(() => _future = Future.value(joined));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(channelJoinInProgressText)),
+          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
         );
+        final projected = await waitForJoinedChannelProjectionData(
+          ref,
+          channelId: joined.channelId.trim().isEmpty
+              ? channel.channelId
+              : joined.channelId.trim(),
+          roomId: joined.roomId.trim().isEmpty ? roomId : joined.roomId.trim(),
+        );
+        if (!mounted) return;
+        final resolved = projected;
+        if (resolved == null) {
+          setState(() => _joining = false);
+          return;
+        }
+        setState(() {
+          _joining = false;
+          _future = Future.value(resolved);
+        });
+        _openJoinedPublicChannel(context, resolved, fallback: channel);
         return;
       }
+      setState(() {
+        _joining = false;
+        _future = Future.value(joined);
+      });
       final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
@@ -731,10 +748,23 @@ void _openJoinedPublicChannel(
     return;
   }
   final route = productConversationRoute(
-    joined.productConversation,
-    channelId: channelId,
-  );
-  if (route != null) context.go(route);
+        joined.productConversation,
+        channelId: channelId,
+      ) ??
+      joinedTextChannelConversationRoute(
+        channelId: channelId,
+        roomId: joined.roomId.trim().isEmpty
+            ? fallback.roomId.trim()
+            : joined.roomId.trim(),
+        memberStatus: asChannelMemberStatusJoined,
+        channelType: joined.channelType,
+        name: joined.name.trim().isEmpty ? fallback.name : joined.name,
+      ) ??
+      channelConversationRoute(
+        channelId,
+        name: joined.name.trim().isEmpty ? fallback.name : joined.name,
+      );
+  context.go(route);
 }
 
 class _PublicChannelJoinBar extends StatelessWidget {

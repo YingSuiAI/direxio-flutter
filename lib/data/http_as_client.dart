@@ -967,10 +967,11 @@ class HttpAsClient implements AsClient {
     String channelId, {
     String status = '',
   }) async {
+    final statusParam = _channelMemberStatusQueryParam(status);
     final body = await _getJson(
       'channels/${Uri.encodeComponent(channelId)}/members',
       queryParameters: {
-        if (status.trim().isNotEmpty) 'status': status.trim(),
+        if (statusParam.isNotEmpty) 'status': statusParam,
       },
     );
     final raw = body['members'] as List? ?? const [];
@@ -1031,7 +1032,7 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Future<AsChannel> approveChannelJoin(
+  Future<AsChannelJoinReviewResult> approveChannelJoin(
     String channelId,
     String userMxid,
   ) {
@@ -1039,7 +1040,7 @@ class HttpAsClient implements AsClient {
   }
 
   @override
-  Future<AsChannel> rejectChannelJoin(
+  Future<AsChannelJoinReviewResult> rejectChannelJoin(
     String channelId,
     String userMxid,
   ) {
@@ -1086,7 +1087,7 @@ class HttpAsClient implements AsClient {
     );
   }
 
-  Future<AsChannel> _resolveChannelJoinRequest(
+  Future<AsChannelJoinReviewResult> _resolveChannelJoinRequest(
     String channelId,
     String userMxid,
     String action,
@@ -1096,9 +1097,7 @@ class HttpAsClient implements AsClient {
       'channels/${Uri.encodeComponent(channelId)}/join-requests/${Uri.encodeComponent(userMxid)}/$action',
       allowedStatusCodes: const {200},
     );
-    return AsChannel.fromJson(
-      (body['channel'] as Map?)?.cast<String, dynamic>() ?? body,
-    );
+    return AsChannelJoinReviewResult.fromJson(body);
   }
 
   @override
@@ -2344,6 +2343,12 @@ Map<String, Object?> _actionParams(
     }
   }
   return params;
+}
+
+String _channelMemberStatusQueryParam(String status) {
+  final value = status.trim();
+  if (value == asChannelMemberStatusJoined) return 'join';
+  return value;
 }
 
 Map<String, Object?> _favoriteAddParams(Map<String, Object?> params) {

@@ -7,6 +7,7 @@ import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/presentation/channel/channel_home_tab.dart';
 import 'package:portal_app/presentation/channel/channel_inbox_data.dart';
+import 'package:portal_app/presentation/channel/channel_member_avatar.dart';
 import 'package:portal_app/presentation/pages/channel_info_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
@@ -109,6 +110,7 @@ void main() {
   test('channel member parses backend user id and avatar fields', () {
     final member = AsChannelMember.fromJson(const {
       'channel_id': 'ch_owned',
+      'room_id': '!owned:p2p-im.com',
       'user_id': '@alice:p2p-im.com',
       'display_name': 'Alice',
       'avatar_url': 'https://cdn.example.com/alice.png',
@@ -118,6 +120,7 @@ void main() {
     });
 
     expect(member.userMxid, '@alice:p2p-im.com');
+    expect(member.roomId, '!owned:p2p-im.com');
     expect(member.avatarUrl, 'https://cdn.example.com/alice.png');
     expect(member.status, asChannelMemberStatusJoined);
   });
@@ -181,6 +184,301 @@ void main() {
     );
     expect(memberAvatar.imageUrl, memberAvatarUrl);
     expect(memberAvatar.shape, AvatarShape.squircle);
+  });
+
+  testWidgets('owned channel info page uses Matrix room member avatar fallback',
+      (tester) async {
+    final client = Client('OwnedChannelInfoMatrixMemberAvatarTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final room = Room(
+      id: '!owned:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@alice:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {
+          'membership': 'join',
+          'displayname': 'Alice',
+          'avatar_url': 'mxc://p2p-im.com/alice-room-avatar',
+        },
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        const AsSyncRoomSummary(
+          channelId: 'ch_owned',
+          roomId: '!owned:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '频道成员头像测试',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 2,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(
+            _ChannelMemberAvatarAsClient(''),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_owned'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final memberAvatar = tester.widget<PortalAvatar>(
+      find.descendant(
+        of: find.byKey(
+          const ValueKey('channel_member_avatar_@alice:p2p-im.com'),
+        ),
+        matching: find.byType(PortalAvatar),
+      ),
+    );
+    expect(
+      memberAvatar.imageUrl,
+      contains('/download/p2p-im.com/alice-room-avatar'),
+    );
+  });
+
+  testWidgets(
+      'owned channel info page uses Matrix members when AS list is empty',
+      (tester) async {
+    final client = Client('OwnedChannelInfoEmptyAsMembersFallbackTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final room = Room(
+      id: '!owned:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@alice:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {
+          'membership': 'join',
+          'displayname': 'Alice',
+          'avatar_url': 'mxc://p2p-im.com/alice-matrix-member-avatar',
+        },
+      ),
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        const AsSyncRoomSummary(
+          channelId: 'ch_owned',
+          roomId: '!owned:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '频道成员头像测试',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 1,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(MockAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_owned'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final memberAvatar = tester.widget<PortalAvatar>(
+      find.descendant(
+        of: find.byKey(
+          const ValueKey('channel_member_avatar_@alice:p2p-im.com'),
+        ),
+        matching: find.byType(PortalAvatar),
+      ),
+    );
+    expect(
+      memberAvatar.imageUrl,
+      contains('/download/p2p-im.com/alice-matrix-member-avatar'),
+    );
+  });
+
+  testWidgets('owned channel info page uses cached contact avatar fallback',
+      (tester) async {
+    final client = Client('OwnedChannelInfoContactAvatarTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: 'mxc://p2p-im.com/alice-contact-avatar',
+          roomId: '!direct:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: [
+        const AsSyncRoomSummary(
+          channelId: 'ch_owned',
+          roomId: '!owned:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '频道成员头像测试',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 2,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(
+            _ChannelMemberAvatarAsClient(''),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_owned'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final memberAvatar = tester.widget<PortalAvatar>(
+      find.descendant(
+        of: find.byKey(
+          const ValueKey('channel_member_avatar_@alice:p2p-im.com'),
+        ),
+        matching: find.byType(PortalAvatar),
+      ),
+    );
+    expect(
+      memberAvatar.imageUrl,
+      contains('/download/p2p-im.com/alice-contact-avatar'),
+    );
+  });
+
+  test('channel member avatar fallback uses member room id', () {
+    final client = Client('OwnedChannelInfoMemberRoomAvatarTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final room = Room(
+      id: '!owned:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@alice:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {
+          'membership': 'join',
+          'displayname': 'Alice',
+          'avatar_url': 'mxc://p2p-im.com/alice-member-room-avatar',
+        },
+      ),
+    );
+    const member = AsChannelMember(
+      channelId: 'ch_owned',
+      roomId: '!owned:p2p-im.com',
+      userMxid: '@alice:p2p-im.com',
+      displayName: 'Alice',
+      role: asChannelRoleMember,
+      status: asChannelMemberStatusJoined,
+    );
+
+    expect(
+      channelMemberAvatarUrl(client, member, roomId: 'ch_owned'),
+      contains('/download/p2p-im.com/alice-member-room-avatar'),
+    );
+  });
+
+  test('channel member avatar fallback converts Matrix profile avatar', () {
+    final client = Client('OwnedChannelInfoMemberProfileAvatarTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    const member = AsChannelMember(
+      channelId: 'ch_owned',
+      roomId: '!owned:p2p-im.com',
+      userMxid: '@alice:p2p-im.com',
+      displayName: 'Alice',
+      role: asChannelRoleMember,
+      status: asChannelMemberStatusJoined,
+    );
+
+    expect(
+      channelMemberAvatarUrl(
+        client,
+        member,
+        fallbackAvatarUrl: 'mxc://p2p-im.com/alice-profile-avatar',
+      ),
+      contains('/download/p2p-im.com/alice-profile-avatar'),
+    );
   });
 
   testWidgets('channel inbox tile opens post list or chat by channel type',

@@ -18,6 +18,9 @@ import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
+import '../providers/user_profile_directory_provider.dart';
+import '../utils/avatar_url.dart';
+import '../utils/user_profile_directory.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
@@ -112,10 +115,6 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
   }
 
   Future<void> _handleFavoriteTap(AsFavoriteMessage favorite) async {
-    if (favorite.messageType == 'image') {
-      await _openFavoriteImage(context, ref, favorite);
-      return;
-    }
     final l10n = _l10n(context);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -281,6 +280,9 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
                         l10n?.meFavoritesEmptySubtitle ?? '长按聊天消息收藏后会显示在这里',
                   );
                 }
+                final client = ref.watch(matrixClientProvider);
+                final profileDirectory =
+                    ref.watch(userProfileDirectoryProvider);
                 return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
                   separatorBuilder: (_, __) => const SizedBox(height: 14),
@@ -288,6 +290,8 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
                     final favorite = favorites[index];
                     return _FavoriteCard(
                       favorite: favorite,
+                      client: client,
+                      profileDirectory: profileDirectory,
                       onTap: () => unawaited(_handleFavoriteTap(favorite)),
                       onLongPress: () =>
                           unawaited(_handleFavoriteLongPress(favorite)),
@@ -931,12 +935,16 @@ class _MeEmptyUtilityContent extends StatelessWidget {
 class _FavoriteCard extends StatelessWidget {
   const _FavoriteCard({
     required this.favorite,
+    required this.client,
+    required this.profileDirectory,
     required this.onTap,
     required this.onLongPress,
     required this.onDismissDelete,
   });
 
   final AsFavoriteMessage favorite;
+  final Client client;
+  final UserProfileDirectory profileDirectory;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final Future<bool> Function() onDismissDelete;
@@ -980,7 +988,11 @@ class _FavoriteCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-            child: _FavoriteCardBody(favorite: favorite),
+            child: _FavoriteCardBody(
+              favorite: favorite,
+              client: client,
+              profileDirectory: profileDirectory,
+            ),
           ),
         ),
       ),
@@ -989,9 +1001,15 @@ class _FavoriteCard extends StatelessWidget {
 }
 
 class _FavoriteCardBody extends StatelessWidget {
-  const _FavoriteCardBody({required this.favorite});
+  const _FavoriteCardBody({
+    required this.favorite,
+    required this.client,
+    required this.profileDirectory,
+  });
 
   final AsFavoriteMessage favorite;
+  final Client client;
+  final UserProfileDirectory profileDirectory;
 
   @override
   Widget build(BuildContext context) {
@@ -1004,7 +1022,11 @@ class _FavoriteCardBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _FavoriteAuthorHeader(favorite: favorite),
+        _FavoriteAuthorHeader(
+          favorite: favorite,
+          client: client,
+          profileDirectory: profileDirectory,
+        ),
         const SizedBox(height: 14),
         switch (favorite.messageType) {
           'audio' => _FavoriteAudioContent(favorite: favorite),
@@ -1017,14 +1039,25 @@ class _FavoriteCardBody extends StatelessWidget {
 }
 
 class _FavoriteAuthorHeader extends StatelessWidget {
-  const _FavoriteAuthorHeader({required this.favorite});
+  const _FavoriteAuthorHeader({
+    required this.favorite,
+    required this.client,
+    required this.profileDirectory,
+  });
 
   final AsFavoriteMessage favorite;
+  final Client client;
+  final UserProfileDirectory profileDirectory;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
     final author = _favoriteSenderLabel(_l10n(context), favorite);
+    final senderAvatarUrl = _favoriteSenderAvatarUrl(
+      client,
+      profileDirectory,
+      favorite,
+    );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1033,9 +1066,7 @@ class _FavoriteAuthorHeader extends StatelessWidget {
               ? author
               : favorite.senderId.trim(),
           size: 40,
-          imageUrl: favorite.senderAvatarUrl.trim().isEmpty
-              ? null
-              : favorite.senderAvatarUrl.trim(),
+          imageUrl: senderAvatarUrl,
           shape: AvatarShape.squircle,
         ),
         const SizedBox(width: 10),
@@ -1245,6 +1276,7 @@ class _FavoriteMediaContent extends StatelessWidget {
       favorite: favorite,
       size: _favoriteMediaPreviewSize,
       borderRadius: 4,
+      previewOnTap: favorite.messageType == 'image',
     );
   }
 }
@@ -1386,6 +1418,18 @@ String _favoriteSenderLabel(
   return senderId.isEmpty ? l10n?.meFavoriteUnknownSender ?? '未知' : senderId;
 }
 
+String? _favoriteSenderAvatarUrl(
+  Client client,
+  UserProfileDirectory directory,
+  AsFavoriteMessage favorite,
+) {
+  final resolved = directory.avatarUrlFor(
+    favorite.senderId,
+    fallbackAvatarUrl: favorite.senderAvatarUrl,
+  );
+  return avatarHttpUrl(client, resolved);
+}
+
 String _favoriteTimeLabel(AsFavoriteMessage favorite) {
   final value = _favoriteTimestamp(favorite);
   if (value == null) return '';
@@ -1398,11 +1442,13 @@ class _FavoritePreview extends ConsumerStatefulWidget {
     required this.favorite,
     required this.size,
     required this.borderRadius,
+    this.previewOnTap = false,
   });
 
   final AsFavoriteMessage favorite;
   final double size;
   final double borderRadius;
+  final bool previewOnTap;
 
   @override
   ConsumerState<_FavoritePreview> createState() => _FavoritePreviewState();
@@ -1454,7 +1500,7 @@ class _FavoritePreviewState extends ConsumerState<_FavoritePreview> {
       ),
     );
 
-    return ClipRRect(
+    final preview = ClipRRect(
       borderRadius: BorderRadius.circular(widget.borderRadius),
       child: SizedBox(
         key: ValueKey('favorite-preview-${favorite.id}'),
@@ -1493,6 +1539,12 @@ class _FavoritePreviewState extends ConsumerState<_FavoritePreview> {
           ],
         ),
       ),
+    );
+    if (!widget.previewOnTap) return preview;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => unawaited(_openFavoriteImage(context, ref, favorite)),
+      child: preview,
     );
   }
 }

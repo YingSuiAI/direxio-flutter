@@ -51,10 +51,10 @@ void main() {
     expect(cBase.toString(), 'http://127.0.0.1:38008/_p2p');
   });
 
-  test('rejects legacy AS base URI for P2P product API client', () {
+  test('rejects non-P2P base URI for P2P product API client', () {
     expect(
       () => HttpAsClient(
-        baseUri: Uri.parse('https://example.com/_as'),
+        baseUri: Uri.parse('https://example.com/admin'),
         portalToken: 'portal-token',
       ),
       throwsA(isA<AsClientException>()),
@@ -469,7 +469,7 @@ void main() {
   test('AS M_UNKNOWN_TOKEN invokes session expiration callback', () async {
     var expired = false;
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'bad-token',
       onAuthenticationFailed: () {
         expired = true;
@@ -496,7 +496,7 @@ void main() {
   test('AS non-M_UNKNOWN_TOKEN 401 does not expire session', () async {
     var expired = false;
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'bad-token',
       onAuthenticationFailed: () {
         expired = true;
@@ -521,7 +521,7 @@ void main() {
   test('AS business 403 does not expire session', () async {
     var expired = false;
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       onAuthenticationFailed: () {
         expired = true;
@@ -548,11 +548,11 @@ void main() {
 
   test('updateOwnerProfile persists profile fields through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'PUT');
-        expect(request.url.path, '/_as/profile');
+        expect(request.url.path, '/_p2p/profile');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'display_name': '破局',
@@ -603,12 +603,12 @@ void main() {
     () async {
       final seen = <String>[];
       final client = HttpAsClient(
-        baseUri: Uri.parse('https://example.com/_as'),
+        baseUri: Uri.parse('https://example.com/_p2p'),
         portalToken: 'portal-token',
         httpClient: MockClient((request) async {
           seen.add('${request.method} ${request.url.path}');
           if (request.method == 'PUT') {
-            expect(request.url.path, '/_as/agent/config');
+            expect(request.url.path, '/_p2p/agent/config');
             expect(jsonDecode(request.body), {
               'display_name': '小B',
               'context_window': 30,
@@ -627,7 +627,7 @@ void main() {
         const AgentConfig(displayName: '小B', contextWindow: 30),
       );
 
-      expect(seen, ['PUT /_as/agent/config', 'GET /_as/agent/config']);
+      expect(seen, ['PUT /_p2p/agent/config', 'GET /_p2p/agent/config']);
       expect(updated.displayName, '小B');
       expect(updated.contextWindow, 30);
     },
@@ -635,7 +635,7 @@ void main() {
 
   test('follow mutations keep mock-compatible idempotency', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         if (request.method == 'POST') {
@@ -654,7 +654,7 @@ void main() {
 
   test('unexpected AS errors surface status code', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((_) async {
         return http.Response(jsonEncode({'error': 'M_UNKNOWN_TOKEN'}), 401);
@@ -674,12 +674,12 @@ void main() {
   test('createContactRequest posts target identity to AS', () async {
     late http.Request seen;
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         seen = request;
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/contacts/requests');
+        expect(request.url.path, '/_p2p/contacts/requests');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'mxid': '@alice:p2p-liyanan.com',
@@ -712,7 +712,7 @@ void main() {
       remark: '我是 Bob',
     );
 
-    expect(seen.url.path, '/_as/contacts/requests');
+    expect(seen.url.path, '/_p2p/contacts/requests');
     expect(contact.roomId, '!alice:p2p-im.com');
     expect(contact.status, 'pending_outbound');
     expect(contact.remark, '我是 Bob');
@@ -722,14 +722,14 @@ void main() {
   test('acceptContactRequest posts decision identity to AS', () async {
     late http.Request seen;
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         seen = request;
         expect(request.method, 'POST');
         expect(
           request.url.path,
-          '/_as/contacts/requests/!alice%3Ap2p-im.com/accept',
+          '/_p2p/contacts/requests/!alice%3Ap2p-im.com/accept',
         );
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
@@ -760,7 +760,7 @@ void main() {
       domain: 'p2p-liyanan.com',
     );
 
-    expect(seen.url.path, '/_as/contacts/requests/!alice%3Ap2p-im.com/accept');
+    expect(seen.url.path, '/_p2p/contacts/requests/!alice%3Ap2p-im.com/accept');
     expect(contact.roomId, '!alice:p2p-im.com');
     expect(contact.avatarUrl, 'mxc://p2p-liyanan.com/alice');
     expect(contact.status, 'accepted');
@@ -813,11 +813,11 @@ void main() {
 
   test('createCall posts call session request through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/calls');
+        expect(request.url.path, '/_p2p/calls');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'room_id': '!alice:p2p-im.com',
@@ -857,11 +857,11 @@ void main() {
 
   test('updateCallEvent posts call state transition through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/calls/call_abc/events');
+        expect(request.url.path, '/_p2p/calls/call_abc/events');
         expect(jsonDecode(request.body), {
           'event': 'ended',
           'reason': 'hangup',
@@ -904,11 +904,11 @@ void main() {
 
   test('getCall reads call session through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/calls/call_abc');
+        expect(request.url.path, '/_p2p/calls/call_abc');
         return http.Response(
           jsonEncode({
             'call_id': 'call_abc',
@@ -934,11 +934,11 @@ void main() {
 
   test('getActiveCalls reads active call list through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/calls/active');
+        expect(request.url.path, '/_p2p/calls/active');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return http.Response(
           jsonEncode({
@@ -968,11 +968,11 @@ void main() {
 
   test('listCalls reads room call history through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/calls');
+        expect(request.url.path, '/_p2p/calls');
         expect(request.url.queryParameters['room_id'], '!group:p2p-im.com');
         expect(request.url.queryParameters['limit'], '50');
         expect(request.headers['Authorization'], 'Bearer portal-token');
@@ -1022,11 +1022,11 @@ void main() {
 
   test('registerIncomingCall posts remote call identity through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/calls/incoming');
+        expect(request.url.path, '/_p2p/calls/incoming');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'call_id': 'call_remote',
@@ -1112,11 +1112,11 @@ void main() {
   test('createGroup posts name avatar and accepted contact invites through AS',
       () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/groups');
+        expect(request.url.path, '/_p2p/groups');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'name': '产品测试群',
@@ -1160,11 +1160,11 @@ void main() {
 
   test('updateGroupProfile puts name topic and avatar through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'PUT');
-        expect(request.url.path, '/_as/groups/!group%3Ap2p-im.com');
+        expect(request.url.path, '/_p2p/groups/!group%3Ap2p-im.com');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'name': 'Project Group Renamed',
@@ -1197,11 +1197,11 @@ void main() {
 
   test('joinGroup posts invite-card context through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/groups/!group%3Ap2p-im.com/join');
+        expect(request.url.path, '/_p2p/groups/!group%3Ap2p-im.com/join');
         expect(jsonDecode(request.body), {
           'group_name': '产品测试群',
           'inviter_mxid': '@alice:p2p-liyanan.com',
@@ -1246,11 +1246,11 @@ void main() {
 
   test('inviteGroupMembers posts existing group invites through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/groups/!group%3Ap2p-im.com/invite');
+        expect(request.url.path, '/_p2p/groups/!group%3Ap2p-im.com/invite');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'invite': ['@carol:p2p-carol.com'],
@@ -1339,13 +1339,13 @@ void main() {
 
   test('removeGroupMember posts member removal through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
         expect(
           request.url.path,
-          '/_as/groups/!group%3Ap2p-im.com/members/'
+          '/_p2p/groups/!group%3Ap2p-im.com/members/'
           '%40carol%3Ap2p-carol.com/remove',
         );
         expect(request.headers['Authorization'], 'Bearer portal-token');
@@ -1369,13 +1369,13 @@ void main() {
 
   test('removeChannelMember posts member removal through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
         expect(
           request.url.path,
-          '/_as/channels/ch1/members/%40carol%3Ap2p-carol.com/remove',
+          '/_p2p/channels/ch1/members/%40carol%3Ap2p-carol.com/remove',
         );
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(request.body, isEmpty);
@@ -1395,11 +1395,11 @@ void main() {
 
   test('inviteChannelMembers posts channel invites through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/ch1/invite');
+        expect(request.url.path, '/_p2p/channels/ch1/invite');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'invite': ['@carol:p2p-carol.com'],
@@ -1503,16 +1503,16 @@ void main() {
 
   test('group mute APIs post expected AS endpoints', () async {
     final expectedPaths = [
-      '/_as/groups/!group%3Ap2p-im.com/mute',
-      '/_as/groups/!group%3Ap2p-im.com/unmute',
-      '/_as/groups/!group%3Ap2p-im.com/members/'
+      '/_p2p/groups/!group%3Ap2p-im.com/mute',
+      '/_p2p/groups/!group%3Ap2p-im.com/unmute',
+      '/_p2p/groups/!group%3Ap2p-im.com/members/'
           '%40carol%3Ap2p-carol.com/mute',
-      '/_as/groups/!group%3Ap2p-im.com/members/'
+      '/_p2p/groups/!group%3Ap2p-im.com/members/'
           '%40carol%3Ap2p-carol.com/unmute',
     ];
     var index = 0;
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
@@ -1539,14 +1539,14 @@ void main() {
 
   test('channel mute APIs post expected AS endpoints', () async {
     final expectedPaths = [
-      '/_as/channels/ch1/mute',
-      '/_as/channels/ch1/unmute',
-      '/_as/channels/ch1/members/%40carol%3Ap2p-carol.com/mute',
-      '/_as/channels/ch1/members/%40carol%3Ap2p-carol.com/unmute',
+      '/_p2p/channels/ch1/mute',
+      '/_p2p/channels/ch1/unmute',
+      '/_p2p/channels/ch1/members/%40carol%3Ap2p-carol.com/mute',
+      '/_p2p/channels/ch1/members/%40carol%3Ap2p-carol.com/unmute',
     ];
     var index = 0;
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
@@ -1567,13 +1567,13 @@ void main() {
 
   test('updateGroupInvitePolicy puts selected policy through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'PUT');
         expect(
           request.url.path,
-          '/_as/groups/!group%3Ap2p-im.com/invite-policy',
+          '/_p2p/groups/!group%3Ap2p-im.com/invite-policy',
         );
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {'invite_policy': 'owner_admin'});
@@ -1602,11 +1602,11 @@ void main() {
 
   test('leaveGroup posts leave through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/groups/!group%3Ap2p-im.com/leave');
+        expect(request.url.path, '/_p2p/groups/!group%3Ap2p-im.com/leave');
         return http.Response(
           jsonEncode({'room_id': '!group:p2p-im.com', 'status': 'left'}),
           200,
@@ -1619,11 +1619,11 @@ void main() {
 
   test('dissolveGroup posts dissolve through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/groups/!group%3Ap2p-im.com/dissolve');
+        expect(request.url.path, '/_p2p/groups/!group%3Ap2p-im.com/dissolve');
         return http.Response(
           jsonEncode({'room_id': '!group:p2p-im.com', 'status': 'ok'}),
           200,
@@ -1636,11 +1636,11 @@ void main() {
 
   test('leaveChannel posts leave through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/ch1/leave');
+        expect(request.url.path, '/_p2p/channels/ch1/leave');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return http.Response(
           jsonEncode({'channel_id': 'ch1', 'status': 'left'}),
@@ -1654,11 +1654,11 @@ void main() {
 
   test('dissolveChannel posts dissolve through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/ch1/dissolve');
+        expect(request.url.path, '/_p2p/channels/ch1/dissolve');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return http.Response(
           jsonEncode({'channel_id': 'ch1', 'status': 'ok'}),
@@ -1699,11 +1699,11 @@ void main() {
 
   test('favoriteMessage posts a generic favorite snapshot', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/favorites');
+        expect(request.url.path, '/_p2p/favorites');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'room_id': '!room:p2p-im.com',
@@ -1910,11 +1910,11 @@ void main() {
   test('getFavorites parses AS favorites list and optional type filter',
       () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/favorites');
+        expect(request.url.path, '/_p2p/favorites');
         expect(request.url.queryParameters['type'], 'file');
         final body = jsonEncode({
           'synced_at': '2026-05-29T10:00:00Z',
@@ -1959,11 +1959,11 @@ void main() {
 
   test('getFavorites parses favorite media fallback urls', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/favorites');
+        expect(request.url.path, '/_p2p/favorites');
         final body = jsonEncode({
           'favorites': [
             {
@@ -2003,11 +2003,11 @@ void main() {
 
   test('getFavorites preserves chat record item snapshots', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/favorites');
+        expect(request.url.path, '/_p2p/favorites');
         final body = jsonEncode({
           'synced_at': '2026-05-29T10:00:00Z',
           'favorites': [
@@ -2091,11 +2091,11 @@ void main() {
 
   test('deleteFavorite deletes by id through AS', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'DELETE');
-        expect(request.url.path, '/_as/favorites/7');
+        expect(request.url.path, '/_p2p/favorites/7');
         return http.Response(jsonEncode({'id': 7, 'deleted': true}), 200);
       }),
     );
@@ -2105,11 +2105,11 @@ void main() {
 
   test('deleteContact removes a contact through AS product route', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'DELETE');
-        expect(request.url.path, '/_as/contacts/!alice%3Ap2p-im.com');
+        expect(request.url.path, '/_p2p/contacts/!alice%3Ap2p-im.com');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return http.Response(
           jsonEncode({
@@ -2132,7 +2132,7 @@ void main() {
 
   test('portal status treats AS connected session label as healthy', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((_) async {
         return http.Response(
@@ -2323,12 +2323,12 @@ void main() {
 
   test('changePortalPassword posts password payload to AS admin API', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'admin-token',
       accessTokenForDebug: 'matrix-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'PUT');
-        expect(request.url.path, '/_as/portal/password');
+        expect(request.url.path, '/_p2p/portal/password');
         expect(request.headers['Authorization'], 'Bearer admin-token');
         expect(jsonDecode(request.body), {
           'old_password': '11111111',
@@ -2363,11 +2363,11 @@ void main() {
 
   test('createChannel posts channel metadata to AS admin API', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels');
+        expect(request.url.path, '/_p2p/channels');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'name': '产品公告',
@@ -2413,11 +2413,11 @@ void main() {
 
   test('listChannels calls AS channel list endpoint', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/channels');
+        expect(request.url.path, '/_p2p/channels');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return _jsonResponse(
           {
@@ -2454,11 +2454,11 @@ void main() {
   test('searchPublicChannels calls public discovery endpoint without auth',
       () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/public/channels/search');
+        expect(request.url.path, '/_p2p/public/channels/search');
         expect(request.url.queryParameters['q'], '产品');
         expect(request.url.queryParameters['limit'], '20');
         expect(request.headers['Authorization'], isNull);
@@ -2491,13 +2491,13 @@ void main() {
   test('getPublicChannelByRoomId calls public detail endpoint without auth',
       () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
         expect(
           request.url.toString(),
-          'https://example.com/_as/public/channels/%21channel%3Aexample.com',
+          'https://example.com/_p2p/public/channels/%21channel%3Aexample.com',
         );
         expect(request.headers['Authorization'], isNull);
         return _jsonResponse(
@@ -2609,13 +2609,13 @@ void main() {
   test('getUserPublicChannels calls public user endpoint without auth',
       () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
         expect(
           request.url.path,
-          '/_as/users/%40alice%3Aexample.com/public-channels',
+          '/_p2p/users/%40alice%3Aexample.com/public-channels',
         );
         expect(request.headers['Authorization'], isNull);
         return _jsonResponse(
@@ -2685,11 +2685,11 @@ void main() {
 
   test('joinChannel returns pending for approval channel', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/ch1/join');
+        expect(request.url.path, '/_p2p/channels/ch1/join');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return _jsonResponse(
           {
@@ -2918,13 +2918,15 @@ void main() {
 
   test('getChannelMembers reads pending approval requests', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.method, 'GET');
-        expect(request.url.path, '/_as/channels/ch1/members');
-        expect(request.url.queryParameters['status'], 'pending');
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
         expect(request.headers['Authorization'], 'Bearer portal-token');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['action'], 'channels.members');
+        expect(body['params'], {'status': 'pending', 'channel_id': 'ch1'});
         return _jsonResponse(
           {
             'members': [
@@ -2951,6 +2953,43 @@ void main() {
     expect(members.single.userMxid, '@alice:p2p-liyanan.com');
     expect(members.single.displayName, 'Alice');
     expect(members.single.status, asChannelMemberStatusPending);
+  });
+
+  test('getChannelMembers sends backend join membership for joined status',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['action'], 'channels.members');
+        expect(body['params'], {'status': 'join', 'channel_id': 'ch1'});
+        return _jsonResponse(
+          {
+            'members': [
+              {
+                'channel_id': 'ch1',
+                'user_mxid': '@alice:p2p-liyanan.com',
+                'display_name': 'Alice',
+                'role': 'member',
+                'membership': 'join',
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final members = await client.getChannelMembers(
+      'ch1',
+      status: asChannelMemberStatusJoined,
+    );
+
+    expect(members.single.userMxid, '@alice:p2p-liyanan.com');
+    expect(members.single.status, asChannelMemberStatusJoined);
   });
 
   test('AsChannelMember normalizes service membership fields', () {
@@ -3001,13 +3040,48 @@ void main() {
       }),
     );
 
-    final channel = await client.approveChannelJoin(
+    final result = await client.approveChannelJoin(
       'ch1',
       '@alice:p2p-liyanan.com',
     );
 
-    expect(channel.channelId, 'ch1');
-    expect(channel.pendingJoinCount, 0);
+    expect(result.status, asChannelMemberStatusApproved);
+    expect(result.channel.channelId, 'ch1');
+    expect(result.channel.pendingJoinCount, 0);
+  });
+
+  test('approveChannelJoin preserves join failure status', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        return _jsonResponse(
+          {
+            'status': 'join_failed',
+            'error': 'target node join result failed',
+            'channel': {
+              'channel_id': 'ch1',
+              'room_id': '!channel:example.com',
+              'name': '审核频道',
+              'visibility': 'public',
+              'join_policy': 'approval',
+              'comments_enabled': true,
+              'pending_join_count': 0,
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final result = await client.approveChannelJoin(
+      'ch1',
+      '@alice:p2p-liyanan.com',
+    );
+
+    expect(result.status, asChannelMemberStatusJoinFailed);
+    expect(result.error, 'target node join result failed');
+    expect(result.channel.channelId, 'ch1');
   });
 
   test('rejectChannelJoin posts rejection action to P2P command', () async {
@@ -3044,22 +3118,23 @@ void main() {
       }),
     );
 
-    final channel = await client.rejectChannelJoin(
+    final result = await client.rejectChannelJoin(
       'ch1',
       '@alice:p2p-liyanan.com',
     );
 
-    expect(channel.channelId, 'ch1');
-    expect(channel.pendingJoinCount, 0);
+    expect(result.status, asChannelMemberStatusRejected);
+    expect(result.channel.channelId, 'ch1');
+    expect(result.channel.pendingJoinCount, 0);
   });
 
   test('createChannelPost posts text and media metadata', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/ch1/posts');
+        expect(request.url.path, '/_p2p/channels/ch1/posts');
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['message_type'], 'image');
         expect(body['body'], '图片说明');
@@ -3176,11 +3251,11 @@ void main() {
 
   test('recallChannelPost posts reason to recall endpoint', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/ch1/posts/post1/recall');
+        expect(request.url.path, '/_p2p/channels/ch1/posts/post1/recall');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {'reason': 'recall post'});
         return _jsonResponse({}, 200);
@@ -3192,11 +3267,11 @@ void main() {
 
   test('createChannelComment posts to target post id', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/ch1/posts/post1/comments');
+        expect(request.url.path, '/_p2p/channels/ch1/posts/post1/comments');
         expect(jsonDecode(request.body), {
           'message_type': 'text',
           'body': '收到',
@@ -3254,11 +3329,11 @@ void main() {
 
   test('getChannelComments uses page query parameters', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/channels/ch1/posts/post1/comments');
+        expect(request.url.path, '/_p2p/channels/ch1/posts/post1/comments');
         expect(request.url.queryParameters, {
           'page': '1',
           'page_size': '5',
@@ -3296,11 +3371,11 @@ void main() {
 
   test('toggleChannelPostReaction posts current reaction state', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/channels/ch1/posts/post1/reactions');
+        expect(request.url.path, '/_p2p/channels/ch1/posts/post1/reactions');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {'reaction': 'like'});
         return _jsonResponse(
@@ -3328,13 +3403,13 @@ void main() {
 
   test('toggleChannelCommentReaction posts current reaction state', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
         expect(
           request.url.path,
-          '/_as/channels/ch1/posts/post1/comments/comment1/reactions',
+          '/_p2p/channels/ch1/posts/post1/comments/comment1/reactions',
         );
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {'reaction': 'like'});
@@ -3364,11 +3439,11 @@ void main() {
 
   test('getMyChannelReactions parses channel reaction history', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/channels/me/reactions');
+        expect(request.url.path, '/_p2p/channels/me/reactions');
         expect(request.url.queryParameters['limit'], '25');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return _jsonResponse(
@@ -3413,11 +3488,11 @@ void main() {
 
   test('getMyChannelComments parses channel comment history', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/channels/me/comments');
+        expect(request.url.path, '/_p2p/channels/me/comments');
         expect(request.url.queryParameters['limit'], '15');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return _jsonResponse(
@@ -3471,10 +3546,10 @@ void main() {
 
   test('getMyChannelComments parses flat channel activity fields', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.url.path, '/_as/channels/me/comments');
+        expect(request.url.path, '/_p2p/channels/me/comments');
         return _jsonResponse(
           {
             'comments': [
@@ -3568,10 +3643,10 @@ void main() {
 
   test('getMyChannelReactions parses flat channel activity fields', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
-        expect(request.url.path, '/_as/channels/me/reactions');
+        expect(request.url.path, '/_p2p/channels/me/reactions');
         return _jsonResponse(
           {
             'reactions': [
@@ -3606,11 +3681,11 @@ void main() {
 
   test('updateChannelReadMarker uses channel read marker API', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'PUT');
-        expect(request.url.path, '/_as/channels/ch1/read-marker');
+        expect(request.url.path, '/_p2p/channels/ch1/read-marker');
         expect(jsonDecode(request.body), {
           'event_id': r'$post1',
           'origin_server_ts': 1780730000000,
@@ -3628,11 +3703,11 @@ void main() {
 
   test('updateReadMarker sends room and event id to sync API', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'PUT');
-        expect(request.url.path, '/_as/sync/read-marker');
+        expect(request.url.path, '/_p2p/sync/read-marker');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
           'room_id': '!room:example.com',
@@ -3655,11 +3730,11 @@ void main() {
 
   test('syncBootstrap parses metadata without message bodies', () async {
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
-        expect(request.url.path, '/_as/sync/bootstrap');
+        expect(request.url.path, '/_p2p/sync/bootstrap');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         return http.Response(
           jsonEncode({
@@ -3734,12 +3809,12 @@ void main() {
 
   test('authenticatePortal posts password to auth', () async {
     final session = await HttpAsClient.authenticatePortal(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: '11111111',
       deviceId: 'DEVICE2',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/auth');
+        expect(request.url.path, '/_p2p/auth');
         expect(request.headers['Authorization'], isNull);
         expect(jsonDecode(request.body), {
           'password': '11111111',
@@ -3772,12 +3847,12 @@ void main() {
 
   test('bootstrapPortal posts setup code to bootstrap', () async {
     final session = await HttpAsClient.bootstrapPortal(
-      baseUri: Uri.parse('https://example.com/_as'),
+      baseUri: Uri.parse('https://example.com/_p2p'),
       setupCode: 'setup-code',
       deviceId: 'DEVICE3',
       httpClient: MockClient((request) async {
         expect(request.method, 'POST');
-        expect(request.url.path, '/_as/bootstrap');
+        expect(request.url.path, '/_p2p/bootstrap');
         expect(request.headers['Authorization'], isNull);
         expect(jsonDecode(request.body), {
           'token': 'setup-code',

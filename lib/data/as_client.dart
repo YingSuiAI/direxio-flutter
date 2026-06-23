@@ -1367,6 +1367,33 @@ class AsChannel {
   }
 }
 
+class AsChannelJoinReviewResult {
+  const AsChannelJoinReviewResult({
+    required this.status,
+    required this.channel,
+    this.error = '',
+  });
+
+  final String status;
+  final AsChannel channel;
+  final String error;
+
+  factory AsChannelJoinReviewResult.fromJson(Map<String, dynamic> json) {
+    final channelJson =
+        (json['channel'] as Map?)?.cast<String, dynamic>() ?? json;
+    final topStatus = _normalizeChannelMemberStatus(
+      json['status'] as String? ?? '',
+    );
+    final channel = AsChannel.fromJson(channelJson);
+    final status = topStatus.isEmpty ? channel.memberStatus : topStatus;
+    return AsChannelJoinReviewResult(
+      status: status,
+      channel: channel,
+      error: json['error'] as String? ?? '',
+    );
+  }
+}
+
 class AsChannelShareDraft {
   const AsChannelShareDraft({
     required this.channelId,
@@ -1688,6 +1715,7 @@ class AsChannelReaction {
 class AsChannelMember {
   const AsChannelMember({
     required this.channelId,
+    this.roomId = '',
     required this.userMxid,
     required this.role,
     required this.status,
@@ -1698,6 +1726,7 @@ class AsChannelMember {
   });
 
   final String channelId;
+  final String roomId;
   final String userMxid;
   final String domain;
   final String displayName;
@@ -1709,6 +1738,7 @@ class AsChannelMember {
   factory AsChannelMember.fromJson(Map<String, dynamic> json) {
     return AsChannelMember(
       channelId: json['channel_id'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
       userMxid: _firstString(
         json,
         const ['user_mxid', 'user_id', 'matrix_user_id', 'mxid'],
@@ -2463,10 +2493,16 @@ abstract class AsClient {
   });
 
   /// P2P product API action.
-  Future<AsChannel> approveChannelJoin(String channelId, String userMxid);
+  Future<AsChannelJoinReviewResult> approveChannelJoin(
+    String channelId,
+    String userMxid,
+  );
 
   /// P2P product API action.
-  Future<AsChannel> rejectChannelJoin(String channelId, String userMxid);
+  Future<AsChannelJoinReviewResult> rejectChannelJoin(
+    String channelId,
+    String userMxid,
+  );
 
   /// P2P product API action.
   Future<void> removeChannelMember(String channelId, String userMxid);

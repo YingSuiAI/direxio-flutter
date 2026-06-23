@@ -112,6 +112,87 @@ void main() {
     expect(requests.single.path, contains('/download/p2p-im.com/video-thumb'));
   });
 
+  test('downloads image body when received image has no thumbnail', () async {
+    final requests = <Uri>[];
+    final client = Client(
+      'ChatEventImageBodyFallbackThumbnailTest',
+      httpClient: MockClient((request) async {
+        requests.add(request.url);
+        if (request.url.path.contains('/thumbnail/')) {
+          return http.Response('missing thumbnail', 404);
+        }
+        return http.Response.bytes([5, 4, 3, 2], 200);
+      }),
+    )
+      ..setUserId('@me:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final event = Event(
+      room: room,
+      eventId: r'$image-no-thumb',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 12),
+      content: {
+        'msgtype': MessageTypes.Image,
+        'body': 'photo.jpg',
+        'url': 'mxc://p2p-im.com/photo',
+        'info': {
+          'mimetype': 'image/jpeg',
+          'size': 4,
+          'w': 120,
+          'h': 80,
+        },
+      },
+    );
+
+    final file = await downloadChatEventThumbnail(event);
+
+    expect(file.bytes, [5, 4, 3, 2]);
+    expect(requests, hasLength(1));
+    expect(requests.single.path, contains('/download/p2p-im.com/photo'));
+  });
+
+  test('uses image body when received image thumbnail is unusable', () async {
+    final requests = <Uri>[];
+    final client = Client(
+      'ChatEventBadImageThumbnailFallbackTest',
+      httpClient: MockClient((request) async {
+        requests.add(request.url);
+        return http.Response.bytes([5, 4, 3, 2], 200);
+      }),
+    )
+      ..setUserId('@me:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final event = Event(
+      room: room,
+      eventId: r'$image-bad-thumb',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 12),
+      content: {
+        'msgtype': MessageTypes.Image,
+        'body': 'photo.jpg',
+        'url': 'mxc://p2p-im.com/photo',
+        'thumbnail_url': 'mxc://p2p-im.com/bad-thumb',
+        'thumbnail_mime_type': 'image/jpeg',
+        'info': {
+          'mimetype': 'image/jpeg',
+          'size': 4,
+          'w': 120,
+          'h': 80,
+        },
+      },
+    );
+
+    final file = await downloadChatEventThumbnail(event);
+
+    expect(file.bytes, [5, 4, 3, 2]);
+    expect(requests, hasLength(1));
+    expect(requests.single.path, contains('/download/p2p-im.com/photo'));
+  });
+
   test('does not download video body as thumbnail when thumbnail is missing',
       () async {
     final client = Client(

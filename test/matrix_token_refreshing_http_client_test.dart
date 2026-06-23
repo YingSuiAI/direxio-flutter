@@ -58,7 +58,7 @@ void main() {
 
     final request = http.Request(
       'GET',
-      Uri.parse('https://example.com/_as/search'),
+      Uri.parse('https://example.com/_p2p/search'),
     )..headers['authorization'] = 'Bearer old-token';
 
     final response = await client.send(request);

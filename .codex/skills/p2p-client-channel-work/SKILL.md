@@ -45,6 +45,11 @@ Normalize member status through `AsChannel` / `AsChannelMember`, and treat only 
 
 `invite` and `pending` are waiting states. They must not unlock channel sending, post creation, or joined-only navigation.
 
+Channel join-request review actions return a top-level status such as
+`approved`, `joining`, `joined`, or `join_failed`. Preserve that status in the
+client UI; do not treat a successful approve request as successful membership
+unless the returned status is `joined`.
+
 Channel list entries with terminal lifecycle such as `deleted`, `left`,
 `dissolve`, or `dissolved` must be hidden even if stale membership still says
 `joined`.

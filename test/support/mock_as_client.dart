@@ -850,7 +850,7 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<AsChannel> approveChannelJoin(
+  Future<AsChannelJoinReviewResult> approveChannelJoin(
     String channelId,
     String userMxid,
   ) async {
@@ -858,7 +858,7 @@ class MockAsClient implements AsClient {
   }
 
   @override
-  Future<AsChannel> rejectChannelJoin(
+  Future<AsChannelJoinReviewResult> rejectChannelJoin(
     String channelId,
     String userMxid,
   ) async {
@@ -934,7 +934,7 @@ class MockAsClient implements AsClient {
   @override
   Future<void> dissolveChannel(String channelId) => leaveChannel(channelId);
 
-  Future<AsChannel> _resolveMockChannelJoin(
+  Future<AsChannelJoinReviewResult> _resolveMockChannelJoin(
     String channelId,
     String userMxid, {
     required bool joined,
@@ -951,7 +951,7 @@ class MockAsClient implements AsClient {
         displayName: member.displayName,
         role: member.role,
         status: joined
-            ? asChannelMemberStatusInvite
+            ? asChannelMemberStatusJoined
             : asChannelMemberStatusRejected,
         joinedAtMs:
             joined ? DateTime.now().millisecondsSinceEpoch : member.joinedAtMs,
@@ -980,7 +980,11 @@ class MockAsClient implements AsClient {
       latestActivityAt: channel.latestActivityAt,
     );
     _channels[key] = updated;
-    return updated;
+    return AsChannelJoinReviewResult(
+      status:
+          joined ? asChannelMemberStatusJoined : asChannelMemberStatusRejected,
+      channel: updated,
+    );
   }
 
   @override

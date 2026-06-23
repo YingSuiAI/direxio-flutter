@@ -213,22 +213,9 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                     discoveredChannel: sharePayload.asDiscoveredChannel,
                   ),
             );
-      if (isAsChannelMemberJoined(joined.memberStatus)) {
-        final bootstrap =
-            await ref.read(asBootstrapRepositoryProvider).refresh();
-        ref.read(asSyncCacheProvider.notifier).update(
-              (state) => state.copyWith(bootstrap: bootstrap),
-            );
-      }
       if (!mounted) return;
-      setState(() => _joining = false);
-      if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
-        );
-        return;
-      }
       if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
+        setState(() => _joining = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
         );
@@ -236,35 +223,28 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(channelJoinInProgressText)),
+          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
         );
+        final projected = await waitForJoinedChannelProjectionData(
+          ref,
+          channelId: joined.channelId.trim().isEmpty
+              ? channelId
+              : joined.channelId.trim(),
+          roomId: joined.roomId.trim().isEmpty ? roomId : joined.roomId.trim(),
+        );
+        if (!mounted) return;
+        setState(() => _joining = false);
+        if (projected == null) return;
+        _openJoinedChannel(projected, fallback: channel);
         return;
       }
-      final joinedChannelId =
-          joined.channelId.trim().isEmpty ? channelId : joined.channelId.trim();
-      final encodedChannelId = Uri.encodeComponent(joinedChannelId);
-      if (_channelInfoIsPostType(channel)) {
-        context.push('/channel/$encodedChannelId');
-        return;
-      }
-      final route = productConversationRoute(
-            joined.productConversation,
-            channelId: joinedChannelId,
-          ) ??
-          joinedTextChannelConversationRoute(
-            channelId: joinedChannelId,
-            roomId: joined.roomId.trim().isEmpty ? roomId : joined.roomId,
-            memberStatus: joined.memberStatus,
-            channelType: joined.channelType,
-            name: joined.name.trim().isEmpty ? channel.name : joined.name,
+      setState(() => _joining = false);
+      final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
+      ref.read(asSyncCacheProvider.notifier).update(
+            (state) => state.copyWith(bootstrap: bootstrap),
           );
-      if (route == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('频道正在同步，请稍后重试')),
-        );
-        return;
-      }
-      context.push(route);
+      if (!mounted) return;
+      _openJoinedChannel(joined, fallback: channel);
     } catch (err) {
       final sharePayload = widget.sharePayload;
       logChannelJoinForbidden(
@@ -287,6 +267,42 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
         SnackBar(content: Text('加入频道失败：$err')),
       );
     }
+  }
+
+  void _openJoinedChannel(
+    AsChannel joined, {
+    required ChannelInfoData fallback,
+  }) {
+    final channelId = joined.channelId.trim().isEmpty
+        ? fallback.id.trim()
+        : joined.channelId.trim();
+    final encodedChannelId = Uri.encodeComponent(
+      channelId.isEmpty ? fallback.roomId.trim() : channelId,
+    );
+    if (_joinedChannelIsPostType(joined, fallback)) {
+      context.push('/channel/$encodedChannelId');
+      return;
+    }
+    final route = productConversationRoute(
+          joined.productConversation,
+          channelId: channelId,
+        ) ??
+        joinedTextChannelConversationRoute(
+          channelId: channelId,
+          roomId: joined.roomId.trim().isEmpty
+              ? fallback.roomId.trim()
+              : joined.roomId.trim(),
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: joined.channelType.trim().isEmpty
+              ? fallback.channelType
+              : joined.channelType,
+          name: joined.name.trim().isEmpty ? fallback.name : joined.name,
+        ) ??
+        channelConversationRoute(
+          channelId,
+          name: joined.name.trim().isEmpty ? fallback.name : joined.name,
+        );
+    context.push(route);
   }
 }
 
@@ -587,6 +603,17 @@ bool _channelInfoIsPostType(ChannelInfoData channel) {
   }
   return channel.tags
       .any((tag) => normalizeAsChannelType(tag) == asChannelTypePost);
+}
+
+bool _joinedChannelIsPostType(
+  AsChannel joined,
+  ChannelInfoData fallback,
+) {
+  if (joined.tags.any(_channelTagIsChatType)) return false;
+  final joinedType = normalizeAsChannelType(joined.channelType);
+  if (joinedType == asChannelTypePost) return true;
+  if (joinedType == asChannelTypeChat) return false;
+  return _channelInfoIsPostType(fallback);
 }
 
 bool _channelTagIsChatType(String tag) {

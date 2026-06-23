@@ -1,12 +1,18 @@
 import 'package:matrix/matrix.dart';
 
 Future<MatrixFile> downloadChatEventThumbnail(Event event) async {
+  if (_isImageMessage(event)) return downloadChatEventAttachment(event);
+
   final normalized = _normalizedThumbnailEvent(event);
   if (_isVideoMessage(event) && !_hasUsableVideoThumbnail(event, normalized)) {
     throw "This video event hasn't a usable image thumbnail.";
   }
   if (!_hasMatrixThumbnail(event) && normalized != null) {
-    return normalized.downloadAndDecryptAttachment(getThumbnail: true);
+    try {
+      return await normalized.downloadAndDecryptAttachment(getThumbnail: true);
+    } catch (_) {
+      rethrow;
+    }
   }
   try {
     return await event.downloadAndDecryptAttachment(getThumbnail: true);
@@ -147,6 +153,10 @@ bool _hasUsableVideoThumbnail(Event event, Event? normalized) {
 
 bool _isVideoMessage(Event event) {
   return _firstString([event.content['msgtype']]) == MessageTypes.Video;
+}
+
+bool _isImageMessage(Event event) {
+  return _firstString([event.content['msgtype']]) == MessageTypes.Image;
 }
 
 Event? _normalizedAttachmentEvent(Event event) {

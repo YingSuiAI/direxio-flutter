@@ -552,27 +552,33 @@ class _EmptyAsClient implements AsClient {
   }) async {}
 
   @override
-  Future<AsChannel> approveChannelJoin(
+  Future<AsChannelJoinReviewResult> approveChannelJoin(
           String channelId, String userMxid) async =>
-      AsChannel(
-        channelId: channelId,
-        roomId: '!$channelId:example.com',
-        name: '频道',
-        homeDomain: 'example.com',
-        role: asChannelRoleOwner,
-        memberStatus: asChannelMemberStatusJoined,
+      AsChannelJoinReviewResult(
+        status: asChannelMemberStatusJoined,
+        channel: AsChannel(
+          channelId: channelId,
+          roomId: '!$channelId:example.com',
+          name: '频道',
+          homeDomain: 'example.com',
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
       );
 
   @override
-  Future<AsChannel> rejectChannelJoin(
+  Future<AsChannelJoinReviewResult> rejectChannelJoin(
           String channelId, String userMxid) async =>
-      AsChannel(
-        channelId: channelId,
-        roomId: '!$channelId:example.com',
-        name: '频道',
-        homeDomain: 'example.com',
-        role: asChannelRoleOwner,
-        memberStatus: asChannelMemberStatusJoined,
+      AsChannelJoinReviewResult(
+        status: asChannelMemberStatusRejected,
+        channel: AsChannel(
+          channelId: channelId,
+          roomId: '!$channelId:example.com',
+          name: '频道',
+          homeDomain: 'example.com',
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
       );
 
   @override
@@ -1016,6 +1022,12 @@ class _MissingPublicChannelAsClient extends _EmptyAsClient {
 }
 
 class _PendingChannelReviewAsClient extends _EmptyAsClient {
+  _PendingChannelReviewAsClient({
+    this.approveStatus = asChannelMemberStatusJoined,
+  });
+
+  final String approveStatus;
+
   @override
   Future<AsSyncBootstrap> syncBootstrap() async => AsSyncBootstrap(
         syncedAt: DateTime.now().toUtc(),
@@ -1055,6 +1067,25 @@ class _PendingChannelReviewAsClient extends _EmptyAsClient {
           joinedAtMs: 1760000000000,
         ),
       ];
+
+  @override
+  Future<AsChannelJoinReviewResult> approveChannelJoin(
+    String channelId,
+    String userMxid,
+  ) async {
+    return AsChannelJoinReviewResult(
+      status: approveStatus,
+      channel: const AsChannel(
+        channelId: 'ch_review',
+        roomId: '!review:p2p-im.com',
+        name: '频道审核',
+        homeDomain: 'p2p-im.com',
+        role: asChannelRoleOwner,
+        memberStatus: asChannelMemberStatusJoined,
+        pendingJoinCount: 0,
+      ),
+    );
+  }
 }
 
 class _ReadMarkerFailingAsClient extends _EmptyAsClient {
@@ -1174,6 +1205,32 @@ class _StatefulPendingContactAsClient extends _EmptyAsClient {
   }
 }
 
+class _RejectingPendingContactAsClient extends _EmptyAsClient {
+  var _rejected = false;
+
+  @override
+  Future<AsSyncBootstrap> syncBootstrap() async =>
+      _pendingFriendRequestBootstrap(
+        status: _rejected ? 'rejected' : 'pending_inbound',
+      );
+
+  @override
+  Future<ContactEntry> rejectContactRequest({
+    required String roomId,
+    required String peerMxid,
+    String displayName = '',
+    String domain = '',
+  }) async {
+    _rejected = true;
+    return super.rejectContactRequest(
+      roomId: roomId,
+      peerMxid: peerMxid,
+      displayName: displayName,
+      domain: domain,
+    );
+  }
+}
+
 class _IdleVoiceCallController implements VoiceCallController {
   _IdleVoiceCallController({
     GroupCallUiState initialGroupState = GroupCallUiState.idle,
@@ -1264,6 +1321,7 @@ class _FavoritesAsClient extends _EmptyAsClient {
     this.videoThumbnail = true,
     this.imageUrl = 'mxc://p2p-im.com/image',
     this.imageThumbnailUrl = '',
+    this.textSenderAvatarUrl = 'https://cdn.example.com/alice-favorite.png',
   });
 
   static const generatedImageName =
@@ -1273,6 +1331,7 @@ class _FavoritesAsClient extends _EmptyAsClient {
   final bool videoThumbnail;
   final String imageUrl;
   final String imageThumbnailUrl;
+  final String textSenderAvatarUrl;
   final deletedFavoriteIds = <int>{};
 
   @override
@@ -1290,7 +1349,7 @@ class _FavoritesAsClient extends _EmptyAsClient {
         messageType: 'text',
         senderId: '@alice:p2p-liyanan.com',
         senderName: 'Alice',
-        senderAvatarUrl: 'https://cdn.example.com/alice-favorite.png',
+        senderAvatarUrl: textSenderAvatarUrl,
         body: '明天上午继续测试',
         url: '',
         filename: '',
@@ -1654,6 +1713,15 @@ AsSyncBootstrap _pendingFriendRequestBootstrap({
 class _NeverListChannelsAsClient extends _EmptyAsClient {
   @override
   Future<List<AsChannel>> listChannels() => Completer<List<AsChannel>>().future;
+}
+
+class _StaticListChannelsAsClient extends _EmptyAsClient {
+  _StaticListChannelsAsClient(this.channels);
+
+  final List<AsChannel> channels;
+
+  @override
+  Future<List<AsChannel>> listChannels() async => channels;
 }
 
 class _NeverListChannelsWithConversationsAsClient
@@ -6516,6 +6584,59 @@ void main() {
     expect(find.text('拒绝'), findsOneWidget);
   });
 
+  testWidgets('channel review approve surfaces join failure', (tester) async {
+    final client = Client('DirexioChannelReviewJoinFailedTest')
+      ..setUserId('@owner:p2p-im.com');
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/channels/review',
+          builder: (_, __) => const ChannelReviewPage(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(
+            _PendingChannelReviewAsClient(
+              approveStatus: asChannelMemberStatusJoinFailed,
+            ),
+          ),
+          appWarmupProvider.overrideWith((ref) async {}),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.tap(find.text('频道'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('channel_review_button')));
+    await tester.pumpAndSettle();
+    final approveButton = find.byKey(
+      const ValueKey('channel-review-approve-@pending:p2p-im.com'),
+    );
+    final approveInkWell = tester.widget<InkWell>(
+      find.descendant(of: approveButton, matching: find.byType(InkWell)),
+    );
+    approveInkWell.onTap!();
+    await tester.pumpAndSettle();
+
+    expect(find.text('加入失败'), findsOneWidget);
+    expect(find.text('已加入'), findsNothing);
+    expect(find.text('已同意'), findsNothing);
+  });
+
   testWidgets('channel review button ignores AS channel invite notices',
       (tester) async {
     final client = Client('DirexioChannelNoticeBadgeTest')
@@ -8790,6 +8911,39 @@ void main() {
 
     expect(find.text('接受'), findsOneWidget);
     expect(find.text('拒绝'), findsOneWidget);
+  });
+
+  testWidgets('rejecting friend request shows rejected state and hides view',
+      (tester) async {
+    final client = Client('DirexioRequestsRejectCacheTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider
+              .overrideWithValue(_RejectingPendingContactAsClient()),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('查看'), findsOneWidget);
+    await tester.tap(find.text('查看'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('拒绝'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    expect(find.text('已拒绝'), findsAtLeastNWidgets(1));
+    expect(find.text('查看'), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
+    await client.abortSync();
   });
 
   testWidgets('accepting friend request updates local accepted room cache',
@@ -14945,6 +15099,71 @@ void main() {
     expect(find.text('频道已经解散'), findsNothing);
   });
 
+  testWidgets('terminal bootstrap channel suppresses stale listed channel',
+      (tester) async {
+    final client = Client('DirexioTerminalChannelSuppressListTest')
+      ..setUserId('@member:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-18T10:30:00Z'),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_stale',
+          roomId: '!stale:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '旧频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-18T10:20:00Z'),
+          memberStatus: asChannelMemberStatusJoined,
+          lifecycle: 'dissolved',
+          channelType: asChannelTypeChat,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_MemberLoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(
+            _StaticListChannelsAsClient(const [
+              AsChannel(
+                channelId: 'ch_stale',
+                roomId: '!stale:p2p-im.com',
+                homeDomain: 'p2p-im.com',
+                name: '旧频道',
+                role: asChannelRoleMember,
+                memberStatus: asChannelMemberStatusJoined,
+                channelType: asChannelTypeChat,
+              ),
+            ]),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelExplorePage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('旧频道'), findsNothing);
+    expect(find.text('频道已经解散'), findsNothing);
+  });
+
   testWidgets('channel inbox long press shows channel actions', (tester) async {
     final client = Client('DirexioChannelInboxMenuTest')
       ..setUserId('@member:p2p-im.com')
@@ -16640,6 +16859,62 @@ void main() {
     expect(find.text('Alice'), findsAtLeastNWidgets(1));
   });
 
+  testWidgets('me favorites page uses cached sender avatar fallback',
+      (tester) async {
+    final client = Client('FavoritesSenderAvatarFallbackTest')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-liyanan.com',
+          displayName: 'Alice',
+          domain: 'p2p-liyanan.com',
+          avatarUrl: 'mxc://p2p-im.com/alice-cached-avatar',
+          roomId: '!dm:p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(
+            _FavoritesAsClient(textSenderAvatarUrl: ''),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widgetList<PortalAvatar>(find.byType(PortalAvatar)).any(
+            (avatar) =>
+                avatar.imageUrl?.contains(
+                  '/download/p2p-im.com/alice-cached-avatar',
+                ) ??
+                false,
+          ),
+      isTrue,
+    );
+  });
+
   testWidgets('me favorites page uses unified dark background and back button',
       (tester) async {
     await tester.pumpWidget(
@@ -16911,7 +17186,7 @@ void main() {
       160,
       scrollable: find.byType(Scrollable).last,
     );
-    await tester.tap(find.byKey(const ValueKey('favorite-card-4')));
+    await tester.tap(find.byKey(const ValueKey('favorite-preview-4')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
 
@@ -16923,7 +17198,44 @@ void main() {
     );
   });
 
-  testWidgets('me favorites image card opens image preview', (tester) async {
+  testWidgets('me favorites image card opens favorite detail outside preview',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1000));
+    addTearDown(() async {
+      await tester.binding.setSurfaceSize(null);
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider
+              .overrideWithValue(_FavoritesAsClient(videoThumbnail: false)),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeFavoritesPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('favorite-card-4')),
+      160,
+      scrollable: find.byType(Scrollable).last,
+    );
+    final cardTopLeft =
+        tester.getTopLeft(find.byKey(const ValueKey('favorite-card-4')));
+    await tester.tapAt(cardTopLeft + const Offset(260, 26));
+    await tester.pumpAndSettle();
+
+    expect(find.text('收藏详情'), findsOneWidget);
+    expect(find.byIcon(Symbols.close), findsNothing);
+    expect(find.text('消息详情'), findsNothing);
+  });
+
+  testWidgets('me favorites image thumbnail opens image preview',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1000));
     addTearDown(() async {
       await tester.binding.setSurfaceSize(null);
@@ -16957,7 +17269,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('favorite-card-4')));
+    await tester.tap(find.byKey(const ValueKey('favorite-preview-4')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
 
@@ -17007,7 +17319,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('favorite-card-4')));
+    await tester.tap(find.byKey(const ValueKey('favorite-preview-4')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
 

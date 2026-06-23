@@ -27,6 +27,13 @@ void main() {
       const ConversationPreferencesData(
         pinnedConversationIds: {'!pinned:example.com'},
         groupRemarkNames: {'!group:example.com': '项目群'},
+        groupAvatarMemberOrders: {
+          '!group:example.com': [
+            '@bob:example.com',
+            '@owner:example.com',
+            '@alice:example.com',
+          ],
+        },
         mutedConversationIds: {'!muted:example.com'},
         hiddenConversationIds: {'!hidden:example.com'},
       ),
@@ -36,6 +43,13 @@ void main() {
 
     expect(data.pinnedConversationIds, {'!pinned:example.com'});
     expect(data.groupRemarkNames, {'!group:example.com': '项目群'});
+    expect(data.groupAvatarMemberOrders, {
+      '!group:example.com': [
+        '@bob:example.com',
+        '@owner:example.com',
+        '@alice:example.com',
+      ],
+    });
     expect(data.mutedConversationIds, {'!muted:example.com'});
     expect(data.hiddenConversationIds, {'!hidden:example.com'});
   });

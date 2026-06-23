@@ -602,7 +602,7 @@ class _SettingsSwitch extends StatelessWidget {
         height: 28,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: value ? t.accentCool : t.surfaceHigh,
+            color: value ? t.accent : t.surfaceHigh,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Padding(
@@ -616,7 +616,7 @@ class _SettingsSwitch extends StatelessWidget {
                   color: t.surface,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: value ? t.accentCool : t.border,
+                    color: value ? t.accent : t.border,
                     width: 2,
                   ),
                 ),

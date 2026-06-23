@@ -2370,15 +2370,6 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   title: name,
                   subtitle: headerSubtitle,
                   subtitleStatus: headerSubtitleStatus,
-                  leadingAvatar: PortalAvatar(
-                    seed: isAgent ? 'Agent' : mxid,
-                    size: 36,
-                    imageUrl: isAgent ? null : peerAvatarUrl,
-                    shape: AvatarShape.squircle,
-                  ),
-                  onAvatarTap: isAgent || mxid.trim().isEmpty
-                      ? null
-                      : () => _openContactDetail(mxid),
                   onBack: () => unawaited(_popChatOrHome(context)),
                   showEncryptionIcon: true,
                   actions: isAgent

@@ -61,11 +61,13 @@ import '../utils/avatar_url.dart';
 import '../utils/chat_event_attachment.dart';
 import '../utils/conversation_capability_policy.dart';
 import '../utils/direct_contact_status.dart';
+import '../utils/group_avatar_members.dart';
 import 'group_call_member_select_page.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/chat_file_actions.dart';
 import '../widgets/async_image_preview.dart';
+import '../widgets/group_composite_avatar.dart';
 import '../widgets/portal_avatar.dart';
 
 void _groupChatGestureLog(String message) {
@@ -2444,6 +2446,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         remarkName.isNotEmpty ? remarkName : room.getLocalizedDisplayname();
     final memberCount = room.summary.mJoinedMemberCount ?? 0;
     final syncCache = ref.watch(asSyncCacheProvider);
+    final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
     final currentChannel = _currentChannelSummary(syncCache);
     final explicitChannelId = widget.channelId?.trim() ?? '';
     final resolvedChannelId = explicitChannelId.isNotEmpty
@@ -2460,6 +2463,22 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final headerMemberCount = isChannelConversation && channelMemberCount > 0
         ? channelMemberCount
         : memberCount;
+    final headerAvatarMembers = isChannelConversation
+        ? null
+        : stableGroupAvatarMembersForRoom(
+            room: room,
+            syncCache: syncCache,
+            cachedMemberOrder:
+                groupAvatarMemberOrders[activeRoomId] ?? const [],
+            currentUserProfile: currentUserProfile,
+          );
+    if (headerAvatarMembers != null) {
+      scheduleGroupAvatarMemberOrderPersist(
+        ref,
+        activeRoomId,
+        headerAvatarMembers,
+      );
+    }
     final rawTimelineEvents = _timeline?.events ?? const <Event>[];
     final callRecordContextEvents = isChannelConversation
         ? const <Event>[]
@@ -2547,16 +2566,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       activeRoomId,
       kinds: {
         if (isChannelConversation) asConversationKindChannel,
-        if (!isChannelConversation) asConversationKindGroup,
       },
     );
-    final currentGroup =
-        isChannelConversation ? null : _groupSummary(syncCache);
-    final headerAvatarUrl =
-        avatarHttpUrl(room.client, headerConversation?.avatarUrl) ??
+    final headerAvatarUrl = isChannelConversation
+        ? avatarHttpUrl(room.client, headerConversation?.avatarUrl) ??
             avatarHttpUrl(room.client, currentChannel?.avatarUrl) ??
-            avatarHttpUrl(room.client, currentGroup?.avatarUrl) ??
-            roomAvatarHttpUrl(room);
+            roomAvatarHttpUrl(room)
+        : null;
     final capabilityPolicy = _groupCapabilityPolicy(
       productConversations,
       room,
@@ -2639,12 +2655,22 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                       subtitle: activeGroupCall == null
                           ? '$headerMemberCount 名成员'
                           : '正在群通话',
-                      leadingAvatar: PortalAvatar(
-                        seed: channelTitle,
-                        size: 36,
-                        imageUrl: headerAvatarUrl,
-                        shape: AvatarShape.squircle,
-                      ),
+                      leadingAvatar: isChannelConversation
+                          ? PortalAvatar(
+                              seed: channelTitle,
+                              size: 36,
+                              imageUrl: headerAvatarUrl,
+                              shape: AvatarShape.squircle,
+                            )
+                          : GroupCompositeAvatar(
+                              key: ValueKey(
+                                'group_chat_header_avatar_$activeRoomId',
+                              ),
+                              seed: channelTitle,
+                              size: 36,
+                              imageUrl: null,
+                              members: headerAvatarMembers?.members ?? const [],
+                            ),
                       onTitleTap: activeGroupCall == null
                           ? null
                           : () => context.push(

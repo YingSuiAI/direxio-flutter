@@ -2249,6 +2249,7 @@ Room _addNamedGroupRoom(
   String? creatorMxid,
   Membership membership = Membership.join,
   Map<String, String> members = const {},
+  Map<String, String> memberAvatarUrls = const {},
 }) {
   final selfMxid = client.userID ?? '@owner:p2p-im.com';
   final creator = creatorMxid ?? selfMxid;
@@ -2275,6 +2276,8 @@ Room _addNamedGroupRoom(
         content: {
           'membership': Membership.join.name,
           'displayname': entry.value,
+          if ((memberAvatarUrls[entry.key] ?? '').trim().isNotEmpty)
+            'avatar_url': memberAvatarUrls[entry.key]!.trim(),
         },
       ),
     );
@@ -4978,6 +4981,292 @@ void main() {
     expect(find.text('agent route !agent-old:p2p-im.com'), findsNothing);
   });
 
+  testWidgets('contacts Agent tap does not create room without agent room id',
+      (tester) async {
+    var createRoomCalls = 0;
+    final client = Client(
+      'DirexioAgentContactNoCreateRoomTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/createRoom')) {
+          createRoomCalls++;
+          return http.Response(
+            '{"errcode":"M_FORBIDDEN","error":"create disabled"}',
+            403,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'test-token';
+    _addHeroSummaryRoom(
+      client,
+      roomId: '!agent-old:p2p-im.com',
+      peerMxid: '@agent:p2p-im.com',
+      peerName: 'Agent',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 11),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      agentRoomId: '',
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _StaticBootstrapAsClient(bootstrap);
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) => Text(
+            'agent route ${state.pathParameters['roomId']}',
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(asClient),
+          asBootstrapRepositoryProvider.overrideWithValue(
+            AsBootstrapRepository(
+              loadBootstrap: asClient.syncBootstrap,
+              store: _MemoryAsBootstrapStore(),
+            ),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('通讯录'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('contacts_agent_entry')));
+    await tester.pump();
+
+    expect(createRoomCalls, 0);
+    expect(find.text('Agent 会话还未同步'), findsOneWidget);
+    expect(find.text('agent route !agent-old:p2p-im.com'), findsNothing);
+  });
+
+  testWidgets('contacts list keeps each friend avatar separate',
+      (tester) async {
+    final client = Client('DirexioContactsDistinctAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-im.com',
+      peerName: 'Alice',
+      peerAvatarUrl: 'https://example.com/alice.png',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 14),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: 'https://example.com/alice-as.png',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@bob:p2p-im.com',
+          displayName: 'Bob',
+          avatarUrl: 'https://example.com/bob-as.png',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/contact/:userId',
+          builder: (_, state) => Text(
+            'contact route ${state.pathParameters['userId']}',
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('通讯录'));
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Bob'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.seed == 'Alice' &&
+            widget.imageUrl == 'https://example.com/alice.png',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.seed == 'Bob' &&
+            widget.imageUrl == 'https://example.com/bob-as.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('create group contact avatars do not reuse another friend avatar',
+      (tester) async {
+    final client = Client('DirexioCreateGroupDistinctAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-im.com',
+      peerName: 'Alice',
+      peerAvatarUrl: 'https://example.com/alice.png',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 14),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: 'https://example.com/alice-as.png',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@bob:p2p-im.com',
+          displayName: 'Bob',
+          avatarUrl: 'https://example.com/bob-as.png',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/groups',
+      routes: [
+        GoRoute(path: '/groups', builder: (_, __) => const GroupsListPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Symbols.group_add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('发起群聊'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Bob'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.seed == 'Alice' &&
+            widget.imageUrl == 'https://example.com/alice.png',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.seed == 'Bob' &&
+            widget.imageUrl == 'https://example.com/bob-as.png',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.seed == 'Bob' &&
+            widget.imageUrl == 'https://example.com/alice.png',
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',
       (tester) async {
     final client = Client('DirexioDuplicateDirectRoomHomeListTest')
@@ -7041,6 +7330,103 @@ void main() {
     );
   });
 
+  testWidgets('chat list group avatar includes members without avatar images',
+      (tester) async {
+    const roomId = '!group-avatar-members:p2p-im.com';
+    final client = Client('DirexioHomeGroupAvatarMembersTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '三人群',
+      members: const {
+        '@alice:p2p-im.com': 'Alice',
+        '@bob:p2p-im.com': 'Bob',
+        '@carol:p2p-im.com': 'Carol',
+      },
+      memberAvatarUrls: const {
+        '@alice:p2p-im.com': 'https://example.com/alice.png',
+        '@bob:p2p-im.com': 'https://example.com/bob.png',
+      },
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 16),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '三人群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(const [
+              AsConversation(
+                conversationId: 'conv_group_avatar_members',
+                roomId: roomId,
+                kind: asConversationKindGroup,
+                lifecycle: 'active',
+                title: '三人群',
+                avatarUrl: '',
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ]),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final groupRow = find.byKey(const ValueKey('home_conversation_$roomId'));
+    expect(groupRow, findsOneWidget);
+    expect(
+      find.descendant(
+        of: groupRow,
+        matching: find.byKey(const ValueKey('https://example.com/alice.png')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: groupRow,
+        matching: find.byKey(const ValueKey('https://example.com/bob.png')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: groupRow,
+        matching: find.byKey(
+          const ValueKey('group_composite_avatar_member_@carol:p2p-im.com'),
+        ),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('viewing new friends clears unread badges but keeps request',
       (tester) async {
     final client = Client('DirexioFriendRequestReadBadgeTest')
@@ -7339,6 +7725,64 @@ void main() {
             widget is PortalAvatar &&
             widget.size == 28 &&
             widget.imageUrl == 'https://cdn.example.com/pending-owner.png',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('new friends page uses Matrix avatar when AS avatar is empty',
+      (tester) async {
+    final client = Client('DirexioRequestsMatrixAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice-request:p2p-im.com',
+      peerMxid: '@alice:p2p-im.com',
+      peerName: 'Alice',
+      peerAvatarUrl: 'https://matrix.example.com/alice-request.png',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 13),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice-request:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'pending_inbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 28 &&
+            widget.imageUrl == 'https://matrix.example.com/alice-request.png',
       ),
       findsOneWidget,
     );
@@ -10499,6 +10943,20 @@ void main() {
     )..setUserId('@owner:p2p-im.com');
     client.homeserver = Uri.parse('https://p2p-im.com');
     client.accessToken = 'test-token';
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-im.com',
+      peerName: 'Alice',
+      peerAvatarUrl: 'https://example.com/alice.png',
+    );
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!bob:p2p-im.com',
+      peerMxid: '@bob:p2p-im.com',
+      peerName: 'Bob',
+      peerAvatarUrl: 'https://example.com/bob.png',
+    );
     _addNamedGroupRoom(
       client,
       roomId: '!group:p2p-im.com',
@@ -10991,6 +11449,129 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
 
     expect(matrixSendCalls, 1);
+  });
+
+  testWidgets('group chat header uses cached composite avatar order',
+      (tester) async {
+    final client = Client('DirexioGroupChatCompositeHeaderAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {
+        '@alice:p2p-im.com': 'Alice',
+        '@bob:p2p-im.com': 'Bob',
+      },
+    );
+    client.getRoomById('!group:p2p-im.com')!.setState(
+          StrippedStateEvent(
+            type: EventTypes.RoomAvatar,
+            senderId: '@owner:p2p-im.com',
+            stateKey: '',
+            content: const {'url': 'https://example.com/single-owner.png'},
+          ),
+        );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 9),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: 'https://example.com/alice.png',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@bob:p2p-im.com',
+          displayName: 'Bob',
+          avatarUrl: 'https://example.com/bob.png',
+          roomId: '!bob:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: '!group:p2p-im.com',
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          currentUserProfileProvider.overrideWith(
+            (ref) async => Profile(
+              userId: '@owner:p2p-im.com',
+              displayName: 'Owner',
+              avatarUrl: Uri.parse('https://example.com/owner.png'),
+            ),
+          ),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          groupAvatarMemberOrdersProvider.overrideWithValue(const {
+            '!group:p2p-im.com': [
+              '@bob:p2p-im.com',
+              '@owner:p2p-im.com',
+              '@alice:p2p-im.com',
+            ],
+          }),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final headerAvatar = find
+        .byKey(const ValueKey('group_chat_header_avatar_!group:p2p-im.com'));
+    expect(headerAvatar, findsOneWidget);
+    final bobAvatar = find.descendant(
+      of: headerAvatar,
+      matching: find.byKey(const ValueKey('https://example.com/bob.png')),
+    );
+    final ownerAvatar = find.descendant(
+      of: headerAvatar,
+      matching: find.byKey(const ValueKey('https://example.com/owner.png')),
+    );
+    final aliceAvatar = find.descendant(
+      of: headerAvatar,
+      matching: find.byKey(const ValueKey('https://example.com/alice.png')),
+    );
+    expect(
+      bobAvatar,
+      findsOneWidget,
+    );
+    expect(ownerAvatar, findsOneWidget);
+    expect(aliceAvatar, findsOneWidget);
+    final bobTopLeft = tester.getTopLeft(bobAvatar);
+    final ownerTopLeft = tester.getTopLeft(ownerAvatar);
+    final aliceTopLeft = tester.getTopLeft(aliceAvatar);
+    expect(bobTopLeft.dy, ownerTopLeft.dy);
+    expect(bobTopLeft.dx, lessThan(ownerTopLeft.dx));
+    expect(aliceTopLeft.dy, greaterThan(bobTopLeft.dy));
+    expect(find.text('真实群'), findsOneWidget);
   });
 
   testWidgets('group chat shows removed banner after Matrix leave',
@@ -14213,6 +14794,81 @@ void main() {
 
     expect(find.text('opened-chat'), findsNothing);
     expect(find.text('Alice'), findsOneWidget);
+  });
+
+  testWidgets(
+      'chat avatar contact detail keeps friend profile while ProductCore loads',
+      (tester) async {
+    const roomId = '!alice:p2p-im.com';
+    const peerMxid = '@alice:p2p-im.com';
+    final client = Client('DirexioChatAvatarFriendProfileTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: peerMxid,
+      peerName: 'Alice',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation:
+          '/contact/${Uri.encodeComponent(peerMxid)}?source=chat_avatar',
+      routes: [
+        GoRoute(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            fromChatAvatar:
+                state.uri.queryParameters['source'] == 'chat_avatar',
+            fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider
+              .overrideWithValue(_ConversationListAsClient(const [])),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('发消息'), findsOneWidget);
+    expect(find.text('音频通话'), findsOneWidget);
+    expect(find.text('视频通话'), findsOneWidget);
+    expect(find.text('把他推荐给朋友'), findsOneWidget);
+    expect(find.text('添加好友'), findsNothing);
   });
 
   testWidgets('contact detail hides delete friend action for self',

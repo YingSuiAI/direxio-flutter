@@ -105,6 +105,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       roomId: acceptedContactForUser?.roomId ?? room?.id ?? '',
     );
     final canOpenChat = canUseRealRoom && directProductConversation != null;
+    final canShowFriendProfile = canUseRealRoom;
     final acceptedContact = acceptedContactForUser ??
         (room == null ? null : syncCache.acceptedContactForRoom(room.id));
     final domain = domainFromMxid(userId);
@@ -145,7 +146,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         avatarUrl: avatarUrl,
         seed: userId,
         isSelf: isSelf,
-        isFriend: canOpenChat,
+        isFriend: canShowFriendProfile,
         contactStatus: existingContact?.status,
         onMessage: canOpenChat && roomId != null
             ? () => context.go('/chat/${Uri.encodeComponent(roomId)}')

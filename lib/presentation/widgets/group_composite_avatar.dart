@@ -10,6 +10,7 @@ class GroupCompositeAvatar extends StatelessWidget {
     required this.seed,
     required this.size,
     this.imageUrl,
+    this.members = const [],
     this.memberAvatarUrls = const [],
     this.radius = 8,
   });
@@ -17,6 +18,7 @@ class GroupCompositeAvatar extends StatelessWidget {
   final String seed;
   final double size;
   final String? imageUrl;
+  final List<GroupCompositeAvatarMember> members;
   final List<String> memberAvatarUrls;
   final double radius;
 
@@ -32,9 +34,12 @@ class GroupCompositeAvatar extends StatelessWidget {
       );
     }
 
-    final items = memberAvatarUrls
-        .map((url) => url.trim())
-        .where(_isValidGroupAvatarUrl)
+    final items = (members.isNotEmpty
+            ? members.map((member) => member.normalized)
+            : memberAvatarUrls.map(
+                (url) => GroupCompositeAvatarMember(seed: url, imageUrl: url),
+              ))
+        .where((member) => member.seed.isNotEmpty)
         .take(9)
         .toList(growable: false);
     if (items.isEmpty) {
@@ -80,7 +85,7 @@ class GroupCompositeAvatar extends StatelessWidget {
                     columnIndex < rowData[rowIndex].length;
                     columnIndex++) ...[
                   _GroupCompositeAvatarCell(
-                    url: rowData[rowIndex][columnIndex],
+                    member: rowData[rowIndex][columnIndex],
                     size: itemSize,
                   ),
                   if (columnIndex < rowData[rowIndex].length - 1)
@@ -96,18 +101,48 @@ class GroupCompositeAvatar extends StatelessWidget {
   }
 }
 
-class _GroupCompositeAvatarCell extends StatelessWidget {
-  const _GroupCompositeAvatarCell({required this.url, required this.size});
+class GroupCompositeAvatarMember {
+  const GroupCompositeAvatarMember({
+    required this.seed,
+    this.imageUrl,
+  });
 
-  final String url;
+  final String seed;
+  final String? imageUrl;
+
+  GroupCompositeAvatarMember get normalized {
+    return GroupCompositeAvatarMember(
+      seed: seed.trim(),
+      imageUrl: imageUrl?.trim(),
+    );
+  }
+}
+
+class _GroupCompositeAvatarCell extends StatelessWidget {
+  const _GroupCompositeAvatarCell({
+    required this.member,
+    required this.size,
+  });
+
+  final GroupCompositeAvatarMember member;
   final double size;
 
   @override
   Widget build(BuildContext context) {
+    final url = member.imageUrl?.trim() ?? '';
+    if (!_isValidGroupAvatarUrl(url)) {
+      return PortalAvatar(
+        key: ValueKey('group_composite_avatar_member_${member.seed}'),
+        seed: member.seed,
+        size: size,
+        shape: AvatarShape.squircle,
+      );
+    }
     return SizedBox(
       width: size,
       height: size,
       child: Image.network(
+        key: ValueKey(url),
         url,
         width: size,
         height: size,

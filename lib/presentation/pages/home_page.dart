@@ -35,6 +35,7 @@ import '../call/voice_call_controller.dart';
 import '../call/voice_call_display_name.dart';
 import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
+import '../utils/group_avatar_members.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
@@ -704,28 +705,6 @@ String? _homeAvatarUrl(Client client, String? avatarUrl) {
     return null;
   }
   return value;
-}
-
-List<String> _homeGroupMemberAvatarUrls(
-  Room room,
-  AsSyncCacheState syncCache, {
-  required String? currentUserId,
-}) {
-  final self = currentUserId?.trim() ?? '';
-  final out = <String>[];
-  final seen = <String>{};
-  for (final user in room.getParticipants()) {
-    final mxid = user.id.trim();
-    if (mxid.isEmpty || mxid == self || !seen.add(mxid)) continue;
-    final contact = syncCache.contactForUserId(mxid);
-    final avatar = matrixContentHttpUrl(room.client, user.avatarUrl) ??
-        (contact == null ? null : contactListAvatarUrl(room.client, contact));
-    if (avatar != null && avatar.trim().isNotEmpty) {
-      out.add(avatar.trim());
-    }
-    if (out.length >= 9) break;
-  }
-  return List.unmodifiable(out);
 }
 
 class _ChatsTopBar extends StatelessWidget {
@@ -1569,6 +1548,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final client = ref.watch(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
+    final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
       itemCount: entries.length,
@@ -1578,6 +1558,20 @@ class _HomeConversationEntryList extends ConsumerWidget {
         final name = entry.name.trim().isEmpty ? roomId : entry.name.trim();
         final productConversation = productConversationsByRoomId[roomId];
         final room = client.getRoomById(roomId);
+        final groupAvatarMembers = entry.isGroup && room != null
+            ? stableGroupAvatarMembersForRoom(
+                room: room,
+                syncCache: syncCache,
+                cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],
+              )
+            : null;
+        if (groupAvatarMembers != null) {
+          scheduleGroupAvatarMemberOrderPersist(
+            ref,
+            roomId,
+            groupAvatarMembers,
+          );
+        }
         return _ConvRow(
           key: ValueKey('home_conversation_$roomId'),
           name: name,
@@ -1587,13 +1581,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
           isAgent: entry.isAgent,
           isGroup: entry.isGroup,
           avatarUrl: _homeAvatarUrl(client, entry.avatarUrl),
-          memberAvatarUrls: entry.isGroup && room != null
-              ? _homeGroupMemberAvatarUrls(
-                  room,
-                  syncCache,
-                  currentUserId: client.userID,
-                )
-              : const [],
+          groupAvatarMembers: groupAvatarMembers?.members ?? const [],
           isPinned: pinnedConversationIds.contains(roomId),
           onTap: () {
             final route = productConversation == null
@@ -1754,7 +1742,7 @@ class _ConvRow extends StatelessWidget {
     this.isGroup = false,
     this.isPinned = false,
     this.avatarUrl,
-    this.memberAvatarUrls = const [],
+    this.groupAvatarMembers = const [],
   });
   final String name;
   final String lastMessage;
@@ -1768,7 +1756,7 @@ class _ConvRow extends StatelessWidget {
   final bool isGroup;
   final bool isPinned;
   final String? avatarUrl;
-  final List<String> memberAvatarUrls;
+  final List<GroupCompositeAvatarMember> groupAvatarMembers;
 
   @override
   Widget build(BuildContext context) {
@@ -1797,8 +1785,8 @@ class _ConvRow extends StatelessWidget {
               ? GroupCompositeAvatar(
                   seed: name,
                   size: _conversationTileAvatarSize,
-                  imageUrl: avatarUrl,
-                  memberAvatarUrls: memberAvatarUrls,
+                  imageUrl: null,
+                  members: groupAvatarMembers,
                 )
               : PortalAvatar(
                   seed: name,
@@ -2158,8 +2146,10 @@ class _ContactList extends ConsumerWidget {
           domain: contact.domain,
         ),
         mxid: peerMxid,
-        avatarUrl:
-            _homeAvatarUrl(client, contactListAvatarUrl(client, contact)),
+        avatarUrl: _homeAvatarUrl(
+          client,
+          strictGroupContactAvatarUrl(client, syncCache, peerMxid),
+        ),
       );
     }).toList();
     final groupedContacts = _groupContactsByInitial(contacts);
@@ -2270,9 +2260,6 @@ Future<void> _openAgentContactChat(
   if (roomId.isEmpty && isLoggedIn) {
     roomId = await _refreshAgentContactRoomId(ref, client);
   }
-  if (roomId.isEmpty && isLoggedIn) {
-    roomId = await _startAgentDirectChat(client);
-  }
   if (roomId.isEmpty) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -2285,23 +2272,6 @@ Future<void> _openAgentContactChat(
   }
   if (!context.mounted) return;
   context.push('/chat/${Uri.encodeComponent(roomId)}');
-}
-
-Future<String> _startAgentDirectChat(Client client) async {
-  final agentMxid = portalAgentMxidForClient(client);
-  if (agentMxid == null || agentMxid.trim().isEmpty) return '';
-  try {
-    return await client
-        .startDirectChat(
-          agentMxid,
-          waitForSync: false,
-          enableEncryption: false,
-        )
-        .timeout(const Duration(seconds: 10));
-  } catch (error) {
-    debugPrint('start Agent direct chat failed: $error');
-    return '';
-  }
 }
 
 Future<String> _refreshAgentContactRoomId(
@@ -2345,15 +2315,7 @@ String _resolvedAgentContactRoomId(
 }) {
   if (!isLoggedIn) return '';
   final bootstrapRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
-  if (bootstrapRoomId.isNotEmpty) return bootstrapRoomId;
-  final agentMxid = portalAgentMxidForClient(client);
-  for (final room in client.rooms) {
-    if (room.membership == Membership.join &&
-        isPortalAgentDirectRoom(room, agentMxid: agentMxid)) {
-      return room.id;
-    }
-  }
-  return '';
+  return bootstrapRoomId;
 }
 
 class _ContactListEntry {

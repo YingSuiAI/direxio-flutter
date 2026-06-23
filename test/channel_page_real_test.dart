@@ -1169,7 +1169,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsNothing);
     expect(find.text('频道信息'), findsOneWidget);
     expect(find.textContaining('频道信息('), findsNothing);
     expect(find.text('频道详情'), findsOneWidget);

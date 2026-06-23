@@ -5,6 +5,7 @@ class ConversationPreferencesData {
   const ConversationPreferencesData({
     this.pinnedConversationIds = const {},
     this.groupRemarkNames = const {},
+    this.groupAvatarMemberOrders = const {},
     Set<String> mutedConversationIds = const {},
     Set<String> hiddenConversationIds = const {},
   })  : _mutedConversationIds = mutedConversationIds,
@@ -12,6 +13,7 @@ class ConversationPreferencesData {
 
   final Set<String> pinnedConversationIds;
   final Map<String, String> groupRemarkNames;
+  final Map<String, List<String>> groupAvatarMemberOrders;
   final Set<String>? _mutedConversationIds;
   final Set<String>? _hiddenConversationIds;
 
@@ -43,6 +45,7 @@ class FileConversationPreferencesStore implements ConversationPreferencesStore {
       }
       final pinned = decoded['pinned_conversation_ids'];
       final remarks = decoded['group_remark_names'];
+      final avatarOrders = decoded['group_avatar_member_orders'];
       final muted = decoded['muted_conversation_ids'];
       final hidden = decoded['hidden_conversation_ids'];
       return ConversationPreferencesData(
@@ -60,6 +63,7 @@ class FileConversationPreferencesStore implements ConversationPreferencesStore {
                     '${entry.key}'.trim(): '${entry.value}'.trim(),
               })
             : const {},
+        groupAvatarMemberOrders: _readGroupAvatarMemberOrders(avatarOrders),
         mutedConversationIds: muted is List
             ? muted
                 .map((value) => '$value'.trim())
@@ -85,10 +89,28 @@ class FileConversationPreferencesStore implements ConversationPreferencesStore {
       jsonEncode({
         'pinned_conversation_ids': data.pinnedConversationIds.toList()..sort(),
         'group_remark_names': data.groupRemarkNames,
+        'group_avatar_member_orders': data.groupAvatarMemberOrders,
         'muted_conversation_ids': data.mutedConversationIds.toList()..sort(),
         'hidden_conversation_ids': data.hiddenConversationIds.toList()..sort(),
       }),
       flush: true,
     );
   }
+}
+
+Map<String, List<String>> _readGroupAvatarMemberOrders(Object? value) {
+  if (value is! Map) return const {};
+  final out = <String, List<String>>{};
+  for (final entry in value.entries) {
+    final roomId = '${entry.key}'.trim();
+    final rawOrder = entry.value;
+    if (roomId.isEmpty || rawOrder is! List) continue;
+    final order = <String>[];
+    for (final rawMemberId in rawOrder) {
+      final memberId = '$rawMemberId'.trim();
+      if (memberId.isNotEmpty) order.add(memberId);
+    }
+    if (order.isNotEmpty) out[roomId] = List.unmodifiable(order);
+  }
+  return Map.unmodifiable(out);
 }

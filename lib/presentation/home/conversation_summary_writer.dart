@@ -660,7 +660,7 @@ String? contactListAvatarUrl(Client client, AsSyncContact contact) {
   final syncedRoomAvatar = directPeerAvatarUrlInRooms(client, contact.userId);
   final contactAvatar = avatarHttpUrl(client, contact.avatarUrl);
   final resolved =
-      memberAvatar ?? roomProfileAvatar ?? syncedRoomAvatar ?? contactAvatar;
+      memberAvatar ?? syncedRoomAvatar ?? contactAvatar ?? roomProfileAvatar;
   _debugAvatarResolution(
     source: 'contact_list',
     roomId: contact.roomId,
@@ -718,8 +718,9 @@ String? directPeerMemberAvatarUrl(
   Room? room,
   String? peerUserId,
 ) {
-  final peerId = (peerUserId?.trim().isNotEmpty ?? false)
-      ? peerUserId!.trim()
+  final explicitPeerId = peerUserId?.trim() ?? '';
+  final peerId = explicitPeerId.isNotEmpty
+      ? explicitPeerId
       : room == null
           ? ''
           : productDirectPeerMxid(room)?.trim() ?? '';
@@ -731,10 +732,15 @@ String? directPeerMemberAvatarUrl(
     memberState?.asUser(room).avatarUrl,
   );
   if (memberStateAvatar != null) return memberStateAvatar;
+  if (explicitPeerId.isNotEmpty) {
+    return _participantAvatarUrl(client, room, peerId);
+  }
   final member = room.unsafeGetUserFromMemoryOrFallback(peerId);
   return matrixContentHttpUrl(client, member.avatarUrl) ??
       _participantAvatarUrl(client, room, peerId) ??
-      _firstOtherMemberAvatarUrl(client, room);
+      (explicitPeerId.isEmpty
+          ? _firstOtherMemberAvatarUrl(client, room)
+          : null);
 }
 
 String? _firstOtherMemberAvatarUrl(Client client, Room room) {

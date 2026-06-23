@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
@@ -11,8 +10,8 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/product_conversations_provider.dart';
-import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
+import '../utils/group_avatar_members.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/group_composite_avatar.dart';
@@ -42,6 +41,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
     final productConversations =
         productConversationsAsync.valueOrNull ?? const [];
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
+    final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
     final directContactRoomIds = syncCache.acceptedContacts
         .map((contact) => contact.roomId.trim())
         .where((roomId) => roomId.isNotEmpty)
@@ -73,6 +73,20 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           conversation.lastActivityAt;
       final productTitle = conversation.title.trim();
       final groupName = group?.name.trim() ?? '';
+      final groupAvatarMembers = room == null
+          ? null
+          : stableGroupAvatarMembersForRoom(
+              room: room,
+              syncCache: syncCache,
+              cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],
+            );
+      if (groupAvatarMembers != null) {
+        scheduleGroupAvatarMemberOrderPersist(
+          ref,
+          roomId,
+          groupAvatarMembers,
+        );
+      }
       items.add(
         _GroupItem(
           id: roomId,
@@ -86,16 +100,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           preview: lastEvent == null
               ? _previewText(group?.topic ?? '')
               : roomEventPreviewText(lastEvent, isAgent: false),
-          avatarUrl: avatarHttpUrl(client, conversation.avatarUrl) ??
-              avatarHttpUrl(client, group?.avatarUrl) ??
-              (room == null ? null : roomAvatarHttpUrl(room)),
-          memberAvatarUrls: room == null
-              ? const []
-              : _groupMemberAvatarUrls(
-                  room,
-                  syncCache,
-                  currentUserId: client.userID,
-                ),
+          avatarMembers: groupAvatarMembers?.members ?? const [],
           time: lastActivityAt == null
               ? ''
               : _formatTime(lastActivityAt.millisecondsSinceEpoch),
@@ -371,8 +376,7 @@ class _GroupItem {
     required this.id,
     required this.name,
     required this.preview,
-    this.avatarUrl,
-    this.memberAvatarUrls = const [],
+    this.avatarMembers = const [],
     required this.time,
     required this.unread,
     this.isOwner = false,
@@ -381,8 +385,7 @@ class _GroupItem {
   final String id;
   final String name;
   final String preview;
-  final String? avatarUrl;
-  final List<String> memberAvatarUrls;
+  final List<GroupCompositeAvatarMember> avatarMembers;
   final String time;
   final int unread;
   final bool isOwner;
@@ -419,8 +422,8 @@ class _GroupRow extends StatelessWidget {
                 key: ValueKey('group_avatar_${item.id}'),
                 seed: name,
                 size: 48,
-                imageUrl: item.avatarUrl,
-                memberAvatarUrls: item.memberAvatarUrls,
+                imageUrl: null,
+                members: item.avatarMembers,
                 radius: 12,
               ),
               const SizedBox(width: 8),
@@ -568,25 +571,4 @@ String _formatTime(int ts) {
     return weekdays[dt.weekday - 1];
   }
   return DateFormat('MM/dd').format(dt);
-}
-
-List<String> _groupMemberAvatarUrls(
-  Room room,
-  AsSyncCacheState syncCache, {
-  required String? currentUserId,
-}) {
-  final self = currentUserId?.trim() ?? '';
-  final out = <String>[];
-  final seen = <String>{};
-  for (final user in room.getParticipants()) {
-    final mxid = user.id.trim();
-    if (mxid.isEmpty || mxid == self || !seen.add(mxid)) continue;
-    final avatar = matrixContentHttpUrl(room.client, user.avatarUrl) ??
-        avatarHttpUrl(room.client, syncCache.contactForUserId(mxid)?.avatarUrl);
-    if (avatar != null && avatar.trim().isNotEmpty) {
-      out.add(avatar.trim());
-    }
-    if (out.length >= 9) break;
-  }
-  return List.unmodifiable(out);
 }

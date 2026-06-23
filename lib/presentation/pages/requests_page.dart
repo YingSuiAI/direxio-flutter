@@ -9,6 +9,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/friend_request_read_provider.dart';
+import '../home/conversation_summary_writer.dart';
 import '../widgets/portal_avatar.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
@@ -995,11 +996,7 @@ class _FriendSearchResult {
 }
 
 String? _avatarUrlForContact(Client client, AsSyncContact contact) {
-  return _avatarUrlForRoomPeer(
-        client.getRoomById(contact.roomId.trim()),
-        contact.userId,
-      ) ??
-      avatarHttpUrl(client, contact.avatarUrl);
+  return contactListAvatarUrl(client, contact);
 }
 
 String? _avatarUrlForRoomPeer(Room? room, String mxid) {

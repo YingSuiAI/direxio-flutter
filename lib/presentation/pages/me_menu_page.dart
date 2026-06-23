@@ -371,9 +371,9 @@ class _MeLikePostCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     final post = item.post;
-    final author = _postAuthorLabel(post, item.channel);
-    final title = _channelActivityPostPreview(post);
-    final body = post.body.trim().isEmpty ? title : post.body.trim();
+    final channelTitle = _channelActivityChannelLabel(item.channel);
+    final postPreview = _channelActivityPostPreview(post);
+    final reactionLabel = _reactionHistoryMessage(item.reaction);
     return Material(
       color: t.surface,
       borderRadius: BorderRadius.circular(20),
@@ -391,9 +391,12 @@ class _MeLikePostCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   PortalAvatar(
-                    seed: post.authorId.trim().isEmpty
-                        ? author
-                        : post.authorId.trim(),
+                    seed: item.channel.channelId.trim().isEmpty
+                        ? channelTitle
+                        : item.channel.channelId.trim(),
+                    imageUrl: item.channel.avatarUrl.trim().isEmpty
+                        ? null
+                        : item.channel.avatarUrl.trim(),
                     size: 40,
                     shape: AvatarShape.squircle,
                   ),
@@ -406,7 +409,7 @@ class _MeLikePostCard extends StatelessWidget {
                           children: [
                             Flexible(
                               child: Text(
-                                author,
+                                channelTitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTheme.sans(
@@ -422,7 +425,11 @@ class _MeLikePostCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 1),
                         Text(
-                          _commentTimeLabel(post.originServerTs),
+                          _commentTimeLabel(
+                            item.originServerTs > 0
+                                ? item.originServerTs
+                                : post.originServerTs,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTheme.sans(size: 13, color: t.textMute),
@@ -434,7 +441,7 @@ class _MeLikePostCard extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                title,
+                reactionLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTheme.sans(
@@ -445,7 +452,7 @@ class _MeLikePostCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                body,
+                postPreview,
                 maxLines: 5,
                 overflow: TextOverflow.ellipsis,
                 style: AppTheme.sans(
@@ -621,8 +628,10 @@ class _MeCommentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     final comment = item.comment;
-    final author = _commentAuthorLabel(comment);
-    final body = comment.body.trim().isEmpty ? '评论' : comment.body.trim();
+    final channelTitle = _channelActivityChannelLabel(item.channel);
+    final commentBody =
+        comment.body.trim().isEmpty ? '评论' : comment.body.trim();
+    final postPreview = _channelActivityPostPreview(item.post);
     return Material(
       color: t.surface,
       borderRadius: BorderRadius.circular(20),
@@ -633,68 +642,79 @@ class _MeCommentCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () => _openCommentTarget(context, item),
-        child: SizedBox(
-          height: 102,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 15, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                PortalAvatar(
-                  seed: comment.authorId.trim().isEmpty
-                      ? author
-                      : comment.authorId.trim(),
-                  size: 40,
-                  shape: AvatarShape.squircle,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        height: 20,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            author,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTheme.sans(
-                              size: 16,
-                              weight: FontWeight.w600,
-                              color: t.text,
-                            ).copyWith(height: 33 / 16),
-                          ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 14, 15, 14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PortalAvatar(
+                seed: item.channel.channelId.trim().isEmpty
+                    ? channelTitle
+                    : item.channel.channelId.trim(),
+                imageUrl: item.channel.avatarUrl.trim().isEmpty
+                    ? null
+                    : item.channel.avatarUrl.trim(),
+                size: 40,
+                shape: AvatarShape.squircle,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 20,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          channelTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(
+                            size: 16,
+                            weight: FontWeight.w600,
+                            color: t.text,
+                          ).copyWith(height: 33 / 16),
                         ),
                       ),
-                      const SizedBox(height: 1),
-                      Text(
-                        body,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(
-                          size: 13,
-                          weight: FontWeight.w500,
-                          color: t.text,
-                        ).copyWith(height: 20 / 13),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      '你评论了：$commentBody',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 13,
+                        weight: FontWeight.w500,
+                        color: t.text,
+                      ).copyWith(height: 20 / 13),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      postPreview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 13,
+                        weight: FontWeight.w500,
+                        color: t.textMute,
+                      ).copyWith(height: 20 / 13),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _commentTimeLabel(comment.originServerTs),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 10,
+                        weight: FontWeight.w400,
+                        color: t.textMute,
                       ),
-                      const Spacer(),
-                      Text(
-                        _commentTimeLabel(comment.originServerTs),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(
-                          size: 10,
-                          weight: FontWeight.w400,
-                          color: t.textMute,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -984,6 +1004,9 @@ class _FavoriteAuthorHeader extends StatelessWidget {
               ? author
               : favorite.senderId.trim(),
           size: 40,
+          imageUrl: favorite.senderAvatarUrl.trim().isEmpty
+              ? null
+              : favorite.senderAvatarUrl.trim(),
           shape: AvatarShape.squircle,
         ),
         const SizedBox(width: 10),
@@ -1541,6 +1564,13 @@ String _channelActivityChannelLabel(AsChannel channel) {
   return '频道';
 }
 
+String _reactionHistoryMessage(String reaction) {
+  return switch (reaction.trim()) {
+    'like' || '' => '你赞了这条帖子',
+    final value => '你回应了：$value',
+  };
+}
+
 String _commentTimeLabel(int originServerTs) {
   if (originServerTs <= 0) return '';
   final local = DateTime.fromMillisecondsSinceEpoch(
@@ -1548,29 +1578,6 @@ String _commentTimeLabel(int originServerTs) {
     isUtc: true,
   ).toLocal();
   return '${_two(local.hour)}:${_two(local.minute)}';
-}
-
-String _commentAuthorLabel(AsChannelComment comment) {
-  final authorName = comment.authorName.trim();
-  if (authorName.isNotEmpty) return authorName;
-  final authorId = comment.authorId.trim();
-  if (authorId.startsWith('@')) {
-    final colon = authorId.indexOf(':');
-    if (colon > 1) return authorId.substring(1, colon);
-  }
-  return authorId.isEmpty ? '我' : authorId;
-}
-
-String _postAuthorLabel(AsChannelPost post, AsChannel channel) {
-  final authorName = post.authorName.trim();
-  if (authorName.isNotEmpty) return authorName;
-  final authorId = post.authorId.trim();
-  if (authorId.startsWith('@')) {
-    final colon = authorId.indexOf(':');
-    if (colon > 1) return authorId.substring(1, colon);
-  }
-  if (authorId.isNotEmpty) return authorId;
-  return _channelActivityChannelLabel(channel);
 }
 
 void _openReactionTarget(

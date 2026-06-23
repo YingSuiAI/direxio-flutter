@@ -496,7 +496,8 @@ class _PostDetailContent extends StatelessWidget {
             ],
           ),
         const SizedBox(height: 180),
-        Divider(height: 1, color: _detailDividerColor(context)),
+        if (detail.images.isNotEmpty)
+          Divider(height: 1, color: _detailDividerColor(context)),
       ],
     );
   }

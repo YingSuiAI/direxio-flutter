@@ -22,14 +22,11 @@ import 'presentation/providers/push_notification_provider.dart';
 import 'presentation/widgets/app_glass_background.dart';
 import 'presentation/widgets/user_action_debounce.dart';
 
-const _appFontAsset = 'assets/fonts/NotoSansSC-Variable.ttf';
-
 bool _sessionExpiredDialogShowing = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _initializeAndroidFcm();
-  await _warmAppFontsSafely();
   // Web 上禁用浏览器原生右键菜单（翻译/检查等），让我们自己的
   // chat-ctx / msg-ctx 菜单不被遮挡。
   if (kIsWeb) {
@@ -80,27 +77,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     '[push-notification] background FCM data=${message.data} '
     'has_notification=${message.notification != null}',
   );
-}
-
-Future<void> _warmAppFontsSafely() async {
-  try {
-    await _warmAppFonts().timeout(const Duration(seconds: 4));
-  } catch (error, stackTrace) {
-    FlutterError.reportError(
-      FlutterErrorDetails(
-        exception: error,
-        stack: stackTrace,
-        library: 'p2p-client startup',
-        context: ErrorDescription('warming app fonts'),
-      ),
-    );
-  }
-}
-
-Future<void> _warmAppFonts() async {
-  final loader = FontLoader(AppTheme.fontFamily)
-    ..addFont(rootBundle.load(_appFontAsset));
-  await loader.load();
 }
 
 class PortalApp extends ConsumerWidget {

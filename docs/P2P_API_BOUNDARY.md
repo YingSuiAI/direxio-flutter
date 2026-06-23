@@ -17,6 +17,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Bootstrap metadata action: `sync.bootstrap` for contacts, groups, channels, pending requests, user profile, and product summaries.
 - Contact actions: `contacts.list`, `contacts.request`, `contacts.reactivate`, `contacts.requests.accept`, `contacts.requests.reject`, `contacts.requests.delete`, `contacts.update`, `contacts.delete`.
 - Follow/favorite/report actions: `follows.*`, `favorites.*`, `reports.submit`.
+- Favorite message snapshots may include `sender_avatar_url`; the favorites UI uses it for the source sender avatar when present.
 - Group actions: `groups.create`, `groups.update`, `groups.invite`, `groups.join`, `groups.list`, `groups.members`, `groups.leave`, `groups.dissolve`, member moderation, mute, and invite policy actions.
 - Channel actions: `channels.create`, `channels.update`, `channels.join`, `channels.invite_grant.create`, `channels.invite`, `channels.list`, `channels.members`, `channels.leave`, `channels.dissolve`, moderation, mute, read marker, public search/detail/join request, posts, comments, and reactions.
 - Channel post responses may include `author_avatar_url` for the post author. Post media still travels in `media`/`media_json`; the UI uses the first post image as the post-list thumbnail when present.

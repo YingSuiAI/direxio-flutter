@@ -1319,6 +1319,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       roomType: _favoriteRoomType(room),
       senderId: event.senderId,
       senderName: event.senderFromMemoryOrFallback.calcDisplayname(),
+      senderAvatarUrl:
+          event.senderFromMemoryOrFallback.avatarUrl?.toString() ?? '',
       body: event.body,
       content: Map<String, Object?>.from(event.content),
       originServerTs: event.originServerTs.millisecondsSinceEpoch,
@@ -1347,6 +1349,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       roomType: _favoriteRoomType(room),
       senderId: event.senderId,
       senderName: event.senderFromMemoryOrFallback.calcDisplayname(),
+      senderAvatarUrl:
+          event.senderFromMemoryOrFallback.avatarUrl?.toString() ?? '',
       body: event.body,
       content: Map<String, Object?>.from(event.content),
       originServerTs: event.originServerTs.millisecondsSinceEpoch,

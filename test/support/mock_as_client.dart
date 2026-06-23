@@ -172,6 +172,7 @@ class MockAsClient implements AsClient {
       messageType: draft.messageType,
       senderId: draft.senderId,
       senderName: draft.senderName,
+      senderAvatarUrl: draft.senderAvatarUrl,
       body: draft.body,
       url: draft.url,
       filename: draft.filename,

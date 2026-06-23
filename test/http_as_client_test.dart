@@ -1642,6 +1642,7 @@ void main() {
           'message_type': 'image',
           'sender_id': '@owner:p2p-im.com',
           'sender_name': 'Yanan',
+          'sender_avatar_url': 'mxc://p2p-im.com/yanan-avatar',
           'body': 'photo.jpg',
           'url': 'mxc://p2p-im.com/photo',
           'filename': 'photo.jpg',
@@ -1665,6 +1666,7 @@ void main() {
             'message_type': 'image',
             'sender_id': '@owner:p2p-im.com',
             'sender_name': 'Yanan',
+            'sender_avatar_url': 'mxc://p2p-im.com/yanan-avatar',
             'body': 'photo.jpg',
             'url': 'mxc://p2p-im.com/photo',
             'filename': 'photo.jpg',
@@ -1692,6 +1694,7 @@ void main() {
         messageType: 'image',
         senderId: '@owner:p2p-im.com',
         senderName: 'Yanan',
+        senderAvatarUrl: 'mxc://p2p-im.com/yanan-avatar',
         body: 'photo.jpg',
         url: 'mxc://p2p-im.com/photo',
         filename: 'photo.jpg',
@@ -1709,6 +1712,7 @@ void main() {
     expect(favorite.id, 7);
     expect(favorite.messageType, 'image');
     expect(favorite.url, 'mxc://p2p-im.com/photo');
+    expect(favorite.senderAvatarUrl, 'mxc://p2p-im.com/yanan-avatar');
   });
 
   test('submitReport posts through unified reports action', () async {
@@ -1772,6 +1776,7 @@ void main() {
               'message_type': 'file',
               'sender_id': '@bob:p2p-im.com',
               'sender_name': 'Bob',
+              'sender_avatar_url': 'https://cdn.example.com/bob.png',
               'body': 'report.pdf',
               'url': 'mxc://p2p-im.com/report',
               'filename': 'report.pdf',
@@ -1795,6 +1800,7 @@ void main() {
     expect(favorites, hasLength(1));
     expect(favorites.single.id, 8);
     expect(favorites.single.filename, 'report.pdf');
+    expect(favorites.single.senderAvatarUrl, 'https://cdn.example.com/bob.png');
     expect(favorites.single.favoritedAt?.toUtc().toIso8601String(),
         '2026-05-29T10:01:00.000Z');
   });
@@ -3206,6 +3212,44 @@ void main() {
     expect(comments.single.post.body, '频道帖子');
   });
 
+  test('getMyChannelComments parses flat channel activity fields', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.url.path, '/_as/channels/me/comments');
+        return _jsonResponse(
+          {
+            'comments': [
+              {
+                'comment_id': 'comment1',
+                'post_id': 'post1',
+                'channel_id': 'ch1',
+                'room_id': '!channel:example.com',
+                'channel_name': '产品公告',
+                'avatar_url': 'mxc://example.com/channel-avatar',
+                'author_mxid': '@owner:example.com',
+                'author_name': 'Yanan',
+                'comment_body': '评论内容',
+                'post_body': '频道帖子',
+                'origin_server_ts': 1780730400000,
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final comments = await client.getMyChannelComments(limit: 50);
+
+    expect(comments.single.channel.name, '产品公告');
+    expect(
+        comments.single.channel.avatarUrl, 'mxc://example.com/channel-avatar');
+    expect(comments.single.comment.body, '评论内容');
+    expect(comments.single.post.body, '频道帖子');
+  });
+
   test(
       'getMyChannelComments uses unified history action without fake channel id',
       () async {
@@ -3263,6 +3307,44 @@ void main() {
     final comments = await client.getMyChannelComments(limit: 15);
 
     expect(comments.single.comment.commentId, 'comment1');
+  });
+
+  test('getMyChannelReactions parses flat channel activity fields', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_as'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.url.path, '/_as/channels/me/reactions');
+        return _jsonResponse(
+          {
+            'reactions': [
+              {
+                'post_id': 'post1',
+                'channel_id': 'ch1',
+                'room_id': '!channel:example.com',
+                'channel_name': '产品公告',
+                'avatar_url': 'mxc://example.com/channel-avatar',
+                'reaction': 'like',
+                'post_body': '频道帖子',
+                'post_author_name': 'Yanan',
+                'origin_server_ts': 1780730300000,
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final reactions = await client.getMyChannelReactions(limit: 50);
+
+    expect(reactions.single.channel.name, '产品公告');
+    expect(
+      reactions.single.channel.avatarUrl,
+      'mxc://example.com/channel-avatar',
+    );
+    expect(reactions.single.post.body, '频道帖子');
+    expect(reactions.single.post.authorName, 'Yanan');
   });
 
   test('updateChannelReadMarker uses channel read marker API', () async {

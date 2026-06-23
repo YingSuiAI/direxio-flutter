@@ -8,6 +8,7 @@ AsFavoriteMessageDraft favoriteDraftFromMatrixMessage({
   required String roomType,
   required String senderId,
   String senderName = '',
+  String senderAvatarUrl = '',
   required String body,
   required Map<String, Object?> content,
   required int originServerTs,
@@ -31,6 +32,7 @@ AsFavoriteMessageDraft favoriteDraftFromMatrixMessage({
       messageType: chatRecordMessageType,
       senderId: senderId,
       senderName: senderName,
+      senderAvatarUrl: senderAvatarUrl,
       body: chatRecordTitle,
       originServerTs: originServerTs,
       chatRecord: chatRecord,
@@ -56,6 +58,7 @@ AsFavoriteMessageDraft favoriteDraftFromMatrixMessage({
     messageType: messageType,
     senderId: senderId,
     senderName: senderName,
+    senderAvatarUrl: senderAvatarUrl,
     body: displayBody,
     url: savedMediaUrl.trim().isNotEmpty
         ? savedMediaUrl.trim()

@@ -160,6 +160,7 @@ class AsFavoriteMessageDraft {
     required this.messageType,
     this.senderId = '',
     this.senderName = '',
+    this.senderAvatarUrl = '',
     this.body = '',
     this.url = '',
     this.filename = '',
@@ -181,6 +182,7 @@ class AsFavoriteMessageDraft {
   final String messageType;
   final String senderId;
   final String senderName;
+  final String senderAvatarUrl;
   final String body;
   final String url;
   final String filename;
@@ -203,6 +205,8 @@ class AsFavoriteMessageDraft {
       'message_type': messageType.trim(),
       'sender_id': senderId.trim(),
       'sender_name': senderName.trim(),
+      if (senderAvatarUrl.trim().isNotEmpty)
+        'sender_avatar_url': senderAvatarUrl.trim(),
       'body': body.trim(),
       'url': url.trim(),
       'filename': filename.trim(),
@@ -230,6 +234,7 @@ class AsFavoriteMessage {
     required this.messageType,
     required this.senderId,
     required this.senderName,
+    this.senderAvatarUrl = '',
     required this.body,
     required this.url,
     required this.filename,
@@ -254,6 +259,7 @@ class AsFavoriteMessage {
   final String messageType;
   final String senderId;
   final String senderName;
+  final String senderAvatarUrl;
   final String body;
   final String url;
   final String filename;
@@ -279,6 +285,10 @@ class AsFavoriteMessage {
       messageType: json['message_type'] as String? ?? '',
       senderId: json['sender_id'] as String? ?? '',
       senderName: json['sender_name'] as String? ?? '',
+      senderAvatarUrl: json['sender_avatar_url'] as String? ??
+          json['sender_avatar'] as String? ??
+          json['avatar_url'] as String? ??
+          '',
       body: json['body'] as String? ?? '',
       url: json['url'] as String? ?? '',
       filename: json['filename'] as String? ?? '',
@@ -1562,16 +1572,33 @@ class AsChannelCommentHistory {
   final AsChannelPost post;
 
   factory AsChannelCommentHistory.fromJson(Map<String, dynamic> json) {
+    final commentJson = (json['comment'] as Map?)?.cast<String, dynamic>() ??
+        {
+          ...json,
+          'body': _firstString(json, const ['comment_body', 'body']),
+        };
+    final channelJson =
+        (json['channel'] as Map?)?.cast<String, dynamic>() ?? json;
+    final postJson = (json['post'] as Map?)?.cast<String, dynamic>() ??
+        {
+          ...json,
+          'body': _firstString(
+            json,
+            const ['post_body', 'post_text', 'post_message'],
+          ),
+          'author_name': _firstString(
+            json,
+            const ['post_author_name', 'post_author_display_name'],
+          ),
+          'author_mxid': _firstString(
+            json,
+            const ['post_author_mxid', 'post_author_id'],
+          ),
+        };
     return AsChannelCommentHistory(
-      comment: AsChannelComment.fromJson(
-        (json['comment'] as Map?)?.cast<String, dynamic>() ?? const {},
-      ),
-      channel: AsChannel.fromJson(
-        (json['channel'] as Map?)?.cast<String, dynamic>() ?? const {},
-      ),
-      post: AsChannelPost.fromJson(
-        (json['post'] as Map?)?.cast<String, dynamic>() ?? const {},
-      ),
+      comment: AsChannelComment.fromJson(commentJson),
+      channel: AsChannel.fromJson(channelJson),
+      post: AsChannelPost.fromJson(postJson),
     );
   }
 }
@@ -1594,17 +1621,31 @@ class AsChannelReactionHistory {
   final AsChannelPost post;
 
   factory AsChannelReactionHistory.fromJson(Map<String, dynamic> json) {
+    final channelJson =
+        (json['channel'] as Map?)?.cast<String, dynamic>() ?? json;
+    final postJson = (json['post'] as Map?)?.cast<String, dynamic>() ??
+        {
+          ...json,
+          'body': _firstString(
+            json,
+            const ['post_body', 'post_text', 'post_message', 'body'],
+          ),
+          'author_name': _firstString(
+            json,
+            const ['post_author_name', 'post_author_display_name'],
+          ),
+          'author_mxid': _firstString(
+            json,
+            const ['post_author_mxid', 'post_author_id'],
+          ),
+        };
     return AsChannelReactionHistory(
       postId: json['post_id'] as String? ?? '',
       channelId: json['channel_id'] as String? ?? '',
       reaction: json['reaction'] as String? ?? 'like',
       originServerTs: _parseInt(json['origin_server_ts']),
-      channel: AsChannel.fromJson(
-        (json['channel'] as Map?)?.cast<String, dynamic>() ?? const {},
-      ),
-      post: AsChannelPost.fromJson(
-        (json['post'] as Map?)?.cast<String, dynamic>() ?? const {},
-      ),
+      channel: AsChannel.fromJson(channelJson),
+      post: AsChannelPost.fromJson(postJson),
     );
   }
 }

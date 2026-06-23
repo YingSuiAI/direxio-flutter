@@ -10,6 +10,7 @@ void main() {
       roomType: 'direct',
       senderId: '@alice:p2p-liyanan.com',
       senderName: 'Alice',
+      senderAvatarUrl: 'mxc://p2p-liyanan.com/alice-avatar',
       body: 'photo.jpg',
       content: {
         'msgtype': 'm.image',
@@ -31,6 +32,7 @@ void main() {
     );
 
     expect(draft.messageType, 'image');
+    expect(draft.senderAvatarUrl, 'mxc://p2p-liyanan.com/alice-avatar');
     expect(draft.url, 'mxc://p2p-im.com/photo');
     expect(draft.filename, 'photo.jpg');
     expect(draft.mimeType, 'image/jpeg');

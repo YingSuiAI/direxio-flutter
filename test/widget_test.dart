@@ -706,6 +706,7 @@ class _EmptyAsClient implements AsClient {
       messageType: draft.messageType,
       senderId: draft.senderId,
       senderName: draft.senderName,
+      senderAvatarUrl: draft.senderAvatarUrl,
       body: draft.body,
       url: draft.url,
       filename: draft.filename,
@@ -1163,6 +1164,7 @@ class _FavoritesAsClient extends _EmptyAsClient {
         messageType: 'text',
         senderId: '@alice:p2p-liyanan.com',
         senderName: 'Alice',
+        senderAvatarUrl: 'https://cdn.example.com/alice-favorite.png',
         body: '明天上午继续测试',
         url: '',
         filename: '',
@@ -13941,6 +13943,13 @@ void main() {
 
     expect(find.text('收藏'), findsOneWidget);
     expect(find.text('明天上午继续测试'), findsOneWidget);
+    expect(
+      tester.widgetList<PortalAvatar>(find.byType(PortalAvatar)).any(
+            (avatar) =>
+                avatar.imageUrl == 'https://cdn.example.com/alice-favorite.png',
+          ),
+      isTrue,
+    );
     expect(find.text('report.pdf'), findsOneWidget);
     expect(find.text(_FavoritesAsClient.generatedVideoName), findsNothing);
     expect(find.text(_FavoritesAsClient.generatedImageName), findsNothing);
@@ -14014,7 +14023,8 @@ void main() {
     expect(asClient.reactionsCallCount, 1);
     expect(asClient.lastReactionsLimit, 50);
     expect(find.text('赞'), findsOneWidget);
-    expect(find.text('Yanan'), findsOneWidget);
+    expect(find.text('产品公告'), findsOneWidget);
+    expect(find.text('你赞了这条帖子'), findsOneWidget);
     expect(find.text('频道发帖已打通'), findsAtLeastNWidgets(1));
     expect(find.text('1'), findsOneWidget);
   });
@@ -14036,9 +14046,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('评论'), findsOneWidget);
-    expect(find.text('Yanan'), findsOneWidget);
-    expect(find.text('这条评论来自真实用户名'), findsOneWidget);
-    expect(find.textContaining('产品公告'), findsNothing);
+    expect(find.text('产品公告'), findsOneWidget);
+    expect(find.text('你评论了：这条评论来自真实用户名'), findsOneWidget);
+    expect(find.text('频道发帖已打通'), findsOneWidget);
   });
 
   testWidgets('me comments page follows dark mode tokens', (tester) async {
@@ -14101,7 +14111,7 @@ void main() {
 
     expect(asClient.commentsCallCount, 1);
     expect(asClient.lastCommentsLimit, 50);
-    expect(find.text('这条评论来自真实用户名'), findsOneWidget);
+    expect(find.text('你评论了：这条评论来自真实用户名'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('my-comment-comment1')));
     await tester.pumpAndSettle();

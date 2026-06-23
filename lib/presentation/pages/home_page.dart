@@ -22,6 +22,7 @@ import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../widgets/group_composite_avatar.dart';
 import '../widgets/portal_avatar.dart';
 import '../../data/as_client.dart';
 import '../../data/conversation_summary_store.dart';
@@ -469,7 +470,7 @@ class _HomePageState extends ConsumerState<HomePage>
     );
     final friendRequestReadState = ref.watch(friendRequestReadProvider);
     final friendRequestUnreadCount = friendRequestReadState
-        .unreadCountForRoomIds(_pendingFriendRequestRoomIds(
+        .unreadCountForRoomIds(_pendingFriendRequestReadKeys(
       client: client,
       syncCache: syncCache,
     ));
@@ -705,6 +706,28 @@ String? _homeAvatarUrl(Client client, String? avatarUrl) {
   return value;
 }
 
+List<String> _homeGroupMemberAvatarUrls(
+  Room room,
+  AsSyncCacheState syncCache, {
+  required String? currentUserId,
+}) {
+  final self = currentUserId?.trim() ?? '';
+  final out = <String>[];
+  final seen = <String>{};
+  for (final user in room.getParticipants()) {
+    final mxid = user.id.trim();
+    if (mxid.isEmpty || mxid == self || !seen.add(mxid)) continue;
+    final contact = syncCache.contactForUserId(mxid);
+    final avatar = matrixContentHttpUrl(room.client, user.avatarUrl) ??
+        (contact == null ? null : contactListAvatarUrl(room.client, contact));
+    if (avatar != null && avatar.trim().isNotEmpty) {
+      out.add(avatar.trim());
+    }
+    if (out.length >= 9) break;
+  }
+  return List.unmodifiable(out);
+}
+
 class _ChatsTopBar extends StatelessWidget {
   const _ChatsTopBar({
     required this.title,
@@ -761,33 +784,36 @@ class _ChatsTopBar extends StatelessWidget {
   }
 }
 
-List<String> _pendingFriendRequestRoomIds({
+List<String> _pendingFriendRequestReadKeys({
   required Client client,
   required AsSyncCacheState syncCache,
 }) {
   final agentMxid = portalAgentMxidForClient(client);
-  final roomIds = <String>{
+  final keys = <String>{
     for (final room in client.rooms)
       if (isIncomingDirectContactInvite(room, agentMxid: agentMxid) &&
           room.id.trim().isNotEmpty)
-        room.id.trim(),
+        friendRequestReadKeyForRoom(room),
     for (final room in client.rooms)
       if (room.membership == Membership.invite &&
           room.id.trim().isNotEmpty &&
           !isPortalAgentDirectRoom(room, agentMxid: agentMxid) &&
           !isIncomingDirectContactInvite(room, agentMxid: agentMxid) &&
           !_isNativeChannelInvite(room))
-        room.id.trim(),
+        friendRequestReadKeyForRoom(room),
     for (final contact in syncCache.pendingInboundContacts)
-      if (contact.roomId.trim().isNotEmpty) contact.roomId.trim(),
+      if (contact.roomId.trim().isNotEmpty)
+        friendRequestReadKeyForContact(contact),
     for (final request in syncCache.bootstrap?.pending.friendRequests ??
         const <AsSyncPendingItem>[])
-      if (request.id.trim().isNotEmpty) request.id.trim(),
+      if (request.id.trim().isNotEmpty)
+        friendRequestReadKeyForPendingItem(request),
     for (final request in syncCache.bootstrap?.pending.groupInvites ??
         const <AsSyncPendingItem>[])
-      if (request.id.trim().isNotEmpty) request.id.trim(),
+      if (request.id.trim().isNotEmpty)
+        friendRequestReadKeyForPendingItem(request),
   };
-  return roomIds.toList(growable: false);
+  return keys.toList(growable: false);
 }
 
 bool _isNativeChannelInvite(Room room) {
@@ -1445,61 +1471,6 @@ class _GlassCircleButton extends StatelessWidget {
   }
 }
 
-class _GroupAvatarGrid extends StatelessWidget {
-  const _GroupAvatarGrid({required this.seed, this.imageUrl});
-
-  final String seed;
-  final String? imageUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    if (imageUrl != null && imageUrl!.trim().isNotEmpty) {
-      return PortalAvatar(
-        seed: seed,
-        size: _conversationTileAvatarSize,
-        imageUrl: imageUrl,
-        shape: AvatarShape.squircle,
-      );
-    }
-    final colors = [
-      const Color(0xFFE6F0FF),
-      const Color(0xFFDFF7E7),
-      const Color(0xFFFFE4E0),
-      const Color(0xFFFFF0C7),
-    ];
-    return Container(
-      width: _conversationTileAvatarSize,
-      height: _conversationTileAvatarSize,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFC),
-        borderRadius: BorderRadius.circular(4.2),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF17688B).withValues(alpha: 0.12),
-            blurRadius: 1.4,
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(1.4),
-      child: Wrap(
-        spacing: 1.4,
-        runSpacing: 1.4,
-        children: [
-          for (var i = 0; i < 4; i++)
-            Container(
-              width: 18.9,
-              height: 18.9,
-              decoration: BoxDecoration(
-                color: colors[(seed.hashCode + i).abs() % colors.length],
-                borderRadius: BorderRadius.circular(2.8),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ChatList extends ConsumerWidget {
   const _ChatList({required this.client});
   final Client client;
@@ -1597,6 +1568,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final client = ref.watch(matrixClientProvider);
+    final syncCache = ref.watch(asSyncCacheProvider);
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
       itemCount: entries.length,
@@ -1605,6 +1577,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
         final roomId = entry.roomId.trim();
         final name = entry.name.trim().isEmpty ? roomId : entry.name.trim();
         final productConversation = productConversationsByRoomId[roomId];
+        final room = client.getRoomById(roomId);
         return _ConvRow(
           key: ValueKey('home_conversation_$roomId'),
           name: name,
@@ -1614,6 +1587,13 @@ class _HomeConversationEntryList extends ConsumerWidget {
           isAgent: entry.isAgent,
           isGroup: entry.isGroup,
           avatarUrl: _homeAvatarUrl(client, entry.avatarUrl),
+          memberAvatarUrls: entry.isGroup && room != null
+              ? _homeGroupMemberAvatarUrls(
+                  room,
+                  syncCache,
+                  currentUserId: client.userID,
+                )
+              : const [],
           isPinned: pinnedConversationIds.contains(roomId),
           onTap: () {
             final route = productConversation == null
@@ -1774,6 +1754,7 @@ class _ConvRow extends StatelessWidget {
     this.isGroup = false,
     this.isPinned = false,
     this.avatarUrl,
+    this.memberAvatarUrls = const [],
   });
   final String name;
   final String lastMessage;
@@ -1787,6 +1768,7 @@ class _ConvRow extends StatelessWidget {
   final bool isGroup;
   final bool isPinned;
   final String? avatarUrl;
+  final List<String> memberAvatarUrls;
 
   @override
   Widget build(BuildContext context) {
@@ -1812,7 +1794,12 @@ class _ConvRow extends StatelessWidget {
               ),
             )
           : isGroup
-              ? _GroupAvatarGrid(seed: name, imageUrl: avatarUrl)
+              ? GroupCompositeAvatar(
+                  seed: name,
+                  size: _conversationTileAvatarSize,
+                  imageUrl: avatarUrl,
+                  memberAvatarUrls: memberAvatarUrls,
+                )
               : PortalAvatar(
                   seed: name,
                   size: _conversationTileAvatarSize,
@@ -2153,7 +2140,7 @@ class _ContactList extends ConsumerWidget {
     final friendRequestReadState = ref.watch(friendRequestReadProvider);
     final acceptedContacts = syncCache.acceptedContacts;
     final pendingInvites = friendRequestReadState.unreadCountForRoomIds(
-      _pendingFriendRequestRoomIds(client: client, syncCache: syncCache),
+      _pendingFriendRequestReadKeys(client: client, syncCache: syncCache),
     );
     final l10n = Localizations.of<AppLocalizations>(
       context,

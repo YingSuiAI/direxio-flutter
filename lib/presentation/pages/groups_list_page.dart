@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
@@ -14,8 +15,8 @@ import '../utils/avatar_url.dart';
 import '../utils/group_creation_flow.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../widgets/group_composite_avatar.dart';
 import '../widgets/m3/m3_search_field.dart';
-import '../widgets/portal_avatar.dart';
 
 const _groupsToolbarHeight = 62.0;
 
@@ -88,6 +89,13 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           avatarUrl: avatarHttpUrl(client, conversation.avatarUrl) ??
               avatarHttpUrl(client, group?.avatarUrl) ??
               (room == null ? null : roomAvatarHttpUrl(room)),
+          memberAvatarUrls: room == null
+              ? const []
+              : _groupMemberAvatarUrls(
+                  room,
+                  syncCache,
+                  currentUserId: client.userID,
+                ),
           time: lastActivityAt == null
               ? ''
               : _formatTime(lastActivityAt.millisecondsSinceEpoch),
@@ -364,6 +372,7 @@ class _GroupItem {
     required this.name,
     required this.preview,
     this.avatarUrl,
+    this.memberAvatarUrls = const [],
     required this.time,
     required this.unread,
     this.isOwner = false,
@@ -373,6 +382,7 @@ class _GroupItem {
   final String name;
   final String preview;
   final String? avatarUrl;
+  final List<String> memberAvatarUrls;
   final String time;
   final int unread;
   final bool isOwner;
@@ -405,7 +415,14 @@ class _GroupRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              _GroupAvatar(name: name, imageUrl: item.avatarUrl),
+              GroupCompositeAvatar(
+                key: ValueKey('group_avatar_${item.id}'),
+                seed: name,
+                size: 48,
+                imageUrl: item.avatarUrl,
+                memberAvatarUrls: item.memberAvatarUrls,
+                radius: 12,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Container(
@@ -533,38 +550,6 @@ class _OwnerBadge extends StatelessWidget {
   }
 }
 
-/// 群聊头像：48 圆角方块，按群名 hash 取色，显示 groups 图标。
-class _GroupAvatar extends StatelessWidget {
-  const _GroupAvatar({required this.name, this.imageUrl});
-  final String name;
-  final String? imageUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    if (imageUrl?.trim().isNotEmpty ?? false) {
-      return PortalAvatar(
-        seed: name,
-        size: 48,
-        imageUrl: imageUrl!.trim(),
-        shape: AvatarShape.squircle,
-      );
-    }
-    final t = context.tk;
-    final colors = [t.accent, t.primaryContainer, t.accentCool, t.danger];
-    final bg = colors[name.hashCode.abs() % colors.length];
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: bg.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.center,
-      child: Icon(Symbols.groups, size: 24, color: bg, fill: 1),
-    );
-  }
-}
-
 String _previewText(String raw) {
   return raw
       .replaceAll(RegExp(r'[*_`#~]'), '')
@@ -583,4 +568,25 @@ String _formatTime(int ts) {
     return weekdays[dt.weekday - 1];
   }
   return DateFormat('MM/dd').format(dt);
+}
+
+List<String> _groupMemberAvatarUrls(
+  Room room,
+  AsSyncCacheState syncCache, {
+  required String? currentUserId,
+}) {
+  final self = currentUserId?.trim() ?? '';
+  final out = <String>[];
+  final seen = <String>{};
+  for (final user in room.getParticipants()) {
+    final mxid = user.id.trim();
+    if (mxid.isEmpty || mxid == self || !seen.add(mxid)) continue;
+    final avatar = matrixContentHttpUrl(room.client, user.avatarUrl) ??
+        avatarHttpUrl(room.client, syncCache.contactForUserId(mxid)?.avatarUrl);
+    if (avatar != null && avatar.trim().isNotEmpty) {
+      out.add(avatar.trim());
+    }
+    if (out.length >= 9) break;
+  }
+  return List.unmodifiable(out);
 }

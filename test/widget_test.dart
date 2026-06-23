@@ -6544,6 +6544,66 @@ void main() {
     );
   });
 
+  testWidgets('new friend badge reappears for a renewed inbound request',
+      (tester) async {
+    final client = Client('DirexioRenewedFriendRequestBadgeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final readStore = _MemoryFriendRequestReadStore()
+      ..ids = {'!renewed:p2p-im.com@1000'};
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 19, 13),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!renewed:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'pending_inbound',
+          visibleAfterTs: 2000,
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          friendRequestReadStoreProvider.overrideWith((ref) async => readStore),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('bottom_nav_badge_通讯录')), findsOneWidget);
+
+    await tester.tap(find.text('通讯录').last);
+    await tester.pump();
+
+    final contactSectionBadge =
+        find.byKey(const ValueKey('section_action_badge_新朋友'));
+    expect(contactSectionBadge, findsOneWidget);
+    expect(
+      find.descendant(of: contactSectionBadge, matching: find.text('1')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
       'new friend badge counts AS group invites but not channel notices',
       (tester) async {
@@ -7155,7 +7215,6 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
-          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -7303,6 +7362,7 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -7312,11 +7372,56 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('已拒绝'), findsOneWidget);
+    expect(find.text('已拒绝'), findsAtLeastNWidgets(1));
     expect(find.text('对方已拒绝'), findsOneWidget);
     expect(find.text('owner'), findsOneWidget);
     expect(find.text('等待接受'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
+  });
+
+  testWidgets('new friends page shows rejected inbound contacts separately',
+      (tester) async {
+    final client = Client('DirexioInboundRejectedBootstrapTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 5, 28, 19),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!rejected-in:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'rejected_inbound',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('已拒绝'), findsAtLeastNWidgets(1));
+    expect(find.text('查看'), findsNothing);
+    expect(find.text('等待接受'), findsNothing);
   });
 
   testWidgets('new friends keeps outgoing requests visible after peer rejects',
@@ -7367,7 +7472,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('owner'), findsOneWidget);
-    expect(find.text('已拒绝'), findsOneWidget);
+    expect(find.text('已拒绝'), findsAtLeastNWidgets(1));
     expect(find.text('对方已拒绝'), findsOneWidget);
     expect(find.text('等待接受'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
@@ -9210,14 +9315,10 @@ void main() {
 
     expect(find.text('产品群'), findsOneWidget);
     expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is PortalAvatar &&
-            widget.size == 48 &&
-            widget.imageUrl == avatarUrl,
-      ),
+      find.byKey(const ValueKey('group_avatar_!group:p2p-im.com')),
       findsOneWidget,
     );
+    expect(find.byType(PortalAvatar), findsNothing);
   });
 
   testWidgets('groups list labels image previews instead of filenames',
@@ -9327,12 +9428,14 @@ void main() {
       roomId: '!alice:p2p-im.com',
       peerMxid: '@alice:p2p-liyanan.com',
       peerName: 'Alice Chen',
+      peerAvatarUrl: 'https://example.com/alice.png',
     );
     _addUndirectedJoinedRoom(
       client,
       roomId: '!bob:p2p-im.com',
       peerMxid: '@bob:p2p-liyanan.com',
       peerName: 'Bob Lin',
+      peerAvatarUrl: 'https://example.com/bob.png',
     );
     final asClient = _TrackingAsClient();
 
@@ -9344,7 +9447,7 @@ void main() {
         AsSyncContact(
           userId: '@alice:p2p-liyanan.com',
           displayName: 'Alice Chen',
-          avatarUrl: 'https://example.com/alice.png',
+          avatarUrl: '',
           roomId: '!alice:p2p-im.com',
           domain: 'p2p-liyanan.com',
           status: 'accepted',
@@ -9352,7 +9455,7 @@ void main() {
         AsSyncContact(
           userId: '@bob:p2p-liyanan.com',
           displayName: 'Bob Lin',
-          avatarUrl: 'https://example.com/bob.png',
+          avatarUrl: '',
           roomId: '!bob:p2p-im.com',
           domain: 'p2p-liyanan.com',
           status: 'accepted',
@@ -9444,6 +9547,12 @@ void main() {
     );
     expect(find.text('群成员'), findsOneWidget);
     expect(find.text('2人'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('create_group_avatar_picker')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('create_group_composite_avatar')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('完成创建'));
     await tester.pumpAndSettle();
@@ -9457,6 +9566,7 @@ void main() {
     }
 
     expect(asClient.createdGroupName, 'Alice Chen、Bob Lin的群聊');
+    expect(asClient.createdGroupAvatarUrl, '');
     expect(
       asClient.createdGroupInvites,
       ['@alice:p2p-liyanan.com', '@bob:p2p-liyanan.com'],
@@ -9481,7 +9591,7 @@ void main() {
     }
     final createdRoom = client.getRoomById('!new-group:p2p-im.com');
     expect(createdRoom, isNotNull);
-    expect(createdRoom!.avatar?.toString(), 'mxc://p2p-im.com/owner-avatar');
+    expect(createdRoom!.avatar, isNull);
   });
 
   testWidgets('messages hide Matrix group invite room before AS join',
@@ -10078,11 +10188,24 @@ void main() {
       name: '真实群',
       creatorMxid: '@owner:p2p-im.com',
       members: const {
-        '@alice:p2p-im.com': 'Alice',
-        '@bob:p2p-im.com': 'Bob',
-        '@carol:p2p-im.com': 'Carol',
-        '@dave:p2p-im.com': 'Dave',
-        '@erin:p2p-im.com': 'Erin',
+        '@member01:p2p-im.com': 'Member 01',
+        '@member02:p2p-im.com': 'Member 02',
+        '@member03:p2p-im.com': 'Member 03',
+        '@member04:p2p-im.com': 'Member 04',
+        '@member05:p2p-im.com': 'Member 05',
+        '@member06:p2p-im.com': 'Member 06',
+        '@member07:p2p-im.com': 'Member 07',
+        '@member08:p2p-im.com': 'Member 08',
+        '@member09:p2p-im.com': 'Member 09',
+        '@member10:p2p-im.com': 'Member 10',
+        '@member11:p2p-im.com': 'Member 11',
+        '@member12:p2p-im.com': 'Member 12',
+        '@member13:p2p-im.com': 'Member 13',
+        '@member14:p2p-im.com': 'Member 14',
+        '@member15:p2p-im.com': 'Member 15',
+        '@member16:p2p-im.com': 'Member 16',
+        '@member17:p2p-im.com': 'Member 17',
+        '@member18:p2p-im.com': 'Member 18',
       },
     );
 
@@ -10100,14 +10223,63 @@ void main() {
     final memberGrid = tester.widget<SizedBox>(
       find.byKey(const ValueKey('group_info_member_grid')),
     );
-    expect(memberGrid.height, 152);
+    expect(memberGrid.height, 316);
+    final gridContent = tester.widget<SizedBox>(
+      find.byKey(const ValueKey('group_info_member_grid_content')),
+    );
+    expect(gridContent.width, 308);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('group_info_member_grid')),
-        matching: find.byType(GridView),
+        matching: find.byType(SingleChildScrollView),
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('group info uses current profile for owner member chip',
+      (tester) async {
+    final client = Client('DirexioGroupInfoOwnerProfileTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          currentUserProfileProvider.overrideWith(
+            (ref) async => Profile(
+              userId: '@owner:p2p-im.com',
+              displayName: '群主 Owner',
+              avatarUrl: Uri.parse('mxc://p2p-im.com/owner-avatar'),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('群主'), findsOneWidget);
+    expect(find.text('owner'), findsNothing);
+    final ownerChip = find.byKey(
+      const ValueKey('group_info_member_@owner:p2p-im.com'),
+    );
+    expect(ownerChip, findsOneWidget);
+    final ownerAvatar = tester.widget<PortalAvatar>(
+      find.descendant(of: ownerChip, matching: find.byType(PortalAvatar)),
+    );
+    expect(ownerAvatar.imageUrl, contains('/download/p2p-im.com/owner-avatar'));
   });
 
   testWidgets('group info member avatar opens contact home for friend actions',

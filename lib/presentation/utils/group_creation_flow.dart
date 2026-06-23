@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:matrix/matrix.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -15,15 +13,14 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/profile_provider.dart';
-import '../utils/avatar_url.dart';
+import '../home/conversation_summary_writer.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
 import '../groups/group_invite_content.dart';
 import '../widgets/m3/m3_search_field.dart';
-import '../widgets/avatar_adjust_sheet.dart';
+import '../widgets/group_composite_avatar.dart';
 import '../widgets/portal_avatar.dart';
 
 final groupCreationSyncAfterCreateProvider = Provider<bool>((ref) => true);
@@ -60,22 +57,9 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
   if (result == null || !context.mounted) return;
 
   try {
-    final pickedAvatarBytes = result.avatarBytes;
-    final pickedAvatarUrl = pickedAvatarBytes == null
-        ? ''
-        : (await client.uploadContent(
-            pickedAvatarBytes,
-            filename: 'group-avatar.png',
-            contentType: 'image/png',
-          ))
-            .toString();
-    final ownerAvatarUrl = pickedAvatarUrl.isNotEmpty
-        ? pickedAvatarUrl
-        : await _currentUserAvatarUrl(ref);
     final group = await ref.read(asClientProvider).createGroup(
           name: result.name,
           invite: result.inviteMxids,
-          avatarUrl: pickedAvatarUrl,
         );
     final roomId = group.roomId;
     var productConversation = group.productConversation;
@@ -99,7 +83,6 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
         _fallbackGroupConversation(
           group,
           fallbackName: result.name,
-          avatarUrl: ownerAvatarUrl,
           inviteCount: result.inviteMxids.length,
         );
     _ensureOptimisticGroupRoom(
@@ -107,13 +90,11 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
       roomId: roomId,
       name: group.name.trim().isEmpty ? result.name : group.name,
       inviteMxids: result.inviteMxids,
-      avatarUrl: ownerAvatarUrl,
     );
     _cacheCreatedGroup(
       ref,
       group,
       fallbackName: result.name,
-      avatarUrl: ownerAvatarUrl,
     );
     await recordProductConversationMutation(ref, resolvedConversation);
     unawaited(_refreshCreatedGroupBootstrap(ref));
@@ -233,7 +214,6 @@ Future<bool> _sendSingleGroupInviteCard(
 AsConversation _fallbackGroupConversation(
   AsGroupResult group, {
   required String fallbackName,
-  required String avatarUrl,
   required int inviteCount,
 }) {
   final roomId = group.roomId.trim();
@@ -243,7 +223,7 @@ AsConversation _fallbackGroupConversation(
     kind: asConversationKindGroup,
     lifecycle: 'active',
     title: group.name.trim().isEmpty ? fallbackName : group.name.trim(),
-    avatarUrl: avatarUrl.trim(),
+    avatarUrl: group.productConversation?.avatarUrl.trim() ?? '',
     lastActivityAt: DateTime.now().toUtc(),
     memberCount: group.memberCount > 0 ? group.memberCount : inviteCount + 1,
     membership: 'join',
@@ -270,14 +250,6 @@ String _createdGroupConversationId(AsGroupResult group) {
   return roomId.isEmpty ? '' : 'group:$roomId';
 }
 
-Future<String> _currentUserAvatarUrl(WidgetRef ref) async {
-  final cached = ref.read(currentUserProfileProvider).valueOrNull;
-  final cachedAvatar = cached?.avatarUrl?.toString().trim() ?? '';
-  if (cachedAvatar.isNotEmpty) return cachedAvatar;
-  final profile = await ref.read(currentUserProfileProvider.future);
-  return profile?.avatarUrl?.toString().trim() ?? '';
-}
-
 Future<void> _refreshCreatedGroupBootstrap(WidgetRef ref) async {
   try {
     final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
@@ -293,7 +265,6 @@ void _cacheCreatedGroup(
   WidgetRef ref,
   AsGroupResult group, {
   required String fallbackName,
-  required String avatarUrl,
 }) {
   final roomId = group.roomId.trim();
   if (roomId.isEmpty) return;
@@ -306,7 +277,7 @@ void _cacheCreatedGroup(
       AsSyncRoomSummary(
         roomId: roomId,
         name: group.name.trim().isEmpty ? fallbackName : group.name,
-        avatarUrl: avatarUrl,
+        avatarUrl: group.productConversation?.avatarUrl.trim() ?? '',
         unreadCount: 0,
         lastActivityAt: DateTime.now().toUtc(),
         isOwned: group.role.trim().isEmpty || group.role == 'owner',
@@ -340,7 +311,6 @@ void _ensureOptimisticGroupRoom(
   required String roomId,
   required String name,
   required List<String> inviteMxids,
-  required String avatarUrl,
 }) {
   final existing = client.getRoomById(roomId);
   final room =
@@ -380,16 +350,6 @@ void _ensureOptimisticGroupRoom(
       content: {'name': name},
     ),
   );
-  if (avatarUrl.trim().isNotEmpty) {
-    room.setState(
-      StrippedStateEvent(
-        type: EventTypes.RoomAvatar,
-        senderId: sender,
-        stateKey: '',
-        content: {'url': avatarUrl.trim()},
-      ),
-    );
-  }
   room.setState(
     StrippedStateEvent(
       type: nativeRoomProfileEventType,
@@ -399,7 +359,6 @@ void _ensureOptimisticGroupRoom(
         'room_type': nativeGroupRoomType,
         'room_id': room.id,
         'name': name,
-        if (avatarUrl.trim().isNotEmpty) 'avatar_url': avatarUrl.trim(),
       },
     ),
   );
@@ -425,12 +384,10 @@ class _CreateGroupResult {
   const _CreateGroupResult({
     required this.name,
     required this.inviteMxids,
-    this.avatarBytes,
   });
 
   final String name;
   final List<String> inviteMxids;
-  final Uint8List? avatarBytes;
 }
 
 class _CreateGroupScreen extends StatefulWidget {
@@ -451,9 +408,7 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
   final TextEditingController _groupNameController = TextEditingController();
   final FocusNode _groupNameFocusNode = FocusNode();
   final Set<String> _selectedMxids = <String>{};
-  Uint8List? _groupAvatarBytes;
   bool _showGroupSetup = false;
-  bool _avatarPicking = false;
 
   @override
   void initState() {
@@ -553,14 +508,9 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
                         controller: _groupNameController,
                         focusNode: _groupNameFocusNode,
                         selectedContacts: selectedContacts,
-                        avatarBytes: _groupAvatarBytes,
-                        avatarPicking: _avatarPicking,
                         contactName: _contactName,
-                        contactAvatarUrl: (contact) => avatarHttpUrl(
-                          widget.client,
-                          contact.avatarUrl,
-                        ),
-                        onAvatarTap: _pickGroupAvatar,
+                        contactAvatarUrl: (contact) =>
+                            contactListAvatarUrl(widget.client, contact),
                         canSubmit: canComplete,
                         onSubmit: canComplete ? _complete : null,
                       ),
@@ -595,9 +545,9 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
                                           final mxid = contact.userId.trim();
                                           return _CreateGroupContactRow(
                                             name: _contactName(contact),
-                                            avatarUrl: avatarHttpUrl(
+                                            avatarUrl: contactListAvatarUrl(
                                               widget.client,
-                                              contact.avatarUrl,
+                                              contact,
                                             ),
                                             selected:
                                                 _selectedMxids.contains(mxid),
@@ -679,39 +629,6 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
     });
   }
 
-  Future<void> _pickGroupAvatar() async {
-    if (_avatarPicking) return;
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _avatarPicking = true);
-    try {
-      final file = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 92,
-        maxWidth: 2048,
-        maxHeight: 2048,
-        requestFullMetadata: false,
-      );
-      if (file == null) return;
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
-      await showAvatarAdjustSheet(
-        context,
-        imageBytes: bytes,
-        onConfirm: (adjustedBytes) async {
-          if (!mounted) return;
-          setState(() => _groupAvatarBytes = adjustedBytes);
-        },
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('选择群头像失败: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _avatarPicking = false);
-    }
-  }
-
   void _complete() {
     if (_selectedMxids.isEmpty) return;
     final selectedContacts = _selectedContacts();
@@ -721,7 +638,6 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
         name:
             typedName.isEmpty ? _defaultGroupName(selectedContacts) : typedName,
         inviteMxids: _selectedMxids.toList(growable: false),
-        avatarBytes: _groupAvatarBytes,
       ),
     );
   }
@@ -732,11 +648,8 @@ class _CreateGroupSetupStep extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.selectedContacts,
-    required this.avatarBytes,
-    required this.avatarPicking,
     required this.contactName,
     required this.contactAvatarUrl,
-    required this.onAvatarTap,
     required this.canSubmit,
     required this.onSubmit,
   });
@@ -744,11 +657,8 @@ class _CreateGroupSetupStep extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final List<AsSyncContact> selectedContacts;
-  final Uint8List? avatarBytes;
-  final bool avatarPicking;
   final String Function(AsSyncContact contact) contactName;
   final String? Function(AsSyncContact contact) contactAvatarUrl;
-  final VoidCallback onAvatarTap;
   final bool canSubmit;
   final VoidCallback? onSubmit;
 
@@ -763,9 +673,9 @@ class _CreateGroupSetupStep extends StatelessWidget {
               _CreateGroupInfoCard(
                 controller: controller,
                 focusNode: focusNode,
-                avatarBytes: avatarBytes,
-                avatarPicking: avatarPicking,
-                onAvatarTap: onAvatarTap,
+                selectedContacts: selectedContacts,
+                contactName: contactName,
+                contactAvatarUrl: contactAvatarUrl,
               ),
               const SizedBox(height: 12),
               _CreateGroupSelectedMembersCard(
@@ -786,21 +696,23 @@ class _CreateGroupInfoCard extends StatelessWidget {
   const _CreateGroupInfoCard({
     required this.controller,
     required this.focusNode,
-    required this.avatarBytes,
-    required this.avatarPicking,
-    required this.onAvatarTap,
+    required this.selectedContacts,
+    required this.contactName,
+    required this.contactAvatarUrl,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
-  final Uint8List? avatarBytes;
-  final bool avatarPicking;
-  final VoidCallback onAvatarTap;
+  final List<AsSyncContact> selectedContacts;
+  final String Function(AsSyncContact contact) contactName;
+  final String? Function(AsSyncContact contact) contactAvatarUrl;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final pickedAvatarBytes = avatarBytes;
+    final memberAvatarUrls = [
+      for (final contact in selectedContacts) contactAvatarUrl(contact) ?? '',
+    ];
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -810,50 +722,11 @@ class _CreateGroupInfoCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Semantics(
-            button: true,
-            label: '选择群头像',
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                key: const ValueKey('create_group_avatar_picker'),
-                onTap: avatarPicking ? null : onAvatarTap,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: t.surfaceHover,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  alignment: Alignment.center,
-                  clipBehavior: Clip.antiAlias,
-                  child: avatarPicking
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: t.accent,
-                          ),
-                        )
-                      : pickedAvatarBytes == null
-                          ? const Icon(
-                              Symbols.photo_camera,
-                              size: 24,
-                              color: _createGroupMuted,
-                            )
-                          : Image.memory(
-                              pickedAvatarBytes,
-                              width: 48,
-                              height: 48,
-                              fit: BoxFit.cover,
-                              gaplessPlayback: true,
-                            ),
-                ),
-              ),
-            ),
+          GroupCompositeAvatar(
+            key: const ValueKey('create_group_composite_avatar'),
+            seed: selectedContacts.map(contactName).join('|'),
+            size: 48,
+            memberAvatarUrls: memberAvatarUrls,
           ),
           const SizedBox(width: 12),
           Expanded(

@@ -15,6 +15,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
+import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
@@ -66,6 +67,8 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
+    final currentUserProfile =
+        ref.watch(currentUserProfileProvider).valueOrNull;
     final currentNickname = _currentUserNickname(room, client.userID);
     // 真实成员列表（已加入）；降级到空列表
     final members = room
@@ -79,6 +82,15 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
         .map((member) => member.id.trim())
         .where((mxid) => mxid.isNotEmpty)
         .toSet();
+    final memberPresentations = [
+      for (final member in members)
+        _groupMemberPresentation(
+          client: client,
+          room: room,
+          member: member,
+          currentUserProfile: currentUserProfile,
+        ),
+    ];
     final memberCount = room?.summary.mJoinedMemberCount ?? members.length;
     final canManageGroup = room != null && _canManageGroup(room);
     final canDissolveGroup = room != null && _canDissolveGroup(room);
@@ -98,14 +110,13 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                   M3Card(
                     child: _GroupMemberGrid(
                       children: [
-                        for (final m in members)
+                        for (final member in memberPresentations)
                           _MemberChip(
-                            key: ValueKey('group_info_member_${m.id}'),
-                            userId: m.id,
-                            name: m.calcDisplayname(),
-                            avatarUrl:
-                                matrixContentHttpUrl(client, m.avatarUrl),
-                            onTap: () => _openMemberProfile(m.id),
+                            key: ValueKey('group_info_member_${member.userId}'),
+                            userId: member.userId,
+                            name: member.name,
+                            avatarUrl: member.avatarUrl,
+                            onTap: () => _openMemberProfile(member.userId),
                           ),
                         _InviteChip(
                           onTap: () => showInviteGroupMembersFlow(
@@ -645,10 +656,57 @@ String _currentUserNickname(Room? room, String? userId) {
       .calcDisplayname();
 }
 
+_GroupMemberPresentation _groupMemberPresentation({
+  required Client client,
+  required Room? room,
+  required User member,
+  required Profile? currentUserProfile,
+}) {
+  final userId = member.id.trim();
+  final isSelf = userId.isNotEmpty && userId == client.userID?.trim();
+  final memberState = room?.getState(EventTypes.RoomMember, userId);
+  final stateName =
+      memberState?.content.tryGet<String>('displayname')?.trim() ?? '';
+  final profileName =
+      isSelf ? currentUserProfile?.displayName?.toString().trim() ?? '' : '';
+  final userName = member.calcDisplayname().trim();
+  final name = profileName.isNotEmpty
+      ? profileName
+      : stateName.isNotEmpty
+          ? stateName
+          : userName.isNotEmpty
+              ? userName
+              : userId;
+  final profileAvatar =
+      isSelf ? profileAvatarHttpUrl(currentUserProfile, client) : null;
+  final stateAvatar = avatarHttpUrl(
+    client,
+    memberState?.content.tryGet<String>('avatar_url'),
+  );
+  final userAvatar = matrixContentHttpUrl(client, member.avatarUrl);
+  return _GroupMemberPresentation(
+    userId: userId,
+    name: name,
+    avatarUrl: profileAvatar ?? stateAvatar ?? userAvatar,
+  );
+}
+
 void _toast(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(message)),
   );
+}
+
+class _GroupMemberPresentation {
+  const _GroupMemberPresentation({
+    required this.userId,
+    required this.name,
+    required this.avatarUrl,
+  });
+
+  final String userId;
+  final String name;
+  final String? avatarUrl;
 }
 
 class _GroupTextEditDialog extends StatefulWidget {
@@ -721,35 +779,49 @@ class _GroupTextEditDialogState extends State<_GroupTextEditDialog> {
 class _GroupMemberGrid extends StatelessWidget {
   const _GroupMemberGrid({required this.children});
 
-  static const int _columns = 4;
+  static const int _columns = 5;
+  static const int _maxVisibleRows = 4;
+  static const double _tileWidth = 52;
   static const double _tileHeight = 70;
-  static const double _expandedHeight = 152;
+  static const double _gap = 12;
 
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    final height = children.length > _columns ? _expandedHeight : _tileHeight;
-    return SizedBox(
-      key: const ValueKey('group_info_member_grid'),
-      height: height,
-      child: GridView.builder(
-        primary: false,
-        padding: EdgeInsets.zero,
-        itemCount: children.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: _columns,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          mainAxisExtent: _tileHeight,
-        ),
-        itemBuilder: (context, index) {
-          return Align(
-            alignment: Alignment.topCenter,
-            child: children[index],
-          );
-        },
-      ),
+    final rows = (children.length / _columns).ceil().clamp(1, _maxVisibleRows);
+    final height = rows * _tileHeight + (rows - 1) * _gap;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        const preferredWidth = _columns * _tileWidth + (_columns - 1) * _gap;
+        final compactGap =
+            (((availableWidth - _columns * _tileWidth) / (_columns - 1))
+                    .clamp(4.0, _gap))
+                .toDouble();
+        final gap = availableWidth < preferredWidth ? compactGap : _gap;
+        final contentWidth = _columns * _tileWidth + (_columns - 1) * gap;
+        return SizedBox(
+          key: const ValueKey('group_info_member_grid'),
+          height: height,
+          child: SingleChildScrollView(
+            primary: false,
+            padding: EdgeInsets.zero,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                key: const ValueKey('group_info_member_grid_content'),
+                width: contentWidth,
+                child: Wrap(
+                  spacing: gap,
+                  runSpacing: _gap,
+                  children: children,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

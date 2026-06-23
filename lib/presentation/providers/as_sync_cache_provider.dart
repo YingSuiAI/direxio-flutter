@@ -150,6 +150,12 @@ class AsSyncCacheState {
     );
   }
 
+  List<AsSyncContact> get rejectedInboundContacts {
+    return List.unmodifiable(
+      contacts.where((contact) => contact.status.trim() == 'rejected_inbound'),
+    );
+  }
+
   List<AsSyncContact> get outgoingRequestContacts {
     return List.unmodifiable(
       contacts.where((contact) {
@@ -249,7 +255,9 @@ class AsSyncCacheState {
         nextLocalStatuses = Map<String, String>.from(nextLocalStatuses)
           ..removeWhere((roomId, status) {
             if (bootstrapRoomIds.contains(roomId)) return true;
-            return status != 'accepted' && status != 'rejected_outbound';
+            return status != 'accepted' &&
+                status != 'rejected_outbound' &&
+                status != 'rejected_inbound';
           });
       }
     }
@@ -270,7 +278,9 @@ class AsSyncCacheState {
               return true;
             }
             final status = contact.status.trim();
-            return status != 'accepted' && status != 'rejected_outbound';
+            return status != 'accepted' &&
+                status != 'rejected_outbound' &&
+                status != 'rejected_inbound';
           });
       }
     }

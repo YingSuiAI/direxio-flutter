@@ -240,6 +240,25 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
     );
   }
 
+  for (final contact in syncCache.acceptedContacts) {
+    final roomId = contact.roomId.trim();
+    if (roomId.isEmpty || visibleRoomIds.contains(roomId)) continue;
+    final room = client.getRoomById(roomId);
+    final roomSummary = asRoomSummariesByRoomId[roomId];
+    if (!_acceptedDirectContactHasHomeActivity(room, roomSummary)) continue;
+    addVisibleConversation(
+      VisibleHomeConversation.product(
+        _fallbackDirectConversationForContact(
+          contact,
+          lastActivityAt:
+              room?.lastEvent?.originServerTs ?? roomSummary?.lastActivityAt,
+        ),
+        room,
+        roomSummary,
+      ),
+    );
+  }
+
   if (canonicalAgentRoomId.isNotEmpty &&
       !visibleRoomIds.contains(canonicalAgentRoomId)) {
     addVisibleConversation(
@@ -287,6 +306,19 @@ List<VisibleHomeConversation> visibleHomeConversationsForSummary({
     });
 }
 
+bool _acceptedDirectContactHasHomeActivity(
+  Room? room,
+  AsSyncRoomSummary? roomSummary,
+) {
+  if ((roomSummary?.unreadCount ?? 0) > 0) return true;
+  if (roomSummary?.lastActivityAt != null) return true;
+  if (room == null || room.membership != Membership.join) return false;
+  if (conversationUnreadCount(matrixUnreadCount: room.notificationCount) > 0) {
+    return true;
+  }
+  return room.lastEvent != null;
+}
+
 AsConversation? _openableFallbackForGroupConversation(
   AsConversation conversation, {
   required Room? room,
@@ -313,6 +345,35 @@ AsConversation? _openableFallbackForGroupConversation(
     role: conversation.role,
     membership: conversation.membership,
     canSend: !historyVisible,
+  );
+}
+
+AsConversation _fallbackDirectConversationForContact(
+  AsSyncContact contact, {
+  DateTime? lastActivityAt,
+}) {
+  final roomId = contact.roomId.trim();
+  final displayName = contact.displayName.trim();
+  final userId = contact.userId.trim();
+  return AsConversation(
+    conversationId: '',
+    roomId: roomId,
+    kind: asConversationKindDirect,
+    lifecycle: 'active',
+    title: displayName.isNotEmpty ? displayName : userId,
+    avatarUrl: contact.avatarUrl,
+    peerMxid: userId,
+    lastMessage: '',
+    lastActivityAt: lastActivityAt,
+    memberCount: 2,
+    membership: 'join',
+    hydrationState: 'ready',
+    capabilities: const AsConversationCapabilities(
+      open: true,
+      send: true,
+      sendMedia: true,
+      call: true,
+    ),
   );
 }
 

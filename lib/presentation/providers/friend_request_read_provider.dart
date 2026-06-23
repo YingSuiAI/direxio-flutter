@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:matrix/matrix.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../data/as_client.dart';
 import '../../data/friend_request_read_store.dart';
 
 class FriendRequestReadState {
@@ -97,3 +99,29 @@ final friendRequestReadProvider =
     () => ref.read(friendRequestReadStoreProvider.future),
   );
 });
+
+String friendRequestReadKeyForContact(AsSyncContact contact) {
+  return _versionedFriendRequestReadKey(
+    contact.roomId,
+    contact.visibleAfterTs > 0 ? contact.visibleAfterTs.toString() : '',
+  );
+}
+
+String friendRequestReadKeyForPendingItem(AsSyncPendingItem item) {
+  return _versionedFriendRequestReadKey(
+    item.id,
+    item.createdAt?.toUtc().millisecondsSinceEpoch.toString() ?? '',
+  );
+}
+
+String friendRequestReadKeyForRoom(Room room) {
+  return room.id.trim();
+}
+
+String _versionedFriendRequestReadKey(String id, String version) {
+  final trimmedId = id.trim();
+  if (trimmedId.isEmpty) return '';
+  final trimmedVersion = version.trim();
+  if (trimmedVersion.isEmpty || trimmedVersion == '0') return trimmedId;
+  return '$trimmedId@$trimmedVersion';
+}

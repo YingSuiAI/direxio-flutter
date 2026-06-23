@@ -745,6 +745,74 @@ void main() {
     expect(result.displayEntries.single.unread, 1);
   });
 
+  test('shows accepted direct share card before ProductCore conversation sync',
+      () {
+    final client = Client('ConversationSummaryWriterAcceptedShareFallbackTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!direct:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.lastEvent = Event(
+      room: room,
+      eventId: r'$channel-share',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 23, 10),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '频道分享\n产品公告',
+        chatRecordMatrixMarkerKey: 'channel_share',
+      },
+    );
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: [room],
+      productConversations: const [],
+      productConversationsLoaded: true,
+      syncCache: AsSyncCacheState(
+        bootstrap: AsSyncBootstrap(
+          syncedAt: DateTime.utc(2026, 6, 23, 9),
+          user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+          rooms: const [],
+          contacts: const [
+            AsSyncContact(
+              userId: '@alice:p2p-im.com',
+              displayName: 'Alice',
+              avatarUrl: '',
+              roomId: '!direct:p2p-im.com',
+              domain: 'p2p-im.com',
+              status: 'accepted',
+            ),
+          ],
+          groups: const [],
+          channels: const [],
+          pending: const AsSyncPending.empty(),
+        ),
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    expect(result.displayEntries.map((entry) => entry.roomId), [
+      '!direct:p2p-im.com',
+    ]);
+    expect(result.displayEntries.single.unread, 1);
+    expect(result.displayEntries.single.name, 'Alice');
+  });
+
   test('builds home summary projection that clears stale cached rows', () {
     final client = Client('ConversationSummaryWriterClearCacheTest')
       ..setUserId('@owner:p2p-im.com');

@@ -398,21 +398,24 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   void _markCurrentFriendRequestsRead() {
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.read(asSyncCacheProvider);
-    final roomIds = {
-      for (final room in _incomingDirectContactInvites(client)) room.id,
-      for (final contact in syncCache.pendingInboundContacts) contact.roomId,
+    final readKeys = {
+      for (final room in _incomingDirectContactInvites(client))
+        friendRequestReadKeyForRoom(room),
+      for (final contact in syncCache.pendingInboundContacts)
+        friendRequestReadKeyForContact(contact),
       for (final request in syncCache.bootstrap?.pending.friendRequests ??
           const <AsSyncPendingItem>[])
-        request.id,
-      for (final room in _incomingGroupRoomInvites(client)) room.id,
+        friendRequestReadKeyForPendingItem(request),
+      for (final room in _incomingGroupRoomInvites(client))
+        friendRequestReadKeyForRoom(room),
       for (final request in syncCache.bootstrap?.pending.groupInvites ??
           const <AsSyncPendingItem>[])
-        request.id,
+        friendRequestReadKeyForPendingItem(request),
       for (final request in syncCache.bootstrap?.pending.channelNotices ??
           const <AsSyncPendingItem>[])
-        request.id,
+        friendRequestReadKeyForPendingItem(request),
     };
-    ref.read(friendRequestReadProvider.notifier).markRead(roomIds);
+    ref.read(friendRequestReadProvider.notifier).markRead(readKeys);
   }
 
   String? _peerMxidForRoom(Room room) {
@@ -498,6 +501,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
         _pendingOutboundContactsForDisplay(client, syncCache);
     final rejectedOutboundContacts =
         _rejectedOutboundContactsForDisplay(client, syncCache);
+    final rejectedInboundContacts = syncCache.rejectedInboundContacts;
     final acceptedContacts = syncCache.acceptedContacts;
     final searchResults = _searchResultsForQuery(
       client: client,
@@ -506,6 +510,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       pendingInboundContacts: pendingInboundContacts,
       pendingOutboundContacts: pendingOutboundContacts,
       rejectedOutboundContacts: rejectedOutboundContacts,
+      rejectedInboundContacts: rejectedInboundContacts,
       acceptedContacts: acceptedContacts,
     );
     final isSearching = _query.trim().isNotEmpty;
@@ -600,6 +605,14 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       _OutgoingSection(
                         client: client,
                         contacts: rejectedOutboundContacts,
+                        onOpenProfile: _openAddContactProfile,
+                      ),
+                    ],
+                    if (rejectedInboundContacts.isNotEmpty) ...[
+                      const _HiddenText('已拒绝'),
+                      _RejectedInboundSection(
+                        client: client,
+                        contacts: rejectedInboundContacts,
                         onOpenProfile: _openAddContactProfile,
                       ),
                     ],
@@ -893,6 +906,7 @@ List<_FriendSearchResult> _searchResultsForQuery({
   required List<AsSyncContact> pendingInboundContacts,
   required List<AsSyncContact> pendingOutboundContacts,
   required List<AsSyncContact> rejectedOutboundContacts,
+  required List<AsSyncContact> rejectedInboundContacts,
   required List<AsSyncContact> acceptedContacts,
 }) {
   final needle = query.trim().toLowerCase();
@@ -929,6 +943,7 @@ List<_FriendSearchResult> _searchResultsForQuery({
     ...pendingInboundContacts,
     ...pendingOutboundContacts,
     ...rejectedOutboundContacts,
+    ...rejectedInboundContacts,
     ...acceptedContacts,
   ]) {
     final mxid = contact.userId.trim();
@@ -1585,6 +1600,60 @@ class _OutgoingSection extends StatelessWidget {
   }
 }
 
+class _RejectedInboundSection extends StatelessWidget {
+  const _RejectedInboundSection({
+    required this.client,
+    required this.contacts,
+    required this.onOpenProfile,
+  });
+  final Client client;
+  final List<AsSyncContact> contacts;
+  final void Function(String mxid, String displayName) onOpenProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final contact in contacts)
+          _RejectedInboundRow(
+            client: client,
+            contact: contact,
+            onOpenProfile: onOpenProfile,
+          ),
+      ],
+    );
+  }
+}
+
+class _RejectedInboundRow extends StatelessWidget {
+  const _RejectedInboundRow({
+    required this.client,
+    required this.contact,
+    required this.onOpenProfile,
+  });
+  final Client client;
+  final AsSyncContact contact;
+  final void Function(String mxid, String displayName) onOpenProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    final mxid = contact.userId.trim();
+    final name = contactDisplayNameFromIdentity(
+      mxid: mxid,
+      displayName: contact.displayName,
+      domain: contact.domain,
+    );
+    return _FriendRequestRowShell(
+      seed: mxid.isEmpty ? name : mxid,
+      imageUrl: _avatarUrlForContact(client, contact),
+      name: name,
+      message: '请求添加你为朋友',
+      onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
+      trailing: const _RequestStatusText(text: '已拒绝'),
+    );
+  }
+}
+
 class _OutgoingRow extends StatelessWidget {
   const _OutgoingRow({
     required this.client,
@@ -1611,7 +1680,7 @@ class _OutgoingRow extends StatelessWidget {
       message: isRejected ? '我:请求添加你为朋友' : '请求添加你为朋友',
       onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
       trailing: _RequestStatusText(
-        text: isRejected ? '已过期' : '等待接受',
+        text: isRejected ? '已拒绝' : '等待接受',
         hiddenText: isRejected ? '对方已拒绝' : null,
       ),
     );

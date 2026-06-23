@@ -644,23 +644,25 @@ void main() {
     expect(contact.status, 'accepted');
   });
 
-  test('rejectContactRequest posts decision identity to AS', () async {
+  test('rejectContactRequest posts command action with room identity',
+      () async {
     late http.Request seen;
     final client = HttpAsClient(
-      baseUri: Uri.parse('https://p2p-im.com/_as'),
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
       portalToken: 'portal-token',
       httpClient: MockClient((request) async {
         seen = request;
         expect(request.method, 'POST');
-        expect(
-          request.url.path,
-          '/_as/contacts/requests/!alice%3Ap2p-im.com/reject',
-        );
+        expect(request.url.path, '/_p2p/command');
         expect(request.headers['Authorization'], 'Bearer portal-token');
         expect(jsonDecode(request.body), {
-          'peer_mxid': '@alice:p2p-liyanan.com',
-          'display_name': 'Alice',
-          'domain': 'p2p-liyanan.com',
+          'action': 'contacts.requests.reject',
+          'params': {
+            'room_id': '!alice:p2p-im.com',
+            'peer_mxid': '@alice:p2p-liyanan.com',
+            'display_name': 'Alice',
+            'domain': 'p2p-liyanan.com',
+          },
         });
         return http.Response(
           jsonEncode({
@@ -682,7 +684,7 @@ void main() {
       domain: 'p2p-liyanan.com',
     );
 
-    expect(seen.url.path, '/_as/contacts/requests/!alice%3Ap2p-im.com/reject');
+    expect(seen.url.path, '/_p2p/command');
     expect(contact.roomId, '!alice:p2p-im.com');
     expect(contact.status, 'rejected');
   });

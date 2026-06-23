@@ -216,6 +216,78 @@
   "contactsMyGroups": "我的群组",
   "contactsGroups": "群聊",
   "contactsFollows": "关注",
+  "requestsSearchHint": "搜索",
+  "requestsPendingHidden": "待接受",
+  "requestsWaitingPeerAccept": "等待对方接受",
+  "requestsRejected": "已拒绝",
+  "requestsPeerRejected": "对方已拒绝",
+  "requestsAdded": "已添加",
+  "requestsEmptyPending": "暂无好友请求",
+  "requestsEmptyAdded": "暂无已添加联系人",
+  "requestsRequestAsFriend": "请求添加你为朋友",
+  "requestsMyRequestAsFriend": "我:请求添加你为朋友",
+  "requestsIncomingRequestMessage": "请求加为好友",
+  "requestsFriendNoticeTitle": "好友申请",
+  "requestsFriendNoticeFallback": "好友申请通知",
+  "requestsChannelNoticeTitle": "频道通知",
+  "requestsChannelNoticeFallback": "频道通知",
+  "requestsView": "查看",
+  "requestsAccept": "接受",
+  "requestsReject": "拒绝",
+  "requestsCannotIdentifySource": "无法识别请求来源",
+  "requestsAcceptSuccess": "已接受好友请求",
+  "requestsRejectSuccess": "已拒绝好友请求",
+  "requestsAcceptFailed": "接受失败：{error}",
+  "@requestsAcceptFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsRejectFailed": "拒绝失败：{error}",
+  "@requestsRejectFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsInvalidDomainInput": "请输入有效的域名或 Matrix ID",
+  "requestsDomainNotProductUser": "该域名不是产品用户",
+  "requestsCannotAddSelf": "不能添加自己",
+  "requestsAlreadyContact": "{name} 已经是联系人",
+  "@requestsAlreadyContact": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsAlreadySent": "已向 {name} 发送过好友请求，等待对方接受",
+  "@requestsAlreadySent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsRestoredConversation": "已恢复与 {name} 的旧会话",
+  "@requestsRestoredConversation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsSentTo": "已向 {name} 发送好友请求",
+  "@requestsSentTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "createGroupTitle": "发起群聊",
   "createGroupDone": "完成",
   "createGroupEmptyTitle": "暂无可邀请联系人",
@@ -285,6 +357,183 @@
   "groupInviteJoinButton": "加入群聊",
   "groupInviteJoiningButton": "加入中…",
   "groupInviteAlreadyJoined": "已在群里中",
+  "groupChatUnknownMember": "未知成员",
+  "groupChatVoiceRecordFailed": "语音录制失败：{error}",
+  "@groupChatVoiceRecordFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatRecordingTooShort": "说话时间太短",
+  "groupChatOriginalMessageUnavailable": "原消息暂不可见",
+  "groupChatOpenFailed": "打开失败：{error}",
+  "@groupChatOpenFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatPlaybackFailed": "播放失败：{error}",
+  "@groupChatPlaybackFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatDownloadSaved": "已保存到 Files / Portal App / P2P IM Downloads / {filename}",
+  "@groupChatDownloadSaved": {
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatDownloadFailed": "下载失败：{error}",
+  "@groupChatDownloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatSendFailed": "发送失败：{error}",
+  "@groupChatSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCannotSendChannel": "加入频道后才能发送消息",
+  "groupChatCannotSendGroup": "加入群聊后才能发送消息",
+  "groupChatChannel": "频道",
+  "groupChatGroup": "群聊",
+  "groupChatMissingTitle": "{title}不存在",
+  "@groupChatMissingTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatRecovering": "正在恢复{title}...",
+  "@groupChatRecovering": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatSyncTimeout": "{title}同步超时，请检查网络后重试",
+  "@groupChatSyncTimeout": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCannotOpen": "这个{title}暂时无法打开",
+  "@groupChatCannotOpen": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatMemberCount": "{count} 名成员",
+  "@groupChatMemberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupChatCalling": "正在群通话",
+  "groupChatVoiceCall": "语音通话",
+  "groupChatDetails": "详情",
+  "groupChatEmpty": "还没有消息",
+  "groupChatMentionTitle": "选择提醒的人",
+  "groupChatClose": "关闭",
+  "groupChatMentionSearchHint": "搜索群成员",
+  "groupChatNoMentionMembers": "暂无可提醒成员",
+  "groupChatNoMembersFound": "未找到成员",
+  "groupChatImage": "图片",
+  "groupChatVideo": "视频",
+  "groupChatFile": "文件",
+  "groupChatLocalMediaMissing": "本地原{label}已丢失，请重新选择{label}",
+  "@groupChatLocalMediaMissing": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCopied": "已复制",
+  "groupChatDeleted": "已删除",
+  "groupChatCannotFavoriteSending": "发送中的消息暂不能收藏",
+  "groupChatActionAvailableAfterSent": "消息发送完成后可使用该操作",
+  "groupChatNoRecallPermission": "没有权限撤回该消息",
+  "groupChatRecallTitle": "撤回消息",
+  "groupChatRecallBody": "撤回后，群成员也将看不到这条消息。",
+  "groupChatCancel": "取消",
+  "groupChatRecall": "撤回",
+  "groupChatRecalled": "消息已撤回",
+  "groupChatRecallFailed": "撤回消息失败：{error}",
+  "@groupChatRecallFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatDeleteFailed": "删除消息失败：{error}",
+  "@groupChatDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatFavoriting": "正在收藏到我的节点…",
+  "groupChatFavorited": "已收藏",
+  "groupChatFavoriteFailed": "收藏失败：{error}",
+  "@groupChatFavoriteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatForwardedRecord": "已转发聊天记录",
+  "groupChatForwardFailed": "转发失败：{error}",
+  "@groupChatForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCopy": "复制",
+  "groupChatForward": "转发",
+  "groupChatFavorite": "收藏",
+  "groupChatDelete": "删除",
+  "groupChatMultiSelect": "多选",
+  "groupChatQuote": "引用",
+  "groupChatSelectMessage": "选择消息",
+  "groupChatCancelSelectMessage": "取消选择消息",
+  "groupChatMe": "我",
+  "groupChatMessageFallback": "消息",
+  "groupChatQuotedMessage": "引用消息",
+  "groupChatRetryFile": "重新发送文件",
+  "groupChatRetryMessage": "重新发送消息",
+  "groupChatDownloading": "下载中",
+  "groupChatDownloaded": "已下载",
+  "groupChatDownloadFile": "下载文件",
+  "groupChatRemovedCannotSend": "无法在已退出的群聊中发送消息",
   "commonOk": "确定",
   "commonRetry": "重试",
   "sessionExpiredTitle": "账号在其他设备登录",
@@ -320,6 +569,17 @@
   "channelJoinApply": "申请加入",
   "channelJoinAction": "加入频道",
   "channelJoinProcessing": "处理中",
+  "channelSearchHint": "搜索频道...",
+  "channelSearchTitle": "搜索频道",
+  "channelSearchPrompt": "输入频道ID查找频道",
+  "channelSearchFailed": "搜索失败，请稍后重试",
+  "channelSearchNetworkHint": "请检查网络或目标节点地址",
+  "channelSearchNoResults": "没有找到频道",
+  "channelSearchPrivateHint": "私密频道不会出现在搜索结果中，需要通过邀请或分享卡片加入",
+  "channelSearchSyncing": "频道正在同步，请稍后重试",
+  "channelSearchUnnamed": "未命名频道",
+  "channelSearchPublicChannel": "公开频道",
+  "channelSearchPublicApproval": "公开频道 · 加入需审核",
   "channelPostEmptyTitle": "还没有频道内容",
   "channelPostEmptySubtitle": "发布后会显示在这里",
   "channelPostPublish": "发表",

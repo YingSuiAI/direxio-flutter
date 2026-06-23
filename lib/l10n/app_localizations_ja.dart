@@ -561,6 +561,108 @@ class AppLocalizationsJa extends AppLocalizations {
   String get contactsFollows => 'フォロー';
 
   @override
+  String get requestsSearchHint => '検索';
+
+  @override
+  String get requestsPendingHidden => '承認待ち';
+
+  @override
+  String get requestsWaitingPeerAccept => '相手の承認待ち';
+
+  @override
+  String get requestsRejected => '拒否済み';
+
+  @override
+  String get requestsPeerRejected => '相手が拒否しました';
+
+  @override
+  String get requestsAdded => '追加済み';
+
+  @override
+  String get requestsEmptyPending => '友だち申請はありません';
+
+  @override
+  String get requestsEmptyAdded => '追加済みの連絡先はありません';
+
+  @override
+  String get requestsRequestAsFriend => 'あなたを友だちに追加しようとしています';
+
+  @override
+  String get requestsMyRequestAsFriend => '自分: あなたを友だちに追加しようとしています';
+
+  @override
+  String get requestsIncomingRequestMessage => '友だち申請';
+
+  @override
+  String get requestsFriendNoticeTitle => '友だち申請';
+
+  @override
+  String get requestsFriendNoticeFallback => '友だち申請通知';
+
+  @override
+  String get requestsChannelNoticeTitle => 'チャンネル通知';
+
+  @override
+  String get requestsChannelNoticeFallback => 'チャンネル通知';
+
+  @override
+  String get requestsView => '表示';
+
+  @override
+  String get requestsAccept => '承認';
+
+  @override
+  String get requestsReject => '拒否';
+
+  @override
+  String get requestsCannotIdentifySource => '申請元を識別できません';
+
+  @override
+  String get requestsAcceptSuccess => '友だち申請を承認しました';
+
+  @override
+  String get requestsRejectSuccess => '友だち申請を拒否しました';
+
+  @override
+  String requestsAcceptFailed(String error) {
+    return '承認に失敗しました: $error';
+  }
+
+  @override
+  String requestsRejectFailed(String error) {
+    return '拒否に失敗しました: $error';
+  }
+
+  @override
+  String get requestsInvalidDomainInput => '有効なドメインまたはMatrix IDを入力してください';
+
+  @override
+  String get requestsDomainNotProductUser => 'このドメインは製品ユーザーではありません';
+
+  @override
+  String get requestsCannotAddSelf => '自分自身は追加できません';
+
+  @override
+  String requestsAlreadyContact(String name) {
+    return '$name はすでに連絡先です';
+  }
+
+  @override
+  String requestsAlreadySent(String name) {
+    return '$name に友だち申請を送信済みです。承認を待っています。';
+  }
+
+  @override
+  String requestsRestoredConversation(String name) {
+    return '$name との以前の会話を復元しました';
+  }
+
+  @override
+  String requestsSentTo(String name) {
+    return '$name に友だち申請を送信しました';
+  }
+
+  @override
   String get createGroupTitle => 'グループチャットを開始';
 
   @override
@@ -664,6 +766,233 @@ class AppLocalizationsJa extends AppLocalizations {
   String get groupInviteAlreadyJoined => 'すでにこのグループに参加しています';
 
   @override
+  String get groupChatUnknownMember => '不明なメンバー';
+
+  @override
+  String groupChatVoiceRecordFailed(String error) {
+    return '音声録音に失敗しました：$error';
+  }
+
+  @override
+  String get groupChatRecordingTooShort => '録音時間が短すぎます';
+
+  @override
+  String get groupChatOriginalMessageUnavailable => '元のメッセージは表示できません';
+
+  @override
+  String groupChatOpenFailed(String error) {
+    return '開けませんでした：$error';
+  }
+
+  @override
+  String groupChatPlaybackFailed(String error) {
+    return '再生に失敗しました：$error';
+  }
+
+  @override
+  String groupChatDownloadSaved(String filename) {
+    return 'Files / Portal App / P2P IM Downloads / $filename に保存しました';
+  }
+
+  @override
+  String groupChatDownloadFailed(String error) {
+    return 'ダウンロードに失敗しました：$error';
+  }
+
+  @override
+  String groupChatSendFailed(String error) {
+    return '送信に失敗しました：$error';
+  }
+
+  @override
+  String get groupChatCannotSendChannel => 'チャンネルに参加するとメッセージを送信できます';
+
+  @override
+  String get groupChatCannotSendGroup => 'グループに参加するとメッセージを送信できます';
+
+  @override
+  String get groupChatChannel => 'チャンネル';
+
+  @override
+  String get groupChatGroup => 'グループ';
+
+  @override
+  String groupChatMissingTitle(String title) {
+    return '$titleが見つかりません';
+  }
+
+  @override
+  String groupChatRecovering(String title) {
+    return '$titleを復元しています...';
+  }
+
+  @override
+  String groupChatSyncTimeout(String title) {
+    return '$titleの同期がタイムアウトしました。ネットワークを確認して再試行してください';
+  }
+
+  @override
+  String groupChatCannotOpen(String title) {
+    return 'この$titleは現在開けません';
+  }
+
+  @override
+  String groupChatMemberCount(int count) {
+    return '$count 人のメンバー';
+  }
+
+  @override
+  String get groupChatCalling => 'グループ通話中';
+
+  @override
+  String get groupChatVoiceCall => '音声通話';
+
+  @override
+  String get groupChatDetails => '詳細';
+
+  @override
+  String get groupChatEmpty => 'メッセージはまだありません';
+
+  @override
+  String get groupChatMentionTitle => 'メンションする相手を選択';
+
+  @override
+  String get groupChatClose => '閉じる';
+
+  @override
+  String get groupChatMentionSearchHint => 'グループメンバーを検索';
+
+  @override
+  String get groupChatNoMentionMembers => 'メンションできるメンバーはいません';
+
+  @override
+  String get groupChatNoMembersFound => 'メンバーが見つかりません';
+
+  @override
+  String get groupChatImage => '画像';
+
+  @override
+  String get groupChatVideo => '動画';
+
+  @override
+  String get groupChatFile => 'ファイル';
+
+  @override
+  String groupChatLocalMediaMissing(String label) {
+    return 'ローカルの元$labelが見つかりません。$labelを選択し直してください';
+  }
+
+  @override
+  String get groupChatCopied => 'コピーしました';
+
+  @override
+  String get groupChatDeleted => '削除しました';
+
+  @override
+  String get groupChatCannotFavoriteSending => '送信中のメッセージはお気に入りに追加できません';
+
+  @override
+  String get groupChatActionAvailableAfterSent => 'この操作はメッセージ送信後に使用できます';
+
+  @override
+  String get groupChatNoRecallPermission => 'このメッセージを取り消す権限がありません';
+
+  @override
+  String get groupChatRecallTitle => 'メッセージを取り消す';
+
+  @override
+  String get groupChatRecallBody => '取り消すと、グループメンバーもこのメッセージを見られなくなります。';
+
+  @override
+  String get groupChatCancel => 'キャンセル';
+
+  @override
+  String get groupChatRecall => '取り消す';
+
+  @override
+  String get groupChatRecalled => 'メッセージを取り消しました';
+
+  @override
+  String groupChatRecallFailed(String error) {
+    return 'メッセージの取り消しに失敗しました：$error';
+  }
+
+  @override
+  String groupChatDeleteFailed(String error) {
+    return 'メッセージの削除に失敗しました：$error';
+  }
+
+  @override
+  String get groupChatFavoriting => '自分のノードに保存しています…';
+
+  @override
+  String get groupChatFavorited => '保存しました';
+
+  @override
+  String groupChatFavoriteFailed(String error) {
+    return 'お気に入りに追加できませんでした：$error';
+  }
+
+  @override
+  String get groupChatForwardedRecord => 'チャット履歴を転送しました';
+
+  @override
+  String groupChatForwardFailed(String error) {
+    return '転送に失敗しました：$error';
+  }
+
+  @override
+  String get groupChatCopy => 'コピー';
+
+  @override
+  String get groupChatForward => '転送';
+
+  @override
+  String get groupChatFavorite => 'お気に入り';
+
+  @override
+  String get groupChatDelete => '削除';
+
+  @override
+  String get groupChatMultiSelect => '複数選択';
+
+  @override
+  String get groupChatQuote => '引用';
+
+  @override
+  String get groupChatSelectMessage => 'メッセージを選択';
+
+  @override
+  String get groupChatCancelSelectMessage => 'メッセージの選択を解除';
+
+  @override
+  String get groupChatMe => '自分';
+
+  @override
+  String get groupChatMessageFallback => 'メッセージ';
+
+  @override
+  String get groupChatQuotedMessage => '引用メッセージ';
+
+  @override
+  String get groupChatRetryFile => 'ファイルを再送信';
+
+  @override
+  String get groupChatRetryMessage => 'メッセージを再送信';
+
+  @override
+  String get groupChatDownloading => 'ダウンロード中';
+
+  @override
+  String get groupChatDownloaded => 'ダウンロード済み';
+
+  @override
+  String get groupChatDownloadFile => 'ファイルをダウンロード';
+
+  @override
+  String get groupChatRemovedCannotSend => '退出済みのグループではメッセージを送信できません';
+
+  @override
   String get commonOk => 'OK';
 
   @override
@@ -730,6 +1059,40 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get channelJoinProcessing => '処理中';
+
+  @override
+  String get channelSearchHint => 'チャンネルを検索...';
+
+  @override
+  String get channelSearchTitle => 'チャンネル検索';
+
+  @override
+  String get channelSearchPrompt => 'チャンネルIDを入力して検索';
+
+  @override
+  String get channelSearchFailed => '検索に失敗しました。しばらくしてから再試行してください';
+
+  @override
+  String get channelSearchNetworkHint => 'ネットワークまたは対象ノードのアドレスを確認してください';
+
+  @override
+  String get channelSearchNoResults => 'チャンネルが見つかりません';
+
+  @override
+  String get channelSearchPrivateHint =>
+      '非公開チャンネルは検索結果に表示されません。招待または共有カードから参加してください。';
+
+  @override
+  String get channelSearchSyncing => 'チャンネルを同期中です。しばらくしてから再試行してください';
+
+  @override
+  String get channelSearchUnnamed => '名称未設定のチャンネル';
+
+  @override
+  String get channelSearchPublicChannel => '公開チャンネル';
+
+  @override
+  String get channelSearchPublicApproval => '公開チャンネル · 参加には承認が必要';
 
   @override
   String get channelPostEmptyTitle => 'チャンネル投稿はまだありません';

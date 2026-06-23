@@ -243,7 +243,11 @@ class AsCallStateReporter {
       reason: reason,
       durationMs: _callDurationMs(connectedAt, completedAt),
     );
-    unawaited(_storeCall(updated));
+    debugPrint(
+      'p2p-as-call-terminal call_id=${updated.callId} '
+      'event=$event reason=$reason duration_ms=${updated.durationMs}',
+    );
+    await _storeCall(updated);
     _terminalCallIds.add(call.callId);
   }
 

@@ -556,6 +556,108 @@ class AppLocalizationsZh extends AppLocalizations {
   String get contactsFollows => '关注';
 
   @override
+  String get requestsSearchHint => '搜索';
+
+  @override
+  String get requestsPendingHidden => '待接受';
+
+  @override
+  String get requestsWaitingPeerAccept => '等待对方接受';
+
+  @override
+  String get requestsRejected => '已拒绝';
+
+  @override
+  String get requestsPeerRejected => '对方已拒绝';
+
+  @override
+  String get requestsAdded => '已添加';
+
+  @override
+  String get requestsEmptyPending => '暂无好友请求';
+
+  @override
+  String get requestsEmptyAdded => '暂无已添加联系人';
+
+  @override
+  String get requestsRequestAsFriend => '请求添加你为朋友';
+
+  @override
+  String get requestsMyRequestAsFriend => '我:请求添加你为朋友';
+
+  @override
+  String get requestsIncomingRequestMessage => '请求加为好友';
+
+  @override
+  String get requestsFriendNoticeTitle => '好友申请';
+
+  @override
+  String get requestsFriendNoticeFallback => '好友申请通知';
+
+  @override
+  String get requestsChannelNoticeTitle => '频道通知';
+
+  @override
+  String get requestsChannelNoticeFallback => '频道通知';
+
+  @override
+  String get requestsView => '查看';
+
+  @override
+  String get requestsAccept => '接受';
+
+  @override
+  String get requestsReject => '拒绝';
+
+  @override
+  String get requestsCannotIdentifySource => '无法识别请求来源';
+
+  @override
+  String get requestsAcceptSuccess => '已接受好友请求';
+
+  @override
+  String get requestsRejectSuccess => '已拒绝好友请求';
+
+  @override
+  String requestsAcceptFailed(String error) {
+    return '接受失败：$error';
+  }
+
+  @override
+  String requestsRejectFailed(String error) {
+    return '拒绝失败：$error';
+  }
+
+  @override
+  String get requestsInvalidDomainInput => '请输入有效的域名或 Matrix ID';
+
+  @override
+  String get requestsDomainNotProductUser => '该域名不是产品用户';
+
+  @override
+  String get requestsCannotAddSelf => '不能添加自己';
+
+  @override
+  String requestsAlreadyContact(String name) {
+    return '$name 已经是联系人';
+  }
+
+  @override
+  String requestsAlreadySent(String name) {
+    return '已向 $name 发送过好友请求，等待对方接受';
+  }
+
+  @override
+  String requestsRestoredConversation(String name) {
+    return '已恢复与 $name 的旧会话';
+  }
+
+  @override
+  String requestsSentTo(String name) {
+    return '已向 $name 发送好友请求';
+  }
+
+  @override
   String get createGroupTitle => '发起群聊';
 
   @override
@@ -659,6 +761,233 @@ class AppLocalizationsZh extends AppLocalizations {
   String get groupInviteAlreadyJoined => '已在群里中';
 
   @override
+  String get groupChatUnknownMember => '未知成员';
+
+  @override
+  String groupChatVoiceRecordFailed(String error) {
+    return '语音录制失败：$error';
+  }
+
+  @override
+  String get groupChatRecordingTooShort => '说话时间太短';
+
+  @override
+  String get groupChatOriginalMessageUnavailable => '原消息暂不可见';
+
+  @override
+  String groupChatOpenFailed(String error) {
+    return '打开失败：$error';
+  }
+
+  @override
+  String groupChatPlaybackFailed(String error) {
+    return '播放失败：$error';
+  }
+
+  @override
+  String groupChatDownloadSaved(String filename) {
+    return '已保存到 Files / Portal App / P2P IM Downloads / $filename';
+  }
+
+  @override
+  String groupChatDownloadFailed(String error) {
+    return '下载失败：$error';
+  }
+
+  @override
+  String groupChatSendFailed(String error) {
+    return '发送失败：$error';
+  }
+
+  @override
+  String get groupChatCannotSendChannel => '加入频道后才能发送消息';
+
+  @override
+  String get groupChatCannotSendGroup => '加入群聊后才能发送消息';
+
+  @override
+  String get groupChatChannel => '频道';
+
+  @override
+  String get groupChatGroup => '群聊';
+
+  @override
+  String groupChatMissingTitle(String title) {
+    return '$title不存在';
+  }
+
+  @override
+  String groupChatRecovering(String title) {
+    return '正在恢复$title...';
+  }
+
+  @override
+  String groupChatSyncTimeout(String title) {
+    return '$title同步超时，请检查网络后重试';
+  }
+
+  @override
+  String groupChatCannotOpen(String title) {
+    return '这个$title暂时无法打开';
+  }
+
+  @override
+  String groupChatMemberCount(int count) {
+    return '$count 名成员';
+  }
+
+  @override
+  String get groupChatCalling => '正在群通话';
+
+  @override
+  String get groupChatVoiceCall => '语音通话';
+
+  @override
+  String get groupChatDetails => '详情';
+
+  @override
+  String get groupChatEmpty => '还没有消息';
+
+  @override
+  String get groupChatMentionTitle => '选择提醒的人';
+
+  @override
+  String get groupChatClose => '关闭';
+
+  @override
+  String get groupChatMentionSearchHint => '搜索群成员';
+
+  @override
+  String get groupChatNoMentionMembers => '暂无可提醒成员';
+
+  @override
+  String get groupChatNoMembersFound => '未找到成员';
+
+  @override
+  String get groupChatImage => '图片';
+
+  @override
+  String get groupChatVideo => '视频';
+
+  @override
+  String get groupChatFile => '文件';
+
+  @override
+  String groupChatLocalMediaMissing(String label) {
+    return '本地原$label已丢失，请重新选择$label';
+  }
+
+  @override
+  String get groupChatCopied => '已复制';
+
+  @override
+  String get groupChatDeleted => '已删除';
+
+  @override
+  String get groupChatCannotFavoriteSending => '发送中的消息暂不能收藏';
+
+  @override
+  String get groupChatActionAvailableAfterSent => '消息发送完成后可使用该操作';
+
+  @override
+  String get groupChatNoRecallPermission => '没有权限撤回该消息';
+
+  @override
+  String get groupChatRecallTitle => '撤回消息';
+
+  @override
+  String get groupChatRecallBody => '撤回后，群成员也将看不到这条消息。';
+
+  @override
+  String get groupChatCancel => '取消';
+
+  @override
+  String get groupChatRecall => '撤回';
+
+  @override
+  String get groupChatRecalled => '消息已撤回';
+
+  @override
+  String groupChatRecallFailed(String error) {
+    return '撤回消息失败：$error';
+  }
+
+  @override
+  String groupChatDeleteFailed(String error) {
+    return '删除消息失败：$error';
+  }
+
+  @override
+  String get groupChatFavoriting => '正在收藏到我的节点…';
+
+  @override
+  String get groupChatFavorited => '已收藏';
+
+  @override
+  String groupChatFavoriteFailed(String error) {
+    return '收藏失败：$error';
+  }
+
+  @override
+  String get groupChatForwardedRecord => '已转发聊天记录';
+
+  @override
+  String groupChatForwardFailed(String error) {
+    return '转发失败：$error';
+  }
+
+  @override
+  String get groupChatCopy => '复制';
+
+  @override
+  String get groupChatForward => '转发';
+
+  @override
+  String get groupChatFavorite => '收藏';
+
+  @override
+  String get groupChatDelete => '删除';
+
+  @override
+  String get groupChatMultiSelect => '多选';
+
+  @override
+  String get groupChatQuote => '引用';
+
+  @override
+  String get groupChatSelectMessage => '选择消息';
+
+  @override
+  String get groupChatCancelSelectMessage => '取消选择消息';
+
+  @override
+  String get groupChatMe => '我';
+
+  @override
+  String get groupChatMessageFallback => '消息';
+
+  @override
+  String get groupChatQuotedMessage => '引用消息';
+
+  @override
+  String get groupChatRetryFile => '重新发送文件';
+
+  @override
+  String get groupChatRetryMessage => '重新发送消息';
+
+  @override
+  String get groupChatDownloading => '下载中';
+
+  @override
+  String get groupChatDownloaded => '已下载';
+
+  @override
+  String get groupChatDownloadFile => '下载文件';
+
+  @override
+  String get groupChatRemovedCannotSend => '无法在已退出的群聊中发送消息';
+
+  @override
   String get commonOk => '确定';
 
   @override
@@ -724,6 +1053,39 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get channelJoinProcessing => '处理中';
+
+  @override
+  String get channelSearchHint => '搜索频道...';
+
+  @override
+  String get channelSearchTitle => '搜索频道';
+
+  @override
+  String get channelSearchPrompt => '输入频道ID查找频道';
+
+  @override
+  String get channelSearchFailed => '搜索失败，请稍后重试';
+
+  @override
+  String get channelSearchNetworkHint => '请检查网络或目标节点地址';
+
+  @override
+  String get channelSearchNoResults => '没有找到频道';
+
+  @override
+  String get channelSearchPrivateHint => '私密频道不会出现在搜索结果中，需要通过邀请或分享卡片加入';
+
+  @override
+  String get channelSearchSyncing => '频道正在同步，请稍后重试';
+
+  @override
+  String get channelSearchUnnamed => '未命名频道';
+
+  @override
+  String get channelSearchPublicChannel => '公开频道';
+
+  @override
+  String get channelSearchPublicApproval => '公开频道 · 加入需审核';
 
   @override
   String get channelPostEmptyTitle => '还没有频道内容';

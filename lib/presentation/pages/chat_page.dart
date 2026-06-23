@@ -35,6 +35,7 @@ import '../chat/chat_message_cards.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
+import '../chat/group_call_history_merge.dart';
 import '../chat/chat_scroll_metrics.dart';
 import '../chat/chat_media_warmup.dart';
 import '../chat/chat_media_send_flow.dart';
@@ -182,6 +183,120 @@ class ChatPage extends ConsumerStatefulWidget {
   ConsumerState<ChatPage> createState() => _ChatPageState();
 }
 
+class _DirectTimelineItem {
+  const _DirectTimelineItem._({
+    required this.timestamp,
+    required int sourceOrder,
+    Event? event,
+    LocalOutboxItem? outbox,
+    AsCallSession? asCallSession,
+  })  : _event = event,
+        _outbox = outbox,
+        _asCallSession = asCallSession,
+        _sourceOrder = sourceOrder;
+
+  factory _DirectTimelineItem.event({
+    required Event event,
+    required DateTime timestamp,
+    required int sourceOrder,
+  }) {
+    return _DirectTimelineItem._(
+      event: event,
+      timestamp: timestamp,
+      sourceOrder: sourceOrder,
+    );
+  }
+
+  factory _DirectTimelineItem.outbox({
+    required LocalOutboxItem outbox,
+    required DateTime timestamp,
+    required int sourceOrder,
+  }) {
+    return _DirectTimelineItem._(
+      outbox: outbox,
+      timestamp: timestamp,
+      sourceOrder: sourceOrder,
+    );
+  }
+
+  factory _DirectTimelineItem.asCall({
+    required AsCallSession session,
+    required DateTime timestamp,
+    required int sourceOrder,
+  }) {
+    return _DirectTimelineItem._(
+      asCallSession: session,
+      timestamp: timestamp,
+      sourceOrder: sourceOrder,
+    );
+  }
+
+  final DateTime timestamp;
+  final int _sourceOrder;
+  final Event? _event;
+  final LocalOutboxItem? _outbox;
+  final AsCallSession? _asCallSession;
+
+  TResult when<TResult>({
+    required TResult Function(Event event) event,
+    required TResult Function(LocalOutboxItem outbox) outbox,
+    required TResult Function(AsCallSession session) asCall,
+  }) {
+    final eventValue = _event;
+    if (eventValue != null) return event(eventValue);
+    final outboxValue = _outbox;
+    if (outboxValue != null) return outbox(outboxValue);
+    final asCallValue = _asCallSession;
+    if (asCallValue != null) return asCall(asCallValue);
+    throw StateError('Direct timeline item contains no source');
+  }
+}
+
+List<_DirectTimelineItem> _mergeDirectTimelineItems({
+  required List<Event> events,
+  required DateTime Function(Event event) eventTimestamp,
+  DateTime? Function(Event event)? eventSortTimestamp,
+  required List<LocalOutboxItem> outboxItems,
+  required DateTime Function(LocalOutboxItem outbox) outboxTimestamp,
+  required List<AsCallSession> asCallSessions,
+}) {
+  final items = <_DirectTimelineItem>[];
+  var sourceOrder = 0;
+  for (final event in events) {
+    items.add(
+      _DirectTimelineItem.event(
+        event: event,
+        timestamp: eventSortTimestamp?.call(event) ?? eventTimestamp(event),
+        sourceOrder: sourceOrder++,
+      ),
+    );
+  }
+  for (final outbox in outboxItems) {
+    items.add(
+      _DirectTimelineItem.outbox(
+        outbox: outbox,
+        timestamp: outboxTimestamp(outbox),
+        sourceOrder: sourceOrder++,
+      ),
+    );
+  }
+  for (final session in asCallSessions) {
+    items.add(
+      _DirectTimelineItem.asCall(
+        session: session,
+        timestamp: asCallSessionStableTimestamp(session),
+        sourceOrder: sourceOrder++,
+      ),
+    );
+  }
+  items.sort((a, b) {
+    final timestampOrder = b.timestamp.compareTo(a.timestamp);
+    if (timestampOrder != 0) return timestampOrder;
+    return a._sourceOrder.compareTo(b._sourceOrder);
+  });
+  return items;
+}
+
 class _ChatPageState extends ConsumerState<ChatPage> {
   final _msgCtrl = TextEditingController();
   Timeline? _timeline;
@@ -203,6 +318,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Set<String> _joiningChannelShareIds = {};
   final Set<String> _locallyHiddenEventIds = {};
   final Map<String, AsCallSession> _asCallSessionCache = {};
+  final Map<String, AsCallSession> _roomAsCallHistory = {};
   final Set<String> _loadingAsCallIds = {};
   // s-chat 视觉状态
   bool _showPlusPanel = false;
@@ -226,19 +342,56 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   int _targetEventScrollAttempts = 0;
   Timer? _targetEventScrollTimer;
   Timer? _initialTimelineEntranceTimer;
+  Timer? _asCallHistoryReloadTimer;
   String? _flashingMessageEventId;
   Timer? _flashingMessageTimer;
+  bool _roomAsCallHistoryRefreshing = false;
   final ChatVoicePlayer _voicePlayer = ChatVoicePlayer();
   final ChatVoiceRecorder _voiceRecorder = ChatVoiceRecorder();
   bool _stoppingVoiceRecording = false;
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
 
+  void _debugMissingRoomState(String phase, {Object? error}) {
+    final client = ref.read(matrixClientProvider);
+    final syncCache = ref.read(asSyncCacheProvider);
+    final bootstrap = syncCache.bootstrap;
+    final targetRoomId = widget.roomId.trim();
+    final fallbackAgentRoomId =
+        fallbackPortalAgentRoomIdForClient(client) ?? '';
+    final agentMxid = portalAgentMxidForClient(client);
+    final productConversations =
+        ref.read(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final targetProducts = productConversations
+        .where((conversation) =>
+            conversation.roomId.trim() == targetRoomId ||
+            (conversation.isAgent && targetRoomId == fallbackAgentRoomId))
+        .map((conversation) =>
+            '${conversation.conversationId}:${conversation.kind}:${conversation.roomId}:life=${conversation.lifecycle}:proj=${conversation.projectionState}:hydr=${conversation.hydrationState}:${conversation.title}')
+        .join('|');
+    final matrixRooms = client.rooms
+        .map((room) =>
+            '${room.id}:${room.membership.name}:agent=${isPortalAgentDirectRoom(room, agentMxid: agentMxid)}:name=${room.getLocalizedDisplayname()}')
+        .join('|');
+    debugPrint(
+      '[chat-missing-room] phase=$phase targetRoomId=$targetRoomId '
+      'error=${error ?? ""} userId=${client.userID} homeserver=${client.homeserver} '
+      'agentMxid=$agentMxid fallbackAgentRoomId=$fallbackAgentRoomId '
+      'bootstrapAgentRoomId=${bootstrap?.agentRoomId ?? ""} '
+      'knownConversation=${_isKnownConversationRoom(syncCache)} '
+      'recoveryInFlight=${_missingRoomRecovery.inFlight} '
+      'recoveryAttempted=${_missingRoomRecovery.attempted} '
+      'recoveryFailed=${_missingRoomRecovery.failed} '
+      'productMatches=[$targetProducts] matrixRooms=[$matrixRooms]',
+    );
+  }
+
   void _onVoicePlaybackChanged() {
     if (mounted) setState(() {});
   }
 
-  Object _timelineItemKey(ChatTimelineItem<Event, LocalOutboxItem> item) {
+  Object _timelineItemKey(_DirectTimelineItem item) {
     return item.when<Object>(
       event: (event) {
         final id = event.eventId.trim();
@@ -247,6 +400,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             : 'event-$id';
       },
       outbox: (outbox) => 'outbox-${outbox.id}',
+      asCall: (session) => 'as-call-${session.callId}',
     );
   }
 
@@ -373,7 +527,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _syncMessageListIndexes(
-    List<ChatTimelineItem<Event, LocalOutboxItem>> items, {
+    List<_DirectTimelineItem> items, {
     required int leadingItems,
   }) {
     _messageListIndexes.clear();
@@ -384,6 +538,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           if (id.isNotEmpty) _messageListIndexes[id] = i + leadingItems;
         },
         outbox: (_) {},
+        asCall: (_) {},
       );
     }
   }
@@ -460,12 +615,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _voicePlayer.playback.addListener(_onVoicePlaybackChanged);
     _messageScrollCtrl.addListener(_onMessageScroll);
     _roomSyncSub = ref.read(matrixClientProvider).onSync.stream.listen((_) {
-      if (!mounted || _room == null) return;
+      if (!mounted) return;
+      if (_room == null) {
+        _debugMissingRoomState('sync-update-room-still-missing');
+        return;
+      }
       if (_timeline == null) {
+        _debugMissingRoomState('sync-update-room-recovered');
         unawaited(_initTimeline());
       }
       setState(_missingRoomRecovery.reset);
     });
+    unawaited(_loadLocalAsCallHistory());
     _initTimeline();
   }
 
@@ -489,11 +650,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   Future<void> _initTimeline() async {
     final room = _room;
-    if (room == null) return;
+    if (room == null) {
+      _debugMissingRoomState('init-timeline-room-missing');
+      return;
+    }
     void rebuild() {
       if (!mounted) return;
       setState(() {});
       _scheduleTimelineThumbnailWarmup();
+      _scheduleAsCallHistoryReloadForTimeline();
       unawaited(_markCurrentTimelineRead());
     }
 
@@ -529,25 +694,31 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _ensureMissingRoomSync() {
+    _debugMissingRoomState('ensure-missing-room-sync');
     unawaited(_recoverMissingRoom());
   }
 
   void _retryMissingRoomSync() {
+    _debugMissingRoomState('retry-missing-room-sync');
     setState(_missingRoomRecovery.retry);
     _ensureMissingRoomSync();
   }
 
   Future<void> _recoverMissingRoom() async {
+    _debugMissingRoomState('recover-start');
     final result = await _missingRoomRecovery.runAttempt(
       attempt: () async {
         try {
           await _syncMissingRoomFromServer();
         } catch (e) {
+          _debugMissingRoomState('recover-sync-error', error: e);
           debugPrint('missing chat room sync failed: $e');
         }
+        _debugMissingRoomState('recover-after-sync');
         return mounted && _room != null;
       },
     );
+    _debugMissingRoomState('recover-finish-$result');
     if (!mounted) return;
     if (result == ChatRoomRecoveryAttemptResult.recovered) {
       if (_timeline == null) await _initTimeline();
@@ -558,9 +729,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   Future<void> _syncMissingRoomFromServer() async {
     final client = ref.read(matrixClientProvider);
+    _debugMissingRoomState('sync-missing-room-request');
     await syncMissingRoomHistoryFromServer(
       roomId: widget.roomId,
       syncHistory: ({required roomId, required timelineLimit}) {
+        debugPrint(
+          '[chat-missing-room] sync-history roomId=$roomId '
+          'timelineLimit=$timelineLimit userId=${client.userID} '
+          'homeserver=${client.homeserver}',
+        );
         return syncMatrixRoomHistory(
           client,
           roomId: roomId,
@@ -673,6 +850,77 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  Future<void> _loadLocalAsCallHistory() async {
+    try {
+      final store = await ref.read(asCallSessionStoreProvider.future);
+      final sessions = await store.readRoomStable(widget.roomId);
+      if (!mounted) return;
+      _replaceRoomAsCallHistory(sessions);
+    } on Object catch (e) {
+      debugPrint('load local direct P2P call history failed: $e');
+    }
+    unawaited(_refreshAsCallHistoryFromAs());
+  }
+
+  void _scheduleAsCallHistoryReloadForTimeline() {
+    final rawTimelineEvents = _timeline?.events ?? const <Event>[];
+    if (rawTimelineEvents.isEmpty) return;
+    final callRecordContextEvents =
+        callRecordContextEventsForTimeline(rawTimelineEvents);
+    final visibleEvents = chatDisplayEventsForTimeline(rawTimelineEvents);
+    if (!shouldReloadAsCallSessionsForGroupTimeline(
+      visibleEvents: visibleEvents,
+      callRecordContextEvents: callRecordContextEvents,
+      currentSessions: _roomAsCallHistory.values,
+    )) {
+      return;
+    }
+    _asCallHistoryReloadTimer?.cancel();
+    _asCallHistoryReloadTimer = Timer(
+      const Duration(milliseconds: 150),
+      () {
+        if (mounted) unawaited(_loadLocalAsCallHistory());
+      },
+    );
+  }
+
+  Future<void> _refreshAsCallHistoryFromAs() async {
+    if (_roomAsCallHistoryRefreshing) return;
+    _roomAsCallHistoryRefreshing = true;
+    try {
+      final asClient = ref.read(asClientProvider);
+      final store = await ref.read(asCallSessionStoreProvider.future);
+      final sessions = await asClient.listCalls(
+        roomId: widget.roomId,
+        limit: 100,
+      );
+      await store.upsertAll(sessions);
+      final stable = await store.readRoomStable(widget.roomId);
+      if (!mounted) return;
+      _replaceRoomAsCallHistory(stable);
+    } on Object catch (e) {
+      debugPrint('refresh direct P2P call history failed: $e');
+    } finally {
+      _roomAsCallHistoryRefreshing = false;
+    }
+  }
+
+  void _replaceRoomAsCallHistory(Iterable<AsCallSession> sessions) {
+    final next = <String, AsCallSession>{};
+    for (final session in sessions) {
+      final callId = session.callId.trim();
+      if (callId.isEmpty) continue;
+      next[callId] = session;
+      _asCallSessionCache[callId] = session;
+    }
+    if (!mounted) return;
+    setState(() {
+      _roomAsCallHistory
+        ..clear()
+        ..addAll(next);
+    });
+  }
+
   Future<void> _loadAsCallSession(String callId) async {
     final storeFuture = ref.read(asCallSessionStoreProvider.future);
     try {
@@ -753,6 +1001,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _roomSyncSub?.cancel();
     _targetEventScrollTimer?.cancel();
     _initialTimelineEntranceTimer?.cancel();
+    _asCallHistoryReloadTimer?.cancel();
     _timeline?.cancelSubscriptions();
     _flashingMessageTimer?.cancel();
     _voicePlayer.playback.removeListener(_onVoicePlaybackChanged);
@@ -2176,6 +2425,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ref.watch(currentUserProfileProvider).valueOrNull;
     final authUserId = ref.watch(authStateNotifierProvider).valueOrNull?.userId;
     if (room == null) {
+      _debugMissingRoomState('build-room-null');
       if (_isKnownConversationRoom(syncCache)) {
         if (_missingRoomRecovery.failed) {
           return _missingRoomScaffold(
@@ -2204,7 +2454,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final callRecordContextEvents =
         callRecordContextEventsForTimeline(rawTimelineEvents);
     final timelineEvents = chatDisplayEventsForTimeline(rawTimelineEvents);
-    final events = syncCache
+    final filteredEvents = syncCache
         .chatVisibilityPolicyForRoom(widget.roomId)
         .filter(
           timelineEvents,
@@ -2217,8 +2467,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final id = event.eventId.trim();
       return id.isEmpty || !_locallyHiddenEventIds.contains(id);
     }).toList(growable: false);
-    final topSystemNoticeText = _topSystemNoticeText(events);
-    final messageEvents = events
+    final asCallRecords = asCallSessionsForGroupTimeline(
+      sessions: _roomAsCallHistory.values,
+      roomId: widget.roomId,
+      rawTimelineEvents: rawTimelineEvents,
+      visibleEvents: filteredEvents,
+      callRecordContextEvents: callRecordContextEvents,
+    );
+    final visibleEvents = groupTimelineEventsReplacingAsCallSnapshots(
+      visibleEvents: filteredEvents,
+      callRecordContextEvents: callRecordContextEvents,
+      asCallSessions: asCallRecords,
+    );
+    final topSystemNoticeText = _topSystemNoticeText(visibleEvents);
+    final messageEvents = visibleEvents
         .where(
           (event) =>
               topSystemNoticeText == null ||
@@ -2226,7 +2488,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               event.body.trim() != topSystemNoticeText,
         )
         .toList(growable: false);
-    _scheduleAsCallSessionWarmup(events, callRecordContextEvents);
+    _scheduleAsCallSessionWarmup(visibleEvents, callRecordContextEvents);
     final deliveredPendingMediaIds = _deliveredOutboxMediaIds(
       pendingOutboxItems,
       messageEvents,
@@ -2245,13 +2507,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       outboxTimestamp: (item) => item.createdAt,
     );
     final messageOrder = ref.watch(localMessageOrderProvider);
-    final timelineItems = mergeChatTimelineItems<Event, LocalOutboxItem>(
+    final timelineItems = _mergeDirectTimelineItems(
       events: messageEvents,
       eventTimestamp: (event) => event.originServerTs,
       eventSortTimestamp: (event) =>
           messageOrder.entryForEvent(event.eventId)?.createdAt,
       outboxItems: pendingOutbox,
       outboxTimestamp: (item) => item.createdAt,
+      asCallSessions: asCallRecords,
     );
     final timelineItemKeys = [
       for (final item in timelineItems) _timelineItemKey(item),
@@ -2686,6 +2949,49 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 ),
                                 isMe: true,
                                 id: pending.id,
+                              );
+                            },
+                            asCall: (session) {
+                              final callerId = session.createdByMxid.trim();
+                              final isMe = authUserId != null &&
+                                  callerId.isNotEmpty &&
+                                  callerId == authUserId.trim();
+                              final callerName = isMe
+                                  ? (currentUserProfile?.displayName
+                                              ?.toString()
+                                              .trim()
+                                              .isNotEmpty ==
+                                          true
+                                      ? currentUserProfile!.displayName!
+                                          .toString()
+                                          .trim()
+                                      : '我')
+                                  : name;
+                              final callerAvatarUrl = isMe
+                                  ? profileAvatarHttpUrl(
+                                      currentUserProfile,
+                                      room.client,
+                                    )
+                                  : peerAvatarUrl;
+                              return enter(
+                                _SChatCallRecordBubble(
+                                  isMe: isMe,
+                                  isVideo: asCallSessionRecordIsVideo(session),
+                                  text: asCallSessionRecordText(session),
+                                  time: _formatMsgTime(
+                                    asCallSessionStableTimestamp(session),
+                                  ),
+                                  showRead: false,
+                                  avatarSeed: callerName,
+                                  avatarUrl: callerAvatarUrl,
+                                  onAvatarTap: isMe
+                                      ? null
+                                      : () => _openContactInfo(mxid),
+                                  selected: false,
+                                  multiSelect: false,
+                                ),
+                                isMe: isMe,
+                                id: 'as-call-${session.callId}',
                               );
                             },
                             event: (e) {
@@ -3235,10 +3541,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     _multiSelect = false;
                     _selected.clear();
                   }),
-                  onFavorite: () => unawaited(_favoriteSelectedEvents(events)),
+                  onFavorite: () =>
+                      unawaited(_favoriteSelectedEvents(visibleEvents)),
                   onForward: () => unawaited(
                     _forwardSelectedEvents(
-                      events,
+                      visibleEvents,
                       sourceName: name,
                       sourceRoomType: _favoriteRoomType(room),
                     ),
@@ -3246,7 +3553,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   onDelete: () async {
                     for (final id in _selected.toList()) {
                       Event? ev;
-                      for (final e in events) {
+                      for (final e in visibleEvents) {
                         if (e.eventId == id) {
                           ev = e;
                           break;

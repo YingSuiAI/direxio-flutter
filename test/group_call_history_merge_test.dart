@@ -5,6 +5,69 @@ import 'package:portal_app/presentation/chat/call_timeline_events.dart';
 import 'package:portal_app/presentation/chat/group_call_history_merge.dart';
 
 void main() {
+  test('AS snapshots replace visible Matrix direct call records', () {
+    final client = Client('DirectCallHistoryMergeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(id: '!direct:p2p-im.com', client: client);
+    final intent = _directCallEvent(
+      room,
+      eventId: r'$intent',
+      type: 'p2p.call.intent.v1',
+      senderId: '@owner:p2p-im.com',
+      at: DateTime.utc(2026, 6, 2, 10),
+      content: {
+        'call_id': 'direct-call',
+        'call_type': 'voice',
+      },
+    );
+    final invite = _directCallEvent(
+      room,
+      eventId: r'$invite',
+      type: EventTypes.CallInvite,
+      senderId: '@owner:p2p-im.com',
+      at: DateTime.utc(2026, 6, 2, 10, 0, 1),
+      content: {'call_id': 'matrix-call'},
+    );
+    final hangup = _directCallEvent(
+      room,
+      eventId: r'$hangup',
+      type: EventTypes.CallHangup,
+      senderId: '@owner:p2p-im.com',
+      at: DateTime.utc(2026, 6, 2, 10, 0, 45),
+      content: {'call_id': 'matrix-call'},
+    );
+    final callContext =
+        callRecordContextEventsForTimeline([intent, invite, hangup]);
+    final visibleEvents =
+        chatDisplayEventsForTimeline([intent, invite, hangup]);
+    final snapshot = _session(
+      callId: 'direct-call',
+      roomId: '!direct:p2p-im.com',
+      roomType: 'direct',
+      state: asCallStateEnded,
+      answeredAt: DateTime.utc(2026, 6, 2, 10, 0, 3),
+      endedAt: DateTime.utc(2026, 6, 2, 10, 0, 45),
+      durationMs: 42000,
+    );
+
+    final snapshots = asCallSessionsForGroupTimeline(
+      sessions: [snapshot],
+      roomId: '!direct:p2p-im.com',
+      rawTimelineEvents: [intent, invite, hangup],
+      visibleEvents: visibleEvents,
+      callRecordContextEvents: callContext,
+    );
+    final events = groupTimelineEventsReplacingAsCallSnapshots(
+      visibleEvents: visibleEvents,
+      callRecordContextEvents: callContext,
+      asCallSessions: snapshots,
+    );
+
+    expect(snapshots.map((session) => session.callId), ['direct-call']);
+    expect(asCallSessionRecordText(snapshots.single), '0:42');
+    expect(events, isEmpty);
+  });
+
   test('AS snapshots replace visible Matrix group call records', () {
     final client = Client('GroupCallHistoryMergeTest')
       ..setUserId('@owner:p2p-im.com');
@@ -173,6 +236,8 @@ void main() {
 
 AsCallSession _session({
   required String callId,
+  String roomId = '!group:p2p-im.com',
+  String roomType = 'group',
   String mediaType = asCallMediaTypeVoice,
   String state = asCallStateEnded,
   DateTime? createdAt,
@@ -182,8 +247,8 @@ AsCallSession _session({
 }) {
   return AsCallSession(
     callId: callId,
-    roomId: '!group:p2p-im.com',
-    roomType: 'group',
+    roomId: roomId,
+    roomType: roomType,
     mediaType: mediaType,
     createdByMxid: '@owner:p2p-im.com',
     state: state,
@@ -191,6 +256,24 @@ AsCallSession _session({
     answeredAt: answeredAt,
     endedAt: endedAt,
     durationMs: durationMs,
+  );
+}
+
+Event _directCallEvent(
+  Room room, {
+  required String eventId,
+  required String type,
+  required String senderId,
+  required DateTime at,
+  required Map<String, Object?> content,
+}) {
+  return Event(
+    room: room,
+    eventId: eventId,
+    senderId: senderId,
+    type: type,
+    originServerTs: at,
+    content: content,
   );
 }
 

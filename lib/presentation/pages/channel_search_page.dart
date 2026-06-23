@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_share.dart';
 import '../channel/public_channel_target.dart';
@@ -16,6 +17,10 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
+
+AppLocalizations? _channelSearchL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
+}
 
 class ChannelSearchPage extends ConsumerStatefulWidget {
   const ChannelSearchPage({super.key});
@@ -91,14 +96,17 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       setState(() {
         _results = const [];
         _loading = false;
-        _error = err.statusCode == 404 ? '' : '搜索失败，请稍后重试';
+        _error = err.statusCode == 404
+            ? ''
+            : _channelSearchL10n(context)?.channelSearchFailed ?? '搜索失败，请稍后重试';
       });
     } catch (err) {
       if (!mounted || serial != _serial) return;
       setState(() {
         _results = const [];
         _loading = false;
-        _error = '搜索失败，请稍后重试';
+        _error =
+            _channelSearchL10n(context)?.channelSearchFailed ?? '搜索失败，请稍后重试';
       });
     }
   }
@@ -122,19 +130,30 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       if (!mounted) return;
       if (isAsChannelMemberAwaitingJoin(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
+          SnackBar(
+            content:
+                Text(_channelJoinWaitingText(context, joined.memberStatus)),
+          ),
         );
         return;
       }
       if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
+          SnackBar(
+            content:
+                Text(_channelJoinWaitingText(context, joined.memberStatus)),
+          ),
         );
         return;
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(channelJoinInProgressText)),
+          SnackBar(
+            content: Text(
+              _channelSearchL10n(context)?.channelJoinProcessing ??
+                  channelJoinInProgressText,
+            ),
+          ),
         );
         return;
       }
@@ -144,7 +163,12 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
     } catch (err) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加入频道失败：$err')),
+        SnackBar(
+          content: Text(
+            _channelSearchL10n(context)?.channelJoinFailed('$err') ??
+                '加入频道失败：$err',
+          ),
+        ),
       );
     }
   }
@@ -172,7 +196,11 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
     );
     if (route == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('频道正在同步，请稍后重试')),
+        SnackBar(
+          content: Text(
+            _channelSearchL10n(context)?.channelSearchSyncing ?? '频道正在同步，请稍后重试',
+          ),
+        ),
       );
       return;
     }
@@ -202,40 +230,43 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
             child: _ChannelSearchInput(
               controller: _ctrl,
               onChanged: _onChanged,
+              hint: _channelSearchL10n(context)?.channelSearchHint ?? '搜索频道...',
             ),
           ),
           Positioned.fill(
             top: topInset + 132,
-            child: _buildBody(context.tk),
+            child: _buildBody(context),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBody(PortalTokens t) {
+  Widget _buildBody(BuildContext context) {
+    final l10n = _channelSearchL10n(context);
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
     if (_lastQuery.isEmpty) {
-      return const _ChannelSearchEmpty(
+      return _ChannelSearchEmpty(
         icon: Symbols.search,
-        title: '搜索频道',
-        subtitle: '输入频道ID查找频道',
+        title: l10n?.channelSearchTitle ?? '搜索频道',
+        subtitle: l10n?.channelSearchPrompt ?? '输入频道ID查找频道',
       );
     }
     if (_error.isNotEmpty) {
       return _ChannelSearchEmpty(
         icon: Symbols.error,
         title: _error,
-        subtitle: '请检查网络或目标节点地址',
+        subtitle: l10n?.channelSearchNetworkHint ?? '请检查网络或目标节点地址',
       );
     }
     if (_results.isEmpty) {
-      return const _ChannelSearchEmpty(
+      return _ChannelSearchEmpty(
         icon: Symbols.search_off,
-        title: '没有找到频道',
-        subtitle: '私密频道不会出现在搜索结果中，需要通过邀请或分享卡片加入',
+        title: l10n?.channelSearchNoResults ?? '没有找到频道',
+        subtitle:
+            l10n?.channelSearchPrivateHint ?? '私密频道不会出现在搜索结果中，需要通过邀请或分享卡片加入',
       );
     }
     return ListView.separated(
@@ -266,14 +297,19 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
             ),
           ),
           onJoin: () => _join(channel),
+          l10n: l10n,
         );
       },
     );
   }
 }
 
-String _channelJoinWaitingText(String status) {
-  return channelJoinStatusText(status);
+String _channelJoinWaitingText(BuildContext context, String status) {
+  return _channelJoinLabel(
+    _channelSearchL10n(context),
+    status,
+    approval: false,
+  );
 }
 
 class _ChannelSearchTarget {
@@ -386,16 +422,18 @@ class _ChannelSearchInput extends StatelessWidget {
   const _ChannelSearchInput({
     required this.controller,
     required this.onChanged,
+    required this.hint,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
+  final String hint;
 
   @override
   Widget build(BuildContext context) {
     return M3SearchField(
       controller: controller,
-      hint: '搜索频道...',
+      hint: hint,
       autofocus: true,
       onChanged: onChanged,
     );
@@ -407,11 +445,13 @@ class _ChannelSearchResultTile extends StatelessWidget {
     required this.channel,
     required this.onTap,
     required this.onJoin,
+    required this.l10n,
   });
 
   final AsChannel channel;
   final VoidCallback onTap;
   final VoidCallback onJoin;
+  final AppLocalizations? l10n;
 
   @override
   Widget build(BuildContext context) {
@@ -421,19 +461,12 @@ class _ChannelSearchResultTile extends StatelessWidget {
     final pending = status == asChannelMemberStatusPending;
     final approved = status == asChannelMemberStatusApproved ||
         status == asChannelMemberStatusJoining;
-    final failed = status == asChannelMemberStatusJoinFailed;
     final approval = channel.joinPolicy == asChannelJoinPolicyApproval;
-    final buttonLabel = joined
-        ? '已加入'
-        : pending
-            ? '待审核'
-            : approved
-                ? '同步中'
-                : failed
-                    ? '重试'
-                    : approval
-                        ? '申请加入'
-                        : '加入';
+    final buttonLabel = _channelJoinLabel(
+      l10n,
+      status,
+      approval: approval,
+    );
     return Material(
       color: t.surface.withValues(alpha: 0.72),
       borderRadius: BorderRadius.circular(12),
@@ -451,7 +484,9 @@ class _ChannelSearchResultTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      channel.name.trim().isEmpty ? '未命名频道' : channel.name,
+                      channel.name.trim().isEmpty
+                          ? l10n?.channelSearchUnnamed ?? '未命名频道'
+                          : channel.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
@@ -462,7 +497,7 @@ class _ChannelSearchResultTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      _channelSubtitle(channel),
+                      _channelSubtitle(channel, l10n),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(size: 13, color: t.textMute),
@@ -489,7 +524,7 @@ class _ChannelSearchResultTile extends StatelessWidget {
     );
   }
 
-  static String _channelSubtitle(AsChannel channel) {
+  static String _channelSubtitle(AsChannel channel, AppLocalizations? l10n) {
     final parts = <String>[];
     if (channel.homeDomain.trim().isNotEmpty) parts.add(channel.homeDomain);
     if (channel.description.trim().isNotEmpty) {
@@ -497,11 +532,33 @@ class _ChannelSearchResultTile extends StatelessWidget {
     }
     if (parts.isEmpty) {
       parts.add(channel.joinPolicy == asChannelJoinPolicyApproval
-          ? '公开频道 · 加入需审核'
-          : '公开频道');
+          ? l10n?.channelSearchPublicApproval ?? '公开频道 · 加入需审核'
+          : l10n?.channelSearchPublicChannel ?? '公开频道');
     }
     return parts.join(' · ');
   }
+}
+
+String _channelJoinLabel(
+  AppLocalizations? l10n,
+  String status, {
+  required bool approval,
+}) {
+  if (status == asChannelMemberStatusJoined) {
+    return l10n?.channelJoinJoined ?? '已加入';
+  }
+  if (status == asChannelMemberStatusPending) {
+    return l10n?.channelJoinPending ?? '待审核';
+  }
+  if (status == asChannelMemberStatusApproved ||
+      status == asChannelMemberStatusJoining) {
+    return l10n?.channelJoinSyncing ?? '同步中';
+  }
+  if (status == asChannelMemberStatusJoinFailed) {
+    return l10n?.channelJoinRetry ?? '重试';
+  }
+  if (approval) return l10n?.channelJoinApply ?? '申请加入';
+  return l10n?.channelJoinAction ?? '加入';
 }
 
 class _SearchChannelAvatar extends StatelessWidget {

@@ -213,6 +213,78 @@
   "contactsMyGroups": "自分のグループ",
   "contactsGroups": "グループチャット",
   "contactsFollows": "フォロー",
+  "requestsSearchHint": "検索",
+  "requestsPendingHidden": "承認待ち",
+  "requestsWaitingPeerAccept": "相手の承認待ち",
+  "requestsRejected": "拒否済み",
+  "requestsPeerRejected": "相手が拒否しました",
+  "requestsAdded": "追加済み",
+  "requestsEmptyPending": "友だち申請はありません",
+  "requestsEmptyAdded": "追加済みの連絡先はありません",
+  "requestsRequestAsFriend": "あなたを友だちに追加しようとしています",
+  "requestsMyRequestAsFriend": "自分: あなたを友だちに追加しようとしています",
+  "requestsIncomingRequestMessage": "友だち申請",
+  "requestsFriendNoticeTitle": "友だち申請",
+  "requestsFriendNoticeFallback": "友だち申請通知",
+  "requestsChannelNoticeTitle": "チャンネル通知",
+  "requestsChannelNoticeFallback": "チャンネル通知",
+  "requestsView": "表示",
+  "requestsAccept": "承認",
+  "requestsReject": "拒否",
+  "requestsCannotIdentifySource": "申請元を識別できません",
+  "requestsAcceptSuccess": "友だち申請を承認しました",
+  "requestsRejectSuccess": "友だち申請を拒否しました",
+  "requestsAcceptFailed": "承認に失敗しました: {error}",
+  "@requestsAcceptFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsRejectFailed": "拒否に失敗しました: {error}",
+  "@requestsRejectFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsInvalidDomainInput": "有効なドメインまたはMatrix IDを入力してください",
+  "requestsDomainNotProductUser": "このドメインは製品ユーザーではありません",
+  "requestsCannotAddSelf": "自分自身は追加できません",
+  "requestsAlreadyContact": "{name} はすでに連絡先です",
+  "@requestsAlreadyContact": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsAlreadySent": "{name} に友だち申請を送信済みです。承認を待っています。",
+  "@requestsAlreadySent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsRestoredConversation": "{name} との以前の会話を復元しました",
+  "@requestsRestoredConversation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsSentTo": "{name} に友だち申請を送信しました",
+  "@requestsSentTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "createGroupTitle": "グループチャットを開始",
   "createGroupDone": "完了",
   "createGroupEmptyTitle": "招待できる友だちがいません",
@@ -282,6 +354,183 @@
   "groupInviteJoinButton": "参加",
   "groupInviteJoiningButton": "参加中…",
   "groupInviteAlreadyJoined": "すでにこのグループに参加しています",
+  "groupChatUnknownMember": "不明なメンバー",
+  "groupChatVoiceRecordFailed": "音声録音に失敗しました：{error}",
+  "@groupChatVoiceRecordFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatRecordingTooShort": "録音時間が短すぎます",
+  "groupChatOriginalMessageUnavailable": "元のメッセージは表示できません",
+  "groupChatOpenFailed": "開けませんでした：{error}",
+  "@groupChatOpenFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatPlaybackFailed": "再生に失敗しました：{error}",
+  "@groupChatPlaybackFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatDownloadSaved": "Files / Portal App / P2P IM Downloads / {filename} に保存しました",
+  "@groupChatDownloadSaved": {
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatDownloadFailed": "ダウンロードに失敗しました：{error}",
+  "@groupChatDownloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatSendFailed": "送信に失敗しました：{error}",
+  "@groupChatSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCannotSendChannel": "チャンネルに参加するとメッセージを送信できます",
+  "groupChatCannotSendGroup": "グループに参加するとメッセージを送信できます",
+  "groupChatChannel": "チャンネル",
+  "groupChatGroup": "グループ",
+  "groupChatMissingTitle": "{title}が見つかりません",
+  "@groupChatMissingTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatRecovering": "{title}を復元しています...",
+  "@groupChatRecovering": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatSyncTimeout": "{title}の同期がタイムアウトしました。ネットワークを確認して再試行してください",
+  "@groupChatSyncTimeout": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCannotOpen": "この{title}は現在開けません",
+  "@groupChatCannotOpen": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatMemberCount": "{count} 人のメンバー",
+  "@groupChatMemberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupChatCalling": "グループ通話中",
+  "groupChatVoiceCall": "音声通話",
+  "groupChatDetails": "詳細",
+  "groupChatEmpty": "メッセージはまだありません",
+  "groupChatMentionTitle": "メンションする相手を選択",
+  "groupChatClose": "閉じる",
+  "groupChatMentionSearchHint": "グループメンバーを検索",
+  "groupChatNoMentionMembers": "メンションできるメンバーはいません",
+  "groupChatNoMembersFound": "メンバーが見つかりません",
+  "groupChatImage": "画像",
+  "groupChatVideo": "動画",
+  "groupChatFile": "ファイル",
+  "groupChatLocalMediaMissing": "ローカルの元{label}が見つかりません。{label}を選択し直してください",
+  "@groupChatLocalMediaMissing": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCopied": "コピーしました",
+  "groupChatDeleted": "削除しました",
+  "groupChatCannotFavoriteSending": "送信中のメッセージはお気に入りに追加できません",
+  "groupChatActionAvailableAfterSent": "この操作はメッセージ送信後に使用できます",
+  "groupChatNoRecallPermission": "このメッセージを取り消す権限がありません",
+  "groupChatRecallTitle": "メッセージを取り消す",
+  "groupChatRecallBody": "取り消すと、グループメンバーもこのメッセージを見られなくなります。",
+  "groupChatCancel": "キャンセル",
+  "groupChatRecall": "取り消す",
+  "groupChatRecalled": "メッセージを取り消しました",
+  "groupChatRecallFailed": "メッセージの取り消しに失敗しました：{error}",
+  "@groupChatRecallFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatDeleteFailed": "メッセージの削除に失敗しました：{error}",
+  "@groupChatDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatFavoriting": "自分のノードに保存しています…",
+  "groupChatFavorited": "保存しました",
+  "groupChatFavoriteFailed": "お気に入りに追加できませんでした：{error}",
+  "@groupChatFavoriteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatForwardedRecord": "チャット履歴を転送しました",
+  "groupChatForwardFailed": "転送に失敗しました：{error}",
+  "@groupChatForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCopy": "コピー",
+  "groupChatForward": "転送",
+  "groupChatFavorite": "お気に入り",
+  "groupChatDelete": "削除",
+  "groupChatMultiSelect": "複数選択",
+  "groupChatQuote": "引用",
+  "groupChatSelectMessage": "メッセージを選択",
+  "groupChatCancelSelectMessage": "メッセージの選択を解除",
+  "groupChatMe": "自分",
+  "groupChatMessageFallback": "メッセージ",
+  "groupChatQuotedMessage": "引用メッセージ",
+  "groupChatRetryFile": "ファイルを再送信",
+  "groupChatRetryMessage": "メッセージを再送信",
+  "groupChatDownloading": "ダウンロード中",
+  "groupChatDownloaded": "ダウンロード済み",
+  "groupChatDownloadFile": "ファイルをダウンロード",
+  "groupChatRemovedCannotSend": "退出済みのグループではメッセージを送信できません",
   "commonOk": "OK",
   "commonRetry": "再試行",
   "sessionExpiredTitle": "別の端末でログインされました",
@@ -317,6 +566,17 @@
   "channelJoinApply": "参加申請",
   "channelJoinAction": "チャンネルに参加",
   "channelJoinProcessing": "処理中",
+  "channelSearchHint": "チャンネルを検索...",
+  "channelSearchTitle": "チャンネル検索",
+  "channelSearchPrompt": "チャンネルIDを入力して検索",
+  "channelSearchFailed": "検索に失敗しました。しばらくしてから再試行してください",
+  "channelSearchNetworkHint": "ネットワークまたは対象ノードのアドレスを確認してください",
+  "channelSearchNoResults": "チャンネルが見つかりません",
+  "channelSearchPrivateHint": "非公開チャンネルは検索結果に表示されません。招待または共有カードから参加してください。",
+  "channelSearchSyncing": "チャンネルを同期中です。しばらくしてから再試行してください",
+  "channelSearchUnnamed": "名称未設定のチャンネル",
+  "channelSearchPublicChannel": "公開チャンネル",
+  "channelSearchPublicApproval": "公開チャンネル · 参加には承認が必要",
   "channelPostEmptyTitle": "チャンネル投稿はまだありません",
   "channelPostEmptySubtitle": "投稿するとここに表示されます。",
   "channelPostPublish": "投稿",

@@ -19,6 +19,7 @@ import '../../data/as_client.dart';
 import '../../data/well_known_service.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../widgets/m3/m3_search_field.dart';
 
 const _requestsToolbarHeight = 62.0;
@@ -74,10 +75,13 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
   Future<void> _accept(Room room) async {
     setState(() => _busy = true);
+    final l10n = _requestsL10n(context);
     try {
       final peerMXID = _peerMxidForRoom(room);
       if (peerMXID == null || peerMXID.isEmpty) {
-        throw const FormatException('无法识别请求来源');
+        throw FormatException(
+          l10n?.requestsCannotIdentifySource ?? '无法识别请求来源',
+        );
       }
       final contact = await ref.read(asClientProvider).acceptContactRequest(
             roomId: room.id,
@@ -100,14 +104,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       await _refreshBootstrap();
       if (mounted) {
         setState(() {
-          _notice = '已接受好友请求';
+          _notice = l10n?.requestsAcceptSuccess ?? '已接受好友请求';
           _noticeIsError = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _notice = '接受失败：$e';
+          _notice =
+              l10n?.requestsAcceptFailed(_formatInviteError(e)) ?? '接受失败：$e';
           _noticeIsError = true;
         });
       }
@@ -118,10 +123,13 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
   Future<void> _reject(Room room) async {
     setState(() => _busy = true);
+    final l10n = _requestsL10n(context);
     try {
       final peerMXID = _peerMxidForRoom(room);
       if (peerMXID == null || peerMXID.isEmpty) {
-        throw const FormatException('无法识别请求来源');
+        throw FormatException(
+          l10n?.requestsCannotIdentifySource ?? '无法识别请求来源',
+        );
       }
       final contact = await ref.read(asClientProvider).rejectContactRequest(
             roomId: room.id,
@@ -144,14 +152,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       await _refreshBootstrap();
       if (mounted) {
         setState(() {
-          _notice = '已拒绝好友请求';
+          _notice = l10n?.requestsRejectSuccess ?? '已拒绝好友请求';
           _noticeIsError = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _notice = '拒绝失败：$e';
+          _notice =
+              l10n?.requestsRejectFailed(_formatInviteError(e)) ?? '拒绝失败：$e';
           _noticeIsError = true;
         });
       }
@@ -162,6 +171,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
   Future<void> _acceptContact(AsSyncContact pending) async {
     setState(() => _busy = true);
+    final l10n = _requestsL10n(context);
     try {
       final contact = await ref.read(asClientProvider).acceptContactRequest(
             roomId: pending.roomId,
@@ -184,14 +194,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       await _refreshBootstrap();
       if (mounted) {
         setState(() {
-          _notice = '已接受好友请求';
+          _notice = l10n?.requestsAcceptSuccess ?? '已接受好友请求';
           _noticeIsError = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _notice = '接受失败：$e';
+          _notice =
+              l10n?.requestsAcceptFailed(_formatInviteError(e)) ?? '接受失败：$e';
           _noticeIsError = true;
         });
       }
@@ -202,6 +213,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
   Future<void> _rejectContact(AsSyncContact pending) async {
     setState(() => _busy = true);
+    final l10n = _requestsL10n(context);
     try {
       final contact = await ref.read(asClientProvider).rejectContactRequest(
             roomId: pending.roomId,
@@ -224,14 +236,15 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       await _refreshBootstrap();
       if (mounted) {
         setState(() {
-          _notice = '已拒绝好友请求';
+          _notice = l10n?.requestsRejectSuccess ?? '已拒绝好友请求';
           _noticeIsError = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _notice = '拒绝失败：$e';
+          _notice =
+              l10n?.requestsRejectFailed(_formatInviteError(e)) ?? '拒绝失败：$e';
           _noticeIsError = true;
         });
       }
@@ -243,6 +256,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
   Future<void> _sendInviteFromSearch() async {
     final input = _searchCtrl.text.trim();
     if (input.isEmpty || _busy) return;
+    final l10n = _requestsL10n(context);
 
     setState(() {
       _busy = true;
@@ -254,7 +268,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       final client = ref.read(matrixClientProvider);
       final target = await _resolveInviteTarget(client, input);
       if (target.mxid == client.userID) {
-        throw const FormatException('不能添加自己');
+        throw FormatException(l10n?.requestsCannotAddSelf ?? '不能添加自己');
       }
       await _refreshBootstrap(silent: true);
       final syncCache = ref.read(asSyncCacheProvider);
@@ -263,7 +277,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
       if (acceptedContact != null || existingContact?.status == 'accepted') {
         setState(() {
-          _notice = '${target.displayName} 已经是联系人';
+          _notice = l10n?.requestsAlreadyContact(target.displayName) ??
+              '${target.displayName} 已经是联系人';
           _noticeIsError = false;
         });
         return;
@@ -271,7 +286,8 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       if (existingContact?.status == 'pending_outbound' ||
           existingContact?.status == 'pending_inbound') {
         setState(() {
-          _notice = '已向 ${target.displayName} 发送过好友请求，等待对方接受';
+          _notice = l10n?.requestsAlreadySent(target.displayName) ??
+              '已向 ${target.displayName} 发送过好友请求，等待对方接受';
           _noticeIsError = false;
         });
         return;
@@ -296,8 +312,10 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       final restored = contact.status.trim() == 'accepted';
       setState(() {
         _notice = restored
-            ? '已恢复与 ${target.displayName} 的旧会话'
-            : '已向 ${target.displayName} 发送好友请求';
+            ? l10n?.requestsRestoredConversation(target.displayName) ??
+                '已恢复与 ${target.displayName} 的旧会话'
+            : l10n?.requestsSentTo(target.displayName) ??
+                '已向 ${target.displayName} 发送好友请求';
         _noticeIsError = false;
       });
     } catch (e, stackTrace) {
@@ -368,6 +386,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
   Future<_InviteTarget> _resolveInviteTarget(
       Client client, String input) async {
+    final l10n = _requestsL10n(context);
     if (input.startsWith('@') && input.contains(':')) {
       return _InviteTarget(
         mxid: input,
@@ -377,7 +396,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
 
     final domain = _normalizeDomainInput(input);
     if (domain.isEmpty || domain.contains(' ')) {
-      throw const FormatException('请输入有效的域名或 Matrix ID');
+      throw FormatException(
+        l10n?.requestsInvalidDomainInput ?? '请输入有效的域名或 Matrix ID',
+      );
     }
 
     final wk = WellKnownService(httpClient: client.httpClient);
@@ -394,14 +415,19 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
           ),
         );
       case PortalAvailability.notDeployed:
-        throw const FormatException('该域名不是产品用户');
+        throw FormatException(
+          l10n?.requestsDomainNotProductUser ?? '该域名不是产品用户',
+        );
       case PortalAvailability.unreachable:
-        throw const FormatException('该域名不是产品用户');
+        throw FormatException(
+          l10n?.requestsDomainNotProductUser ?? '该域名不是产品用户',
+        );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     final client = ref.watch(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
     final pendingInboundContacts = syncCache.pendingInboundContacts;
@@ -448,7 +474,11 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
       backgroundColor: context.tk.bg,
       body: Column(
         children: [
-          _RequestsHeader(title: isSearching ? '添加好友' : '新的好友'),
+          _RequestsHeader(
+            title: isSearching
+                ? l10n?.addContactTitle ?? '添加好友'
+                : l10n?.contactsNewFriends ?? '新的好友',
+          ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(
@@ -496,7 +526,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       ),
                     ),
                   ] else ...[
-                    const _HiddenText('待接受'),
+                    _HiddenText(l10n?.requestsPendingHidden ?? '待接受'),
                     _PendingSection(
                       client: client,
                       invites: invites,
@@ -511,7 +541,9 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       onRejectContact: _rejectContact,
                     ),
                     if (pendingOutboundContacts.isNotEmpty) ...[
-                      const _HiddenText('等待对方接受'),
+                      _HiddenText(
+                        l10n?.requestsWaitingPeerAccept ?? '等待对方接受',
+                      ),
                       _OutgoingSection(
                         client: client,
                         contacts: pendingOutboundContacts,
@@ -519,7 +551,7 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       ),
                     ],
                     if (rejectedOutboundContacts.isNotEmpty) ...[
-                      const _HiddenText('已拒绝'),
+                      _HiddenText(l10n?.requestsRejected ?? '已拒绝'),
                       _OutgoingSection(
                         client: client,
                         contacts: rejectedOutboundContacts,
@@ -527,14 +559,14 @@ class _RequestsPageState extends ConsumerState<RequestsPage> {
                       ),
                     ],
                     if (rejectedInboundContacts.isNotEmpty) ...[
-                      const _HiddenText('已拒绝'),
+                      _HiddenText(l10n?.requestsRejected ?? '已拒绝'),
                       _RejectedInboundSection(
                         client: client,
                         contacts: rejectedInboundContacts,
                         onOpenProfile: _openAddContactProfile,
                       ),
                     ],
-                    const _HiddenText('已添加'),
+                    _HiddenText(l10n?.requestsAdded ?? '已添加'),
                     if (acceptedContacts.isNotEmpty)
                       _AcceptedSection(
                         client: client,
@@ -653,6 +685,10 @@ class _HeaderGlassBackButton extends StatelessWidget {
       ),
     );
   }
+}
+
+AppLocalizations? _requestsL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
 }
 
 class _HiddenText extends StatelessWidget {
@@ -915,11 +951,12 @@ class _SearchBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     return M3SearchField(
       controller: controller,
       enabled: !busy,
       keyboardType: TextInputType.url,
-      hint: '搜索',
+      hint: l10n?.requestsSearchHint ?? '搜索',
       onSubmitted: (_) => onSearch(),
     );
   }
@@ -1109,6 +1146,7 @@ class _PendingSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     final t = context.tk;
 
     final rows = <Widget>[];
@@ -1123,7 +1161,11 @@ class _PendingSection extends StatelessWidget {
       rows.add(
         _PendingRow(
           name: name,
-          message: _contactRequestMessage(contact, fallback: mxid),
+          message: _contactRequestMessage(
+            context,
+            contact,
+            fallback: mxid,
+          ),
           seed: mxid.isEmpty ? name : mxid,
           imageUrl: _avatarUrlForContact(client, contact),
           onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
@@ -1147,7 +1189,9 @@ class _PendingSection extends StatelessWidget {
       rows.add(
         _PendingRow(
           name: name,
-          message: inviterId.isEmpty ? '请求加为好友' : inviterId,
+          message: inviterId.isEmpty
+              ? l10n?.requestsIncomingRequestMessage ?? '请求加为好友'
+              : inviterId,
           seed: inviterId.isEmpty ? name : inviterId,
           imageUrl: _avatarUrlForRoomPeer(room, inviterId),
           onTap:
@@ -1160,31 +1204,37 @@ class _PendingSection extends StatelessWidget {
     for (final notice in friendNotices) {
       final title = notice.title.trim();
       final id = notice.id.trim();
-      final name = title.isEmpty ? '好友申请' : title;
+      final name =
+          title.isEmpty ? l10n?.requestsFriendNoticeTitle ?? '好友申请' : title;
       rows.add(
         _PendingRow(
           name: name,
           message: _pendingNoticeMessage(
+            context,
             notice,
-            fallback: id.isEmpty ? '好友申请通知' : id,
+            fallback: id.isEmpty
+                ? l10n?.requestsFriendNoticeFallback ?? '好友申请通知'
+                : id,
           ),
           seed: id.isEmpty ? name : id,
           imageUrl: null,
           onTap: null,
           onAccept: null,
           onReject: null,
-          disabledActionLabel: '已拒绝',
+          disabledActionLabel: l10n?.requestsRejected ?? '已拒绝',
         ),
       );
     }
     for (final notice in channelNotices) {
       final title = notice.title.trim();
       final id = notice.id.trim();
-      final name = title.isEmpty ? '频道通知' : title;
+      final name =
+          title.isEmpty ? l10n?.requestsChannelNoticeTitle ?? '频道通知' : title;
       rows.add(
         _PendingRow(
           name: name,
-          message: id.isEmpty ? '频道通知' : id,
+          message:
+              id.isEmpty ? l10n?.requestsChannelNoticeFallback ?? '频道通知' : id,
           seed: id.isEmpty ? name : id,
           imageUrl: null,
           onTap: null,
@@ -1198,8 +1248,10 @@ class _PendingSection extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
-          child:
-              Text('暂无好友请求', style: AppTheme.sans(size: 14, color: t.textMute)),
+          child: Text(
+            l10n?.requestsEmptyPending ?? '暂无好友请求',
+            style: AppTheme.sans(size: 14, color: t.textMute),
+          ),
         ),
       );
     }
@@ -1208,23 +1260,31 @@ class _PendingSection extends StatelessWidget {
 }
 
 String _pendingNoticeMessage(
+  BuildContext context,
   AsSyncPendingItem notice, {
   required String fallback,
 }) {
+  final l10n = _requestsL10n(context);
   final remark = notice.remark.trim();
   if (remark.isNotEmpty) return remark;
   final normalizedFallback = fallback.trim();
-  return normalizedFallback.isEmpty ? '好友申请通知' : normalizedFallback;
+  return normalizedFallback.isEmpty
+      ? l10n?.requestsFriendNoticeFallback ?? '好友申请通知'
+      : normalizedFallback;
 }
 
 String _contactRequestMessage(
+  BuildContext context,
   AsSyncContact contact, {
   required String fallback,
 }) {
+  final l10n = _requestsL10n(context);
   final remark = contact.remark.trim();
   if (remark.isNotEmpty) return remark;
   final normalizedFallback = fallback.trim();
-  return normalizedFallback.isEmpty ? '请求加为好友' : normalizedFallback;
+  return normalizedFallback.isEmpty
+      ? l10n?.requestsIncomingRequestMessage ?? '请求加为好友'
+      : normalizedFallback;
 }
 
 class _PendingRow extends StatelessWidget {
@@ -1300,6 +1360,7 @@ class _ViewRequestButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     final t = context.tk;
     return Material(
       color: enabled ? t.text : t.textMute.withValues(alpha: 0.24),
@@ -1310,7 +1371,9 @@ class _ViewRequestButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           child: Text(
-            enabled ? '查看' : disabledLabel ?? '查看',
+            enabled
+                ? l10n?.requestsView ?? '查看'
+                : disabledLabel ?? l10n?.requestsView ?? '查看',
             style: AppTheme.sans(
               size: 12,
               color: t.onAccent,
@@ -1381,6 +1444,7 @@ class _RejectButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     final t = context.tk;
     return Material(
       color: t.surfaceHover,
@@ -1391,7 +1455,7 @@ class _RejectButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Text(
-            '拒绝',
+            l10n?.requestsReject ?? '拒绝',
             textAlign: TextAlign.center,
             style: AppTheme.sans(
               size: 15,
@@ -1410,6 +1474,7 @@ class _AcceptButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     final t = context.tk;
     return Material(
       color: t.text,
@@ -1420,7 +1485,7 @@ class _AcceptButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Text(
-            '接受',
+            l10n?.requestsAccept ?? '接受',
             textAlign: TextAlign.center,
             style: AppTheme.sans(
               size: 15,
@@ -1495,6 +1560,7 @@ class _RejectedInboundRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     final mxid = contact.userId.trim();
     final name = contactDisplayNameFromIdentity(
       mxid: mxid,
@@ -1505,9 +1571,9 @@ class _RejectedInboundRow extends StatelessWidget {
       seed: mxid.isEmpty ? name : mxid,
       imageUrl: _avatarUrlForContact(client, contact),
       name: name,
-      message: '请求添加你为朋友',
+      message: l10n?.requestsRequestAsFriend ?? '请求添加你为朋友',
       onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
-      trailing: const _RequestStatusText(text: '已拒绝'),
+      trailing: _RequestStatusText(text: l10n?.requestsRejected ?? '已拒绝'),
     );
   }
 }
@@ -1524,6 +1590,7 @@ class _OutgoingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     final mxid = contact.userId.trim();
     final isRejected = contact.status.trim() == 'rejected_outbound';
     final name = contactDisplayNameFromIdentity(
@@ -1535,11 +1602,15 @@ class _OutgoingRow extends StatelessWidget {
       seed: mxid.isEmpty ? name : mxid,
       imageUrl: _avatarUrlForContact(client, contact),
       name: name,
-      message: isRejected ? '我:请求添加你为朋友' : '请求添加你为朋友',
+      message: isRejected
+          ? l10n?.requestsMyRequestAsFriend ?? '我:请求添加你为朋友'
+          : l10n?.requestsRequestAsFriend ?? '请求添加你为朋友',
       onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid, name),
       trailing: _RequestStatusText(
-        text: isRejected ? '已拒绝' : '等待接受',
-        hiddenText: isRejected ? '对方已拒绝' : null,
+        text: isRejected
+            ? l10n?.requestsRejected ?? '已拒绝'
+            : l10n?.requestsWaitingPeerAccept ?? '等待接受',
+        hiddenText: isRejected ? l10n?.requestsPeerRejected ?? '对方已拒绝' : null,
       ),
     );
   }
@@ -1557,13 +1628,14 @@ class _AcceptedSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     final t = context.tk;
     if (contacts.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Text(
-            '暂无已添加联系人',
+            l10n?.requestsEmptyAdded ?? '暂无已添加联系人',
             style: AppTheme.sans(size: 14, color: t.textMute),
           ),
         ),
@@ -1595,6 +1667,7 @@ class _AcceptedRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _requestsL10n(context);
     final mxid = contact.userId.trim();
     final name = contactDisplayNameFromIdentity(
       mxid: mxid,
@@ -1605,9 +1678,9 @@ class _AcceptedRow extends StatelessWidget {
       seed: mxid.isEmpty ? name : mxid,
       imageUrl: _avatarUrlForContact(client, contact),
       name: name,
-      message: '请求添加你为朋友',
+      message: l10n?.requestsRequestAsFriend ?? '请求添加你为朋友',
       onTap: mxid.isEmpty ? null : () => onOpenProfile(mxid),
-      trailing: const _RequestStatusText(text: '已添加'),
+      trailing: _RequestStatusText(text: l10n?.requestsAdded ?? '已添加'),
     );
   }
 }

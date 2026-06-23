@@ -1175,6 +1175,186 @@ abstract class AppLocalizations {
   /// **'关注'**
   String get contactsFollows;
 
+  /// No description provided for @requestsSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索'**
+  String get requestsSearchHint;
+
+  /// No description provided for @requestsPendingHidden.
+  ///
+  /// In zh, this message translates to:
+  /// **'待接受'**
+  String get requestsPendingHidden;
+
+  /// No description provided for @requestsWaitingPeerAccept.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待对方接受'**
+  String get requestsWaitingPeerAccept;
+
+  /// No description provided for @requestsRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拒绝'**
+  String get requestsRejected;
+
+  /// No description provided for @requestsPeerRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方已拒绝'**
+  String get requestsPeerRejected;
+
+  /// No description provided for @requestsAdded.
+  ///
+  /// In zh, this message translates to:
+  /// **'已添加'**
+  String get requestsAdded;
+
+  /// No description provided for @requestsEmptyPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无好友请求'**
+  String get requestsEmptyPending;
+
+  /// No description provided for @requestsEmptyAdded.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无已添加联系人'**
+  String get requestsEmptyAdded;
+
+  /// No description provided for @requestsRequestAsFriend.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求添加你为朋友'**
+  String get requestsRequestAsFriend;
+
+  /// No description provided for @requestsMyRequestAsFriend.
+  ///
+  /// In zh, this message translates to:
+  /// **'我:请求添加你为朋友'**
+  String get requestsMyRequestAsFriend;
+
+  /// No description provided for @requestsIncomingRequestMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'请求加为好友'**
+  String get requestsIncomingRequestMessage;
+
+  /// No description provided for @requestsFriendNoticeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'好友申请'**
+  String get requestsFriendNoticeTitle;
+
+  /// No description provided for @requestsFriendNoticeFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'好友申请通知'**
+  String get requestsFriendNoticeFallback;
+
+  /// No description provided for @requestsChannelNoticeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道通知'**
+  String get requestsChannelNoticeTitle;
+
+  /// No description provided for @requestsChannelNoticeFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道通知'**
+  String get requestsChannelNoticeFallback;
+
+  /// No description provided for @requestsView.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看'**
+  String get requestsView;
+
+  /// No description provided for @requestsAccept.
+  ///
+  /// In zh, this message translates to:
+  /// **'接受'**
+  String get requestsAccept;
+
+  /// No description provided for @requestsReject.
+  ///
+  /// In zh, this message translates to:
+  /// **'拒绝'**
+  String get requestsReject;
+
+  /// No description provided for @requestsCannotIdentifySource.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法识别请求来源'**
+  String get requestsCannotIdentifySource;
+
+  /// No description provided for @requestsAcceptSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已接受好友请求'**
+  String get requestsAcceptSuccess;
+
+  /// No description provided for @requestsRejectSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拒绝好友请求'**
+  String get requestsRejectSuccess;
+
+  /// No description provided for @requestsAcceptFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'接受失败：{error}'**
+  String requestsAcceptFailed(String error);
+
+  /// No description provided for @requestsRejectFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'拒绝失败：{error}'**
+  String requestsRejectFailed(String error);
+
+  /// No description provided for @requestsInvalidDomainInput.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入有效的域名或 Matrix ID'**
+  String get requestsInvalidDomainInput;
+
+  /// No description provided for @requestsDomainNotProductUser.
+  ///
+  /// In zh, this message translates to:
+  /// **'该域名不是产品用户'**
+  String get requestsDomainNotProductUser;
+
+  /// No description provided for @requestsCannotAddSelf.
+  ///
+  /// In zh, this message translates to:
+  /// **'不能添加自己'**
+  String get requestsCannotAddSelf;
+
+  /// No description provided for @requestsAlreadyContact.
+  ///
+  /// In zh, this message translates to:
+  /// **'{name} 已经是联系人'**
+  String requestsAlreadyContact(String name);
+
+  /// No description provided for @requestsAlreadySent.
+  ///
+  /// In zh, this message translates to:
+  /// **'已向 {name} 发送过好友请求，等待对方接受'**
+  String requestsAlreadySent(String name);
+
+  /// No description provided for @requestsRestoredConversation.
+  ///
+  /// In zh, this message translates to:
+  /// **'已恢复与 {name} 的旧会话'**
+  String requestsRestoredConversation(String name);
+
+  /// No description provided for @requestsSentTo.
+  ///
+  /// In zh, this message translates to:
+  /// **'已向 {name} 发送好友请求'**
+  String requestsSentTo(String name);
+
   /// No description provided for @createGroupTitle.
   ///
   /// In zh, this message translates to:
@@ -1361,6 +1541,396 @@ abstract class AppLocalizations {
   /// **'已在群里中'**
   String get groupInviteAlreadyJoined;
 
+  /// No description provided for @groupChatUnknownMember.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知成员'**
+  String get groupChatUnknownMember;
+
+  /// No description provided for @groupChatVoiceRecordFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'语音录制失败：{error}'**
+  String groupChatVoiceRecordFailed(String error);
+
+  /// No description provided for @groupChatRecordingTooShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'说话时间太短'**
+  String get groupChatRecordingTooShort;
+
+  /// No description provided for @groupChatOriginalMessageUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'原消息暂不可见'**
+  String get groupChatOriginalMessageUnavailable;
+
+  /// No description provided for @groupChatOpenFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开失败：{error}'**
+  String groupChatOpenFailed(String error);
+
+  /// No description provided for @groupChatPlaybackFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'播放失败：{error}'**
+  String groupChatPlaybackFailed(String error);
+
+  /// No description provided for @groupChatDownloadSaved.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存到 Files / Portal App / P2P IM Downloads / {filename}'**
+  String groupChatDownloadSaved(String filename);
+
+  /// No description provided for @groupChatDownloadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败：{error}'**
+  String groupChatDownloadFailed(String error);
+
+  /// No description provided for @groupChatSendFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送失败：{error}'**
+  String groupChatSendFailed(String error);
+
+  /// No description provided for @groupChatCannotSendChannel.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入频道后才能发送消息'**
+  String get groupChatCannotSendChannel;
+
+  /// No description provided for @groupChatCannotSendGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入群聊后才能发送消息'**
+  String get groupChatCannotSendGroup;
+
+  /// No description provided for @groupChatChannel.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道'**
+  String get groupChatChannel;
+
+  /// No description provided for @groupChatGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊'**
+  String get groupChatGroup;
+
+  /// No description provided for @groupChatMissingTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'{title}不存在'**
+  String groupChatMissingTitle(String title);
+
+  /// No description provided for @groupChatRecovering.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在恢复{title}...'**
+  String groupChatRecovering(String title);
+
+  /// No description provided for @groupChatSyncTimeout.
+  ///
+  /// In zh, this message translates to:
+  /// **'{title}同步超时，请检查网络后重试'**
+  String groupChatSyncTimeout(String title);
+
+  /// No description provided for @groupChatCannotOpen.
+  ///
+  /// In zh, this message translates to:
+  /// **'这个{title}暂时无法打开'**
+  String groupChatCannotOpen(String title);
+
+  /// No description provided for @groupChatMemberCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 名成员'**
+  String groupChatMemberCount(int count);
+
+  /// No description provided for @groupChatCalling.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在群通话'**
+  String get groupChatCalling;
+
+  /// No description provided for @groupChatVoiceCall.
+  ///
+  /// In zh, this message translates to:
+  /// **'语音通话'**
+  String get groupChatVoiceCall;
+
+  /// No description provided for @groupChatDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'详情'**
+  String get groupChatDetails;
+
+  /// No description provided for @groupChatEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有消息'**
+  String get groupChatEmpty;
+
+  /// No description provided for @groupChatMentionTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择提醒的人'**
+  String get groupChatMentionTitle;
+
+  /// No description provided for @groupChatClose.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭'**
+  String get groupChatClose;
+
+  /// No description provided for @groupChatMentionSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索群成员'**
+  String get groupChatMentionSearchHint;
+
+  /// No description provided for @groupChatNoMentionMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可提醒成员'**
+  String get groupChatNoMentionMembers;
+
+  /// No description provided for @groupChatNoMembersFound.
+  ///
+  /// In zh, this message translates to:
+  /// **'未找到成员'**
+  String get groupChatNoMembersFound;
+
+  /// No description provided for @groupChatImage.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片'**
+  String get groupChatImage;
+
+  /// No description provided for @groupChatVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频'**
+  String get groupChatVideo;
+
+  /// No description provided for @groupChatFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件'**
+  String get groupChatFile;
+
+  /// No description provided for @groupChatLocalMediaMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地原{label}已丢失，请重新选择{label}'**
+  String groupChatLocalMediaMissing(String label);
+
+  /// No description provided for @groupChatCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制'**
+  String get groupChatCopied;
+
+  /// No description provided for @groupChatDeleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除'**
+  String get groupChatDeleted;
+
+  /// No description provided for @groupChatCannotFavoriteSending.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送中的消息暂不能收藏'**
+  String get groupChatCannotFavoriteSending;
+
+  /// No description provided for @groupChatActionAvailableAfterSent.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息发送完成后可使用该操作'**
+  String get groupChatActionAvailableAfterSent;
+
+  /// No description provided for @groupChatNoRecallPermission.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有权限撤回该消息'**
+  String get groupChatNoRecallPermission;
+
+  /// No description provided for @groupChatRecallTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤回消息'**
+  String get groupChatRecallTitle;
+
+  /// No description provided for @groupChatRecallBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤回后，群成员也将看不到这条消息。'**
+  String get groupChatRecallBody;
+
+  /// No description provided for @groupChatCancel.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消'**
+  String get groupChatCancel;
+
+  /// No description provided for @groupChatRecall.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤回'**
+  String get groupChatRecall;
+
+  /// No description provided for @groupChatRecalled.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息已撤回'**
+  String get groupChatRecalled;
+
+  /// No description provided for @groupChatRecallFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'撤回消息失败：{error}'**
+  String groupChatRecallFailed(String error);
+
+  /// No description provided for @groupChatDeleteFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除消息失败：{error}'**
+  String groupChatDeleteFailed(String error);
+
+  /// No description provided for @groupChatFavoriting.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在收藏到我的节点…'**
+  String get groupChatFavoriting;
+
+  /// No description provided for @groupChatFavorited.
+  ///
+  /// In zh, this message translates to:
+  /// **'已收藏'**
+  String get groupChatFavorited;
+
+  /// No description provided for @groupChatFavoriteFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏失败：{error}'**
+  String groupChatFavoriteFailed(String error);
+
+  /// No description provided for @groupChatForwardedRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'已转发聊天记录'**
+  String get groupChatForwardedRecord;
+
+  /// No description provided for @groupChatForwardFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'转发失败：{error}'**
+  String groupChatForwardFailed(String error);
+
+  /// No description provided for @groupChatCopy.
+  ///
+  /// In zh, this message translates to:
+  /// **'复制'**
+  String get groupChatCopy;
+
+  /// No description provided for @groupChatForward.
+  ///
+  /// In zh, this message translates to:
+  /// **'转发'**
+  String get groupChatForward;
+
+  /// No description provided for @groupChatFavorite.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get groupChatFavorite;
+
+  /// No description provided for @groupChatDelete.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除'**
+  String get groupChatDelete;
+
+  /// No description provided for @groupChatMultiSelect.
+  ///
+  /// In zh, this message translates to:
+  /// **'多选'**
+  String get groupChatMultiSelect;
+
+  /// No description provided for @groupChatQuote.
+  ///
+  /// In zh, this message translates to:
+  /// **'引用'**
+  String get groupChatQuote;
+
+  /// No description provided for @groupChatSelectMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择消息'**
+  String get groupChatSelectMessage;
+
+  /// No description provided for @groupChatCancelSelectMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消选择消息'**
+  String get groupChatCancelSelectMessage;
+
+  /// No description provided for @groupChatMe.
+  ///
+  /// In zh, this message translates to:
+  /// **'我'**
+  String get groupChatMe;
+
+  /// No description provided for @groupChatMessageFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息'**
+  String get groupChatMessageFallback;
+
+  /// No description provided for @groupChatQuotedMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'引用消息'**
+  String get groupChatQuotedMessage;
+
+  /// No description provided for @groupChatRetryFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新发送文件'**
+  String get groupChatRetryFile;
+
+  /// No description provided for @groupChatRetryMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新发送消息'**
+  String get groupChatRetryMessage;
+
+  /// No description provided for @groupChatDownloading.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载中'**
+  String get groupChatDownloading;
+
+  /// No description provided for @groupChatDownloaded.
+  ///
+  /// In zh, this message translates to:
+  /// **'已下载'**
+  String get groupChatDownloaded;
+
+  /// No description provided for @groupChatDownloadFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载文件'**
+  String get groupChatDownloadFile;
+
+  /// No description provided for @groupChatRemovedCannotSend.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法在已退出的群聊中发送消息'**
+  String get groupChatRemovedCannotSend;
+
   /// No description provided for @commonOk.
   ///
   /// In zh, this message translates to:
@@ -1486,6 +2056,72 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'处理中'**
   String get channelJoinProcessing;
+
+  /// No description provided for @channelSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索频道...'**
+  String get channelSearchHint;
+
+  /// No description provided for @channelSearchTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索频道'**
+  String get channelSearchTitle;
+
+  /// No description provided for @channelSearchPrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入频道ID查找频道'**
+  String get channelSearchPrompt;
+
+  /// No description provided for @channelSearchFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索失败，请稍后重试'**
+  String get channelSearchFailed;
+
+  /// No description provided for @channelSearchNetworkHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请检查网络或目标节点地址'**
+  String get channelSearchNetworkHint;
+
+  /// No description provided for @channelSearchNoResults.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到频道'**
+  String get channelSearchNoResults;
+
+  /// No description provided for @channelSearchPrivateHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'私密频道不会出现在搜索结果中，需要通过邀请或分享卡片加入'**
+  String get channelSearchPrivateHint;
+
+  /// No description provided for @channelSearchSyncing.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道正在同步，请稍后重试'**
+  String get channelSearchSyncing;
+
+  /// No description provided for @channelSearchUnnamed.
+  ///
+  /// In zh, this message translates to:
+  /// **'未命名频道'**
+  String get channelSearchUnnamed;
+
+  /// No description provided for @channelSearchPublicChannel.
+  ///
+  /// In zh, this message translates to:
+  /// **'公开频道'**
+  String get channelSearchPublicChannel;
+
+  /// No description provided for @channelSearchPublicApproval.
+  ///
+  /// In zh, this message translates to:
+  /// **'公开频道 · 加入需审核'**
+  String get channelSearchPublicApproval;
 
   /// No description provided for @channelPostEmptyTitle.
   ///

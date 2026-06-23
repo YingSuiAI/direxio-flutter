@@ -213,6 +213,78 @@
   "contactsMyGroups": "My Groups",
   "contactsGroups": "Groups",
   "contactsFollows": "Following",
+  "requestsSearchHint": "Search",
+  "requestsPendingHidden": "Pending",
+  "requestsWaitingPeerAccept": "Waiting for acceptance",
+  "requestsRejected": "Rejected",
+  "requestsPeerRejected": "Rejected by the other user",
+  "requestsAdded": "Added",
+  "requestsEmptyPending": "No friend requests",
+  "requestsEmptyAdded": "No added contacts",
+  "requestsRequestAsFriend": "Requested to add you as a friend",
+  "requestsMyRequestAsFriend": "Me: requested to add you as a friend",
+  "requestsIncomingRequestMessage": "Friend request",
+  "requestsFriendNoticeTitle": "Friend request",
+  "requestsFriendNoticeFallback": "Friend request notice",
+  "requestsChannelNoticeTitle": "Channel notice",
+  "requestsChannelNoticeFallback": "Channel notice",
+  "requestsView": "View",
+  "requestsAccept": "Accept",
+  "requestsReject": "Reject",
+  "requestsCannotIdentifySource": "Cannot identify request source",
+  "requestsAcceptSuccess": "Friend request accepted",
+  "requestsRejectSuccess": "Friend request rejected",
+  "requestsAcceptFailed": "Accept failed: {error}",
+  "@requestsAcceptFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsRejectFailed": "Reject failed: {error}",
+  "@requestsRejectFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsInvalidDomainInput": "Enter a valid domain or Matrix ID",
+  "requestsDomainNotProductUser": "This domain is not a product user",
+  "requestsCannotAddSelf": "You cannot add yourself",
+  "requestsAlreadyContact": "{name} is already a contact",
+  "@requestsAlreadyContact": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsAlreadySent": "You already sent a friend request to {name}. Waiting for acceptance.",
+  "@requestsAlreadySent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsRestoredConversation": "Restored old conversation with {name}",
+  "@requestsRestoredConversation": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "requestsSentTo": "Sent friend request to {name}",
+  "@requestsSentTo": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "createGroupTitle": "Start Group Chat",
   "createGroupDone": "Done",
   "createGroupEmptyTitle": "No friends to invite",
@@ -282,6 +354,183 @@
   "groupInviteJoinButton": "Join Group",
   "groupInviteJoiningButton": "Joining…",
   "groupInviteAlreadyJoined": "You are already in this group",
+  "groupChatUnknownMember": "Unknown member",
+  "groupChatVoiceRecordFailed": "Voice recording failed: {error}",
+  "@groupChatVoiceRecordFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatRecordingTooShort": "Recording is too short",
+  "groupChatOriginalMessageUnavailable": "Original message is unavailable",
+  "groupChatOpenFailed": "Open failed: {error}",
+  "@groupChatOpenFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatPlaybackFailed": "Playback failed: {error}",
+  "@groupChatPlaybackFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatDownloadSaved": "Saved to Files / Portal App / P2P IM Downloads / {filename}",
+  "@groupChatDownloadSaved": {
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatDownloadFailed": "Download failed: {error}",
+  "@groupChatDownloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatSendFailed": "Send failed: {error}",
+  "@groupChatSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCannotSendChannel": "Join the channel before sending messages",
+  "groupChatCannotSendGroup": "Join the group before sending messages",
+  "groupChatChannel": "Channel",
+  "groupChatGroup": "Group",
+  "groupChatMissingTitle": "{title} not found",
+  "@groupChatMissingTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatRecovering": "Restoring {title}...",
+  "@groupChatRecovering": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatSyncTimeout": "{title} sync timed out. Check the network and retry.",
+  "@groupChatSyncTimeout": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCannotOpen": "This {title} cannot be opened right now",
+  "@groupChatCannotOpen": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatMemberCount": "{count} members",
+  "@groupChatMemberCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupChatCalling": "Group call in progress",
+  "groupChatVoiceCall": "Voice call",
+  "groupChatDetails": "Details",
+  "groupChatEmpty": "No messages yet",
+  "groupChatMentionTitle": "Choose who to mention",
+  "groupChatClose": "Close",
+  "groupChatMentionSearchHint": "Search group members",
+  "groupChatNoMentionMembers": "No members to mention",
+  "groupChatNoMembersFound": "No members found",
+  "groupChatImage": "image",
+  "groupChatVideo": "video",
+  "groupChatFile": "file",
+  "groupChatLocalMediaMissing": "The original local {label} is missing. Select the {label} again.",
+  "@groupChatLocalMediaMissing": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCopied": "Copied",
+  "groupChatDeleted": "Deleted",
+  "groupChatCannotFavoriteSending": "Messages being sent cannot be favorited",
+  "groupChatActionAvailableAfterSent": "This action is available after the message is sent",
+  "groupChatNoRecallPermission": "You do not have permission to recall this message",
+  "groupChatRecallTitle": "Recall message",
+  "groupChatRecallBody": "After recall, group members will no longer see this message.",
+  "groupChatCancel": "Cancel",
+  "groupChatRecall": "Recall",
+  "groupChatRecalled": "Message recalled",
+  "groupChatRecallFailed": "Failed to recall message: {error}",
+  "@groupChatRecallFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatDeleteFailed": "Failed to delete message: {error}",
+  "@groupChatDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatFavoriting": "Saving to my node…",
+  "groupChatFavorited": "Saved",
+  "groupChatFavoriteFailed": "Favorite failed: {error}",
+  "@groupChatFavoriteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatForwardedRecord": "Chat record forwarded",
+  "groupChatForwardFailed": "Forward failed: {error}",
+  "@groupChatForwardFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupChatCopy": "Copy",
+  "groupChatForward": "Forward",
+  "groupChatFavorite": "Favorite",
+  "groupChatDelete": "Delete",
+  "groupChatMultiSelect": "Select",
+  "groupChatQuote": "Quote",
+  "groupChatSelectMessage": "Select message",
+  "groupChatCancelSelectMessage": "Deselect message",
+  "groupChatMe": "Me",
+  "groupChatMessageFallback": "Message",
+  "groupChatQuotedMessage": "Quoted message",
+  "groupChatRetryFile": "Resend file",
+  "groupChatRetryMessage": "Resend message",
+  "groupChatDownloading": "Downloading",
+  "groupChatDownloaded": "Downloaded",
+  "groupChatDownloadFile": "Download file",
+  "groupChatRemovedCannotSend": "You cannot send messages in a group you left",
   "commonOk": "OK",
   "commonRetry": "Retry",
   "sessionExpiredTitle": "Signed in on another device",
@@ -317,6 +566,17 @@
   "channelJoinApply": "Request to join",
   "channelJoinAction": "Join channel",
   "channelJoinProcessing": "Processing",
+  "channelSearchHint": "Search channels...",
+  "channelSearchTitle": "Search channels",
+  "channelSearchPrompt": "Enter a channel ID to find a channel",
+  "channelSearchFailed": "Search failed. Try again later.",
+  "channelSearchNetworkHint": "Check the network or target node address",
+  "channelSearchNoResults": "No channels found",
+  "channelSearchPrivateHint": "Private channels do not appear in search results. Join them through an invite or share card.",
+  "channelSearchSyncing": "Channel is syncing. Try again later.",
+  "channelSearchUnnamed": "Untitled channel",
+  "channelSearchPublicChannel": "Public channel",
+  "channelSearchPublicApproval": "Public channel · Approval required",
   "channelPostEmptyTitle": "No channel posts yet",
   "channelPostEmptySubtitle": "Posts will appear here after publishing.",
   "channelPostPublish": "Post",

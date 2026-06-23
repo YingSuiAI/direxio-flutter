@@ -7846,6 +7846,39 @@ void main() {
     expect(find.text('查看'), findsOneWidget);
   });
 
+  testWidgets('new friends page uses localized English copy', (tester) async {
+    final client = Client('DirexioRequestsEnglishLocaleTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const RequestsPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('New Friends'), findsOneWidget);
+    expect(find.text('Search'), findsOneWidget);
+    expect(find.text('No friend requests'), findsOneWidget);
+    expect(find.text('新的好友'), findsNothing);
+    expect(find.text('暂无好友请求'), findsNothing);
+  });
+
   testWidgets('new friends page refreshes AS pending notices after Matrix sync',
       (tester) async {
     final client = Client('DirexioRequestsLivePendingTest')

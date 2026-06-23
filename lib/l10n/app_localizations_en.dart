@@ -575,6 +575,110 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactsFollows => 'Following';
 
   @override
+  String get requestsSearchHint => 'Search';
+
+  @override
+  String get requestsPendingHidden => 'Pending';
+
+  @override
+  String get requestsWaitingPeerAccept => 'Waiting for acceptance';
+
+  @override
+  String get requestsRejected => 'Rejected';
+
+  @override
+  String get requestsPeerRejected => 'Rejected by the other user';
+
+  @override
+  String get requestsAdded => 'Added';
+
+  @override
+  String get requestsEmptyPending => 'No friend requests';
+
+  @override
+  String get requestsEmptyAdded => 'No added contacts';
+
+  @override
+  String get requestsRequestAsFriend => 'Requested to add you as a friend';
+
+  @override
+  String get requestsMyRequestAsFriend =>
+      'Me: requested to add you as a friend';
+
+  @override
+  String get requestsIncomingRequestMessage => 'Friend request';
+
+  @override
+  String get requestsFriendNoticeTitle => 'Friend request';
+
+  @override
+  String get requestsFriendNoticeFallback => 'Friend request notice';
+
+  @override
+  String get requestsChannelNoticeTitle => 'Channel notice';
+
+  @override
+  String get requestsChannelNoticeFallback => 'Channel notice';
+
+  @override
+  String get requestsView => 'View';
+
+  @override
+  String get requestsAccept => 'Accept';
+
+  @override
+  String get requestsReject => 'Reject';
+
+  @override
+  String get requestsCannotIdentifySource => 'Cannot identify request source';
+
+  @override
+  String get requestsAcceptSuccess => 'Friend request accepted';
+
+  @override
+  String get requestsRejectSuccess => 'Friend request rejected';
+
+  @override
+  String requestsAcceptFailed(String error) {
+    return 'Accept failed: $error';
+  }
+
+  @override
+  String requestsRejectFailed(String error) {
+    return 'Reject failed: $error';
+  }
+
+  @override
+  String get requestsInvalidDomainInput => 'Enter a valid domain or Matrix ID';
+
+  @override
+  String get requestsDomainNotProductUser =>
+      'This domain is not a product user';
+
+  @override
+  String get requestsCannotAddSelf => 'You cannot add yourself';
+
+  @override
+  String requestsAlreadyContact(String name) {
+    return '$name is already a contact';
+  }
+
+  @override
+  String requestsAlreadySent(String name) {
+    return 'You already sent a friend request to $name. Waiting for acceptance.';
+  }
+
+  @override
+  String requestsRestoredConversation(String name) {
+    return 'Restored old conversation with $name';
+  }
+
+  @override
+  String requestsSentTo(String name) {
+    return 'Sent friend request to $name';
+  }
+
+  @override
   String get createGroupTitle => 'Start Group Chat';
 
   @override
@@ -681,6 +785,241 @@ class AppLocalizationsEn extends AppLocalizations {
   String get groupInviteAlreadyJoined => 'You are already in this group';
 
   @override
+  String get groupChatUnknownMember => 'Unknown member';
+
+  @override
+  String groupChatVoiceRecordFailed(String error) {
+    return 'Voice recording failed: $error';
+  }
+
+  @override
+  String get groupChatRecordingTooShort => 'Recording is too short';
+
+  @override
+  String get groupChatOriginalMessageUnavailable =>
+      'Original message is unavailable';
+
+  @override
+  String groupChatOpenFailed(String error) {
+    return 'Open failed: $error';
+  }
+
+  @override
+  String groupChatPlaybackFailed(String error) {
+    return 'Playback failed: $error';
+  }
+
+  @override
+  String groupChatDownloadSaved(String filename) {
+    return 'Saved to Files / Portal App / P2P IM Downloads / $filename';
+  }
+
+  @override
+  String groupChatDownloadFailed(String error) {
+    return 'Download failed: $error';
+  }
+
+  @override
+  String groupChatSendFailed(String error) {
+    return 'Send failed: $error';
+  }
+
+  @override
+  String get groupChatCannotSendChannel =>
+      'Join the channel before sending messages';
+
+  @override
+  String get groupChatCannotSendGroup =>
+      'Join the group before sending messages';
+
+  @override
+  String get groupChatChannel => 'Channel';
+
+  @override
+  String get groupChatGroup => 'Group';
+
+  @override
+  String groupChatMissingTitle(String title) {
+    return '$title not found';
+  }
+
+  @override
+  String groupChatRecovering(String title) {
+    return 'Restoring $title...';
+  }
+
+  @override
+  String groupChatSyncTimeout(String title) {
+    return '$title sync timed out. Check the network and retry.';
+  }
+
+  @override
+  String groupChatCannotOpen(String title) {
+    return 'This $title cannot be opened right now';
+  }
+
+  @override
+  String groupChatMemberCount(int count) {
+    return '$count members';
+  }
+
+  @override
+  String get groupChatCalling => 'Group call in progress';
+
+  @override
+  String get groupChatVoiceCall => 'Voice call';
+
+  @override
+  String get groupChatDetails => 'Details';
+
+  @override
+  String get groupChatEmpty => 'No messages yet';
+
+  @override
+  String get groupChatMentionTitle => 'Choose who to mention';
+
+  @override
+  String get groupChatClose => 'Close';
+
+  @override
+  String get groupChatMentionSearchHint => 'Search group members';
+
+  @override
+  String get groupChatNoMentionMembers => 'No members to mention';
+
+  @override
+  String get groupChatNoMembersFound => 'No members found';
+
+  @override
+  String get groupChatImage => 'image';
+
+  @override
+  String get groupChatVideo => 'video';
+
+  @override
+  String get groupChatFile => 'file';
+
+  @override
+  String groupChatLocalMediaMissing(String label) {
+    return 'The original local $label is missing. Select the $label again.';
+  }
+
+  @override
+  String get groupChatCopied => 'Copied';
+
+  @override
+  String get groupChatDeleted => 'Deleted';
+
+  @override
+  String get groupChatCannotFavoriteSending =>
+      'Messages being sent cannot be favorited';
+
+  @override
+  String get groupChatActionAvailableAfterSent =>
+      'This action is available after the message is sent';
+
+  @override
+  String get groupChatNoRecallPermission =>
+      'You do not have permission to recall this message';
+
+  @override
+  String get groupChatRecallTitle => 'Recall message';
+
+  @override
+  String get groupChatRecallBody =>
+      'After recall, group members will no longer see this message.';
+
+  @override
+  String get groupChatCancel => 'Cancel';
+
+  @override
+  String get groupChatRecall => 'Recall';
+
+  @override
+  String get groupChatRecalled => 'Message recalled';
+
+  @override
+  String groupChatRecallFailed(String error) {
+    return 'Failed to recall message: $error';
+  }
+
+  @override
+  String groupChatDeleteFailed(String error) {
+    return 'Failed to delete message: $error';
+  }
+
+  @override
+  String get groupChatFavoriting => 'Saving to my node…';
+
+  @override
+  String get groupChatFavorited => 'Saved';
+
+  @override
+  String groupChatFavoriteFailed(String error) {
+    return 'Favorite failed: $error';
+  }
+
+  @override
+  String get groupChatForwardedRecord => 'Chat record forwarded';
+
+  @override
+  String groupChatForwardFailed(String error) {
+    return 'Forward failed: $error';
+  }
+
+  @override
+  String get groupChatCopy => 'Copy';
+
+  @override
+  String get groupChatForward => 'Forward';
+
+  @override
+  String get groupChatFavorite => 'Favorite';
+
+  @override
+  String get groupChatDelete => 'Delete';
+
+  @override
+  String get groupChatMultiSelect => 'Select';
+
+  @override
+  String get groupChatQuote => 'Quote';
+
+  @override
+  String get groupChatSelectMessage => 'Select message';
+
+  @override
+  String get groupChatCancelSelectMessage => 'Deselect message';
+
+  @override
+  String get groupChatMe => 'Me';
+
+  @override
+  String get groupChatMessageFallback => 'Message';
+
+  @override
+  String get groupChatQuotedMessage => 'Quoted message';
+
+  @override
+  String get groupChatRetryFile => 'Resend file';
+
+  @override
+  String get groupChatRetryMessage => 'Resend message';
+
+  @override
+  String get groupChatDownloading => 'Downloading';
+
+  @override
+  String get groupChatDownloaded => 'Downloaded';
+
+  @override
+  String get groupChatDownloadFile => 'Download file';
+
+  @override
+  String get groupChatRemovedCannotSend =>
+      'You cannot send messages in a group you left';
+
+  @override
   String get commonOk => 'OK';
 
   @override
@@ -749,6 +1088,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelJoinProcessing => 'Processing';
+
+  @override
+  String get channelSearchHint => 'Search channels...';
+
+  @override
+  String get channelSearchTitle => 'Search channels';
+
+  @override
+  String get channelSearchPrompt => 'Enter a channel ID to find a channel';
+
+  @override
+  String get channelSearchFailed => 'Search failed. Try again later.';
+
+  @override
+  String get channelSearchNetworkHint =>
+      'Check the network or target node address';
+
+  @override
+  String get channelSearchNoResults => 'No channels found';
+
+  @override
+  String get channelSearchPrivateHint =>
+      'Private channels do not appear in search results. Join them through an invite or share card.';
+
+  @override
+  String get channelSearchSyncing => 'Channel is syncing. Try again later.';
+
+  @override
+  String get channelSearchUnnamed => 'Untitled channel';
+
+  @override
+  String get channelSearchPublicChannel => 'Public channel';
+
+  @override
+  String get channelSearchPublicApproval =>
+      'Public channel · Approval required';
 
   @override
   String get channelPostEmptyTitle => 'No channel posts yet';

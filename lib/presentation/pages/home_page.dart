@@ -2236,18 +2236,36 @@ Future<void> _openAgentContactChat(
   AsSyncCacheState syncCache, {
   required bool isLoggedIn,
 }) async {
+  _debugAgentContactChatState(
+    'start',
+    ref: ref,
+    client: client,
+    syncCache: syncCache,
+    isLoggedIn: isLoggedIn,
+  );
   var roomId = _resolvedAgentContactRoomId(
     client,
     syncCache,
     isLoggedIn: isLoggedIn,
   );
+  debugPrint('[agent-chat-open] resolved initial roomId=$roomId');
   if (roomId.isEmpty && isLoggedIn) {
     roomId = await _refreshAgentContactRoomId(ref, client);
+    debugPrint('[agent-chat-open] resolved after refresh roomId=$roomId');
   }
   if (roomId.isEmpty) {
     roomId = fallbackPortalAgentRoomIdForClient(client) ?? '';
+    debugPrint('[agent-chat-open] resolved fallback roomId=$roomId');
   }
   if (roomId.isEmpty) return;
+  _debugAgentContactChatState(
+    'open',
+    ref: ref,
+    client: client,
+    syncCache: ref.read(asSyncCacheProvider),
+    isLoggedIn: isLoggedIn,
+    targetRoomId: roomId,
+  );
   if (!context.mounted) return;
   context.push('/chat/${Uri.encodeComponent(roomId)}');
 }
@@ -2258,10 +2276,22 @@ Future<String> _refreshAgentContactRoomId(
 ) async {
   var refreshedRoomId = '';
   try {
+    debugPrint(
+      '[agent-chat-open] refreshing bootstrap userId=${client.userID} '
+      'homeserver=${client.homeserver}',
+    );
     final bootstrap = await ref
         .read(asBootstrapRepositoryProvider)
         .refresh()
         .timeout(const Duration(seconds: 10));
+    debugPrint(
+      '[agent-chat-open] bootstrap refreshed '
+      'belongs=${asBootstrapBelongsToUser(bootstrap, client.userID)} '
+      'agentRoomId=${bootstrap.agentRoomId} user=${bootstrap.user.userId} '
+      'rooms=${bootstrap.rooms.map((room) => room.roomId).join("|")} '
+      'groups=${bootstrap.groups.map((room) => room.roomId).join("|")} '
+      'channels=${bootstrap.channels.map((channel) => channel.roomId).join("|")}',
+    );
     if (asBootstrapBelongsToUser(bootstrap, client.userID)) {
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(bootstrap: bootstrap),
@@ -2284,6 +2314,39 @@ Future<String> _refreshAgentContactRoomId(
     debugPrint('refresh Agent contact chat failed: $error');
     return '';
   }
+}
+
+void _debugAgentContactChatState(
+  String phase, {
+  required WidgetRef ref,
+  required Client client,
+  required AsSyncCacheState syncCache,
+  required bool isLoggedIn,
+  String targetRoomId = '',
+}) {
+  final bootstrap = syncCache.bootstrap;
+  final fallbackRoomId = fallbackPortalAgentRoomIdForClient(client) ?? '';
+  final agentMxid = portalAgentMxidForClient(client);
+  final productConversations =
+      ref.read(productConversationsProvider).valueOrNull ??
+          const <AsConversation>[];
+  final agentProducts = productConversations
+      .where((conversation) => conversation.isAgent)
+      .map((conversation) =>
+          '${conversation.conversationId}:${conversation.roomId}:life=${conversation.lifecycle}:proj=${conversation.projectionState}:hydr=${conversation.hydrationState}:${conversation.title}')
+      .join('|');
+  final roomSummary = client.rooms
+      .map((room) =>
+          '${room.id}:${room.membership.name}:agent=${isPortalAgentDirectRoom(room, agentMxid: agentMxid)}:name=${room.getLocalizedDisplayname()}')
+      .join('|');
+  debugPrint(
+    '[agent-chat-open] phase=$phase targetRoomId=$targetRoomId '
+    'isLoggedIn=$isLoggedIn userId=${client.userID} homeserver=${client.homeserver} '
+    'agentMxid=$agentMxid fallbackRoomId=$fallbackRoomId '
+    'bootstrapAgentRoomId=${bootstrap?.agentRoomId ?? ""} '
+    'bootstrapUser=${bootstrap?.user.userId ?? ""} '
+    'productAgentConversations=[$agentProducts] matrixRooms=[$roomSummary]',
+  );
 }
 
 String _resolvedAgentContactRoomId(

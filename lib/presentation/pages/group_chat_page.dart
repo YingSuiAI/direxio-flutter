@@ -11,6 +11,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
+import '../../l10n/app_localizations.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
@@ -256,9 +257,12 @@ List<_GroupTimelineItem> _mergeGroupTimelineItems({
   return items;
 }
 
-String _fallbackDisplayNameForMxid(String mxid) {
+String _fallbackDisplayNameForMxid(
+  String mxid, {
+  required String unknownMember,
+}) {
   final trimmed = mxid.trim();
-  if (trimmed.isEmpty) return '未知成员';
+  if (trimmed.isEmpty) return unknownMember;
   final match = RegExp(r'^@([^:]+):(.+)$').firstMatch(trimmed);
   if (match == null) return trimmed;
   final localpart = match.group(1) ?? '';
@@ -418,9 +422,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       );
     } on Object catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('语音录制失败：$e'),
+          content: Text(l10n.groupChatVoiceRecordFailed('$e')),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -439,10 +444,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (recording == null) return;
       if (recording.durationMs < 700) {
         if (!mounted) return;
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('说话时间太短'),
-            duration: Duration(seconds: 1),
+          SnackBar(
+            content: Text(l10n.groupChatRecordingTooShort),
+            duration: const Duration(seconds: 1),
           ),
         );
         return;
@@ -521,7 +527,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         GroupCallInviteMember(
           userId: id,
           displayName: displayName.trim().isEmpty
-              ? _fallbackDisplayNameForMxid(id)
+              ? _fallbackDisplayNameForMxid(
+                  id,
+                  unknownMember:
+                      AppLocalizations.of(context).groupChatUnknownMember,
+                )
               : displayName.trim(),
         ),
       );
@@ -542,7 +552,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (mounted) setState(() => _joiningChannelShareIds.add(key));
     try {
       final roomId = payload.roomId.trim();
-      if (roomId.isEmpty) throw StateError('频道 room_id 为空');
+      if (roomId.isEmpty) {
+        final l10n = AppLocalizations.of(context);
+        throw StateError(l10n.groupChatCannotOpen(l10n.groupChatChannel));
+      }
       final channelId = payload.channelId.trim();
       final joined = await ref.read(asClientProvider).joinChannel(
             channelId.isEmpty ? roomId : channelId,
@@ -569,8 +582,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       context.push(channelShareJoinedRoute(payload, joined), extra: payload);
     } on Object catch (e) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加入频道失败：$e')),
+        SnackBar(content: Text(l10n.channelJoinFailed('$e'))),
       );
     } finally {
       if (mounted) setState(() => _joiningChannelShareIds.remove(key));
@@ -697,8 +711,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   void _showQuotedMessageUnavailable() {
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('原消息暂不可见')),
+      SnackBar(content: Text(l10n.groupChatOriginalMessageUnavailable)),
     );
   }
 
@@ -845,8 +860,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('open group file failed: $err');
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('打开失败：$err')),
+        SnackBar(content: Text(l10n.groupChatOpenFailed('$err'))),
       );
     } finally {
       _openingFileEventIds.remove(openKey);
@@ -861,8 +877,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('open group video failed: $err');
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('播放失败：$err')),
+        SnackBar(content: Text(l10n.groupChatPlaybackFailed('$err'))),
       );
     }
   }
@@ -878,8 +895,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('play group voice failed: $err');
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('播放失败：$err')),
+        SnackBar(content: Text(l10n.groupChatPlaybackFailed('$err'))),
       );
     }
   }
@@ -906,18 +924,20 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       if (eventId.isNotEmpty) {
         setState(() => _downloadedFileEventIds.add(eventId));
       }
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '已保存到 Files / Portal App / P2P IM Downloads / ${file.uri.pathSegments.last}',
+            l10n.groupChatDownloadSaved(file.uri.pathSegments.last),
           ),
         ),
       );
     } on Object catch (err) {
       debugPrint('download group file failed: $err');
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('下载失败：$err')),
+        SnackBar(content: Text(l10n.groupChatDownloadFailed('$err'))),
       );
     } finally {
       if (eventId.isNotEmpty && mounted) {
@@ -1219,7 +1239,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     String mxid,
   ) {
     final trimmed = mxid.trim();
-    if (trimmed.isEmpty) return '未知成员';
+    final l10n = AppLocalizations.of(context);
+    if (trimmed.isEmpty) return l10n.groupChatUnknownMember;
     for (final member in room.getParticipants()) {
       if (member.id.trim() != trimmed) continue;
       final displayName = member.calcDisplayname().trim();
@@ -1233,7 +1254,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     if (contactName.isNotEmpty && contactName.toLowerCase() != 'owner') {
       return contactName;
     }
-    return _fallbackDisplayNameForMxid(trimmed);
+    return _fallbackDisplayNameForMxid(
+      trimmed,
+      unknownMember: l10n.groupChatUnknownMember,
+    );
   }
 
   String? _avatarUrlForMxid(
@@ -1324,8 +1348,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   ) {
     final localPreview = _localReplyPreviews[event.eventId.trim()];
     if (localPreview != null) return localPreview;
+    final l10n = AppLocalizations.of(context);
     final fallbackPreview = _groupReplyPreviewFromMatrixFallbackBody(
       event.body,
+      l10n,
     );
     final replyEventId = _groupReplyEventIdForEvent(event);
     if (replyEventId == null || replyEventId.isEmpty) return fallbackPreview;
@@ -1338,7 +1364,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     }
     if (quoted == null) {
       return fallbackPreview?.withEventId(replyEventId) ??
-          _missingGroupQuotedMessagePreview.withEventId(replyEventId);
+          _missingGroupQuotedMessagePreview(l10n).withEventId(replyEventId);
     }
     return _GroupQuotedMessagePreview(
       eventId: quoted.eventId,
@@ -1413,7 +1439,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   void _insertMention(GroupCallInviteMember member) {
     final nickname = member.displayName.trim().isEmpty
-        ? _fallbackDisplayNameForMxid(member.userId)
+        ? _fallbackDisplayNameForMxid(
+            member.userId,
+            unknownMember: AppLocalizations.of(context).groupChatUnknownMember,
+          )
         : member.displayName.trim();
     final mentionText = '@$nickname ';
     final value = _msgCtrl.value;
@@ -1500,8 +1529,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         await ref.read(localOutboxProvider.notifier).failItem(pendingId);
       }
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('发送失败：$e')),
+        SnackBar(content: Text(l10n.groupChatSendFailed('$e'))),
       );
     }
   }
@@ -1664,10 +1694,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   void _showGroupCannotSendToast(BuildContext context) {
     if (!context.mounted) return;
+    final l10n = AppLocalizations.of(context);
     final isChannelConversation = widget.channelId?.trim().isNotEmpty ?? false;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(isChannelConversation ? '加入频道后才能发送消息' : '加入群聊后才能发送消息'),
+        content: Text(isChannelConversation
+            ? l10n.groupChatCannotSendChannel
+            : l10n.groupChatCannotSendGroup),
       ),
     );
   }
@@ -1714,7 +1747,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     )) {
       return trimmedFallback;
     }
-    return '频道';
+    return AppLocalizations.of(context).groupChatChannel;
   }
 
   bool _isReadableChannelTitle(
@@ -1830,16 +1863,17 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final bytes = item.bytes;
     if (bytes == null || bytes.isEmpty) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       final label = switch (item.messageKind) {
-        LocalOutboxMessageKind.image => '图片',
-        LocalOutboxMessageKind.video => '视频',
-        _ => '文件',
+        LocalOutboxMessageKind.image => l10n.groupChatImage,
+        LocalOutboxMessageKind.video => l10n.groupChatVideo,
+        _ => l10n.groupChatFile,
       };
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text('本地原$label已丢失，请重新选择$label'),
+            content: Text(l10n.groupChatLocalMediaMissing(label)),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -1941,8 +1975,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (e) {
       await ref.read(localOutboxProvider.notifier).failItem(item.id);
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('发送失败：$e')),
+        SnackBar(content: Text(l10n.groupChatSendFailed('$e'))),
       );
     } finally {
       _retryingOutboxIds.remove(item.id);
@@ -1977,10 +2012,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'copy':
         await Clipboard.setData(ClipboardData(text: event.body));
         if (mounted) {
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('已复制'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content: Text(l10n.groupChatCopied),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -2031,12 +2067,19 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     switch (action) {
       case 'copy':
         await Clipboard.setData(
-            ClipboardData(text: _groupOutboxCopyText(item)));
+          ClipboardData(
+            text: _groupOutboxCopyText(
+              item,
+              AppLocalizations.of(context),
+            ),
+          ),
+        );
         if (mounted) {
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('已复制'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content: Text(l10n.groupChatCopied),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -2044,20 +2087,22 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'delete':
         await ref.read(localOutboxProvider.notifier).completeItem(item.id);
         if (mounted) {
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('已删除'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content: Text(l10n.groupChatDeleted),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
         break;
       case 'fav':
         if (mounted) {
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('发送中的消息暂不能收藏'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content: Text(l10n.groupChatCannotFavoriteSending),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -2067,10 +2112,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       case 'quote':
       case 'recall':
         if (mounted) {
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('消息发送完成后可使用该操作'),
-              duration: Duration(seconds: 1),
+            SnackBar(
+              content: Text(l10n.groupChatActionAvailableAfterSent),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -2080,36 +2126,38 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
 
   Future<void> _recallEvent(Event event) async {
     if (!event.canRedact) {
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('没有权限撤回该消息')),
+        SnackBar(content: Text(l10n.groupChatNoRecallPermission)),
       );
       return;
     }
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         final t = dialogContext.tk;
         return AlertDialog(
           title: Text(
-            '撤回消息',
+            l10n.groupChatRecallTitle,
             style: AppTheme.sans(size: 17, weight: FontWeight.w600),
           ),
           content: Text(
-            '撤回后，群成员也将看不到这条消息。',
+            l10n.groupChatRecallBody,
             style: AppTheme.sans(size: 15, color: t.textMute),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: Text(
-                '取消',
+                l10n.groupChatCancel,
                 style: AppTheme.sans(size: 15, color: t.textMute),
               ),
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text(
-                '撤回',
+                l10n.groupChatRecall,
                 style: AppTheme.sans(
                   size: 15,
                   weight: FontWeight.w600,
@@ -2123,7 +2171,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     );
     if (ok != true || !mounted) return;
     try {
-      await event.redactEvent(reason: '撤回消息');
+      await event.redactEvent(reason: l10n.groupChatRecallTitle);
       try {
         await ref.read(matrixClientProvider).oneShotSync();
       } on Object catch (e) {
@@ -2131,13 +2179,13 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('消息已撤回')),
+        SnackBar(content: Text(l10n.groupChatRecalled)),
       );
     } on Object catch (err) {
       debugPrint('recall group message failed: $err');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('撤回消息失败：$err')),
+        SnackBar(content: Text(l10n.groupChatRecallFailed('$err'))),
       );
     }
   }
@@ -2162,8 +2210,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('delete group message for me failed: $err');
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('删除消息失败：$err')),
+        SnackBar(content: Text(l10n.groupChatDeleteFailed('$err'))),
       );
     }
   }
@@ -2196,8 +2245,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     } on Object catch (err) {
       debugPrint('delete selected group messages for me failed: $err');
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('删除消息失败：$err')),
+        SnackBar(content: Text(l10n.groupChatDeleteFailed('$err'))),
       );
     }
   }
@@ -2217,11 +2267,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final eventId = event.eventId.trim();
     if (eventId.isEmpty || _favoritingEventIds.contains(eventId)) return;
     if (mounted) {
+      final l10n = AppLocalizations.of(context);
       setState(() => _favoritingEventIds.add(eventId));
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('正在收藏到我的节点…'),
-          duration: Duration(milliseconds: 900),
+        SnackBar(
+          content: Text(l10n.groupChatFavoriting),
+          duration: const Duration(milliseconds: 900),
         ),
       );
     }
@@ -2229,17 +2280,19 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       final draft = await _favoriteDraftForEvent(event);
       await ref.read(asClientProvider).favoriteMessage(draft);
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已收藏'),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(l10n.groupChatFavorited),
+          duration: const Duration(seconds: 1),
         ),
       );
     } on Object catch (err) {
       debugPrint('favorite group message failed: $err');
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('收藏失败：$err')),
+          SnackBar(content: Text(l10n.groupChatFavoriteFailed('$err'))),
         );
       }
     } finally {
@@ -2345,13 +2398,15 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         _multiSelect = false;
         _selected.clear();
       });
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已转发聊天记录')),
+        SnackBar(content: Text(l10n.groupChatForwardedRecord)),
       );
     } on Object catch (err) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('转发失败：$err')),
+        SnackBar(content: Text(l10n.groupChatForwardFailed('$err'))),
       );
     }
   }
@@ -2373,6 +2428,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final room = _room;
     if (room == null) {
       final t = context.tk;
+      final l10n = AppLocalizations.of(context);
       final syncCache = ref.watch(asSyncCacheProvider);
       final channel = _currentChannelSummary(syncCache);
       final group = channel == null ? _groupSummary(syncCache) : null;
@@ -2385,7 +2441,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       final recovering = canRecover &&
           !_roomRecovery.failed &&
           (recoveryPending || _roomRecovery.inFlight);
-      final fallbackTitle = isChannel ? '频道' : '群聊';
+      final fallbackTitle =
+          isChannel ? l10n.groupChatChannel : l10n.groupChatGroup;
       final title = summary?.name.trim().isNotEmpty == true
           ? summary!.name.trim()
           : fallbackTitle;
@@ -2397,7 +2454,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: ChatCapsuleHeader(
-                  title: knownConversation ? title : '$fallbackTitle不存在',
+                  title: knownConversation
+                      ? title
+                      : l10n.groupChatMissingTitle(fallbackTitle),
                   onBack: () => unawaited(_popGroupChatOrHome(context)),
                   actions: const [],
                 ),
@@ -2420,17 +2479,17 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                       ],
                       Text(
                         recovering
-                            ? '正在恢复$fallbackTitle...'
+                            ? l10n.groupChatRecovering(fallbackTitle)
                             : knownConversation
-                                ? '$fallbackTitle同步超时，请检查网络后重试'
-                                : '这个$fallbackTitle暂时无法打开',
+                                ? l10n.groupChatSyncTimeout(fallbackTitle)
+                                : l10n.groupChatCannotOpen(fallbackTitle),
                         style: AppTheme.sans(size: 15, color: t.textMute),
                       ),
                       if (!recovering) ...[
                         const SizedBox(height: 12),
                         TextButton(
                           onPressed: _retryMissingGroupRoomRecovery,
-                          child: const Text('重试'),
+                          child: Text(l10n.commonRetry),
                         ),
                       ],
                     ],
@@ -2604,6 +2663,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       reserveBottomOverlay: false,
     ).add(const EdgeInsets.symmetric(vertical: 12));
     final voiceCallController = ref.watch(voiceCallControllerProvider);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       body: ChatGlassBackground(
@@ -2630,8 +2690,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     return ChatCapsuleHeader(
                       title: channelTitle,
                       subtitle: activeGroupCall == null
-                          ? '$headerMemberCount 名成员'
-                          : '正在群通话',
+                          ? l10n.groupChatMemberCount(headerMemberCount)
+                          : l10n.groupChatCalling,
                       onTitleTap: activeGroupCall == null
                           ? null
                           : () => context.push(
@@ -2649,7 +2709,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                         if (!isChannelConversation)
                           ChatCapsuleAction(
                             icon: Symbols.call,
-                            tooltip: '语音通话',
+                            tooltip: l10n.groupChatVoiceCall,
                             color: t.accent,
                             onTap: canStartCall
                                 ? () => context.push(
@@ -2663,7 +2723,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                           ),
                         ChatCapsuleAction(
                           icon: Symbols.more_vert,
-                          tooltip: '详情',
+                          tooltip: l10n.groupChatDetails,
                           color: t.accent,
                           onTap: () => context.push(_infoRoute),
                         ),
@@ -2693,7 +2753,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                               height: emptyHeight,
                               child: Center(
                                 child: Text(
-                                  '还没有消息',
+                                  l10n.groupChatEmpty,
                                   style: AppTheme.sans(
                                     size: 13,
                                     color: t.textMute,
@@ -3001,7 +3061,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                         : () => unawaited(
                                               _openImageEvent(
                                                 e,
-                                                '${isMe ? '我' : senderName} · $time',
+                                                '${isMe ? l10n.groupChatMe : senderName} · $time',
                                               ),
                                             ),
                                     onLongPressAt: (position) =>
@@ -3545,6 +3605,7 @@ class _GroupMentionMemberSheetState extends State<_GroupMentionMemberSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     final keyword = _keyword.trim().toLowerCase();
     final members = keyword.isEmpty
         ? widget.members
@@ -3583,7 +3644,7 @@ class _GroupMentionMemberSheetState extends State<_GroupMentionMemberSheet> {
                       child: Row(
                         children: [
                           Text(
-                            '选择提醒的人',
+                            l10n.groupChatMentionTitle,
                             style: AppTheme.sans(
                               size: 17,
                               weight: FontWeight.w700,
@@ -3592,7 +3653,7 @@ class _GroupMentionMemberSheetState extends State<_GroupMentionMemberSheet> {
                           ),
                           const Spacer(),
                           IconButton(
-                            tooltip: '关闭',
+                            tooltip: l10n.groupChatClose,
                             onPressed: () => Navigator.of(context).pop(),
                             icon: Icon(Symbols.close, color: t.textMute),
                           ),
@@ -3607,7 +3668,7 @@ class _GroupMentionMemberSheetState extends State<_GroupMentionMemberSheet> {
                         onChanged: (value) => setState(() => _keyword = value),
                         style: AppTheme.sans(size: 15, color: t.text),
                         decoration: InputDecoration(
-                          hintText: '搜索群成员',
+                          hintText: l10n.groupChatMentionSearchHint,
                           prefixIcon: Icon(Symbols.search, color: t.textMute),
                           isDense: true,
                           filled: true,
@@ -3625,7 +3686,9 @@ class _GroupMentionMemberSheetState extends State<_GroupMentionMemberSheet> {
                               child: Padding(
                                 padding: const EdgeInsets.all(28),
                                 child: Text(
-                                  widget.members.isEmpty ? '暂无可提醒成员' : '未找到成员',
+                                  widget.members.isEmpty
+                                      ? l10n.groupChatNoMentionMembers
+                                      : l10n.groupChatNoMembersFound,
                                   style: AppTheme.sans(
                                     size: 15,
                                     color: t.textMute,
@@ -4204,9 +4267,12 @@ class _GroupMessageSelectCheckmark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     return Semantics(
       button: true,
-      label: selected ? '取消选择消息' : '选择消息',
+      label: selected
+          ? l10n.groupChatCancelSelectMessage
+          : l10n.groupChatSelectMessage,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -4269,15 +4335,18 @@ bool _isGroupVoiceOutboxItem(LocalOutboxItem item) {
       item.mimeType.toLowerCase().startsWith('audio/');
 }
 
-String _groupOutboxCopyText(LocalOutboxItem item) {
+String _groupOutboxCopyText(
+  LocalOutboxItem item,
+  AppLocalizations l10n,
+) {
   final text = item.text.trim();
   if (text.isNotEmpty) return text;
   final filename = item.filename.trim();
   if (filename.isNotEmpty) return filename;
   return switch (item.messageKind) {
-    LocalOutboxMessageKind.image => '图片',
-    LocalOutboxMessageKind.video => '视频',
-    LocalOutboxMessageKind.file => '文件',
+    LocalOutboxMessageKind.image => l10n.groupChatImage,
+    LocalOutboxMessageKind.video => l10n.groupChatVideo,
+    LocalOutboxMessageKind.file => l10n.groupChatFile,
     LocalOutboxMessageKind.text => '',
   };
 }
@@ -4726,7 +4795,10 @@ class _GroupPendingTextBubble extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          const _MemberAvatar(seed: 'me', name: '我'),
+          _MemberAvatar(
+            seed: 'me',
+            name: AppLocalizations.of(context).groupChatMe,
+          ),
         ],
       ),
     );
@@ -4747,6 +4819,7 @@ class _GroupQuotedMessageBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     final senderColor = isMe ? t.onAccent.withValues(alpha: 0.88) : t.accent;
     final bodyColor = isMe ? t.onAccent.withValues(alpha: 0.78) : t.textMute;
     final block = Container(
@@ -4775,7 +4848,7 @@ class _GroupQuotedMessageBlock extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            quote.text.isEmpty ? '消息' : quote.text,
+            quote.text.isEmpty ? l10n.groupChatMessageFallback : quote.text,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppTheme.sans(
@@ -4841,15 +4914,20 @@ String? _groupReplyEventIdFromContent(Map<String, dynamic> content) {
   return null;
 }
 
-const _missingGroupQuotedMessagePreview = _GroupQuotedMessagePreview(
-  sender: '引用消息',
-  text: '原消息暂不可见',
-);
+_GroupQuotedMessagePreview _missingGroupQuotedMessagePreview(
+  AppLocalizations l10n,
+) {
+  return _GroupQuotedMessagePreview(
+    sender: l10n.groupChatQuotedMessage,
+    text: l10n.groupChatOriginalMessageUnavailable,
+  );
+}
 
 _GroupQuotedMessagePreview? _groupReplyPreviewFromMatrixFallbackBody(
   String body,
+  AppLocalizations l10n,
 ) {
-  final parsed = _parseMatrixReplyFallbackBody(body);
+  final parsed = _parseMatrixReplyFallbackBody(body, l10n);
   if (parsed == null) return null;
   return _GroupQuotedMessagePreview(sender: parsed.sender, text: parsed.text);
 }
@@ -4861,7 +4939,10 @@ class _ParsedMatrixReplyFallback {
   final String text;
 }
 
-_ParsedMatrixReplyFallback? _parseMatrixReplyFallbackBody(String body) {
+_ParsedMatrixReplyFallback? _parseMatrixReplyFallbackBody(
+  String body,
+  AppLocalizations l10n,
+) {
   final lines = body.split('\n');
   if (lines.isEmpty || !lines.first.startsWith('> ')) return null;
 
@@ -4877,7 +4958,7 @@ _ParsedMatrixReplyFallback? _parseMatrixReplyFallbackBody(String body) {
     return null;
   }
 
-  var sender = '引用消息';
+  var sender = l10n.groupChatQuotedMessage;
   final textParts = <String>[];
   for (var i = 0; i < quotedLines.length; i++) {
     var line = quotedLines[i].trim();
@@ -5201,7 +5282,10 @@ class _GroupPendingMediaBubble extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          const _MemberAvatar(seed: 'me', name: '我'),
+          _MemberAvatar(
+            seed: 'me',
+            name: AppLocalizations.of(context).groupChatMe,
+          ),
         ],
       ),
     );
@@ -5289,6 +5373,7 @@ class _GroupFileOutboxStatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     if (status == LocalOutboxItemStatus.sending) {
       return SizedBox(
         width: 20,
@@ -5298,7 +5383,7 @@ class _GroupFileOutboxStatusIcon extends StatelessWidget {
     }
     return Semantics(
       button: true,
-      label: '重新发送文件',
+      label: l10n.groupChatRetryFile,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onRetry,
@@ -5325,6 +5410,7 @@ class _GroupInlineOutboxStatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     if (status == LocalOutboxItemStatus.sending) {
       return SizedBox(
         width: 14,
@@ -5334,7 +5420,7 @@ class _GroupInlineOutboxStatusIcon extends StatelessWidget {
     }
     return Semantics(
       button: true,
-      label: '重新发送消息',
+      label: l10n.groupChatRetryMessage,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onRetry,
@@ -5363,6 +5449,7 @@ class _GroupFileDownloadStatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     if (downloading) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -5377,7 +5464,7 @@ class _GroupFileDownloadStatusIcon extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Text(
-            '下载中',
+            l10n.groupChatDownloading,
             style: AppTheme.sans(
               size: 11,
               color: t.accent,
@@ -5389,7 +5476,7 @@ class _GroupFileDownloadStatusIcon extends StatelessWidget {
     }
     if (downloaded) {
       return Text(
-        '已下载',
+        l10n.groupChatDownloaded,
         style: AppTheme.sans(
           size: 11,
           color: t.accent,
@@ -5399,7 +5486,7 @@ class _GroupFileDownloadStatusIcon extends StatelessWidget {
     }
     return Semantics(
       button: true,
-      label: '下载文件',
+      label: l10n.groupChatDownloadFile,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onDownload,
@@ -5561,6 +5648,7 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     const dark = Color(0xFF4A4A4A);
     const divider = Color(0x17FFFFFF);
     const itemW = 68.6;
@@ -5605,41 +5693,41 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (canCopy)
-                            const _GroupMsgCtxMenuItem(
+                            _GroupMsgCtxMenuItem(
                               width: itemW,
                               icon: Symbols.content_copy,
-                              label: '复制',
+                              label: l10n.groupChatCopy,
                               value: 'copy',
                             ),
-                          const _GroupMsgCtxMenuItem(
+                          _GroupMsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.forward,
-                            label: '转发',
+                            label: l10n.groupChatForward,
                             value: 'forward',
                           ),
-                          const _GroupMsgCtxMenuItem(
+                          _GroupMsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.bookmark,
-                            label: '收藏',
+                            label: l10n.groupChatFavorite,
                             value: 'fav',
                           ),
-                          const _GroupMsgCtxMenuItem(
+                          _GroupMsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.delete,
-                            label: '删除',
+                            label: l10n.groupChatDelete,
                             value: 'delete',
                           ),
-                          const _GroupMsgCtxMenuItem(
+                          _GroupMsgCtxMenuItem(
                             width: itemW,
                             icon: Symbols.format_list_bulleted,
-                            label: '多选',
+                            label: l10n.groupChatMultiSelect,
                             value: 'multi',
                           ),
                         ],
                       ),
                     ),
                     if (canQuote)
-                      const Positioned(
+                      Positioned(
                         left: 1,
                         top: 87,
                         width: 69,
@@ -5647,12 +5735,12 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
                         child: _GroupMsgCtxMenuItem(
                           width: 69,
                           icon: Symbols.format_quote_rounded,
-                          label: '引用',
+                          label: l10n.groupChatQuote,
                           value: 'quote',
                         ),
                       ),
                     if (canRecall)
-                      const Positioned(
+                      Positioned(
                         left: 70,
                         top: 87,
                         width: 69,
@@ -5660,7 +5748,7 @@ class _GroupMsgCtxMenuCard extends StatelessWidget {
                         child: _GroupMsgCtxMenuItem(
                           width: 69,
                           icon: Symbols.undo,
-                          label: '撤回',
+                          label: l10n.groupChatRecall,
                           value: 'recall',
                         ),
                       ),
@@ -5819,6 +5907,7 @@ class _GroupRemovedComposerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = AppLocalizations.of(context);
     return Container(
       height: 56,
       width: double.infinity,
@@ -5831,7 +5920,7 @@ class _GroupRemovedComposerBar extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              '无法在已退出的群聊中发送消息',
+              l10n.groupChatRemovedCannotSend,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTheme.sans(size: 15, color: t.textMute),

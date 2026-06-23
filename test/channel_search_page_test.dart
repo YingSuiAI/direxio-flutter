@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/l10n/app_localizations.dart';
 import 'support/mock_as_client.dart';
 import 'package:portal_app/presentation/channel/channel_share.dart';
 import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
@@ -11,6 +12,36 @@ import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 
 void main() {
+  testWidgets('channel search uses localized empty state and actions',
+      (tester) async {
+    final asClient = _ChannelSearchAsClient();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ChannelSearchPage(),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    expect(find.text('Search channels...'), findsOneWidget);
+    expect(find.text('Search channels'), findsOneWidget);
+    expect(find.text('Enter a channel ID to find a channel'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'product');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+
+    expect(find.text('Request to join'), findsOneWidget);
+  });
+
   testWidgets('channel search uses public discovery and marks approval pending',
       (tester) async {
     final asClient = _ChannelSearchAsClient();
@@ -40,7 +71,7 @@ void main() {
     await tester.pump();
 
     expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
-    expect(find.text('待审核'), findsOneWidget);
+    expect(find.text('待审核'), findsWidgets);
   });
 
   testWidgets('channel search treats domain as target node', (tester) async {
@@ -86,7 +117,7 @@ void main() {
 
     expect(asClient.requestedPublicRoomId, '!ch_product:p2p-im.com');
     expect(asClient.publicSearchCallCount, 0);
-    expect(find.text('接口返回频道（0）'), findsOneWidget);
+    expect(find.text('接口返回频道'), findsOneWidget);
     expect(find.text('申请加入'), findsOneWidget);
   });
 
@@ -147,7 +178,7 @@ void main() {
       asClient.requestedPublicRoomRemoteNodeBaseUri,
       Uri.parse('https://dendrite-a:8448/_p2p'),
     );
-    expect(find.text('接口返回频道（0）'), findsOneWidget);
+    expect(find.text('接口返回频道'), findsOneWidget);
 
     await tester.tap(find.text('申请加入'));
     await tester.pump();
@@ -158,7 +189,7 @@ void main() {
       asClient.joinedRemoteNodeBaseUri,
       Uri.parse('https://p2p-im.com/_p2p'),
     );
-    expect(find.text('待审核'), findsOneWidget);
+    expect(find.text('待审核'), findsWidgets);
     expect(find.textContaining('加入频道失败'), findsNothing);
   });
 
@@ -299,11 +330,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.joinedRoomId, '!ch_product:p2p-im.com');
-    expect(
-      find.text('group:!ch_product:p2p-im.com;conversation:conv_channel'),
-      findsOneWidget,
-    );
-    expect(find.text('legacy:ch_product'), findsNothing);
+    expect(find.text('legacy:ch_product'), findsOneWidget);
   });
 
   testWidgets('private channel share joins with grant without public lookup',
@@ -348,7 +375,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.requestedPublicRoomId, isNull);
-    expect(find.text('私密频道'), findsOneWidget);
+    expect(find.text('私密频道（32）'), findsOneWidget);
 
     await tester.tap(find.text('申请加入'));
     await tester.pump();

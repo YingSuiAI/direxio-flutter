@@ -300,6 +300,8 @@
   "channelMissingSubtitle": "This channel may be private, deleted, or temporarily unreachable.",
   "channelNoPublicContentTitle": "No public content yet",
   "channelNoPublicContentSubtitle": "Join the channel to see future posts.",
+  "channelEmptyTitle": "No channels yet",
+  "channelEmptySubtitle": "Channels you join or create will appear here.",
   "channelJoinFailed": "Failed to join channel: {error}",
   "@channelJoinFailed": {
     "placeholders": {

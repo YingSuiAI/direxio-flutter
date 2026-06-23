@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import 'chat_message_cards.dart';
 
 const redPacketCustomType = 923;
 const mineRedPacketCustomType = 932;
@@ -174,7 +175,7 @@ class RedPacketMessageCard extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: chatMessageBubbleRadius,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.08),
@@ -238,8 +239,8 @@ class RedPacketMessageCard extends StatelessWidget {
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(12),
+                  borderRadius: BorderRadius.vertical(
+                    bottom: chatMessageBubbleRadius.bottomLeft,
                   ),
                 ),
                 child: Padding(

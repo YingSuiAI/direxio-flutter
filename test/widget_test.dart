@@ -7881,6 +7881,53 @@ void main() {
     expect(find.text('Alice'), findsOneWidget);
   });
 
+  testWidgets('new friends page labels rejected friend notices as rejected',
+      (tester) async {
+    final client = Client('DirexioRequestsRejectedFriendNoticeTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 16),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending(
+        friendRequests: [
+          AsSyncPendingItem(
+            id: '!rejected-notice:p2p-im.com',
+            title: 'Alice',
+            createdAt: null,
+            remark: '已拒绝添加好友',
+          ),
+        ],
+        groupInvites: [],
+        channelNotices: [],
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('已拒绝添加好友'), findsOneWidget);
+    expect(find.text('已拒绝'), findsOneWidget);
+    expect(find.text('查看'), findsNothing);
+  });
+
   testWidgets('new friends page hides AS pending group invites after sync',
       (tester) async {
     final client = Client('DirexioRequestsLiveGroupInviteTest')

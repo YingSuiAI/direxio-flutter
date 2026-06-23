@@ -1322,11 +1322,15 @@ class _ChannelEmptyArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    return Center(
       child: _ChannelEmpty(
         icon: Symbols.campaign,
-        title: '还没有频道',
-        subtitle: '加入或创建频道后会显示在这里',
+        title: l10n?.channelEmptyTitle ?? '还没有频道',
+        subtitle: l10n?.channelEmptySubtitle ?? '加入或创建频道后会显示在这里',
       ),
     );
   }

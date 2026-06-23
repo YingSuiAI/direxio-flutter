@@ -718,6 +718,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Join the channel to see future posts.';
 
   @override
+  String get channelEmptyTitle => 'No channels yet';
+
+  @override
+  String get channelEmptySubtitle =>
+      'Channels you join or create will appear here.';
+
+  @override
   String channelJoinFailed(String error) {
     return 'Failed to join channel: $error';
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
+import 'package:portal_app/presentation/chat/chat_message_cards.dart';
 import 'package:portal_app/presentation/chat/red_packet_message.dart';
 
 void main() {
@@ -55,5 +56,37 @@ void main() {
     expect(find.text('扫雷红包详情'), findsOneWidget);
     expect(find.text('mine-001'), findsOneWidget);
     expect(find.text('10 USDT'), findsOneWidget);
+  });
+
+  testWidgets('red packet message card uses shared message corner radius',
+      (tester) async {
+    const payload = RedPacketPayload(
+      packetNo: 'mine-001',
+      isMine: true,
+      isGroup: true,
+      title: '扫雷红包',
+      blessing: '恭喜发财',
+      amount: '10',
+      currency: 'USDT',
+      raw: {},
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: const Scaffold(
+          body: RedPacketMessageCard(payload: payload, isMe: true),
+        ),
+      ),
+    );
+
+    final outerCard = tester
+        .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+        .map((box) => box.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere(
+          (decoration) => decoration.borderRadius == chatMessageBubbleRadius,
+        );
+    expect(outerCard.borderRadius, chatMessageBubbleRadius);
   });
 }

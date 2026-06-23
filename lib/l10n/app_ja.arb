@@ -300,6 +300,8 @@
   "channelMissingSubtitle": "このチャンネルは非公開、削除済み、または一時的に到達できない可能性があります。",
   "channelNoPublicContentTitle": "公開コンテンツはまだありません",
   "channelNoPublicContentSubtitle": "チャンネルに参加すると今後の投稿を確認できます。",
+  "channelEmptyTitle": "チャンネルはまだありません",
+  "channelEmptySubtitle": "参加または作成したチャンネルがここに表示されます。",
   "channelJoinFailed": "チャンネルへの参加に失敗しました：{error}",
   "@channelJoinFailed": {
     "placeholders": {

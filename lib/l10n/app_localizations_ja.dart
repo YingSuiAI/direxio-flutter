@@ -700,6 +700,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get channelNoPublicContentSubtitle => 'チャンネルに参加すると今後の投稿を確認できます。';
 
   @override
+  String get channelEmptyTitle => 'チャンネルはまだありません';
+
+  @override
+  String get channelEmptySubtitle => '参加または作成したチャンネルがここに表示されます。';
+
+  @override
   String channelJoinFailed(String error) {
     return 'チャンネルへの参加に失敗しました：$error';
   }

@@ -1427,6 +1427,18 @@ abstract class AppLocalizations {
   /// **'加入频道后可以查看后续发布内容'**
   String get channelNoPublicContentSubtitle;
 
+  /// No description provided for @channelEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有频道'**
+  String get channelEmptyTitle;
+
+  /// No description provided for @channelEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入或创建频道后会显示在这里'**
+  String get channelEmptySubtitle;
+
   /// No description provided for @channelJoinFailed.
   ///
   /// In zh, this message translates to:

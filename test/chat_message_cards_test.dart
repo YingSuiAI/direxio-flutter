@@ -7,6 +7,11 @@ import 'package:portal_app/presentation/chat/chat_message_cards.dart';
 import 'package:portal_app/presentation/chat/chat_record_forwarding.dart';
 
 void main() {
+  test('directional chat bubbles use the shared media bubble radius', () {
+    expect(chatDirectionalBubbleRadius(true), chatMessageBubbleRadius);
+    expect(chatDirectionalBubbleRadius(false), chatMessageBubbleRadius);
+  });
+
   testWidgets('chat record preview card matches shared card dimensions',
       (tester) async {
     const payload = ChatRecordPayload(

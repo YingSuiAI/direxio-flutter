@@ -694,6 +694,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelNoPublicContentSubtitle => '加入频道后可以查看后续发布内容';
 
   @override
+  String get channelEmptyTitle => '还没有频道';
+
+  @override
+  String get channelEmptySubtitle => '加入或创建频道后会显示在这里';
+
+  @override
   String channelJoinFailed(String error) {
     return '加入频道失败：$error';
   }

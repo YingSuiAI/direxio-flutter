@@ -1173,6 +1173,7 @@ class _PendingSection extends StatelessWidget {
           onTap: null,
           onAccept: null,
           onReject: null,
+          disabledActionLabel: '已拒绝',
         ),
       );
     }
@@ -1235,6 +1236,7 @@ class _PendingRow extends StatelessWidget {
     required this.onTap,
     required this.onAccept,
     required this.onReject,
+    this.disabledActionLabel,
   });
   final String name;
   final String message;
@@ -1243,6 +1245,7 @@ class _PendingRow extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
+  final String? disabledActionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1255,6 +1258,7 @@ class _PendingRow extends StatelessWidget {
       trailing: _ViewRequestButton(
         enabled: onAccept != null || onReject != null,
         onTap: () => _showRequestActions(context),
+        disabledLabel: disabledActionLabel,
       ),
     );
   }
@@ -1285,9 +1289,14 @@ class _PendingRow extends StatelessWidget {
 }
 
 class _ViewRequestButton extends StatelessWidget {
-  const _ViewRequestButton({required this.enabled, required this.onTap});
+  const _ViewRequestButton({
+    required this.enabled,
+    required this.onTap,
+    this.disabledLabel,
+  });
   final bool enabled;
   final VoidCallback? onTap;
+  final String? disabledLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1301,7 +1310,7 @@ class _ViewRequestButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           child: Text(
-            '查看',
+            enabled ? '查看' : disabledLabel ?? '查看',
             style: AppTheme.sans(
               size: 12,
               color: t.onAccent,

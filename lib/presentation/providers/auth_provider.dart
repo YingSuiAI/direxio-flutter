@@ -555,6 +555,48 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
   }
 
+  void _rememberSessionAgentRoomId(AsPortalSession session, {String? userId}) {
+    final agentRoomId = session.agentRoomId?.trim() ?? '';
+    if (agentRoomId.isEmpty) return;
+    final effectiveUserId = (userId?.trim().isNotEmpty ?? false)
+        ? userId!.trim()
+        : session.userId.trim();
+    ref.read(asSyncCacheProvider.notifier).update((cache) {
+      final current = cache.bootstrap;
+      final nextBootstrap = current == null
+          ? AsSyncBootstrap(
+              syncedAt: DateTime.now().toUtc(),
+              user: AsSyncUser(userId: effectiveUserId),
+              agentRoomId: agentRoomId,
+              rooms: const [],
+              contacts: const [],
+              groups: const [],
+              channels: const [],
+              pending: const AsSyncPending.empty(),
+            )
+          : AsSyncBootstrap(
+              syncedAt: current.syncedAt,
+              user: current.user.userId.trim().isNotEmpty
+                  ? current.user
+                  : AsSyncUser(userId: effectiveUserId),
+              agentRoomId: agentRoomId,
+              rooms: current.rooms,
+              contacts: current.contacts,
+              groups: current.groups,
+              channels: current.channels,
+              pending: current.pending,
+            );
+      return cache.copyWith(
+        bootstrap: nextBootstrap,
+        localContactStatusesByRoomId: cache.localContactStatusesByRoomId,
+        localContactEntriesByRoomId: cache.localContactEntriesByRoomId,
+        localDeletedEventIdsByRoomId: cache.localDeletedEventIdsByRoomId,
+        localReadMarkersByRoomId: cache.localReadMarkersByRoomId,
+        localRoomClearedBeforeTs: cache.localRoomClearedBeforeTs,
+      );
+    });
+  }
+
   Future<void> login(String homeserverUrl, String portalToken) async {
     _sessionExpiredLocally = false;
     await _loginWithPortal(homeserverUrl, portalToken);
@@ -702,6 +744,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       await client.setDisplayName(session.userId, displayName.trim());
     }
     final profileInitialized = _sessionProfileInitialized(session);
+    _rememberSessionAgentRoomId(session, userId: client.userID);
     await _persistSession(
       client,
       checkedHomeserver,
@@ -1473,6 +1516,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         profileInitialized = _sessionProfileInitialized(session);
       }
       await _loadChatClearState();
+      _rememberSessionAgentRoomId(session, userId: client.userID);
       return AuthState(
         isLoggedIn: true,
         userId: client.userID ?? session.userId,
@@ -1692,6 +1736,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           profileInitialized ?? _sessionProfileInitialized(session),
       loginPortalToken: loginPortalToken,
     );
+    _rememberSessionAgentRoomId(session, userId: effectiveUserId);
   }
 
   Future<String> _localMatrixDeviceId(Client client) async {

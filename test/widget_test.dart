@@ -4915,6 +4915,69 @@ void main() {
     expect(find.text('agent route !agent:p2p-im.com'), findsOneWidget);
   });
 
+  testWidgets('contacts Agent tap prefers cached login agent room id',
+      (tester) async {
+    final client = Client('DirexioAgentContactCachedRoomTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addHeroSummaryRoom(
+      client,
+      roomId: '!agent-old:p2p-im.com',
+      peerMxid: '@agent:p2p-im.com',
+      peerName: 'Agent',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 23, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      agentRoomId: '!agent-login:p2p-im.com',
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/chat/:roomId',
+          builder: (_, state) => Text(
+            'agent route ${state.pathParameters['roomId']}',
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('通讯录'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('contacts_agent_entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('agent route !agent-login:p2p-im.com'), findsOneWidget);
+    expect(find.text('agent route !agent-old:p2p-im.com'), findsNothing);
+  });
+
   testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',
       (tester) async {
     final client = Client('DirexioDuplicateDirectRoomHomeListTest')

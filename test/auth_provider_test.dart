@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/matrix_token_refreshing_http_client.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
+import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 
 Map<String, dynamic>? _p2pAction(http.Request request, String action) {
@@ -1036,6 +1037,10 @@ void main() {
     expect(auth?.isLoggedIn, isTrue);
     expect(auth?.portalToken, 'fresh-matrix-token');
     expect(auth?.requiresProfileSetup, isFalse);
+    expect(
+      container.read(asSyncCacheProvider).bootstrap?.agentRoomId,
+      '!agent:example.com',
+    );
     expect(client.accessToken, 'fresh-matrix-token');
     expect(authHeaders['profile.get'], 'Bearer fresh-matrix-token');
     expect(authHeaders['/_matrix/client/v3/sync'], 'Bearer fresh-matrix-token');

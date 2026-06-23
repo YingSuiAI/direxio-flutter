@@ -2344,6 +2344,8 @@ String _resolvedAgentContactRoomId(
   required bool isLoggedIn,
 }) {
   if (!isLoggedIn) return '';
+  final bootstrapRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
+  if (bootstrapRoomId.isNotEmpty) return bootstrapRoomId;
   final agentMxid = portalAgentMxidForClient(client);
   for (final room in client.rooms) {
     if (room.membership == Membership.join &&
@@ -2351,8 +2353,7 @@ String _resolvedAgentContactRoomId(
       return room.id;
     }
   }
-  final bootstrapRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
-  return bootstrapRoomId;
+  return '';
 }
 
 class _ContactListEntry {

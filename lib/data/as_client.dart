@@ -317,6 +317,7 @@ class ContactEntry {
     required this.domain,
     required this.roomId,
     required this.status,
+    this.remark = '',
     this.visibleAfterTs = 0,
     this.deletedEventIds = const [],
     this.operation = const AsOperation(),
@@ -328,6 +329,7 @@ class ContactEntry {
   final String domain;
   final String roomId;
   final String status;
+  final String remark;
   final int visibleAfterTs;
   final List<String> deletedEventIds;
   final AsOperation operation;
@@ -339,6 +341,12 @@ class ContactEntry {
         domain: j['domain'] as String? ?? '',
         roomId: j['room_id'] as String? ?? '',
         status: j['status'] as String? ?? '',
+        remark: _firstString(j, const [
+          'remark',
+          'request_message',
+          'message',
+          'reason',
+        ]),
         visibleAfterTs: j['visible_after_ts'] as int? ?? 0,
         deletedEventIds: _parseStringList(j['deleted_event_ids']),
         operation: AsOperation.fromJson(
@@ -781,6 +789,7 @@ class AsSyncContact {
     this.roomId = '',
     this.domain = '',
     this.status = '',
+    this.remark = '',
     this.visibleAfterTs = 0,
     this.deletedEventIds = const [],
   });
@@ -791,6 +800,7 @@ class AsSyncContact {
   final String roomId;
   final String domain;
   final String status;
+  final String remark;
   final int visibleAfterTs;
   final List<String> deletedEventIds;
 
@@ -802,6 +812,12 @@ class AsSyncContact {
       roomId: json['room_id'] as String? ?? '',
       domain: json['domain'] as String? ?? '',
       status: json['status'] as String? ?? '',
+      remark: _firstString(json, const [
+        'remark',
+        'request_message',
+        'message',
+        'reason',
+      ]),
       visibleAfterTs: json['visible_after_ts'] as int? ?? 0,
       deletedEventIds: _parseStringList(json['deleted_event_ids']),
     );
@@ -815,6 +831,7 @@ class AsSyncContact {
       'room_id': roomId,
       'domain': domain,
       'status': status,
+      if (remark.trim().isNotEmpty) 'remark': remark.trim(),
       'visible_after_ts': visibleAfterTs,
       'deleted_event_ids': deletedEventIds,
     };
@@ -1890,17 +1907,25 @@ class AsSyncPendingItem {
     required this.id,
     required this.title,
     required this.createdAt,
+    this.remark = '',
   });
 
   final String id;
   final String title;
   final DateTime? createdAt;
+  final String remark;
 
   factory AsSyncPendingItem.fromJson(Map<String, dynamic> json) {
     return AsSyncPendingItem(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
       createdAt: _parseDateTime(json['created_at']),
+      remark: _firstString(json, const [
+        'remark',
+        'request_message',
+        'message',
+        'reason',
+      ]),
     );
   }
 
@@ -1909,6 +1934,7 @@ class AsSyncPendingItem {
       'id': id,
       'title': title,
       'created_at': createdAt?.toUtc().toIso8601String(),
+      if (remark.trim().isNotEmpty) 'remark': remark.trim(),
     };
   }
 }
@@ -1999,6 +2025,7 @@ abstract class AsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String remark = '',
   });
 
   /// P2P product API action.

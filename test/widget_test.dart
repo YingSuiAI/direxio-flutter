@@ -760,6 +760,7 @@ class _EmptyAsClient implements AsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String remark = '',
   }) async =>
       ContactEntry(
         peerMxid: mxid,
@@ -767,6 +768,7 @@ class _EmptyAsClient implements AsClient {
         domain: domain,
         roomId: '!contact:example.com',
         status: 'pending_outbound',
+        remark: remark.trim(),
       );
 
   @override
@@ -1539,6 +1541,7 @@ AsSyncBootstrap _pendingFriendRequestBootstrap({
         roomId: '!person-invite:p2p-im.com',
         domain: 'portal.local',
         status: status,
+        remark: '请通过一下',
       ),
     ],
     groups: const [],
@@ -1568,6 +1571,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   String? createdContactMxid;
   String? createdContactDisplayName;
   String? createdContactDomain;
+  String? createdContactRemark;
   AsConversation? createdContactProductConversation;
   int deleteContactCalls = 0;
   String? deletedContactRoomId;
@@ -1620,11 +1624,13 @@ class _TrackingAsClient extends _EmptyAsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String remark = '',
   }) async {
     createContactRequestCalls++;
     createdContactMxid = mxid;
     createdContactDisplayName = displayName;
     createdContactDomain = domain;
+    createdContactRemark = remark;
     final error = createContactRequestError;
     if (error != null) throw error;
     return ContactEntry(
@@ -1633,6 +1639,7 @@ class _TrackingAsClient extends _EmptyAsClient {
       domain: domain,
       roomId: '!new-request:example.com',
       status: 'pending_outbound',
+      remark: remark.trim(),
       productConversation: createdContactProductConversation,
     );
   }
@@ -1927,6 +1934,7 @@ class _PendingInboundAddContactAsClient extends _EmptyAsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String remark = '',
   }) async {
     return ContactEntry(
       peerMxid: mxid,
@@ -1934,6 +1942,7 @@ class _PendingInboundAddContactAsClient extends _EmptyAsClient {
       domain: domain,
       roomId: '!incoming:portal.local',
       status: 'pending_inbound',
+      remark: remark.trim(),
     );
   }
 }
@@ -6822,6 +6831,7 @@ void main() {
 
     expect(find.text('待接受'), findsOneWidget);
     expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('请通过一下'), findsOneWidget);
 
     router.go('/home');
     await tester.pumpAndSettle();
@@ -8127,6 +8137,7 @@ void main() {
 
     expect(asClient.createContactRequestCalls, 1);
     expect(asClient.createdContactMxid, '@alice:portal.local');
+    expect(asClient.createdContactRemark, '我是 Niki');
     expect(find.text('好友请求已发送，等待对方接受。'), findsOneWidget);
     await tester.pumpAndSettle();
     expect(find.text('上一页'), findsOneWidget);

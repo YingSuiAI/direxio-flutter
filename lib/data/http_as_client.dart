@@ -407,11 +407,13 @@ class HttpAsClient implements AsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String remark = '',
   }) async {
     final requestBody = {
       'mxid': mxid.trim(),
       if (displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
       if (domain.trim().isNotEmpty) 'domain': domain.trim(),
+      if (remark.trim().isNotEmpty) 'remark': remark.trim(),
     };
     ApiLogger.info(
       '[P2P product] friend request params '

@@ -113,6 +113,7 @@ class _RelationshipAsClient extends Fake implements AsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String remark = '',
   }) async {
     return ContactEntry(
       peerMxid: mxid,
@@ -120,6 +121,7 @@ class _RelationshipAsClient extends Fake implements AsClient {
       domain: domain,
       roomId: '!pending:p2p-im.com',
       status: 'pending_outbound',
+      remark: remark.trim(),
     );
   }
 }

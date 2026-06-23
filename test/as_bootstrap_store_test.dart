@@ -67,6 +67,7 @@ void main() {
           'domain': 'dendrite-a:8448',
           'room_id': '!request:dendrite-a:8448',
           'status': 'pending_inbound',
+          'remark': '我是 Bob',
         }
       ],
       'groups': [],
@@ -80,6 +81,7 @@ void main() {
 
     expect(bootstrap.contacts.single.userId, '@owner:dendrite-a:8448');
     expect(bootstrap.contacts.single.status, 'pending_inbound');
+    expect(bootstrap.contacts.single.remark, '我是 Bob');
   });
 }
 
@@ -120,6 +122,7 @@ AsSyncBootstrap _bootstrap({
           id: '!request:p2p-im.com',
           title: 'Alice',
           createdAt: null,
+          remark: '请通过一下',
         ),
       ],
       groupInvites: [],

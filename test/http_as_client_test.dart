@@ -651,16 +651,19 @@ void main() {
           'mxid': '@alice:p2p-liyanan.com',
           'display_name': 'Alice',
           'domain': 'p2p-liyanan.com',
+          'remark': '我是 Bob',
         });
-        return http.Response(
-          jsonEncode({
+        return http.Response.bytes(
+          utf8.encode(jsonEncode({
             'peer_mxid': '@alice:p2p-liyanan.com',
             'display_name': 'Alice',
             'domain': 'p2p-liyanan.com',
             'room_id': '!alice:p2p-im.com',
             'status': 'pending_outbound',
-          }),
+            'remark': '我是 Bob',
+          })),
           200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }),
     );
@@ -669,11 +672,13 @@ void main() {
       mxid: '@alice:p2p-liyanan.com',
       displayName: 'Alice',
       domain: 'p2p-liyanan.com',
+      remark: '我是 Bob',
     );
 
     expect(seen.url.path, '/_as/contacts/requests');
     expect(contact.roomId, '!alice:p2p-im.com');
     expect(contact.status, 'pending_outbound');
+    expect(contact.remark, '我是 Bob');
   });
 
   test('acceptContactRequest posts decision identity to AS', () async {

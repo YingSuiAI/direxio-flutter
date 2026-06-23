@@ -1270,7 +1270,10 @@ class _PendingSection extends StatelessWidget {
       rows.add(
         _PendingRow(
           name: name,
-          message: id.isEmpty ? '好友申请通知' : id,
+          message: _pendingNoticeMessage(
+            notice,
+            fallback: id.isEmpty ? '好友申请通知' : id,
+          ),
           seed: id.isEmpty ? name : id,
           imageUrl: null,
           onTap: null,
@@ -1339,10 +1342,22 @@ class _PendingSection extends StatelessWidget {
   }
 }
 
+String _pendingNoticeMessage(
+  AsSyncPendingItem notice, {
+  required String fallback,
+}) {
+  final remark = notice.remark.trim();
+  if (remark.isNotEmpty) return remark;
+  final normalizedFallback = fallback.trim();
+  return normalizedFallback.isEmpty ? '好友申请通知' : normalizedFallback;
+}
+
 String _contactRequestMessage(
   AsSyncContact contact, {
   required String fallback,
 }) {
+  final remark = contact.remark.trim();
+  if (remark.isNotEmpty) return remark;
   final normalizedFallback = fallback.trim();
   return normalizedFallback.isEmpty ? '请求加为好友' : normalizedFallback;
 }

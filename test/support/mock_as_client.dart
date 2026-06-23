@@ -228,6 +228,7 @@ class MockAsClient implements AsClient {
     required String mxid,
     String displayName = '',
     String domain = '',
+    String remark = '',
   }) async {
     await Future.delayed(_latency);
     return ContactEntry(
@@ -236,6 +237,7 @@ class MockAsClient implements AsClient {
       domain: domain,
       roomId: '!mock-contact:portal.local',
       status: 'pending_outbound',
+      remark: remark.trim(),
     );
   }
 

@@ -724,6 +724,203 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelPostMissingSubtitle => '该帖子可能已删除，或尚未同步到本机。';
 
   @override
+  String get meMenuTitle => '菜单';
+
+  @override
+  String get meMyFavorites => '我的收藏';
+
+  @override
+  String get meMyLikes => '我的点赞';
+
+  @override
+  String get meMyComments => '我的评论';
+
+  @override
+  String get meFavoritesTitle => '收藏';
+
+  @override
+  String get meLikesTitle => '赞';
+
+  @override
+  String get meCommentsTitle => '评论';
+
+  @override
+  String get meHelpFeedbackTitle => '帮助与反馈';
+
+  @override
+  String get meHelpFeedbackBody =>
+      '官方邮箱：support@direxio.ai\n\n温馨提示：请在反馈中描述问题发生的页面、操作步骤和设备型号。';
+
+  @override
+  String get meHelpFeedbackOk => '知道了';
+
+  @override
+  String get meUidCopied => '已复制 UID';
+
+  @override
+  String get meFavoriteDetailTitle => '收藏详情';
+
+  @override
+  String get meFavoriteDeleteAction => '删除收藏';
+
+  @override
+  String get meFavoriteRemoveTitle => '取消收藏';
+
+  @override
+  String get meFavoriteDeleteConfirm => '确认删除该收藏吗？';
+
+  @override
+  String get meFavoriteDeleted => '已删除收藏';
+
+  @override
+  String meFavoriteDeleteFailed(String error) {
+    return '删除收藏失败：$error';
+  }
+
+  @override
+  String get meFavoritesLoadFailed => '收藏加载失败';
+
+  @override
+  String get meFavoritesEmptyTitle => '暂无收藏';
+
+  @override
+  String get meFavoritesEmptySubtitle => '长按聊天消息收藏后会显示在这里';
+
+  @override
+  String get meLikesLoadFailed => '点赞加载失败';
+
+  @override
+  String get meLikesEmptyTitle => '暂无点赞';
+
+  @override
+  String get meLikesEmptySubtitle => '你点过赞的频道帖子会显示在这里';
+
+  @override
+  String get meLikedPost => '你赞了这条帖子';
+
+  @override
+  String meReactedWith(String value) {
+    return '你回应了：$value';
+  }
+
+  @override
+  String get meCommentsLoadFailed => '评论加载失败';
+
+  @override
+  String get meCommentsEmptyTitle => '暂无评论';
+
+  @override
+  String get meCommentsEmptySubtitle => '你在频道帖子下发表过的评论会显示在这里';
+
+  @override
+  String get meCommentFallback => '评论';
+
+  @override
+  String meCommentedWith(String body) {
+    return '你评论了：$body';
+  }
+
+  @override
+  String get meChannelPostFallback => '频道帖子';
+
+  @override
+  String get meFavoriteMessageFallback => '收藏消息';
+
+  @override
+  String get meFavoriteUnknownSender => '未知';
+
+  @override
+  String get meFavoriteTypeText => '文字';
+
+  @override
+  String get meFavoriteTypeImage => '图片';
+
+  @override
+  String get meFavoriteTypeVideo => '视频';
+
+  @override
+  String get meFavoriteTypeFile => '文件';
+
+  @override
+  String get meFavoriteTypeChatRecord => '聊天记录';
+
+  @override
+  String get meFavoriteTypeAudio => '语音';
+
+  @override
+  String get meFavoriteTypeLink => '链接';
+
+  @override
+  String get meFavoriteTypeMessage => '消息';
+
+  @override
+  String get meFavoriteFromDirect => '来自私聊';
+
+  @override
+  String meFavoriteFromDirectWithSender(String sender) {
+    return '来自与 $sender 的私聊';
+  }
+
+  @override
+  String get meFavoriteFromGroup => '来自群聊';
+
+  @override
+  String meFavoriteFromGroupWithSender(String sender) {
+    return '来自群聊 · $sender';
+  }
+
+  @override
+  String get meFavoriteFromChannel => '来自频道';
+
+  @override
+  String meFavoriteFromChannelWithSender(String sender) {
+    return '来自频道 · $sender';
+  }
+
+  @override
+  String get meFavoriteFromAgent => '来自 Agent';
+
+  @override
+  String get meFavoriteFromChat => '来自聊天';
+
+  @override
+  String meFavoriteFromChatWithSender(String sender) {
+    return '来自聊天 · $sender';
+  }
+
+  @override
+  String get meFavoriteDirectChatRecord => '私聊聊天记录';
+
+  @override
+  String meFavoriteDirectChatRecordWithName(String name) {
+    return '与 $name 的聊天记录';
+  }
+
+  @override
+  String get meFavoriteGroupChatRecord => '群聊聊天记录';
+
+  @override
+  String meFavoriteGroupChatRecordWithName(String name) {
+    return '群聊「$name」的聊天记录';
+  }
+
+  @override
+  String get meFavoriteChannelChatRecord => '频道聊天记录';
+
+  @override
+  String meFavoriteChannelChatRecordWithName(String name) {
+    return '频道「$name」的聊天记录';
+  }
+
+  @override
+  String get meFavoriteAgentChatRecord => '与 Agent 的聊天记录';
+
+  @override
+  String meFavoriteDetailBody(String title) {
+    return '收藏详情\n$title\n共 1 条消息';
+  }
+
+  @override
   String get commonMe => '我';
 
   @override

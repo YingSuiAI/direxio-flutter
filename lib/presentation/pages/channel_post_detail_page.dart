@@ -144,6 +144,12 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
             originServerTs: _submittedCommentTs ?? 0,
           );
     final commentItems = _withOptimisticComments(_comments, optimisticComment);
+    final visibleCommentCount = detail.commentCount >= commentItems.length
+        ? detail.commentCount
+        : commentItems.length;
+    final visibleDetail = visibleCommentCount == detail.commentCount
+        ? detail
+        : detail.copyWith(commentCount: visibleCommentCount);
     return Scaffold(
       backgroundColor: _detailBgColor(context),
       body: SafeArea(
@@ -156,7 +162,7 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
                 padding: const EdgeInsets.fromLTRB(31, 58, 23, 112),
                 children: [
                   _PostDetailContent(
-                    detail: detail,
+                    detail: visibleDetail,
                     comments: commentItems,
                     bodyExpanded: _bodyExpanded,
                     commentsLoading: _commentsLoading,
@@ -278,13 +284,16 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
     if (body.isEmpty || _sending || !detail.canCreateComment) return;
     setState(() => _sending = true);
     try {
+      _PostComment? visibleComment;
       if (detail.realPost != null) {
-        await ref.read(asClientProvider).createChannelComment(
-              detail.channelId,
-              detail.postId,
-              messageType: 'text',
-              body: body,
-            );
+        final createdComment =
+            await ref.read(asClientProvider).createChannelComment(
+                  detail.channelId,
+                  detail.postId,
+                  messageType: 'text',
+                  body: body,
+                );
+        visibleComment = _commentFromAs(ref, createdComment);
         ref.invalidate(
           channelCommentsProvider(
             ChannelCommentsKey(
@@ -302,11 +311,19 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
       _commentCtrl.clear();
       if (mounted) {
         setState(() {
-          _submittedCommentBody = body;
-          _submittedCommentTimeLabel = _formatTime(
-            DateTime.now().millisecondsSinceEpoch,
-          );
-          _submittedCommentTs = DateTime.now().millisecondsSinceEpoch;
+          _submittedCommentBody = null;
+          _submittedCommentTimeLabel = null;
+          _submittedCommentTs = null;
+          if (visibleComment != null) {
+            final before = _comments.length;
+            _comments = _dedupeComments([visibleComment, ..._comments]);
+            if (_comments.length == before) return;
+          } else {
+            _submittedCommentBody = body;
+            final now = DateTime.now().millisecondsSinceEpoch;
+            _submittedCommentTimeLabel = _formatTime(now);
+            _submittedCommentTs = now;
+          }
           _commentsExpanded = true;
         });
       }
@@ -897,6 +914,27 @@ class _PostDetailData {
   final bool canToggleReaction;
   final List<ChannelPostMediaImage> images;
   final AsChannelPost? realPost;
+
+  _PostDetailData copyWith({
+    int? commentCount,
+  }) {
+    return _PostDetailData(
+      channelId: channelId,
+      channelName: channelName,
+      postId: postId,
+      authorName: authorName,
+      timeLabel: timeLabel,
+      title: title,
+      body: body,
+      reactionCount: reactionCount,
+      reactedByMe: reactedByMe,
+      commentCount: commentCount ?? this.commentCount,
+      canCreateComment: canCreateComment,
+      canToggleReaction: canToggleReaction,
+      images: images,
+      realPost: realPost,
+    );
+  }
 
   String get displayPostId {
     final realPostId = realPost?.postId.trim() ?? '';

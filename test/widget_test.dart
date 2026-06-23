@@ -25,7 +25,6 @@ import 'package:portal_app/data/conversation_summary_store.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/data/matrix_message_search_client.dart';
 import 'package:portal_app/data/matrix_message_visibility_client.dart';
-import 'package:portal_app/presentation/channel/channel_conversation_route_page.dart';
 import 'package:portal_app/presentation/channel/create_channel_sheet.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/call/voice_call_controller.dart';
@@ -64,6 +63,7 @@ import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.da
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
+import 'package:portal_app/presentation/providers/app_locale_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart';
@@ -10541,7 +10541,7 @@ void main() {
     expect(find.text('ch_invited'), findsNothing);
   });
 
-  testWidgets('channel conversation header hides member count', (tester) async {
+  testWidgets('channel conversation header shows member count', (tester) async {
     final client = Client(
       'DirexioChannelMemberCountHeaderTest',
       httpClient: MockClient((request) async {
@@ -10607,7 +10607,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('成员频道'), findsOneWidget);
-    expect(find.text('18 名成员'), findsNothing);
+    expect(find.text('18 名成员'), findsOneWidget);
   });
 
   testWidgets('channel conversation skips call API and limits attachment tools',
@@ -12279,16 +12279,11 @@ void main() {
           builder: (_, __) => const ChannelExplorePage(),
         ),
         GoRoute(
-          path: '/group/:roomId',
-          builder: (_, state) => Text(
-            'group:${state.pathParameters['roomId']};'
-            'conversation:${state.uri.queryParameters['conversation']}',
-          ),
-        ),
-        GoRoute(
           path: '/channel/:channelId/conversation',
           builder: (_, state) => Text(
-            'legacy:${state.pathParameters['channelId']}',
+            'channel:${state.pathParameters['channelId']};'
+            'conversation:${state.uri.queryParameters['conversation']};'
+            'name:${state.uri.queryParameters['name']}',
           ),
         ),
       ],
@@ -12333,53 +12328,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('group:$roomId;conversation:$conversationId'),
+      find.text('channel:ch_chat;conversation:$conversationId;name:产品交流群'),
       findsOneWidget,
     );
-    expect(find.text('legacy:ch_chat'), findsNothing);
   });
 
-  testWidgets(
-      'legacy channel conversation route redirects through ProductCore route',
+  testWidgets('channel conversation route keeps channel context',
       (tester) async {
-    const roomId = '!legacy-channel:p2p-im.com';
-    const conversationId = 'conv_legacy_channel';
-    final bootstrap = AsSyncBootstrap(
-      syncedAt: DateTime.utc(2026, 6, 21, 10),
-      user: const AsSyncUser(userId: '@member:p2p-im.com'),
-      rooms: const [],
-      contacts: const [],
-      groups: const [],
-      channels: [
-        AsSyncRoomSummary(
-          channelId: 'ch_legacy_chat',
-          roomId: roomId,
-          homeDomain: 'p2p-im.com',
-          name: '旧入口频道',
-          avatarUrl: '',
-          unreadCount: 0,
-          lastActivityAt: DateTime.utc(2026, 6, 21, 9),
-          role: asChannelRoleMember,
-          memberStatus: asChannelMemberStatusJoined,
-          channelType: asChannelTypeChat,
-        ),
-      ],
-      pending: const AsSyncPending.empty(),
-    );
     final router = GoRouter(
-      initialLocation: '/channel/ch_legacy_chat/conversation',
+      initialLocation: '/channel/ch_legacy_chat/conversation?name=旧入口频道',
       routes: [
         GoRoute(
-          path: '/group/:roomId',
-          builder: (_, state) => Text(
-            'group:${state.pathParameters['roomId']};'
-            'conversation:${state.uri.queryParameters['conversation']}',
-          ),
-        ),
-        GoRoute(
           path: '/channel/:channelId/conversation',
-          builder: (_, state) => ChannelConversationRoutePage(
-            channelId: state.pathParameters['channelId']!,
+          builder: (_, state) => Text(
+            'channel:${state.pathParameters['channelId']};'
+            'name:${state.uri.queryParameters['name']}',
           ),
         ),
       ],
@@ -12388,26 +12351,6 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          asClientProvider.overrideWithValue(
-            _NeverListChannelsWithConversationsAsClient(
-              const [
-                AsConversation(
-                  conversationId: conversationId,
-                  roomId: roomId,
-                  kind: asConversationKindChannel,
-                  lifecycle: 'active',
-                  title: '旧入口频道',
-                  avatarUrl: '',
-                  capabilities: AsConversationCapabilities(open: true),
-                ),
-              ],
-            ),
-          ),
-          asSyncCacheProvider.overrideWith(
-            (ref) => AsSyncCacheState(bootstrap: bootstrap),
-          ),
-        ],
         child: MaterialApp.router(
           theme: AppTheme.light,
           routerConfig: router,
@@ -12415,17 +12358,15 @@ void main() {
       ),
     );
 
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 20));
-    }
+    await tester.pump();
 
     expect(
-      find.text('group:$roomId;conversation:$conversationId'),
+      find.text('channel:ch_legacy_chat;name:旧入口频道'),
       findsOneWidget,
     );
     expect(
       router.routeInformationProvider.value.uri.toString(),
-      '/group/${Uri.encodeComponent(roomId)}?conversation=$conversationId',
+      '/channel/ch_legacy_chat/conversation?name=%E6%97%A7%E5%85%A5%E5%8F%A3%E9%A2%91%E9%81%93',
     );
   });
 
@@ -13735,6 +13676,12 @@ void main() {
     expect(find.text('赞'), findsOneWidget);
     expect(find.text('评论'), findsOneWidget);
     expect(find.text('帮助与反馈'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Icon && widget.icon == Symbols.settings,
+      ),
+      findsOneWidget,
+    );
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
     await tester.pumpAndSettle();
     expect(find.text('动态'), findsNothing);
@@ -13745,12 +13692,6 @@ void main() {
     expect(find.text('通知设置'), findsNothing);
     expect(find.text('通用'), findsNothing);
     expect(find.text('退出登录'), findsNothing);
-    expect(
-      find.byWidgetPredicate(
-        (widget) => widget is Icon && widget.icon == Symbols.settings,
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('me page does not render removed dynamic feature',
@@ -13856,6 +13797,48 @@ void main() {
     expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('UID https://p2p-im.com'), findsOneWidget);
     expect(find.text('保存到相册'), findsOneWidget);
+  });
+
+  testWidgets('me page language row updates app locale', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({'language': '1'});
+    final client = Client('DirexioMeLocaleTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: Consumer(
+          builder: (context, ref, _) {
+            final localeState = ref.watch(appLocaleProvider);
+            return MaterialApp(
+              theme: AppTheme.light,
+              locale: localeState.locale,
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              home: Scaffold(
+                body: MePage(client: client),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('语言'), findsOneWidget);
+    expect(find.text('简体中文'), findsOneWidget);
+
+    await tester.tap(find.text('语言'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('English').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Language'), findsOneWidget);
+    expect(find.text('English'), findsOneWidget);
+    expect(find.text('语言'), findsNothing);
   });
 
   testWidgets('me page keeps long uid within profile row height',

@@ -729,6 +729,203 @@ class AppLocalizationsJa extends AppLocalizations {
       'この投稿は削除されたか、この端末にまだ同期されていない可能性があります。';
 
   @override
+  String get meMenuTitle => 'メニュー';
+
+  @override
+  String get meMyFavorites => '自分のお気に入り';
+
+  @override
+  String get meMyLikes => '自分のいいね';
+
+  @override
+  String get meMyComments => '自分のコメント';
+
+  @override
+  String get meFavoritesTitle => 'お気に入り';
+
+  @override
+  String get meLikesTitle => 'いいね';
+
+  @override
+  String get meCommentsTitle => 'コメント';
+
+  @override
+  String get meHelpFeedbackTitle => 'ヘルプとフィードバック';
+
+  @override
+  String get meHelpFeedbackBody =>
+      '公式メール：support@direxio.ai\n\nヒント：フィードバックには問題が発生したページ、操作手順、端末モデルを記載してください。';
+
+  @override
+  String get meHelpFeedbackOk => '了解';
+
+  @override
+  String get meUidCopied => 'UID をコピーしました';
+
+  @override
+  String get meFavoriteDetailTitle => 'お気に入り詳細';
+
+  @override
+  String get meFavoriteDeleteAction => 'お気に入りを削除';
+
+  @override
+  String get meFavoriteRemoveTitle => 'お気に入りを解除';
+
+  @override
+  String get meFavoriteDeleteConfirm => 'このお気に入りを削除しますか？';
+
+  @override
+  String get meFavoriteDeleted => 'お気に入りを削除しました';
+
+  @override
+  String meFavoriteDeleteFailed(String error) {
+    return 'お気に入りの削除に失敗しました：$error';
+  }
+
+  @override
+  String get meFavoritesLoadFailed => 'お気に入りの読み込みに失敗しました';
+
+  @override
+  String get meFavoritesEmptyTitle => 'お気に入りはまだありません';
+
+  @override
+  String get meFavoritesEmptySubtitle => 'チャットメッセージを長押しして保存するとここに表示されます';
+
+  @override
+  String get meLikesLoadFailed => 'いいねの読み込みに失敗しました';
+
+  @override
+  String get meLikesEmptyTitle => 'いいねはまだありません';
+
+  @override
+  String get meLikesEmptySubtitle => 'いいねしたチャンネル投稿がここに表示されます';
+
+  @override
+  String get meLikedPost => 'この投稿にいいねしました';
+
+  @override
+  String meReactedWith(String value) {
+    return 'リアクションしました：$value';
+  }
+
+  @override
+  String get meCommentsLoadFailed => 'コメントの読み込みに失敗しました';
+
+  @override
+  String get meCommentsEmptyTitle => 'コメントはまだありません';
+
+  @override
+  String get meCommentsEmptySubtitle => 'チャンネル投稿に書いたコメントがここに表示されます';
+
+  @override
+  String get meCommentFallback => 'コメント';
+
+  @override
+  String meCommentedWith(String body) {
+    return 'コメントしました：$body';
+  }
+
+  @override
+  String get meChannelPostFallback => 'チャンネル投稿';
+
+  @override
+  String get meFavoriteMessageFallback => 'お気に入りメッセージ';
+
+  @override
+  String get meFavoriteUnknownSender => '不明';
+
+  @override
+  String get meFavoriteTypeText => 'テキスト';
+
+  @override
+  String get meFavoriteTypeImage => '画像';
+
+  @override
+  String get meFavoriteTypeVideo => '動画';
+
+  @override
+  String get meFavoriteTypeFile => 'ファイル';
+
+  @override
+  String get meFavoriteTypeChatRecord => 'チャット履歴';
+
+  @override
+  String get meFavoriteTypeAudio => '音声';
+
+  @override
+  String get meFavoriteTypeLink => 'リンク';
+
+  @override
+  String get meFavoriteTypeMessage => 'メッセージ';
+
+  @override
+  String get meFavoriteFromDirect => '個別チャットから';
+
+  @override
+  String meFavoriteFromDirectWithSender(String sender) {
+    return '$sender との個別チャットから';
+  }
+
+  @override
+  String get meFavoriteFromGroup => 'グループチャットから';
+
+  @override
+  String meFavoriteFromGroupWithSender(String sender) {
+    return 'グループチャットから · $sender';
+  }
+
+  @override
+  String get meFavoriteFromChannel => 'チャンネルから';
+
+  @override
+  String meFavoriteFromChannelWithSender(String sender) {
+    return 'チャンネルから · $sender';
+  }
+
+  @override
+  String get meFavoriteFromAgent => 'Agent から';
+
+  @override
+  String get meFavoriteFromChat => 'チャットから';
+
+  @override
+  String meFavoriteFromChatWithSender(String sender) {
+    return 'チャットから · $sender';
+  }
+
+  @override
+  String get meFavoriteDirectChatRecord => '個別チャット履歴';
+
+  @override
+  String meFavoriteDirectChatRecordWithName(String name) {
+    return '$name とのチャット履歴';
+  }
+
+  @override
+  String get meFavoriteGroupChatRecord => 'グループチャット履歴';
+
+  @override
+  String meFavoriteGroupChatRecordWithName(String name) {
+    return 'グループ「$name」のチャット履歴';
+  }
+
+  @override
+  String get meFavoriteChannelChatRecord => 'チャンネルチャット履歴';
+
+  @override
+  String meFavoriteChannelChatRecordWithName(String name) {
+    return 'チャンネル「$name」のチャット履歴';
+  }
+
+  @override
+  String get meFavoriteAgentChatRecord => 'Agent とのチャット履歴';
+
+  @override
+  String meFavoriteDetailBody(String title) {
+    return 'お気に入り詳細\n$title\n1件のメッセージ';
+  }
+
+  @override
   String get commonMe => '自分';
 
   @override

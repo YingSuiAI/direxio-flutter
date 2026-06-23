@@ -348,6 +348,141 @@
   },
   "channelPostMissingTitle": "Post not found",
   "channelPostMissingSubtitle": "This post may have been deleted or has not synced to this device.",
+  "meMenuTitle": "Menu",
+  "meMyFavorites": "My Favorites",
+  "meMyLikes": "My Likes",
+  "meMyComments": "My Comments",
+  "meFavoritesTitle": "Favorites",
+  "meLikesTitle": "Likes",
+  "meCommentsTitle": "Comments",
+  "meHelpFeedbackTitle": "Help & Feedback",
+  "meHelpFeedbackBody": "Official email: support@direxio.ai\n\nTip: please include the page, steps to reproduce, and device model in your feedback.",
+  "meHelpFeedbackOk": "Got it",
+  "meUidCopied": "UID copied",
+  "meFavoriteDetailTitle": "Favorite Details",
+  "meFavoriteDeleteAction": "Delete Favorite",
+  "meFavoriteRemoveTitle": "Remove Favorite",
+  "meFavoriteDeleteConfirm": "Delete this favorite?",
+  "meFavoriteDeleted": "Favorite deleted",
+  "meFavoriteDeleteFailed": "Failed to delete favorite: {error}",
+  "@meFavoriteDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoritesLoadFailed": "Failed to load favorites",
+  "meFavoritesEmptyTitle": "No favorites yet",
+  "meFavoritesEmptySubtitle": "Long-press chat messages to save them here.",
+  "meLikesLoadFailed": "Failed to load likes",
+  "meLikesEmptyTitle": "No likes yet",
+  "meLikesEmptySubtitle": "Channel posts you liked will appear here.",
+  "meLikedPost": "You liked this post",
+  "meReactedWith": "You reacted: {value}",
+  "@meReactedWith": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "meCommentsLoadFailed": "Failed to load comments",
+  "meCommentsEmptyTitle": "No comments yet",
+  "meCommentsEmptySubtitle": "Comments you leave under channel posts will appear here.",
+  "meCommentFallback": "Comment",
+  "meCommentedWith": "You commented: {body}",
+  "@meCommentedWith": {
+    "placeholders": {
+      "body": {
+        "type": "String"
+      }
+    }
+  },
+  "meChannelPostFallback": "Channel post",
+  "meFavoriteMessageFallback": "Favorite message",
+  "meFavoriteUnknownSender": "Unknown",
+  "meFavoriteTypeText": "Text",
+  "meFavoriteTypeImage": "Image",
+  "meFavoriteTypeVideo": "Video",
+  "meFavoriteTypeFile": "File",
+  "meFavoriteTypeChatRecord": "Chat record",
+  "meFavoriteTypeAudio": "Voice",
+  "meFavoriteTypeLink": "Link",
+  "meFavoriteTypeMessage": "Message",
+  "meFavoriteFromDirect": "From direct chat",
+  "meFavoriteFromDirectWithSender": "From direct chat with {sender}",
+  "@meFavoriteFromDirectWithSender": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteFromGroup": "From group chat",
+  "meFavoriteFromGroupWithSender": "From group chat · {sender}",
+  "@meFavoriteFromGroupWithSender": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteFromChannel": "From channel",
+  "meFavoriteFromChannelWithSender": "From channel · {sender}",
+  "@meFavoriteFromChannelWithSender": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteFromAgent": "From Agent",
+  "meFavoriteFromChat": "From chat",
+  "meFavoriteFromChatWithSender": "From chat · {sender}",
+  "@meFavoriteFromChatWithSender": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteDirectChatRecord": "Direct chat record",
+  "meFavoriteDirectChatRecordWithName": "Chat record with {name}",
+  "@meFavoriteDirectChatRecordWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteGroupChatRecord": "Group chat record",
+  "meFavoriteGroupChatRecordWithName": "Group chat record \"{name}\"",
+  "@meFavoriteGroupChatRecordWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteChannelChatRecord": "Channel chat record",
+  "meFavoriteChannelChatRecordWithName": "Channel chat record \"{name}\"",
+  "@meFavoriteChannelChatRecordWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteAgentChatRecord": "Chat record with Agent",
+  "meFavoriteDetailBody": "Favorite details\n{title}\n1 message",
+  "@meFavoriteDetailBody": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "commonMe": "Me",
   "commonJustNow": "Just now"
 }

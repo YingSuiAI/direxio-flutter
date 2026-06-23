@@ -235,7 +235,7 @@ void main() {
           ),
         ],
       ),
-      '/group/!channel%3Ap2p-im.com?conversation=conv_channel',
+      '/channel/ch_product/conversation?conversation=conv_channel&name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
     );
   });
 
@@ -355,7 +355,7 @@ void main() {
 
     expect(
       channelShareJoinedRoute(payload, joined),
-      '/group/!channel%3Ap2p-im.com?conversation=conv_channel',
+      '/channel/ch_product/conversation?conversation=conv_channel&name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
     );
   });
 

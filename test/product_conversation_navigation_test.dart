@@ -39,6 +39,27 @@ void main() {
     expect(route, isNull);
   });
 
+  test('ProductCore channel kind keeps channel conversation route', () {
+    const roomId = '!channel:p2p-im.com';
+    final route = productConversationRoute(
+      const AsConversation(
+        conversationId: 'conv_channel',
+        roomId: roomId,
+        kind: asConversationKindChannel,
+        lifecycle: 'active',
+        title: '频道会话',
+        avatarUrl: '',
+        capabilities: AsConversationCapabilities(open: true),
+      ),
+      channelId: 'ch_product',
+    );
+
+    expect(
+      route,
+      '/channel/ch_product/conversation?conversation=conv_channel&name=%E9%A2%91%E9%81%93%E4%BC%9A%E8%AF%9D',
+    );
+  });
+
   test('ProductCore room lookup can be restricted by kind', () {
     const roomId = '!channel:p2p-im.com';
     const conversation = AsConversation(

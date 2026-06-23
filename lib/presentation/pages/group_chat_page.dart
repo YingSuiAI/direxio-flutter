@@ -2435,6 +2435,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final channelTitle = isChannelConversation
         ? _channelConversationTitle(syncCache, resolvedChannelId, name)
         : name;
+    final channelMemberCount = currentChannel?.memberCount ?? 0;
+    final headerMemberCount = isChannelConversation && channelMemberCount > 0
+        ? channelMemberCount
+        : memberCount;
     final rawTimelineEvents = _timeline?.events ?? const <Event>[];
     final callRecordContextEvents = isChannelConversation
         ? const <Event>[]
@@ -2597,9 +2601,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                     return ChatCapsuleHeader(
                       title: channelTitle,
                       subtitle: activeGroupCall == null
-                          ? isChannelConversation
-                              ? null
-                              : '$memberCount 名成员'
+                          ? '$headerMemberCount 名成员'
                           : '正在群通话',
                       onTitleTap: activeGroupCall == null
                           ? null

@@ -4,13 +4,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
 import '../channel/channel_post_media.dart';
+import '../chat/ordered_chat_image_picker.dart';
 import '../chat/product_media_outbox_flow.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/channel_provider.dart';
@@ -89,23 +89,21 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
     if (remaining <= 0) return;
     setState(() => _imageUploading = true);
     try {
-      final files = await ImagePicker().pickMultiImage(
-        imageQuality: 78,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        requestFullMetadata: false,
+      final selected = await ChatImageAttachmentPicker.platform().pickImages(
+        original: false,
+        limit: remaining,
       );
-      final selected = files.take(remaining).toList(growable: false);
       if (selected.isEmpty) return;
 
       var failedCount = 0;
-      for (final file in selected) {
+      for (final image in selected) {
         try {
-          final bytes = await file.readAsBytes();
+          final bytes = image.bytes;
           if (bytes.isEmpty) continue;
           final name =
-              file.name.trim().isEmpty ? 'channel-post.jpg' : file.name;
-          final mimeType = file.mimeType ?? _imageMimeTypeForName(name);
+              image.name.trim().isEmpty ? 'channel-post.jpg' : image.name;
+          final mimeType =
+              image.mimeType.trim().isEmpty ? 'image/jpeg' : image.mimeType;
           final uploaded = await ref.read(matrixClientProvider).uploadContent(
                 bytes,
                 filename: name,
@@ -389,12 +387,4 @@ class _CreatePostImageGrid extends StatelessWidget {
       },
     );
   }
-}
-
-String _imageMimeTypeForName(String name) {
-  final lower = name.toLowerCase();
-  if (lower.endsWith('.png')) return 'image/png';
-  if (lower.endsWith('.webp')) return 'image/webp';
-  if (lower.endsWith('.gif')) return 'image/gif';
-  return 'image/jpeg';
 }

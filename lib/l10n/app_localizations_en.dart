@@ -745,6 +745,206 @@ class AppLocalizationsEn extends AppLocalizations {
       'This post may have been deleted or has not synced to this device.';
 
   @override
+  String get meMenuTitle => 'Menu';
+
+  @override
+  String get meMyFavorites => 'My Favorites';
+
+  @override
+  String get meMyLikes => 'My Likes';
+
+  @override
+  String get meMyComments => 'My Comments';
+
+  @override
+  String get meFavoritesTitle => 'Favorites';
+
+  @override
+  String get meLikesTitle => 'Likes';
+
+  @override
+  String get meCommentsTitle => 'Comments';
+
+  @override
+  String get meHelpFeedbackTitle => 'Help & Feedback';
+
+  @override
+  String get meHelpFeedbackBody =>
+      'Official email: support@direxio.ai\n\nTip: please include the page, steps to reproduce, and device model in your feedback.';
+
+  @override
+  String get meHelpFeedbackOk => 'Got it';
+
+  @override
+  String get meUidCopied => 'UID copied';
+
+  @override
+  String get meFavoriteDetailTitle => 'Favorite Details';
+
+  @override
+  String get meFavoriteDeleteAction => 'Delete Favorite';
+
+  @override
+  String get meFavoriteRemoveTitle => 'Remove Favorite';
+
+  @override
+  String get meFavoriteDeleteConfirm => 'Delete this favorite?';
+
+  @override
+  String get meFavoriteDeleted => 'Favorite deleted';
+
+  @override
+  String meFavoriteDeleteFailed(String error) {
+    return 'Failed to delete favorite: $error';
+  }
+
+  @override
+  String get meFavoritesLoadFailed => 'Failed to load favorites';
+
+  @override
+  String get meFavoritesEmptyTitle => 'No favorites yet';
+
+  @override
+  String get meFavoritesEmptySubtitle =>
+      'Long-press chat messages to save them here.';
+
+  @override
+  String get meLikesLoadFailed => 'Failed to load likes';
+
+  @override
+  String get meLikesEmptyTitle => 'No likes yet';
+
+  @override
+  String get meLikesEmptySubtitle =>
+      'Channel posts you liked will appear here.';
+
+  @override
+  String get meLikedPost => 'You liked this post';
+
+  @override
+  String meReactedWith(String value) {
+    return 'You reacted: $value';
+  }
+
+  @override
+  String get meCommentsLoadFailed => 'Failed to load comments';
+
+  @override
+  String get meCommentsEmptyTitle => 'No comments yet';
+
+  @override
+  String get meCommentsEmptySubtitle =>
+      'Comments you leave under channel posts will appear here.';
+
+  @override
+  String get meCommentFallback => 'Comment';
+
+  @override
+  String meCommentedWith(String body) {
+    return 'You commented: $body';
+  }
+
+  @override
+  String get meChannelPostFallback => 'Channel post';
+
+  @override
+  String get meFavoriteMessageFallback => 'Favorite message';
+
+  @override
+  String get meFavoriteUnknownSender => 'Unknown';
+
+  @override
+  String get meFavoriteTypeText => 'Text';
+
+  @override
+  String get meFavoriteTypeImage => 'Image';
+
+  @override
+  String get meFavoriteTypeVideo => 'Video';
+
+  @override
+  String get meFavoriteTypeFile => 'File';
+
+  @override
+  String get meFavoriteTypeChatRecord => 'Chat record';
+
+  @override
+  String get meFavoriteTypeAudio => 'Voice';
+
+  @override
+  String get meFavoriteTypeLink => 'Link';
+
+  @override
+  String get meFavoriteTypeMessage => 'Message';
+
+  @override
+  String get meFavoriteFromDirect => 'From direct chat';
+
+  @override
+  String meFavoriteFromDirectWithSender(String sender) {
+    return 'From direct chat with $sender';
+  }
+
+  @override
+  String get meFavoriteFromGroup => 'From group chat';
+
+  @override
+  String meFavoriteFromGroupWithSender(String sender) {
+    return 'From group chat · $sender';
+  }
+
+  @override
+  String get meFavoriteFromChannel => 'From channel';
+
+  @override
+  String meFavoriteFromChannelWithSender(String sender) {
+    return 'From channel · $sender';
+  }
+
+  @override
+  String get meFavoriteFromAgent => 'From Agent';
+
+  @override
+  String get meFavoriteFromChat => 'From chat';
+
+  @override
+  String meFavoriteFromChatWithSender(String sender) {
+    return 'From chat · $sender';
+  }
+
+  @override
+  String get meFavoriteDirectChatRecord => 'Direct chat record';
+
+  @override
+  String meFavoriteDirectChatRecordWithName(String name) {
+    return 'Chat record with $name';
+  }
+
+  @override
+  String get meFavoriteGroupChatRecord => 'Group chat record';
+
+  @override
+  String meFavoriteGroupChatRecordWithName(String name) {
+    return 'Group chat record \"$name\"';
+  }
+
+  @override
+  String get meFavoriteChannelChatRecord => 'Channel chat record';
+
+  @override
+  String meFavoriteChannelChatRecordWithName(String name) {
+    return 'Channel chat record \"$name\"';
+  }
+
+  @override
+  String get meFavoriteAgentChatRecord => 'Chat record with Agent';
+
+  @override
+  String meFavoriteDetailBody(String title) {
+    return 'Favorite details\n$title\n1 message';
+  }
+
+  @override
   String get commonMe => 'Me';
 
   @override

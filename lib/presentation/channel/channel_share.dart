@@ -103,6 +103,8 @@ String channelShareOpenRoute(
         roomId,
         kinds: const {asConversationKindChannel},
       ),
+      channelId:
+          payload.channelId.trim().isEmpty ? payload.roomId : payload.channelId,
     );
     if (productRoute != null) return productRoute;
   }
@@ -134,7 +136,10 @@ String channelShareJoinedRoute(
   if (_channelShareIsPostType(payload)) {
     return '/channel/$encodedId';
   }
-  final productRoute = productConversationRoute(joined.productConversation);
+  final productRoute = productConversationRoute(
+    joined.productConversation,
+    channelId: channelId.isEmpty ? payload.roomId : channelId,
+  );
   if (productRoute != null) return productRoute;
   return '/channel/$encodedId/detail';
 }

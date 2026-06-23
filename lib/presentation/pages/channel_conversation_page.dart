@@ -87,6 +87,9 @@ class _ChannelConversationPageState
               top: 0,
               child: _ConversationTopBar(
                 title: '#${channel.name}',
+                subtitle: channel.memberCount > 0
+                    ? '${channel.memberCount} 名成员'
+                    : null,
                 onBack: () => context.pop(),
                 onMore: () => context.push(
                   '/channel/${Uri.encodeComponent(channel.id)}/info',
@@ -190,18 +193,21 @@ class _ChannelConversationMessage {
 class _ConversationTopBar extends StatelessWidget {
   const _ConversationTopBar({
     required this.title,
+    required this.subtitle,
     required this.onBack,
     required this.onMore,
   });
 
   final String title;
+  final String? subtitle;
   final VoidCallback onBack;
   final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
+    final subtitleText = subtitle?.trim() ?? '';
     return SizedBox(
-      height: 48,
+      height: 56,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -215,8 +221,9 @@ class _ConversationTopBar extends StatelessWidget {
               onTap: onBack,
             ),
           ),
-          Row(
+          Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 title,
@@ -228,6 +235,17 @@ class _ConversationTopBar extends StatelessWidget {
                   color: context.tk.text,
                 ).copyWith(height: 33 / 20),
               ),
+              if (subtitleText.isNotEmpty)
+                Text(
+                  subtitleText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 12,
+                    weight: FontWeight.w500,
+                    color: context.tk.textMute,
+                  ).copyWith(height: 16 / 12),
+                ),
             ],
           ),
           Positioned(

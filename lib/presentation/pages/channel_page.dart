@@ -721,7 +721,10 @@ void _openJoinedPublicChannel(
     context.go('/channel/$encodedChannelId');
     return;
   }
-  final route = productConversationRoute(joined.productConversation);
+  final route = productConversationRoute(
+    joined.productConversation,
+    channelId: channelId,
+  );
   if (route != null) context.go(route);
 }
 

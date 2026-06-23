@@ -1554,7 +1554,10 @@ bool _channelIsTextType(ChannelInboxItem channel) {
 String? _channelRoute(ChannelInboxItem channel) {
   final channelId = Uri.encodeComponent(channel.id.trim());
   if (!_channelIsTextType(channel)) return '/channel/$channelId';
-  return productConversationRoute(channel.productConversation);
+  return productConversationRoute(
+    channel.productConversation,
+    channelId: channel.id,
+  );
 }
 
 void _showChannelInboxMenu(

@@ -166,7 +166,10 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       context.go('/channel/$encodedChannelId');
       return;
     }
-    final route = productConversationRoute(joined.productConversation);
+    final route = productConversationRoute(
+      joined.productConversation,
+      channelId: channelId,
+    );
     if (route == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('频道正在同步，请稍后重试')),

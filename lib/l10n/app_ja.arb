@@ -348,6 +348,141 @@
   },
   "channelPostMissingTitle": "投稿が見つかりません",
   "channelPostMissingSubtitle": "この投稿は削除されたか、この端末にまだ同期されていない可能性があります。",
+  "meMenuTitle": "メニュー",
+  "meMyFavorites": "自分のお気に入り",
+  "meMyLikes": "自分のいいね",
+  "meMyComments": "自分のコメント",
+  "meFavoritesTitle": "お気に入り",
+  "meLikesTitle": "いいね",
+  "meCommentsTitle": "コメント",
+  "meHelpFeedbackTitle": "ヘルプとフィードバック",
+  "meHelpFeedbackBody": "公式メール：support@direxio.ai\n\nヒント：フィードバックには問題が発生したページ、操作手順、端末モデルを記載してください。",
+  "meHelpFeedbackOk": "了解",
+  "meUidCopied": "UID をコピーしました",
+  "meFavoriteDetailTitle": "お気に入り詳細",
+  "meFavoriteDeleteAction": "お気に入りを削除",
+  "meFavoriteRemoveTitle": "お気に入りを解除",
+  "meFavoriteDeleteConfirm": "このお気に入りを削除しますか？",
+  "meFavoriteDeleted": "お気に入りを削除しました",
+  "meFavoriteDeleteFailed": "お気に入りの削除に失敗しました：{error}",
+  "@meFavoriteDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoritesLoadFailed": "お気に入りの読み込みに失敗しました",
+  "meFavoritesEmptyTitle": "お気に入りはまだありません",
+  "meFavoritesEmptySubtitle": "チャットメッセージを長押しして保存するとここに表示されます",
+  "meLikesLoadFailed": "いいねの読み込みに失敗しました",
+  "meLikesEmptyTitle": "いいねはまだありません",
+  "meLikesEmptySubtitle": "いいねしたチャンネル投稿がここに表示されます",
+  "meLikedPost": "この投稿にいいねしました",
+  "meReactedWith": "リアクションしました：{value}",
+  "@meReactedWith": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "meCommentsLoadFailed": "コメントの読み込みに失敗しました",
+  "meCommentsEmptyTitle": "コメントはまだありません",
+  "meCommentsEmptySubtitle": "チャンネル投稿に書いたコメントがここに表示されます",
+  "meCommentFallback": "コメント",
+  "meCommentedWith": "コメントしました：{body}",
+  "@meCommentedWith": {
+    "placeholders": {
+      "body": {
+        "type": "String"
+      }
+    }
+  },
+  "meChannelPostFallback": "チャンネル投稿",
+  "meFavoriteMessageFallback": "お気に入りメッセージ",
+  "meFavoriteUnknownSender": "不明",
+  "meFavoriteTypeText": "テキスト",
+  "meFavoriteTypeImage": "画像",
+  "meFavoriteTypeVideo": "動画",
+  "meFavoriteTypeFile": "ファイル",
+  "meFavoriteTypeChatRecord": "チャット履歴",
+  "meFavoriteTypeAudio": "音声",
+  "meFavoriteTypeLink": "リンク",
+  "meFavoriteTypeMessage": "メッセージ",
+  "meFavoriteFromDirect": "個別チャットから",
+  "meFavoriteFromDirectWithSender": "{sender} との個別チャットから",
+  "@meFavoriteFromDirectWithSender": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteFromGroup": "グループチャットから",
+  "meFavoriteFromGroupWithSender": "グループチャットから · {sender}",
+  "@meFavoriteFromGroupWithSender": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteFromChannel": "チャンネルから",
+  "meFavoriteFromChannelWithSender": "チャンネルから · {sender}",
+  "@meFavoriteFromChannelWithSender": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteFromAgent": "Agent から",
+  "meFavoriteFromChat": "チャットから",
+  "meFavoriteFromChatWithSender": "チャットから · {sender}",
+  "@meFavoriteFromChatWithSender": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteDirectChatRecord": "個別チャット履歴",
+  "meFavoriteDirectChatRecordWithName": "{name} とのチャット履歴",
+  "@meFavoriteDirectChatRecordWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteGroupChatRecord": "グループチャット履歴",
+  "meFavoriteGroupChatRecordWithName": "グループ「{name}」のチャット履歴",
+  "@meFavoriteGroupChatRecordWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteChannelChatRecord": "チャンネルチャット履歴",
+  "meFavoriteChannelChatRecordWithName": "チャンネル「{name}」のチャット履歴",
+  "@meFavoriteChannelChatRecordWithName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "meFavoriteAgentChatRecord": "Agent とのチャット履歴",
+  "meFavoriteDetailBody": "お気に入り詳細\n{title}\n1件のメッセージ",
+  "@meFavoriteDetailBody": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "commonMe": "自分",
   "commonJustNow": "たった今"
 }

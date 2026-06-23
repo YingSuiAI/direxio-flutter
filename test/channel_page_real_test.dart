@@ -908,7 +908,17 @@ void main() {
 
     expect(asClient.createdCommentBody, '这条更新很有用');
     expect(find.text('这条更新很有用'), findsOneWidget);
-    expect(find.text('我'), findsAtLeastNWidgets(1));
+    expect(find.text('Yanan'), findsAtLeastNWidgets(1));
+    expect(find.text('共1条评论'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '第二条评论立即展示');
+    await tester.tap(find.byIcon(Symbols.send));
+    await tester.pumpAndSettle();
+
+    expect(asClient.createdCommentBody, '第二条评论立即展示');
+    expect(find.text('这条更新很有用'), findsOneWidget);
+    expect(find.text('第二条评论立即展示'), findsOneWidget);
+    expect(find.text('共2条评论'), findsOneWidget);
   });
 
   testWidgets(
@@ -2197,6 +2207,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('#综合讨论'), findsOneWidget);
+    expect(find.text('32 名成员'), findsOneWidget);
     expect(find.text('频道已创建'), findsOneWidget);
     expect(find.text('Alice'), findsAtLeastNWidgets(1));
     expect(find.text('我正在考虑接受它！！'), findsAtLeastNWidgets(1));
@@ -2812,6 +2823,7 @@ class _PostingChannelAsClient extends MockAsClient {
   final List<AsConversation> conversations;
   final List<int> requestedCommentPages = [];
   final List<int> requestedCommentPageSizes = [];
+  final List<AsChannelComment> createdComments = [];
   String? createdBody;
   String? createdCommentBody;
   AsChannel? updatedChannel;
@@ -2850,7 +2862,7 @@ class _PostingChannelAsClient extends MockAsClient {
         media: postMedia,
         originServerTs:
             DateTime.parse('2026-06-06T10:20:00Z').millisecondsSinceEpoch,
-        commentCount: comments.length,
+        commentCount: comments.length + createdComments.length,
         reactionCount: 2,
         reactedByMe: reactedByMe,
       ),
@@ -2899,7 +2911,7 @@ class _PostingChannelAsClient extends MockAsClient {
   }) async {
     requestedCommentPages.add(page);
     requestedCommentPageSizes.add(pageSize);
-    final sorted = comments.toList()
+    final sorted = [...comments, ...createdComments]
       ..sort((a, b) => b.originServerTs.compareTo(a.originServerTs));
     final start = (page <= 1 ? 0 : page - 1) * pageSize;
     return sorted.skip(start).take(pageSize).toList(growable: false);
@@ -2919,11 +2931,12 @@ class _PostingChannelAsClient extends MockAsClient {
     List<Map<String, Object?>> mentions = const [],
   }) async {
     createdCommentBody = body;
-    return AsChannelComment(
-      commentId: 'comment1',
+    final number = createdComments.length + 1;
+    final comment = AsChannelComment(
+      commentId: 'comment$number',
       postId: postId,
       channelId: channelId,
-      eventId: r'$comment1',
+      eventId: '\$comment$number',
       authorId: '@owner:p2p-im.com',
       authorName: 'Yanan',
       messageType: messageType,
@@ -2933,8 +2946,11 @@ class _PostingChannelAsClient extends MockAsClient {
       replyToAuthorId: replyToAuthorId,
       mentions: mentions,
       originServerTs:
-          DateTime.parse('2026-06-06T10:22:00Z').millisecondsSinceEpoch,
+          DateTime.parse('2026-06-06T10:22:00Z').millisecondsSinceEpoch +
+              number,
     );
+    createdComments.add(comment);
+    return comment;
   }
 
   @override

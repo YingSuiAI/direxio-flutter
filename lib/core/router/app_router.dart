@@ -49,11 +49,11 @@ import '../../presentation/pages/channel_info_page.dart';
 import '../../presentation/pages/channel_post_create_page.dart';
 import '../../presentation/pages/channel_post_detail_page.dart';
 import '../../presentation/pages/channel_management_page.dart';
-import '../../presentation/channel/channel_conversation_route_page.dart';
 import '../../presentation/channel/channel_home_tab.dart';
 import '../../presentation/channel/channel_share.dart';
 import '../../presentation/pages/mcp_permission_page.dart';
 import '../../presentation/pages/mcp_policy_edit_page.dart';
+import '../../presentation/providers/as_sync_cache_provider.dart';
 import '../../presentation/providers/auth_provider.dart';
 import '../../data/setup_payload.dart';
 
@@ -65,6 +65,21 @@ const _callAutotestEnabled = bool.fromEnvironment(
 );
 const _callAutotestInitialRouteFileName = 'p2p_initial_route.txt';
 String? _pendingCallAutotestInitialRoute;
+
+String _channelConversationRoomId(Ref ref, String rawChannelId) {
+  final channelId = rawChannelId.trim();
+  if (channelId.isEmpty) return rawChannelId;
+  final channels =
+      ref.read(asSyncCacheProvider).bootstrap?.channels ?? const [];
+  for (final channel in channels) {
+    final roomId = channel.roomId.trim();
+    if (roomId.isEmpty) continue;
+    if (channel.channelId.trim() == channelId || roomId == channelId) {
+      return roomId;
+    }
+  }
+  return channelId;
+}
 
 enum PortalRouteTransition { slide, chatEntranceOnly }
 
@@ -647,9 +662,17 @@ GoRouter appRouter(Ref ref) {
         path: '/channel/:channelId/conversation',
         pageBuilder: (_, state) {
           final channelId = state.pathParameters['channelId']!;
+          final roomId = _channelConversationRoomId(
+            ref,
+            channelId,
+          );
           return _pageForLocation(
-            state.matchedLocation,
-            ChannelConversationRoutePage(channelId: channelId),
+            '/group/${Uri.encodeComponent(roomId)}',
+            GroupChatPage(
+              roomId: roomId,
+              channelId: channelId,
+              channelName: state.uri.queryParameters['name'],
+            ),
           );
         },
       ),

@@ -34,19 +34,50 @@ AsConversation? productDirectConversationForPeer(
   return null;
 }
 
-String? productConversationRoute(AsConversation? conversation) {
+String channelConversationRoute(
+  String channelIdOrRoomId, {
+  String conversationId = '',
+  String name = '',
+}) {
+  final channelId = channelIdOrRoomId.trim();
+  final queryParameters = <String, String>{};
+  final cleanConversationId = conversationId.trim();
+  final cleanName = name.trim();
+  if (cleanConversationId.isNotEmpty) {
+    queryParameters['conversation'] = cleanConversationId;
+  }
+  if (cleanName.isNotEmpty) queryParameters['name'] = cleanName;
+  final query = queryParameters.isEmpty
+      ? ''
+      : '?${Uri(queryParameters: queryParameters).query}';
+  return '/channel/${Uri.encodeComponent(channelId)}/conversation$query';
+}
+
+String? productConversationRoute(
+  AsConversation? conversation, {
+  String channelId = '',
+}) {
   if (conversation == null) return null;
   final roomId = conversation.roomId.trim();
   if (roomId.isEmpty) return null;
   if (!conversation.canOpen) return null;
+  final conversationId = conversation.conversationId.trim();
+  if (conversation.kind == asConversationKindChannel) {
+    final routeId = channelId.trim().isEmpty ? roomId : channelId.trim();
+    if (routeId.isEmpty) return null;
+    return channelConversationRoute(
+      routeId,
+      conversationId: conversationId,
+      name: conversation.title,
+    );
+  }
   final base = switch (conversation.kind) {
     asConversationKindDirect || asConversationKindAgent => '/chat',
-    asConversationKindGroup || asConversationKindChannel => '/group',
+    asConversationKindGroup => '/group',
     _ => '',
   };
   if (base.isEmpty) return null;
   final route = '$base/${Uri.encodeComponent(roomId)}';
-  final conversationId = conversation.conversationId.trim();
   if (conversationId.isEmpty) return route;
   final query = Uri(
     queryParameters: {'conversation': conversationId},

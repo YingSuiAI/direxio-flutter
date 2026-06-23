@@ -10,6 +10,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_voice_player.dart';
@@ -22,16 +23,21 @@ import '../widgets/portal_avatar.dart';
 
 const double _favoriteMediaPreviewSize = 109;
 
+AppLocalizations? _l10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
+}
+
 class MeMenuPage extends StatelessWidget {
   const MeMenuPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _l10n(context);
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          GlassHeader.detail(title: '菜单'),
+          GlassHeader.detail(title: l10n?.meMenuTitle ?? '菜单'),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.fromLTRB(0, 20, 0, 32),
@@ -40,19 +46,19 @@ class MeMenuPage extends StatelessWidget {
                   children: [
                     _MeMenuRow(
                       icon: Symbols.bookmarks,
-                      title: '我的收藏',
+                      title: l10n?.meMyFavorites ?? '我的收藏',
                       onTap: () => context.push('/me/favorites'),
                     ),
                     const _MeMenuDivider(),
                     _MeMenuRow(
                       icon: Symbols.thumb_up,
-                      title: '我的点赞',
+                      title: l10n?.meMyLikes ?? '我的点赞',
                       onTap: () => context.push('/me/likes'),
                     ),
                     const _MeMenuDivider(),
                     _MeMenuRow(
                       icon: Symbols.comment,
-                      title: '我的评论',
+                      title: l10n?.meMyComments ?? '我的评论',
                       onTap: () => context.push('/me/comments'),
                     ),
                     const _MeMenuDivider(),
@@ -104,11 +110,12 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
   }
 
   Future<void> _handleFavoriteTap(AsFavoriteMessage favorite) async {
+    final l10n = _l10n(context);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ChatRecordDetailPage(
-          pageTitle: '收藏详情',
-          payload: _favoriteMessagePayload(favorite),
+          pageTitle: l10n?.meFavoriteDetailTitle ?? '收藏详情',
+          payload: _favoriteMessagePayload(l10n, favorite),
         ),
       ),
     );
@@ -130,7 +137,7 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
             child: ListTile(
               leading: Icon(Symbols.delete, color: t.danger),
               title: Text(
-                '删除收藏',
+                _l10n(context)?.meFavoriteDeleteAction ?? '删除收藏',
                 style: AppTheme.sans(
                   size: 16,
                   weight: FontWeight.w600,
@@ -152,11 +159,12 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
       context: context,
       builder: (context) {
         final t = context.tk;
+        final l10n = _l10n(context);
         return AlertDialog(
           backgroundColor: t.surface,
           surfaceTintColor: Colors.transparent,
           title: Text(
-            '取消收藏',
+            l10n?.meFavoriteRemoveTitle ?? '取消收藏',
             style: AppTheme.sans(
               size: 18,
               weight: FontWeight.w700,
@@ -164,21 +172,21 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
             ),
           ),
           content: Text(
-            '确认删除该收藏吗？',
+            l10n?.meFavoriteDeleteConfirm ?? '确认删除该收藏吗？',
             style: AppTheme.sans(size: 14, color: t.textMute),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: Text(
-                '取消',
+                l10n?.commonCancel ?? '取消',
                 style: AppTheme.sans(size: 14, color: t.textMute),
               ),
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
               child: Text(
-                '确认',
+                l10n?.commonOk ?? '确认',
                 style: AppTheme.sans(
                   size: 14,
                   weight: FontWeight.w700,
@@ -203,13 +211,19 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
         _future = _load();
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已删除收藏')),
+        SnackBar(
+          content: Text(_l10n(context)?.meFavoriteDeleted ?? '已删除收藏'),
+        ),
       );
       return true;
     } on Object catch (err) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('删除收藏失败：$err')),
+        SnackBar(
+          content: Text(
+            _l10n(context)?.meFavoriteDeleteFailed('$err') ?? '删除收藏失败：$err',
+          ),
+        ),
       );
       return false;
     }
@@ -218,12 +232,13 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _l10n(context);
     return Scaffold(
       key: const ValueKey('me_favorites_scaffold'),
       backgroundColor: t.bg,
       body: Column(
         children: [
-          GlassHeader.detail(title: '收藏'),
+          GlassHeader.detail(title: l10n?.meFavoritesTitle ?? '收藏'),
           Expanded(
             child: FutureBuilder<List<AsFavoriteMessage>>(
               future: _future,
@@ -243,7 +258,7 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
                 if (snapshot.hasError) {
                   return _MeEmptyUtilityContent(
                     icon: Symbols.error,
-                    emptyTitle: '收藏加载失败',
+                    emptyTitle: l10n?.meFavoritesLoadFailed ?? '收藏加载失败',
                     emptySubtitle: '${snapshot.error}',
                   );
                 }
@@ -253,10 +268,11 @@ class _MeFavoritesPageState extends ConsumerState<MeFavoritesPage> {
                     )
                     .toList(growable: false);
                 if (favorites.isEmpty) {
-                  return const _MeEmptyUtilityContent(
+                  return _MeEmptyUtilityContent(
                     icon: Symbols.bookmarks,
-                    emptyTitle: '暂无收藏',
-                    emptySubtitle: '长按聊天消息收藏后会显示在这里',
+                    emptyTitle: l10n?.meFavoritesEmptyTitle ?? '暂无收藏',
+                    emptySubtitle:
+                        l10n?.meFavoritesEmptySubtitle ?? '长按聊天消息收藏后会显示在这里',
                   );
                 }
                 return ListView.separated(
@@ -300,11 +316,12 @@ class _MeLikesPageState extends ConsumerState<MeLikesPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _l10n(context);
     return Scaffold(
       backgroundColor: t.bg,
       body: Column(
         children: [
-          GlassHeader.detail(title: '赞'),
+          GlassHeader.detail(title: l10n?.meLikesTitle ?? '赞'),
           Expanded(
             child: FutureBuilder<List<AsChannelReactionHistory>>(
               future: _future,
@@ -324,16 +341,17 @@ class _MeLikesPageState extends ConsumerState<MeLikesPage> {
                 if (snapshot.hasError) {
                   return _MeEmptyUtilityContent(
                     icon: Symbols.error,
-                    emptyTitle: '点赞加载失败',
+                    emptyTitle: l10n?.meLikesLoadFailed ?? '点赞加载失败',
                     emptySubtitle: '${snapshot.error}',
                   );
                 }
                 final reactions = snapshot.data ?? const [];
                 if (reactions.isEmpty) {
-                  return const _MeEmptyUtilityContent(
+                  return _MeEmptyUtilityContent(
                     icon: Symbols.thumb_up,
-                    emptyTitle: '暂无点赞',
-                    emptySubtitle: '你点过赞的频道帖子会显示在这里',
+                    emptyTitle: l10n?.meLikesEmptyTitle ?? '暂无点赞',
+                    emptySubtitle:
+                        l10n?.meLikesEmptySubtitle ?? '你点过赞的频道帖子会显示在这里',
                   );
                 }
                 return ListView.separated(
@@ -370,10 +388,11 @@ class _MeLikePostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _l10n(context);
     final post = item.post;
     final channelTitle = _channelActivityChannelLabel(item.channel);
-    final postPreview = _channelActivityPostPreview(post);
-    final reactionLabel = _reactionHistoryMessage(item.reaction);
+    final postPreview = _channelActivityPostPreview(l10n, post);
+    final reactionLabel = _reactionHistoryMessage(l10n, item.reaction);
     return Material(
       color: t.surface,
       borderRadius: BorderRadius.circular(20),
@@ -465,7 +484,7 @@ class _MeLikePostCard extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    '收起',
+                    l10n?.channelPostCollapse ?? '收起',
                     style: AppTheme.sans(size: 13, color: t.textMute),
                   ),
                   Icon(Symbols.expand_less, size: 16, color: t.textMute),
@@ -507,7 +526,7 @@ class _PostTypeBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        _favoriteTypeLabel(type),
+        _favoriteTypeLabel(_l10n(context), type),
         style: AppTheme.sans(size: 11, color: t.textMute),
       ),
     );
@@ -561,12 +580,13 @@ class _MeCommentsPageState extends ConsumerState<MeCommentsPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _l10n(context);
     return Scaffold(
       key: const ValueKey('me_comments_scaffold'),
       backgroundColor: t.bg,
       body: Column(
         children: [
-          GlassHeader.detail(title: '评论'),
+          GlassHeader.detail(title: l10n?.meCommentsTitle ?? '评论'),
           Expanded(
             child: FutureBuilder<List<AsChannelCommentHistory>>(
               future: _future,
@@ -583,16 +603,17 @@ class _MeCommentsPageState extends ConsumerState<MeCommentsPage> {
                 if (snapshot.hasError) {
                   return _MeCommentsEmpty(
                     icon: Symbols.error,
-                    title: '评论加载失败',
+                    title: l10n?.meCommentsLoadFailed ?? '评论加载失败',
                     subtitle: '${snapshot.error}',
                   );
                 }
                 final comments = snapshot.data ?? const [];
                 if (comments.isEmpty) {
-                  return const _MeCommentsEmpty(
+                  return _MeCommentsEmpty(
                     icon: Symbols.comment,
-                    title: '暂无评论',
-                    subtitle: '你在频道帖子下发表过的评论会显示在这里',
+                    title: l10n?.meCommentsEmptyTitle ?? '暂无评论',
+                    subtitle:
+                        l10n?.meCommentsEmptySubtitle ?? '你在频道帖子下发表过的评论会显示在这里',
                   );
                 }
                 return ListView.separated(
@@ -627,11 +648,13 @@ class _MeCommentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _l10n(context);
     final comment = item.comment;
     final channelTitle = _channelActivityChannelLabel(item.channel);
-    final commentBody =
-        comment.body.trim().isEmpty ? '评论' : comment.body.trim();
-    final postPreview = _channelActivityPostPreview(item.post);
+    final commentBody = comment.body.trim().isEmpty
+        ? l10n?.meCommentFallback ?? '评论'
+        : comment.body.trim();
+    final postPreview = _channelActivityPostPreview(l10n, item.post);
     return Material(
       color: t.surface,
       borderRadius: BorderRadius.circular(20),
@@ -680,7 +703,7 @@ class _MeCommentCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      '你评论了：$commentBody',
+                      l10n?.meCommentedWith(commentBody) ?? '你评论了：$commentBody',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
@@ -995,7 +1018,7 @@ class _FavoriteAuthorHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final author = _favoriteSenderLabel(favorite);
+    final author = _favoriteSenderLabel(_l10n(context), favorite);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1055,7 +1078,7 @@ class _FavoriteTextContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final title = _favoriteTitle(favorite);
+    final title = _favoriteTitle(_l10n(context), favorite);
     final body = favorite.body.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1233,7 +1256,7 @@ class _FavoriteChatRecordBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _favoriteChatRecordDescription(favorite),
+          _favoriteChatRecordDescription(_l10n(context), favorite),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppTheme.sans(
@@ -1279,7 +1302,7 @@ class _FavoriteFileBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _favoriteTitle(favorite),
+                _favoriteTitle(_l10n(context), favorite),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTheme.sans(
@@ -1295,7 +1318,7 @@ class _FavoriteFileBody extends StatelessWidget {
               ),
               const SizedBox(height: 42),
               Text(
-                _favoriteSenderLabel(favorite),
+                _favoriteSenderLabel(_l10n(context), favorite),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTheme.sans(size: 13, color: t.textMute),
@@ -1345,7 +1368,8 @@ String _favoriteAudioMessageId(AsFavoriteMessage favorite) {
   return 'favorite-audio-${favorite.id}';
 }
 
-String _favoriteSenderLabel(AsFavoriteMessage favorite) {
+String _favoriteSenderLabel(
+    AppLocalizations? l10n, AsFavoriteMessage favorite) {
   final name = favorite.senderName.trim();
   if (name.isNotEmpty) return name;
   final senderId = favorite.senderId.trim();
@@ -1353,7 +1377,7 @@ String _favoriteSenderLabel(AsFavoriteMessage favorite) {
     final colon = senderId.indexOf(':');
     if (colon > 1) return senderId.substring(1, colon);
   }
-  return senderId.isEmpty ? '未知' : senderId;
+  return senderId.isEmpty ? l10n?.meFavoriteUnknownSender ?? '未知' : senderId;
 }
 
 String _favoriteTimeLabel(AsFavoriteMessage favorite) {
@@ -1506,9 +1530,9 @@ IconData _favoriteIcon(String type) {
   };
 }
 
-String _favoriteTitle(AsFavoriteMessage favorite) {
+String _favoriteTitle(AppLocalizations? l10n, AsFavoriteMessage favorite) {
   if (favorite.messageType == 'chat_record') {
-    return _favoriteChatRecordDescription(favorite);
+    return _favoriteChatRecordDescription(l10n, favorite);
   }
   if (favorite.messageType == 'file' ||
       favorite.messageType == 'image' ||
@@ -1518,22 +1542,31 @@ String _favoriteTitle(AsFavoriteMessage favorite) {
   }
   if (favorite.body.isNotEmpty) return favorite.body;
   if (favorite.url.isNotEmpty) return favorite.url;
-  return '收藏消息';
+  return l10n?.meFavoriteMessageFallback ?? '收藏消息';
 }
 
-String _favoriteSourceLabel(AsFavoriteMessage favorite) {
+String _favoriteSourceLabel(
+    AppLocalizations? l10n, AsFavoriteMessage favorite) {
   if (favorite.messageType == 'chat_record') {
-    return _favoriteChatRecordDescription(favorite);
+    return _favoriteChatRecordDescription(l10n, favorite);
   }
   final sender = favorite.senderName.trim().isNotEmpty
       ? favorite.senderName.trim()
       : favorite.senderId.trim();
   return switch (favorite.roomType) {
-    'direct' => sender.isEmpty ? '来自私聊' : '来自与 $sender 的私聊',
-    'group' => sender.isEmpty ? '来自群聊' : '来自群聊 · $sender',
-    'channel' => sender.isEmpty ? '来自频道' : '来自频道 · $sender',
-    'agent' => '来自 Agent',
-    _ => sender.isEmpty ? '来自聊天' : '来自聊天 · $sender',
+    'direct' => sender.isEmpty
+        ? l10n?.meFavoriteFromDirect ?? '来自私聊'
+        : l10n?.meFavoriteFromDirectWithSender(sender) ?? '来自与 $sender 的私聊',
+    'group' => sender.isEmpty
+        ? l10n?.meFavoriteFromGroup ?? '来自群聊'
+        : l10n?.meFavoriteFromGroupWithSender(sender) ?? '来自群聊 · $sender',
+    'channel' => sender.isEmpty
+        ? l10n?.meFavoriteFromChannel ?? '来自频道'
+        : l10n?.meFavoriteFromChannelWithSender(sender) ?? '来自频道 · $sender',
+    'agent' => l10n?.meFavoriteFromAgent ?? '来自 Agent',
+    _ => sender.isEmpty
+        ? l10n?.meFavoriteFromChat ?? '来自聊天'
+        : l10n?.meFavoriteFromChatWithSender(sender) ?? '来自聊天 · $sender',
   };
 }
 
@@ -1544,15 +1577,18 @@ DateTime? _favoriteTimestamp(AsFavoriteMessage favorite) {
   return DateTime.fromMillisecondsSinceEpoch(ts, isUtc: true);
 }
 
-String _channelActivityPostPreview(AsChannelPost post) {
+String _channelActivityPostPreview(
+  AppLocalizations? l10n,
+  AsChannelPost post,
+) {
   final body = post.body.trim();
   if (body.isNotEmpty) return body;
   return switch (post.messageType.trim()) {
-    'image' || 'm.image' => '图片',
-    'video' || 'm.video' => '视频',
-    'file' || 'm.file' => '文件',
-    'audio' || 'm.audio' => '语音',
-    _ => '频道帖子',
+    'image' || 'm.image' => l10n?.meFavoriteTypeImage ?? '图片',
+    'video' || 'm.video' => l10n?.meFavoriteTypeVideo ?? '视频',
+    'file' || 'm.file' => l10n?.meFavoriteTypeFile ?? '文件',
+    'audio' || 'm.audio' => l10n?.meFavoriteTypeAudio ?? '语音',
+    _ => l10n?.meChannelPostFallback ?? '频道帖子',
   };
 }
 
@@ -1564,10 +1600,10 @@ String _channelActivityChannelLabel(AsChannel channel) {
   return '频道';
 }
 
-String _reactionHistoryMessage(String reaction) {
+String _reactionHistoryMessage(AppLocalizations? l10n, String reaction) {
   return switch (reaction.trim()) {
-    'like' || '' => '你赞了这条帖子',
-    final value => '你回应了：$value',
+    'like' || '' => l10n?.meLikedPost ?? '你赞了这条帖子',
+    final value => l10n?.meReactedWith(value) ?? '你回应了：$value',
   };
 }
 
@@ -1616,20 +1652,23 @@ void _openCommentTarget(
 
 String _two(int value) => value.toString().padLeft(2, '0');
 
-String _favoriteTypeLabel(String type) {
+String _favoriteTypeLabel(AppLocalizations? l10n, String type) {
   return switch (type) {
-    'text' => '文字',
-    'image' => '图片',
-    'video' => '视频',
-    'file' => '文件',
-    'chat_record' => '聊天记录',
-    'audio' => '语音',
-    'link' => '链接',
-    _ => '消息',
+    'text' => l10n?.meFavoriteTypeText ?? '文字',
+    'image' => l10n?.meFavoriteTypeImage ?? '图片',
+    'video' => l10n?.meFavoriteTypeVideo ?? '视频',
+    'file' => l10n?.meFavoriteTypeFile ?? '文件',
+    'chat_record' => l10n?.meFavoriteTypeChatRecord ?? '聊天记录',
+    'audio' => l10n?.meFavoriteTypeAudio ?? '语音',
+    'link' => l10n?.meFavoriteTypeLink ?? '链接',
+    _ => l10n?.meFavoriteTypeMessage ?? '消息',
   };
 }
 
-String _favoriteChatRecordDescription(AsFavoriteMessage favorite) {
+String _favoriteChatRecordDescription(
+  AppLocalizations? l10n,
+  AsFavoriteMessage favorite,
+) {
   final body = favorite.body.trim();
   if (body.isNotEmpty) return body;
 
@@ -1637,21 +1676,32 @@ String _favoriteChatRecordDescription(AsFavoriteMessage favorite) {
       ? favorite.senderName.trim()
       : favorite.senderId.trim();
   return switch (favorite.roomType) {
-    'direct' => name.isEmpty ? '私聊聊天记录' : '与 $name 的聊天记录',
-    'group' => name.isEmpty ? '群聊聊天记录' : '群聊「$name」的聊天记录',
-    'channel' => name.isEmpty ? '频道聊天记录' : '频道「$name」的聊天记录',
-    'agent' => '与 Agent 的聊天记录',
-    _ => name.isEmpty ? '聊天记录' : '与 $name 的聊天记录',
+    'direct' => name.isEmpty
+        ? l10n?.meFavoriteDirectChatRecord ?? '私聊聊天记录'
+        : l10n?.meFavoriteDirectChatRecordWithName(name) ?? '与 $name 的聊天记录',
+    'group' => name.isEmpty
+        ? l10n?.meFavoriteGroupChatRecord ?? '群聊聊天记录'
+        : l10n?.meFavoriteGroupChatRecordWithName(name) ?? '群聊「$name」的聊天记录',
+    'channel' => name.isEmpty
+        ? l10n?.meFavoriteChannelChatRecord ?? '频道聊天记录'
+        : l10n?.meFavoriteChannelChatRecordWithName(name) ?? '频道「$name」的聊天记录',
+    'agent' => l10n?.meFavoriteAgentChatRecord ?? '与 Agent 的聊天记录',
+    _ => name.isEmpty
+        ? l10n?.meFavoriteTypeChatRecord ?? '聊天记录'
+        : l10n?.meFavoriteDirectChatRecordWithName(name) ?? '与 $name 的聊天记录',
   };
 }
 
-ChatRecordPayload _favoriteMessagePayload(AsFavoriteMessage favorite) {
+ChatRecordPayload _favoriteMessagePayload(
+  AppLocalizations? l10n,
+  AsFavoriteMessage favorite,
+) {
   if (favorite.messageType == chatRecordMessageType &&
       favorite.chatRecord.isNotEmpty) {
     final payload = chatRecordPayloadFromContent({
       'msgtype': MessageTypes.Text,
       'body': favorite.body.trim().isEmpty
-          ? _favoriteChatRecordDescription(favorite)
+          ? _favoriteChatRecordDescription(l10n, favorite)
           : favorite.body.trim(),
       chatRecordMatrixMarkerKey: chatRecordMessageType,
       chatRecordMatrixPayloadKey: favorite.chatRecord,
@@ -1659,14 +1709,14 @@ ChatRecordPayload _favoriteMessagePayload(AsFavoriteMessage favorite) {
     if (payload != null) return payload;
   }
   final title = favorite.messageType == chatRecordMessageType
-      ? _favoriteChatRecordDescription(favorite)
-      : _favoriteSourceLabel(favorite);
+      ? _favoriteChatRecordDescription(l10n, favorite)
+      : _favoriteSourceLabel(l10n, favorite);
   return ChatRecordPayload(
     sourceRoomId: favorite.roomId,
     sourceRoomType:
         favorite.roomType.trim().isEmpty ? 'direct' : favorite.roomType.trim(),
     title: title,
-    body: '收藏详情\n$title\n共 1 条消息',
+    body: l10n?.meFavoriteDetailBody(title) ?? '收藏详情\n$title\n共 1 条消息',
     itemCount: 1,
     items: [
       {
@@ -1674,18 +1724,21 @@ ChatRecordPayload _favoriteMessagePayload(AsFavoriteMessage favorite) {
         'sender_name': favorite.senderName.trim(),
         'is_me': favorite.senderId.trim().isNotEmpty &&
             favorite.senderId.trim() == favorite.ownerUserId.trim(),
-        'body': _favoriteMessageBody(favorite),
+        'body': _favoriteMessageBody(l10n, favorite),
         'message_type': _favoriteMatrixMessageType(favorite.messageType),
         'origin_server_ts': favorite.originServerTs,
-        'content': _favoriteMatrixContent(favorite),
+        'content': _favoriteMatrixContent(l10n, favorite),
       },
     ],
   );
 }
 
-String _favoriteMessageBody(AsFavoriteMessage favorite) {
+String _favoriteMessageBody(
+  AppLocalizations? l10n,
+  AsFavoriteMessage favorite,
+) {
   if (favorite.messageType == chatRecordMessageType) {
-    return _favoriteChatRecordDescription(favorite);
+    return _favoriteChatRecordDescription(l10n, favorite);
   }
   if ((favorite.filename).trim().isNotEmpty &&
       (favorite.messageType == 'image' ||
@@ -1696,7 +1749,7 @@ String _favoriteMessageBody(AsFavoriteMessage favorite) {
   }
   if (favorite.body.trim().isNotEmpty) return favorite.body.trim();
   if (favorite.url.trim().isNotEmpty) return favorite.url.trim();
-  return _favoriteTypeLabel(favorite.messageType);
+  return _favoriteTypeLabel(l10n, favorite.messageType);
 }
 
 String _favoriteMatrixMessageType(String type) {
@@ -1709,9 +1762,12 @@ String _favoriteMatrixMessageType(String type) {
   };
 }
 
-Map<String, Object?> _favoriteMatrixContent(AsFavoriteMessage favorite) {
+Map<String, Object?> _favoriteMatrixContent(
+  AppLocalizations? l10n,
+  AsFavoriteMessage favorite,
+) {
   final msgType = _favoriteMatrixMessageType(favorite.messageType);
-  final body = _favoriteMessageBody(favorite);
+  final body = _favoriteMessageBody(l10n, favorite);
   if (favorite.messageType == chatRecordMessageType) {
     return {
       'msgtype': MessageTypes.Text,

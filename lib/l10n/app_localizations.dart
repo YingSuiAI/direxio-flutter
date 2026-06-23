@@ -1463,6 +1463,354 @@ abstract class AppLocalizations {
   /// **'该帖子可能已删除，或尚未同步到本机。'**
   String get channelPostMissingSubtitle;
 
+  /// No description provided for @meMenuTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'菜单'**
+  String get meMenuTitle;
+
+  /// No description provided for @meMyFavorites.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的收藏'**
+  String get meMyFavorites;
+
+  /// No description provided for @meMyLikes.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的点赞'**
+  String get meMyLikes;
+
+  /// No description provided for @meMyComments.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的评论'**
+  String get meMyComments;
+
+  /// No description provided for @meFavoritesTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏'**
+  String get meFavoritesTitle;
+
+  /// No description provided for @meLikesTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'赞'**
+  String get meLikesTitle;
+
+  /// No description provided for @meCommentsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论'**
+  String get meCommentsTitle;
+
+  /// No description provided for @meHelpFeedbackTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'帮助与反馈'**
+  String get meHelpFeedbackTitle;
+
+  /// No description provided for @meHelpFeedbackBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'官方邮箱：support@direxio.ai\n\n温馨提示：请在反馈中描述问题发生的页面、操作步骤和设备型号。'**
+  String get meHelpFeedbackBody;
+
+  /// No description provided for @meHelpFeedbackOk.
+  ///
+  /// In zh, this message translates to:
+  /// **'知道了'**
+  String get meHelpFeedbackOk;
+
+  /// No description provided for @meUidCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制 UID'**
+  String get meUidCopied;
+
+  /// No description provided for @meFavoriteDetailTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏详情'**
+  String get meFavoriteDetailTitle;
+
+  /// No description provided for @meFavoriteDeleteAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除收藏'**
+  String get meFavoriteDeleteAction;
+
+  /// No description provided for @meFavoriteRemoveTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消收藏'**
+  String get meFavoriteRemoveTitle;
+
+  /// No description provided for @meFavoriteDeleteConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认删除该收藏吗？'**
+  String get meFavoriteDeleteConfirm;
+
+  /// No description provided for @meFavoriteDeleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除收藏'**
+  String get meFavoriteDeleted;
+
+  /// No description provided for @meFavoriteDeleteFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除收藏失败：{error}'**
+  String meFavoriteDeleteFailed(String error);
+
+  /// No description provided for @meFavoritesLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏加载失败'**
+  String get meFavoritesLoadFailed;
+
+  /// No description provided for @meFavoritesEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无收藏'**
+  String get meFavoritesEmptyTitle;
+
+  /// No description provided for @meFavoritesEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'长按聊天消息收藏后会显示在这里'**
+  String get meFavoritesEmptySubtitle;
+
+  /// No description provided for @meLikesLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'点赞加载失败'**
+  String get meLikesLoadFailed;
+
+  /// No description provided for @meLikesEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无点赞'**
+  String get meLikesEmptyTitle;
+
+  /// No description provided for @meLikesEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'你点过赞的频道帖子会显示在这里'**
+  String get meLikesEmptySubtitle;
+
+  /// No description provided for @meLikedPost.
+  ///
+  /// In zh, this message translates to:
+  /// **'你赞了这条帖子'**
+  String get meLikedPost;
+
+  /// No description provided for @meReactedWith.
+  ///
+  /// In zh, this message translates to:
+  /// **'你回应了：{value}'**
+  String meReactedWith(String value);
+
+  /// No description provided for @meCommentsLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论加载失败'**
+  String get meCommentsLoadFailed;
+
+  /// No description provided for @meCommentsEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无评论'**
+  String get meCommentsEmptyTitle;
+
+  /// No description provided for @meCommentsEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'你在频道帖子下发表过的评论会显示在这里'**
+  String get meCommentsEmptySubtitle;
+
+  /// No description provided for @meCommentFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论'**
+  String get meCommentFallback;
+
+  /// No description provided for @meCommentedWith.
+  ///
+  /// In zh, this message translates to:
+  /// **'你评论了：{body}'**
+  String meCommentedWith(String body);
+
+  /// No description provided for @meChannelPostFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道帖子'**
+  String get meChannelPostFallback;
+
+  /// No description provided for @meFavoriteMessageFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏消息'**
+  String get meFavoriteMessageFallback;
+
+  /// No description provided for @meFavoriteUnknownSender.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知'**
+  String get meFavoriteUnknownSender;
+
+  /// No description provided for @meFavoriteTypeText.
+  ///
+  /// In zh, this message translates to:
+  /// **'文字'**
+  String get meFavoriteTypeText;
+
+  /// No description provided for @meFavoriteTypeImage.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片'**
+  String get meFavoriteTypeImage;
+
+  /// No description provided for @meFavoriteTypeVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频'**
+  String get meFavoriteTypeVideo;
+
+  /// No description provided for @meFavoriteTypeFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件'**
+  String get meFavoriteTypeFile;
+
+  /// No description provided for @meFavoriteTypeChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'聊天记录'**
+  String get meFavoriteTypeChatRecord;
+
+  /// No description provided for @meFavoriteTypeAudio.
+  ///
+  /// In zh, this message translates to:
+  /// **'语音'**
+  String get meFavoriteTypeAudio;
+
+  /// No description provided for @meFavoriteTypeLink.
+  ///
+  /// In zh, this message translates to:
+  /// **'链接'**
+  String get meFavoriteTypeLink;
+
+  /// No description provided for @meFavoriteTypeMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息'**
+  String get meFavoriteTypeMessage;
+
+  /// No description provided for @meFavoriteFromDirect.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自私聊'**
+  String get meFavoriteFromDirect;
+
+  /// No description provided for @meFavoriteFromDirectWithSender.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自与 {sender} 的私聊'**
+  String meFavoriteFromDirectWithSender(String sender);
+
+  /// No description provided for @meFavoriteFromGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自群聊'**
+  String get meFavoriteFromGroup;
+
+  /// No description provided for @meFavoriteFromGroupWithSender.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自群聊 · {sender}'**
+  String meFavoriteFromGroupWithSender(String sender);
+
+  /// No description provided for @meFavoriteFromChannel.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自频道'**
+  String get meFavoriteFromChannel;
+
+  /// No description provided for @meFavoriteFromChannelWithSender.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自频道 · {sender}'**
+  String meFavoriteFromChannelWithSender(String sender);
+
+  /// No description provided for @meFavoriteFromAgent.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自 Agent'**
+  String get meFavoriteFromAgent;
+
+  /// No description provided for @meFavoriteFromChat.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自聊天'**
+  String get meFavoriteFromChat;
+
+  /// No description provided for @meFavoriteFromChatWithSender.
+  ///
+  /// In zh, this message translates to:
+  /// **'来自聊天 · {sender}'**
+  String meFavoriteFromChatWithSender(String sender);
+
+  /// No description provided for @meFavoriteDirectChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'私聊聊天记录'**
+  String get meFavoriteDirectChatRecord;
+
+  /// No description provided for @meFavoriteDirectChatRecordWithName.
+  ///
+  /// In zh, this message translates to:
+  /// **'与 {name} 的聊天记录'**
+  String meFavoriteDirectChatRecordWithName(String name);
+
+  /// No description provided for @meFavoriteGroupChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊聊天记录'**
+  String get meFavoriteGroupChatRecord;
+
+  /// No description provided for @meFavoriteGroupChatRecordWithName.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊「{name}」的聊天记录'**
+  String meFavoriteGroupChatRecordWithName(String name);
+
+  /// No description provided for @meFavoriteChannelChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道聊天记录'**
+  String get meFavoriteChannelChatRecord;
+
+  /// No description provided for @meFavoriteChannelChatRecordWithName.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道「{name}」的聊天记录'**
+  String meFavoriteChannelChatRecordWithName(String name);
+
+  /// No description provided for @meFavoriteAgentChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'与 Agent 的聊天记录'**
+  String get meFavoriteAgentChatRecord;
+
+  /// No description provided for @meFavoriteDetailBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏详情\n{title}\n共 1 条消息'**
+  String meFavoriteDetailBody(String title);
+
   /// No description provided for @commonMe.
   ///
   /// In zh, this message translates to:

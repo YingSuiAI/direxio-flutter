@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../channel/channel_info_data.dart';
+import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_share.dart';
 import '../channel/public_channel_target.dart';
@@ -202,13 +203,16 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                   roomId.isEmpty ? channelId : roomId,
                 ),
               )
-          : await ref.read(asClientProvider).joinChannel(
-                channelId.isEmpty ? roomId : channelId,
-                roomId: roomId,
-                grantId: sharePayload.grantId,
-                shareRoomId: sharePayload.shareRoomId,
-                discoveredChannel: sharePayload.asDiscoveredChannel,
-              );
+          : await joinChannelWithInviteProjectionRetry(
+              ref,
+              () => ref.read(asClientProvider).joinChannel(
+                    channelId.isEmpty ? roomId : channelId,
+                    roomId: roomId,
+                    grantId: sharePayload.grantId,
+                    shareRoomId: sharePayload.shareRoomId,
+                    discoveredChannel: sharePayload.asDiscoveredChannel,
+                  ),
+            );
       if (isAsChannelMemberJoined(joined.memberStatus)) {
         final bootstrap =
             await ref.read(asBootstrapRepositoryProvider).refresh();
@@ -262,6 +266,21 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       }
       context.push(route);
     } catch (err) {
+      final sharePayload = widget.sharePayload;
+      logChannelJoinForbidden(
+        err,
+        source: sharePayload == null
+            ? 'channel_detail_public'
+            : 'channel_detail_share',
+        channelId: channelId,
+        roomId: roomId,
+        grantId: sharePayload?.grantId ?? '',
+        shareRoomId: sharePayload?.shareRoomId ?? '',
+        remoteNodeBaseUri: sharePayload == null
+            ? publicBaseUriForMatrixRoomId(roomId.isEmpty ? channelId : roomId)
+            : null,
+        discoveredChannel: sharePayload?.asDiscoveredChannel,
+      );
       if (!mounted) return;
       setState(() => _joining = false);
       ScaffoldMessenger.of(context).showSnackBar(

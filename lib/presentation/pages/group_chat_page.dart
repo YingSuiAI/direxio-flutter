@@ -32,6 +32,7 @@ import '../providers/profile_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../providers/voice_call_provider.dart';
 import '../channel/channel_join_flow.dart';
+import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_share.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/call_timeline_events.dart';
@@ -564,13 +565,16 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         throw StateError(l10n.groupChatCannotOpen(l10n.groupChatChannel));
       }
       final channelId = payload.channelId.trim();
-      final joined = await ref.read(asClientProvider).joinChannel(
-            channelId.isEmpty ? roomId : channelId,
-            roomId: roomId,
-            grantId: payload.grantId,
-            shareRoomId: payload.shareRoomId,
-            discoveredChannel: payload.asDiscoveredChannel,
-          );
+      final joined = await joinChannelWithInviteProjectionRetry(
+        ref,
+        () => ref.read(asClientProvider).joinChannel(
+              channelId.isEmpty ? roomId : channelId,
+              roomId: roomId,
+              grantId: payload.grantId,
+              shareRoomId: payload.shareRoomId,
+              discoveredChannel: payload.asDiscoveredChannel,
+            ),
+      );
       if (isAsChannelMemberJoined(joined.memberStatus)) {
         await _refreshBootstrapAfterVisibilityMutation();
       }
@@ -588,6 +592,11 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
       }
       context.push(channelShareJoinedRoute(payload, joined), extra: payload);
     } on Object catch (e) {
+      logChannelShareJoinForbidden(
+        e,
+        source: 'group_chat_channel_share',
+        payload: payload,
+      );
       if (!mounted) return;
       final l10n = _groupChatL10n(context);
       ScaffoldMessenger.of(context).showSnackBar(

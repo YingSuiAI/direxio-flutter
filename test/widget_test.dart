@@ -6449,6 +6449,11 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('频道'));
     await tester.pumpAndSettle();
+    final reviewButton = find.byKey(const ValueKey('channel_review_button'));
+    expect(
+      find.descendant(of: reviewButton, matching: find.text('1')),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('channel_review_button')));
     await tester.pumpAndSettle();
 
@@ -6458,7 +6463,7 @@ void main() {
     expect(find.text('拒绝'), findsOneWidget);
   });
 
-  testWidgets('channel review button shows AS channel notice badge',
+  testWidgets('channel review button ignores AS channel invite notices',
       (tester) async {
     final client = Client('DirexioChannelNoticeBadgeTest')
       ..setUserId('@owner:p2p-im.com');
@@ -6506,7 +6511,7 @@ void main() {
     expect(reviewButton, findsOneWidget);
     expect(
       find.descendant(of: reviewButton, matching: find.text('1')),
-      findsOneWidget,
+      findsNothing,
     );
   });
 

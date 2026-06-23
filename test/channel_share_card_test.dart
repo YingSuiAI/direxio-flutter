@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
+import 'package:matrix/matrix.dart';
+import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/channel/channel_join_flow.dart';
 import 'package:portal_app/presentation/channel/channel_share.dart';
 import 'package:portal_app/presentation/chat/chat_record_forwarding.dart';
+import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
+import 'package:portal_app/presentation/providers/auth_provider.dart';
 
 void main() {
   test('channel join in-progress copy does not use unfinished wording', () {
@@ -145,6 +150,83 @@ void main() {
 
     expect(joins, 1);
     expect(opens, 0);
+  });
+
+  testWidgets('channel share join retries after invite projection refresh',
+      (tester) async {
+    var attempts = 0;
+    var refreshes = 0;
+    AsChannel? result;
+    Object? error;
+    final matrixClient = Client('ChannelShareJoinRetryTest')
+      ..setUserId('@receiver:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asBootstrapRepositoryProvider.overrideWithValue(
+            AsBootstrapRepository(
+              loadBootstrap: () async {
+                refreshes++;
+                return AsSyncBootstrap(
+                  syncedAt: DateTime.utc(2026, 6, 23),
+                  user: const AsSyncUser(userId: '@receiver:p2p-im.com'),
+                  rooms: const [],
+                  contacts: const [],
+                  groups: const [],
+                  channels: const [],
+                  pending: const AsSyncPending.empty(),
+                );
+              },
+              store: _MemoryAsBootstrapStore(),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          home: Consumer(
+            builder: (context, ref, _) => TextButton(
+              onPressed: () async {
+                try {
+                  result = await joinChannelWithInviteProjectionRetry(
+                    ref,
+                    () async {
+                      attempts++;
+                      if (attempts == 1) {
+                        throw AsClientException(
+                          'channel invite grant is missing or expired',
+                          statusCode: 403,
+                        );
+                      }
+                      return const AsChannel(
+                        channelId: 'ch_product',
+                        roomId: '!channel:p2p-im.com',
+                        name: '产品公告',
+                        homeDomain: 'p2p-im.com',
+                        memberStatus: asChannelMemberStatusJoined,
+                      );
+                    },
+                    retries: 1,
+                    delay: Duration.zero,
+                  );
+                } catch (e) {
+                  error = e;
+                }
+              },
+              child: const Text('join'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('join'));
+    await tester.pumpAndSettle();
+
+    expect(error, isNull);
+    expect(attempts, 2);
+    expect(refreshes, 1);
+    expect(result?.memberStatus, asChannelMemberStatusJoined);
   });
 
   testWidgets('channel share preview card joined button is disabled',
@@ -417,4 +499,21 @@ void main() {
       '/channel/ch_posts',
     );
   });
+}
+
+class _MemoryAsBootstrapStore implements AsBootstrapStore {
+  AsSyncBootstrap? value;
+
+  @override
+  Future<void> clear() async {
+    value = null;
+  }
+
+  @override
+  Future<AsSyncBootstrap?> read() async => value;
+
+  @override
+  Future<void> write(AsSyncBootstrap bootstrap) async {
+    value = bootstrap;
+  }
 }

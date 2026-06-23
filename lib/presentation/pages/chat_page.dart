@@ -24,6 +24,7 @@ import '../providers/product_conversations_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/voice_call_provider.dart';
 import '../channel/channel_join_flow.dart';
+import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_share.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
@@ -1827,13 +1828,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final roomId = payload.roomId.trim();
       if (roomId.isEmpty) throw StateError('频道 room_id 为空');
       final channelId = payload.channelId.trim();
-      final joined = await ref.read(asClientProvider).joinChannel(
-            channelId.isEmpty ? roomId : channelId,
-            roomId: roomId,
-            grantId: payload.grantId,
-            shareRoomId: payload.shareRoomId,
-            discoveredChannel: payload.asDiscoveredChannel,
-          );
+      final joined = await joinChannelWithInviteProjectionRetry(
+        ref,
+        () => ref.read(asClientProvider).joinChannel(
+              channelId.isEmpty ? roomId : channelId,
+              roomId: roomId,
+              grantId: payload.grantId,
+              shareRoomId: payload.shareRoomId,
+              discoveredChannel: payload.asDiscoveredChannel,
+            ),
+      );
       if (isAsChannelMemberJoined(joined.memberStatus)) {
         await _refreshBootstrapAfterVisibilityMutation();
       }
@@ -1851,6 +1855,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
       context.push(channelShareJoinedRoute(payload, joined), extra: payload);
     } on Object catch (e) {
+      logChannelShareJoinForbidden(
+        e,
+        source: 'chat_channel_share',
+        payload: payload,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('加入频道失败：$e')),

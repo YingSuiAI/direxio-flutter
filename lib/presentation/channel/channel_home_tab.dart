@@ -183,14 +183,10 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
       AppLocalizations,
     );
     final sourcePendingCount = _channelPendingCount(sourceChannels);
-    final noticePendingCount = _channelNoticePendingCount(syncCache);
     final pendingReviewCount = useRealChannels
         ? math.max(
-            math.max(
-              ref.watch(_channelPendingReviewCountProvider).valueOrNull ?? 0,
-              sourcePendingCount,
-            ),
-            noticePendingCount,
+            ref.watch(_channelPendingReviewCountProvider).valueOrNull ?? 0,
+            sourcePendingCount,
           )
         : sourcePendingCount;
 
@@ -599,9 +595,11 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
 }
 
 bool _canReviewChannel(AsChannel channel) {
-  return channel.role == asChannelRoleOwner ||
-      channel.role == asChannelRoleAdmin ||
-      channel.pendingJoinCount > 0;
+  return _canReviewChannelRole(channel.role);
+}
+
+bool _canReviewChannelRole(String role) {
+  return role == asChannelRoleOwner || role == asChannelRoleAdmin;
 }
 
 class _ReviewTopBar extends StatelessWidget {
@@ -1905,15 +1903,8 @@ void _addChannelKeys(Set<String> keys, String channelId, String roomId) {
 int _channelPendingCount(List<ChannelInboxItem> channels) {
   return channels.fold<int>(
     0,
-    (sum, channel) => sum + channel.pendingJoinCount,
+    (sum, channel) => sum + (channel.isOwned ? channel.pendingJoinCount : 0),
   );
-}
-
-int _channelNoticePendingCount(AsSyncCacheState syncCache) {
-  return syncCache.bootstrap?.pending.channelNotices
-          .where((notice) => notice.id.trim().isNotEmpty)
-          .length ??
-      0;
 }
 
 String _channelInboxDisplayName(ChannelInboxItem channel) {

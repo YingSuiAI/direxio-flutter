@@ -12,6 +12,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../channel/channel_inbox_data.dart';
+import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_post_media.dart';
 import '../chat/chat_record_forwarding.dart';
@@ -672,6 +673,14 @@ class _PublicChannelScaffoldState
       if (!mounted) return;
       _openJoinedPublicChannel(context, joined, fallback: channel);
     } catch (err) {
+      logChannelJoinForbidden(
+        err,
+        source: 'channel_page',
+        channelId: channel.channelId,
+        roomId: roomId,
+        remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
+        discoveredChannel: channel,
+      );
       if (!mounted) return;
       setState(() => _joining = false);
       final l10n = _l10n(context);

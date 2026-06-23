@@ -10,6 +10,7 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../channel/channel_join_flow.dart';
+import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_share.dart';
 import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
@@ -161,6 +162,14 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
       if (!mounted) return;
       _openJoinedChannel(joined, fallback: channel);
     } catch (err) {
+      logChannelJoinForbidden(
+        err,
+        source: 'channel_search',
+        channelId: channel.channelId,
+        roomId: roomId,
+        remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
+        discoveredChannel: channel,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

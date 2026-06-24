@@ -420,11 +420,6 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         : displayMembers.length;
     return [
       const SizedBox(height: 24),
-      _ChannelInfoHeader(
-        channel: channel,
-        avatarUrl: _channelAvatarUrl(channel),
-      ),
-      const SizedBox(height: 21),
       FutureBuilder<List<AsChannelMember>>(
         future: _ensureMembersFuture(),
         builder: (context, snapshot) {
@@ -1199,6 +1194,7 @@ Future<void> _shareChannel(
       ),
       currentRoomId: channel.roomId,
       currentRoomName: channel.name,
+      createInviteGrant: channel.isOwned,
     );
     if (!context.mounted || !sent) return;
     _showSnack(context, '已分享频道');

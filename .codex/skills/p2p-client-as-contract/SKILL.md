@@ -69,7 +69,11 @@ Public remote channel lookup must use explicitly configured AS remotes or reques
 
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
 
-Channel share/invite cards must create `channels.invite_grant.create` before sending the Matrix share card. Join from the card sends `grant_id` and `share_room_id` to `channels.join`.
+Channel share cards must include `channel_id` and `room_id`. Owner/admin shares
+create `channels.invite_grant.create` and send `grant_id` plus `share_room_id`
+so receivers join through `channels.join`; ordinary member shares do not create
+invite grants and receivers apply through `channels.public.join_request` just
+like searching by channel id.
 
 `groups.create`, `groups.join`, and `channels.join` may return top-level ProductCore `conversation`.
 Preserve it on `AsGroupResult.productConversation` or

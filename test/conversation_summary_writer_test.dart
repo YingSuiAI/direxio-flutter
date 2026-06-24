@@ -60,6 +60,62 @@ void main() {
     );
   });
 
+  test('excludes channel conversations from home summaries', () {
+    final client = Client('ConversationSummaryWriterChannelUnreadTest')
+      ..setUserId('@owner:p2p-im.com');
+    const roomId = '!channel:p2p-im.com';
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: [
+        _conversation(
+          id: 'ch_updates',
+          roomId: roomId,
+          kind: asConversationKindChannel,
+          canOpen: true,
+          lastActivityAt: DateTime.utc(2026, 6, 24, 10),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: AsSyncCacheState(
+        bootstrap: AsSyncBootstrap(
+          syncedAt: DateTime.utc(2026, 6, 24, 9),
+          user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+          rooms: const [],
+          contacts: const [],
+          groups: const [],
+          channels: const [
+            AsSyncRoomSummary(
+              channelId: 'ch_updates',
+              roomId: roomId,
+              name: '产品更新',
+              avatarUrl: '',
+              unreadCount: 7,
+              lastActivityAt: null,
+              memberStatus: asChannelMemberStatusJoined,
+              channelType: asChannelTypeChat,
+            ),
+          ],
+          pending: const AsSyncPending.empty(),
+        ),
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    expect(result.displayEntries, isEmpty);
+    expect(result.storeEntries, isEmpty);
+  });
+
   test('pinned ProductCore conversations sort before newer conversations', () {
     final client = Client('ConversationSummaryWriterPinnedTest')
       ..setUserId('@owner:p2p-im.com');

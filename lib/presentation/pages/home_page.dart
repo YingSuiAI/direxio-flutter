@@ -14,6 +14,7 @@ import '../home/conversation_summary_writer.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/channel_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/friend_request_read_provider.dart';
 import '../providers/conversation_summary_provider.dart';
@@ -121,6 +122,7 @@ class _HomePageState extends ConsumerState<HomePage>
     with WidgetsBindingObserver {
   int _tab = 0;
   StreamSubscription<SyncUpdate>? _syncSub;
+  StreamSubscription<EventUpdate>? _eventSub;
   StreamSubscription<VoiceCallUiState>? _voiceCallSub;
   StreamSubscription<GroupCallUiState>? _groupCallSub;
   bool _resumeSyncInFlight = false;
@@ -146,6 +148,11 @@ class _HomePageState extends ConsumerState<HomePage>
     _lastHomeSyncSignature = _homeSyncSignature(client);
     _attachVoiceCallController(client);
     _syncSub = client.onSync.stream.listen((_) {
+      _refreshHomeAfterMatrixSync(client);
+      scheduleMicrotask(() => _refreshHomeAfterMatrixSync(client));
+    });
+    _eventSub = client.onEvent.stream.listen((update) {
+      if (!_homeEventUpdateMayAffectConversation(update)) return;
       _refreshHomeAfterMatrixSync(client);
       scheduleMicrotask(() => _refreshHomeAfterMatrixSync(client));
     });
@@ -232,6 +239,7 @@ class _HomePageState extends ConsumerState<HomePage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _syncSub?.cancel();
+    _eventSub?.cancel();
     _voiceCallSub?.cancel();
     _groupCallSub?.cancel();
     _asBootstrapLiveRefreshTimer?.cancel();
@@ -687,6 +695,13 @@ String _homeSyncSignature(Client client) {
     );
   }
   return parts.join('|');
+}
+
+bool _homeEventUpdateMayAffectConversation(EventUpdate update) {
+  return update.type == EventUpdateType.timeline ||
+      update.type == EventUpdateType.decryptedTimelineQueue ||
+      update.type == EventUpdateType.state ||
+      update.type == EventUpdateType.ephemeral;
 }
 
 String _roomMemberProfileSignature(Client client, Room room) {
@@ -1547,6 +1562,19 @@ class _HomeConversationEntryList extends ConsumerWidget {
         final name = entry.name.trim().isEmpty ? roomId : entry.name.trim();
         final productConversation = productConversationsByRoomId[roomId];
         final room = client.getRoomById(roomId);
+        final authoritativeGroupMembers = entry.isGroup
+            ? ref
+                    .watch(
+                      groupMembersProvider(
+                        GroupMembersKey(
+                          roomId: roomId,
+                          status: asChannelMemberStatusJoined,
+                        ),
+                      ),
+                    )
+                    .valueOrNull ??
+                const <AsGroupMember>[]
+            : const <AsGroupMember>[];
         final groupAvatarMembers = entry.isGroup && room != null
             ? stableGroupAvatarMembersForRoom(
                 room: room,
@@ -1554,6 +1582,7 @@ class _HomeConversationEntryList extends ConsumerWidget {
                 cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],
                 cachedMemberAvatarUrls:
                     groupAvatarMemberAvatars[roomId] ?? const {},
+                authoritativeMembers: authoritativeGroupMembers,
               )
             : null;
         if (groupAvatarMembers != null) {

@@ -9,12 +9,14 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/as_client.dart';
 import '../chat/chat_glass_background.dart';
 import '../groups/group_leave_flow.dart';
 import '../groups/group_member_invite_flow.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/channel_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/profile_provider.dart';
@@ -78,6 +80,17 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
+    final authoritativeGroupMembers = ref
+            .watch(
+              groupMembersProvider(
+                GroupMembersKey(
+                  roomId: widget.roomId,
+                  status: asChannelMemberStatusJoined,
+                ),
+              ),
+            )
+            .valueOrNull ??
+        const <AsGroupMember>[];
     final currentNickname = _currentUserNickname(
       room,
       client.userID,
@@ -94,6 +107,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                 groupAvatarMemberOrders[widget.roomId] ?? const <String>[],
             cachedMemberAvatarUrls:
                 groupAvatarMemberAvatars[widget.roomId] ?? const {},
+            authoritativeMembers: authoritativeGroupMembers,
             currentUserProfile: currentUserProfile,
           );
     if (groupAvatarMembers != null) {
@@ -104,13 +118,20 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       );
     }
     // 真实成员列表（已加入）；降级到空列表
-    final members = room
+    final matrixMembers = room
             ?.getParticipants()
             .where((m) =>
                 m.membership == Membership.join &&
                 !_locallyRemovedMemberIds.contains(m.id.trim()))
             .toList() ??
         const <User>[];
+    final members = sortGroupParticipantsByAuthoritativeMembers(
+      matrixMembers,
+      authoritativeGroupMembers.where((member) {
+        final mxid = member.userMxid.trim();
+        return mxid.isNotEmpty && !_locallyRemovedMemberIds.contains(mxid);
+      }).toList(growable: false),
+    );
     final existingMemberMxids = members
         .map((member) => member.id.trim())
         .where((mxid) => mxid.isNotEmpty)
@@ -121,10 +142,19 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
           client: client,
           room: room,
           member: member,
+          authoritativeMember: authoritativeGroupMemberForUser(
+            authoritativeGroupMembers,
+            member.id,
+          ),
           currentUserProfile: currentUserProfile,
         ),
     ];
-    final memberCount = room?.summary.mJoinedMemberCount ?? members.length;
+    final memberCount = authoritativeGroupMembers.isNotEmpty
+        ? authoritativeGroupMembers.where((member) {
+            final mxid = member.userMxid.trim();
+            return mxid.isNotEmpty && !_locallyRemovedMemberIds.contains(mxid);
+          }).length
+        : room?.summary.mJoinedMemberCount ?? members.length;
     final canManageGroup = room != null && _canManageGroup(room);
     final canDissolveGroup = room != null && _canDissolveGroup(room);
 
@@ -738,6 +768,7 @@ _GroupMemberPresentation _groupMemberPresentation({
   required Client client,
   required Room? room,
   required User member,
+  required AsGroupMember? authoritativeMember,
   required Profile? currentUserProfile,
 }) {
   final userId = member.id.trim();
@@ -749,15 +780,23 @@ _GroupMemberPresentation _groupMemberPresentation({
   final stateName = _usableDisplayName(
     memberState?.content.tryGet<String>('displayname') ?? '',
   );
+  final authoritativeName = _usableDisplayName(
+    authoritativeMember?.displayName ?? '',
+  );
   final userName = _usableDisplayName(member.calcDisplayname());
   final name = _firstUsableDisplayName([
     profileName,
+    authoritativeName,
     stateName,
     userName,
     _fallbackDisplayNameFromMxid(userId),
   ]);
   final profileAvatar =
       isSelf ? profileAvatarHttpUrl(currentUserProfile, client) : null;
+  final authoritativeAvatar = avatarHttpUrl(
+    client,
+    authoritativeMember?.avatarUrl,
+  );
   final stateAvatar = avatarHttpUrl(
     client,
     memberState?.content.tryGet<String>('avatar_url'),
@@ -766,7 +805,8 @@ _GroupMemberPresentation _groupMemberPresentation({
   return _GroupMemberPresentation(
     userId: userId,
     name: name,
-    avatarUrl: profileAvatar ?? stateAvatar ?? userAvatar,
+    avatarUrl:
+        profileAvatar ?? authoritativeAvatar ?? stateAvatar ?? userAvatar,
   );
 }
 

@@ -133,7 +133,7 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('保存到相册'), findsOneWidget);
+    expect(find.byTooltip('保存原图到相册'), findsOneWidget);
     expect(find.byIcon(Symbols.download), findsOneWidget);
 
     await tester.tap(find.byIcon(Symbols.download));
@@ -141,6 +141,7 @@ void main() {
 
     expect(saves, 1);
     expect(find.byIcon(Symbols.check), findsOneWidget);
+    expect(find.byTooltip('原图已保存'), findsOneWidget);
   });
 }
 

@@ -67,7 +67,7 @@ lib/
 - Channel join-request review actions return top-level statuses such as `approved`, `joining`, `joined`, and `join_failed`; approving a request must not be treated as joined unless the returned status is `joined`.
 - Channel list entries with terminal lifecycle such as `deleted`, `left`, `dissolve`, or `dissolved` must be hidden even if stale membership still says `joined`.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
-- Channel invite/share cards first create `channels.invite_grant.create` with `channel_id` or `room_id` plus `share_room_id`; receivers call `channels.join` with `grant_id` and `share_room_id`.
+- Channel share cards must include `channel_id` and `room_id`. Owner/admin shares create `channels.invite_grant.create` and send `grant_id` plus `share_room_id` so receivers join through `channels.join`; ordinary member shares do not create invite grants and receivers apply through `channels.public.join_request` just like searching by channel id.
 - When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 
 ## Architecture
@@ -99,6 +99,7 @@ lib/
 - Channel list uses `AsSyncBootstrap.channels` as the primary logged-in source. Do not add a duplicate list endpoint without updating interface docs and tests.
 - `channels.create` creates a channel through the P2P product API, but owner semantics belong to the portal owner, not the Agent/bot.
 - Search, channel tab, channel detail, and channel chat must use the same channel identity source when logged in.
+- Channel conversations belong to the channel surfaces and must not appear in the home message list or home conversation summary cache.
 - Approval/invite does not mean joined. Wait for Matrix join projection before enabling chat send.
 
 ## Testing And Verification

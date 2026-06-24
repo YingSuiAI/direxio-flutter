@@ -7,7 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:vibration/vibration.dart';
 
+import '../../data/as_client.dart';
 import 'auth_provider.dart';
+import 'as_sync_cache_provider.dart';
 import 'conversation_preferences_provider.dart';
 import 'message_notification_preferences_provider.dart';
 
@@ -35,6 +37,9 @@ final messageSoundControllerProvider = Provider<void>((ref) {
   if (auth?.isLoggedIn != true) return;
   final client = ref.watch(matrixClientProvider);
   if (!client.isLogged()) return;
+  final mutedChannelRoomIds = channelRoomIdsFromBootstrap(
+    ref.watch(asSyncCacheProvider).bootstrap,
+  );
 
   DateTime? lastPlayedAt;
   final subscription = client.onEvent.stream.listen((update) {
@@ -42,6 +47,7 @@ final messageSoundControllerProvider = Provider<void>((ref) {
       update,
       currentUserId: client.userID,
       mutedConversationIds: mutedConversationIds,
+      mutedChannelRoomIds: mutedChannelRoomIds,
     )) {
       return;
     }
@@ -68,6 +74,7 @@ bool shouldPlayMessageSound(
   EventUpdate update, {
   required String? currentUserId,
   Set<String> mutedConversationIds = const {},
+  Set<String> mutedChannelRoomIds = const {},
 }) {
   if (update.type != EventUpdateType.timeline &&
       update.type != EventUpdateType.decryptedTimelineQueue) {
@@ -75,6 +82,9 @@ bool shouldPlayMessageSound(
   }
   final roomId = update.roomID.trim();
   if (roomId.isNotEmpty && mutedConversationIds.contains(roomId)) {
+    return false;
+  }
+  if (roomId.isNotEmpty && mutedChannelRoomIds.contains(roomId)) {
     return false;
   }
   if (update.content['type'] != EventTypes.Message) return false;
@@ -87,6 +97,15 @@ bool shouldPlayMessageSound(
   if (content is! Map) return false;
   final msgType = content['msgtype'];
   return msgType is String && msgType.trim().isNotEmpty;
+}
+
+@visibleForTesting
+Set<String> channelRoomIdsFromBootstrap(AsSyncBootstrap? bootstrap) {
+  final channels = bootstrap?.channels ?? const [];
+  return {
+    for (final channel in channels)
+      if (channel.roomId.trim().isNotEmpty) channel.roomId.trim(),
+  };
 }
 
 class MessageSoundPlayer {

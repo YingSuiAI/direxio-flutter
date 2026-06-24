@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:portal_app/presentation/chat/chat_video_preview_page.dart';
+// ignore: depend_on_referenced_packages
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 void main() {
@@ -32,7 +32,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('保存到相册'), findsOneWidget);
+    expect(find.byTooltip('保存原视频到相册'), findsOneWidget);
     expect(find.byIcon(Symbols.download), findsOneWidget);
 
     await tester.tap(find.byIcon(Symbols.download));
@@ -40,6 +40,8 @@ void main() {
 
     expect(saves, 1);
     expect(find.byIcon(Symbols.check), findsOneWidget);
+    expect(find.byTooltip('原视频已保存'), findsOneWidget);
+    expect(find.text('已保存原视频到相册'), findsOneWidget);
   });
 }
 
@@ -120,6 +122,5 @@ class _FakeVideoPlayerPlatform extends VideoPlayerPlatform {
     return const <VideoAudioTrack>[];
   }
 
-  @override
   Future<void> setAudioTrack(int playerId, String? trackId) async {}
 }

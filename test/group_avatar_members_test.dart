@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/utils/group_avatar_members.dart';
 
@@ -53,5 +54,124 @@ void main() {
       'https://p2p-im.com/_matrix/media/v3/download/p2p-im.com/alice',
     );
     expect(result.shouldPersistAvatarUrls, isFalse);
+  });
+
+  test('uses AS group member order ahead of cached avatar order', () {
+    final client = Client('GroupAvatarMembersAsOrderTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(
+      id: '!group:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    for (final mxid in const [
+      '@bob:p2p-im.com',
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+    ]) {
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: mxid,
+          stateKey: mxid,
+          content: const {'membership': 'join'},
+        ),
+      );
+    }
+
+    final result = stableGroupAvatarMembersForRoom(
+      room: room,
+      syncCache: const AsSyncCacheState(),
+      cachedMemberOrder: const [
+        '@bob:p2p-im.com',
+        '@alice:p2p-im.com',
+        '@owner:p2p-im.com',
+      ],
+      authoritativeMembers: const [
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@owner:p2p-im.com',
+          role: asChannelRoleOwner,
+          status: asChannelMemberStatusJoined,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: 'https://cdn.example.com/alice.png',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@bob:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+        ),
+      ],
+    );
+
+    expect(result.members.map((member) => member.seed), [
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+      '@bob:p2p-im.com',
+    ]);
+    expect(result.members[1].imageUrl, 'https://cdn.example.com/alice.png');
+    expect(result.shouldPersistOrder, isTrue);
+  });
+
+  test('sorts Matrix participants by AS group member order', () {
+    final client = Client('GroupParticipantsAsOrderTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!group:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    for (final mxid in const [
+      '@bob:p2p-im.com',
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+    ]) {
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: mxid,
+          stateKey: mxid,
+          content: const {'membership': 'join'},
+        ),
+      );
+    }
+
+    final sorted = sortGroupParticipantsByAuthoritativeMembers(
+      room.getParticipants(),
+      const [
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@owner:p2p-im.com',
+          role: asChannelRoleOwner,
+          status: asChannelMemberStatusJoined,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@alice:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@bob:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+        ),
+      ],
+    );
+
+    expect(sorted.map((member) => member.id), [
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+      '@bob:p2p-im.com',
+    ]);
   });
 }

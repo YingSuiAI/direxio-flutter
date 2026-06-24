@@ -1299,6 +1299,15 @@ class MockAsClient implements AsClient {
   }
 
   @override
+  Future<List<AsGroupMember>> getGroupMembers(
+    String roomId, {
+    String status = '',
+  }) async {
+    await Future.delayed(_latency);
+    return const [];
+  }
+
+  @override
   Future<void> removeGroupMember({
     required String roomId,
     required String peerMxid,

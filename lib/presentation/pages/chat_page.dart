@@ -26,6 +26,7 @@ import '../providers/voice_call_provider.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_share.dart';
+import '../channel/public_channel_target.dart';
 import '../chat/agent_thinking_bubble.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
@@ -359,6 +360,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final Set<String> _favoritingEventIds = {};
   final Set<String> _joiningGroupInviteEventIds = {};
   final Set<String> _joiningChannelShareIds = {};
+  final Set<String> _requestedChannelShareIds = {};
   final Set<String> _locallyHiddenEventIds = {};
   final Map<String, AsCallSession> _asCallSessionCache = {};
   final Map<String, AsCallSession> _roomAsCallHistory = {};
@@ -1867,33 +1869,61 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final roomId = payload.roomId.trim();
       if (roomId.isEmpty) throw StateError('频道 room_id 为空');
       final channelId = payload.channelId.trim();
-      final joined = await joinChannelWithInviteProjectionRetry(
-        ref,
-        () => ref.read(asClientProvider).joinChannel(
-              channelId.isEmpty ? roomId : channelId,
+      logChannelShareJoinStart(
+        source: 'chat_channel_share',
+        payload: payload,
+        action: channelShareHasInviteGrant(payload)
+            ? 'channels.join'
+            : 'channels.public.join_request',
+        targetId: channelShareHasInviteGrant(payload)
+            ? (channelId.isEmpty ? roomId : channelId)
+            : channelShareJoinRequestTargetId(payload),
+      );
+      final joined = channelShareHasInviteGrant(payload)
+          ? await joinChannelShareWithInviteProjection(
+              ref,
+              () => ref.read(asClientProvider).joinChannel(
+                    channelId.isEmpty ? roomId : channelId,
+                    roomId: roomId,
+                    grantId: payload.grantId,
+                    shareRoomId: payload.shareRoomId,
+                    discoveredChannel: payload.asDiscoveredChannel,
+                  ),
+              channelId: channelId,
               roomId: roomId,
-              grantId: payload.grantId,
-              shareRoomId: payload.shareRoomId,
-              discoveredChannel: payload.asDiscoveredChannel,
-            ),
+              debugSource: 'chat_channel_share',
+            )
+          : await ref.read(asClientProvider).joinChannelByRoomId(
+                channelShareJoinRequestTargetId(payload),
+                discoveredChannel: payload.asDiscoveredChannel,
+                remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
+              );
+      logChannelShareJoinResult(
+        source: 'chat_channel_share',
+        payload: payload,
+        channel: joined,
+        stage: isAsChannelMemberJoined(joined.memberStatus)
+            ? 'joined_or_projected'
+            : 'waiting',
       );
       if (isAsChannelMemberJoined(joined.memberStatus)) {
         await _refreshBootstrapAfterVisibilityMutation();
       }
       if (!mounted) return;
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
+        setState(() => _requestedChannelShareIds.add(key));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(channelJoinInProgressText)),
+          SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
         );
-        final projected = await waitForJoinedChannelProjection(
-          ref,
-          channelId: channelId.isEmpty ? joined.channelId : channelId,
-          roomId: roomId,
-        );
-        if (!mounted || !projected) return;
+        return;
       }
       context.push(channelShareJoinedRoute(payload, joined), extra: payload);
     } on Object catch (e) {
+      logChannelShareJoinError(
+        e,
+        source: 'chat_channel_share',
+        payload: payload,
+      );
       logChannelShareJoinForbidden(
         e,
         source: 'chat_channel_share',
@@ -1964,7 +1994,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           });
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已保存到相册')),
+          const SnackBar(content: Text('已保存原图到相册')),
         );
       }
     } on Object catch (err) {
@@ -3377,6 +3407,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                           channelSharePayload,
                                         ) ||
                                         isMe,
+                                    alreadyRequested: _requestedChannelShareIds
+                                        .contains(shareKey),
                                     onJoin: () => unawaited(
                                       _joinChannelShare(
                                         channelSharePayload,
@@ -4515,6 +4547,7 @@ class _SChannelShareBubble extends StatelessWidget {
     this.multiSelect = false,
     this.joining = false,
     this.alreadyJoined = false,
+    this.alreadyRequested = false,
     this.onJoin,
     this.onTap,
     this.onLongPressAt,
@@ -4531,6 +4564,7 @@ class _SChannelShareBubble extends StatelessWidget {
   final bool multiSelect;
   final bool joining;
   final bool alreadyJoined;
+  final bool alreadyRequested;
   final VoidCallback? onJoin;
   final VoidCallback? onTap;
   final _MessageContextAnchorCallback? onLongPressAt;
@@ -4556,6 +4590,7 @@ class _SChannelShareBubble extends StatelessWidget {
             payload: payload,
             joining: joining,
             alreadyJoined: alreadyJoined,
+            alreadyRequested: alreadyRequested,
             onJoin: onJoin,
             onTap: onTap,
             onLongPressAt: (position) => onLongPressAt?.call(
@@ -5489,7 +5524,7 @@ class _ImageDownloadStatusBadge extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Text(
-              '下载中',
+              _savingLabel(label),
               style: AppTheme.sans(
                 size: 10,
                 color: Colors.white,
@@ -5503,7 +5538,7 @@ class _ImageDownloadStatusBadge extends StatelessWidget {
     if (downloaded) {
       return _ImageStatusPill(
         child: Text(
-          '已下载',
+          _savedLabel(label),
           style: AppTheme.sans(
             size: 10,
             color: Colors.white,
@@ -5514,7 +5549,7 @@ class _ImageDownloadStatusBadge extends StatelessWidget {
     }
     return Semantics(
       button: true,
-      label: '下载$label',
+      label: _downloadSemanticLabel(label),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onDownload,
@@ -5530,6 +5565,30 @@ class _ImageDownloadStatusBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+String _downloadSemanticLabel(String label) {
+  return switch (label) {
+    '视频' => '保存原视频',
+    '图片' => '保存原图',
+    _ => '下载$label',
+  };
+}
+
+String _savingLabel(String label) {
+  return switch (label) {
+    '视频' => '保存中',
+    '图片' => '保存中',
+    _ => '下载中',
+  };
+}
+
+String _savedLabel(String label) {
+  return switch (label) {
+    '视频' => '原视频已保存',
+    '图片' => '原图已保存',
+    _ => '已下载',
+  };
 }
 
 class _ImageStatusPill extends StatelessWidget {

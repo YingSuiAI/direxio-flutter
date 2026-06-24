@@ -92,7 +92,7 @@ class _ChatVideoPreviewPageState extends State<ChatVideoPreviewPage> {
       if (!mounted) return;
       setState(() => _saved = true);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已保存到相册')),
+        const SnackBar(content: Text('已保存原视频到相册')),
       );
     } on Object catch (err) {
       if (!mounted) return;
@@ -206,7 +206,7 @@ class _VideoPreviewHeader extends StatelessWidget {
               ? const SizedBox.shrink()
               : IconButton(
                   onPressed: saving ? null : onSaveToAlbum,
-                  tooltip: saved ? '已保存' : '保存到相册',
+                  tooltip: saved ? '原视频已保存' : '保存原视频到相册',
                   icon: saving
                       ? const SizedBox.square(
                           dimension: 20,

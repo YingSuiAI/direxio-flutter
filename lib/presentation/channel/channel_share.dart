@@ -125,6 +125,15 @@ bool channelShareIsJoined(
 ) =>
     _channelShareIsJoined(syncCache, payload);
 
+bool channelShareHasInviteGrant(ChannelSharePayload payload) =>
+    payload.grantId.trim().isNotEmpty && payload.shareRoomId.trim().isNotEmpty;
+
+String channelShareJoinRequestTargetId(ChannelSharePayload payload) {
+  final channelId = payload.channelId.trim();
+  if (channelId.isNotEmpty) return channelId;
+  return payload.roomId.trim();
+}
+
 String channelShareJoinKey(ChannelSharePayload payload) {
   final channelId = payload.channelId.trim();
   if (channelId.isNotEmpty) return channelId;
@@ -262,6 +271,7 @@ Future<bool> showAndShareChannel(
   required ChannelSharePayload payload,
   required String currentRoomId,
   required String currentRoomName,
+  bool createInviteGrant = false,
 }) async {
   final targets = chatRecordForwardTargets(
     ref.read(asSyncCacheProvider),
@@ -282,16 +292,44 @@ Future<bool> showAndShareChannel(
     builder: (ctx) => _ChannelShareTargetSheet(targets: targets),
   );
   if (target == null) return false;
-  final asClient = ref.read(asClientProvider);
-  final grant = await asClient.createChannelInviteGrant(
-    channelId: payload.channelId,
-    roomId: payload.roomId,
-    shareRoomId: target.roomId,
+  var sharedPayload = payload;
+  debugPrint(
+    '[channel.share.send.start] '
+    'create_invite_grant=$createInviteGrant '
+    'target_room_id=${_logChannelShareValue(target.roomId)} '
+    'target_type=${_logChannelShareValue(target.roomType)} '
+    'channel_id=${_logChannelShareValue(payload.channelId)} '
+    'room_id=${_logChannelShareValue(payload.roomId)}',
   );
-  final sharedPayload = _channelSharePayloadWithGrant(
-    payload,
-    grantId: grant.grantId,
-    shareRoomId: grant.shareRoomId.isEmpty ? target.roomId : grant.shareRoomId,
+  if (createInviteGrant) {
+    final grant = await ref.read(asClientProvider).createChannelInviteGrant(
+          channelId: payload.channelId,
+          roomId: payload.roomId,
+          shareRoomId: target.roomId,
+        );
+    debugPrint(
+      '[channel.share.grant.created] '
+      'grant_id=${_logChannelShareValue(grant.grantId)} '
+      'grant_channel_id=${_logChannelShareValue(grant.channelId)} '
+      'grant_room_id=${_logChannelShareValue(grant.roomId)} '
+      'grant_share_room_id=${_logChannelShareValue(grant.shareRoomId)}',
+    );
+    sharedPayload = channelSharePayloadWithInviteGrant(
+      payload,
+      grantId: grant.grantId,
+      shareRoomId:
+          grant.shareRoomId.isEmpty ? target.roomId : grant.shareRoomId,
+    );
+  }
+  debugPrint(
+    '[channel.share.send.payload] '
+    'has_grant=${channelShareHasInviteGrant(sharedPayload)} '
+    'channel_id=${_logChannelShareValue(sharedPayload.channelId)} '
+    'room_id=${_logChannelShareValue(sharedPayload.roomId)} '
+    'grant_id=${_logChannelShareValue(sharedPayload.grantId)} '
+    'share_room_id=${_logChannelShareValue(sharedPayload.shareRoomId)} '
+    'join_policy=${_logChannelShareValue(sharedPayload.joinPolicy)} '
+    'visibility=${_logChannelShareValue(sharedPayload.visibility)}',
   );
   final matrixClient = ref.read(matrixClientProvider);
   final room = matrixClient.getRoomById(target.roomId);
@@ -309,7 +347,7 @@ Future<bool> showAndShareChannel(
   return true;
 }
 
-ChannelSharePayload _channelSharePayloadWithGrant(
+ChannelSharePayload channelSharePayloadWithInviteGrant(
   ChannelSharePayload payload, {
   required String grantId,
   required String shareRoomId,
@@ -337,6 +375,7 @@ class ChannelSharePreviewCard extends StatelessWidget {
     required this.payload,
     this.joining = false,
     this.alreadyJoined = false,
+    this.alreadyRequested = false,
     this.onJoin,
     this.onTap,
     this.onLongPressAt,
@@ -345,6 +384,7 @@ class ChannelSharePreviewCard extends StatelessWidget {
   final ChannelSharePayload payload;
   final bool joining;
   final bool alreadyJoined;
+  final bool alreadyRequested;
   final VoidCallback? onJoin;
   final VoidCallback? onTap;
   final ValueChanged<Offset>? onLongPressAt;
@@ -356,7 +396,8 @@ class ChannelSharePreviewCard extends StatelessWidget {
         ? payload.homeDomain.trim()
         : payload.description.trim();
     final typeLabel = _channelShareTypeLabel(payload);
-    final buttonTap = joining || alreadyJoined ? () {} : onJoin;
+    final buttonDisabled = joining || alreadyJoined || alreadyRequested;
+    final buttonTap = buttonDisabled ? () {} : onJoin;
     return ChatCardBubbleFrame(
       onTap: onTap,
       onLongPressAt: onLongPressAt,
@@ -409,9 +450,8 @@ class ChannelSharePreviewCard extends StatelessWidget {
             width: double.infinity,
             height: 30,
             child: Material(
-              color: joining || alreadyJoined
-                  ? t.accent.withValues(alpha: 0.48)
-                  : t.accent,
+              color:
+                  buttonDisabled ? t.accent.withValues(alpha: 0.48) : t.accent,
               borderRadius: BorderRadius.circular(8),
               child: InkWell(
                 onTap: buttonTap,
@@ -422,7 +462,9 @@ class ChannelSharePreviewCard extends StatelessWidget {
                         ? '加入中…'
                         : alreadyJoined
                             ? '已加入'
-                            : '加入频道',
+                            : alreadyRequested
+                                ? '已申请加入频道'
+                                : '加入频道',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.sans(
@@ -574,6 +616,11 @@ class _ChannelShareTargetSheet extends ConsumerWidget {
       },
     );
   }
+}
+
+String _logChannelShareValue(String value) {
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? '<empty>' : trimmed;
 }
 
 String? _targetAvatarUrl(

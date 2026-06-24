@@ -40,6 +40,7 @@ class ChannelDetailInfoPage extends ConsumerStatefulWidget {
 
 class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
   bool _joining = false;
+  bool _requested = false;
   Future<ChannelInfoData>? _publicDetailFuture;
 
   @override
@@ -159,6 +160,8 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                 height: 50,
                 child: _JoinButton(
                   joining: _joining,
+                  requested: _requested ||
+                      isAsChannelMemberAwaitingJoin(channel.memberStatus),
                   onTap: () => _joinChannel(channel),
                 ),
               ),
@@ -196,6 +199,18 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
     setState(() => _joining = true);
     try {
       final sharePayload = widget.sharePayload;
+      if (sharePayload != null) {
+        logChannelShareJoinStart(
+          source: 'channel_detail_share',
+          payload: sharePayload,
+          action: channelShareHasInviteGrant(sharePayload)
+              ? 'channels.join'
+              : 'channels.public.join_request',
+          targetId: channelShareHasInviteGrant(sharePayload)
+              ? (channelId.isEmpty ? roomId : channelId)
+              : channelShareJoinRequestTargetId(sharePayload),
+        );
+      }
       final joined = sharePayload == null
           ? await ref.read(asClientProvider).joinChannelByRoomId(
                 roomId.isEmpty ? channelId : roomId,
@@ -203,16 +218,35 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                   roomId.isEmpty ? channelId : roomId,
                 ),
               )
-          : await joinChannelWithInviteProjectionRetry(
-              ref,
-              () => ref.read(asClientProvider).joinChannel(
-                    channelId.isEmpty ? roomId : channelId,
-                    roomId: roomId,
-                    grantId: sharePayload.grantId,
-                    shareRoomId: sharePayload.shareRoomId,
+          : channelShareHasInviteGrant(sharePayload)
+              ? await joinChannelShareWithInviteProjection(
+                  ref,
+                  () => ref.read(asClientProvider).joinChannel(
+                        channelId.isEmpty ? roomId : channelId,
+                        roomId: roomId,
+                        grantId: sharePayload.grantId,
+                        shareRoomId: sharePayload.shareRoomId,
+                        discoveredChannel: sharePayload.asDiscoveredChannel,
+                      ),
+                  channelId: channelId,
+                  roomId: roomId,
+                  debugSource: 'channel_detail_share',
+                )
+              : await ref.read(asClientProvider).joinChannelByRoomId(
+                    channelShareJoinRequestTargetId(sharePayload),
                     discoveredChannel: sharePayload.asDiscoveredChannel,
-                  ),
-            );
+                    remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
+                  );
+      if (sharePayload != null) {
+        logChannelShareJoinResult(
+          source: 'channel_detail_share',
+          payload: sharePayload,
+          channel: joined,
+          stage: isAsChannelMemberJoined(joined.memberStatus)
+              ? 'joined_or_projected'
+              : 'waiting',
+        );
+      }
       if (!mounted) return;
       if (isAsChannelMemberJoinFailed(joined.memberStatus)) {
         setState(() => _joining = false);
@@ -222,15 +256,23 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
         return;
       }
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
+        setState(() => _requested = true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_channelJoinWaitingText(joined.memberStatus))),
         );
+        if (sharePayload != null && !channelShareHasInviteGrant(sharePayload)) {
+          setState(() => _joining = false);
+          return;
+        }
         final projected = await waitForJoinedChannelProjectionData(
           ref,
           channelId: joined.channelId.trim().isEmpty
               ? channelId
               : joined.channelId.trim(),
           roomId: joined.roomId.trim().isEmpty ? roomId : joined.roomId.trim(),
+          debugSource: sharePayload == null
+              ? 'channel_detail_public'
+              : 'channel_detail_share',
         );
         if (!mounted) return;
         setState(() => _joining = false);
@@ -247,6 +289,13 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       _openJoinedChannel(joined, fallback: channel);
     } catch (err) {
       final sharePayload = widget.sharePayload;
+      if (sharePayload != null) {
+        logChannelShareJoinError(
+          err,
+          source: 'channel_detail_share',
+          payload: sharePayload,
+        );
+      }
       logChannelJoinForbidden(
         err,
         source: sharePayload == null
@@ -330,6 +379,7 @@ Future<void> _shareChannelDetail(
       ),
       currentRoomId: channel.roomId,
       currentRoomName: channel.name,
+      createInviteGrant: channel.isOwned,
     );
     if (!context.mounted || !sent) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -538,16 +588,18 @@ class _ShareChannelButton extends StatelessWidget {
 class _JoinButton extends StatelessWidget {
   const _JoinButton({
     required this.joining,
+    required this.requested,
     required this.onTap,
   });
 
   final bool joining;
+  final bool requested;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return FilledButton(
-      onPressed: joining ? null : onTap,
+      onPressed: joining || requested ? null : onTap,
       style: FilledButton.styleFrom(
         fixedSize: const Size.fromHeight(50),
         backgroundColor: context.tk.accent,
@@ -567,7 +619,7 @@ class _JoinButton extends StatelessWidget {
               ),
             )
           : Text(
-              '申请加入',
+              requested ? '已申请加入频道' : '申请加入',
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w500,

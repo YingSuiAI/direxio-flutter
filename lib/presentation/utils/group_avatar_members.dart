@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../data/as_client.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../widgets/group_composite_avatar.dart';
@@ -29,10 +30,15 @@ StableGroupAvatarMembers stableGroupAvatarMembersForRoom({
   required AsSyncCacheState syncCache,
   required List<String> cachedMemberOrder,
   Map<String, String> cachedMemberAvatarUrls = const {},
+  List<AsGroupMember> authoritativeMembers = const [],
   Profile? currentUserProfile,
 }) {
   final liveMemberIds = _liveGroupMemberIds(room);
-  if (liveMemberIds.isEmpty) {
+  final authoritativeById = _authoritativeGroupMembersById(
+    authoritativeMembers,
+  );
+  final authoritativeOrder = authoritativeById.keys.toList(growable: false);
+  if (liveMemberIds.isEmpty && authoritativeOrder.isEmpty) {
     final cached = cachedGroupAvatarMembers(
       cachedMemberOrder: cachedMemberOrder,
       cachedMemberAvatarUrls: cachedMemberAvatarUrls,
@@ -46,24 +52,36 @@ StableGroupAvatarMembers stableGroupAvatarMembersForRoom({
     );
   }
 
-  final resolvedOrder = _resolveStableMemberOrder(
-    cachedMemberOrder: cachedMemberOrder,
-    liveMemberOrder: liveMemberIds,
-  );
+  final resolvedOrder = authoritativeOrder.isEmpty
+      ? _resolveStableMemberOrder(
+          cachedMemberOrder: cachedMemberOrder,
+          liveMemberOrder: liveMemberIds,
+        )
+      : _resolveAuthoritativeMemberOrder(
+          authoritativeMemberOrder: authoritativeOrder,
+          liveMemberOrder: liveMemberIds,
+        );
   final states = room.states[EventTypes.RoomMember] ?? const {};
   final currentUserId = room.client.userID?.trim() ?? '';
   final members = <GroupCompositeAvatarMember>[];
   final avatarUrls = <String, String>{};
   for (final mxid in resolvedOrder.take(9)) {
+    final authoritativeMember = authoritativeById[mxid.trim()];
     final member = states[mxid]?.asUser(room);
     final memberAvatarUrl = member == null
         ? null
         : matrixContentHttpUrl(room.client, member.avatarUrl);
+    final authoritativeAvatarUrl = avatarHttpUrl(
+      room.client,
+      authoritativeMember?.avatarUrl,
+    );
     final avatar = currentUserId.isNotEmpty && mxid == currentUserId
         ? profileAvatarHttpUrl(currentUserProfile, room.client) ??
+            authoritativeAvatarUrl ??
             memberAvatarUrl ??
             strictGroupContactAvatarUrl(room.client, syncCache, mxid)
-        : memberAvatarUrl ??
+        : authoritativeAvatarUrl ??
+            memberAvatarUrl ??
             strictGroupContactAvatarUrl(room.client, syncCache, mxid) ??
             cachedMemberAvatarUrls[mxid.trim()];
     final cleanAvatar = avatar?.trim() ?? '';
@@ -183,6 +201,18 @@ List<String> _liveGroupMemberIds(Room room) {
   return List.unmodifiable(out);
 }
 
+Map<String, AsGroupMember> _authoritativeGroupMembersById(
+  List<AsGroupMember> members,
+) {
+  final out = <String, AsGroupMember>{};
+  for (final member in members) {
+    final mxid = member.userMxid.trim();
+    if (mxid.isEmpty || out.containsKey(mxid)) continue;
+    out[mxid] = member;
+  }
+  return Map.unmodifiable(out);
+}
+
 List<String> _resolveStableMemberOrder({
   required List<String> cachedMemberOrder,
   required List<String> liveMemberOrder,
@@ -208,6 +238,58 @@ List<String> _resolveStableMemberOrder({
     if (seen.add(mxid)) next.add(mxid);
   }
   return List.unmodifiable(next);
+}
+
+List<String> _resolveAuthoritativeMemberOrder({
+  required List<String> authoritativeMemberOrder,
+  required List<String> liveMemberOrder,
+}) {
+  final next = <String>[];
+  final seen = <String>{};
+  for (final mxid in authoritativeMemberOrder) {
+    final trimmed = mxid.trim();
+    if (trimmed.isNotEmpty && seen.add(trimmed)) next.add(trimmed);
+  }
+  for (final mxid in liveMemberOrder) {
+    final trimmed = mxid.trim();
+    if (trimmed.isNotEmpty && seen.add(trimmed)) next.add(trimmed);
+  }
+  return List.unmodifiable(next);
+}
+
+List<User> sortGroupParticipantsByAuthoritativeMembers(
+  List<User> members,
+  List<AsGroupMember> authoritativeMembers,
+) {
+  if (members.isEmpty || authoritativeMembers.isEmpty) return members;
+  final byId = {
+    for (final member in members)
+      if (member.id.trim().isNotEmpty) member.id.trim(): member,
+  };
+  final next = <User>[];
+  final seen = <String>{};
+  for (final member in authoritativeMembers) {
+    final mxid = member.userMxid.trim();
+    final user = byId[mxid];
+    if (user != null && seen.add(mxid)) next.add(user);
+  }
+  for (final member in members) {
+    final mxid = member.id.trim();
+    if (mxid.isEmpty || seen.add(mxid)) next.add(member);
+  }
+  return List.unmodifiable(next);
+}
+
+AsGroupMember? authoritativeGroupMemberForUser(
+  List<AsGroupMember> members,
+  String userId,
+) {
+  final trimmed = userId.trim();
+  if (trimmed.isEmpty) return null;
+  for (final member in members) {
+    if (member.userMxid.trim() == trimmed) return member;
+  }
+  return null;
 }
 
 String? _strictDirectRoomProfileAvatarUrl(

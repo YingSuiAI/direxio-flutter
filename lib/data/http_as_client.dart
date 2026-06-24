@@ -973,7 +973,7 @@ class HttpAsClient implements AsClient {
     String channelId, {
     String status = '',
   }) async {
-    final statusParam = _channelMemberStatusQueryParam(status);
+    final statusParam = _memberStatusQueryParam(status);
     final body = await _getJson(
       'channels/${Uri.encodeComponent(channelId)}/members',
       queryParameters: {
@@ -1390,6 +1390,25 @@ class HttpAsClient implements AsClient {
       );
     }
     return group;
+  }
+
+  @override
+  Future<List<AsGroupMember>> getGroupMembers(
+    String roomId, {
+    String status = '',
+  }) async {
+    final statusParam = _memberStatusQueryParam(status);
+    final body = await _getJson(
+      'groups/${Uri.encodeComponent(roomId.trim())}/members',
+      queryParameters: {
+        if (statusParam.isNotEmpty) 'status': statusParam,
+      },
+    );
+    final raw = body['members'] as List? ?? const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => AsGroupMember.fromJson(item.cast<String, dynamic>()))
+        .toList(growable: false);
   }
 
   @override
@@ -1839,11 +1858,8 @@ class HttpAsClient implements AsClient {
       channelJson['conversation'] = conversationJson;
     }
     if (statusBelongsToCurrentUser) {
-      final currentStatus = channelJson['member_status'];
       final envelopeStatus = body['status'];
-      if ((currentStatus is! String || currentStatus.trim().isEmpty) &&
-          envelopeStatus is String &&
-          envelopeStatus.trim().isNotEmpty) {
+      if (envelopeStatus is String && envelopeStatus.trim().isNotEmpty) {
         return AsChannel.fromJson({
           ...channelJson,
           'member_status': envelopeStatus,
@@ -2360,7 +2376,7 @@ Map<String, Object?> _actionParams(
   return params;
 }
 
-String _channelMemberStatusQueryParam(String status) {
+String _memberStatusQueryParam(String status) {
   final value = status.trim();
   if (value == asChannelMemberStatusJoined) return 'join';
   return value;

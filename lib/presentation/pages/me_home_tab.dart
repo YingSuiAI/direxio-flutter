@@ -8,7 +8,6 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
-import '../providers/app_locale_provider.dart';
 import '../providers/personal_space_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
@@ -44,7 +43,6 @@ class MePage extends ConsumerWidget {
       context,
       AppLocalizations,
     );
-    final localeMode = ref.watch(appLocaleProvider).mode;
 
     return ColoredBox(
       color: _homeBgColor(context),
@@ -91,13 +89,6 @@ class MePage extends ConsumerWidget {
               icon: Symbols.error,
               label: l10n?.meCommentsTitle ?? '评论',
               onTap: () => context.push('/me/comments'),
-            ),
-            const SizedBox(height: 16),
-            _MeActionRow(
-              icon: Symbols.language,
-              label: l10n?.settingsLanguage ?? '语言',
-              trailingText: _languageLabel(l10n, localeMode),
-              onTap: () => _showLanguagePicker(context, ref),
             ),
             const SizedBox(height: 16),
             _MeActionRow(
@@ -243,13 +234,11 @@ class _MeActionRow extends StatelessWidget {
   const _MeActionRow({
     required this.icon,
     required this.label,
-    this.trailingText,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
-  final String? trailingText;
   final VoidCallback onTap;
 
   @override
@@ -281,39 +270,11 @@ class _MeActionRow extends StatelessWidget {
                   ),
                 ),
               ),
-              if (trailingText case final text?)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 140),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          text,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: AppTheme.sans(
-                            size: 13,
-                            color: _homeMutedColor(context),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Symbols.chevron_right,
-                        size: 22,
-                        color: _homeMutedColor(context),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                Icon(
-                  Symbols.chevron_right,
-                  size: 22,
-                  color: _homeMutedColor(context),
-                ),
+              Icon(
+                Symbols.chevron_right,
+                size: 22,
+                color: _homeMutedColor(context),
+              ),
             ],
           ),
         ),
@@ -387,69 +348,6 @@ Future<void> _showHelpFeedback(BuildContext context) {
       );
     },
   );
-}
-
-Future<void> _showLanguagePicker(BuildContext context, WidgetRef ref) async {
-  final selected = ref.read(appLocaleProvider).mode;
-  final picked = await showModalBottomSheet<AppLocaleMode>(
-    context: context,
-    showDragHandle: true,
-    builder: (ctx) {
-      final l10n = Localizations.of<AppLocalizations>(
-        ctx,
-        AppLocalizations,
-      );
-      return SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    l10n?.languageDialogTitle ?? '语言',
-                    style: AppTheme.sans(
-                      size: 20,
-                      weight: FontWeight.w600,
-                      color: ctx.tk.text,
-                    ),
-                  ),
-                ),
-              ),
-              for (final mode in _supportedLanguageModes)
-                ListTile(
-                  title: Text(_languageLabel(l10n, mode)),
-                  trailing: mode == selected
-                      ? Icon(Symbols.check, color: ctx.tk.accent)
-                      : null,
-                  onTap: () => Navigator.of(ctx).pop(mode),
-                ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-  if (picked == null || picked == selected) return;
-  await ref.read(appLocaleProvider.notifier).setMode(picked);
-}
-
-const _supportedLanguageModes = [
-  AppLocaleMode.system,
-  AppLocaleMode.zh,
-  AppLocaleMode.en,
-  AppLocaleMode.ja,
-];
-
-String _languageLabel(AppLocalizations? l10n, AppLocaleMode mode) {
-  return switch (mode) {
-    AppLocaleMode.system => l10n?.languageSystem ?? '跟随系统',
-    AppLocaleMode.zh => l10n?.languageChinese ?? '简体中文',
-    AppLocaleMode.en => l10n?.languageEnglish ?? 'English',
-    AppLocaleMode.ja => l10n?.languageJapanese ?? '日本語',
-  };
 }
 
 String _localpartFromMxid(String mxid) {

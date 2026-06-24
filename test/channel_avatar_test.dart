@@ -51,9 +51,65 @@ void main() {
     expect(avatar.shape, AvatarShape.squircle);
   });
 
-  testWidgets('owned channel info page renders uploaded channel avatar',
+  testWidgets('member channel info page renders uploaded channel avatar',
       (tester) async {
-    final client = Client('OwnedChannelInfoAvatarTest');
+    final client = Client('MemberChannelInfoAvatarTest');
+    const avatarUrl = 'https://cdn.example.com/owned-channel.png';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@alex:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        const AsSyncRoomSummary(
+          channelId: 'ch_owned',
+          roomId: '!owned:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '频道头像测试',
+          avatarUrl: avatarUrl,
+          unreadCount: 0,
+          lastActivityAt: null,
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 0,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(MockAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_owned'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
+    expect(
+      avatars.any(
+        (avatar) =>
+            avatar.imageUrl == avatarUrl &&
+            avatar.shape == AvatarShape.squircle,
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('owned channel info page hides channel avatar and name',
+      (tester) async {
+    final client = Client('OwnedChannelInfoHeaderHiddenTest');
     const avatarUrl = 'https://cdn.example.com/owned-channel.png';
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
@@ -97,14 +153,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
-    expect(
-      avatars.any(
-        (avatar) =>
-            avatar.imageUrl == avatarUrl &&
-            avatar.shape == AvatarShape.squircle,
-      ),
-      isTrue,
-    );
+    expect(avatars.any((avatar) => avatar.imageUrl == avatarUrl), isFalse);
+    expect(find.textContaining('频道头像测试'), findsNothing);
   });
 
   test('channel member parses backend user id and avatar fields', () {
@@ -563,6 +613,40 @@ void main() {
     await tester.tap(find.text('文字频道'));
     await tester.pumpAndSettle();
     expect(opened, 'chat:ch_chat');
+  });
+
+  testWidgets('post channel inbox tile shows member count below title',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const Scaffold(
+            body: ChannelInboxTile(
+              channel: ChannelInboxItem(
+                id: 'ch_post',
+                roomId: '!post:p2p-im.com',
+                name: '帖子频道',
+                domain: 'p2p-im.com',
+                avatarUrl: '',
+                latestPreview: '帖子更新',
+                latestAt: null,
+                unreadCount: 0,
+                isOwned: false,
+                channelType: asChannelTypePost,
+                tags: [],
+                memberCount: 18,
+              ),
+              showDivider: false,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('帖子频道'), findsOneWidget);
+    expect(find.text('18 名成员'), findsOneWidget);
+    expect(find.text('帖子更新'), findsNothing);
   });
 
   testWidgets('channel inbox list tap callback can show dissolved hint',

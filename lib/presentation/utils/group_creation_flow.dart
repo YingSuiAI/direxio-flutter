@@ -726,8 +726,12 @@ class _CreateGroupInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final memberAvatarUrls = [
-      for (final contact in selectedContacts) contactAvatarUrl(contact) ?? '',
+    final avatarMembers = [
+      for (final contact in selectedContacts)
+        GroupCompositeAvatarMember(
+          seed: contactName(contact),
+          imageUrl: contactAvatarUrl(contact),
+        ),
     ];
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -742,7 +746,7 @@ class _CreateGroupInfoCard extends StatelessWidget {
             key: const ValueKey('create_group_composite_avatar'),
             seed: selectedContacts.map(contactName).join('|'),
             size: 48,
-            memberAvatarUrls: memberAvatarUrls,
+            members: avatarMembers,
           ),
           const SizedBox(width: 12),
           Expanded(

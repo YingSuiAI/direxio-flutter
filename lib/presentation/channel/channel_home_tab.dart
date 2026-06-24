@@ -1066,6 +1066,7 @@ class ChannelInboxTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final channelId = channel.id.trim();
+    final subtitle = _channelInboxSubtitle(channel);
     Offset menuPosition = Offset.zero;
     return GestureDetector(
       onSecondaryTapDown: (details) => menuPosition = details.globalPosition,
@@ -1168,13 +1169,10 @@ class ChannelInboxTile extends StatelessWidget {
                                     ],
                                   ],
                                 ),
-                                if (showPreview &&
-                                    channel.latestPreview
-                                        .trim()
-                                        .isNotEmpty) ...[
+                                if (showPreview && subtitle.isNotEmpty) ...[
                                   const SizedBox(height: 4),
                                   Text(
-                                    channel.latestPreview,
+                                    subtitle,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppTheme.sans(
@@ -1597,6 +1595,14 @@ const _meChannelSections = ['已加入', '我创建'];
 
 bool _channelIsTextType(ChannelInboxItem channel) {
   return normalizeAsChannelType(channel.channelType) == asChannelTypeChat;
+}
+
+String _channelInboxSubtitle(ChannelInboxItem channel) {
+  if (!_channelIsTextType(channel)) {
+    final count = channel.memberCount < 0 ? 0 : channel.memberCount;
+    return '$count 名成员';
+  }
+  return channel.latestPreview.trim();
 }
 
 String? _channelRoute(ChannelInboxItem channel) {

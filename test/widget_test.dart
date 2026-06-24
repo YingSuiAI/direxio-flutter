@@ -65,7 +65,6 @@ import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.da
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
-import 'package:portal_app/presentation/providers/app_locale_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/providers/chat_clear_state_provider.dart';
@@ -921,6 +920,13 @@ class _EmptyAsClient implements AsClient {
         memberCount: 1,
         invitedCount: invite.length,
       );
+
+  @override
+  Future<List<AsGroupMember>> getGroupMembers(
+    String roomId, {
+    String status = '',
+  }) async =>
+      const [];
 
   @override
   Future<void> removeGroupMember({
@@ -1948,6 +1954,13 @@ class _TrackingAsClient extends _EmptyAsClient {
       invitedCount: invite.length,
     );
   }
+
+  @override
+  Future<List<AsGroupMember>> getGroupMembers(
+    String roomId, {
+    String status = '',
+  }) async =>
+      const [];
 
   @override
   Future<AsGroupResult> joinGroup({
@@ -5636,6 +5649,95 @@ void main() {
             widget.imageUrl == 'https://example.com/alice.png',
       ),
       findsNothing,
+    );
+  });
+
+  testWidgets('create group name field shows selected friends without avatars',
+      (tester) async {
+    final client = Client('DirexioCreateGroupNameFieldInitialsTest')
+      ..setUserId('@owner:p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24, 16),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@bob:p2p-im.com',
+          displayName: 'Bob',
+          avatarUrl: '',
+          roomId: '!bob:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/groups',
+      routes: [
+        GoRoute(path: '/groups', builder: (_, __) => const GroupsListPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Symbols.group_add));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Alice'));
+    await tester.tap(find.text('Bob'));
+    await tester.pump();
+    await tester.tap(find.text('完成(2)'));
+    await tester.pumpAndSettle();
+
+    final composite = find.byKey(
+      const ValueKey('create_group_composite_avatar'),
+    );
+    expect(composite, findsOneWidget);
+    expect(
+      find.descendant(
+        of: composite,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is PortalAvatar && widget.seed == 'Alice',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: composite,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is PortalAvatar && widget.seed == 'Bob',
+        ),
+      ),
+      findsOneWidget,
     );
   });
 
@@ -15054,6 +15156,152 @@ void main() {
         findsNothing);
   });
 
+  testWidgets('home message list excludes channel conversations',
+      (tester) async {
+    const roomId = '!channel-home-unread:p2p-im.com';
+    final client = Client('DirexioHomeChannelUnreadTest')
+      ..setUserId('@member:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24, 10),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_home_unread',
+          roomId: roomId,
+          homeDomain: 'p2p-im.com',
+          name: '产品更新',
+          avatarUrl: '',
+          unreadCount: 6,
+          lastActivityAt: DateTime.utc(2026, 6, 24, 9),
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypeChat,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_MemberLoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => _MemoryConversationSummaryStore(null),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final row = find.byKey(const ValueKey('home_conversation_$roomId'));
+    expect(row, findsNothing);
+    expect(find.text('产品更新'), findsNothing);
+    expect(find.text('6'), findsNothing);
+  });
+
+  testWidgets('home message list keeps channel events out of messages',
+      (tester) async {
+    const roomId = '!channel-home-live-unread:p2p-im.com';
+    final client = Client('DirexioHomeChannelLiveUnreadTest')
+      ..setUserId('@member:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    final room = Room(
+      id: roomId,
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24, 10),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        const AsSyncRoomSummary(
+          channelId: 'ch_home_live_unread',
+          roomId: roomId,
+          homeDomain: 'p2p-im.com',
+          name: '产品更新',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypeChat,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_MemberLoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          conversationSummaryStoreProvider.overrideWith(
+            (ref) async => _MemoryConversationSummaryStore(null),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final row = find.byKey(const ValueKey('home_conversation_$roomId'));
+    expect(row, findsNothing);
+
+    room.lastEvent = Event(
+      room: room,
+      eventId: r'$channel-live-unread',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 24, 10, 1),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '频道新消息',
+      },
+    );
+    client.onEvent.add(EventUpdate(
+      roomID: roomId,
+      type: EventUpdateType.timeline,
+      content: {
+        'type': EventTypes.Message,
+        'event_id': r'$channel-live-unread',
+        'sender': '@alice:p2p-im.com',
+        'origin_server_ts':
+            DateTime.utc(2026, 6, 24, 10, 1).millisecondsSinceEpoch,
+        'content': {
+          'msgtype': MessageTypes.Text,
+          'body': '频道新消息',
+        },
+      },
+    ));
+    await tester.pump();
+    await tester.pump();
+
+    expect(row, findsNothing);
+    expect(find.text('频道新消息'), findsNothing);
+  });
+
   testWidgets('channel tab hides legacy discover switch', (tester) async {
     final client = Client('DirexioTest');
 
@@ -17128,52 +17376,9 @@ void main() {
     expect(find.text('保存到相册'), findsOneWidget);
   });
 
-  testWidgets('me page language row updates app locale', (tester) async {
+  testWidgets('me page hides language row', (tester) async {
     FlutterSecureStorage.setMockInitialValues({'language': '1'});
-    final client = Client('DirexioMeLocaleTest')
-      ..setUserId('@owner:p2p-im.com');
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          currentUserProfileProvider.overrideWith((ref) async => null),
-        ],
-        child: Consumer(
-          builder: (context, ref, _) {
-            final localeState = ref.watch(appLocaleProvider);
-            return MaterialApp(
-              theme: AppTheme.light,
-              locale: localeState.locale,
-              supportedLocales: AppLocalizations.supportedLocales,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: Scaffold(
-                body: MePage(client: client),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('语言'), findsOneWidget);
-    expect(find.text('简体中文'), findsOneWidget);
-
-    await tester.tap(find.text('语言'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('English').last);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Language'), findsOneWidget);
-    expect(find.text('English'), findsOneWidget);
-    expect(find.text('语言'), findsNothing);
-  });
-
-  testWidgets('me page language row keeps chevron aligned right',
-      (tester) async {
-    FlutterSecureStorage.setMockInitialValues({'language': '0'});
-    final client = Client('DirexioMeLocaleChevronTest')
+    final client = Client('DirexioMeNoLanguageRowTest')
       ..setUserId('@owner:p2p-im.com');
 
     await tester.pumpWidget(
@@ -17194,24 +17399,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final languageRow = find
-        .ancestor(
-          of: find.byIcon(Symbols.language),
-          matching: find.byType(InkWell),
-        )
-        .first;
-    final chevron = find.descendant(
-      of: languageRow,
-      matching: find.byIcon(Symbols.chevron_right),
-    );
-    final chevronElements = chevron.evaluate().toList(growable: false);
-
-    expect(chevronElements, hasLength(1));
-    expect(
-      tester.getRect(languageRow).right -
-          tester.getRect(find.byWidget(chevronElements.single.widget)).right,
-      closeTo(12, 1),
-    );
+    expect(find.text('语言'), findsNothing);
+    expect(find.byIcon(Symbols.language), findsNothing);
   });
 
   testWidgets('me page keeps long uid within profile row height',

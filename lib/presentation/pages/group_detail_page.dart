@@ -5,13 +5,16 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
 import '../groups/group_leave_flow.dart';
 import '../groups/group_member_invite_flow.dart';
 import '../providers/auth_provider.dart';
+import '../providers/channel_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/group_avatar_members.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/m3/glass_header.dart';
 
@@ -40,6 +43,17 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
+    final authoritativeGroupMembers = ref
+            .watch(
+              groupMembersProvider(
+                GroupMembersKey(
+                  roomId: widget.roomId,
+                  status: asChannelMemberStatusJoined,
+                ),
+              ),
+            )
+            .valueOrNull ??
+        const <AsGroupMember>[];
     if (room == null) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
@@ -52,7 +66,10 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
       client.userID,
       currentUserProfile: currentUserProfile,
     );
-    final realMembers = room.getParticipants();
+    final realMembers = sortGroupParticipantsByAuthoritativeMembers(
+      room.getParticipants(),
+      authoritativeGroupMembers,
+    );
     final existingMemberMxids = realMembers
         .map((member) => member.id.trim())
         .where((mxid) => mxid.isNotEmpty)
@@ -60,9 +77,12 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     final members = _buildMemberStripData(
       realMembers,
       client: client,
+      authoritativeMembers: authoritativeGroupMembers,
       currentUserProfile: currentUserProfile,
     );
-    final memberCount = realMembers.length;
+    final memberCount = authoritativeGroupMembers.isNotEmpty
+        ? authoritativeGroupMembers.length
+        : realMembers.length;
     final canManageGroup = _canManageGroup(room);
     final canDissolveGroup = _canDissolveGroup(room);
 
@@ -193,6 +213,7 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
   List<_Member> _buildMemberStripData(
     List<User> real, {
     required Client client,
+    required List<AsGroupMember> authoritativeMembers,
     required Profile? currentUserProfile,
   }) {
     final palette = <Color>[
@@ -219,18 +240,31 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
           ? _usableDisplayName(
               currentUserProfile?.displayName?.toString() ?? '')
           : '';
+      final authoritativeMember = authoritativeGroupMemberForUser(
+        authoritativeMembers,
+        userId,
+      );
+      final authoritativeName = _usableDisplayName(
+        authoritativeMember?.displayName ?? '',
+      );
       final name = _firstUsableDisplayName([
         profileName,
+        authoritativeName,
         real[i].displayName ?? '',
         real[i].calcDisplayname(),
         _fallbackDisplayNameFromMxid(userId),
       ]);
+      final authoritativeAvatar = avatarHttpUrl(
+        client,
+        authoritativeMember?.avatarUrl,
+      );
       out.add(
         _Member(
           initial:
               (name.isNotEmpty ? name : userId).characters.first.toUpperCase(),
           name: name,
-          avatarUrl: matrixContentHttpUrl(client, real[i].avatarUrl),
+          avatarUrl: authoritativeAvatar ??
+              matrixContentHttpUrl(client, real[i].avatarUrl),
           bg: palette[i % palette.length],
           fg: onColors[i % onColors.length],
         ),

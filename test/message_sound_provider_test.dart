@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
+import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/presentation/providers/message_sound_provider.dart';
 
 void main() {
@@ -65,6 +66,57 @@ void main() {
     );
   });
 
+  test('does not play for channel rooms by default', () {
+    expect(
+      shouldPlayMessageSound(
+        _messageUpdate(
+          roomId: '!channel:p2p-im.com',
+          sender: '@alice:p2p-im.com',
+        ),
+        currentUserId: '@owner:p2p-im.com',
+        mutedChannelRoomIds: {'!channel:p2p-im.com'},
+      ),
+      isFalse,
+    );
+    expect(
+      shouldPlayMessageSound(
+        _messageUpdate(
+          roomId: '!direct:p2p-im.com',
+          sender: '@alice:p2p-im.com',
+        ),
+        currentUserId: '@owner:p2p-im.com',
+        mutedChannelRoomIds: {'!channel:p2p-im.com'},
+      ),
+      isTrue,
+    );
+  });
+
+  test('reads default-muted channel rooms from bootstrap', () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          channelId: 'ch_updates',
+          roomId: '!channel:p2p-im.com',
+          name: '频道',
+          avatarUrl: '',
+          memberCount: 2,
+          unreadCount: 3,
+          lastActivityAt: null,
+          memberStatus: 'join',
+          channelType: asChannelTypeChat,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    expect(channelRoomIdsFromBootstrap(bootstrap), {'!channel:p2p-im.com'});
+  });
+
   test('message vibration uses mobile-compatible pattern', () async {
     final patterns = <List<int>>[];
     final player = MessageVibrationPlayer(
@@ -124,11 +176,12 @@ void main() {
 }
 
 EventUpdate _messageUpdate({
+  String roomId = '!room:p2p-im.com',
   required String sender,
   EventUpdateType updateType = EventUpdateType.timeline,
 }) {
   return EventUpdate(
-    roomID: '!room:p2p-im.com',
+    roomID: roomId,
     type: updateType,
     content: {
       'type': EventTypes.Message,

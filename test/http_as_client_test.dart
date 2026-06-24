@@ -1357,6 +1357,65 @@ void main() {
     expect(group.productConversation?.conversationId, 'conv_group');
   });
 
+  test('getGroupMembers reads backend sorted group members', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'groups.members',
+          'params': {
+            'room_id': '!group:p2p-im.com',
+            'status': 'join',
+          },
+        });
+        return _jsonResponse(
+          {
+            'members': [
+              {
+                'room_id': '!group:p2p-im.com',
+                'user_id': '@owner:p2p-im.com',
+                'display_name': 'Owner',
+                'avatar_url': 'mxc://p2p-im.com/owner',
+                'membership': 'join',
+                'role': 'owner',
+                'joined_at': 100,
+              },
+              {
+                'room_id': '!group:p2p-im.com',
+                'user_id': '@alice:p2p-im.com',
+                'display_name': 'Alice',
+                'avatar_url': 'mxc://p2p-im.com/alice',
+                'membership': 'join',
+                'role': 'member',
+                'joined_at': 200,
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final members = await client.getGroupMembers(
+      '!group:p2p-im.com',
+      status: asChannelMemberStatusJoined,
+    );
+
+    expect(members.map((member) => member.userMxid), [
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+    ]);
+    expect(members.first.role, asChannelRoleOwner);
+    expect(members.first.status, asChannelMemberStatusJoined);
+    expect(members.first.joinedAtMs, 100);
+    expect(members[1].displayName, 'Alice');
+    expect(members[1].avatarUrl, 'mxc://p2p-im.com/alice');
+  });
+
   test('removeGroupMember posts member removal through AS', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://p2p-im.com/_p2p'),
@@ -2789,6 +2848,44 @@ void main() {
     expect(channel.memberStatus, asChannelMemberStatusJoined);
     expect(channel.productConversation?.conversationId, 'conv_channel');
     expect(channel.productConversation?.roomId, '!private:example.com');
+  });
+
+  test('joinChannel prefers top-level joined status over stale channel member',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        final envelope = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(envelope['action'], 'channels.join');
+        return _jsonResponse(
+          {
+            'status': 'joined',
+            'channel': {
+              'channel_id': 'ch_private',
+              'room_id': '!private:example.com',
+              'home_domain': 'example.com',
+              'name': '私密频道',
+              'visibility': 'private',
+              'join_policy': 'invite',
+              'comments_enabled': true,
+              'member_status': 'invite',
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.joinChannel(
+      'ch_private',
+      roomId: '!private:example.com',
+      grantId: 'grant-1',
+      shareRoomId: '!direct:example.com',
+    );
+
+    expect(channel.memberStatus, asChannelMemberStatusJoined);
   });
 
   test('joinChannelByRoomId posts public join request through P2P command',

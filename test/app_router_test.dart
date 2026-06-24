@@ -97,7 +97,7 @@ void main() {
         callAutotestEnabled: true,
         isAuthLoading: false,
         isLoggedIn: true,
-        requiresProfileSetup: false,
+        requiresInitialization: false,
         matchedLocation: '/restore',
         uri: Uri.parse(
           '/restore?next=%2Fgroup-call%2F%21room%253Ap2p.test',
@@ -110,7 +110,7 @@ void main() {
         callAutotestEnabled: true,
         isAuthLoading: false,
         isLoggedIn: true,
-        requiresProfileSetup: false,
+        requiresInitialization: false,
         matchedLocation: '/restore',
         uri: Uri.parse('/restore?next=%2Fhome'),
       ),
@@ -124,7 +124,7 @@ void main() {
         callAutotestEnabled: false,
         isAuthLoading: true,
         isLoggedIn: false,
-        requiresProfileSetup: false,
+        requiresInitialization: false,
         matchedLocation: '/login',
         uri: Uri.parse('/login'),
       ),
@@ -135,7 +135,7 @@ void main() {
         callAutotestEnabled: false,
         isAuthLoading: true,
         isLoggedIn: false,
-        requiresProfileSetup: false,
+        requiresInitialization: false,
         matchedLocation: '/restore',
         uri: Uri.parse('/restore'),
       ),
@@ -150,7 +150,7 @@ void main() {
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: true,
-        requiresProfileSetup: false,
+        requiresInitialization: false,
         matchedLocation: '/restore',
         uri: Uri.parse('/restore'),
       ),
@@ -161,7 +161,7 @@ void main() {
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: false,
-        requiresProfileSetup: false,
+        requiresInitialization: false,
         matchedLocation: '/restore',
         uri: Uri.parse('/restore'),
       ),
@@ -169,13 +169,13 @@ void main() {
     );
   });
 
-  test('auth redirect sends logged-in uninitialized profile to init', () {
+  test('auth redirect sends logged-in uninitialized account to init', () {
     expect(
       authRedirectLocation(
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: true,
-        requiresProfileSetup: true,
+        requiresInitialization: true,
         matchedLocation: '/login',
         uri: Uri.parse('/login'),
       ),
@@ -186,7 +186,7 @@ void main() {
         callAutotestEnabled: false,
         isAuthLoading: false,
         isLoggedIn: true,
-        requiresProfileSetup: true,
+        requiresInitialization: true,
         matchedLocation: '/init',
         uri: Uri.parse('/init'),
       ),

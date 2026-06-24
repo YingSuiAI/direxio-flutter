@@ -3,7 +3,7 @@
 // Matrix 标准协议不覆盖的能力（Agent 配置、关注系统、Portal 状态）
 // 由 Direxio P2P backend 的 P2P product API 补齐，端点统一走 `https://{domain}/_p2p/`
 // 前缀。当前后端统一返回 `access_token`，P2P API 和 Matrix SDK 使用同一个
-// 用户 token。
+// 用户 token；初始化状态只看 `initialized`。
 //
 // 本文件只定义抽象接口与数据模型；真实 HTTP 实现在 http_as_client.dart。
 
@@ -47,12 +47,6 @@ class AsPortalSession {
     this.deviceId,
     this.agentRoomId,
     this.initialized,
-    this.passwordInitialized,
-    this.profileInitialized,
-    this.accountInitialized,
-    this.setupCompleted,
-    this.alreadyInitialized,
-    this.initializationCompleted,
   });
 
   final String accessToken;
@@ -61,12 +55,6 @@ class AsPortalSession {
   final String? deviceId;
   final String? agentRoomId;
   final bool? initialized;
-  final bool? passwordInitialized;
-  final bool? profileInitialized;
-  final bool? accountInitialized;
-  final bool? setupCompleted;
-  final bool? alreadyInitialized;
-  final bool? initializationCompleted;
 
   factory AsPortalSession.fromJson(Map<String, dynamic> json) {
     return AsPortalSession(
@@ -76,13 +64,6 @@ class AsPortalSession {
       deviceId: json['device_id'] as String?,
       agentRoomId: json['agent_room_id'] as String?,
       initialized: _parseNullableBool(json['initialized']),
-      passwordInitialized: _parseNullableBool(json['password_initialized']),
-      profileInitialized: _parseNullableBool(json['profile_initialized']),
-      accountInitialized: _parseNullableBool(json['account_initialized']),
-      setupCompleted: _parseNullableBool(json['setup_completed']),
-      alreadyInitialized: _parseNullableBool(json['already_initialized']),
-      initializationCompleted:
-          _parseNullableBool(json['initialization_completed']),
     );
   }
 }
@@ -1409,6 +1390,7 @@ class AsChannelShareDraft {
     this.commentsEnabled = true,
     this.channelType = asChannelTypePost,
     this.tags = const [],
+    this.memberCount = -1,
   });
 
   final String channelId;
@@ -1424,6 +1406,7 @@ class AsChannelShareDraft {
   final bool commentsEnabled;
   final String channelType;
   final List<String> tags;
+  final int memberCount;
 
   Map<String, dynamic> toJson() {
     return {
@@ -1439,6 +1422,7 @@ class AsChannelShareDraft {
       'join_policy': _normalizeChannelJoinPolicy(joinPolicy),
       'comments_enabled': commentsEnabled,
       'channel_type': normalizeAsChannelType(channelType),
+      if (memberCount >= 0) 'member_count': memberCount,
       'tags':
           tags.map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toList(),
     };
@@ -1984,6 +1968,7 @@ class AsChannelReactionHistory {
     required this.originServerTs,
     required this.channel,
     required this.post,
+    this.comment,
   });
 
   final String postId;
@@ -1992,33 +1977,73 @@ class AsChannelReactionHistory {
   final int originServerTs;
   final AsChannel channel;
   final AsChannelPost post;
+  final AsChannelComment? comment;
 
   factory AsChannelReactionHistory.fromJson(Map<String, dynamic> json) {
-    final channelJson =
-        (json['channel'] as Map?)?.cast<String, dynamic>() ?? json;
-    final postJson = (json['post'] as Map?)?.cast<String, dynamic>() ??
-        {
-          ...json,
-          'body': _firstString(
-            json,
-            const ['post_body', 'post_text', 'post_message', 'body'],
-          ),
-          'author_name': _firstString(
-            json,
-            const ['post_author_name', 'post_author_display_name'],
-          ),
-          'author_mxid': _firstString(
-            json,
-            const ['post_author_mxid', 'post_author_id'],
-          ),
-        };
+    final nestedReactionJson = _firstMap(json, const ['reaction']);
+    final reactionJson = nestedReactionJson.isEmpty ? json : nestedReactionJson;
+    final rawChannelJson = _firstMap(json, const ['channel']);
+    final rawPostJson = _firstMap(json, const ['post']);
+    final rawCommentJson = _firstMap(json, const ['comment']);
+    final nestedChannelJson = rawChannelJson.isEmpty ? null : rawChannelJson;
+    final nestedPostJson = rawPostJson.isEmpty ? null : rawPostJson;
+    final nestedCommentJson = rawCommentJson.isEmpty ? null : rawCommentJson;
+    final channelJson = nestedChannelJson ??
+        (_hasFlatChannelSnapshot(json)
+            ? {
+                ...json,
+                'name': _parseChannelDisplayName(json),
+              }
+            : null);
+    final postJson = nestedPostJson ??
+        (_hasFlatPostSnapshot(json)
+            ? {
+                ...json,
+                'body': _firstString(
+                  json,
+                  const ['post_body', 'post_text', 'post_message', 'body'],
+                ),
+                'author_name': _firstString(
+                  json,
+                  const ['post_author_name', 'post_author_display_name'],
+                ),
+                'author_mxid': _firstString(
+                  json,
+                  const ['post_author_mxid', 'post_author_id'],
+                ),
+              }
+            : null);
     return AsChannelReactionHistory(
-      postId: json['post_id'] as String? ?? '',
-      channelId: json['channel_id'] as String? ?? '',
-      reaction: json['reaction'] as String? ?? 'like',
-      originServerTs: _parseInt(json['origin_server_ts']),
-      channel: AsChannel.fromJson(channelJson),
-      post: AsChannelPost.fromJson(postJson),
+      postId: reactionJson['post_id'] as String? ??
+          (nestedPostJson?['post_id'] as String? ?? ''),
+      channelId: reactionJson['channel_id'] as String? ??
+          (nestedChannelJson?['channel_id'] as String? ??
+              nestedPostJson?['channel_id'] as String? ??
+              ''),
+      reaction: reactionJson['reaction'] as String? ?? 'like',
+      originServerTs: _parseInt(
+        reactionJson['origin_server_ts'] ??
+            nestedPostJson?['origin_server_ts'] ??
+            nestedCommentJson?['origin_server_ts'],
+      ),
+      channel: channelJson == null
+          ? const AsChannel(channelId: '', roomId: '', name: '')
+          : AsChannel.fromJson(channelJson),
+      post: postJson == null
+          ? const AsChannelPost(
+              postId: '',
+              channelId: '',
+              roomId: '',
+              eventId: '',
+              authorId: '',
+              messageType: '',
+              body: '',
+              originServerTs: 0,
+            )
+          : AsChannelPost.fromJson(postJson),
+      comment: nestedCommentJson == null
+          ? null
+          : AsChannelComment.fromJson(nestedCommentJson),
     );
   }
 }
@@ -2758,6 +2783,49 @@ String _parseChannelDisplayName(Map<String, dynamic> json) {
     'display_name',
     'displayName',
   ]);
+}
+
+bool _hasFlatChannelSnapshot(Map<String, dynamic> json) {
+  return _firstString(json, const [
+        'name',
+        'channel_name',
+        'room_name',
+        'display_name',
+        'displayName',
+        'avatar_url',
+        'home_domain',
+        'room_id',
+        'visibility',
+        'join_policy',
+        'channel_type',
+      ]).isNotEmpty ||
+      json.containsKey('comments_enabled') ||
+      json.containsKey('member_count') ||
+      json.containsKey('pending_join_count');
+}
+
+bool _hasFlatPostSnapshot(Map<String, dynamic> json) {
+  return _firstString(json, const [
+        'body',
+        'post_body',
+        'post_text',
+        'post_message',
+        'message_type',
+        'author_mxid',
+        'author_id',
+        'post_author_mxid',
+        'post_author_id',
+        'author_name',
+        'post_author_name',
+        'post_author_display_name',
+        'event_id',
+      ]).isNotEmpty ||
+      json.containsKey('media_json') ||
+      json.containsKey('media') ||
+      json.containsKey('origin_server_ts') ||
+      json.containsKey('comment_count') ||
+      json.containsKey('reaction_count') ||
+      json.containsKey('reacted_by_me');
 }
 
 String _firstString(Map<String, dynamic> json, List<String> keys) {

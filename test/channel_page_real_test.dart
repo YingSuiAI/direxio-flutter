@@ -24,6 +24,7 @@ import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/channel_provider.dart';
+import 'package:portal_app/presentation/providers/product_conversations_provider.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 
 void main() {
@@ -163,6 +164,7 @@ void main() {
       groups: const [],
       channels: [
         AsSyncRoomSummary(
+          channelId: 'ch_real',
           roomId: '!real:p2p-im.com',
           name: '产品公告',
           avatarUrl: '',
@@ -187,7 +189,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const ChannelPage(channelId: '!real:p2p-im.com'),
+          home: const ChannelPage(channelId: 'ch_real'),
         ),
       ),
     );
@@ -644,6 +646,7 @@ void main() {
           role: asChannelRoleOwner,
           memberStatus: asChannelMemberStatusJoined,
           channelType: asChannelTypePost,
+          memberCount: 32,
         ),
       ],
       pending: const AsSyncPending.empty(),
@@ -666,7 +669,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('综合讨论（32）'), findsOneWidget);
+    expect(find.text('综合讨论'), findsOneWidget);
+    expect(find.text('综合讨论（32）'), findsNothing);
     expect(find.text('#综合讨论'), findsNothing);
     expect(find.text('频道帖子，成员可评论和互动'), findsNothing);
     expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
@@ -709,6 +713,24 @@ void main() {
           asClientProvider.overrideWithValue(
             _PostingChannelAsClient(),
           ),
+          productConversationsProvider.overrideWith(
+            (ref) async => const [
+              AsConversation(
+                conversationId: 'conv_channel',
+                roomId: '!real:p2p-im.com',
+                kind: asConversationKindChannel,
+                lifecycle: 'active',
+                title: '综合讨论',
+                avatarUrl: '',
+                capabilities: AsConversationCapabilities(
+                  open: true,
+                  postCreate: false,
+                  commentCreate: true,
+                  reactionToggle: true,
+                ),
+              ),
+            ],
+          ),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -747,7 +769,7 @@ void main() {
   });
 
   testWidgets('channel detail toggles AS post reaction', (tester) async {
-    final asClient = _PostingChannelAsClient(reactedByMe: true);
+    final asClient = _PostingChannelAsClient();
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -1756,6 +1778,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('打开频道信息'));
+    await tester.pumpAndSettle();
+
     expect(find.text('频道详情'), findsOneWidget);
     await tester.tap(find.byKey(
       const ValueKey('channel_member_avatar_@alex:p2p-liyanan.com'),
@@ -2056,8 +2081,9 @@ void main() {
     await tester.tap(find.text('确定'));
     await tester.pumpAndSettle();
 
-    expect(asClient.leftChannelId, 'ch_real');
     expect(find.text('已退出频道'), findsOneWidget);
+    expect(asClient.leftChannelId, 'ch_real');
+    expect(asClient.dissolvedChannelId, isNull);
     asClient.leftChannelId = null;
 
     final ownerBootstrap = AsSyncBootstrap(
@@ -2121,9 +2147,9 @@ void main() {
     await tester.tap(find.text('确定'));
     await tester.pumpAndSettle();
 
+    expect(find.text('已解散频道'), findsOneWidget);
     expect(asClient.dissolvedChannelId, 'ch_real');
     expect(asClient.leftChannelId, isNull);
-    expect(find.text('已解散频道'), findsOneWidget);
   });
 
   testWidgets('channel leave returns to channel tab page', (tester) async {
@@ -2214,6 +2240,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.leftChannelId, 'ch_real');
+    expect(asClient.dissolvedChannelId, isNull);
     expect(router.routeInformationProvider.value.uri.toString(),
         '/home?tab=channels');
     expect(find.text('频道Tab页'), findsOneWidget);
@@ -2289,7 +2316,8 @@ void main() {
     await tester.tap(find.text('确定'));
     await tester.pumpAndSettle();
 
-    expect(asClient.leftChannelId, 'ch_real');
+    expect(asClient.dissolvedChannelId, 'ch_real');
+    expect(asClient.leftChannelId, isNull);
     expect(router.routeInformationProvider.value.uri.toString(),
         '/home?tab=channels');
     expect(find.text('频道Tab页'), findsOneWidget);
@@ -3188,8 +3216,8 @@ class _PostingChannelAsClient extends MockAsClient {
         originServerTs:
             DateTime.parse('2026-06-06T10:20:00Z').millisecondsSinceEpoch,
         commentCount: comments.length + createdComments.length,
-        reactionCount: 2,
-        reactedByMe: reactedByMe,
+        reactionCount: toggledPostId == null ? 2 : 3,
+        reactedByMe: toggledPostId == null ? reactedByMe : true,
       ),
     ];
   }

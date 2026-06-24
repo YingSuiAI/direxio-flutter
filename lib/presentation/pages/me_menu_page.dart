@@ -420,9 +420,9 @@ class _MeLikePostCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   PortalAvatar(
-                    seed: item.channel.channelId.trim().isEmpty
-                        ? channelTitle
-                        : item.channel.channelId.trim(),
+                    seed: channelTitle.trim().isEmpty
+                        ? item.channel.channelId.trim()
+                        : channelTitle,
                     imageUrl: item.channel.avatarUrl.trim().isEmpty
                         ? null
                         : item.channel.avatarUrl.trim(),
@@ -1715,12 +1715,12 @@ String _two(int value) => value.toString().padLeft(2, '0');
 
 String _favoriteTypeLabel(AppLocalizations? l10n, String type) {
   return switch (type) {
-    'text' => l10n?.meFavoriteTypeText ?? '文字',
-    'image' => l10n?.meFavoriteTypeImage ?? '图片',
-    'video' => l10n?.meFavoriteTypeVideo ?? '视频',
-    'file' => l10n?.meFavoriteTypeFile ?? '文件',
+    'text' || 'm.text' => l10n?.meFavoriteTypeText ?? '文字',
+    'image' || 'm.image' => l10n?.meFavoriteTypeImage ?? '图片',
+    'video' || 'm.video' => l10n?.meFavoriteTypeVideo ?? '视频',
+    'file' || 'm.file' => l10n?.meFavoriteTypeFile ?? '文件',
     'chat_record' => l10n?.meFavoriteTypeChatRecord ?? '聊天记录',
-    'audio' => l10n?.meFavoriteTypeAudio ?? '语音',
+    'audio' || 'm.audio' => l10n?.meFavoriteTypeAudio ?? '语音',
     'link' => l10n?.meFavoriteTypeLink ?? '链接',
     _ => l10n?.meFavoriteTypeMessage ?? '消息',
   };

@@ -76,6 +76,7 @@ import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 import 'package:portal_app/presentation/providers/matrix_message_clients_provider.dart';
 import 'package:portal_app/presentation/providers/media_thumbnail_cache_provider.dart';
 import 'package:portal_app/presentation/providers/profile_provider.dart';
+import 'package:portal_app/presentation/providers/product_conversations_provider.dart';
 import 'package:portal_app/presentation/providers/voice_call_provider.dart';
 import 'package:portal_app/presentation/chat/cached_thumbnail_image.dart';
 import 'package:portal_app/presentation/chat/chat_history_backfill_policy.dart';
@@ -6430,8 +6431,9 @@ void main() {
     expect(find.text('我创建'), findsNothing);
     expect(find.text('频道列表'), findsNothing);
     expect(find.text('全部'), findsNothing);
-    expect(find.text('#综合讨论'), findsOneWidget);
-    expect(find.text('#新手问答'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsNothing);
+    expect(find.text('#新手问答'), findsNothing);
+    expect(find.text('还没有频道'), findsOneWidget);
     expect(find.text('草稿箱'), findsNothing);
     expect(find.byIcon(Symbols.search), findsOneWidget);
     expect(find.byKey(const ValueKey('channel_post_button')), findsOneWidget);
@@ -15132,10 +15134,11 @@ void main() {
     expect(find.text('帖子'), findsNothing);
     expect(find.text('草稿'), findsNothing);
 
-    expect(find.text('#综合讨论'), findsOneWidget);
-    expect(find.text('#新手问答'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsNothing);
+    expect(find.text('#新手问答'), findsNothing);
     expect(find.text('草稿箱'), findsNothing);
-    expect(find.text('自由讨论、技术交流与闲聊'), findsOneWidget);
+    expect(find.text('自由讨论、技术交流与闲聊'), findsNothing);
+    expect(find.text('还没有频道'), findsOneWidget);
   });
 
   testWidgets('channel unread badge appears only for chat channels',
@@ -15358,8 +15361,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('频道列表'), findsNothing);
-    expect(find.text('#综合讨论'), findsOneWidget);
-    expect(find.text('#新手问答'), findsOneWidget);
+    expect(find.text('#综合讨论'), findsNothing);
+    expect(find.text('#新手问答'), findsNothing);
+    expect(find.text('还没有频道'), findsOneWidget);
   });
 
   testWidgets('channel filters are hidden on channel tab', (tester) async {
@@ -15430,9 +15434,9 @@ void main() {
     expect(
         find.byKey(const ValueKey('channel_inbox_tile_p2p-im')), findsNothing);
     expect(find.text('P2P IM 官方'), findsNothing);
-    expect(find.text('#综合讨论'), findsOneWidget);
-    expect(find.text('#新手问答'), findsOneWidget);
-    expect(find.text('还没有频道'), findsNothing);
+    expect(find.text('#综合讨论'), findsNothing);
+    expect(find.text('#新手问答'), findsNothing);
+    expect(find.text('还没有频道'), findsOneWidget);
   });
 
   testWidgets('channel tab opens chat channels through ProductCore route',
@@ -15506,6 +15510,19 @@ void main() {
                 ),
               ],
             ),
+          ),
+          productConversationsProvider.overrideWith(
+            (ref) async => const [
+              AsConversation(
+                conversationId: conversationId,
+                roomId: roomId,
+                kind: asConversationKindChannel,
+                lifecycle: 'active',
+                title: '产品交流群',
+                avatarUrl: '',
+                capabilities: AsConversationCapabilities(open: true),
+              ),
+            ],
           ),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
@@ -16081,6 +16098,7 @@ void main() {
       groups: const [],
       channels: [
         AsSyncRoomSummary(
+          channelId: 'ch_real_channel',
           roomId: '!real-channel:p2p-im.com',
           name: '真实产品频道',
           avatarUrl: '',

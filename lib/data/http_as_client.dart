@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
@@ -784,6 +785,11 @@ class HttpAsClient implements AsClient {
       allowedStatusCodes: const {200},
     );
     final channel = AsChannel.fromJson(body);
+    if (_invalidProductChannelId(channel.channelId, channel.roomId)) {
+      throw AsClientException(
+        'P2P create channel response is missing channel_id',
+      );
+    }
     if (channel.roomId.isEmpty) {
       throw AsClientException('P2P create channel response is missing room_id');
     }
@@ -1673,6 +1679,7 @@ class HttpAsClient implements AsClient {
     if (action == 'favorites.add') {
       params = _favoriteAddParams(params);
     }
+    _logChannelShareApiParams(action, params);
     final endpoint = method == 'GET' ? 'query' : 'command';
     final uri = _resolve(endpoint);
     late http.Response response;
@@ -2376,6 +2383,48 @@ Map<String, Object?> _actionParams(
   return params;
 }
 
+void _logChannelShareApiParams(
+  String action,
+  Map<String, Object?> params,
+) {
+  final label = switch (action) {
+    'channels.invite_grant.create' => 'channel.share.api.invite.params',
+    'channels.join' => 'channel.share.api.join.params',
+    'channels.public.join_request' =>
+      'channel.share.api.public_join_request.params',
+    _ => '',
+  };
+  if (label.isEmpty) return;
+  final message = '[$label] action=$action '
+      'params=${jsonEncode(_redactChannelShareApiParams(params))}';
+  debugPrint(message);
+  ApiLogger.info(message);
+}
+
+Object? _redactChannelShareApiParams(Object? value) {
+  if (value is Map) {
+    return {
+      for (final entry in value.entries)
+        entry.key.toString(): _isSensitiveApiParamKey(entry.key.toString())
+            ? '<redacted>'
+            : _redactChannelShareApiParams(entry.value),
+    };
+  }
+  if (value is Iterable) {
+    return value.map(_redactChannelShareApiParams).toList(growable: false);
+  }
+  if (value is Uri) return value.toString();
+  return value;
+}
+
+bool _isSensitiveApiParamKey(String key) {
+  final normalized = key.toLowerCase();
+  return normalized.contains('token') ||
+      normalized.contains('secret') ||
+      normalized.contains('password') ||
+      normalized == 'access_token';
+}
+
 String _memberStatusQueryParam(String status) {
   final value = status.trim();
   if (value == asChannelMemberStatusJoined) return 'join';
@@ -2490,12 +2539,7 @@ Map<String, dynamic> _portalSessionLogJson(AsPortalSession session) {
     'user_id': session.userId,
     'homeserver': session.homeserver,
     'device_id': session.deviceId,
-    'initialization_completed': session.initializationCompleted,
-    'already_initialized': session.alreadyInitialized,
-    'setup_completed': session.setupCompleted,
-    'account_initialized': session.accountInitialized,
-    'profile_initialized': session.profileInitialized,
-    'password_initialized': session.passwordInitialized,
+    'initialized': session.initialized,
   };
 }
 
@@ -2517,6 +2561,15 @@ String _normalizedChannelType(String value) {
     'chat' || '聊天' => 'chat',
     _ => 'post',
   };
+}
+
+bool _invalidProductChannelId(String channelId, String roomId) {
+  final productId = channelId.trim();
+  final matrixRoomId = roomId.trim();
+  return productId.isEmpty ||
+      matrixRoomId.isEmpty ||
+      productId == matrixRoomId ||
+      productId.startsWith('!');
 }
 
 Stream<AsEventStreamEvent> _decodeSseEvents(Stream<String> lines) async* {

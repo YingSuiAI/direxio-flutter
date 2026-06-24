@@ -118,6 +118,7 @@ AsConversation _roomSummaryConversation(
 }) {
   final roomId = summary.roomId.trim();
   final joined = _isJoinedMembership(summary.memberStatus);
+  final canManage = _canManageMembers(summary.role);
   return AsConversation(
     conversationId: summary.channelId.trim().isNotEmpty
         ? summary.channelId.trim()
@@ -138,13 +139,15 @@ AsConversation _roomSummaryConversation(
       sendMedia: joined && !summary.muted,
       call: !channel && joined && !summary.muted,
       invite: !channel && joined,
-      manageMembers: _canManageMembers(summary.role),
-      rename: _canManageMembers(summary.role),
-      removeMembers: _canManageMembers(summary.role),
+      manageMembers: canManage,
+      rename: canManage,
+      removeMembers: canManage,
       leave: joined,
       postCreate: channel && joined && !summary.muted,
       commentCreate: channel && joined && summary.commentsEnabled,
       reactionToggle: channel && joined && !summary.muted,
+      postRecall: channel && joined && canManage,
+      commentRecall: channel && joined && canManage,
       commentsEnabled: summary.commentsEnabled,
     ),
   );

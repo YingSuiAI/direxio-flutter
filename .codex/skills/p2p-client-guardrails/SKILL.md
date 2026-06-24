@@ -43,6 +43,8 @@ Ordinary message send, media send, unread, history, message search, and recall b
 
 Do not silently fall back to mock data after login. A real empty state is better than fake data. Mock data belongs only in unauthenticated demos, explicit tests, or temporary UI scaffolding.
 
+Keep Flutter/Dart source files under 3000 lines. When touching an oversized file, extract focused widgets, controllers, helpers, or tests into smaller files instead of adding more code to the oversized file.
+
 Before user-visible behavior changes, read `docs/FEATURES.md` and update it if a feature moves between demo, partial, local, or real status.
 
 Before AS/Admin API contract changes, read `docs/AS_API_CHANGES.md` and update it in the same change.

@@ -54,6 +54,11 @@ For Android package/resource changes:
 flutter build apk --debug
 ```
 
+## Code Quality
+
+- Keep Flutter/Dart source files under 3000 lines. If a touched file is already over that limit, split focused widgets, controllers, helpers, or tests into smaller files instead of growing it further.
+- Production UI should use real Matrix/P2P data or real empty states. Mock data belongs in tests, `test/support/`, or clearly unauthenticated demos only.
+
 ## Current Docs
 
 - `AGENTS.md`: repository rules for coding agents.

@@ -127,6 +127,7 @@ Before claiming completion, run `flutter analyze --no-pub` and the broadest prac
 ## Code Style
 
 - Keep changes scoped to the requested behavior and local architecture.
+- Keep source files under 3000 lines. When touching an oversized file, prefer extracting focused widgets, controllers, helpers, or tests into smaller files as part of the change instead of adding more code to the oversized file.
 - Do not leave dead code, duplicate shims, or unused fixture-data paths.
 - Add comments only when the reason is not obvious.
 - Add dependencies only after confirming existing dependencies cannot reasonably solve the problem.

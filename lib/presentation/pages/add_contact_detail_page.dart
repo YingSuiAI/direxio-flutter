@@ -7,8 +7,10 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/portal_avatar.dart';
@@ -72,10 +74,14 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
             roomId: acceptedContact.roomId,
           );
     final isAcceptedContact = acceptedContact != null;
+    final client = ref.watch(matrixClientProvider);
     final profile = _profileForAddContact(
       widget.userId,
-      acceptedContact?.displayName ?? widget.displayName,
-      avatarUrl: acceptedContact?.avatarUrl ?? widget.avatarUrl,
+      _firstNonEmpty(acceptedContact?.displayName, widget.displayName),
+      avatarUrl: _firstNonEmpty(
+        avatarHttpUrl(client, acceptedContact?.avatarUrl),
+        avatarHttpUrl(client, widget.avatarUrl),
+      ),
     );
     final t = context.tk;
     return Scaffold(
@@ -165,6 +171,12 @@ String _uidFromUserId(String userId) {
       .substring(0, 10);
 }
 
+String _firstNonEmpty(String? first, String? second) {
+  final firstValue = first?.trim() ?? '';
+  if (firstValue.isNotEmpty) return firstValue;
+  return second?.trim() ?? '';
+}
+
 class _DetailGlassBackButton extends StatelessWidget {
   const _DetailGlassBackButton({required this.onTap});
 
@@ -214,7 +226,7 @@ class _ProfileHeader extends StatelessWidget {
     return Row(
       children: [
         PortalAvatar(
-          seed: profile.uid,
+          seed: _avatarFallbackSeed(profile.name, profile.uid),
           imageUrl: profile.avatarUrl,
           size: 60,
           shape: AvatarShape.squircle,
@@ -235,6 +247,12 @@ class _ProfileHeader extends StatelessWidget {
       ],
     );
   }
+}
+
+String _avatarFallbackSeed(String displayName, String fallback) {
+  final name = displayName.trim();
+  if (name.isNotEmpty) return name;
+  return fallback;
 }
 
 class _DetailNavigationRow extends StatelessWidget {

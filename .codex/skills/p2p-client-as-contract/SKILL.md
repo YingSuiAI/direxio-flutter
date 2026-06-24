@@ -31,6 +31,11 @@ Keep `sync.bootstrap` metadata-only. Do not add historical read message bodies, 
 
 Keep auth responsibilities explicit. AS Admin API calls use the current portal/session bearer credential defined by the contract; Matrix-native behavior should still flow through the Matrix SDK or Matrix API layer.
 
+When AS requests fail with `M_UNKNOWN_TOKEN`, report the rejected bearer token to
+auth/session handling. Delayed failures from a previous bearer after login or
+password rotation must not clear a session that has already applied a newer
+token.
+
 Accepted-contact remark updates use `contacts.update` with `room_id` and
 `display_name`; the backend stores that remark as contact `display_name`.
 

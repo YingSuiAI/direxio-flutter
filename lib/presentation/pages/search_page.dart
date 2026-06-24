@@ -15,14 +15,19 @@ import '../../l10n/app_localizations.dart';
 import '../channel/channel_inbox_data.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/conversation_preferences_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../groups/group_invite_content.dart';
+import '../utils/avatar_url.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
+import '../utils/group_avatar_members.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../widgets/group_composite_avatar.dart';
 import '../widgets/m3/m3_search_field.dart';
+import '../widgets/portal_avatar.dart';
 
 AppLocalizations? _searchL10n(BuildContext context) {
   return Localizations.of<AppLocalizations>(context, AppLocalizations);
@@ -206,6 +211,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         });
 
     final syncCache = ref.read(asSyncCacheProvider);
+    final groupAvatarMemberOrders = ref.read(groupAvatarMemberOrdersProvider);
+    final groupAvatarMemberAvatars = ref.read(groupAvatarMemberAvatarsProvider);
     for (final room in client.rooms) {
       if (room.membership != Membership.join) continue;
       final productConversation = productConversationForRoom(
@@ -216,19 +223,39 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       final route = productConversationRoute(productConversation);
       if (route == null) continue;
 
-      final acceptedContact = syncCache.acceptedContactForRoom(room.id);
-      final peerMxid = productDirectPeerMxid(room) ?? acceptedContact?.userId;
-      final memberName = directPeerMemberDisplayName(room, peerMxid);
-      final name = contactDisplayNameFromIdentity(
-        mxid: peerMxid ?? '',
-        displayName: memberName.isNotEmpty
-            ? memberName
-            : acceptedContact?.displayName ?? '',
-        domain: acceptedContact?.domain ?? '',
-        fallback: room.getLocalizedDisplayname(),
-      );
-      if (!containsAny([name, peerMxid, room.id])) continue;
       final isContact = productConversation.isDirect;
+      final acceptedContact =
+          isContact ? syncCache.acceptedContactForRoom(room.id) : null;
+      final peerMxid = isContact
+          ? productDirectPeerMxid(room) ?? acceptedContact?.userId
+          : null;
+      final memberName =
+          isContact ? directPeerMemberDisplayName(room, peerMxid) : '';
+      final name = isContact
+          ? contactDisplayNameFromIdentity(
+              mxid: peerMxid ?? '',
+              displayName: memberName.isNotEmpty
+                  ? memberName
+                  : acceptedContact?.displayName ?? '',
+              domain: acceptedContact?.domain ?? '',
+              fallback: productConversation.title.trim().isNotEmpty
+                  ? productConversation.title
+                  : room.getLocalizedDisplayname(),
+            )
+          : productConversation.title.trim().isNotEmpty
+              ? productConversation.title.trim()
+              : room.getLocalizedDisplayname();
+      if (!containsAny([name, peerMxid, room.id])) continue;
+      final groupAvatarMembers = productConversation.isGroup
+          ? stableGroupAvatarMembersForRoom(
+              room: room,
+              syncCache: syncCache,
+              cachedMemberOrder:
+                  groupAvatarMemberOrders[room.id] ?? const <String>[],
+              cachedMemberAvatarUrls:
+                  groupAvatarMemberAvatars[room.id] ?? const {},
+            ).members
+          : const <GroupCompositeAvatarMember>[];
       results.add(
         _GlobalSearchResult.local(
           type: isContact ? _SearchResultType.contact : _SearchResultType.group,
@@ -237,6 +264,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ? (peerMxid ?? room.id)
               : l10n?.globalSearchGroupLabel ?? '群聊',
           route: route,
+          avatarUrl: isContact
+              ? avatarHttpUrl(client, productConversation.avatarUrl) ??
+                  avatarHttpUrl(client, acceptedContact?.avatarUrl) ??
+                  _memberAvatarHttpUrl(room, peerMxid)
+              : avatarHttpUrl(client, productConversation.avatarUrl) ??
+                  roomAvatarHttpUrl(room),
+          avatarSeed: isContact ? peerMxid ?? name : room.id,
+          groupAvatarMembers: groupAvatarMembers,
         ),
       );
     }
@@ -266,6 +301,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             title: channel.name,
             subtitle: '${channel.domain} · ${channel.latestPreview}',
             route: '/channel/${Uri.encodeComponent(channel.id)}',
+            avatarUrl: avatarHttpUrl(client, channel.avatarUrl),
+            avatarSeed: channel.id,
           ),
         );
       }
@@ -378,6 +415,14 @@ String _matrixRoomAvatar(Client client, String roomId) {
   return client.getRoomById(roomId.trim())?.avatar?.toString() ?? '';
 }
 
+String? _memberAvatarHttpUrl(Room room, String? mxid) {
+  final memberId = mxid?.trim() ?? '';
+  if (memberId.isEmpty) return null;
+  final member = room.getState(EventTypes.RoomMember, memberId)?.asUser(room);
+  if (member == null) return null;
+  return matrixContentHttpUrl(room.client, member.avatarUrl);
+}
+
 bool _looksLikeMatrixRoomId(String text) {
   return text.startsWith('!') && text.contains(':');
 }
@@ -392,6 +437,9 @@ class _GlobalSearchResult {
     this.route,
     this.eventId,
     this.timestamp,
+    this.avatarUrl,
+    this.avatarSeed,
+    this.groupAvatarMembers = const [],
   });
 
   static _GlobalSearchResult? remoteMessage(
@@ -449,12 +497,18 @@ class _GlobalSearchResult {
     required String title,
     required String subtitle,
     String? route,
+    String? avatarUrl,
+    String? avatarSeed,
+    List<GroupCompositeAvatarMember> groupAvatarMembers = const [],
   }) =>
       _GlobalSearchResult(
         type: type,
         title: title,
         subtitle: subtitle,
         route: route,
+        avatarUrl: avatarUrl,
+        avatarSeed: avatarSeed,
+        groupAvatarMembers: groupAvatarMembers,
       );
 
   final _SearchResultType type;
@@ -463,6 +517,9 @@ class _GlobalSearchResult {
   final String? route;
   final String? eventId;
   final DateTime? timestamp;
+  final String? avatarUrl;
+  final String? avatarSeed;
+  final List<GroupCompositeAvatarMember> groupAvatarMembers;
 
   IconData get icon => switch (type) {
         _SearchResultType.message => Symbols.chat_bubble,
@@ -667,6 +724,28 @@ class _ResultThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final avatarSeed = result.avatarSeed?.trim().isNotEmpty == true
+        ? result.avatarSeed!.trim()
+        : result.title;
+    if (result.type == _SearchResultType.group &&
+        (result.avatarUrl?.trim().isNotEmpty == true ||
+            result.groupAvatarMembers.isNotEmpty)) {
+      return GroupCompositeAvatar(
+        seed: avatarSeed,
+        size: 28,
+        imageUrl: result.avatarUrl,
+        members: result.groupAvatarMembers,
+        radius: 5.6,
+      );
+    }
+    if (result.avatarUrl?.trim().isNotEmpty == true) {
+      return PortalAvatar(
+        seed: avatarSeed,
+        size: 28,
+        imageUrl: result.avatarUrl!.trim(),
+        shape: AvatarShape.squircle,
+      );
+    }
     return Container(
       width: 28,
       height: 28,

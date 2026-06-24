@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
@@ -12,11 +13,15 @@ import '../chat/chat_glass_background.dart';
 import '../groups/group_leave_flow.dart';
 import '../groups/group_member_invite_flow.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/group_avatar_members.dart';
+import '../widgets/center_toast.dart';
+import '../widgets/group_composite_avatar.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
 import '../widgets/portal_avatar.dart';
@@ -66,6 +71,10 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final room = client.getRoomById(widget.roomId);
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
+    final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
+    final groupAvatarMemberAvatars =
+        ref.watch(groupAvatarMemberAvatarsProvider);
+    final syncCache = ref.watch(asSyncCacheProvider);
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
@@ -74,6 +83,26 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       client.userID,
       currentUserProfile: currentUserProfile,
     );
+    final groupName = room?.getLocalizedDisplayname().trim() ?? widget.roomId;
+    final groupAvatarUrl = room == null ? null : roomAvatarHttpUrl(room);
+    final groupAvatarMembers = room == null
+        ? null
+        : stableGroupAvatarMembersForRoom(
+            room: room,
+            syncCache: syncCache,
+            cachedMemberOrder:
+                groupAvatarMemberOrders[widget.roomId] ?? const <String>[],
+            cachedMemberAvatarUrls:
+                groupAvatarMemberAvatars[widget.roomId] ?? const {},
+            currentUserProfile: currentUserProfile,
+          );
+    if (groupAvatarMembers != null) {
+      scheduleGroupAvatarMemberOrderPersist(
+        ref,
+        widget.roomId,
+        groupAvatarMembers,
+      );
+    }
     // 真实成员列表（已加入）；降级到空列表
     final members = room
             ?.getParticipants()
@@ -112,6 +141,22 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
                 children: [
                   M3Card(
+                    key: ValueKey(
+                      'group_info_identity_header_${widget.roomId}',
+                    ),
+                    child: _GroupIdentityHeader(
+                      name: groupName.isEmpty ? widget.roomId : groupName,
+                      uid: widget.roomId,
+                      avatarUrl: groupAvatarMembers?.members.isEmpty == true
+                          ? groupAvatarUrl
+                          : null,
+                      avatarMembers: groupAvatarMembers?.members ?? const [],
+                      seed: widget.roomId,
+                      onUidTap: () => _copyGroupUid(context, widget.roomId),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  M3Card(
                     child: _GroupMemberGrid(
                       children: [
                         for (final member in memberPresentations)
@@ -123,6 +168,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                             onTap: () => _openMemberProfile(member.userId),
                           ),
                         _InviteChip(
+                          key: const ValueKey('group_info_invite_member'),
                           onTap: () => showInviteGroupMembersFlow(
                             context,
                             ref,
@@ -643,6 +689,12 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   }
 }
 
+Future<void> _copyGroupUid(BuildContext context, String uid) async {
+  await Clipboard.setData(ClipboardData(text: uid));
+  if (!context.mounted) return;
+  _toast(context, '已复制 UID');
+}
+
 Future<String?> _showTextEditDialog(
   BuildContext context, {
   required String title,
@@ -759,9 +811,7 @@ String _fallbackDisplayNameFromMxid(String mxid) {
 }
 
 void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message)),
-  );
+  showCenterToast(context, message);
 }
 
 class _GroupMemberPresentation {
@@ -774,6 +824,85 @@ class _GroupMemberPresentation {
   final String userId;
   final String name;
   final String? avatarUrl;
+}
+
+class _GroupIdentityHeader extends StatelessWidget {
+  const _GroupIdentityHeader({
+    required this.name,
+    required this.uid,
+    required this.seed,
+    required this.onUidTap,
+    this.avatarMembers = const [],
+    this.avatarUrl,
+  });
+
+  final String name;
+  final String uid;
+  final String seed;
+  final VoidCallback onUidTap;
+  final List<GroupCompositeAvatarMember> avatarMembers;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SizedBox(
+      height: 60,
+      child: Row(
+        children: [
+          GroupCompositeAvatar(
+            seed: seed,
+            size: 60,
+            imageUrl: avatarUrl,
+            members: avatarMembers,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 20,
+                    weight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: onUidTap,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          uid,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(size: 13, color: t.textMute),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Symbols.content_copy,
+                        size: 14,
+                        color: t.textMute,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _GroupTextEditDialog extends StatefulWidget {
@@ -941,7 +1070,7 @@ class _MemberChip extends StatelessWidget {
 }
 
 class _InviteChip extends StatelessWidget {
-  const _InviteChip({required this.onTap});
+  const _InviteChip({super.key, required this.onTap});
   final VoidCallback onTap;
 
   @override

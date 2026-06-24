@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/http_as_client.dart';
 import 'package:portal_app/data/matrix_token_refreshing_http_client.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
@@ -2258,6 +2259,104 @@ void main() {
     expect(auth?.portalToken, 'final-token');
   });
 
+  test('profile setup stores new login password before Matrix token checks',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'false',
+    });
+    var sawTokenOwnerAfterPasswordChange = false;
+    final client = Client(
+      'AuthProfileSetupStoresPasswordBeforeMatrixChecksTest',
+      httpClient: MockClient((request) async {
+        if (_p2pAction(request, 'profile.update') != null) {
+          return http.Response(
+            '{"user_id":"@owner:example.com",'
+            '"display_name":"Alice","domain":"example.com"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.password') != null) {
+          return http.Response(
+            '{"access_token":"new-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com","device_id":"DEVICE1",'
+            '"profile_initialized":true}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          var authorization = '';
+          for (final entry in request.headers.entries) {
+            if (entry.key.toLowerCase() == 'authorization') {
+              authorization = entry.value;
+              break;
+            }
+          }
+          if (authorization == 'Bearer new-token') {
+            sawTokenOwnerAfterPasswordChange = true;
+            expect(
+              await const FlutterSecureStorage()
+                  .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
+              '12345678',
+            );
+          }
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (request.url.path.startsWith('/_matrix/client/v3/profile/')) {
+          return http.Response('{}', 200);
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'Direxio',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .completeOwnerProfileSetup(
+          displayName: 'Alice',
+          newPortalToken: '12345678',
+        );
+
+    expect(sawTokenOwnerAfterPasswordChange, isTrue);
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
+      '12345678',
+    );
+  });
+
   test('password change keeps initialized flag when response omits it',
       () async {
     FlutterSecureStorage.setMockInitialValues({
@@ -2652,6 +2751,123 @@ void main() {
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_token'),
       'fresh-token',
+    );
+  });
+
+  test('stale AS client failure after password change keeps refreshed session',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final bootstrapAuthorizations = <String>[];
+    final client = _NoSyncInitClient(
+      'AuthStaleAsClientFailureAfterPasswordChangeTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.password') != null) {
+          return http.Response(
+            '{"access_token":"new-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE1",'
+            '"profile_initialized":true}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.auth') != null) {
+          return http.Response(
+            '{"errcode":"M_FORBIDDEN","error":"old password rejected"}',
+            403,
+          );
+        }
+        if (_p2pAction(request, 'sync.bootstrap') != null) {
+          final authorization = request.headers['Authorization'] ?? '';
+          bootstrapAuthorizations.add(authorization);
+          if (authorization == 'Bearer old-admin-token') {
+            return http.Response(
+              '{"errcode":"M_UNKNOWN_TOKEN","error":"Unknown token"}',
+              401,
+            );
+          }
+          if (authorization == 'Bearer new-token') {
+            return http.Response(
+              '{"user":{"user_id":"@owner:example.com"},'
+              '"rooms":[],"contacts":[],"groups":[],"channels":[],'
+              '"pending":{}}',
+              200,
+            );
+          }
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'Direxio',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+    final authNotifier = container.read(authStateNotifierProvider.notifier);
+    final staleAsClient = HttpAsClient.fromPortalSession(
+      client,
+      portalToken: 'old-admin-token',
+      onAuthenticationRefresh: authNotifier.refreshPortalSessionForAsAdminToken,
+      onAuthenticationFailedForToken:
+          authNotifier.expireSessionDueInvalidTokenIfCurrent,
+    );
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .changePortalPassword(
+          oldPassword: '11111111',
+          newPassword: '12345678',
+        );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    await expectLater(
+      staleAsClient.syncBootstrap(),
+      throwsA(isA<AsClientException>()),
+    );
+
+    expect(bootstrapAuthorizations, contains('Bearer old-admin-token'));
+    expect(client.accessToken, 'new-token');
+    expect(
+      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isNot(false),
+    );
+    expect(container.read(sessionExpiredNoticeProvider), 0);
+    expect(
+      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      'new-token',
     );
   });
 

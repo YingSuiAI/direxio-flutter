@@ -20,7 +20,8 @@ final asClientProvider = Provider<AsClient>((ref) {
       client,
       portalToken: portalToken,
       onAuthenticationRefresh: authNotifier.refreshPortalSessionForAsAdminToken,
-      onAuthenticationFailed: authNotifier.expireSessionDueInvalidToken,
+      onAuthenticationFailedForToken:
+          authNotifier.expireSessionDueInvalidTokenIfCurrent,
     );
   }
   throw AsClientException('P2P portal token is required');

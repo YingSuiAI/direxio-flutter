@@ -21,6 +21,7 @@ class HttpAsClient implements AsClient {
     String? accessTokenForDebug,
     FutureOr<String?> Function()? onAuthenticationRefresh,
     FutureOr<void> Function()? onAuthenticationFailed,
+    FutureOr<void> Function(String failedToken)? onAuthenticationFailedForToken,
     http.Client? httpClient,
   })  : _baseUri = _normalizeBaseUri(baseUri),
         _portalToken = _requireToken(portalToken ?? accessToken),
@@ -28,6 +29,7 @@ class HttpAsClient implements AsClient {
         _accessTokenForDebug = accessTokenForDebug,
         _onAuthenticationRefresh = onAuthenticationRefresh,
         _onAuthenticationFailed = onAuthenticationFailed,
+        _onAuthenticationFailedForToken = onAuthenticationFailedForToken,
         _http = httpClient ?? http.Client();
 
   factory HttpAsClient.fromPortalSession(
@@ -36,6 +38,7 @@ class HttpAsClient implements AsClient {
     Uri? baseUri,
     FutureOr<String?> Function()? onAuthenticationRefresh,
     FutureOr<void> Function()? onAuthenticationFailed,
+    FutureOr<void> Function(String failedToken)? onAuthenticationFailedForToken,
   }) {
     final homeserver = client.homeserver;
     if (homeserver == null) {
@@ -48,6 +51,7 @@ class HttpAsClient implements AsClient {
       accessTokenForDebug: client.accessToken,
       onAuthenticationRefresh: onAuthenticationRefresh,
       onAuthenticationFailed: onAuthenticationFailed,
+      onAuthenticationFailedForToken: onAuthenticationFailedForToken,
       httpClient: client.httpClient,
     );
   }
@@ -58,6 +62,8 @@ class HttpAsClient implements AsClient {
   final String? _accessTokenForDebug;
   final FutureOr<String?> Function()? _onAuthenticationRefresh;
   final FutureOr<void> Function()? _onAuthenticationFailed;
+  final FutureOr<void> Function(String failedToken)?
+      _onAuthenticationFailedForToken;
   final http.Client _http;
 
   static const _timeout = Duration(seconds: 10);
@@ -260,7 +266,7 @@ class HttpAsClient implements AsClient {
             continue;
           }
         }
-        await _onAuthenticationFailed?.call();
+        await _notifyAuthenticationFailed();
       }
       throw AsClientException(
         _extractErrorMessage(response),
@@ -1724,7 +1730,7 @@ class HttpAsClient implements AsClient {
             continue;
           }
         }
-        await _onAuthenticationFailed?.call();
+        await _notifyAuthenticationFailed();
       }
       throw AsClientException(
         _extractErrorMessage(response),
@@ -1774,6 +1780,15 @@ class HttpAsClient implements AsClient {
   String get _authSourceLabel {
     final value = _authSource?.trim();
     return value == null || value.isEmpty ? 'unknown' : value;
+  }
+
+  Future<void> _notifyAuthenticationFailed() async {
+    final tokenCallback = _onAuthenticationFailedForToken;
+    if (tokenCallback != null) {
+      await tokenCallback(_portalToken);
+      return;
+    }
+    await _onAuthenticationFailed?.call();
   }
 
   Uri _resolve(String path, {Map<String, String>? queryParameters}) {

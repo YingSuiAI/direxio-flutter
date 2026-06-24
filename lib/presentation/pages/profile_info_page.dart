@@ -20,6 +20,7 @@ import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/direct_contact_status.dart';
 import '../widgets/avatar_adjust_sheet.dart';
+import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
 
 class ProfileInfoPage extends ConsumerStatefulWidget {
@@ -464,9 +465,7 @@ String _clientServerName(Client client) {
 Future<void> _copyUidUrl(BuildContext context, String uidUrl) async {
   await Clipboard.setData(ClipboardData(text: uidUrl));
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('已复制 UID')),
-  );
+  showCenterToast(context, '已复制 UID');
 }
 
 class _ProfileHeader extends StatelessWidget {

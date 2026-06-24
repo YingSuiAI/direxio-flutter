@@ -2788,7 +2788,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       : [
                           ChatCapsuleAction(
                             icon: Symbols.call,
-                            tooltip: '语音通话',
+                            tooltip: l10n?.groupChatVoiceCall ?? '语音通话',
                             color: t.accent,
                             onTap: canStartCall
                                 ? () => context.push(
@@ -2803,7 +2803,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           ),
                           ChatCapsuleAction(
                             icon: Symbols.more_vert,
-                            tooltip: '详情',
+                            tooltip: l10n?.groupChatDetails ?? '详情',
                             color: t.accent,
                             onTap: () => _openContactInfo(mxid),
                           ),
@@ -6072,6 +6072,10 @@ class _E2eFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Center(
@@ -6082,7 +6086,10 @@ class _E2eFooter extends StatelessWidget {
             children: [
               Icon(Symbols.lock, size: 12, color: t.textMute),
               const SizedBox(width: 4),
-              Text('端对端加密', style: AppTheme.sans(size: 11, color: t.textMute)),
+              Text(
+                l10n?.channelManageMessageEncryption ?? '消息加密',
+                style: AppTheme.sans(size: 11, color: t.textMute),
+              ),
             ],
           ),
         ),

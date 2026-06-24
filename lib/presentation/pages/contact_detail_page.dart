@@ -27,6 +27,7 @@ import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
+import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/report_reason_dialog.dart';
 
@@ -136,6 +137,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       domain: acceptedContact?.domain ?? domain,
       fallback: userId,
     );
+    final avatarSeed = _avatarFallbackSeed(displayName, userId);
     final avatarUrl = isSelf
         ? profileAvatarHttpUrl(currentUserProfile, client)
         : _firstNonEmpty([
@@ -166,7 +168,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
         context,
         displayName: displayName,
         avatarUrl: avatarUrl,
-        seed: userId,
+        seed: avatarSeed,
         isSelf: isSelf,
         isFriend: canShowFriendProfile,
         contactStatus: existingContact?.status,
@@ -228,10 +230,10 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     _UserHeader(
                       name: displayName,
                       badge: _roleBadge(acceptedContact?.domain, l10n),
-                      uid: uidDomain,
-                      onUidTap: () => _copyUid(context, uidDomain),
+                      uid: userId,
+                      onUidTap: () => _copyUid(context, userId),
                       avatarUrl: avatarUrl,
-                      seed: userId,
+                      seed: avatarSeed,
                     ),
                     const SizedBox(height: 24),
                     _QuickActionGrid(
@@ -392,8 +394,10 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
               const SizedBox(height: 24),
               _AvatarProfileHeader(
                 name: displayName,
+                uid: widget.userId,
                 avatarUrl: avatarUrl,
                 seed: seed,
+                onUidTap: () => _copyUid(context, widget.userId),
               ),
               SizedBox(height: isFriend ? 22 : 24),
               if (isFriend) ...[
@@ -815,7 +819,7 @@ class _UserHeader extends StatelessWidget {
         PortalAvatar(
           seed: seed,
           size: 60,
-          imageUrl: avatarUrl,
+          imageUrl: (avatarUrl ?? '').trim().isEmpty ? null : avatarUrl,
           shape: AvatarShape.squircle,
         ),
         const SizedBox(width: 8),
@@ -831,10 +835,10 @@ class _UserHeader extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.sans(
-                        size: 16,
+                        size: 20,
                         weight: FontWeight.w600,
                         color: t.text,
-                      ).copyWith(letterSpacing: -0.4),
+                      ),
                     ),
                   ),
                   if (badge.isNotEmpty) ...[
@@ -844,14 +848,27 @@ class _UserHeader extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
+              InkWell(
                 onTap: onUidTap,
-                child: Text(
-                  'UID $uid',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.sans(size: 14, color: t.textMute),
+                borderRadius: BorderRadius.circular(6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        uid,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 13, color: t.textMute),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Symbols.content_copy,
+                      size: 14,
+                      color: t.textMute,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -890,12 +907,16 @@ class _RoleBadge extends StatelessWidget {
 class _AvatarProfileHeader extends StatelessWidget {
   const _AvatarProfileHeader({
     required this.name,
+    required this.uid,
     required this.seed,
+    required this.onUidTap,
     this.avatarUrl,
   });
 
   final String name;
+  final String uid;
   final String seed;
+  final VoidCallback onUidTap;
   final String? avatarUrl;
 
   @override
@@ -911,15 +932,45 @@ class _AvatarProfileHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTheme.sans(
-              size: 16,
-              weight: FontWeight.w600,
-              color: t.text,
-            ).copyWith(letterSpacing: -0.4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(
+                  size: 20,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ),
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: onUidTap,
+                borderRadius: BorderRadius.circular(6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        uid,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 13, color: t.textMute),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Symbols.content_copy,
+                      size: 14,
+                      color: t.textMute,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1483,6 +1534,12 @@ String _firstNonEmpty(Iterable<String?> values) {
   return '';
 }
 
+String _avatarFallbackSeed(String displayName, String fallback) {
+  final name = displayName.trim();
+  if (name.isNotEmpty) return name;
+  return fallback;
+}
+
 bool _isPendingContact(String? status) {
   final normalized = status?.trim();
   return normalized == 'pending_outbound' || normalized == 'pending_inbound';
@@ -1514,7 +1571,5 @@ String _callRoute(
 }
 
 void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message)),
-  );
+  showCenterToast(context, message);
 }

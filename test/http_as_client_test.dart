@@ -493,6 +493,26 @@ void main() {
     expect(expired, isTrue);
   });
 
+  test('AS M_UNKNOWN_TOKEN reports failed bearer token', () async {
+    final failedTokens = <String>[];
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'stale-token',
+      onAuthenticationFailedForToken: failedTokens.add,
+      httpClient: MockClient((request) async {
+        expect(request.headers['Authorization'], 'Bearer stale-token');
+        return _jsonResponse({'error': 'M_UNKNOWN_TOKEN'}, 401);
+      }),
+    );
+
+    await expectLater(
+      client.getOwnerProfile(),
+      throwsA(isA<AsClientException>()),
+    );
+
+    expect(failedTokens, ['stale-token']);
+  });
+
   test('AS non-M_UNKNOWN_TOKEN 401 does not expire session', () async {
     var expired = false;
     final client = HttpAsClient(

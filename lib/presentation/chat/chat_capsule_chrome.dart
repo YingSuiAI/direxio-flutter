@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 
 const _assetChatEmoji =
     'assets/resources/chat_composer_emoji__chat_composer_emoji.svg';
@@ -399,6 +400,10 @@ class ChatCapsuleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final detailAction = actions.isEmpty ? null : actions.last;
     return SafeArea(
       bottom: false,
@@ -416,7 +421,8 @@ class ChatCapsuleHeader extends StatelessWidget {
                   child: KeyedSubtree(
                     key: const ValueKey('chat_header_left_capsule'),
                     child: _FigmaGlassCircleButton(
-                      tooltip: '返回',
+                      tooltip:
+                          MaterialLocalizations.of(context).backButtonTooltip,
                       onTap: onBack,
                       child: Icon(
                         Symbols.arrow_back,
@@ -468,7 +474,9 @@ class ChatCapsuleHeader extends StatelessWidget {
                                         bottom: 0,
                                         child: Center(
                                           child: Tooltip(
-                                            message: '端对端加密',
+                                            message:
+                                                l10n?.channelManageMessageEncryption ??
+                                                    '消息加密',
                                             child: Icon(
                                               Symbols.lock,
                                               key: const ValueKey(
@@ -880,11 +888,15 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final voicePrompt = !_pressingVoice
-        ? '按住 说话'
+        ? l10n?.chatInputHoldToTalk ?? '按住 说话'
         : _cancelVoicePressOnRelease
-            ? '松开 取消'
-            : '松开 发送';
+            ? l10n?.chatInputReleaseToCancel ?? '松开 取消'
+            : l10n?.chatInputReleaseToSend ?? '松开 发送';
     final voicePromptColor = !widget.enabled
         ? t.textMute.withValues(alpha: 0.45)
         : !_pressingVoice
@@ -975,7 +987,9 @@ class _ChatCapsuleInputBarState extends State<ChatCapsuleInputBar> {
                       height: _composerButtonSize,
                       child: _AssetCircleCapsuleButton(
                         icon: _voiceMode ? Symbols.keyboard : Symbols.mic,
-                        tooltip: _voiceMode ? '键盘' : '语音',
+                        tooltip: _voiceMode
+                            ? l10n?.chatInputKeyboard ?? '键盘'
+                            : l10n?.chatInputVoice ?? '语音',
                         enabled: widget.enabled,
                         onTap: () => setState(() => _voiceMode = !_voiceMode),
                       ),
@@ -1234,6 +1248,10 @@ class _VoiceRecordingOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final actionColor = canceling ? t.danger : t.accent;
     return IgnorePointer(
       child: Material(
@@ -1270,7 +1288,10 @@ class _VoiceRecordingOverlay extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 30),
                   child: Text(
-                    canceling ? '松开取消' : '松开发送，上滑取消',
+                    canceling
+                        ? l10n?.chatInputReleaseToCancelCompact ?? '松开取消'
+                        : l10n?.chatInputReleaseToSendSwipeCancel ??
+                            '松开发送，上滑取消',
                     style: AppTheme.sans(
                       size: 16,
                       color: t.onAccent,

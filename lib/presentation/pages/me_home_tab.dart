@@ -12,6 +12,7 @@ import '../providers/app_locale_provider.dart';
 import '../providers/personal_space_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
 
 const _homeBg = Color(0xFFFAFAFA);
@@ -360,9 +361,7 @@ Future<void> _copyUidUrl(BuildContext context, String uidUrl) async {
     context,
     AppLocalizations,
   );
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(l10n?.meUidCopied ?? '已复制 UID')),
-  );
+  showCenterToast(context, l10n?.meUidCopied ?? '已复制 UID');
 }
 
 Future<void> _showHelpFeedback(BuildContext context) {

@@ -2866,6 +2866,7 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
   String? senderMxid,
   List<LocalOutboxItem> initialOutboxItems = const [],
   bool sendPeerEvent = true,
+  Locale? locale,
 }) async {
   final matrixRedactionPaths = <String>[];
   final matrixLocalDeleteBodies = <Map<String, dynamic>>[];
@@ -2943,6 +2944,9 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
       ],
       child: MaterialApp(
         theme: AppTheme.light,
+        locale: locale,
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: ChatPage(roomId: roomId),
       ),
     ),
@@ -5926,12 +5930,33 @@ void main() {
   testWidgets('chat info uses AS contact metadata for undirected direct rooms',
       (tester) async {
     const roomId = '!owner:p2p-im.com';
+    const peerMxid = '@owner:p2p-liyanan.com';
+    var clipboardText = '';
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardText = (call.arguments as Map)['text'] as String? ?? '';
+            return null;
+          case 'Clipboard.getData':
+            return {'text': clipboardText};
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
     final client = Client('DirexioChatInfoDirectMetadataTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
       client,
       roomId: roomId,
-      peerMxid: '@owner:p2p-liyanan.com',
+      peerMxid: peerMxid,
       peerName: 'owner',
     );
     final bootstrapStore = _MemoryAsBootstrapStore();
@@ -5942,7 +5967,7 @@ void main() {
       rooms: const [],
       contacts: const [
         AsSyncContact(
-          userId: '@owner:p2p-liyanan.com',
+          userId: peerMxid,
           displayName: 'owner',
           avatarUrl: '',
           roomId: roomId,
@@ -5977,8 +6002,19 @@ void main() {
     await tester.pump();
 
     expect(find.text('搜索聊天记录'), findsOneWidget);
+    expect(find.text('owner'), findsOneWidget);
+    expect(find.text(peerMxid), findsOneWidget);
     expect(find.text('推荐给朋友'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
+
+    await tester.tap(find.text(peerMxid));
+    await tester.pump();
+    expect(find.text('已复制 UID'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    final copied = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copied?.text, peerMxid);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('设置备注'));
     await tester.pumpAndSettle();
@@ -5991,6 +6027,7 @@ void main() {
     expect(asClient.updatedContactRoomId, roomId);
     expect(asClient.updatedContactDisplayName, 'Owner Remark');
     expect(asClient.updatedContactDomain, 'p2p-liyanan.com');
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('chat info rejects mock conversation ids', (tester) async {
@@ -7026,7 +7063,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('群聊不存在'), findsOneWidget);
-    await tester.tap(find.byTooltip('返回'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 
     expect(find.text('HomeRoot'), findsOneWidget);
@@ -9569,6 +9606,83 @@ void main() {
     expect(avatar.imageUrl, 'https://cdn.example.com/alice.png');
   });
 
+  testWidgets('add contact detail uses display name for avatar fallback seed',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactDetailPage(
+            userId: '@2alice:portal.local',
+            displayName: 'A',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final avatar = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 60)
+        .single;
+    expect(avatar.seed, 'A');
+  });
+
+  testWidgets(
+      'add contact detail keeps routed avatar when accepted contact avatar is empty',
+      (tester) async {
+    const routedAvatarUrl = 'https://cdn.example.com/alice-search.png';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24, 9),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alice:portal.local',
+          displayName: 'Alice Chen',
+          avatarUrl: '',
+          roomId: '!alice-chat:p2p-im.com',
+          domain: 'portal.local',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactDetailPage(
+            userId: '@alice:portal.local',
+            displayName: 'Alice Chen',
+            avatarUrl: routedAvatarUrl,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final avatar = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 60)
+        .single;
+    expect(avatar.imageUrl, routedAvatarUrl);
+  });
+
   testWidgets('add contact detail forwards avatar url to verification route',
       (tester) async {
     final asClient = _TrackingAsClient();
@@ -10856,7 +10970,7 @@ void main() {
       'DirexioGroupCreateInviteTest',
       httpClient: MockClient((request) async {
         requestPaths.add(request.url.path);
-        if (request.url.path.contains('/send/m.room.message/')) {
+        if (request.url.path.contains('/send/m.room.message')) {
           sentInviteCards.add(jsonDecode(request.body) as Map<String, dynamic>);
           return http.Response(
             jsonEncode({
@@ -11318,6 +11432,7 @@ void main() {
       peerMxid: '@carol:p2p-carol.com',
       peerName: 'Carol',
     );
+    expect(client.getRoomById('!carol:p2p-im.com'), isNotNull);
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 30, 9),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -11367,6 +11482,7 @@ void main() {
         overrides: [
           matrixClientProvider.overrideWithValue(client),
           asClientProvider.overrideWithValue(asClient),
+          currentUserProfileProvider.overrideWith((ref) async => null),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -11400,10 +11516,12 @@ void main() {
   testWidgets('group info invite button posts member invites through AS',
       (tester) async {
     var matrixInviteCardSends = 0;
+    final matrixRequestPaths = <String>[];
     final client = Client(
       'DirexioGroupInfoInviteAsTest',
       httpClient: MockClient((request) async {
-        if (request.url.path.contains('/send/m.room.message/')) {
+        matrixRequestPaths.add(request.url.path);
+        if (request.url.path.contains('/send/m.room.message')) {
           matrixInviteCardSends++;
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           expect(body['msgtype'], 'p2p.group.invite.v1');
@@ -11480,6 +11598,7 @@ void main() {
         overrides: [
           matrixClientProvider.overrideWithValue(client),
           asClientProvider.overrideWithValue(asClient),
+          currentUserProfileProvider.overrideWith((ref) async => null),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -11492,9 +11611,19 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('邀请'));
+    final inviteChip = find.byKey(const ValueKey('group_info_invite_member'));
+    await tester.ensureVisible(inviteChip);
+    await tester.pump();
+    await tester.tap(inviteChip);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Carol'));
+    await tester.tap(
+      find
+          .ancestor(
+            of: find.text('Carol'),
+            matching: find.byType(InkWell),
+          )
+          .first,
+    );
     await tester.pump();
     await tester.tap(find.text('发送邀请'));
     await tester.pumpAndSettle();
@@ -11502,7 +11631,7 @@ void main() {
     expect(asClient.inviteGroupMembersCalls, 1);
     expect(asClient.invitedGroupRoomId, '!group:p2p-im.com');
     expect(asClient.invitedGroupMembers, ['@carol:p2p-carol.com']);
-    expect(matrixInviteCardSends, 1);
+    expect(matrixInviteCardSends, 1, reason: matrixRequestPaths.join('\n'));
   });
 
   testWidgets('group detail reports roomless invite contacts as skipped',
@@ -11633,6 +11762,133 @@ void main() {
 
     expect(find.text('群管理'), findsOneWidget);
     expect(find.text('移除'), findsOneWidget);
+  });
+
+  testWidgets('group info identity header shows and copies room uid',
+      (tester) async {
+    var clipboardText = '';
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardText = (call.arguments as Map)['text'] as String? ?? '';
+            return null;
+          case 'Clipboard.getData':
+            return {'text': clipboardText};
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
+    final client = Client('DirexioGroupInfoHeaderUidTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('真实群'), findsOneWidget);
+    expect(find.text('!group:p2p-im.com'), findsOneWidget);
+
+    await tester.tap(find.text('!group:p2p-im.com'));
+    await tester.pump();
+
+    expect(find.text('已复制 UID'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    final copied = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copied?.text, '!group:p2p-im.com');
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('group info identity header uses composite member avatar',
+      (tester) async {
+    const roomId = '!group-info-avatar:p2p-im.com';
+    final client = Client('DirexioGroupInfoCompositeAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {
+        '@alice:p2p-im.com': 'Alice',
+        '@bob:p2p-im.com': 'Bob',
+      },
+      memberAvatarUrls: const {
+        '@alice:p2p-im.com': 'https://example.com/alice.png',
+        '@bob:p2p-im.com': 'https://example.com/bob.png',
+      },
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomAvatar,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: const {'url': 'https://example.com/room-avatar.png'},
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+          groupAvatarMemberOrdersProvider.overrideWith((ref) => const {}),
+          groupAvatarMemberAvatarsProvider.overrideWith((ref) => const {}),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final identityHeader = find.byKey(
+      const ValueKey('group_info_identity_header_$roomId'),
+    );
+    expect(identityHeader, findsOneWidget);
+    expect(
+      find.descendant(
+        of: identityHeader,
+        matching: find.byType(GroupCompositeAvatar),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: identityHeader,
+        matching: find.byKey(
+          const ValueKey(
+            'group_composite_avatar_member_@alice:p2p-im.com_https://example.com/alice.png',
+          ),
+        ),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('group info member avatars wrap into a scrollable grid',
@@ -11985,6 +12241,8 @@ void main() {
     expect(find.text('项目群'), findsOneWidget);
     expect(find.text('群聊备注已更新'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('置顶聊天'));
+    await tester.pump();
     await tester.tap(find.byType(Switch).at(1));
     await tester.pump();
     final container = ProviderScope.containerOf(
@@ -12019,6 +12277,7 @@ void main() {
           .localRoomClearedBeforeTs['!group:p2p-im.com'],
       greaterThan(0),
     );
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('group detail shows owner-admin invite permission failure',
@@ -15541,6 +15800,112 @@ void main() {
     expect(find.textContaining('真实频道索引内容'), findsOneWidget);
   });
 
+  testWidgets('global search renders avatars for contacts groups and channels',
+      (tester) async {
+    final client = Client('DirexioGlobalSearchAvatarTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: '!alice:p2p-im.com',
+      peerMxid: '@alice:p2p-im.com',
+      peerName: 'Alice',
+    );
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group-avatar:p2p-im.com',
+      name: '头像群',
+      members: const {
+        '@alice:p2p-im.com': 'Alice',
+        '@bob:p2p-im.com': 'Bob',
+      },
+      memberAvatarUrls: const {
+        '@alice:p2p-im.com': 'https://cdn.example.com/alice-member.png',
+        '@bob:p2p-im.com': 'https://cdn.example.com/bob-member.png',
+      },
+    );
+    const conversations = [
+      AsConversation(
+        conversationId: 'conv_alice',
+        roomId: '!alice:p2p-im.com',
+        kind: asConversationKindDirect,
+        lifecycle: 'active',
+        peerMxid: '@alice:p2p-im.com',
+        title: 'Alice',
+        avatarUrl: 'https://cdn.example.com/alice.png',
+        capabilities: AsConversationCapabilities(open: true),
+      ),
+      AsConversation(
+        conversationId: 'conv_group_avatar',
+        roomId: '!group-avatar:p2p-im.com',
+        kind: asConversationKindGroup,
+        lifecycle: 'active',
+        title: '头像群',
+        avatarUrl: '',
+        capabilities: AsConversationCapabilities(open: true),
+      ),
+      AsConversation(
+        conversationId: 'channel_avatar',
+        roomId: '!channel-avatar:p2p-im.com',
+        kind: asConversationKindChannel,
+        lifecycle: 'active',
+        title: '头像频道',
+        avatarUrl: 'https://cdn.example.com/channel.png',
+        capabilities: AsConversationCapabilities(open: true),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(
+            _ConversationListAsClient(conversations),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(
+              bootstrap: _bootstrapFromConversations(conversations),
+            ),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const SearchPage()),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '头像');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    expect(find.text('头像群'), findsOneWidget);
+    expect(find.text('头像频道'), findsOneWidget);
+    final groupAvatar = tester
+        .widgetList<GroupCompositeAvatar>(find.byType(GroupCompositeAvatar))
+        .singleWhere((avatar) => avatar.seed == '!group-avatar:p2p-im.com');
+    expect(
+        groupAvatar.members.map((member) => member.imageUrl),
+        contains(
+          'https://cdn.example.com/alice-member.png',
+        ));
+    var avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
+    expect(
+      avatars.any(
+          (avatar) => avatar.imageUrl == 'https://cdn.example.com/channel.png'),
+      isTrue,
+    );
+
+    await tester.enterText(find.byType(TextField), 'Alice');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+
+    avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
+    expect(
+      avatars.any(
+          (avatar) => avatar.imageUrl == 'https://cdn.example.com/alice.png'),
+      isTrue,
+    );
+  });
+
   testWidgets(
       'global search hides Matrix rooms without ProductCore conversation',
       (tester) async {
@@ -15618,14 +15983,16 @@ void main() {
     expect(find.text('拉黑用户'), findsOneWidget);
     expect(find.text('举报用户'), findsOneWidget);
     expect(find.text('删除好友'), findsOneWidget);
-    expect(find.text('UID portal.local'), findsOneWidget);
+    expect(find.text('@alice:portal.local'), findsOneWidget);
 
-    await tester.tap(find.text('UID portal.local'));
-    await tester.pumpAndSettle();
+    await tester.tap(find.text('@alice:portal.local'));
+    await tester.pump();
 
     expect(find.text('已复制 UID'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
-    expect(copied?.text, 'portal.local');
+    expect(copied?.text, '@alice:portal.local');
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('contact detail uses localized user info actions',
@@ -15674,6 +16041,51 @@ void main() {
         .where((item) => item.size == 60)
         .single;
     expect(avatar.imageUrl, isNull);
+  });
+
+  testWidgets('contact detail uses display name for avatar fallback seed',
+      (tester) async {
+    const peerMxid = '@2alice:portal.local';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: '!alice:p2p-im.com',
+          domain: 'portal.local',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactDetailPage(userId: peerMxid),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final avatar = tester
+        .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+        .where((item) => item.size == 60)
+        .single;
+    expect(find.text('Alice'), findsOneWidget);
+    expect(avatar.seed, 'Alice');
   });
 
   testWidgets('contact detail persists message mute toggle after re-entry',
@@ -15870,6 +16282,26 @@ void main() {
       (tester) async {
     const roomId = '!alice:p2p-im.com';
     const peerMxid = '@alice:p2p-im.com';
+    var clipboardText = '';
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardText = (call.arguments as Map)['text'] as String? ?? '';
+            return null;
+          case 'Clipboard.getData':
+            return {'text': clipboardText};
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
     final client = Client('DirexioChatAvatarFriendProfileTest')
       ..setUserId('@owner:p2p-im.com');
     _addUndirectedJoinedRoom(
@@ -15955,6 +16387,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alice'), findsOneWidget);
+    expect(find.text(peerMxid), findsOneWidget);
     expect(find.text('发消息'), findsOneWidget);
     expect(find.text('音频通话'), findsOneWidget);
     expect(find.text('视频通话'), findsOneWidget);
@@ -15969,6 +16402,13 @@ void main() {
         findsOneWidget,
       );
     }
+    await tester.tap(find.text(peerMxid));
+    await tester.pump();
+    expect(find.text('已复制 UID'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    final copied = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copied?.text, peerMxid);
+    await tester.pump(const Duration(seconds: 2));
     expect(find.text('把他推荐给朋友'), findsOneWidget);
     expect(find.text('添加好友'), findsNothing);
   });
@@ -16069,6 +16509,7 @@ void main() {
     expect(asClient.updatedContactDisplayName, 'Alice 备注');
     expect(asClient.updatedContactAvatarUrl, 'mxc://portal.local/alice');
     expect(asClient.updatedContactDomain, 'portal.local');
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets(
@@ -16635,10 +17076,12 @@ void main() {
     expect(find.textContaining('Node:'), findsNothing);
 
     await tester.tap(find.text('https://p2p-im.com'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(find.text('已复制 UID'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
     expect(copied?.text, 'https://p2p-im.com');
+    await tester.pump(const Duration(seconds: 2));
 
     await tester.tap(find.byIcon(Symbols.content_copy));
     await tester.pumpAndSettle();
@@ -17663,15 +18106,18 @@ void main() {
     expect(find.text('邮箱'), findsOneWidget);
 
     await tester.tap(find.text('UID: https://p2p-im.com'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(find.text('已复制 UID'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
     final copied = await Clipboard.getData(Clipboard.kTextPlain);
     expect(copied?.text, 'https://p2p-im.com');
+    await tester.pump(const Duration(seconds: 2));
 
     await tester.tap(find.byIcon(Symbols.content_copy));
     await tester.pumpAndSettle();
     final copiedFromIcon = await Clipboard.getData(Clipboard.kTextPlain);
     expect(copiedFromIcon?.text, 'https://p2p-im.com');
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('profile info does not use mock avatar fallback', (tester) async {
@@ -18030,7 +18476,7 @@ void main() {
 
     expect(find.text('Agent'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('返回'));
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
 
     expect(find.text('HomeRoot'), findsOneWidget);
@@ -18142,6 +18588,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('开始你们的第一条消息'), findsNothing);
+  });
+
+  testWidgets('private chat toolbar uses localized action tooltips',
+      (tester) async {
+    await _pumpDirectChatWithPeerTextEvent(
+      tester,
+      sendPeerEvent: false,
+      locale: const Locale('en'),
+    );
+
+    expect(find.byTooltip('Back'), findsOneWidget);
+    expect(find.byTooltip('Message Encryption'), findsOneWidget);
+    expect(find.byTooltip('Details'), findsOneWidget);
+    expect(find.byTooltip('返回'), findsNothing);
+    expect(find.byTooltip('端对端加密'), findsNothing);
+    expect(find.byTooltip('详情'), findsNothing);
   });
 
   testWidgets('private chat header shows peer offline and typing status',

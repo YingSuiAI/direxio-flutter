@@ -30,6 +30,15 @@ expire the session because of stale in-flight Matrix 401s from the old token.
 Use the current-token check and the short recent-token retry window before
 sending the user back to login.
 
+After `portal.password` succeeds, persist the new login password and new AS
+bearer token before any Matrix or AS follow-up request can trigger auth refresh.
+From that point, the old password must not be used for `portal.auth`.
+
+After login or password change rotates the P2P/AS bearer token, do not expire
+the session because of stale in-flight AS `M_UNKNOWN_TOKEN` responses from the
+old bearer. AS clients should report the rejected bearer token so auth state can
+compare it with the current token before clearing local session state.
+
 When a Matrix token rejection triggers portal-token refresh, do not clear local
 session state if the portal refresh fails due to timeout, network, or 5xx
 server errors. Keep the stored Matrix/portal credentials and retry later; only

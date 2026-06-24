@@ -1004,7 +1004,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: currentPortalToken.trim(),
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
       onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
-      onAuthenticationFailed: expireSessionDueInvalidToken,
+      onAuthenticationFailedForToken: expireSessionDueInvalidTokenIfCurrent,
     );
     final profile = await asClient.updateOwnerProfile(
       displayName: cleanDisplayName,
@@ -1014,6 +1014,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       oldPassword: currentLoginPassword,
       newPassword: cleanToken,
       deviceId: await _localMatrixDeviceId(client),
+    );
+    await _persistRotatedPortalCredentials(
+      accessToken: session.accessToken,
+      loginPortalToken: cleanToken,
     );
     var matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
     var deviceId = await _resolveSessionDeviceId(
@@ -1257,12 +1261,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: currentPortalToken.trim(),
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
       onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
-      onAuthenticationFailed: expireSessionDueInvalidToken,
+      onAuthenticationFailedForToken: expireSessionDueInvalidTokenIfCurrent,
     );
     var session = await asClient.changePortalPassword(
       oldPassword: cleanOldPassword,
       newPassword: cleanNewPassword,
       deviceId: await _localMatrixDeviceId(client),
+    );
+    await _persistRotatedPortalCredentials(
+      accessToken: session.accessToken,
+      loginPortalToken: cleanNewPassword,
     );
     var matrixUri = _resolveClientHomeserver(homeserver, session.homeserver);
     var userId = session.userId.trim().isNotEmpty
@@ -1351,6 +1359,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       oldPassword: cleanSetupCode,
       newPassword: cleanNewToken,
       deviceId: await _localMatrixDeviceId(client),
+    );
+    await _persistRotatedPortalCredentials(
+      accessToken: session.accessToken,
+      loginPortalToken: cleanNewToken,
     );
     final matrixUri = _resolveClientHomeserver(
       result.homeserver,
@@ -2003,6 +2015,26 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       await _storage.write(
         key: _matrixTokenAppliedAtKey,
         value: now.millisecondsSinceEpoch.toString(),
+      );
+    }
+  }
+
+  Future<void> _persistRotatedPortalCredentials({
+    required String accessToken,
+    required String loginPortalToken,
+  }) async {
+    final cleanAccessToken = accessToken.trim();
+    final cleanLoginPortalToken = loginPortalToken.trim();
+    if (cleanAccessToken.isNotEmpty) {
+      await _storage.write(
+        key: AuthStateNotifier.accessTokenKey,
+        value: cleanAccessToken,
+      );
+    }
+    if (cleanLoginPortalToken.isNotEmpty) {
+      await _storage.write(
+        key: lastLoginPortalTokenKey,
+        value: cleanLoginPortalToken,
       );
     }
   }

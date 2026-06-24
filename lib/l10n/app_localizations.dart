@@ -1973,6 +1973,84 @@ abstract class AppLocalizations {
   /// **'文件'**
   String get groupChatFile;
 
+  /// No description provided for @chatInputVoice.
+  ///
+  /// In zh, this message translates to:
+  /// **'语音'**
+  String get chatInputVoice;
+
+  /// No description provided for @chatInputKeyboard.
+  ///
+  /// In zh, this message translates to:
+  /// **'键盘'**
+  String get chatInputKeyboard;
+
+  /// No description provided for @chatInputHoldToTalk.
+  ///
+  /// In zh, this message translates to:
+  /// **'按住 说话'**
+  String get chatInputHoldToTalk;
+
+  /// No description provided for @chatInputReleaseToSend.
+  ///
+  /// In zh, this message translates to:
+  /// **'松开 发送'**
+  String get chatInputReleaseToSend;
+
+  /// No description provided for @chatInputReleaseToCancel.
+  ///
+  /// In zh, this message translates to:
+  /// **'松开 取消'**
+  String get chatInputReleaseToCancel;
+
+  /// No description provided for @chatInputReleaseToCancelCompact.
+  ///
+  /// In zh, this message translates to:
+  /// **'松开取消'**
+  String get chatInputReleaseToCancelCompact;
+
+  /// No description provided for @chatInputReleaseToSendSwipeCancel.
+  ///
+  /// In zh, this message translates to:
+  /// **'松开发送，上滑取消'**
+  String get chatInputReleaseToSendSwipeCancel;
+
+  /// No description provided for @chatAttachmentAlbum.
+  ///
+  /// In zh, this message translates to:
+  /// **'相册'**
+  String get chatAttachmentAlbum;
+
+  /// No description provided for @chatAttachmentCamera.
+  ///
+  /// In zh, this message translates to:
+  /// **'拍摄'**
+  String get chatAttachmentCamera;
+
+  /// No description provided for @chatAttachmentVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频'**
+  String get chatAttachmentVideo;
+
+  /// No description provided for @chatAttachmentLocation.
+  ///
+  /// In zh, this message translates to:
+  /// **'位置'**
+  String get chatAttachmentLocation;
+
+  /// No description provided for @chatAttachmentContactCard.
+  ///
+  /// In zh, this message translates to:
+  /// **'个人名片'**
+  String get chatAttachmentContactCard;
+
+  /// No description provided for @chatAttachmentFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件'**
+  String get chatAttachmentFile;
+
   /// No description provided for @groupChatLocalMediaMissing.
   ///
   /// In zh, this message translates to:

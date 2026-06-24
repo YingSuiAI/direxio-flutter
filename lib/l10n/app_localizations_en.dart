@@ -1046,6 +1046,46 @@ class AppLocalizationsEn extends AppLocalizations {
   String get groupChatFile => 'file';
 
   @override
+  String get chatInputVoice => 'Voice';
+
+  @override
+  String get chatInputKeyboard => 'Keyboard';
+
+  @override
+  String get chatInputHoldToTalk => 'Hold to talk';
+
+  @override
+  String get chatInputReleaseToSend => 'Release to send';
+
+  @override
+  String get chatInputReleaseToCancel => 'Release to cancel';
+
+  @override
+  String get chatInputReleaseToCancelCompact => 'Release to cancel';
+
+  @override
+  String get chatInputReleaseToSendSwipeCancel =>
+      'Release to send, swipe up to cancel';
+
+  @override
+  String get chatAttachmentAlbum => 'Album';
+
+  @override
+  String get chatAttachmentCamera => 'Camera';
+
+  @override
+  String get chatAttachmentVideo => 'Video';
+
+  @override
+  String get chatAttachmentLocation => 'Location';
+
+  @override
+  String get chatAttachmentContactCard => 'Contact card';
+
+  @override
+  String get chatAttachmentFile => 'File';
+
+  @override
   String groupChatLocalMediaMissing(String label) {
     return 'The original local $label is missing. Select the $label again.';
   }

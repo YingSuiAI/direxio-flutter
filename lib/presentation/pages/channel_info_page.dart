@@ -1196,6 +1196,7 @@ Future<void> _shareChannel(
         commentsEnabled: channel.commentsEnabled,
         channelType: channel.channelType,
         tags: channel.tags,
+        memberCount: channel.memberCount,
       ),
       currentRoomId: channel.roomId,
       currentRoomName: channel.name,

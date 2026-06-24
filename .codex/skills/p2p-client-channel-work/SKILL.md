@@ -11,7 +11,7 @@ Read these before editing channel behavior:
 
 - `AGENTS.md`
 - `docs/FEATURES.md`
-- `docs/AS_API_CHANGES.md` when AS requests/responses change
+- `docs/P2P_API_BOUNDARY.md` when P2P requests/responses change
 - `lib/presentation/CLAUDE.md` when touching `lib/presentation/`
 
 Also load `p2p-client-as-contract` for AS model or HTTP contract changes, and `p2p-client-presentation-m3` for UI changes.

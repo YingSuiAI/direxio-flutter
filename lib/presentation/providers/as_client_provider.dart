@@ -13,9 +13,12 @@ import 'auth_provider.dart';
 final asClientProvider = Provider<AsClient>((ref) {
   final client = ref.watch(matrixClientProvider);
   final authNotifier = ref.read(authStateNotifierProvider.notifier);
-  final portalToken =
-      ref.watch(authStateNotifierProvider).valueOrNull?.portalToken;
-  if (portalToken != null && portalToken.isNotEmpty) {
+  final auth = ref.watch(authStateNotifierProvider).valueOrNull;
+  final authToken = auth?.portalToken?.trim() ?? '';
+  final clientToken =
+      auth?.isLoggedIn == true ? client.accessToken?.trim() ?? '' : '';
+  final portalToken = authToken.isNotEmpty ? authToken : clientToken;
+  if (portalToken.isNotEmpty) {
     return HttpAsClient.fromPortalSession(
       client,
       portalToken: portalToken,

@@ -35,6 +35,7 @@ class ChannelSharePayload {
     this.commentsEnabled = true,
     this.channelType = asChannelTypeChat,
     this.tags = const [],
+    this.memberCount = -1,
   });
 
   final String channelId;
@@ -50,6 +51,7 @@ class ChannelSharePayload {
   final bool commentsEnabled;
   final String channelType;
   final List<String> tags;
+  final int memberCount;
 
   String get displayName => name.trim().isEmpty ? '未命名频道' : name.trim();
 
@@ -69,6 +71,7 @@ class ChannelSharePayload {
         commentsEnabled: commentsEnabled,
         channelType: channelType,
         tags: tags,
+        memberCount: memberCount,
       );
 
   AsChannel get asDiscoveredChannel => AsChannel(
@@ -83,6 +86,7 @@ class ChannelSharePayload {
         commentsEnabled: commentsEnabled,
         channelType: channelType,
         tags: tags,
+        memberCount: memberCount,
       );
 }
 
@@ -199,6 +203,7 @@ ChannelSharePayload channelSharePayloadFromChannel({
   bool commentsEnabled = true,
   String channelType = asChannelTypeChat,
   List<String> tags = const [],
+  int memberCount = -1,
 }) {
   return ChannelSharePayload(
     channelId: channelId,
@@ -214,6 +219,7 @@ ChannelSharePayload channelSharePayloadFromChannel({
     commentsEnabled: commentsEnabled,
     channelType: channelType,
     tags: tags,
+    memberCount: memberCount,
   );
 }
 
@@ -253,6 +259,7 @@ ChannelSharePayload? channelSharePayloadFromContent(
         : true,
     channelType: normalizeAsChannelType(_stringValue(raw['channel_type'])),
     tags: _stringList(raw['tags']),
+    memberCount: _intValue(raw['member_count'], fallback: -1),
   );
 }
 
@@ -328,6 +335,7 @@ ChannelSharePayload _channelSharePayloadWithGrant(
     commentsEnabled: payload.commentsEnabled,
     channelType: payload.channelType,
     tags: payload.tags,
+    memberCount: payload.memberCount,
   );
 }
 
@@ -600,6 +608,13 @@ String? _targetAvatarUrl(
 }
 
 String _stringValue(Object? value) => value is String ? value : '';
+
+int _intValue(Object? value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value.trim()) ?? fallback;
+  return fallback;
+}
 
 Map<String, Object?> _objectMap(Object? value) {
   if (value is! Map) return const {};

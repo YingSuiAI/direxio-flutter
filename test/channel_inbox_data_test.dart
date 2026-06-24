@@ -824,6 +824,76 @@ void main() {
     expect(items.single.name, isNot('!joined:p2p-im.com'));
   });
 
+  test('filters bootstrap room summaries that do not have product channel ids',
+      () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-24T10:30:00Z'),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: '!group:p2p-im.com',
+          roomId: '!group:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '!group:p2p-im.com',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-24T09:30:00Z'),
+          visibility: asChannelVisibilityPrivate,
+          joinPolicy: asChannelJoinPolicyInvite,
+          channelType: asChannelTypeChat,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+        AsSyncRoomSummary(
+          channelId: 'ch_posts',
+          roomId: '!posts:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: 'Posts',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-24T09:40:00Z'),
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    expect(items.map((item) => item.id), ['ch_posts']);
+  });
+
+  test('filters channels.list records that use Matrix room ids as channel ids',
+      () {
+    final items = ChannelInboxData.fromChannels(
+      const [
+        AsChannel(
+          channelId: '!group:p2p-im.com',
+          roomId: '!group:p2p-im.com',
+          name: '!group:p2p-im.com',
+          visibility: asChannelVisibilityPrivate,
+          joinPolicy: asChannelJoinPolicyInvite,
+          channelType: asChannelTypeChat,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+        AsChannel(
+          channelId: 'ch_posts',
+          roomId: '!posts:p2p-im.com',
+          name: 'Posts',
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      fallbackDomain: 'p2p-im.com',
+    );
+
+    expect(items.map((item) => item.id), ['ch_posts']);
+  });
+
   test('uses Matrix room metadata for joined channel name and avatar fallback',
       () {
     final bootstrap = AsSyncBootstrap(

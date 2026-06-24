@@ -6,10 +6,12 @@ This document records the current P2P product API / Matrix boundary used by the 
 
 ## Token Boundary
 
-- P2P product API calls use the portal token as bearer auth.
-- Matrix Client-Server API calls use the Matrix access token managed by the Matrix SDK.
+- Backend auth responses expose one `access_token`.
+- P2P product API calls use `access_token` as bearer auth.
+- Matrix Client-Server API calls use the same `access_token` through the Matrix SDK.
 - P2P product API clients must use a `/_p2p` base URI and send action envelopes to `/_p2p/query` or `/_p2p/command`.
-- Matrix access tokens are never a fallback credential for P2P product API calls.
+- Do not add `admin_token`, `matrix_token`, `admin_access_token`, or `matrix_access_token` fields.
+- `initialized` is the single initialization flag. It means the generated initial password has been changed; owner profile data is optional and must not gate initialization.
 
 ## P2P Product API Responsibilities
 

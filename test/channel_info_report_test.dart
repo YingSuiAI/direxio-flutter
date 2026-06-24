@@ -22,7 +22,7 @@ void main() {
       ..setUserId('@owner:p2p-im.com');
     final asClient = HttpAsClient(
       baseUri: Uri.parse('http://portal.local/_p2p'),
-      portalToken: 'admin-token',
+      portalToken: 'access-token',
       httpClient: MockClient((request) async {
         seen = request;
         return http.Response.bytes(

@@ -27,7 +27,7 @@ Use this skill as the entry point, then load a focused skill when the task match
 - `p2p-client-auth-session`: login, setup, restore, route guards, portal session, or auth token behavior.
 - `p2p-client-release-build`: rebuild APK/web/iOS artifacts or package release output.
 
-If a business rule, contract, UI rule, workflow, or verification requirement changes, update the relevant `.codex/skills/*/SKILL.md` in the same change. Keep `AGENTS.md`, `docs/FEATURES.md`, `docs/AS_API_CHANGES.md`, and the skills consistent.
+If a business rule, contract, UI rule, workflow, or verification requirement changes, update the relevant `.codex/skills/*/SKILL.md` in the same change. Keep `AGENTS.md`, `docs/FEATURES.md`, `docs/P2P_API_BOUNDARY.md`, and the skills consistent.
 
 ## Repo Rules
 
@@ -47,7 +47,7 @@ Keep Flutter/Dart source files under 3000 lines. When touching an oversized file
 
 Before user-visible behavior changes, read `docs/FEATURES.md` and update it if a feature moves between demo, partial, local, or real status.
 
-Before AS/Admin API contract changes, read `docs/AS_API_CHANGES.md` and update it in the same change.
+Before P2P product API contract changes, read `docs/P2P_API_BOUNDARY.md` and update it in the same change.
 
 ## Verification
 

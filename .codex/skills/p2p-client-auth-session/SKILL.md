@@ -11,17 +11,17 @@ Read these before auth/session work:
 
 - `AGENTS.md`
 - `docs/FEATURES.md`
-- `docs/AS_API_CHANGES.md` when AS auth or portal/session shapes change
+- `docs/P2P_API_BOUNDARY.md` when P2P auth or portal/session shapes change
 
 If the change touches `lib/presentation/`, also load `p2p-client-presentation-m3`.
 
 ## Auth Boundaries
 
-Keep AS/Admin API auth and Matrix SDK auth responsibilities explicit. AS calls should use the current portal/session bearer credential from the AS contract. Matrix-native login/session, room, timeline, membership, media, profile, and read-marker behavior should flow through Matrix SDK or Matrix API code.
+Keep P2P product API auth and Matrix SDK auth responsibilities explicit. Backend auth responses expose one `access_token`; P2P calls should use it as the bearer credential, and Matrix-native login/session, room, timeline, membership, media, profile, and read-marker behavior should flow through Matrix SDK or Matrix API code using the same token.
 
-Do not add ad hoc token fallbacks. If the backend changes the token shape, update `AsClient`, `HttpAsClient`, `MockAsClient`, auth providers, focused tests, and `docs/AS_API_CHANGES.md` together.
+Do not add ad hoc token fallbacks or separate token fields such as `admin_token`, `matrix_token`, `admin_access_token`, or `matrix_access_token`. If the backend changes the token shape, update `AsClient`, `HttpAsClient`, test doubles, auth providers, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 
-Portal setup/bootstrap, portal token auth, and owner profile setup are AS product-layer concerns.
+Portal bootstrap, password auth, and owner profile updates are P2P product-layer concerns. `initialized` is the only initialization flag and means the generated initial password has been changed; owner profile setup must not gate initialization.
 
 Only confirmed credential rejection should expire a restored session. Transient SDK/network restore failures should keep stored credentials and present a retryable logged-in shell when that is the current product behavior.
 

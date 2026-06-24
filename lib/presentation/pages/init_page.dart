@@ -150,7 +150,7 @@ class _InitPageState extends ConsumerState<InitPage> {
         final avatarUrl = await _uploadSelectedAvatar();
         await ref
             .read(authStateNotifierProvider.notifier)
-            .completeOwnerProfileSetup(
+            .completeInitialization(
               displayName: displayName,
               newPortalToken: portalToken,
               avatarUrl: avatarUrl,

@@ -45,8 +45,8 @@ class ChannelInfoData {
 }
 
 String channelDisplayNameWithMemberCount(ChannelInfoData channel) {
-  final count = channel.memberCount < 0 ? 0 : channel.memberCount;
-  return '${channel.name}（$count）';
+  if (channel.memberCount < 0) return channel.name;
+  return '${channel.name}（${channel.memberCount}）';
 }
 
 ChannelInfoData channelInfoDataFromSharePayload(ChannelSharePayload payload) {
@@ -67,7 +67,7 @@ ChannelInfoData channelInfoDataFromSharePayload(ChannelSharePayload payload) {
     muted: false,
     channelType: payload.channelType,
     tags: payload.tags,
-    memberCount: 32,
+    memberCount: payload.memberCount,
   );
 }
 
@@ -167,7 +167,7 @@ ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
     muted: false,
     channelType: asChannelTypeChat,
     tags: const [],
-    memberCount: 0,
+    memberCount: -1,
   );
 }
 

@@ -778,6 +778,11 @@ class HttpAsClient implements AsClient {
       allowedStatusCodes: const {200},
     );
     final channel = AsChannel.fromJson(body);
+    if (_invalidProductChannelId(channel.channelId, channel.roomId)) {
+      throw AsClientException(
+        'P2P create channel response is missing channel_id',
+      );
+    }
     if (channel.roomId.isEmpty) {
       throw AsClientException('P2P create channel response is missing room_id');
     }
@@ -2459,12 +2464,7 @@ Map<String, dynamic> _portalSessionLogJson(AsPortalSession session) {
     'user_id': session.userId,
     'homeserver': session.homeserver,
     'device_id': session.deviceId,
-    'initialization_completed': session.initializationCompleted,
-    'already_initialized': session.alreadyInitialized,
-    'setup_completed': session.setupCompleted,
-    'account_initialized': session.accountInitialized,
-    'profile_initialized': session.profileInitialized,
-    'password_initialized': session.passwordInitialized,
+    'initialized': session.initialized,
   };
 }
 
@@ -2486,6 +2486,15 @@ String _normalizedChannelType(String value) {
     'chat' || '聊天' => 'chat',
     _ => 'post',
   };
+}
+
+bool _invalidProductChannelId(String channelId, String roomId) {
+  final productId = channelId.trim();
+  final matrixRoomId = roomId.trim();
+  return productId.isEmpty ||
+      matrixRoomId.isEmpty ||
+      productId == matrixRoomId ||
+      productId.startsWith('!');
 }
 
 Stream<AsEventStreamEvent> _decodeSseEvents(Stream<String> lines) async* {

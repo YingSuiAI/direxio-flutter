@@ -378,11 +378,10 @@ void main() {
   test('restores stored auth state without waiting for first Matrix sync',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stored-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'admin-token',
+      AuthStateNotifier.accessTokenKey: 'access-token',
     });
     final syncCompleter = Completer<http.Response>();
     final requestPaths = <String>[];
@@ -442,13 +441,12 @@ void main() {
   test('stored restore prefers SDK database session before injected token init',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stored-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'stored-admin-token',
+      AuthStateNotifier.accessTokenKey: 'stored-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     final client = _SdkStoreRestoreClient(
       'AuthStoredRestorePrefersSdkStoreTest',
@@ -484,12 +482,11 @@ void main() {
   test('restores stored profile initialization flag without profile lookup',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stored-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'admin-token',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.accessTokenKey: 'access-token',
+      AuthStateNotifier.initializedKey: 'true',
     });
     final client = Client(
       'AuthStoredProfileInitializedFlagTest',
@@ -519,18 +516,17 @@ void main() {
     final auth = await container.read(authStateNotifierProvider.future);
 
     expect(auth.isLoggedIn, isTrue);
-    expect(auth.requiresProfileSetup, isFalse);
+    expect(auth.requiresInitialization, isFalse);
   });
 
   test('stored restore refreshes stale setup flag from portal auth', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stored-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'stored-admin-token',
+      AuthStateNotifier.accessTokenKey: 'stored-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
-      AuthStateNotifier.profileInitializedKey: 'false',
+      AuthStateNotifier.initializedKey: 'false',
     });
     final client = Client(
       'AuthStoredRestoreRefreshesSetupFlagTest',
@@ -541,7 +537,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"setup_completed":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -573,11 +569,11 @@ void main() {
     final auth = await container.read(authStateNotifierProvider.future);
 
     expect(auth.isLoggedIn, isTrue);
-    expect(auth.requiresProfileSetup, isFalse);
+    expect(auth.requiresInitialization, isFalse);
     expect(client.accessToken, 'fresh-token');
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
+          .read(key: AuthStateNotifier.initializedKey),
       'true',
     );
   });
@@ -586,11 +582,10 @@ void main() {
       'restores stored auth state without waiting for Matrix preflight network',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stored-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'admin-token',
+      AuthStateNotifier.accessTokenKey: 'access-token',
     });
     final stalledNetwork = Completer<http.Response>();
     final client = Client(
@@ -621,11 +616,10 @@ void main() {
   test('stored restore transient failure refreshes Matrix session via portal',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stored-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'admin-token',
+      AuthStateNotifier.accessTokenKey: 'access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'portal-token',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
     });
@@ -643,7 +637,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"setup_completed":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -671,11 +665,12 @@ void main() {
     expect(auth.isLoggedIn, isTrue);
     expect(auth.userId, '@owner:example.com');
     expect(auth.homeserver, 'https://example.com');
-    expect(auth.portalToken, 'fresh-token');
-    expect(client.accessToken, 'fresh-token');
+    expect(auth.portalToken, 'access-token');
+    expect(client.accessToken, 'access-token');
     expect(
-      await const FlutterSecureStorage().read(key: 'matrix_token'),
-      'fresh-token',
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
+      'access-token',
     );
     expect(
       await const FlutterSecureStorage().read(key: 'matrix_homeserver'),
@@ -688,17 +683,16 @@ void main() {
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.accessTokenKey),
-      'fresh-token',
+      'access-token',
     );
   });
 
   test('refreshes stale stored Matrix token from saved portal login', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stale-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'admin-token',
+      AuthStateNotifier.accessTokenKey: 'access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'portal-token',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
     });
@@ -728,7 +722,7 @@ void main() {
               '"user_id":"@owner:example.com",'
               '"homeserver":"https://example.com",'
               '"device_id":"DEVICE1",'
-              '"profile_initialized":true}',
+              '"initialized":true}',
               200,
             );
           }
@@ -780,7 +774,8 @@ void main() {
     expect(requestActions, contains('portal.auth'));
     expect(container.read(sessionExpiredNoticeProvider), 0);
     expect(
-      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
       'fresh-token',
     );
     expect(
@@ -795,10 +790,10 @@ void main() {
     );
   });
 
-  test('restored Matrix session reuses last portal token for AS calls',
+  test('restored Matrix session uses stored access token for AS calls',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stored-token',
+      AuthStateNotifier.accessTokenKey: 'stored-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
@@ -831,19 +826,18 @@ void main() {
         .timeout(const Duration(milliseconds: 500));
 
     expect(auth.isLoggedIn, isTrue);
-    expect(auth.portalToken, 'last-portal-token');
+    expect(auth.portalToken, 'stored-token');
   });
 
-  test('AS admin token failure refreshes portal session and retries request',
+  test('access token failure refreshes portal session and retries request',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'matrix-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     final seenAuthorizations = <String>[];
     final requestActions = <String>[];
@@ -868,14 +862,14 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"profile_initialized":true}',
+            '"initialized":true}',
             200,
           );
         }
         if (_p2pAction(request, 'sync.bootstrap') != null) {
           final authorization = request.headers['Authorization'] ?? '';
           seenAuthorizations.add(authorization);
-          if (authorization == 'Bearer old-admin-token') {
+          if (authorization == 'Bearer old-access-token') {
             return http.Response(
               '{"error":"M_UNKNOWN_TOKEN"}',
               401,
@@ -922,7 +916,7 @@ void main() {
 
     expect(bootstrap.user.userId, '@owner:example.com');
     expect(seenAuthorizations, [
-      'Bearer old-admin-token',
+      'Bearer old-access-token',
       'Bearer matrix-token',
     ]);
     expect(
@@ -992,7 +986,8 @@ void main() {
     expect(client.accessToken, 'fresh-token');
     expect(requestPaths, contains('/_p2p/command'));
     expect(
-      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
       'fresh-token',
     );
   });
@@ -1077,7 +1072,7 @@ void main() {
 
     expect(auth?.isLoggedIn, isTrue);
     expect(auth?.portalToken, 'fresh-matrix-token');
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(
       container.read(asSyncCacheProvider).bootstrap?.agentRoomId,
       '!agent-room:example.com',
@@ -1108,7 +1103,7 @@ void main() {
           return http.Response(
             '{"access_token":"fresh-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
-            '"profile_initialized":false}',
+            '"initialized":false}',
             200,
           );
         }
@@ -1212,7 +1207,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
+    final authSub = container.listen(authStateNotifierProvider, (_, __) {});
     addTearDown(container.dispose);
+    addTearDown(authSub.close);
     addTearDown(client.clear);
     await container.read(authStateNotifierProvider.future);
 
@@ -1228,11 +1225,10 @@ void main() {
 
   test('portal login replaces stale same-user Matrix device session', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'OLDDEVICE',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
     });
     final client = Client(
@@ -1325,7 +1321,7 @@ void main() {
           return http.Response(
             '{"access_token":"fresh-token","user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
-            '"profile_initialized":false}',
+            '"initialized":false}',
             200,
           );
         }
@@ -1366,7 +1362,7 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isTrue);
+    expect(auth?.requiresInitialization, isTrue);
     expect(auth?.ownerDisplayName, isEmpty);
   });
 
@@ -1429,7 +1425,7 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(auth?.ownerDisplayName, isNull);
   });
 
@@ -1452,7 +1448,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"profile_initialized":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -1497,12 +1493,11 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(auth?.ownerDisplayName, isNull);
   });
 
-  test(
-      'portal login requires password and profile flags when account flag is absent',
+  test('portal login requires initialization when backend reports false',
       () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(
@@ -1520,8 +1515,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"profile_initialized":true,'
-            '"password_initialized":false}',
+            '"initialized":false}',
             200,
           );
         }
@@ -1563,15 +1557,15 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isTrue);
+    expect(auth?.requiresInitialization, isTrue);
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
+          .read(key: AuthStateNotifier.initializedKey),
       'false',
     );
   });
 
-  test('portal login trusts account initialization flag first', () async {
+  test('portal login trusts unified initialization flag', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(
       'AuthPortalLoginAccountInitializedFlagTest',
@@ -1588,8 +1582,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"profile_initialized":true,'
-            '"account_initialized":false}',
+            '"initialized":false}',
             200,
           );
         }
@@ -1631,12 +1624,10 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isTrue);
+    expect(auth?.requiresInitialization, isTrue);
   });
 
-  test(
-      'portal login requires explicit account initialization flag when profile flag is absent',
-      () async {
+  test('portal login trusts initialized when profile is absent', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final client = Client(
       'AuthPortalLoginInitializedPasswordFlagsTest',
@@ -1653,8 +1644,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"initialized":true,'
-            '"password_initialized":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -1699,12 +1689,12 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isTrue);
+    expect(auth?.requiresInitialization, isFalse);
     expect(auth?.ownerDisplayName, isNull);
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
-      'false',
+          .read(key: AuthStateNotifier.initializedKey),
+      'true',
     );
   });
 
@@ -1726,7 +1716,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"already_initialized":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -1768,10 +1758,10 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
+          .read(key: AuthStateNotifier.initializedKey),
       'true',
     );
   });
@@ -1780,7 +1770,7 @@ void main() {
       'portal login overwrites stale setup flag from explicit initialization completion',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      AuthStateNotifier.profileInitializedKey: 'false',
+      AuthStateNotifier.initializedKey: 'false',
     });
     final client = Client(
       'AuthPortalLoginInitializationCompletedFlagTest',
@@ -1797,7 +1787,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"initialization_completed":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -1839,11 +1829,11 @@ void main() {
     final auth = container.read(authStateNotifierProvider).valueOrNull;
 
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(auth?.ownerDisplayName, '');
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
+          .read(key: AuthStateNotifier.initializedKey),
       'true',
     );
   });
@@ -1959,13 +1949,12 @@ void main() {
       'profile setup persists initialized flag when password response omits it',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
-      AuthStateNotifier.profileInitializedKey: 'false',
+      AuthStateNotifier.initializedKey: 'false',
     });
     final client = Client(
       'AuthCompleteProfileSetupInitializedFlagTest',
@@ -2025,31 +2014,30 @@ void main() {
 
     await container
         .read(authStateNotifierProvider.notifier)
-        .completeOwnerProfileSetup(
+        .completeInitialization(
           displayName: 'Alice',
           newPortalToken: '12345678',
         );
 
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(auth?.ownerDisplayName, 'Alice');
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
+          .read(key: AuthStateNotifier.initializedKey),
       'true',
     );
   });
 
   test('profile setup uses latest stored AS bearer token', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
-      AuthStateNotifier.profileInitializedKey: 'false',
+      AuthStateNotifier.initializedKey: 'false',
     });
     final profileAuthorizations = <String>[];
     final passwordAuthorizations = <String>[];
@@ -2070,7 +2058,7 @@ void main() {
             '{"access_token":"final-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
-            '"profile_initialized":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -2112,31 +2100,30 @@ void main() {
     await container.read(authStateNotifierProvider.future);
     await const FlutterSecureStorage().write(
       key: AuthStateNotifier.accessTokenKey,
-      value: 'fresh-admin-token',
+      value: 'fresh-access-token',
     );
 
     await container
         .read(authStateNotifierProvider.notifier)
-        .completeOwnerProfileSetup(
+        .completeInitialization(
           displayName: 'Alice',
           newPortalToken: '12345678',
         );
 
-    expect(profileAuthorizations, ['Bearer fresh-admin-token']);
-    expect(passwordAuthorizations, ['Bearer fresh-admin-token']);
+    expect(profileAuthorizations, ['Bearer final-token']);
+    expect(passwordAuthorizations, ['Bearer fresh-access-token']);
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.portalToken, 'final-token');
   });
 
   test('profile setup refreshes AS bearer after unknown token', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
-      AuthStateNotifier.profileInitializedKey: 'false',
+      AuthStateNotifier.initializedKey: 'false',
     });
     final profileAuthorizations = <String>[];
     final authPasswords = <String>[];
@@ -2147,13 +2134,7 @@ void main() {
         if (profileUpdate != null) {
           final authorization = request.headers['Authorization'] ?? '';
           profileAuthorizations.add(authorization);
-          if (authorization == 'Bearer old-admin-token') {
-            return http.Response(
-              '{"errcode":"M_UNKNOWN_TOKEN","error":"Unknown token"}',
-              401,
-            );
-          }
-          expect(authorization, 'Bearer fresh-admin-token');
+          expect(authorization, 'Bearer final-token');
           return http.Response(
             '{"user_id":"@owner:example.com",'
             '"display_name":"Alice","domain":"example.com"}',
@@ -2167,20 +2148,20 @@ void main() {
                 as String,
           );
           return http.Response(
-            '{"access_token":"fresh-admin-token",'
+            '{"access_token":"fresh-access-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
-            '"profile_initialized":false}',
+            '"initialized":false}',
             200,
           );
         }
         if (_p2pAction(request, 'portal.password') != null) {
-          expect(request.headers['Authorization'], 'Bearer fresh-admin-token');
+          expect(request.headers['Authorization'], 'Bearer old-access-token');
           return http.Response(
             '{"access_token":"final-token",'
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com","device_id":"DEVICE1",'
-            '"profile_initialized":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -2225,20 +2206,17 @@ void main() {
     await container.read(authStateNotifierProvider.future);
     await const FlutterSecureStorage().write(
       key: AuthStateNotifier.accessTokenKey,
-      value: 'old-admin-token',
+      value: 'old-access-token',
     );
 
     await container
         .read(authStateNotifierProvider.notifier)
-        .completeOwnerProfileSetup(
+        .completeInitialization(
           displayName: 'Alice',
           newPortalToken: '12345678',
         );
 
-    expect(profileAuthorizations, [
-      'Bearer old-admin-token',
-      'Bearer fresh-admin-token',
-    ]);
+    expect(profileAuthorizations, ['Bearer final-token']);
     expect(authPasswords, isNotEmpty);
     expect(authPasswords, everyElement('11111111'));
     final auth = container.read(authStateNotifierProvider).valueOrNull;
@@ -2248,13 +2226,12 @@ void main() {
   test('password change keeps initialized flag when response omits it',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     final client = Client(
       'AuthPasswordChangeKeepsInitializedFlagTest',
@@ -2310,10 +2287,10 @@ void main() {
 
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
+          .read(key: AuthStateNotifier.initializedKey),
       'true',
     );
   });
@@ -2322,13 +2299,12 @@ void main() {
       'password change trusts account initialization flag when stored flag is stale',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
-      AuthStateNotifier.profileInitializedKey: 'false',
+      AuthStateNotifier.initializedKey: 'false',
     });
     final client = Client(
       'AuthPasswordChangeTrustsInitializedPasswordFlagsTest',
@@ -2345,10 +2321,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"initialized":true,'
-            '"password_initialized":true,'
-            '"account_initialized":true,'
-            '"setup_completed":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -2389,10 +2362,10 @@ void main() {
 
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
+          .read(key: AuthStateNotifier.initializedKey),
       'true',
     );
   });
@@ -2400,13 +2373,12 @@ void main() {
   test('password change ignores delayed Matrix 401 from previous token',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     late ProviderContainer container;
     final refreshingClient = MatrixTokenRefreshingHttpClient(
@@ -2431,7 +2403,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"DEVICE1",'
-            '"profile_initialized":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -2506,16 +2478,15 @@ void main() {
     expect(container.read(sessionExpiredNoticeProvider), 0);
   });
 
-  test('stale AS admin token failure does not expire refreshed session',
+  test('stale access token failure does not expire refreshed session',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'fresh-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
       AuthStateNotifier.accessTokenKey: 'fresh-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     final client = _NoSyncInitClient(
       'AuthStaleAsAdminFailureIgnoredTest',
@@ -2555,7 +2526,8 @@ void main() {
     );
     expect(container.read(sessionExpiredNoticeProvider), 0);
     expect(
-      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
       'fresh-token',
     );
   });
@@ -2563,13 +2535,12 @@ void main() {
   test('recent refreshed Matrix token rejection waits before expiring session',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'portal-pass',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     late MatrixTokenRefreshingHttpClient refreshingClient;
     final client = _NoSyncInitClient(
@@ -2587,7 +2558,7 @@ void main() {
               '"user_id":"@owner:example.com",'
               '"homeserver":"https://example.com",'
               '"device_id":"DEVICE1",'
-              '"profile_initialized":true}',
+              '"initialized":true}',
               200,
             );
           }
@@ -2616,7 +2587,8 @@ void main() {
     );
     expect(container.read(sessionExpiredNoticeProvider), 0);
     expect(
-      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
       'fresh-token',
     );
   });
@@ -2624,14 +2596,13 @@ void main() {
   test('transient portal refresh failure preserves stored login session',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'cached-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
       AuthStateNotifier.accessTokenKey: 'cached-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'portal-pass',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     final client = _NoSyncInitClient(
       'AuthTransientPortalRefreshPreservesSessionTest',
@@ -2665,21 +2636,21 @@ void main() {
     );
     expect(container.read(sessionExpiredNoticeProvider), 0);
     expect(
-      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
       'cached-token',
     );
   });
 
   test('session expiry clears saved login secret', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'expired-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
       AuthStateNotifier.accessTokenKey: 'expired-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     final client = _NoSyncInitClient(
       'AuthSessionExpiryPreservesLoginSecretTest',
@@ -2718,7 +2689,9 @@ void main() {
       isFalse,
     );
     expect(
-        await const FlutterSecureStorage().read(key: 'matrix_token'), isNull);
+        await const FlutterSecureStorage()
+            .read(key: AuthStateNotifier.accessTokenKey),
+        isNull);
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.accessTokenKey),
@@ -2731,22 +2704,22 @@ void main() {
     );
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
-      'true',
+          .read(key: AuthStateNotifier.initializedKey),
+      isNull,
     );
   });
 
   test('AS 401 signed-in-elsewhere response expires local session', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'matrix-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'stale-admin-token',
+      AuthStateNotifier.accessTokenKey: 'stale-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
+    var agentStatusRequested = false;
     final client = _NoSyncInitClient(
       'AuthAsSignedInElsewhereExpiresSessionTest',
       httpClient: MockClient((request) async {
@@ -2758,15 +2731,35 @@ void main() {
         }
         if (_p2pAction(request, 'sync.bootstrap') != null) {
           return http.Response(
+            '{"synced_at":"2026-06-19T00:00:00Z",'
+            '"user":{"user_id":"@owner:example.com"},'
+            '"rooms":[],"contacts":[],"groups":[],"channels":[],"pending":{}}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'agent.status') != null) {
+          agentStatusRequested = true;
+          return http.Response(
             '{"error":"账号在其他设备登录，请重新登录"}',
             401,
             headers: {'content-type': 'application/json'},
           );
         }
         if (_p2pAction(request, 'portal.auth') != null) {
+          if (agentStatusRequested) {
+            return http.Response(
+              '{"error":"账号在其他设备登录，请重新登录"}',
+              401,
+              headers: {'content-type': 'application/json'},
+            );
+          }
           return http.Response(
-            '{"error":"账号在其他设备登录，请重新登录"}',
-            401,
+            '{"access_token":"fresh-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE1",'
+            '"initialized":true}',
+            200,
             headers: {'content-type': 'application/json'},
           );
         }
@@ -2785,12 +2778,17 @@ void main() {
     final container = ProviderContainer(
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
+    final authSub = container.listen(authStateNotifierProvider, (_, __) {});
     addTearDown(container.dispose);
+    addTearDown(authSub.close);
     addTearDown(client.clear);
-    await container.read(authStateNotifierProvider.future);
+    final restored = await container.read(authStateNotifierProvider.future);
+    expect(restored.isLoggedIn, isTrue);
+    expect(restored.portalToken, isNotNull);
+    expect(restored.portalToken, isNotEmpty);
 
     await expectLater(
-      container.read(asClientProvider).syncBootstrap(),
+      container.read(asClientProvider).getAgentStatus(),
       throwsA(
         isA<AsClientException>().having(
           (error) => error.statusCode,
@@ -2806,7 +2804,8 @@ void main() {
     );
     expect(container.read(sessionExpiredNoticeProvider), greaterThan(0));
     expect(
-      await const FlutterSecureStorage().read(key: 'matrix_token'),
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.accessTokenKey),
       isNull,
     );
     expect(
@@ -2823,11 +2822,10 @@ void main() {
 
   test('logout preserves Matrix device store for same device login', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'current-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'current-admin-token',
+      AuthStateNotifier.accessTokenKey: 'current-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
     });
@@ -2865,7 +2863,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
+    final authSub = container.listen(authStateNotifierProvider, (_, __) {});
     addTearDown(container.dispose);
+    addTearDown(authSub.close);
     addTearDown(client.clear);
     await container.read(authStateNotifierProvider.future);
 
@@ -2875,7 +2875,9 @@ void main() {
         isFalse);
     expect(client.deviceID, 'DEVICE1');
     expect(
-        await const FlutterSecureStorage().read(key: 'matrix_token'), isNull);
+        await const FlutterSecureStorage()
+            .read(key: AuthStateNotifier.accessTokenKey),
+        isNull);
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
@@ -2883,7 +2885,7 @@ void main() {
     );
     expect(
       await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.profileInitializedKey),
+          .read(key: AuthStateNotifier.initializedKey),
       isNull,
     );
   });
@@ -2892,11 +2894,10 @@ void main() {
       'same device can switch from one account to another without provider loop',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'alice-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@alice:example.com',
       'matrix_device_id': 'DEVICE_A',
-      AuthStateNotifier.accessTokenKey: 'alice-admin-token',
+      AuthStateNotifier.accessTokenKey: 'alice-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'alicepass',
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
     });
@@ -2977,7 +2978,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
+    final authSub = container.listen(authStateNotifierProvider, (_, __) {});
     addTearDown(container.dispose);
+    addTearDown(authSub.close);
     addTearDown(client.clear);
     await container.read(authStateNotifierProvider.future);
     container.read(asClientProvider);
@@ -2998,11 +3001,10 @@ void main() {
 
   test('password change follows token Matrix device when it differs', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'OLDDEVICE',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
     });
     final client = Client(
@@ -3037,7 +3039,7 @@ void main() {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           expect(body['action'], 'portal.password');
           expect(request.method, 'POST');
-          expect(request.headers['Authorization'], 'Bearer old-admin-token');
+          expect(request.headers['Authorization'], 'Bearer old-token');
           expect(body['params'], {
             'old_password': 'oldpass123',
             'new_password': '12345678',
@@ -3101,7 +3103,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"${params['device_id']}",'
-            '"setup_completed":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -3151,7 +3153,7 @@ void main() {
 
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(requestedDevices, hasLength(2));
     expect(requestedDevices[0], isNot(requestedDevices[1]));
     expect(client.accessToken, 'token-2');
@@ -3162,18 +3164,17 @@ void main() {
       'stored portal restore retries with a fresh device when key upload fails',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stored-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'OLDDEVICE',
-      AuthStateNotifier.accessTokenKey: 'stale-admin-token',
+      AuthStateNotifier.accessTokenKey: 'stale-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     final requestedDevices = <String>[];
     final client = _UploadKeyFailsForTokensClient(
       'AuthStoredRestoreUploadKeyRetryTest',
-      failingTokens: {'stored-token', 'token-1'},
+      failingTokens: {'stale-access-token', 'token-1'},
       httpClient: MockClient((request) async {
         final authAction = _p2pAction(request, 'portal.auth');
         if (authAction != null) {
@@ -3185,7 +3186,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"$deviceId",'
-            '"setup_completed":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -3222,7 +3223,7 @@ void main() {
     final auth = await container.read(authStateNotifierProvider.future);
 
     expect(auth.isLoggedIn, isTrue);
-    expect(auth.requiresProfileSetup, isFalse);
+    expect(auth.requiresInitialization, isFalse);
     expect(requestedDevices, hasLength(2));
     expect(requestedDevices.first, 'OLDDEVICE');
     expect(requestedDevices.last, isNot('OLDDEVICE'));
@@ -3236,13 +3237,12 @@ void main() {
 
   test('portal session restore coalesces concurrent refreshes', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'stored-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE_A',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '12345678',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     var portalAuthCalls = 0;
     final client = _NoSyncInitClient(
@@ -3258,7 +3258,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"${params['device_id']}",'
-            '"setup_completed":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -3296,13 +3296,12 @@ void main() {
   test('password change updates same-device token without clean Matrix init',
       () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'old-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE_A',
-      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.accessTokenKey: 'old-access-token',
       AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
-      AuthStateNotifier.profileInitializedKey: 'true',
+      AuthStateNotifier.initializedKey: 'true',
     });
     final requestedDevices = <String>[];
     final client = _UploadKeyFailsOnceClient(
@@ -3335,7 +3334,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"${params['device_id']}",'
-            '"setup_completed":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -3349,7 +3348,7 @@ void main() {
             '"user_id":"@owner:example.com",'
             '"homeserver":"https://example.com",'
             '"device_id":"${params['device_id']}",'
-            '"setup_completed":true}',
+            '"initialized":true}',
             200,
           );
         }
@@ -3391,7 +3390,7 @@ void main() {
 
     final auth = container.read(authStateNotifierProvider).valueOrNull;
     expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.requiresProfileSetup, isFalse);
+    expect(auth?.requiresInitialization, isFalse);
     expect(requestedDevices, ['DEVICE_A']);
     expect(requestedDevices[0], 'DEVICE_A');
     expect(client.accessToken, 'token-1');
@@ -3418,11 +3417,10 @@ void main() {
     }
 
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'token-a',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE_A',
-      AuthStateNotifier.accessTokenKey: 'admin-a',
+      AuthStateNotifier.accessTokenKey: 'access-a',
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass12',
     });
     final clientA = Client(

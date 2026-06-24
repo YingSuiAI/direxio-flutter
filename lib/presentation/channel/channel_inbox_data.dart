@@ -27,7 +27,7 @@ class ChannelInboxItem {
   });
 
   /// Product-level channel id owned by AS. Use this for channel routes and AS
-  /// channel APIs. It may fall back to [roomId] for legacy bootstrap data.
+  /// channel APIs. Matrix room ids are not valid channel ids.
   final String id;
 
   /// Matrix room id used only for Matrix transport actions such as forwarding.
@@ -148,7 +148,7 @@ class ChannelInboxData {
         _channelProductConversationsByRoomId(productConversations);
     final items = bootstrap.channels.where((channel) {
       final roomId = channel.roomId.trim();
-      if (roomId.isEmpty) return false;
+      if (!_hasProductChannelIdentity(channel.channelId, roomId)) return false;
       return _channelListChannelVisible(
         memberStatus: channel.memberStatus,
         lifecycle: channel.lifecycle,
@@ -170,7 +170,7 @@ class ChannelInboxData {
           roomId,
         );
         return ChannelInboxItem(
-          id: channelId.isEmpty ? roomId : channelId,
+          id: channelId,
           roomId: roomId,
           name: name.isEmpty ? '未命名频道' : name,
           domain: channel.homeDomain.trim().isEmpty
@@ -230,7 +230,7 @@ class ChannelInboxData {
     final items = channels.where((channel) {
       final channelId = channel.channelId.trim();
       final roomId = channel.roomId.trim();
-      if (channelId.isEmpty || roomId.isEmpty) return false;
+      if (!_hasProductChannelIdentity(channelId, roomId)) return false;
       if ((channelId.isNotEmpty &&
               hiddenChannelKeys.contains('channel:$channelId')) ||
           (roomId.isNotEmpty && hiddenChannelKeys.contains('room:$roomId'))) {
@@ -473,6 +473,15 @@ bool _createdCacheEntryIsHidden(
   return (channelId.isNotEmpty &&
           hiddenChannelKeys.contains('channel:$channelId')) ||
       (roomId.isNotEmpty && hiddenChannelKeys.contains('room:$roomId'));
+}
+
+bool _hasProductChannelIdentity(String channelId, String roomId) {
+  final productId = channelId.trim();
+  final matrixRoomId = roomId.trim();
+  if (productId.isEmpty || matrixRoomId.isEmpty) return false;
+  if (productId == matrixRoomId) return false;
+  if (_looksLikeMatrixRoomId(productId)) return false;
+  return true;
 }
 
 bool _isChannelOwnerRole(String role) {

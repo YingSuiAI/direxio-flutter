@@ -6,7 +6,7 @@ This document is a current implementation inventory. It is not a roadmap and doe
 
 ## Real Data Surfaces
 
-- Authentication/session restore uses Matrix SDK session state plus the persisted portal token.
+- Authentication/session restore uses Matrix SDK session state plus the persisted `access_token`; initialization is complete once the generated initial password has been changed.
 - Home conversations use ProductCore conversations, Matrix rooms, and local summary snapshots only as startup cache.
 - Direct/group/channel chat uses Matrix timelines for text, media, history, read state, local delete, and search.
 - Removed or exited group conversations stay visible in home conversations and Contacts -> Groups as read-only history; opening them shows the exited-group send block.

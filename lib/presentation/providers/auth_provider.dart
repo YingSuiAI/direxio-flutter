@@ -91,7 +91,7 @@ class AuthState {
     this.homeserver,
     this.portalToken,
     this.ownerDisplayName,
-    this.requiresProfileSetup = false,
+    this.requiresInitialization = false,
   });
 
   final bool isLoggedIn;
@@ -99,7 +99,7 @@ class AuthState {
   final String? homeserver;
   final String? portalToken;
   final String? ownerDisplayName;
-  final bool requiresProfileSetup;
+  final bool requiresInitialization;
 }
 
 class _ActivatedPortalSession {
@@ -276,24 +276,26 @@ class AuthStateNotifier extends _$AuthStateNotifier {
   static const _startupRestoreTimeout = Duration(seconds: 12);
   static const _freshInstallMarkerFileName = 'portal_im_install_marker_v1';
   static const accessTokenKey = 'access_token';
+  static const initializedKey = 'initialized';
   static const lastLoginHomeserverKey = 'last_login_homeserver';
   static const lastLoginPortalTokenKey = 'last_login_portal_token';
-  static const profileInitializedKey = 'profile_initialized';
-  static const _matrixTokenAppliedAtKey = 'matrix_token_applied_at_ms';
+  static const _legacyMatrixTokenKey = 'matrix_token';
+  static const _legacyInitializedKey = 'profile_initialized';
+  static const _accessTokenAppliedAtKey = 'access_token_applied_at_ms';
+  static const _legacyMatrixTokenAppliedAtKey = 'matrix_token_applied_at_ms';
   static const _sessionStorageKeys = <String>[
-    'matrix_token',
     'matrix_homeserver',
     'matrix_user_id',
     'matrix_device_id',
     accessTokenKey,
+    initializedKey,
     lastLoginHomeserverKey,
     lastLoginPortalTokenKey,
-    profileInitializedKey,
-    _matrixTokenAppliedAtKey,
+    _accessTokenAppliedAtKey,
   ];
   bool _sessionExpiredLocally = false;
   bool _isMounted = false;
-  DateTime? _lastMatrixTokenAppliedAt;
+  DateTime? _lastAccessTokenAppliedAt;
   bool _lastPortalRestoreNonRetryableFailure = false;
   bool _lastMatrixRefreshNonRetryableFailure = false;
   String? _portalRestoreInFlightKey;
@@ -349,39 +351,37 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
     final client = ref.watch(matrixClientProvider);
     final storedValues = await Future.wait<String?>([
-      _storage.read(key: 'matrix_token'),
+      _storage.read(key: AuthStateNotifier.accessTokenKey),
       _storage.read(key: 'matrix_homeserver'),
       _storage.read(key: 'matrix_user_id'),
-      _storage.read(key: AuthStateNotifier.accessTokenKey),
+      _storage.read(key: initializedKey),
       _storage.read(key: lastLoginHomeserverKey),
       _storage.read(key: lastLoginPortalTokenKey),
-      _storage.read(key: profileInitializedKey),
     ]);
-    final token = storedValues[0];
+    final storedAccessToken = storedValues[0];
     final homeserver = storedValues[1];
     final userId = storedValues[2];
-    final portalToken = storedValues[3];
+    final storedInitialized = _parseStoredBool(storedValues[3]);
     final lastLoginHomeserver = storedValues[4];
     final lastLoginPortalToken = storedValues[5];
-    final storedProfileInitialized = _parseStoredBool(storedValues[6]);
-    final storedPortalToken = (portalToken?.trim().isNotEmpty ?? false)
-        ? portalToken
-        : lastLoginPortalToken;
+    final restorePassword = (lastLoginPortalToken?.trim().isNotEmpty ?? false)
+        ? lastLoginPortalToken
+        : storedAccessToken;
     final storedHomeserver = homeserver ?? lastLoginHomeserver;
     if (_sessionExpiredLocally) {
       return const AuthState(isLoggedIn: false);
     }
 
-    final restored = await _restoreMatrixSdkSession(client, storedPortalToken);
+    final restored = await _restoreMatrixSdkSession(client, storedAccessToken);
     if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
     if (restored != null) {
-      if (storedProfileInitialized == false &&
-          (storedPortalToken?.trim().isNotEmpty ?? false) &&
+      if (storedInitialized == false &&
+          (restorePassword?.trim().isNotEmpty ?? false) &&
           (storedHomeserver?.trim().isNotEmpty ?? false)) {
         final refreshed = await _restorePortalSession(
           client,
           homeserver: storedHomeserver,
-          portalToken: storedPortalToken,
+          portalToken: restorePassword,
         );
         if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
         if (refreshed != null) return refreshed;
@@ -389,14 +389,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       return restored;
     }
 
-    if (token != null && homeserver != null && userId != null) {
+    if (storedAccessToken != null && homeserver != null && userId != null) {
       try {
         final homeserverUri = Uri.parse(homeserver);
         final deviceId =
             await _storage.read(key: 'matrix_device_id') ?? _createDeviceId();
 
         await client.init(
-          newToken: token,
+          newToken: storedAccessToken,
           newUserID: userId,
           newHomeserver: homeserverUri,
           newDeviceID: deviceId,
@@ -408,39 +408,39 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           client,
           homeserverUri,
           userId,
-          storedPortalToken,
+          storedAccessToken,
           deviceId,
         );
         await _loadChatClearState();
         if (_sessionExpiredLocally) {
           return const AuthState(isLoggedIn: false);
         }
-        if (storedProfileInitialized == false &&
-            (storedPortalToken?.trim().isNotEmpty ?? false)) {
+        if (storedInitialized == false &&
+            (restorePassword?.trim().isNotEmpty ?? false)) {
           final refreshed = await _restorePortalSession(
             client,
             homeserver: storedHomeserver,
-            portalToken: storedPortalToken,
+            portalToken: restorePassword,
           );
           if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
           if (refreshed != null) return refreshed;
         }
         final latestPortalToken =
             await _storage.read(key: AuthStateNotifier.accessTokenKey) ??
-                storedPortalToken;
+                storedAccessToken;
         return AuthState(
           isLoggedIn: true,
           userId: client.userID ?? userId,
           homeserver: (client.homeserver ?? homeserverUri).toString(),
           portalToken: latestPortalToken,
-          requiresProfileSetup: storedProfileInitialized == false,
+          requiresInitialization: storedInitialized == false,
         );
       } catch (e) {
         if (_isTokenFailure(e)) {
           final refreshed = await _restorePortalSession(
             client,
             homeserver: storedHomeserver,
-            portalToken: storedPortalToken,
+            portalToken: restorePassword,
           );
           if (_sessionExpiredLocally) {
             return const AuthState(isLoggedIn: false);
@@ -450,11 +450,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           }
           final fallback = await _storedAuthStateForRetry(
             client: client,
-            token: token,
+            token: storedAccessToken,
             homeserver: homeserver,
             userId: userId,
-            portalToken: storedPortalToken,
-            storedProfileInitialized: storedProfileInitialized,
+            portalToken: storedAccessToken,
+            storedInitialized: storedInitialized,
           );
           if (fallback != null) {
             return fallback;
@@ -463,12 +463,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           debugPrint(
             'stored Matrix session init failed; preserving token for retry: $e',
           );
-          if ((storedPortalToken?.trim().isNotEmpty ?? false) &&
+          if ((restorePassword?.trim().isNotEmpty ?? false) &&
               (storedHomeserver?.trim().isNotEmpty ?? false)) {
             final refreshed = await _restorePortalSession(
               client,
               homeserver: storedHomeserver,
-              portalToken: storedPortalToken,
+              portalToken: restorePassword,
             );
             if (_sessionExpiredLocally) {
               return const AuthState(isLoggedIn: false);
@@ -479,11 +479,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           }
           final fallback = await _storedAuthStateForRetry(
             client: client,
-            token: token,
+            token: storedAccessToken,
             homeserver: homeserver,
             userId: userId,
-            portalToken: storedPortalToken,
-            storedProfileInitialized: storedProfileInitialized,
+            portalToken: storedAccessToken,
+            storedInitialized: storedInitialized,
           );
           if (fallback != null) {
             return fallback;
@@ -491,12 +491,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         }
       }
     }
-    if ((storedPortalToken?.trim().isNotEmpty ?? false) &&
+    if ((restorePassword?.trim().isNotEmpty ?? false) &&
         (storedHomeserver?.trim().isNotEmpty ?? false)) {
       final portalRestored = await _restorePortalSession(
         client,
         homeserver: storedHomeserver,
-        portalToken: storedPortalToken,
+        portalToken: restorePassword,
       );
       if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
       if (portalRestored != null) return portalRestored;
@@ -564,17 +564,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     String? homeserver,
     String? userId,
     String? portalToken,
-    bool? storedProfileInitialized,
+    bool? storedInitialized,
   }) async {
     if (_sessionExpiredLocally) return null;
     final values = token == null || homeserver == null || userId == null
         ? await Future.wait<String?>([
-            _storage.read(key: 'matrix_token'),
+            _storage.read(key: AuthStateNotifier.accessTokenKey),
             _storage.read(key: 'matrix_homeserver'),
             _storage.read(key: 'matrix_user_id'),
-            _storage.read(key: AuthStateNotifier.accessTokenKey),
+            _storage.read(key: initializedKey),
             _storage.read(key: lastLoginPortalTokenKey),
-            _storage.read(key: profileInitializedKey),
           ])
         : null;
     final storedToken = (token ?? values?[0])?.trim() ?? '';
@@ -582,11 +581,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final storedUserId = (userId ?? values?[2])?.trim() ?? '';
     final authPortalToken = (portalToken?.trim().isNotEmpty ?? false)
         ? portalToken!.trim()
-        : ((values?[3]?.trim().isNotEmpty ?? false)
-            ? values![3]!.trim()
+        : ((values?[0]?.trim().isNotEmpty ?? false)
+            ? values![0]!.trim()
             : values?[4]?.trim());
-    final profileInitialized =
-        storedProfileInitialized ?? _parseStoredBool(values?[5]);
+    final initialized = storedInitialized ?? _parseStoredBool(values?[3]);
     final homeserverUri = Uri.tryParse(storedHomeserver);
     if (storedToken.isEmpty ||
         storedHomeserver.isEmpty ||
@@ -604,7 +602,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       userId: storedUserId,
       homeserver: storedHomeserver,
       portalToken: authPortalToken,
-      requiresProfileSetup: profileInitialized == false,
+      requiresInitialization: initialized == false,
     );
   }
 
@@ -813,14 +811,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (displayName != null && displayName.trim().isNotEmpty) {
       await client.setDisplayName(session.userId, displayName.trim());
     }
-    final profileInitialized = _sessionProfileInitialized(session);
+    final initialized = _sessionInitialized(session);
     _rememberSessionAgentRoomId(session, userId: client.userID);
     await _persistSession(
       client,
       checkedHomeserver,
       portalToken: effectivePortalToken,
       deviceId: deviceId,
-      profileInitialized: profileInitialized,
+      initialized: initialized,
       loginPortalToken: cleanPortalToken,
     );
     final result = _PortalLoginResult(
@@ -835,7 +833,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: effectivePortalToken,
     );
     if (publishState) {
-      final requiresProfileSetup = profileInitialized == false;
+      final requiresInitialization = initialized == false;
       state = AsyncData(
         AuthState(
           isLoggedIn: true,
@@ -843,7 +841,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           homeserver: result.homeserver.toString(),
           portalToken: result.portalToken,
           ownerDisplayName: ownerDisplayName,
-          requiresProfileSetup: requiresProfileSetup,
+          requiresInitialization: requiresInitialization,
         ),
       );
       _startPostLoginConversationSync(
@@ -861,24 +859,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     return result;
   }
 
-  bool? _sessionProfileInitialized(AsPortalSession session) {
-    if (session.initializationCompleted != null) {
-      return session.initializationCompleted;
-    }
-    if (session.alreadyInitialized != null) return session.alreadyInitialized;
-    if (session.setupCompleted != null) return session.setupCompleted;
-    if (session.accountInitialized != null) return session.accountInitialized;
-    if (session.passwordInitialized == false) return false;
-    if (session.passwordInitialized == true &&
-        session.profileInitialized != null) {
-      return session.profileInitialized == true;
-    }
-    if (session.profileInitialized != null) return session.profileInitialized;
-    if (session.initialized == true) {
-      return false;
-    }
-    return null;
-  }
+  bool? _sessionInitialized(AsPortalSession session) => session.initialized;
 
   Future<String?> _loadOwnerDisplayNameForLogin(
     Client client, {
@@ -971,12 +952,13 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     );
   }
 
-  Future<void> completeOwnerProfileSetup({
-    required String displayName,
+  Future<void> completeInitialization({
+    String displayName = '',
     required String newPortalToken,
     String avatarUrl = '',
   }) async {
     final cleanDisplayName = displayName.trim();
+    final cleanAvatarUrl = avatarUrl.trim();
     if (cleanDisplayName.isEmpty) {
       throw ArgumentError('用户昵称不能为空');
     }
@@ -1006,10 +988,6 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
       onAuthenticationFailed: expireSessionDueInvalidToken,
     );
-    final profile = await asClient.updateOwnerProfile(
-      displayName: cleanDisplayName,
-      avatarUrl: avatarUrl.trim(),
-    );
     var session = await asClient.changePortalPassword(
       oldPassword: currentLoginPassword,
       newPassword: cleanToken,
@@ -1034,7 +1012,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         portalToken: session.accessToken,
         deviceId: deviceId,
         loginPortalToken: cleanToken,
-        profileInitialized: _sessionProfileInitialized(session) ?? true,
+        initialized: _sessionInitialized(session) ?? true,
       );
     } catch (error) {
       if (!_isUploadKeyFailure(error)) rethrow;
@@ -1043,17 +1021,27 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         homeserver: homeserver,
         loginPassword: cleanToken,
         fallbackUserId: auth?.userId,
-        profileInitialized: _sessionProfileInitialized(session) ?? true,
-        logContext: 'profile setup',
+        initialized: _sessionInitialized(session) ?? true,
+        logContext: 'initialization',
       );
       session = recovered.session;
       matrixUri = recovered.homeserver;
       userId = recovered.userId;
       deviceId = recovered.deviceId;
     }
+    final profileClient = HttpAsClient.fromPortalSession(
+      client,
+      portalToken: session.accessToken,
+      baseUri: HttpAsClient.defaultAdminBaseUri(matrixUri),
+      onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
+      onAuthenticationFailed: expireSessionDueInvalidToken,
+    );
+    final profile = await profileClient.updateOwnerProfile(
+      displayName: cleanDisplayName,
+      avatarUrl: cleanAvatarUrl,
+    );
     if (userId.isNotEmpty) {
       await client.setDisplayName(userId, cleanDisplayName);
-      final cleanAvatarUrl = avatarUrl.trim();
       if (cleanAvatarUrl.isNotEmpty) {
         await client.setAvatarUrl(userId, Uri.parse(cleanAvatarUrl));
       }
@@ -1068,7 +1056,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         homeserver: matrixUri.toString(),
         portalToken: session.accessToken,
         ownerDisplayName: savedDisplayName,
-        requiresProfileSetup: false,
+        requiresInitialization: false,
       ),
     );
     _startPostLoginConversationSync(
@@ -1195,7 +1183,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
     client.homeserver = matrixUri;
     client.accessToken = session.accessToken;
-    _lastMatrixTokenAppliedAt = DateTime.now();
+    _lastAccessTokenAppliedAt = DateTime.now();
     await client.database?.updateClient(
       matrixUri.toString(),
       session.accessToken,
@@ -1213,7 +1201,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.accessToken,
       deviceId: effectiveDeviceId,
       userId: effectiveUserId,
-      profileInitialized: _sessionProfileInitialized(session),
+      initialized: _sessionInitialized(session),
       loginPortalToken: portalToken,
     );
     await _loadChatClearState();
@@ -1222,7 +1210,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       userId: effectiveUserId,
       homeserver: matrixUri.toString(),
       portalToken: session.accessToken,
-      requiresProfileSetup: _sessionProfileInitialized(session) == false,
+      requiresInitialization: _sessionInitialized(session) == false,
     );
   }
 
@@ -1275,9 +1263,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       sessionDeviceId: session.deviceId,
       storedDeviceId: await _storage.read(key: 'matrix_device_id'),
     );
-    final fallbackProfileInitialized =
-        _parseStoredBool(await _storage.read(key: profileInitializedKey)) ??
-            !(auth?.requiresProfileSetup ?? false);
+    const fallbackInitialized = true;
     try {
       await _applyRefreshedSession(
         client,
@@ -1286,8 +1272,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         portalToken: session.accessToken,
         deviceId: deviceId,
         loginPortalToken: cleanNewPassword,
-        profileInitialized:
-            _sessionProfileInitialized(session) ?? fallbackProfileInitialized,
+        initialized: _sessionInitialized(session) ?? fallbackInitialized,
       );
     } catch (error) {
       if (!_isUploadKeyFailure(error)) rethrow;
@@ -1296,8 +1281,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         homeserver: homeserver,
         loginPassword: cleanNewPassword,
         fallbackUserId: auth?.userId,
-        profileInitialized:
-            _sessionProfileInitialized(session) ?? fallbackProfileInitialized,
+        initialized: _sessionInitialized(session) ?? fallbackInitialized,
         logContext: 'password change',
       );
       session = recovered.session;
@@ -1305,8 +1289,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       userId = recovered.userId;
       deviceId = recovered.deviceId;
     }
-    final profileInitialized = _sessionProfileInitialized(session) ??
-        _parseStoredBool(await _storage.read(key: profileInitializedKey));
+    final initialized = _sessionInitialized(session) ?? true;
     state = AsyncData(
       AuthState(
         isLoggedIn: true,
@@ -1314,7 +1297,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         homeserver: matrixUri.toString(),
         portalToken: session.accessToken,
         ownerDisplayName: auth?.ownerDisplayName,
-        requiresProfileSetup: profileInitialized == false,
+        requiresInitialization: initialized == false,
       ),
     );
   }
@@ -1368,7 +1351,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.accessToken,
       deviceId: deviceId,
       loginPortalToken: cleanNewToken,
-      profileInitialized: _sessionProfileInitialized(session) ?? false,
+      initialized: _sessionInitialized(session) ?? true,
     );
     state = AsyncData(
       AuthState(
@@ -1376,7 +1359,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         userId: userId,
         homeserver: matrixUri.toString(),
         portalToken: session.accessToken,
-        requiresProfileSetup: true,
+        requiresInitialization: false,
       ),
     );
   }
@@ -1423,7 +1406,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         return null;
       }
 
-      await _storage.write(key: 'matrix_token', value: accessToken);
+      await _storage.write(
+          key: AuthStateNotifier.accessTokenKey, value: accessToken);
       await _storage.write(
           key: 'matrix_homeserver', value: homeserver.toString());
       await _storage.write(key: 'matrix_user_id', value: userId);
@@ -1431,20 +1415,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         key: 'matrix_device_id',
         value: client.deviceID ?? _createDeviceId(),
       );
-      if (portalToken != null && portalToken.isNotEmpty) {
-        await _storage.write(
-            key: AuthStateNotifier.accessTokenKey, value: portalToken);
-      }
-
       await _loadChatClearState();
       return AuthState(
         isLoggedIn: true,
         userId: userId,
         homeserver: homeserver.toString(),
-        portalToken: portalToken,
-        requiresProfileSetup:
-            _parseStoredBool(await _storage.read(key: profileInitializedKey)) ==
-                false,
+        portalToken: (portalToken?.trim().isNotEmpty ?? false)
+            ? portalToken
+            : accessToken,
+        requiresInitialization:
+            _parseStoredBool(await _storage.read(key: initializedKey)) == false,
       );
     } catch (_) {
       return null;
@@ -1537,7 +1517,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         sessionDeviceId: session.deviceId,
         storedDeviceId: await _storage.read(key: 'matrix_device_id'),
       );
-      var profileInitialized = _sessionProfileInitialized(session);
+      var initialized = _sessionInitialized(session);
       try {
         if (client.onLoginStateChanged.value == LoginState.loggedIn) {
           await _applyRefreshedSession(
@@ -1547,7 +1527,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             portalToken: effectivePortalToken,
             deviceId: deviceId,
             loginPortalToken: authPortalToken,
-            profileInitialized: profileInitialized,
+            initialized: initialized,
           );
         } else {
           await _initMatrixSessionWithKeyUploadRetry(
@@ -1563,7 +1543,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
             portalToken: effectivePortalToken,
             deviceId: deviceId,
             userId: session.userId,
-            profileInitialized: profileInitialized,
+            initialized: initialized,
             loginPortalToken: authPortalToken,
           );
         }
@@ -1574,14 +1554,14 @@ class AuthStateNotifier extends _$AuthStateNotifier {
           homeserver: matrixUri,
           loginPassword: authPortalToken,
           fallbackUserId: session.userId,
-          profileInitialized: profileInitialized ?? true,
+          initialized: initialized ?? true,
           logContext: 'portal restore',
         );
         session = recovered.session;
         matrixUri = recovered.homeserver;
         deviceId = recovered.deviceId;
         effectivePortalToken = session.accessToken.trim();
-        profileInitialized = _sessionProfileInitialized(session);
+        initialized = _sessionInitialized(session);
       }
       await _loadChatClearState();
       _rememberSessionAgentRoomId(session, userId: client.userID);
@@ -1590,7 +1570,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         userId: client.userID ?? session.userId,
         homeserver: (client.homeserver ?? matrixUri).toString(),
         portalToken: effectivePortalToken,
-        requiresProfileSetup: profileInitialized == false,
+        requiresInitialization: initialized == false,
       );
     } catch (e) {
       _lastPortalRestoreNonRetryableFailure =
@@ -1685,7 +1665,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required Uri homeserver,
     required String loginPassword,
     required String? fallbackUserId,
-    required bool profileInitialized,
+    required bool initialized,
     required String logContext,
   }) async {
     debugPrint(
@@ -1732,7 +1712,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: session.accessToken,
       deviceId: deviceId,
       userId: userId,
-      profileInitialized: profileInitialized,
+      initialized: initialized,
       loginPortalToken: loginPassword,
     );
     return _ActivatedPortalSession(
@@ -1750,7 +1730,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String portalToken,
     required String deviceId,
     String? loginPortalToken,
-    bool? profileInitialized,
+    bool? initialized,
   }) async {
     final matrixUri = _resolveClientHomeserver(
       currentHomeserver,
@@ -1781,7 +1761,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     } else {
       client.homeserver = matrixUri;
       client.accessToken = session.accessToken;
-      _lastMatrixTokenAppliedAt = DateTime.now();
+      _lastAccessTokenAppliedAt = DateTime.now();
       await client.database?.updateClient(
         matrixUri.toString(),
         session.accessToken,
@@ -1800,8 +1780,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       portalToken: portalToken,
       deviceId: effectiveDeviceId,
       userId: effectiveUserId,
-      profileInitialized:
-          profileInitialized ?? _sessionProfileInitialized(session),
+      initialized: initialized ?? _sessionInitialized(session),
       loginPortalToken: loginPortalToken,
     );
     _rememberSessionAgentRoomId(session, userId: effectiveUserId);
@@ -1964,34 +1943,33 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String portalToken,
     required String deviceId,
     String? userId,
-    bool? profileInitialized,
+    bool? initialized,
     String? loginPortalToken,
   }) async {
-    await _storage.write(key: 'matrix_token', value: client.accessToken);
+    await _storage.write(
+        key: AuthStateNotifier.accessTokenKey, value: portalToken);
     await _storage.write(key: 'matrix_homeserver', value: uri.toString());
     await _storage.write(key: 'matrix_user_id', value: userId ?? client.userID);
     await _storage.write(
       key: 'matrix_device_id',
       value: deviceId,
     );
-    await _storage.write(
-        key: AuthStateNotifier.accessTokenKey, value: portalToken);
     await _storage.write(key: lastLoginHomeserverKey, value: uri.toString());
     await _storage.write(
       key: lastLoginPortalTokenKey,
       value: loginPortalToken ?? portalToken,
     );
-    if (profileInitialized != null) {
+    if (initialized != null) {
       await _storage.write(
-        key: profileInitializedKey,
-        value: profileInitialized ? 'true' : 'false',
+        key: initializedKey,
+        value: initialized ? 'true' : 'false',
       );
     }
     if ((client.accessToken?.trim().isNotEmpty ?? false)) {
       final now = DateTime.now();
-      _lastMatrixTokenAppliedAt = now;
+      _lastAccessTokenAppliedAt = now;
       await _storage.write(
-        key: _matrixTokenAppliedAtKey,
+        key: _accessTokenAppliedAtKey,
         value: now.millisecondsSinceEpoch.toString(),
       );
     }
@@ -2223,24 +2201,22 @@ class AuthStateNotifier extends _$AuthStateNotifier {
 
   Future<bool> _hasStoredSessionRestoreCredentials() async {
     final values = await Future.wait<String?>([
-      _storage.read(key: 'matrix_token'),
+      _storage.read(key: AuthStateNotifier.accessTokenKey),
       _storage.read(key: 'matrix_homeserver'),
       _storage.read(key: 'matrix_user_id'),
-      _storage.read(key: AuthStateNotifier.accessTokenKey),
       _storage.read(key: lastLoginHomeserverKey),
       _storage.read(key: lastLoginPortalTokenKey),
     ]);
-    final matrixToken = values[0]?.trim() ?? '';
+    final accessToken = values[0]?.trim() ?? '';
     final matrixHomeserver = values[1]?.trim() ?? '';
     final matrixUserId = values[2]?.trim() ?? '';
-    final portalToken = values[3]?.trim() ?? '';
-    final lastHomeserver = values[4]?.trim() ?? '';
-    final lastPortalToken = values[5]?.trim() ?? '';
-    return (matrixToken.isNotEmpty &&
+    final lastHomeserver = values[3]?.trim() ?? '';
+    final lastPortalToken = values[4]?.trim() ?? '';
+    return (accessToken.isNotEmpty &&
             matrixHomeserver.isNotEmpty &&
             matrixUserId.isNotEmpty) ||
         (lastHomeserver.isNotEmpty && lastPortalToken.isNotEmpty) ||
-        (matrixHomeserver.isNotEmpty && portalToken.isNotEmpty);
+        (matrixHomeserver.isNotEmpty && accessToken.isNotEmpty);
   }
 
   Future<void> _expireSessionDueInvalidToken(
@@ -2258,13 +2234,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       clearMatrix: false,
       clearCaches: false,
     );
-    await _storage.delete(key: 'matrix_token');
+    await _storage.delete(key: AuthStateNotifier.accessTokenKey);
+    await _storage.delete(key: initializedKey);
     await _storage.delete(key: 'matrix_homeserver');
     await _storage.delete(key: 'matrix_user_id');
     await _storage.delete(key: 'matrix_device_id');
-    await _storage.delete(key: AuthStateNotifier.accessTokenKey);
     await _storage.delete(key: lastLoginPortalTokenKey);
-    await _storage.delete(key: _matrixTokenAppliedAtKey);
+    await _storage.delete(key: _accessTokenAppliedAtKey);
+    await _storage.delete(key: _legacyMatrixTokenKey);
+    await _storage.delete(key: _legacyInitializedKey);
+    await _storage.delete(key: _legacyMatrixTokenAppliedAtKey);
     ref.read(sessionExpiredNoticeProvider.notifier).state++;
     if (publishState) {
       state = const AsyncData(AuthState(isLoggedIn: false));
@@ -2314,7 +2293,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     Client client,
   ) async {
     if (_sessionExpiredLocally) return false;
-    final appliedAt = await _recentMatrixTokenAppliedAt();
+    final appliedAt = await _recentAccessTokenAppliedAt();
     if (appliedAt == null) return false;
     if (DateTime.now().difference(appliedAt) > const Duration(seconds: 15)) {
       return false;
@@ -2327,7 +2306,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String currentToken,
   }) async {
     if (_sessionExpiredLocally || currentToken.isEmpty) return false;
-    final appliedAt = await _recentMatrixTokenAppliedAt();
+    final appliedAt = await _recentAccessTokenAppliedAt();
     if (appliedAt == null) return false;
     if (DateTime.now().difference(appliedAt) > const Duration(seconds: 15)) {
       return false;
@@ -2335,10 +2314,10 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     return rejectedToken.isEmpty || rejectedToken == currentToken;
   }
 
-  Future<DateTime?> _recentMatrixTokenAppliedAt() async {
-    final appliedAt = _lastMatrixTokenAppliedAt;
+  Future<DateTime?> _recentAccessTokenAppliedAt() async {
+    final appliedAt = _lastAccessTokenAppliedAt;
     if (appliedAt != null) return appliedAt;
-    final stored = await _storage.read(key: _matrixTokenAppliedAtKey);
+    final stored = await _storage.read(key: _accessTokenAppliedAtKey);
     final millis = int.tryParse(stored?.trim() ?? '');
     if (millis == null || millis <= 0) return null;
     return DateTime.fromMillisecondsSinceEpoch(millis);

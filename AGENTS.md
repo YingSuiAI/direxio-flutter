@@ -43,8 +43,8 @@ lib/
 ## Data Boundaries
 
 - Use Matrix SDK for Matrix-native behavior: login session, rooms, timeline, membership, media, profile avatar/display name, read markers, and Matrix message state.
-- Use the integrated P2P product API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal token auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
-- P2P product API calls use the portal token as bearer auth. Matrix access tokens are for Matrix SDK/Matrix API behavior. Do not conflate the two token types.
+- Use the integrated P2P product API for product-layer data Matrix does not model cleanly: setup/bootstrap, access-token auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
+- Backend auth responses expose one `access_token`. P2P product API calls use it as bearer auth, and Matrix SDK/Matrix API behavior uses the same token. Do not add separate product or Matrix token fields.
 - Product API calls go through `/_p2p/query` or `/_p2p/command` with an `action` and `params` envelope. Do not add new URL-shaped client contracts unless the backend does.
 - Do not create duplicate list APIs or duplicate client flows. If data already arrives through `sync.bootstrap`, prefer extending that action contract and the client model.
 - Runtime views must prefer real Matrix/P2P data. Placeholder fixture data is not allowed in production UI.
@@ -66,7 +66,7 @@ lib/
 - Treat only `isAsChannelMemberJoined(status)` as joined. `invite` and `pending` are waiting states and must not unlock channel sending.
 - Channel join-request review actions return top-level statuses such as `approved`, `joining`, `joined`, and `join_failed`; approving a request must not be treated as joined unless the returned status is `joined`.
 - Channel list entries with terminal lifecycle such as `deleted`, `left`, `dissolve`, or `dissolved` must be hidden even if stale membership still says `joined`.
-- `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
+- `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile completion is not part of initialization.
 - Channel invite/share cards first create `channels.invite_grant.create` with `channel_id` or `room_id` plus `share_room_id`; receivers call `channels.join` with `grant_id` and `share_room_id`.
 - When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 

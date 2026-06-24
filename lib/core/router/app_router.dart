@@ -129,7 +129,7 @@ String? authRedirectLocation({
   required bool callAutotestEnabled,
   required bool isAuthLoading,
   required bool isLoggedIn,
-  bool requiresProfileSetup = false,
+  bool requiresInitialization = false,
   required String matchedLocation,
   required Uri uri,
 }) {
@@ -145,7 +145,7 @@ String? authRedirectLocation({
 
   if (!isLoggedIn && matchedLocation == '/restore') return '/login';
   if (!isLoggedIn && !isLoginRoute) return '/login';
-  if (isLoggedIn && requiresProfileSetup) {
+  if (isLoggedIn && requiresInitialization) {
     return matchedLocation == '/init' ? null : '/init';
   }
   if (isLoggedIn && matchedLocation == '/restore') {
@@ -308,7 +308,7 @@ GoRouter appRouter(Ref ref) {
         callAutotestEnabled: _callAutotestEnabled,
         isAuthLoading: authState.isLoading && authState.valueOrNull == null,
         isLoggedIn: auth?.isLoggedIn ?? false,
-        requiresProfileSetup: auth?.requiresProfileSetup ?? false,
+        requiresInitialization: auth?.requiresInitialization ?? false,
         matchedLocation: state.matchedLocation,
         uri: state.uri,
       );
@@ -317,7 +317,7 @@ GoRouter appRouter(Ref ref) {
           '[router] redirect ${state.matchedLocation} -> $redirect '
           'loading=${authState.isLoading && auth == null} '
           'logged_in=${auth?.isLoggedIn ?? false} '
-          'requires_profile_setup=${auth?.requiresProfileSetup ?? false} '
+          'requires_initialization=${auth?.requiresInitialization ?? false} '
           'user=${auth?.userId ?? "<none>"}',
         );
       }

@@ -10,7 +10,7 @@ description: AS/Admin API contract workflow for the Flutter P2P client. Use when
 Before editing AS contract code, read:
 
 - `AGENTS.md`
-- `docs/AS_API_CHANGES.md`
+- `docs/P2P_API_BOUNDARY.md`
 - `docs/FEATURES.md` when the behavior is user-visible
 
 If the change also touches `lib/presentation/`, load `p2p-client-presentation-m3`.
@@ -29,7 +29,7 @@ Do not add duplicate list APIs or duplicate client flows. If data already arrive
 
 Keep `sync.bootstrap` metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields.
 
-Keep auth responsibilities explicit. AS Admin API calls use the current portal/session bearer credential defined by the contract; Matrix-native behavior should still flow through the Matrix SDK or Matrix API layer.
+Keep auth responsibilities explicit. Backend auth responses expose one `access_token`; P2P product API calls use it as bearer auth, and Matrix-native behavior should still flow through the Matrix SDK or Matrix API layer using the same token. Do not add separate token fields such as `admin_token`, `matrix_token`, `admin_access_token`, or `matrix_access_token`.
 
 Accepted-contact remark updates use `contacts.update` with `room_id` and
 `display_name`; the backend stores that remark as contact `display_name`.
@@ -41,7 +41,7 @@ Accepted-contact remark updates use `contacts.update` with `room_id` and
 3. Update `MockAsClient` so demo and tests exercise the same contract shape.
 4. Update Riverpod providers or UI adapters that consume the contract.
 5. Add or adjust focused tests, especially `test/http_as_client_test.dart`.
-6. Update `docs/AS_API_CHANGES.md`; update `docs/FEATURES.md` if feature status changes.
+6. Update `docs/P2P_API_BOUNDARY.md`; update `docs/FEATURES.md` if feature status changes.
 7. If the contract rule itself changed, update this skill and `AGENTS.md` if needed.
 
 ## Current Contract Checks
@@ -62,7 +62,7 @@ membership still normalizes to `joined`.
 
 Public remote channel lookup must use explicitly configured AS remotes or request-provided remote base URLs. Do not infer a remote AS URL from a Matrix `room_id` domain unless the current contract document explicitly says to derive and pass a concrete remote base URL.
 
-`portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
+`portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile data is not part of initialization.
 
 Channel share/invite cards must create `channels.invite_grant.create` before sending the Matrix share card. Join from the card sends `grant_id` and `share_room_id` to `channels.join`.
 

@@ -84,8 +84,7 @@ ChannelInfoData channelInfoDataFromAsChannel(AsChannel channel) {
     visibility: channel.visibility,
     joinPolicy: channel.joinPolicy,
     memberStatus: channel.memberStatus,
-    isOwned: channel.role == asChannelRoleOwner ||
-        channel.role == asChannelRoleAdmin,
+    isOwned: channel.role == asChannelRoleOwner,
     commentsEnabled: channel.commentsEnabled,
     muted: channel.muted,
     channelType: channel.channelType,
@@ -162,9 +161,7 @@ ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
           visibility: channel.visibility,
           joinPolicy: channel.joinPolicy,
           memberStatus: channel.memberStatus,
-          isOwned: channel.isOwned ||
-              channel.role == asChannelRoleOwner ||
-              channel.role == asChannelRoleAdmin,
+          isOwned: channel.isOwned || channel.role == asChannelRoleOwner,
           commentsEnabled: channel.commentsEnabled,
           muted: channel.muted || (bootstrapChannel?.muted ?? false),
           channelType: channel.channelType,

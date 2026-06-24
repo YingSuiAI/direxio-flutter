@@ -188,7 +188,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get channelManageStatPending => '審査待ち';
 
   @override
-  String get channelManageStatAdmins => '管理者';
+  String get channelManageStatOwner => '所有者';
 
   @override
   String get channelManageStatNewToday => '今日の新規';
@@ -250,28 +250,28 @@ class AppLocalizationsJa extends AppLocalizations {
   String get channelManageVisibilityPrivate => '非公開';
 
   @override
-  String get channelManageSpeechAdminReview => '管理者審査';
+  String get channelManageSpeechOwnerReview => '所有者審査';
 
   @override
   String get channelManageSpeechMembers => 'メンバーが投稿可能';
 
   @override
-  String get channelManageInviteAdmin => '管理者';
+  String get channelManageInviteOwner => '所有者';
 
   @override
-  String get channelManageInviteAdmins => '管理者を招待';
+  String get channelManageInviteMembers => 'メンバーを招待';
 
   @override
-  String get channelManageInviteAdminsValue => 'ID またはリンクで招待';
+  String get channelManageInviteMembersValue => 'ID またはリンクで招待';
 
   @override
   String get channelManageOwnerOnline => '所有者 · オンライン';
 
   @override
-  String get channelManageAdminModeration => '管理者 · 審査';
+  String get channelManageMemberModeration => 'メンバー · 審査';
 
   @override
-  String get channelManageAdminOperations => '管理者 · 運営';
+  String get channelManageMemberOperations => 'メンバー · 運営';
 
   @override
   String get channelManageBotRiskControl => 'Bot · リスク管理';
@@ -290,7 +290,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get channelManageReviewLinkTitle => 'リンクリスク警告';
 
   @override
-  String get channelManageReviewLinkBody => '外部リンクが検出されました。表示前に管理者の確認が必要です。';
+  String get channelManageReviewLinkBody => '外部リンクが検出されました。表示前に所有者の確認が必要です。';
 
   @override
   String get channelManageReviewLinkTag => 'リンク';

@@ -19,7 +19,7 @@ If the change touches `lib/presentation/`, also load `p2p-client-presentation-m3
 
 Keep P2P product API auth and Matrix SDK auth responsibilities explicit. Backend auth responses expose one `access_token`; P2P calls should use it as the bearer credential, and Matrix-native login/session, room, timeline, membership, media, profile, and read-marker behavior should flow through Matrix SDK or Matrix API code using the same token.
 
-Do not add ad hoc token fallbacks or separate token fields such as `admin_token`, `matrix_token`, `admin_access_token`, or `matrix_access_token`. If the backend changes the token shape, update `AsClient`, `HttpAsClient`, test doubles, auth providers, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
+Do not add ad hoc token fallbacks or separate token fields such as `product_token`, `matrix_token`, `product_access_token`, or `matrix_access_token`. If the backend changes the token shape, update `AsClient`, `HttpAsClient`, test doubles, auth providers, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 
 Portal bootstrap, password auth, and owner profile updates are P2P product-layer concerns. `initialized` is the only initialization flag and means the generated initial password has been changed; owner profile setup must not gate initialization.
 

@@ -1200,7 +1200,6 @@ Future<void> _shareChannel(
       ),
       currentRoomId: channel.roomId,
       currentRoomName: channel.name,
-      createInviteGrant: channel.isOwned,
     );
     if (!context.mounted || !sent) return;
     _showSnack(context, '已分享频道');

@@ -4,6 +4,10 @@ This repository is the Flutter client for P2P IM. This file is the authoritative
 
 The product rule is: one person, one node, one owner. Agent/service accounts may appear as system conversations, but they are not normal human contacts.
 
+Current membership roles are intentionally limited to `owner` and `member`.
+Do not add third management roles, role constants, role labels, permission
+branches, or compatibility mappings outside that two-role model.
+
 ## Before Editing
 
 - If a change touches `lib/presentation/`, read `lib/presentation/CLAUDE.md` first and follow its Material 3 rules.
@@ -68,7 +72,7 @@ lib/
 - Channel join-request review actions return top-level statuses such as `approved`, `joining`, `joined`, and `join_failed`; approving a request must not be treated as joined unless the returned status is `joined`.
 - Channel list entries with terminal lifecycle such as `deleted`, `left`, `dissolve`, or `dissolved` must be hidden even if stale membership still says `joined`.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile completion is not part of initialization.
-- Channel share cards must include `channel_id` and `room_id`. Owner/admin shares create `channels.invite_grant.create` and send `grant_id` plus `share_room_id` so receivers join through `channels.join`; ordinary member shares do not create invite grants and receivers apply through `channels.public.join_request` using the card Matrix `room_id` while preserving `channel_id` as channel metadata.
+- Channel share cards must include `channel_id` and `room_id` and must not include invite-grant fields. Sharing a channel is a recommendation card for both owners and ordinary members; receivers open the public channel detail by Matrix `room_id` and apply through `channels.public.join_request`. Direct invite grants are reserved for explicit owner invite flows, not the share button.
 - When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 - User-facing reports use signed `POST /im/report`, not the P2P `reports.submit` action. Use target type `1` for friends, `2` for group chats, and `3` for channels; upload evidence images as repeated multipart `files`.
 - Public channel directory search/register/close uses signed `/im/channel/list`, `/im/channel/join`, and `/im/channel/close`. Only Matrix room-id channel search stays on the existing P2P room-id lookup path.

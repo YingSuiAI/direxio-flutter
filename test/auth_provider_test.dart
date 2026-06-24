@@ -842,7 +842,7 @@ void main() {
     final seenAuthorizations = <String>[];
     final requestActions = <String>[];
     final client = Client(
-      'AuthAsAdminTokenRefreshTest',
+      'AuthAsBearerTokenRefreshTest',
       httpClient: MockClient((request) async {
         final action = _p2pActionName(request);
         if (action != null) requestActions.add(action);
@@ -2489,7 +2489,7 @@ void main() {
       AuthStateNotifier.initializedKey: 'true',
     });
     final client = _NoSyncInitClient(
-      'AuthStaleAsAdminFailureIgnoredTest',
+      'AuthStaleAsFailureIgnoredTest',
       httpClient: MockClient((request) async {
         if (request.url.path == '/_matrix/client/v3/account/whoami') {
           return http.Response(
@@ -3285,8 +3285,8 @@ void main() {
 
     final notifier = container.read(authStateNotifierProvider.notifier);
     final tokens = await Future.wait([
-      notifier.refreshPortalSessionForAsAdminToken(),
-      notifier.refreshPortalSessionForAsAdminToken(),
+      notifier.refreshPortalSessionForAsBearerToken(),
+      notifier.refreshPortalSessionForAsBearerToken(),
     ]);
 
     expect(portalAuthCalls, 1);

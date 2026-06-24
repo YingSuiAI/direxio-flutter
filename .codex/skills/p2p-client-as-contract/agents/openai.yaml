@@ -1,4 +1,4 @@
 interface:
   display_name: "P2P Client AS Contract"
   short_description: "Keep AS client contracts aligned"
-  default_prompt: "Use $p2p-client-as-contract when changing AS/Admin API behavior."
+  default_prompt: "Use $p2p-client-as-contract when changing AS/Product API behavior."

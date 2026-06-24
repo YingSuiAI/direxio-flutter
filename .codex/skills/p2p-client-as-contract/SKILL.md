@@ -1,6 +1,6 @@
 ---
 name: p2p-client-as-contract
-description: AS/Admin API contract workflow for the Flutter P2P client. Use when changing AsClient, HttpAsClient, MockAsClient, bootstrap/sync/message APIs, AS auth, public search, product metadata, contract docs, or tests that assert AS request/response shapes.
+description: AS/Product API contract workflow for the Flutter P2P client. Use when changing AsClient, HttpAsClient, MockAsClient, bootstrap/sync/message APIs, AS auth, public search, product metadata, contract docs, or tests that assert AS request/response shapes.
 ---
 
 # P2P Client AS Contract
@@ -19,7 +19,7 @@ If the change also touches `lib/presentation/`, load `p2p-client-presentation-m3
 
 Keep `lib/data/as_client.dart` as the interface contract. Update `HttpAsClient`, `MockAsClient`, focused tests, and docs together.
 
-Use AS Admin API only for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
+Use AS Product API only for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
 
 Signed IM/BI public endpoints are not AS ProductCore `/_p2p` actions. Keep them in the IM public client boundary with `X-BI-Nonce` / `X-BI-Signature` signing. Public channel directory registration/close, non-room-id public channel list search, BI launch/login events, and user/group/channel report submissions use those signed `/im/*` and `/bi/*` endpoints.
 
@@ -33,7 +33,7 @@ Do not add duplicate list APIs or duplicate client flows. If data already arrive
 
 Keep `sync.bootstrap` metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields.
 
-Keep auth responsibilities explicit. Backend auth responses expose one `access_token`; P2P product API calls use it as bearer auth, and Matrix-native behavior should still flow through the Matrix SDK or Matrix API layer using the same token. Do not add separate token fields such as `admin_token`, `matrix_token`, `admin_access_token`, or `matrix_access_token`.
+Keep auth responsibilities explicit. Backend auth responses expose one `access_token`; P2P product API calls use it as bearer auth, and Matrix-native behavior should still flow through the Matrix SDK or Matrix API layer using the same token. Do not add separate token fields such as `product_token`, `matrix_token`, `product_access_token`, or `matrix_access_token`.
 
 When AS requests fail with `M_UNKNOWN_TOKEN`, report the rejected bearer token to
 auth/session handling. Delayed failures from a previous bearer after login or
@@ -55,6 +55,10 @@ Accepted-contact remark updates use `contacts.update` with `room_id` and
 
 ## Current Contract Checks
 
+Channel and group role handling is intentionally limited to `owner` and
+`member`. Do not add third management roles, role constants, role labels,
+permission branches, or compatibility mappings outside that two-role model.
+
 Normalize channel member status through `AsChannel` / `AsChannelMember` helpers:
 
 - `join`, `joined` -> `joined`
@@ -73,12 +77,12 @@ Public remote channel lookup must use explicitly configured AS remotes or reques
 
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile data is not part of initialization.
 
-Channel share cards must include `channel_id` and `room_id`. Owner/admin shares
-create `channels.invite_grant.create` and send `grant_id` plus `share_room_id`
-so receivers join through `channels.join`; ordinary member shares do not create
-invite grants and receivers apply through `channels.public.join_request` just
-using the card Matrix `room_id` while preserving `channel_id` as channel
-metadata.
+Channel share cards must include `channel_id` and `room_id` and must not create
+invite grants. Owner and ordinary member share buttons both send recommendation
+cards; receivers open the public channel detail by Matrix `room_id` and apply
+through `channels.public.join_request` while preserving `channel_id` as channel
+metadata. `channels.invite_grant.create` is reserved for explicit owner invite
+flows outside the share button.
 
 `groups.create`, `groups.join`, and `channels.join` may return top-level ProductCore `conversation`.
 Preserve it on `AsGroupResult.productConversation` or

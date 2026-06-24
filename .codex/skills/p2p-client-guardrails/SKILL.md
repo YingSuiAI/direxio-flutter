@@ -22,7 +22,7 @@ Preserve user or generated changes that are already present. Stage only files th
 Use this skill as the entry point, then load a focused skill when the task matches:
 
 - `p2p-client-presentation-m3`: UI or widget work under `lib/presentation/`.
-- `p2p-client-as-contract`: AS/Admin API contracts, models, HTTP parsing, mocks, or AS docs.
+- `p2p-client-as-contract`: AS/Product API contracts, models, HTTP parsing, mocks, or AS docs.
 - `p2p-client-channel-work`: channel search, join, approval, inbox, detail, share, or channel chat behavior.
 - `p2p-client-auth-session`: login, setup, restore, route guards, portal session, or auth token behavior.
 - `p2p-client-release-build`: rebuild APK/web/iOS artifacts or package release output.
@@ -33,9 +33,13 @@ If a business rule, contract, UI rule, workflow, or verification requirement cha
 
 Keep the product rule intact: one person, one node, one owner. Agent/service accounts may appear as system conversations, but they are not normal human contacts.
 
+Membership roles are intentionally limited to `owner` and `member`. Do not add
+third management roles, role constants, role labels, permission branches, or
+compatibility mappings outside that two-role model.
+
 Use Matrix SDK for Matrix-native behavior: login session, rooms, timeline, membership, media, profile avatar/display name, read markers, and Matrix message state.
 
-Use AS Admin API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
+Use AS Product API for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
 
 Do not add or restore P2P ordinary message/search/backup action clients. Removed actions include `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
 

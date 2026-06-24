@@ -22,7 +22,8 @@ final asClientProvider = Provider<AsClient>((ref) {
     return HttpAsClient.fromPortalSession(
       client,
       portalToken: portalToken,
-      onAuthenticationRefresh: authNotifier.refreshPortalSessionForAsAdminToken,
+      onAuthenticationRefresh:
+          authNotifier.refreshPortalSessionForAsBearerToken,
       onAuthenticationFailedForToken:
           authNotifier.expireSessionDueInvalidTokenIfCurrent,
     );

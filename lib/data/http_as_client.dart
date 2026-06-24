@@ -46,7 +46,7 @@ class HttpAsClient implements AsClient {
       throw AsClientException('Matrix session is not initialized');
     }
     return HttpAsClient(
-      baseUri: baseUri ?? defaultAdminBaseUri(homeserver),
+      baseUri: baseUri ?? defaultProductBaseUri(homeserver),
       portalToken: portalToken,
       authSource: 'portal_token',
       accessTokenForDebug: client.accessToken,
@@ -69,7 +69,7 @@ class HttpAsClient implements AsClient {
 
   static const _timeout = Duration(seconds: 10);
 
-  static Uri defaultAdminBaseUri(
+  static Uri defaultProductBaseUri(
     Uri homeserver, {
     LocalEndpointResolver? localEndpointResolver,
   }) {

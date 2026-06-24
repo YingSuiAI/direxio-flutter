@@ -9,7 +9,7 @@
 
 import 'dart:convert';
 
-const groupInvitePolicyOwnerAdmin = 'owner_admin';
+const groupInvitePolicyOwner = 'owner';
 const groupInvitePolicyAllMembers = 'all_members';
 const asCallMediaTypeVoice = 'voice';
 const asCallMediaTypeVideo = 'video';
@@ -32,7 +32,6 @@ const asChannelMemberStatusApproved = 'approved';
 const asChannelMemberStatusJoining = 'joining';
 const asChannelMemberStatusJoinFailed = 'join_failed';
 const asChannelRoleOwner = 'owner';
-const asChannelRoleAdmin = 'admin';
 const asChannelRoleMember = 'member';
 const asChannelTypeChat = 'chat';
 const asChannelTypePost = 'post';
@@ -1023,8 +1022,7 @@ class AsSyncRoomSummary {
       description:
           json['description'] as String? ?? json['intro'] as String? ?? '',
       topic: json['topic'] as String? ?? '',
-      isOwned: json['is_owned'] as bool? ??
-          role == asChannelRoleOwner || role == asChannelRoleAdmin,
+      isOwned: json['is_owned'] as bool? ?? role == asChannelRoleOwner,
       tags: (json['tags'] as List? ?? const [])
           .whereType<String>()
           .map((tag) => tag.trim())
@@ -2189,8 +2187,8 @@ class AsCallSession {
 
 String _normalizeGroupInvitePolicy(String policy) {
   switch (policy.trim()) {
-    case groupInvitePolicyOwnerAdmin:
-      return groupInvitePolicyOwnerAdmin;
+    case groupInvitePolicyOwner:
+      return groupInvitePolicyOwner;
     case groupInvitePolicyAllMembers:
       return groupInvitePolicyAllMembers;
     default:
@@ -2549,9 +2547,9 @@ abstract class AsClient {
 
   /// POST /_p2p/command action channels.invite_grant.create.
   ///
-  /// Creates a direct invite grant for owner/admin share cards that should join
-  /// through grant_id + share_room_id. Ordinary member share cards are sent
-  /// without a grant and receivers apply through public join request.
+  /// Creates a direct invite grant for explicit owner invite flows that should
+  /// join through grant_id + share_room_id. Normal share cards are sent without
+  /// a grant and receivers apply through public join request.
   Future<AsChannelInviteGrant> createChannelInviteGrant({
     String channelId = '',
     String roomId = '',

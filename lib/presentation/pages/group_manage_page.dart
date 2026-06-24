@@ -93,11 +93,11 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
                         const _SectionHeader(label: '添加成员权限'),
                         _PolicyRow(
                           label: '群主可添加',
-                          selected: currentInvitePolicy ==
-                              groupInvitePolicyOwnerAdmin,
+                          selected:
+                              currentInvitePolicy == groupInvitePolicyOwner,
                           enabled: !_updatingInvitePolicy,
                           onTap: () => _updateInvitePolicy(
-                            groupInvitePolicyOwnerAdmin,
+                            groupInvitePolicyOwner,
                           ),
                         ),
                         const _DividerInset(),
@@ -164,8 +164,8 @@ class _GroupManagePageState extends ConsumerState<GroupManagePage> {
         const <AsSyncRoomSummary>[];
     for (final group in groups) {
       if (group.roomId.trim() == widget.roomId.trim()) {
-        return group.invitePolicy == groupInvitePolicyOwnerAdmin
-            ? groupInvitePolicyOwnerAdmin
+        return group.invitePolicy == groupInvitePolicyOwner
+            ? groupInvitePolicyOwner
             : groupInvitePolicyAllMembers;
       }
     }

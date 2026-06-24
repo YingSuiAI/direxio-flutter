@@ -300,7 +300,6 @@ bool _isExitedGroupStatus(String? status) {
 bool _isJoinedGroupRole(String? role) {
   switch (role?.trim().toLowerCase()) {
     case 'owner':
-    case 'admin':
     case 'member':
       return true;
   }

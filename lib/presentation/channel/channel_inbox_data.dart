@@ -486,7 +486,7 @@ bool _hasProductChannelIdentity(String channelId, String roomId) {
 
 bool _isChannelOwnerRole(String role) {
   final normalized = role.trim();
-  return normalized == asChannelRoleOwner || normalized == asChannelRoleAdmin;
+  return normalized == asChannelRoleOwner;
 }
 
 bool _channelListMemberStatusVisible(String status) {

@@ -47,6 +47,10 @@ Public remote channel lookup must use configured or contract-provided AS remotes
 
 Owner semantics belong to the portal owner, not the Agent/bot.
 
+Channel roles are intentionally limited to `owner` and `member`. Do not add
+third management roles, role constants, role labels, permission branches, or
+compatibility mappings outside that two-role model.
+
 Approval or invite does not mean joined. Wait for Matrix/AS join projection before enabling chat send.
 
 Normalize member status through `AsChannel` / `AsChannelMember`, and treat only `isAsChannelMemberJoined(status)` as joined.
@@ -69,12 +73,12 @@ the member projection becomes `joined`.
 
 For `/channel/:id/conversation`, normal text/media messages send through Matrix SDK when the user is joined. Product policy remains the server-side send gate.
 
-Channel share cards must include `channel_id` and `room_id`. Owner/admin shares
-create `channels.invite_grant.create` and send `grant_id` plus `share_room_id`
-so receivers join through `channels.join`. Ordinary member share cards do not
-create invite grants; they are channel recommendations, and receivers apply
-through `channels.public.join_request` using the card Matrix `room_id` while
-preserving `channel_id` as channel metadata.
+Channel share cards must include `channel_id` and `room_id` and must not create
+invite grants. Owner and ordinary member share buttons both send recommendation
+cards; receivers open the public channel detail by Matrix `room_id` and apply
+through `channels.public.join_request` while preserving `channel_id` as channel
+metadata. `channels.invite_grant.create` is reserved for explicit owner invite
+flows outside the share button.
 
 After `channels.join` returns `joined`, chat-channel routes should prefer the
 returned ProductCore conversation (`AsChannel.productConversation`). If the

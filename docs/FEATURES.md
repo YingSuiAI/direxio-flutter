@@ -16,7 +16,7 @@ This document is a current implementation inventory. It is not a roadmap and doe
 - Public channel creation registers the channel in the signed IM public directory, and channel dissolve closes it there.
 - User, group, and channel reports use the signed IM public `/im/report` endpoint. Report screenshots/images are sent as multipart `files`.
 - BI startup reporting uses the signed IM public `/bi/events/report` endpoint with a stored device number.
-- Owner/admin channel shares create invite-grant cards for direct grant joins. Ordinary member channel share cards carry the channel id and Matrix room id, then send receivers through the public join request flow using the Matrix room id.
+- Channel shares from owners and ordinary members send recommendation cards with the channel id and Matrix room id. Receivers open the public channel detail from the Matrix room id and apply through the public join request flow.
 - Contact public channels use the `users.public_channels` action through `getUserPublicChannels`.
 - Owner profile updates go through the P2P product API and best-effort Matrix profile update.
 - Settings, theme, language, hidden/pinned rows, and media caches are local state unless a named P2P/Matrix API handles that feature.

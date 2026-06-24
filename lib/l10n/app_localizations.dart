@@ -448,11 +448,11 @@ abstract class AppLocalizations {
   /// **'待审核'**
   String get channelManageStatPending;
 
-  /// No description provided for @channelManageStatAdmins.
+  /// No description provided for @channelManageStatOwner.
   ///
   /// In zh, this message translates to:
-  /// **'管理员'**
-  String get channelManageStatAdmins;
+  /// **'频道主'**
+  String get channelManageStatOwner;
 
   /// No description provided for @channelManageStatNewToday.
   ///
@@ -568,11 +568,11 @@ abstract class AppLocalizations {
   /// **'私密'**
   String get channelManageVisibilityPrivate;
 
-  /// No description provided for @channelManageSpeechAdminReview.
+  /// No description provided for @channelManageSpeechOwnerReview.
   ///
   /// In zh, this message translates to:
-  /// **'管理员审核'**
-  String get channelManageSpeechAdminReview;
+  /// **'频道主审核'**
+  String get channelManageSpeechOwnerReview;
 
   /// No description provided for @channelManageSpeechMembers.
   ///
@@ -580,23 +580,23 @@ abstract class AppLocalizations {
   /// **'成员可发言'**
   String get channelManageSpeechMembers;
 
-  /// No description provided for @channelManageInviteAdmin.
+  /// No description provided for @channelManageInviteOwner.
   ///
   /// In zh, this message translates to:
-  /// **'管理员'**
-  String get channelManageInviteAdmin;
+  /// **'频道主'**
+  String get channelManageInviteOwner;
 
-  /// No description provided for @channelManageInviteAdmins.
+  /// No description provided for @channelManageInviteMembers.
   ///
   /// In zh, this message translates to:
-  /// **'邀请管理员'**
-  String get channelManageInviteAdmins;
+  /// **'邀请成员'**
+  String get channelManageInviteMembers;
 
-  /// No description provided for @channelManageInviteAdminsValue.
+  /// No description provided for @channelManageInviteMembersValue.
   ///
   /// In zh, this message translates to:
   /// **'通过 ID 或链接'**
-  String get channelManageInviteAdminsValue;
+  String get channelManageInviteMembersValue;
 
   /// No description provided for @channelManageOwnerOnline.
   ///
@@ -604,17 +604,17 @@ abstract class AppLocalizations {
   /// **'所有者 · 在线'**
   String get channelManageOwnerOnline;
 
-  /// No description provided for @channelManageAdminModeration.
+  /// No description provided for @channelManageMemberModeration.
   ///
   /// In zh, this message translates to:
-  /// **'管理员 · 内容审核'**
-  String get channelManageAdminModeration;
+  /// **'成员 · 内容审核'**
+  String get channelManageMemberModeration;
 
-  /// No description provided for @channelManageAdminOperations.
+  /// No description provided for @channelManageMemberOperations.
   ///
   /// In zh, this message translates to:
-  /// **'管理员 · 成员运营'**
-  String get channelManageAdminOperations;
+  /// **'成员 · 运营'**
+  String get channelManageMemberOperations;
 
   /// No description provided for @channelManageBotRiskControl.
   ///
@@ -649,7 +649,7 @@ abstract class AppLocalizations {
   /// No description provided for @channelManageReviewLinkBody.
   ///
   /// In zh, this message translates to:
-  /// **'检测到外部链接，需要管理员确认后展示。'**
+  /// **'检测到外部链接，需要频道主确认后展示。'**
   String get channelManageReviewLinkBody;
 
   /// No description provided for @channelManageReviewLinkTag.

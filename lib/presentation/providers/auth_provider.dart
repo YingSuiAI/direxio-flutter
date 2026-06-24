@@ -688,7 +688,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
     final requestedDeviceId = await _localMatrixDeviceId(client);
 
-    final baseUri = HttpAsClient.defaultAdminBaseUri(inputUri);
+    final baseUri = HttpAsClient.defaultProductBaseUri(inputUri);
     var session = useBootstrap
         ? await HttpAsClient.bootstrapPortal(
             baseUri: baseUri,
@@ -873,7 +873,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       final ownerProfile = await HttpAsClient.fromPortalSession(
         client,
         portalToken: portalToken,
-        baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+        baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
       ).getOwnerProfile().timeout(const Duration(seconds: 2));
       return ownerProfile.displayName;
     } on TimeoutException {
@@ -925,7 +925,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       final bootstrap = await HttpAsClient.fromPortalSession(
         client,
         portalToken: portalToken,
-        baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+        baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
       ).syncBootstrap().timeout(const Duration(seconds: 10));
       if (!asBootstrapBelongsToUser(bootstrap, client.userID)) {
         debugPrint(
@@ -987,8 +987,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final asClient = HttpAsClient.fromPortalSession(
       client,
       portalToken: currentPortalToken.trim(),
-      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
-      onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
+      baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
+      onAuthenticationRefresh: refreshPortalSessionForAsBearerToken,
       onAuthenticationFailed: expireSessionDueInvalidToken,
     );
     var session = await asClient.changePortalPassword(
@@ -1035,8 +1035,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final profileClient = HttpAsClient.fromPortalSession(
       client,
       portalToken: session.accessToken,
-      baseUri: HttpAsClient.defaultAdminBaseUri(matrixUri),
-      onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
+      baseUri: HttpAsClient.defaultProductBaseUri(matrixUri),
+      onAuthenticationRefresh: refreshPortalSessionForAsBearerToken,
       onAuthenticationFailed: expireSessionDueInvalidToken,
     );
     final profile = await profileClient.updateOwnerProfile(
@@ -1094,7 +1094,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     );
   }
 
-  Future<String?> refreshPortalSessionForAsAdminToken() async {
+  Future<String?> refreshPortalSessionForAsBearerToken() async {
     final restored = await _refreshPortalSessionFromStoredLogin();
     if (restored == null || _sessionExpiredLocally) return null;
     if (_isMounted) {
@@ -1160,7 +1160,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final AsPortalSession session;
     try {
       session = await HttpAsClient.authenticatePortal(
-        baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+        baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
         portalToken: portalToken,
         deviceId: deviceId,
         httpClient: _rawHttpClient(client),
@@ -1246,8 +1246,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final asClient = HttpAsClient.fromPortalSession(
       client,
       portalToken: currentPortalToken.trim(),
-      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
-      onAuthenticationRefresh: refreshPortalSessionForAsAdminToken,
+      baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
+      onAuthenticationRefresh: refreshPortalSessionForAsBearerToken,
       onAuthenticationFailed: expireSessionDueInvalidToken,
     );
     var session = await asClient.changePortalPassword(
@@ -1326,7 +1326,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final asClient = HttpAsClient.fromPortalSession(
       client,
       portalToken: currentPortalToken,
-      baseUri: HttpAsClient.defaultAdminBaseUri(result.homeserver),
+      baseUri: HttpAsClient.defaultProductBaseUri(result.homeserver),
     );
     final session = await asClient.changePortalPassword(
       oldPassword: cleanSetupCode,
@@ -1503,7 +1503,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     try {
       final requestedDeviceId = await _localMatrixDeviceId(client);
       var session = await HttpAsClient.authenticatePortal(
-        baseUri: HttpAsClient.defaultAdminBaseUri(homeserverUri),
+        baseUri: HttpAsClient.defaultProductBaseUri(homeserverUri),
         portalToken: authPortalToken,
         deviceId: requestedDeviceId,
         httpClient: client.httpClient,
@@ -1625,7 +1625,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         : cleanPortalToken;
 
     final session = await HttpAsClient.authenticatePortal(
-      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+      baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
       portalToken: authPortalToken,
       deviceId: deviceId,
       httpClient: _rawHttpClient(client),
@@ -1676,7 +1676,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     );
     final freshDeviceId = _createDeviceId();
     final session = await HttpAsClient.authenticatePortal(
-      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+      baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
       portalToken: loginPassword,
       deviceId: freshDeviceId,
       httpClient: client.httpClient,

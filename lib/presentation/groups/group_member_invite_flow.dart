@@ -156,7 +156,7 @@ String _groupInviteResultMessage({
 String _groupInviteFailureMessage(Object error) {
   if (error is AsClientException && error.statusCode == 403) {
     final message = error.message.toLowerCase();
-    if (message.contains('group invite requires owner or admin')) {
+    if (message.contains('group invite requires owner')) {
       return '该群只有群主可添加成员';
     }
   }

@@ -186,7 +186,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelManageStatPending => '待审核';
 
   @override
-  String get channelManageStatAdmins => '管理员';
+  String get channelManageStatOwner => '频道主';
 
   @override
   String get channelManageStatNewToday => '今日新增';
@@ -248,28 +248,28 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelManageVisibilityPrivate => '私密';
 
   @override
-  String get channelManageSpeechAdminReview => '管理员审核';
+  String get channelManageSpeechOwnerReview => '频道主审核';
 
   @override
   String get channelManageSpeechMembers => '成员可发言';
 
   @override
-  String get channelManageInviteAdmin => '管理员';
+  String get channelManageInviteOwner => '频道主';
 
   @override
-  String get channelManageInviteAdmins => '邀请管理员';
+  String get channelManageInviteMembers => '邀请成员';
 
   @override
-  String get channelManageInviteAdminsValue => '通过 ID 或链接';
+  String get channelManageInviteMembersValue => '通过 ID 或链接';
 
   @override
   String get channelManageOwnerOnline => '所有者 · 在线';
 
   @override
-  String get channelManageAdminModeration => '管理员 · 内容审核';
+  String get channelManageMemberModeration => '成员 · 内容审核';
 
   @override
-  String get channelManageAdminOperations => '管理员 · 成员运营';
+  String get channelManageMemberOperations => '成员 · 运营';
 
   @override
   String get channelManageBotRiskControl => '机器人 · 风控';
@@ -287,7 +287,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelManageReviewLinkTitle => '链接风险提示';
 
   @override
-  String get channelManageReviewLinkBody => '检测到外部链接，需要管理员确认后展示。';
+  String get channelManageReviewLinkBody => '检测到外部链接，需要频道主确认后展示。';
 
   @override
   String get channelManageReviewLinkTag => '链接';

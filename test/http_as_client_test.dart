@@ -19,7 +19,7 @@ http.Response _jsonResponse(Map<String, dynamic> body, int statusCode) {
 
 void main() {
   test('maps loopback homeserver to local P2P API port', () {
-    final base = HttpAsClient.defaultAdminBaseUri(
+    final base = HttpAsClient.defaultProductBaseUri(
       Uri.parse('http://127.0.0.1:8008'),
     );
 
@@ -27,7 +27,7 @@ void main() {
   });
 
   test('maps hosted homeserver to integrated P2P API', () {
-    final base = HttpAsClient.defaultAdminBaseUri(
+    final base = HttpAsClient.defaultProductBaseUri(
       Uri.parse('https://im.jkmf.top'),
     );
 
@@ -38,11 +38,11 @@ void main() {
     final endpoints = LocalEndpointResolver.parse(
       'node-a.test=127.0.0.1:18008,node-c.test=127.0.0.1:38008',
     );
-    final base = HttpAsClient.defaultAdminBaseUri(
+    final base = HttpAsClient.defaultProductBaseUri(
       Uri.parse('https://node-a.test'),
       localEndpointResolver: endpoints,
     );
-    final cBase = HttpAsClient.defaultAdminBaseUri(
+    final cBase = HttpAsClient.defaultProductBaseUri(
       Uri.parse('https://node-c.test'),
       localEndpointResolver: endpoints,
     );
@@ -54,7 +54,7 @@ void main() {
   test('rejects non-P2P base URI for P2P product API client', () {
     expect(
       () => HttpAsClient(
-        baseUri: Uri.parse('https://example.com/admin'),
+        baseUri: Uri.parse('https://example.com/product'),
         portalToken: 'portal-token',
       ),
       throwsA(isA<AsClientException>()),

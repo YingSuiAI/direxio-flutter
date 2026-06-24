@@ -26,7 +26,7 @@ void main() {
       () async {
     late http.Request seen;
     final client = ImPublicClient(
-      baseUri: Uri.parse('https://admin.example.com'),
+      baseUri: Uri.parse('https://api.example.com'),
       secret: 'bi-secret',
       httpClient: MockClient((request) async {
         seen = request;
@@ -99,7 +99,7 @@ void main() {
   test('public clients preserve base URI path prefixes', () async {
     late http.Request imRequest;
     final imClient = ImPublicClient(
-      baseUri: Uri.parse('https://admin.example.com/api'),
+      baseUri: Uri.parse('https://api.example.com/api'),
       secret: 'bi-secret',
       httpClient: MockClient((request) async {
         imRequest = request;
@@ -120,7 +120,7 @@ void main() {
 
     late http.Request biRequest;
     final reporter = HttpBiAnalyticsReporter(
-      baseUri: Uri.parse('https://admin.example.com/api'),
+      baseUri: Uri.parse('https://api.example.com/api'),
       secret: 'bi-secret',
       httpClient: MockClient((request) async {
         biRequest = request;
@@ -143,7 +143,7 @@ void main() {
   test('joinChannelDirectory posts signed documented body', () async {
     late http.Request seen;
     final client = ImPublicClient(
-      baseUri: Uri.parse('https://admin.example.com'),
+      baseUri: Uri.parse('https://api.example.com'),
       secret: 'bi-secret',
       httpClient: MockClient((request) async {
         seen = request;
@@ -180,7 +180,7 @@ void main() {
   test('closeChannelDirectory posts signed documented body', () async {
     late http.Request seen;
     final client = ImPublicClient(
-      baseUri: Uri.parse('https://admin.example.com'),
+      baseUri: Uri.parse('https://api.example.com'),
       secret: 'bi-secret',
       httpClient: MockClient((request) async {
         seen = request;
@@ -202,7 +202,7 @@ void main() {
   test('report endpoints follow signed IM public contract', () async {
     final seen = <String>[];
     final client = ImPublicClient(
-      baseUri: Uri.parse('https://admin.example.com'),
+      baseUri: Uri.parse('https://api.example.com'),
       secret: 'bi-secret',
       httpClient: MockClient((request) async {
         seen.add('${request.method} ${request.url.path}');
@@ -245,7 +245,7 @@ void main() {
   test('submitReport sends image bytes as repeated multipart files', () async {
     late http.MultipartRequest seen;
     final client = ImPublicClient(
-      baseUri: Uri.parse('https://admin.example.com'),
+      baseUri: Uri.parse('https://api.example.com'),
       secret: 'bi-secret',
       httpClient: _MultipartRecordingClient((request) async {
         seen = request;
@@ -337,7 +337,7 @@ void main() {
   test('HttpBiAnalyticsReporter posts signed canonical body', () async {
     late http.Request seen;
     final reporter = HttpBiAnalyticsReporter(
-      baseUri: Uri.parse('https://admin.example.com'),
+      baseUri: Uri.parse('https://api.example.com'),
       secret: 'bi-secret',
       httpClient: MockClient((request) async {
         seen = request;

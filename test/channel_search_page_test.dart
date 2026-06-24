@@ -594,7 +594,7 @@ class _ChannelSearchAsClient extends MockAsClient {
 class _ChannelSearchImPublicClient extends ImPublicClient {
   _ChannelSearchImPublicClient()
       : super(
-          baseUri: Uri.parse('https://admin.example.com'),
+          baseUri: Uri.parse('https://api.example.com'),
           secret: 'bi-secret',
         );
 

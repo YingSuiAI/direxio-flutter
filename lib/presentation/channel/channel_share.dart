@@ -10,7 +10,6 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../chat/chat_message_cards.dart';
 import '../chat/chat_record_forwarding.dart';
-import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
@@ -278,7 +277,6 @@ Future<bool> showAndShareChannel(
   required ChannelSharePayload payload,
   required String currentRoomId,
   required String currentRoomName,
-  bool createInviteGrant = false,
 }) async {
   final targets = chatRecordForwardTargets(
     ref.read(asSyncCacheProvider),
@@ -299,44 +297,22 @@ Future<bool> showAndShareChannel(
     builder: (ctx) => _ChannelShareTargetSheet(targets: targets),
   );
   if (target == null) return false;
-  var sharedPayload = payload;
   debugPrint(
     '[channel.share.send.start] '
-    'create_invite_grant=$createInviteGrant '
     'target_room_id=${_logChannelShareValue(target.roomId)} '
     'target_type=${_logChannelShareValue(target.roomType)} '
     'channel_id=${_logChannelShareValue(payload.channelId)} '
     'room_id=${_logChannelShareValue(payload.roomId)}',
   );
-  if (createInviteGrant) {
-    final grant = await ref.read(asClientProvider).createChannelInviteGrant(
-          channelId: payload.channelId,
-          roomId: payload.roomId,
-          shareRoomId: target.roomId,
-        );
-    debugPrint(
-      '[channel.share.grant.created] '
-      'grant_id=${_logChannelShareValue(grant.grantId)} '
-      'grant_channel_id=${_logChannelShareValue(grant.channelId)} '
-      'grant_room_id=${_logChannelShareValue(grant.roomId)} '
-      'grant_share_room_id=${_logChannelShareValue(grant.shareRoomId)}',
-    );
-    sharedPayload = channelSharePayloadWithInviteGrant(
-      payload,
-      grantId: grant.grantId,
-      shareRoomId:
-          grant.shareRoomId.isEmpty ? target.roomId : grant.shareRoomId,
-    );
-  }
   debugPrint(
     '[channel.share.send.payload] '
-    'has_grant=${channelShareHasInviteGrant(sharedPayload)} '
-    'channel_id=${_logChannelShareValue(sharedPayload.channelId)} '
-    'room_id=${_logChannelShareValue(sharedPayload.roomId)} '
-    'grant_id=${_logChannelShareValue(sharedPayload.grantId)} '
-    'share_room_id=${_logChannelShareValue(sharedPayload.shareRoomId)} '
-    'join_policy=${_logChannelShareValue(sharedPayload.joinPolicy)} '
-    'visibility=${_logChannelShareValue(sharedPayload.visibility)}',
+    'has_grant=${channelShareHasInviteGrant(payload)} '
+    'channel_id=${_logChannelShareValue(payload.channelId)} '
+    'room_id=${_logChannelShareValue(payload.roomId)} '
+    'grant_id=${_logChannelShareValue(payload.grantId)} '
+    'share_room_id=${_logChannelShareValue(payload.shareRoomId)} '
+    'join_policy=${_logChannelShareValue(payload.joinPolicy)} '
+    'visibility=${_logChannelShareValue(payload.visibility)}',
   );
   final matrixClient = ref.read(matrixClientProvider);
   final room = matrixClient.getRoomById(target.roomId);
@@ -345,10 +321,10 @@ Future<bool> showAndShareChannel(
   }
   await room.sendEvent({
     'msgtype': MessageTypes.Text,
-    'body': sharedPayload.body,
+    'body': payload.body,
     'message_type': channelShareMessageType,
     chatRecordMatrixMarkerKey: channelShareMessageType,
-    channelShareMatrixPayloadKey: sharedPayload.asDraft.toJson(),
+    channelShareMatrixPayloadKey: payload.asDraft.toJson(),
   });
   await matrixClient.oneShotSync();
   return true;

@@ -7,7 +7,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 ## Signed IM/BI Public API Boundary
 
 - The IM/BI public endpoints are separate from the authenticated P2P ProductCore `/_p2p` action boundary.
-- The client configures the public base URL from `P2P_IM_PUBLIC_BASE_URL` / `P2P_BI_BASE_URL`, defaulting to `https://imadmin.direxio.ai/api`, and signs requests with `X-BI-Nonce` plus `X-BI-Signature`.
+- The client configures the public base URL from `P2P_IM_PUBLIC_BASE_URL` / `P2P_BI_BASE_URL`, defaulting to `https://im.direxio.ai/api`, and signs requests with `X-BI-Nonce` plus `X-BI-Signature`.
 - The default public secret is `f88c10fe-4559-fa77-b8b9-beadf468ddba`; deployments may override it with `P2P_IM_PUBLIC_SECRET` / `P2P_BI_SECRET`.
 - Public channel directory registration uses `POST /im/channel/join` after a public channel is created locally; directory closure uses `POST /im/channel/close` after local channel dissolve.
 - Channel search keeps Matrix-room-id lookup on the existing P2P public room detail action. All other channel search text uses signed `GET /im/channel/list` with `name`.
@@ -23,7 +23,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Matrix access tokens are never a fallback credential for P2P product API calls.
 - After `portal.password` succeeds, persist the new login password and new P2P bearer token before any Matrix or P2P follow-up request can refresh authentication.
 - When login or password changes rotate the bearer token, delayed Matrix or P2P `M_UNKNOWN_TOKEN` responses from the previous token must not expire a session that has already applied the newer token.
-- Do not add `admin_token`, `matrix_token`, `admin_access_token`, or `matrix_access_token` fields.
+- Do not add `product_token`, `matrix_token`, `product_access_token`, or `matrix_access_token` fields.
 - `initialized` is the single initialization flag. It means the generated initial password has been changed; owner profile data is optional and must not gate initialization.
 
 ## P2P Product API Responsibilities
@@ -41,8 +41,8 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Group actions: `groups.create`, `groups.update`, `groups.invite`, `groups.join`, `groups.list`, `groups.members`, `groups.leave`, `groups.dissolve`, member moderation, mute, and invite policy actions.
 - `groups.invite` is surfaced to receivers as a Matrix room invite and may also appear in `sync.bootstrap.pending.group_invites`; it is not delivered as a private-chat invite message.
 - `groups.members` returns visible members in backend order: owner first, then joined members by `joined_at`, then stable user id fallback. Group avatars and member grids use this order when available, with Matrix/local caches only as fallback.
-- Channel actions: `channels.create`, `channels.update`, `channels.join`, `channels.invite_grant.create`, `channels.invite`, `channels.list`, `channels.members`, `channels.leave`, `channels.dissolve`, moderation, mute, read marker, public search/detail/join request, posts, comments, and reactions. Channel share cards always carry `channel_id`/`room_id`; owner/admin share cards create invite grants and join with `channels.join`, while ordinary member share cards request access through public join request using the Matrix `room_id`.
-- `sync.bootstrap.pending.channel_notices` represents channel invitations for the current user. It is not the owner/admin pending-review count; review badges and review lists must use joined owner/admin channels plus pending channel members.
+- Channel actions: `channels.create`, `channels.update`, `channels.join`, `channels.invite_grant.create`, `channels.invite`, `channels.list`, `channels.members`, `channels.leave`, `channels.dissolve`, moderation, mute, read marker, public search/detail/join request, posts, comments, and reactions. Channel share cards always carry `channel_id`/`room_id` and never create invite grants; receivers request access through public join request using the Matrix `room_id`. `channels.invite_grant.create` is reserved for the owner member-list `+` invite flow outside the share button.
+- `sync.bootstrap.pending.channel_notices` represents channel invitations for the current user. It is not the owner pending-review count; review badges and review lists must use joined owner channels plus pending channel members.
 - Channel member responses may include `avatar_url`; member UIs use it before falling back to Matrix room member avatars.
 - Channel post responses may include `author_avatar_url` for the post author. Post media still travels in `media`/`media_json`; the UI uses the first post image as the post-list thumbnail when present.
 - Public channel join requests return `pending`, `rejected`, `approved`, `joining`, `joined`, or `join_failed`. Only `joined` is openable as a joined channel; `approved`/`joining` are still in-progress states.

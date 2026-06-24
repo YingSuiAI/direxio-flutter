@@ -25,7 +25,7 @@ final asClientProvider = Provider<AsClient>((ref) {
       throw AsClientException('P2P homeserver is required');
     }
     return HttpAsClient(
-      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
+      baseUri: HttpAsClient.defaultProductBaseUri(homeserver),
       portalToken: portalToken,
       accessTokenForDebug: client.accessToken,
       onAuthenticationFailedForToken:

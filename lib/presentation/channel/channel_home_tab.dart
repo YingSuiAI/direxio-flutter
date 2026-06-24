@@ -624,7 +624,7 @@ bool _canReviewChannel(AsChannel channel) {
 }
 
 bool _canReviewChannelRole(String role) {
-  return role == asChannelRoleOwner || role == asChannelRoleAdmin;
+  return role == asChannelRoleOwner;
 }
 
 class _ReviewTopBar extends StatelessWidget {

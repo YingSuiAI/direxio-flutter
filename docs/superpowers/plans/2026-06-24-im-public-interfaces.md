@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire the Flutter client to the signed IM/BI public interfaces documented in `C:/Users/84960/Desktop/direxio/admin/docs/im-public-interfaces.md`.
+**Goal:** Wire the Flutter client to the signed IM/BI public interfaces documented in `C:/Users/84960/Desktop/direxio/product/docs/im-public-interfaces.md`.
 
 **Architecture:** Keep the public IM/BI API as a separate signed client under `lib/data`, independent from the authenticated `AsClient` / `/_p2p` ProductCore boundary. Presentation pages call the public client only for public-directory registration/search, BI reporting, and report submissions; Matrix and ProductCore remain responsible for room state and chat.
 
@@ -32,7 +32,7 @@ Expected: FAIL because `ImPublicClient` currently sends no signature headers.
 
 - [x] **Step 3: Implement shared config and signing**
 
-Add `defaultImPublicBaseUrl = 'https://imadmin.direxio.ai/api'`, `defaultImPublicSecret = 'f88c10fe-4559-fa77-b8b9-beadf468ddba'`, `canonicalImPublicJson`, `buildImPublicSignature`, and `signedImPublicHeaders`. Use them from BI and IM public clients.
+Add `defaultImPublicBaseUrl = 'https://im.direxio.ai/api'`, `defaultImPublicSecret = 'f88c10fe-4559-fa77-b8b9-beadf468ddba'`, `canonicalImPublicJson`, `buildImPublicSignature`, and `signedImPublicHeaders`. Use them from BI and IM public clients.
 
 - [x] **Step 4: Run green test**
 
@@ -178,7 +178,7 @@ flutter test --no-pub test/im_public_client_test.dart test/channel_search_page_t
 
 - [x] **Step 3: Host smoke check**
 
-Call `GET https://imadmin.direxio.ai/api/im/channel/list?page=1&pageSize=1&desc=false` with generated signed headers. Expected: either a valid envelope from the current host or a connection failure that is reported explicitly.
+Call `GET https://im.direxio.ai/api/im/channel/list?page=1&pageSize=1&desc=false` with generated signed headers. Expected: either a valid envelope from the current host or a connection failure that is reported explicitly.
 
 - [x] **Step 4: Self-review and commit**
 

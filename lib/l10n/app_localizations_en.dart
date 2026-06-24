@@ -189,7 +189,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelManageStatPending => 'Pending';
 
   @override
-  String get channelManageStatAdmins => 'Admins';
+  String get channelManageStatOwner => 'Owner';
 
   @override
   String get channelManageStatNewToday => 'New Today';
@@ -251,28 +251,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelManageVisibilityPrivate => 'Private';
 
   @override
-  String get channelManageSpeechAdminReview => 'Admin review';
+  String get channelManageSpeechOwnerReview => 'Owner review';
 
   @override
   String get channelManageSpeechMembers => 'Members can post';
 
   @override
-  String get channelManageInviteAdmin => 'Admin';
+  String get channelManageInviteOwner => 'Owner';
 
   @override
-  String get channelManageInviteAdmins => 'Invite Admins';
+  String get channelManageInviteMembers => 'Invite Members';
 
   @override
-  String get channelManageInviteAdminsValue => 'By ID or link';
+  String get channelManageInviteMembersValue => 'By ID or link';
 
   @override
   String get channelManageOwnerOnline => 'Owner · Online';
 
   @override
-  String get channelManageAdminModeration => 'Admin · Moderation';
+  String get channelManageMemberModeration => 'Member · Moderation';
 
   @override
-  String get channelManageAdminOperations => 'Admin · Operations';
+  String get channelManageMemberOperations => 'Member · Operations';
 
   @override
   String get channelManageBotRiskControl => 'Bot · Risk control';
@@ -292,7 +292,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelManageReviewLinkBody =>
-      'An external link was detected and needs admin approval before display.';
+      'An external link was detected and needs owner approval before display.';
 
   @override
   String get channelManageReviewLinkTag => 'Link';

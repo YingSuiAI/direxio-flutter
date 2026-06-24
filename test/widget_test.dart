@@ -1022,7 +1022,7 @@ class _EmptyAsClient implements AsClient {
 class _WidgetImPublicClient extends ImPublicClient {
   _WidgetImPublicClient()
       : super(
-          baseUri: Uri.parse('https://admin.example.com'),
+          baseUri: Uri.parse('https://api.example.com'),
           secret: 'test-secret',
         );
 
@@ -12879,7 +12879,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('group detail shows owner-admin invite permission failure',
+  testWidgets('group detail shows owner invite permission failure',
       (tester) async {
     final client = Client('DirexioGroupInvitePermissionFailureTest')
       ..setUserId('@owner:p2p-im.com');
@@ -12911,7 +12911,7 @@ void main() {
           avatarUrl: '',
           unreadCount: 0,
           lastActivityAt: null,
-          invitePolicy: groupInvitePolicyOwnerAdmin,
+          invitePolicy: groupInvitePolicyOwner,
         ),
       ],
       channels: const [],
@@ -12919,7 +12919,7 @@ void main() {
     );
     final asClient = _TrackingAsClient()
       ..inviteGroupMembersError = AsClientException(
-        'group invite requires owner or admin',
+        'group invite requires owner',
         statusCode: 403,
       );
 
@@ -13217,7 +13217,7 @@ void main() {
 
     expect(asClient.updateGroupInvitePolicyCalls, 1);
     expect(asClient.updatedGroupInvitePolicyRoomId, '!group:p2p-im.com');
-    expect(asClient.updatedGroupInvitePolicy, 'owner_admin');
+    expect(asClient.updatedGroupInvitePolicy, 'owner');
     expect(find.text('已更新添加成员权限'), findsOneWidget);
   });
 
@@ -13740,13 +13740,13 @@ void main() {
       client,
       roomId: '!muted-channel:p2p-im.com',
       name: '禁言频道',
-      creatorMxid: '@admin:p2p-im.com',
+      creatorMxid: '@creator:p2p-im.com',
       members: const {'@alice:p2p-im.com': 'Alice'},
     );
     room.setState(
       StrippedStateEvent(
         type: EventTypes.RoomPowerLevels,
-        senderId: '@admin:p2p-im.com',
+        senderId: '@creator:p2p-im.com',
         stateKey: '',
         content: const {
           'users_default': 0,

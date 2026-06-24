@@ -432,7 +432,6 @@ Future<void> _shareChannelDetail(
       ),
       currentRoomId: channel.roomId,
       currentRoomName: channel.name,
-      createInviteGrant: channel.isOwned,
     );
     if (!context.mounted || !sent) return;
     ScaffoldMessenger.of(context).showSnackBar(

@@ -2498,7 +2498,7 @@ void main() {
       AuthStateNotifier.initializedKey: 'true',
     });
     final client = _NoSyncInitClient(
-      'AuthStaleAsAdminFailureIgnoredTest',
+      'AuthStaleAsFailureIgnoredTest',
       httpClient: MockClient((request) async {
         if (request.url.path == '/_matrix/client/v3/account/whoami') {
           return http.Response(
@@ -3303,8 +3303,8 @@ void main() {
 
     final notifier = container.read(authStateNotifierProvider.notifier);
     final tokens = await Future.wait([
-      notifier.refreshPortalSessionForAsAdminToken(),
-      notifier.refreshPortalSessionForAsAdminToken(),
+      notifier.refreshPortalSessionForAsBearerToken(),
+      notifier.refreshPortalSessionForAsBearerToken(),
     ]);
 
     expect(portalAuthCalls, 1);

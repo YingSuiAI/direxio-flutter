@@ -14,6 +14,7 @@ import '../channel/channel_confirm_dialog.dart';
 import '../channel/channel_info_data.dart';
 import '../channel/channel_leave_flow.dart';
 import '../channel/channel_member_avatar.dart';
+import '../channel/channel_member_invite_flow.dart';
 import '../channel/channel_share.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/app_warmup_provider.dart';
@@ -440,7 +441,8 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             client: ref.read(matrixClientProvider),
             profileDirectory: ref.watch(userProfileDirectoryProvider),
             currentUserId: ref.read(matrixClientProvider).userID ?? '',
-            onOpenMember: _openMemberProfileFromAvatar,
+            onOpenMember: _openMemberHome,
+            onInvite: () => _showInviteMemberSheet(channel),
             onRemove: _showRemoveMemberSheet,
           );
         },
@@ -599,7 +601,25 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     );
   }
 
-  void _openMemberProfileFromAvatar(AsChannelMember member) {
+  Future<void> _showInviteMemberSheet(ChannelInfoData channel) async {
+    final members = _members.isEmpty
+        ? await _ensureMembersFuture()
+            .catchError((_) => const <AsChannelMember>[])
+        : _members;
+    if (!mounted) return;
+    final currentUserId = ref.read(matrixClientProvider).userID?.trim() ?? '';
+    await showInviteChannelMembersFlow(
+      context,
+      ref,
+      channel: channel,
+      existingMemberMxids: {
+        currentUserId,
+        for (final member in members) member.userMxid.trim(),
+      },
+    );
+  }
+
+  void _openMemberHome(AsChannelMember member) {
     final userMxid = member.userMxid.trim();
     if (!userMxid.startsWith('@') || !userMxid.contains(':')) return;
     context.push(
@@ -896,6 +916,7 @@ class _OwnerMemberGrid extends StatelessWidget {
     required this.profileDirectory,
     required this.currentUserId,
     required this.onOpenMember,
+    required this.onInvite,
     required this.onRemove,
   });
 
@@ -909,6 +930,7 @@ class _OwnerMemberGrid extends StatelessWidget {
   final UserProfileDirectory profileDirectory;
   final String currentUserId;
   final ValueChanged<AsChannelMember> onOpenMember;
+  final VoidCallback onInvite;
   final VoidCallback onRemove;
 
   static const int _columns = 5;
@@ -946,6 +968,10 @@ class _OwnerMemberGrid extends StatelessWidget {
           size: 40,
           shape: AvatarShape.squircle,
         ),
+      _InviteMemberTile(
+        key: const ValueKey('channel_invite_member_tile'),
+        onTap: onInvite,
+      ),
       _RemoveMemberTile(
         key: const ValueKey('channel_remove_member_tile'),
         isLoading: isLoading,
@@ -993,6 +1019,36 @@ class _OwnerMemberGrid extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _InviteMemberTile extends StatelessWidget {
+  const _InviteMemberTile({
+    super.key,
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: context.tk.surfaceHigh,
+        ),
+        child: Icon(
+          Symbols.add,
+          size: 20,
+          color: context.tk.text,
+        ),
+      ),
     );
   }
 }
@@ -1202,7 +1258,6 @@ Future<void> _shareChannel(
       ),
       currentRoomId: channel.roomId,
       currentRoomName: channel.name,
-      createInviteGrant: channel.isOwned,
     );
     if (!context.mounted || !sent) return;
     _showSnack(context, '已分享频道');

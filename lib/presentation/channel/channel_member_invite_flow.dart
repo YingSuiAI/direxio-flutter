@@ -8,36 +8,36 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
-import '../providers/as_bootstrap_store_provider.dart';
+import '../chat/chat_record_forwarding.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
-import '../utils/product_conversation_summary_writer.dart';
-import 'group_invite_content.dart';
 import '../widgets/portal_avatar.dart';
+import 'channel_info_data.dart';
+import 'channel_share.dart';
 
-Future<void> showInviteGroupMembersFlow(
+Future<void> showInviteChannelMembersFlow(
   BuildContext context,
   WidgetRef ref, {
-  required String roomId,
+  required ChannelInfoData channel,
   required Set<String> existingMemberMxids,
 }) async {
-  final trimmedRoomId = roomId.trim();
-  if (trimmedRoomId.isEmpty) return;
+  final channelId = channel.id.trim();
+  final roomId = channel.roomId.trim();
+  if (channelId.isEmpty && roomId.isEmpty) return;
 
-  final candidates = groupMemberInviteCandidates(
+  final candidates = channelMemberInviteCandidates(
     ref.read(asSyncCacheProvider),
     existingMemberMxids,
   );
-  final client = ref.read(matrixClientProvider);
+  final matrixClient = ref.read(matrixClientProvider);
   final selected = await showDialog<List<String>>(
     context: context,
-    builder: (ctx) => _InviteGroupMembersDialog(
+    builder: (ctx) => _InviteChannelMembersDialog(
       contacts: candidates,
-      client: client,
+      client: matrixClient,
     ),
   );
   if (selected == null || selected.isEmpty || !context.mounted) return;
@@ -52,35 +52,8 @@ Future<void> showInviteGroupMembersFlow(
         .toList(growable: false);
     final skippedCount = selectedContacts.length - sendableContacts.length;
     final asClient = ref.read(asClientProvider);
-    var recordedCount = 0;
-    if (sendableContacts.isNotEmpty) {
-      final result = await asClient.inviteGroupMembers(
-        roomId: trimmedRoomId,
-        invite: [
-          for (final contact in sendableContacts) contact.userId.trim(),
-        ],
-      );
-      recordedCount = result.invitedCount;
-      await recordProductConversationMutation(
-        ref,
-        result.productConversation,
-      );
-    }
     var sentCount = 0;
     var failedCount = 0;
-    final groupName = _groupInviteRoomName(ref, trimmedRoomId);
-    final inviterMxid =
-        ref.read(asSyncCacheProvider).bootstrap?.user.userId ?? '';
-    final matrixClient = ref.read(matrixClientProvider);
-    final currentUserProfile =
-        await ref.read(currentUserProfileProvider.future).catchError(
-              (_) => null,
-            );
-    final inviterAvatarUrl = profileAvatarHttpUrl(
-          currentUserProfile,
-          matrixClient,
-        ) ??
-        '';
     for (final contact in sendableContacts) {
       try {
         final directRoomId = contact.roomId.trim();
@@ -88,34 +61,49 @@ Future<void> showInviteGroupMembersFlow(
         if (directRoom == null) {
           throw StateError('目标私聊未同步到本地');
         }
+        final grant = await asClient.createChannelInviteGrant(
+          channelId: channelId,
+          roomId: roomId,
+          shareRoomId: directRoomId,
+          reason: 'channel_member_invite',
+        );
+        final grantId = grant.grantId.trim();
+        if (grantId.isEmpty) {
+          throw StateError('频道邀请授权缺少 grant_id');
+        }
+        final payload = channelSharePayloadWithInviteGrant(
+          _channelInvitePayload(channel, grant),
+          grantId: grantId,
+          shareRoomId: grant.shareRoomId.trim().isEmpty
+              ? directRoomId
+              : grant.shareRoomId.trim(),
+        );
         await directRoom.sendEvent({
-          'msgtype': GroupInviteContent.msgTypeV1,
-          'body': '邀请加入群聊\n$groupName',
-          'group_room_id': trimmedRoomId,
-          'group_name': groupName,
-          if (inviterMxid.trim().isNotEmpty) 'inviter_mxid': inviterMxid,
-          if (inviterAvatarUrl.trim().isNotEmpty)
-            'inviter_avatar_url': inviterAvatarUrl,
-          'direct_room_id': directRoomId,
+          'msgtype': MessageTypes.Text,
+          'body': payload.body,
+          'message_type': channelShareMessageType,
+          chatRecordMatrixMarkerKey: channelShareMessageType,
+          channelShareMatrixPayloadKey: payload.asDraft.toJson(),
         });
         sentCount++;
-      } on Object {
+      } on Object catch (error) {
+        if (error is AsClientException && error.statusCode == 403) {
+          rethrow;
+        }
         failedCount++;
       }
     }
     if (sentCount > 0) {
       unawaited(matrixClient.oneShotSync());
     }
-    unawaited(_refreshBootstrapAfterInvite(ref));
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _groupInviteResultMessage(
+          _channelInviteResultMessage(
             sentCount: sentCount,
             skippedCount: skippedCount,
             failedCount: failedCount,
-            recordedCount: recordedCount,
           ),
         ),
       ),
@@ -123,47 +111,12 @@ Future<void> showInviteGroupMembersFlow(
   } on Object catch (e) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_groupInviteFailureMessage(e))),
+      SnackBar(content: Text(_channelInviteFailureMessage(e))),
     );
   }
 }
 
-String _groupInviteRoomName(WidgetRef ref, String roomId) {
-  final syncCache = ref.read(asSyncCacheProvider);
-  for (final group in syncCache.bootstrap?.groups ?? const []) {
-    if (group.roomId.trim() == roomId.trim() && group.name.trim().isNotEmpty) {
-      return group.name.trim();
-    }
-  }
-  return '群聊';
-}
-
-String _groupInviteResultMessage({
-  required int sentCount,
-  required int skippedCount,
-  required int failedCount,
-  required int recordedCount,
-}) {
-  if (sentCount == 0 && recordedCount == 0 && skippedCount == 0) {
-    return '所选联系人已在群聊中';
-  }
-  final parts = <String>['已发送 $sentCount 个群邀请卡片'];
-  if (skippedCount > 0) parts.add('$skippedCount 个联系人缺少私聊，已跳过');
-  if (failedCount > 0) parts.add('$failedCount 个发送失败');
-  return parts.join('，');
-}
-
-String _groupInviteFailureMessage(Object error) {
-  if (error is AsClientException && error.statusCode == 403) {
-    final message = error.message.toLowerCase();
-    if (message.contains('group invite requires owner')) {
-      return '该群只有群主可添加成员';
-    }
-  }
-  return '发送群邀请失败: $error';
-}
-
-List<AsSyncContact> groupMemberInviteCandidates(
+List<AsSyncContact> channelMemberInviteCandidates(
   AsSyncCacheState syncCache,
   Set<String> existingMemberMxids,
 ) {
@@ -196,19 +149,73 @@ List<AsSyncContact> groupMemberInviteCandidates(
   return List.unmodifiable(out);
 }
 
-Future<void> _refreshBootstrapAfterInvite(WidgetRef ref) async {
-  try {
-    final bootstrap = await ref.read(asBootstrapRepositoryProvider).refresh();
-    ref.read(asSyncCacheProvider.notifier).update(
-          (state) => state.copyWith(bootstrap: bootstrap),
-        );
-  } on Object catch (e) {
-    debugPrint('refresh bootstrap after group member invite failed: $e');
-  }
+ChannelSharePayload _channelInvitePayload(
+  ChannelInfoData channel,
+  AsChannelInviteGrant grant,
+) {
+  final grantChannel = grant.channel;
+  return channelSharePayloadFromChannel(
+    channelId:
+        _firstNonEmpty(grant.channelId, grantChannel?.channelId, channel.id),
+    roomId: _firstNonEmpty(grant.roomId, grantChannel?.roomId, channel.roomId),
+    homeDomain: _firstNonEmpty(grantChannel?.homeDomain, channel.domain),
+    name: _firstNonEmpty(grantChannel?.name, channel.name, '频道'),
+    description: _firstNonEmpty(grantChannel?.description, channel.description),
+    avatarUrl: _firstNonEmpty(grantChannel?.avatarUrl, channel.avatarUrl),
+    visibility: _firstNonEmpty(
+      grantChannel?.visibility,
+      channel.visibility,
+      asChannelVisibilityPublic,
+    ),
+    joinPolicy: _firstNonEmpty(
+      grantChannel?.joinPolicy,
+      channel.joinPolicy,
+      asChannelJoinPolicyOpen,
+    ),
+    commentsEnabled: grantChannel?.commentsEnabled ?? channel.commentsEnabled,
+    channelType: _firstNonEmpty(
+      grantChannel?.channelType,
+      channel.channelType,
+      asChannelTypeChat,
+    ),
+    tags: grantChannel?.tags.isNotEmpty == true
+        ? grantChannel!.tags
+        : channel.tags,
+    memberCount: grantChannel?.memberCount ?? channel.memberCount,
+  );
 }
 
-class _InviteGroupMembersDialog extends StatefulWidget {
-  const _InviteGroupMembersDialog({
+String _firstNonEmpty(String? first, [String? second, String? third]) {
+  for (final value in [first, second, third]) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isNotEmpty) return trimmed;
+  }
+  return '';
+}
+
+String _channelInviteResultMessage({
+  required int sentCount,
+  required int skippedCount,
+  required int failedCount,
+}) {
+  if (sentCount == 0 && skippedCount == 0 && failedCount == 0) {
+    return '所选联系人已在频道中';
+  }
+  final parts = <String>['已发送 $sentCount 个频道邀请卡片'];
+  if (skippedCount > 0) parts.add('$skippedCount 个联系人缺少私聊，已跳过');
+  if (failedCount > 0) parts.add('$failedCount 个发送失败');
+  return parts.join('，');
+}
+
+String _channelInviteFailureMessage(Object error) {
+  if (error is AsClientException && error.statusCode == 403) {
+    return '只有频道主可邀请成员';
+  }
+  return '发送频道邀请失败: $error';
+}
+
+class _InviteChannelMembersDialog extends StatefulWidget {
+  const _InviteChannelMembersDialog({
     required this.contacts,
     required this.client,
   });
@@ -217,11 +224,12 @@ class _InviteGroupMembersDialog extends StatefulWidget {
   final Client client;
 
   @override
-  State<_InviteGroupMembersDialog> createState() =>
-      _InviteGroupMembersDialogState();
+  State<_InviteChannelMembersDialog> createState() =>
+      _InviteChannelMembersDialogState();
 }
 
-class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
+class _InviteChannelMembersDialogState
+    extends State<_InviteChannelMembersDialog> {
   final Set<String> _selectedMxids = <String>{};
 
   @override
@@ -229,7 +237,7 @@ class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
     final t = context.tk;
     return AlertDialog(
       title: Text(
-        '添加群成员',
+        '邀请频道成员',
         style: AppTheme.sans(
           size: 17,
           weight: FontWeight.w600,
@@ -260,7 +268,7 @@ class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
                       displayName: contact.displayName,
                       domain: contact.domain,
                     );
-                    return _InviteGroupContactRow(
+                    return _InviteChannelContactRow(
                       name: name,
                       subtitle: contact.domain.trim(),
                       avatarUrl: avatarHttpUrl(
@@ -298,8 +306,8 @@ class _InviteGroupMembersDialogState extends State<_InviteGroupMembersDialog> {
   }
 }
 
-class _InviteGroupContactRow extends StatelessWidget {
-  const _InviteGroupContactRow({
+class _InviteChannelContactRow extends StatelessWidget {
+  const _InviteChannelContactRow({
     required this.name,
     required this.selected,
     required this.onTap,
@@ -376,7 +384,7 @@ class _InviteGroupContactRow extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      _InviteGroupCheck(selected: selected),
+                      _InviteChannelCheck(selected: selected),
                     ],
                   ),
                 ),
@@ -389,8 +397,8 @@ class _InviteGroupContactRow extends StatelessWidget {
   }
 }
 
-class _InviteGroupCheck extends StatelessWidget {
-  const _InviteGroupCheck({required this.selected});
+class _InviteChannelCheck extends StatelessWidget {
+  const _InviteChannelCheck({required this.selected});
 
   final bool selected;
 

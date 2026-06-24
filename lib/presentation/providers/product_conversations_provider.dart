@@ -172,5 +172,5 @@ bool _isJoinedMembership(String status) {
 
 bool _canManageMembers(String role) {
   final normalized = role.trim();
-  return normalized == asChannelRoleOwner || normalized == asChannelRoleAdmin;
+  return normalized == asChannelRoleOwner;
 }

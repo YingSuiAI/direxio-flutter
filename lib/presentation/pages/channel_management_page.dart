@@ -205,8 +205,8 @@ List<_ManageChannel> _managementChannels(WidgetRef ref) {
           isOwned: true,
           visibility: channel.visibility == 'private' ? 'private' : 'public',
           speechPolicy:
-              channel.joinPolicy == 'approval' ? 'admin_review' : 'members',
-          invitePolicy: channel.role.isEmpty ? 'admin' : channel.role,
+              channel.joinPolicy == 'approval' ? 'owner_review' : 'members',
+          invitePolicy: channel.role.isEmpty ? 'owner' : channel.role,
           encrypted: true,
         ),
     ];
@@ -615,10 +615,10 @@ class _MembersSection extends StatelessWidget {
     final t = context.tk;
     final members = [
       _Member('Niki', l10n.channelManageOwnerOnline, channel.color),
-      _Member('Alex Chen', l10n.channelManageAdminModeration,
+      _Member('Alex Chen', l10n.channelManageMemberModeration,
           const Color(0xFF1FAF71)),
       _Member(
-          'Mina', l10n.channelManageAdminOperations, const Color(0xFF6F4CE6)),
+          'Mina', l10n.channelManageMemberOperations, const Color(0xFF6F4CE6)),
       _Member('Bot Monitor', l10n.channelManageBotRiskControl,
           const Color(0xFFF59E0B)),
     ];
@@ -628,8 +628,8 @@ class _MembersSection extends StatelessWidget {
           children: [
             Expanded(
               child: _StatCard(
-                label: l10n.channelManageStatAdmins,
-                value: '12',
+                label: l10n.channelManageStatOwner,
+                value: '1',
                 color: t.accent,
               ),
             ),
@@ -653,11 +653,12 @@ class _MembersSection extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         _ActionRow(
-          icon: Symbols.admin_panel_settings,
-          label: l10n.channelManageInviteAdmins,
-          value: l10n.channelManageInviteAdminsValue,
+          icon: Symbols.person_add,
+          label: l10n.channelManageInviteMembers,
+          value: l10n.channelManageInviteMembersValue,
           color: t.accent,
-          onTap: () => _showComingSoon(context, l10n.channelManageInviteAdmins),
+          onTap: () =>
+              _showComingSoon(context, l10n.channelManageInviteMembers),
         ),
         const SizedBox(height: 12),
         for (final member in members) ...[
@@ -1382,13 +1383,13 @@ String _visibilityLabel(AppLocalizations l10n, String value) {
 String _speechPolicyLabel(AppLocalizations l10n, String value) {
   return switch (value) {
     'members' => l10n.channelManageSpeechMembers,
-    _ => l10n.channelManageSpeechAdminReview,
+    _ => l10n.channelManageSpeechOwnerReview,
   };
 }
 
 String _invitePolicyLabel(AppLocalizations l10n, String value) {
   return switch (value) {
-    'admin' => l10n.channelManageInviteAdmin,
+    'owner' => l10n.channelManageInviteOwner,
     _ => value,
   };
 }

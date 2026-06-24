@@ -19,12 +19,19 @@ final asClientProvider = Provider<AsClient>((ref) {
       auth?.isLoggedIn == true ? client.accessToken?.trim() ?? '' : '';
   final portalToken = authToken.isNotEmpty ? authToken : clientToken;
   if (portalToken.isNotEmpty) {
-    return HttpAsClient.fromPortalSession(
-      client,
+    final homeserver =
+        client.homeserver ?? Uri.tryParse(auth?.homeserver ?? '');
+    if (homeserver == null || homeserver.host.isEmpty) {
+      throw AsClientException('P2P homeserver is required');
+    }
+    return HttpAsClient(
+      baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
       portalToken: portalToken,
+      accessTokenForDebug: client.accessToken,
       onAuthenticationRefresh: authNotifier.refreshPortalSessionForAsAdminToken,
       onAuthenticationFailedForToken:
           authNotifier.expireSessionDueInvalidTokenIfCurrent,
+      httpClient: client.httpClient,
     );
   }
   throw AsClientException('P2P portal token is required');

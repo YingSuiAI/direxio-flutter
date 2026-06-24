@@ -224,11 +224,13 @@ bool portalSessionNeedsCleanMatrixInit({
   required String? currentUserId,
   required String? currentDeviceId,
   required Uri? currentHomeserver,
+  bool currentMatrixLoggedIn = true,
   required String nextAccessToken,
   required String nextUserId,
   required String nextDeviceId,
   required Uri nextHomeserver,
 }) {
+  if (!currentMatrixLoggedIn) return true;
   final currentUser = currentUserId?.trim() ?? '';
   final currentDevice = currentDeviceId?.trim() ?? '';
   final currentHost = currentHomeserver == null
@@ -1748,6 +1750,8 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       currentUserId: client.userID,
       currentDeviceId: client.deviceID,
       currentHomeserver: client.homeserver,
+      currentMatrixLoggedIn:
+          client.onLoginStateChanged.value == LoginState.loggedIn,
       nextAccessToken: session.accessToken,
       nextUserId: effectiveUserId,
       nextDeviceId: effectiveDeviceId,

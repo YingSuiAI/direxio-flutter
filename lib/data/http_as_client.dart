@@ -1720,6 +1720,7 @@ class HttpAsClient implements AsClient {
         response = await http.Response.fromStream(streamed);
       } catch (error, stackTrace) {
         stopwatch.stop();
+        _logChannelShareApiError(action, error);
         ApiLogger.failure(
           service: 'P2P product',
           method: 'POST',
@@ -1734,6 +1735,11 @@ class HttpAsClient implements AsClient {
       }
       stopwatch.stop();
       requestElapsed = stopwatch.elapsed;
+      _logChannelShareApiResponse(
+        action,
+        statusCode: response.statusCode,
+        body: response.body,
+      );
       ApiLogger.response(
         service: 'P2P product',
         method: 'POST',
@@ -1758,10 +1764,12 @@ class HttpAsClient implements AsClient {
         }
         await _notifyAuthenticationFailed();
       }
-      throw AsClientException(
+      final error = AsClientException(
         _extractErrorMessage(response),
         statusCode: response.statusCode,
       );
+      _logChannelShareApiError(action, error);
+      throw error;
     }
     if (response.body.trim().isEmpty) return const {};
     final Object? decoded;
@@ -2387,18 +2395,58 @@ void _logChannelShareApiParams(
   String action,
   Map<String, Object?> params,
 ) {
-  final label = switch (action) {
-    'channels.invite_grant.create' => 'channel.share.api.invite.params',
-    'channels.join' => 'channel.share.api.join.params',
-    'channels.public.join_request' =>
-      'channel.share.api.public_join_request.params',
-    _ => '',
-  };
-  if (label.isEmpty) return;
-  final message = '[$label] action=$action '
+  final kind = _channelShareApiLogKind(action);
+  if (kind.isEmpty) return;
+  final message = '[channel.share.api.$kind.params] action=$action '
       'params=${jsonEncode(_redactChannelShareApiParams(params))}';
+  _logChannelShareApiMessage(message);
+}
+
+void _logChannelShareApiResponse(
+  String action, {
+  required int statusCode,
+  required String body,
+}) {
+  final kind = _channelShareApiLogKind(action);
+  if (kind.isEmpty) return;
+  final result = _redactChannelShareApiResponseBody(body);
+  _logChannelShareApiMessage(
+    '[channel.share.api.$kind.response] action=$action '
+    'status_code=$statusCode result=$result',
+  );
+}
+
+void _logChannelShareApiError(String action, Object error) {
+  final kind = _channelShareApiLogKind(action);
+  if (kind.isEmpty) return;
+  _logChannelShareApiMessage(
+    '[channel.share.api.$kind.error] action=$action '
+    'error_type=${error.runtimeType} error="$error"',
+  );
+}
+
+void _logChannelShareApiMessage(String message) {
   debugPrint(message);
   ApiLogger.info(message);
+}
+
+String _channelShareApiLogKind(String action) {
+  return switch (action) {
+    'channels.invite_grant.create' => 'invite',
+    'channels.join' => 'join',
+    'channels.public.join_request' => 'public_join_request',
+    _ => '',
+  };
+}
+
+Object? _redactChannelShareApiResponseBody(String body) {
+  final trimmed = body.trim();
+  if (trimmed.isEmpty) return '<empty>';
+  try {
+    return _redactChannelShareApiParams(jsonDecode(trimmed));
+  } catch (_) {
+    return trimmed.length <= 600 ? trimmed : '${trimmed.substring(0, 600)}...';
+  }
 }
 
 Object? _redactChannelShareApiParams(Object? value) {

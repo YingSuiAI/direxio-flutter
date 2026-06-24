@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/http_as_client.dart';
 import 'package:portal_app/data/matrix_token_refreshing_http_client.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
@@ -232,6 +233,15 @@ class _UploadKeyFailsForTokensClient extends _NoSyncInitClient {
   }
 }
 
+class _StaticAuthStateNotifier extends AuthStateNotifier {
+  _StaticAuthStateNotifier(this.initial);
+
+  final AuthState initial;
+
+  @override
+  Future<AuthState> build() async => initial;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -301,6 +311,48 @@ void main() {
       ),
       isFalse,
     );
+    expect(
+      portalSessionNeedsCleanMatrixInit(
+        currentAccessToken: 'new-token',
+        currentUserId: '@owner:example.com',
+        currentDeviceId: 'DEVICE1',
+        currentHomeserver: Uri.parse('https://example.com'),
+        nextAccessToken: 'new-token',
+        nextUserId: '@owner:example.com',
+        nextDeviceId: 'DEVICE1',
+        nextHomeserver: Uri.parse('https://example.com'),
+        currentMatrixLoggedIn: false,
+      ),
+      isTrue,
+    );
+  });
+
+  test('as client provider uses auth homeserver while Matrix session rebuilds',
+      () async {
+    final client = Client(
+      'AuthAsClientProviderHalfSessionTest',
+      httpClient: MockClient((request) async => http.Response('{}', 200)),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        matrixClientProvider.overrideWithValue(client),
+        authStateNotifierProvider.overrideWith(
+          () => _StaticAuthStateNotifier(
+            const AuthState(
+              isLoggedIn: true,
+              userId: '@owner:example.com',
+              homeserver: 'https://example.com',
+              portalToken: 'access-token',
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    expect(container.read(asClientProvider), isA<HttpAsClient>());
   });
 
   test('fresh iOS install clears stale secure session only for new app state',

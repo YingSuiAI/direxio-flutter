@@ -781,6 +781,8 @@ final class SaveImagePlugin: NSObject, FlutterPlugin {
     switch call.method {
     case "savePng":
       savePng(call, result: result)
+    case "saveMediaFile":
+      saveMediaFile(call, result: result)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -838,6 +840,80 @@ final class SaveImagePlugin: NSObject, FlutterPlugin {
               FlutterError(
                 code: "save_failed",
                 message: error?.localizedDescription ?? "Failed to save image.",
+                details: nil
+              )
+            )
+          }
+        }
+      }
+    }
+  }
+
+  private func saveMediaFile(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard
+      let arguments = call.arguments as? [String: Any],
+      let path = arguments["path"] as? String,
+      let fileName = arguments["fileName"] as? String,
+      let mimeType = arguments["mimeType"] as? String,
+      !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      !fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      !mimeType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+      result(
+        FlutterError(
+          code: "invalid_args",
+          message: "path, fileName and mimeType are required.",
+          details: nil
+        )
+      )
+      return
+    }
+
+    let fileURL = URL(fileURLWithPath: path)
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      result(
+        FlutterError(
+          code: "media_not_found",
+          message: "The media file does not exist.",
+          details: path
+        )
+      )
+      return
+    }
+
+    let isVideo = mimeType.lowercased().hasPrefix("video/")
+    Self.requestPhotoAddAuthorization { granted in
+      guard granted else {
+        DispatchQueue.main.async {
+          result(
+            FlutterError(
+              code: "permission_denied",
+              message: "Photo library add permission was denied.",
+              details: nil
+            )
+          )
+        }
+        return
+      }
+
+      PHPhotoLibrary.shared().performChanges({
+        let request = PHAssetCreationRequest.forAsset()
+        let options = PHAssetResourceCreationOptions()
+        options.originalFilename = fileName
+        request.addResource(
+          with: isVideo ? .video : .photo,
+          fileURL: fileURL,
+          options: options
+        )
+      }) { success, error in
+        DispatchQueue.main.async {
+          if success {
+            result(nil)
+          } else {
+            result(
+              FlutterError(
+                code: "save_failed",
+                message: error?.localizedDescription ?? "Failed to save media.",
                 details: nil
               )
             )

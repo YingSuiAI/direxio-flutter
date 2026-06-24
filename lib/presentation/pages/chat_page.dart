@@ -65,6 +65,7 @@ import '../utils/chat_time_format.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
+import '../utils/save_image_to_gallery.dart';
 import '../widgets/async_image_preview.dart';
 import '../../data/as_client.dart';
 import '../../data/as_call_session_store.dart';
@@ -78,6 +79,11 @@ import '../call/voice_call_controller.dart';
 
 void _chatGestureLog(String message) {
   debugPrint('[chat gesture] $message');
+}
+
+String _chatEventMimeType(Event event, {required String fallback}) {
+  final mimeType = event.attachmentMimetype.trim();
+  return mimeType.isEmpty ? fallback : mimeType;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1941,10 +1947,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       final matrixFile = await e.downloadAndDecryptAttachment();
       final file = await writeChatActionFile(
         directory: Directory(
-          '${(await getApplicationDocumentsDirectory()).path}/P2P IM Downloads',
+          '${(await getTemporaryDirectory()).path}/p2p-im-save',
         ),
         fileName: e.body,
         bytes: matrixFile.bytes,
+      );
+      await saveMediaFileToGallery(
+        path: file.path,
+        fileName: file.uri.pathSegments.last,
+        mimeType: _chatEventMimeType(e, fallback: 'image/jpeg'),
       );
       if (mounted) {
         if (eventId.isNotEmpty) {
@@ -1953,11 +1964,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           });
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '已保存到 Files / Portal App / P2P IM Downloads / ${file.uri.pathSegments.last}',
-            ),
-          ),
+          const SnackBar(content: Text('已保存到相册')),
         );
       }
     } on Object catch (err) {
@@ -2021,7 +2028,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     try {
       final file = await _materializeFileEvent(e, persistent: false);
       if (!mounted) return;
-      await openChatVideoPreview(context, file: file, title: e.body);
+      await openChatVideoPreview(
+        context,
+        file: file,
+        title: e.body,
+        onSaveToAlbum: () {
+          return saveMediaFileToGallery(
+            path: file.path,
+            fileName: file.uri.pathSegments.last,
+            mimeType: _chatEventMimeType(e, fallback: 'video/mp4'),
+          );
+        },
+      );
     } on Object catch (err) {
       debugPrint('open video failed: $err');
       if (mounted) {

@@ -68,11 +68,17 @@ import 'group_call_member_select_page.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/chat_file_actions.dart';
+import '../utils/save_image_to_gallery.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
 
 void _groupChatGestureLog(String message) {
   debugPrint('[group chat gesture] $message');
+}
+
+String _groupChatEventMimeType(Event event, {required String fallback}) {
+  final mimeType = event.attachmentMimetype.trim();
+  return mimeType.isEmpty ? fallback : mimeType;
 }
 
 final AppLocalizations _fallbackGroupChatL10n = AppLocalizationsZh();
@@ -841,7 +847,35 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         return MemoryImage(file.bytes);
       },
       meta: meta,
+      onDownload: () => _saveImageEventToAlbum(event),
     );
+  }
+
+  Future<void> _saveImageEventToAlbum(Event event) async {
+    try {
+      final matrixFile = await event.downloadAndDecryptAttachment();
+      final file = await writeChatActionFile(
+        directory:
+            Directory('${(await getTemporaryDirectory()).path}/p2p-im-save'),
+        fileName: event.body,
+        bytes: matrixFile.bytes,
+      );
+      await saveMediaFileToGallery(
+        path: file.path,
+        fileName: file.uri.pathSegments.last,
+        mimeType: _groupChatEventMimeType(event, fallback: 'image/jpeg'),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已保存到相册')),
+      );
+    } on Object catch (err) {
+      debugPrint('save group image failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存失败：$err')),
+      );
+    }
   }
 
   Future<File> _materializeFileEvent(
@@ -889,7 +923,18 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     try {
       final file = await _materializeFileEvent(event, persistent: false);
       if (!mounted) return;
-      await openChatVideoPreview(context, file: file, title: event.body);
+      await openChatVideoPreview(
+        context,
+        file: file,
+        title: event.body,
+        onSaveToAlbum: () {
+          return saveMediaFileToGallery(
+            path: file.path,
+            fileName: file.uri.pathSegments.last,
+            mimeType: _groupChatEventMimeType(event, fallback: 'video/mp4'),
+          );
+        },
+      );
     } on Object catch (err) {
       debugPrint('open group video failed: $err');
       if (!mounted) return;

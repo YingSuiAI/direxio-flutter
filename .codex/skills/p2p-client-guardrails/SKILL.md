@@ -58,6 +58,17 @@ flutter analyze --no-pub
 flutter test --no-pub <relevant tests>
 ```
 
+For local iteration with less Flutter tool noise, prefer `scripts/local_verify.sh`.
+It checks the generated files needed by local builds, deletes `flutter_*.log`
+crash logs, runs `flutter test` commands serially to avoid native assets
+manifest races, and reports iOS project-file churn from simulator builds. If
+`lib/core/router/app_router.g.dart` or
+`lib/presentation/providers/auth_provider.g.dart` is missing, regenerate with:
+
+```powershell
+dart run build_runner build --delete-conflicting-outputs
+```
+
 For channel/search work, run:
 
 ```powershell

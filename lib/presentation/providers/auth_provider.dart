@@ -100,6 +100,9 @@ class AuthState {
   final String? portalToken;
   final String? ownerDisplayName;
   final bool requiresInitialization;
+
+  bool get hasUsablePortalSession =>
+      isLoggedIn && (portalToken?.trim().isNotEmpty ?? false);
 }
 
 class _ActivatedPortalSession {

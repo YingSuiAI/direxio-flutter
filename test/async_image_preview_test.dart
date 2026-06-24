@@ -107,8 +107,9 @@ void main() {
     expect(find.byIcon(Symbols.download), findsNothing);
   });
 
-  testWidgets('shows bottom download action when provided', (tester) async {
-    var downloads = 0;
+  testWidgets('shows bottom save-to-album action when provided',
+      (tester) async {
+    var saves = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: Builder(
@@ -119,7 +120,7 @@ void main() {
                   context,
                   loadProvider: () async => MemoryImage(_transparentPng),
                   meta: '我 · 16:25',
-                  onDownload: () async => downloads++,
+                  onDownload: () async => saves++,
                 ));
               },
               child: const Text('open'),
@@ -132,13 +133,15 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
+    expect(find.byTooltip('保存原图到相册'), findsOneWidget);
     expect(find.byIcon(Symbols.download), findsOneWidget);
 
     await tester.tap(find.byIcon(Symbols.download));
     await tester.pumpAndSettle();
 
-    expect(downloads, 1);
+    expect(saves, 1);
     expect(find.byIcon(Symbols.check), findsOneWidget);
+    expect(find.byTooltip('原图已保存'), findsOneWidget);
   });
 }
 

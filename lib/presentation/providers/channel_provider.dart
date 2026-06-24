@@ -175,6 +175,16 @@ final channelMembersProvider =
   },
 );
 
+final groupMembersProvider =
+    FutureProvider.autoDispose.family<List<AsGroupMember>, GroupMembersKey>(
+  (ref, key) {
+    return ref.watch(asClientProvider).getGroupMembers(
+          key.roomId,
+          status: key.status,
+        );
+  },
+);
+
 class ChannelCommentsKey {
   const ChannelCommentsKey({required this.channelId, required this.postId});
 
@@ -207,4 +217,21 @@ class ChannelMembersKey {
 
   @override
   int get hashCode => Object.hash(channelId, status);
+}
+
+class GroupMembersKey {
+  const GroupMembersKey({required this.roomId, this.status = ''});
+
+  final String roomId;
+  final String status;
+
+  @override
+  bool operator ==(Object other) {
+    return other is GroupMembersKey &&
+        other.roomId == roomId &&
+        other.status == status;
+  }
+
+  @override
+  int get hashCode => Object.hash(roomId, status);
 }

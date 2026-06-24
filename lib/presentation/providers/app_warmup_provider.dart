@@ -147,7 +147,7 @@ final appWarmupServiceProvider = Provider<AppWarmupService>((ref) {
 /// 只预热首屏高概率使用的数据和图片，不做全量联系人/历史媒体同步。
 final appWarmupProvider = FutureProvider<void>((ref) async {
   final auth = await ref.watch(authStateNotifierProvider.future);
-  if (!auth.isLoggedIn) return;
+  if (!auth.hasUsablePortalSession) return;
   await ref.watch(appWarmupServiceProvider).warmup();
 });
 

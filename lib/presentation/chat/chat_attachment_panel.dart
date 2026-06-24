@@ -10,6 +10,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/media_thumbnail_cache.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 import 'chat_media_send_flow.dart';
@@ -470,34 +471,58 @@ class ChatAttachmentPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final visible = visibleActions;
     final items = <(ChatAttachmentAction, IconData, String, VoidCallback?)>[
       (
         ChatAttachmentAction.album,
         Symbols.photo_library,
-        '相册',
+        l10n?.chatAttachmentAlbum ?? '相册',
         canSend ? () => _pickImage(context, ref) : null,
       ),
       (
         ChatAttachmentAction.camera,
         Symbols.photo_camera,
-        '拍摄',
+        l10n?.chatAttachmentCamera ?? '拍摄',
         canSend ? () => _takePhoto(context, ref) : null,
       ),
-      (ChatAttachmentAction.voiceCall, Symbols.call, '语音通话', onVoiceCall),
-      (ChatAttachmentAction.videoCall, Symbols.videocam, '视频通话', onVideoCall),
+      (
+        ChatAttachmentAction.voiceCall,
+        Symbols.call,
+        l10n?.groupChatVoiceCall ?? '语音通话',
+        onVoiceCall
+      ),
+      (
+        ChatAttachmentAction.videoCall,
+        Symbols.videocam,
+        l10n?.contactVideoCall ?? '视频通话',
+        onVideoCall
+      ),
       (
         ChatAttachmentAction.video,
         Symbols.movie,
-        '视频',
+        l10n?.chatAttachmentVideo ?? '视频',
         canSend ? () => _pickVideo(context, ref) : null,
       ),
-      (ChatAttachmentAction.location, Symbols.location_on, '位置', null),
-      (ChatAttachmentAction.contact, Symbols.contact_page, '个人名片', null),
+      (
+        ChatAttachmentAction.location,
+        Symbols.location_on,
+        l10n?.chatAttachmentLocation ?? '位置',
+        null
+      ),
+      (
+        ChatAttachmentAction.contact,
+        Symbols.contact_page,
+        l10n?.chatAttachmentContactCard ?? '个人名片',
+        null
+      ),
       (
         ChatAttachmentAction.file,
         Symbols.folder_open,
-        '文件',
+        l10n?.chatAttachmentFile ?? '文件',
         canSend ? () => _pickFile(context, ref) : null,
       ),
     ].where((item) => visible == null || visible.contains(item.$1)).toList();

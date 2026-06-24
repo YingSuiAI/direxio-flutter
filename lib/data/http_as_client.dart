@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
@@ -21,6 +22,7 @@ class HttpAsClient implements AsClient {
     String? accessTokenForDebug,
     FutureOr<String?> Function()? onAuthenticationRefresh,
     FutureOr<void> Function()? onAuthenticationFailed,
+    FutureOr<void> Function(String failedToken)? onAuthenticationFailedForToken,
     http.Client? httpClient,
   })  : _baseUri = _normalizeBaseUri(baseUri),
         _portalToken = _requireToken(portalToken ?? accessToken),
@@ -28,6 +30,7 @@ class HttpAsClient implements AsClient {
         _accessTokenForDebug = accessTokenForDebug,
         _onAuthenticationRefresh = onAuthenticationRefresh,
         _onAuthenticationFailed = onAuthenticationFailed,
+        _onAuthenticationFailedForToken = onAuthenticationFailedForToken,
         _http = httpClient ?? http.Client();
 
   factory HttpAsClient.fromPortalSession(
@@ -36,6 +39,7 @@ class HttpAsClient implements AsClient {
     Uri? baseUri,
     FutureOr<String?> Function()? onAuthenticationRefresh,
     FutureOr<void> Function()? onAuthenticationFailed,
+    FutureOr<void> Function(String failedToken)? onAuthenticationFailedForToken,
   }) {
     final homeserver = client.homeserver;
     if (homeserver == null) {
@@ -48,6 +52,7 @@ class HttpAsClient implements AsClient {
       accessTokenForDebug: client.accessToken,
       onAuthenticationRefresh: onAuthenticationRefresh,
       onAuthenticationFailed: onAuthenticationFailed,
+      onAuthenticationFailedForToken: onAuthenticationFailedForToken,
       httpClient: client.httpClient,
     );
   }
@@ -58,6 +63,8 @@ class HttpAsClient implements AsClient {
   final String? _accessTokenForDebug;
   final FutureOr<String?> Function()? _onAuthenticationRefresh;
   final FutureOr<void> Function()? _onAuthenticationFailed;
+  final FutureOr<void> Function(String failedToken)?
+      _onAuthenticationFailedForToken;
   final http.Client _http;
 
   static const _timeout = Duration(seconds: 10);
@@ -260,7 +267,7 @@ class HttpAsClient implements AsClient {
             continue;
           }
         }
-        await _onAuthenticationFailed?.call();
+        await _notifyAuthenticationFailed();
       }
       throw AsClientException(
         _extractErrorMessage(response),
@@ -972,7 +979,7 @@ class HttpAsClient implements AsClient {
     String channelId, {
     String status = '',
   }) async {
-    final statusParam = _channelMemberStatusQueryParam(status);
+    final statusParam = _memberStatusQueryParam(status);
     final body = await _getJson(
       'channels/${Uri.encodeComponent(channelId)}/members',
       queryParameters: {
@@ -1392,6 +1399,25 @@ class HttpAsClient implements AsClient {
   }
 
   @override
+  Future<List<AsGroupMember>> getGroupMembers(
+    String roomId, {
+    String status = '',
+  }) async {
+    final statusParam = _memberStatusQueryParam(status);
+    final body = await _getJson(
+      'groups/${Uri.encodeComponent(roomId.trim())}/members',
+      queryParameters: {
+        if (statusParam.isNotEmpty) 'status': statusParam,
+      },
+    );
+    final raw = body['members'] as List? ?? const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => AsGroupMember.fromJson(item.cast<String, dynamic>()))
+        .toList(growable: false);
+  }
+
+  @override
   Future<void> removeGroupMember({
     required String roomId,
     required String peerMxid,
@@ -1653,6 +1679,7 @@ class HttpAsClient implements AsClient {
     if (action == 'favorites.add') {
       params = _favoriteAddParams(params);
     }
+    _logChannelShareApiParams(action, params);
     final endpoint = method == 'GET' ? 'query' : 'command';
     final uri = _resolve(endpoint);
     late http.Response response;
@@ -1729,7 +1756,7 @@ class HttpAsClient implements AsClient {
             continue;
           }
         }
-        await _onAuthenticationFailed?.call();
+        await _notifyAuthenticationFailed();
       }
       throw AsClientException(
         _extractErrorMessage(response),
@@ -1781,6 +1808,15 @@ class HttpAsClient implements AsClient {
     return value == null || value.isEmpty ? 'unknown' : value;
   }
 
+  Future<void> _notifyAuthenticationFailed() async {
+    final tokenCallback = _onAuthenticationFailedForToken;
+    if (tokenCallback != null) {
+      await tokenCallback(_portalToken);
+      return;
+    }
+    await _onAuthenticationFailed?.call();
+  }
+
   Uri _resolve(String path, {Map<String, String>? queryParameters}) {
     return _resolveAgainst(_baseUri, path, queryParameters: queryParameters);
   }
@@ -1829,11 +1865,8 @@ class HttpAsClient implements AsClient {
       channelJson['conversation'] = conversationJson;
     }
     if (statusBelongsToCurrentUser) {
-      final currentStatus = channelJson['member_status'];
       final envelopeStatus = body['status'];
-      if ((currentStatus is! String || currentStatus.trim().isEmpty) &&
-          envelopeStatus is String &&
-          envelopeStatus.trim().isNotEmpty) {
+      if (envelopeStatus is String && envelopeStatus.trim().isNotEmpty) {
         return AsChannel.fromJson({
           ...channelJson,
           'member_status': envelopeStatus,
@@ -2350,7 +2383,49 @@ Map<String, Object?> _actionParams(
   return params;
 }
 
-String _channelMemberStatusQueryParam(String status) {
+void _logChannelShareApiParams(
+  String action,
+  Map<String, Object?> params,
+) {
+  final label = switch (action) {
+    'channels.invite_grant.create' => 'channel.share.api.invite.params',
+    'channels.join' => 'channel.share.api.join.params',
+    'channels.public.join_request' =>
+      'channel.share.api.public_join_request.params',
+    _ => '',
+  };
+  if (label.isEmpty) return;
+  final message = '[$label] action=$action '
+      'params=${jsonEncode(_redactChannelShareApiParams(params))}';
+  debugPrint(message);
+  ApiLogger.info(message);
+}
+
+Object? _redactChannelShareApiParams(Object? value) {
+  if (value is Map) {
+    return {
+      for (final entry in value.entries)
+        entry.key.toString(): _isSensitiveApiParamKey(entry.key.toString())
+            ? '<redacted>'
+            : _redactChannelShareApiParams(entry.value),
+    };
+  }
+  if (value is Iterable) {
+    return value.map(_redactChannelShareApiParams).toList(growable: false);
+  }
+  if (value is Uri) return value.toString();
+  return value;
+}
+
+bool _isSensitiveApiParamKey(String key) {
+  final normalized = key.toLowerCase();
+  return normalized.contains('token') ||
+      normalized.contains('secret') ||
+      normalized.contains('password') ||
+      normalized == 'access_token';
+}
+
+String _memberStatusQueryParam(String status) {
   final value = status.trim();
   if (value == asChannelMemberStatusJoined) return 'join';
   return value;

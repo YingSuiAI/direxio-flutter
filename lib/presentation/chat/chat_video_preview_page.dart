@@ -6,15 +6,22 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/theme/app_theme.dart';
 
+typedef VideoPreviewAction = Future<void> Function();
+
 Future<void> openChatVideoPreview(
   BuildContext context, {
   required File file,
   String title = '视频',
+  VideoPreviewAction? onSaveToAlbum,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
-      builder: (_) => ChatVideoPreviewPage(file: file, title: title),
+      builder: (_) => ChatVideoPreviewPage(
+        file: file,
+        title: title,
+        onSaveToAlbum: onSaveToAlbum,
+      ),
     ),
   );
 }
@@ -24,10 +31,12 @@ class ChatVideoPreviewPage extends StatefulWidget {
     super.key,
     required this.file,
     required this.title,
+    this.onSaveToAlbum,
   });
 
   final File file;
   final String title;
+  final VideoPreviewAction? onSaveToAlbum;
 
   @override
   State<ChatVideoPreviewPage> createState() => _ChatVideoPreviewPageState();
@@ -36,6 +45,8 @@ class ChatVideoPreviewPage extends StatefulWidget {
 class _ChatVideoPreviewPageState extends State<ChatVideoPreviewPage> {
   late final VideoPlayerController _controller;
   late final Future<void> _initialize;
+  bool _saving = false;
+  bool _saved = false;
 
   @override
   void initState() {
@@ -66,6 +77,30 @@ class _ChatVideoPreviewPageState extends State<ChatVideoPreviewPage> {
       await _controller.pause();
     } else {
       await _controller.play();
+    }
+  }
+
+  Future<void> _saveToAlbum() async {
+    final action = widget.onSaveToAlbum;
+    if (action == null || _saving) return;
+    setState(() {
+      _saving = true;
+      _saved = false;
+    });
+    try {
+      await action();
+      if (!mounted) return;
+      setState(() => _saved = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已保存原视频到相册')),
+      );
+    } on Object catch (err) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存失败：$err')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -105,7 +140,13 @@ class _ChatVideoPreviewPageState extends State<ChatVideoPreviewPage> {
               left: 8,
               right: 8,
               top: 8,
-              child: _VideoPreviewHeader(title: widget.title),
+              child: _VideoPreviewHeader(
+                title: widget.title,
+                saving: _saving,
+                saved: _saved,
+                onSaveToAlbum:
+                    widget.onSaveToAlbum == null ? null : _saveToAlbum,
+              ),
             ),
             Positioned(
               left: 16,
@@ -124,9 +165,17 @@ class _ChatVideoPreviewPageState extends State<ChatVideoPreviewPage> {
 }
 
 class _VideoPreviewHeader extends StatelessWidget {
-  const _VideoPreviewHeader({required this.title});
+  const _VideoPreviewHeader({
+    required this.title,
+    required this.saving,
+    required this.saved,
+    this.onSaveToAlbum,
+  });
 
   final String title;
+  final bool saving;
+  final bool saved;
+  final VoidCallback? onSaveToAlbum;
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +199,29 @@ class _VideoPreviewHeader extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 48),
+        SizedBox(
+          width: 48,
+          height: 48,
+          child: onSaveToAlbum == null
+              ? const SizedBox.shrink()
+              : IconButton(
+                  onPressed: saving ? null : onSaveToAlbum,
+                  tooltip: saved ? '原视频已保存' : '保存原视频到相册',
+                  icon: saving
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Icon(
+                          saved ? Symbols.check : Symbols.download,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                ),
+        ),
       ],
     );
   }

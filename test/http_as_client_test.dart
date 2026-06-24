@@ -555,6 +555,26 @@ void main() {
     expect(expired, isTrue);
   });
 
+  test('AS M_UNKNOWN_TOKEN reports failed bearer token', () async {
+    final failedTokens = <String>[];
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'stale-token',
+      onAuthenticationFailedForToken: failedTokens.add,
+      httpClient: MockClient((request) async {
+        expect(request.headers['Authorization'], 'Bearer stale-token');
+        return _jsonResponse({'error': 'M_UNKNOWN_TOKEN'}, 401);
+      }),
+    );
+
+    await expectLater(
+      client.getOwnerProfile(),
+      throwsA(isA<AsClientException>()),
+    );
+
+    expect(failedTokens, ['stale-token']);
+  });
+
   test('AS non-M_UNKNOWN_TOKEN 401 does not expire session', () async {
     var expired = false;
     final client = HttpAsClient(
@@ -797,6 +817,160 @@ void main() {
     expect(group.operation.action, 'groups.invite');
     expect(group.operation.conversationId, 'conv_group');
     expect(group.productConversation?.conversationId, 'conv_group');
+  });
+
+  test('getGroupMembers reads backend sorted group members', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'groups.members',
+          'params': {
+            'room_id': '!group:p2p-im.com',
+            'status': 'join',
+          },
+        });
+        return _jsonResponse(
+          {
+            'members': [
+              {
+                'room_id': '!group:p2p-im.com',
+                'user_id': '@owner:p2p-im.com',
+                'display_name': 'Owner',
+                'avatar_url': 'mxc://p2p-im.com/owner',
+                'membership': 'join',
+                'role': 'owner',
+                'joined_at': 100,
+              },
+              {
+                'room_id': '!group:p2p-im.com',
+                'user_id': '@alice:p2p-im.com',
+                'display_name': 'Alice',
+                'avatar_url': 'mxc://p2p-im.com/alice',
+                'membership': 'join',
+                'role': 'member',
+                'joined_at': 200,
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final members = await client.getGroupMembers(
+      '!group:p2p-im.com',
+      status: asChannelMemberStatusJoined,
+    );
+
+    expect(members.map((member) => member.userMxid), [
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+    ]);
+    expect(members.first.role, asChannelRoleOwner);
+    expect(members.first.status, asChannelMemberStatusJoined);
+    expect(members.first.joinedAtMs, 100);
+    expect(members[1].displayName, 'Alice');
+    expect(members[1].avatarUrl, 'mxc://p2p-im.com/alice');
+  });
+
+  test('removeGroupMember posts member removal through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'groups.member.remove',
+          'params': {
+            'room_id': '!group:p2p-im.com',
+            'user_id': '@carol:p2p-carol.com',
+            'peer_mxid': '@carol:p2p-carol.com',
+          },
+        });
+        return http.Response(
+          jsonEncode({'room_id': '!group:p2p-im.com', 'status': 'removed'}),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    await expectLater(
+      client.removeGroupMember(
+        roomId: '!group:p2p-im.com',
+        peerMxid: ' @carol:p2p-carol.com ',
+      ),
+      completes,
+    );
+  });
+
+  test('removeChannelMember posts member removal through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'channels.member.remove',
+          'params': {
+            'channel_id': 'ch1',
+            'user_id': '@carol:p2p-carol.com',
+            'user_mxid': '@carol:p2p-carol.com',
+          },
+        });
+        return http.Response(
+          jsonEncode({'channel_id': 'ch1', 'status': 'removed'}),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    await expectLater(
+      client.removeChannelMember('ch1', ' @carol:p2p-carol.com '),
+      completes,
+    );
+  });
+
+  test('inviteChannelMembers posts channel invites through AS', () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://p2p-im.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/command');
+        expect(request.headers['Authorization'], 'Bearer portal-token');
+        expect(jsonDecode(request.body), {
+          'action': 'channels.invite',
+          'params': {
+            'channel_id': 'ch1',
+            'invite': ['@carol:p2p-carol.com'],
+          },
+        });
+        return http.Response(
+          jsonEncode({'ok': true}),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+
+    await expectLater(
+      client.inviteChannelMembers(
+        channelId: ' ch1 ',
+        invite: const [' @carol:p2p-carol.com ', ''],
+      ),
+      completes,
+    );
   });
 
   test('createChannelInviteGrant posts unified grant action with channel id',
@@ -1394,6 +1568,44 @@ void main() {
     expect(channel.memberStatus, asChannelMemberStatusJoined);
     expect(channel.productConversation?.conversationId, 'conv_channel');
     expect(channel.productConversation?.roomId, '!private:example.com');
+  });
+
+  test('joinChannel prefers top-level joined status over stale channel member',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        final envelope = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(envelope['action'], 'channels.join');
+        return _jsonResponse(
+          {
+            'status': 'joined',
+            'channel': {
+              'channel_id': 'ch_private',
+              'room_id': '!private:example.com',
+              'home_domain': 'example.com',
+              'name': '私密频道',
+              'visibility': 'private',
+              'join_policy': 'invite',
+              'comments_enabled': true,
+              'member_status': 'invite',
+            },
+          },
+          200,
+        );
+      }),
+    );
+
+    final channel = await client.joinChannel(
+      'ch_private',
+      roomId: '!private:example.com',
+      grantId: 'grant-1',
+      shareRoomId: '!direct:example.com',
+    );
+
+    expect(channel.memberStatus, asChannelMemberStatusJoined);
   });
 
   test('joinChannelByRoomId posts public join request through P2P command',

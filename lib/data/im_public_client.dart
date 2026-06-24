@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'as_client.dart';
+import 'im_public_config.dart';
 
 class ImPublicApiException implements Exception {
   ImPublicApiException(this.message, {this.statusCode, this.code});
@@ -18,11 +19,14 @@ class ImPublicApiException implements Exception {
 class ImPublicClient {
   ImPublicClient({
     required Uri baseUri,
+    required String secret,
     http.Client? httpClient,
   })  : _baseUri = _normalizeBaseUri(baseUri),
+        _secret = secret.trim(),
         _http = httpClient ?? http.Client();
 
   final Uri _baseUri;
+  final String _secret;
   final http.Client _http;
 
   Future<ImPublicUploadedFile> uploadImageBytes(
@@ -34,6 +38,7 @@ class ImPublicClient {
       'POST',
       _resolve('im/image/upload'),
     );
+    request.headers.addAll(_signedHeaders('{}'));
     request.files.add(http.MultipartFile.fromBytes(
       'file',
       bytes,
@@ -58,18 +63,14 @@ class ImPublicClient {
   Future<ImPublicChannelPage> listChannels({
     int page = 1,
     int pageSize = 10,
-    int status = 1,
-    String ownerDomain = '',
-    String keyword = '',
+    String name = '',
     String sortBy = 'createdAt',
     bool desc = false,
   }) async {
     final data = await _get('im/channel/list', queryParameters: {
       'page': '$page',
       'pageSize': '$pageSize',
-      'status': '$status',
-      if (ownerDomain.trim().isNotEmpty) 'ownerDomain': ownerDomain.trim(),
-      if (keyword.trim().isNotEmpty) 'keyword': keyword.trim(),
+      if (name.trim().isNotEmpty) 'name': name.trim(),
       if (sortBy.trim().isNotEmpty) 'sortBy': sortBy.trim(),
       'desc': desc.toString(),
     });
@@ -79,12 +80,18 @@ class ImPublicClient {
   Future<void> joinChannelDirectory({
     required String channelDomain,
     required String roomId,
-    int? tagId,
   }) async {
     await _post('im/channel/join', {
       'channelDomain': channelDomain.trim(),
       'room_id': roomId.trim(),
-      if (tagId != null) 'tagId': tagId,
+    });
+  }
+
+  Future<void> closeChannelDirectory({
+    required String roomId,
+  }) async {
+    await _post('im/channel/close', {
+      'room_id': roomId.trim(),
     });
   }
 
@@ -104,15 +111,34 @@ class ImPublicClient {
     required String reportedDomain,
     required String reason,
     int targetType = 1,
-    List<String> images = const [],
+    List<ImPublicFilePart> files = const [],
   }) async {
+    if (files.isNotEmpty) {
+      final request = http.MultipartRequest('POST', _resolve('im/report'));
+      request.headers.addAll(_signedHeaders('{}'));
+      request.fields.addAll({
+        'reporterDomain': reporterDomain.trim(),
+        'reportedDomain': reportedDomain.trim(),
+        'targetType': '$targetType',
+        'reason': reason.trim(),
+      });
+      for (final file in files) {
+        request.files.add(http.MultipartFile.fromBytes(
+          'files',
+          file.bytes,
+          filename: file.filename,
+        ));
+      }
+      final response =
+          await http.Response.fromStream(await _http.send(request));
+      _decodeEnvelope(response);
+      return;
+    }
     await _post('im/report', {
       'reporterDomain': reporterDomain.trim(),
       'reportedDomain': reportedDomain.trim(),
       'targetType': targetType,
       'reason': reason.trim(),
-      if (images.isNotEmpty)
-        'images': images.map((image) => image.trim()).toList(growable: false),
     });
   }
 
@@ -120,20 +146,37 @@ class ImPublicClient {
     String path, {
     Map<String, String> queryParameters = const {},
   }) async {
+    final canonicalBody = canonicalImPublicJson(queryParameters);
     final response = await _http.get(
       _resolve(path, queryParameters: queryParameters),
+      headers: _signedHeaders(canonicalBody),
     );
     return _decodeEnvelope(response);
   }
 
   Future<Map<String, dynamic>> _post(
       String path, Map<String, Object?> body) async {
+    final canonicalBody = canonicalImPublicJson(body);
     final response = await _http.post(
       _resolve(path),
-      headers: {'content-type': 'application/json'},
-      body: jsonEncode(body),
+      headers: _signedHeaders(
+        canonicalBody,
+        headers: {'content-type': 'application/json'},
+      ),
+      body: canonicalBody,
     );
     return _decodeEnvelope(response);
+  }
+
+  Map<String, String> _signedHeaders(
+    String canonicalBody, {
+    Map<String, String> headers = const {},
+  }) {
+    return signedImPublicHeaders(
+      secret: _secret,
+      canonicalBody: canonicalBody,
+      headers: headers,
+    );
   }
 
   Map<String, dynamic> _decodeEnvelope(http.Response response) {
@@ -178,6 +221,18 @@ class ImPublicClient {
         baseUri.path == '/' ? '' : baseUri.path.replaceAll(RegExp(r'/+$'), '');
     return baseUri.replace(path: path, queryParameters: const {});
   }
+}
+
+class ImPublicFilePart {
+  const ImPublicFilePart({
+    required this.filename,
+    required this.bytes,
+    this.contentType = 'application/octet-stream',
+  });
+
+  final String filename;
+  final List<int> bytes;
+  final String contentType;
 }
 
 class ImPublicUploadedFile {
@@ -290,14 +345,20 @@ class ImPublicChannelListing {
   final DateTime? lastJoinTime;
 
   factory ImPublicChannelListing.fromJson(Map<String, dynamic> json) {
-    final detail =
-        (json['channelDetail'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final detail = {
+      ...json,
+      ...((json['channelDetail'] as Map?)?.cast<String, dynamic>() ??
+          const <String, dynamic>{}),
+    };
     return ImPublicChannelListing(
       id: _parseInt(json['ID'] ?? json['id']),
       channelDomain: json['channelDomain'] as String? ?? '',
       roomId: json['room_id'] as String? ?? '',
-      ownerDomain: json['ownerDomain'] as String? ?? '',
-      intro: json['intro'] as String? ?? '',
+      ownerDomain: json['ownerDomain'] as String? ??
+          json['owner_domain'] as String? ??
+          json['channelDomain'] as String? ??
+          '',
+      intro: json['intro'] as String? ?? json['description'] as String? ?? '',
       channel: AsChannel.fromJson(detail),
       tagId: _parseInt(json['tagId']),
       tag: json['tag'] is Map

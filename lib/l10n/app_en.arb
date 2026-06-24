@@ -20,6 +20,16 @@
   "settingsFavorites": "Favorites",
   "settingsPrivacySecurity": "Privacy & Security",
   "settingsBlacklist": "Blocked Contacts",
+  "blacklistRemove": "Remove",
+  "blacklistRemovedMessage": "Removed {name}",
+  "@blacklistRemovedMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blacklistEmpty": "No blocked contacts",
   "settingsChangePassword": "Change Password",
   "settingsMessagesNotifications": "Messages & Notifications",
   "settingsDoNotDisturb": "Do Not Disturb",
@@ -538,6 +548,19 @@
   "groupChatImage": "image",
   "groupChatVideo": "video",
   "groupChatFile": "file",
+  "chatInputVoice": "Voice",
+  "chatInputKeyboard": "Keyboard",
+  "chatInputHoldToTalk": "Hold to talk",
+  "chatInputReleaseToSend": "Release to send",
+  "chatInputReleaseToCancel": "Release to cancel",
+  "chatInputReleaseToCancelCompact": "Release to cancel",
+  "chatInputReleaseToSendSwipeCancel": "Release to send, swipe up to cancel",
+  "chatAttachmentAlbum": "Album",
+  "chatAttachmentCamera": "Camera",
+  "chatAttachmentVideo": "Video",
+  "chatAttachmentLocation": "Location",
+  "chatAttachmentContactCard": "Contact card",
+  "chatAttachmentFile": "File",
   "groupChatLocalMediaMissing": "The original local {label} is missing. Select the {label} again.",
   "@groupChatLocalMediaMissing": {
     "placeholders": {

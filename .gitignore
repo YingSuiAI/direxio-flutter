@@ -6,6 +6,8 @@
 .pub/
 build/
 *.g.dart
+!lib/core/router/app_router.g.dart
+!lib/presentation/providers/auth_provider.g.dart
 !vendor/matrix/lib/matrix_api_lite/generated/model.g.dart
 *.freezed.dart
 flutter_*.log

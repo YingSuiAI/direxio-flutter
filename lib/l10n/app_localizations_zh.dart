@@ -69,6 +69,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsBlacklist => '通讯录黑名单';
 
   @override
+  String get blacklistRemove => '移除';
+
+  @override
+  String blacklistRemovedMessage(String name) {
+    return '已移除 $name';
+  }
+
+  @override
+  String get blacklistEmpty => '暂无黑名单联系人';
+
+  @override
   String get settingsChangePassword => '修改密码';
 
   @override
@@ -998,6 +1009,45 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get groupChatFile => '文件';
+
+  @override
+  String get chatInputVoice => '语音';
+
+  @override
+  String get chatInputKeyboard => '键盘';
+
+  @override
+  String get chatInputHoldToTalk => '按住 说话';
+
+  @override
+  String get chatInputReleaseToSend => '松开 发送';
+
+  @override
+  String get chatInputReleaseToCancel => '松开 取消';
+
+  @override
+  String get chatInputReleaseToCancelCompact => '松开取消';
+
+  @override
+  String get chatInputReleaseToSendSwipeCancel => '松开发送，上滑取消';
+
+  @override
+  String get chatAttachmentAlbum => '相册';
+
+  @override
+  String get chatAttachmentCamera => '拍摄';
+
+  @override
+  String get chatAttachmentVideo => '视频';
+
+  @override
+  String get chatAttachmentLocation => '位置';
+
+  @override
+  String get chatAttachmentContactCard => '个人名片';
+
+  @override
+  String get chatAttachmentFile => '文件';
 
   @override
   String groupChatLocalMediaMissing(String label) {

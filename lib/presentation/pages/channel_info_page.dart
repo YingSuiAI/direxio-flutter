@@ -19,6 +19,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/app_warmup_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/im_public_client_provider.dart';
 import '../providers/user_profile_directory_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/direct_contact_status.dart';
@@ -420,11 +421,6 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
         : displayMembers.length;
     return [
       const SizedBox(height: 24),
-      _ChannelInfoHeader(
-        channel: channel,
-        avatarUrl: _channelAvatarUrl(channel),
-      ),
-      const SizedBox(height: 21),
       FutureBuilder<List<AsChannelMember>>(
         future: _ensureMembersFuture(),
         builder: (context, snapshot) {
@@ -695,27 +691,31 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     BuildContext context,
     ChannelInfoData channel,
   ) async {
-    final reason = await showDialog<String>(
+    final result = await showDialog<ReportReasonResult>(
       context: context,
       barrierColor: context.tk.text.withValues(alpha: 0.7),
       builder: (_) => const ReportReasonDialog(),
     );
-    if (reason == null || reason.trim().isEmpty || !context.mounted) return;
+    if (result == null || result.reason.trim().isEmpty || !context.mounted) {
+      return;
+    }
 
     final reporterDomain = reportDomainForUserId(
       ref.read(matrixClientProvider).userID ?? '',
       null,
     );
-    final reportedDomain = reportDomainForUserId(
-      channel.roomId,
-      channel.domain,
-    );
+    final reportedDomain = channel.roomId.trim();
+    if (reportedDomain.isEmpty) {
+      _showSnack(context, '举报提交失败: 缺少频道房间ID');
+      return;
+    }
     try {
-      await ref.read(asClientProvider).submitReport(
+      await ref.read(imPublicClientProvider).submitReport(
             reporterDomain: reporterDomain,
             reportedDomain: reportedDomain,
-            targetType: 1,
-            reason: reason.trim(),
+            targetType: 3,
+            reason: result.reason.trim(),
+            files: result.toImPublicFiles(),
           );
       if (!context.mounted) return;
       _showSnack(context, '举报已提交');
@@ -1200,6 +1200,7 @@ Future<void> _shareChannel(
       ),
       currentRoomId: channel.roomId,
       currentRoomName: channel.name,
+      createInviteGrant: channel.isOwned,
     );
     if (!context.mounted || !sent) return;
     _showSnack(context, '已分享频道');

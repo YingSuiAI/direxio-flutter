@@ -34,6 +34,12 @@ void main() {
             '@alice:example.com',
           ],
         },
+        groupAvatarMemberAvatars: {
+          '!group:example.com': {
+            '@bob:example.com': 'https://example.com/bob.png',
+            '@alice:example.com': 'https://example.com/alice.png',
+          },
+        },
         mutedConversationIds: {'!muted:example.com'},
         hiddenConversationIds: {'!hidden:example.com'},
       ),
@@ -49,6 +55,12 @@ void main() {
         '@owner:example.com',
         '@alice:example.com',
       ],
+    });
+    expect(data.groupAvatarMemberAvatars, {
+      '!group:example.com': {
+        '@bob:example.com': 'https://example.com/bob.png',
+        '@alice:example.com': 'https://example.com/alice.png',
+      },
     });
     expect(data.mutedConversationIds, {'!muted:example.com'});
     expect(data.hiddenConversationIds, {'!hidden:example.com'});

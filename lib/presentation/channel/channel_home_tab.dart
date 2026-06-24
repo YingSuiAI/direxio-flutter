@@ -14,6 +14,7 @@ import '../../l10n/app_localizations.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/im_public_client_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_created_channels_provider.dart';
 import '../providers/product_conversations_provider.dart';
@@ -38,7 +39,10 @@ final _channelListProvider = FutureProvider.autoDispose<List<AsChannel>>((ref) {
 final _publicChannelListProvider =
     FutureProvider.autoDispose<List<AsChannel>>((ref) async {
   try {
-    return await ref.read(asClientProvider).searchPublicChannels('', limit: 10);
+    final page = await ref.read(imPublicClientProvider).listChannels(
+          pageSize: 10,
+        );
+    return page.items.map((item) => item.channel).toList(growable: false);
   } catch (_) {
     return const <AsChannel>[];
   }
@@ -495,6 +499,7 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
             name: member.displayName.trim().isEmpty
                 ? _localpartFromMxid(member.userMxid)
                 : member.displayName.trim(),
+            avatarUrl: member.avatarUrl.trim(),
             time: _formatReviewTime(member.joinedAtMs),
             status: _ReviewStatus.pending,
           ),
@@ -699,17 +704,21 @@ class _ReviewCard extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          const Positioned(
+          Positioned(
             left: 14,
             top: 14,
-            child: _ReviewAvatar(size: 44),
+            child: _ReviewAvatar(
+              name: item.name,
+              avatarUrl: item.avatarUrl,
+              size: 44,
+            ),
           ),
           Positioned(
             left: 64,
             top: 17,
             right: 96,
             child: Text(
-              '#${item.name}',
+              item.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTheme.sans(
@@ -1066,6 +1075,7 @@ class ChannelInboxTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final channelId = channel.id.trim();
+    final subtitle = _channelInboxSubtitle(channel);
     Offset menuPosition = Offset.zero;
     return GestureDetector(
       onSecondaryTapDown: (details) => menuPosition = details.globalPosition,
@@ -1168,13 +1178,10 @@ class ChannelInboxTile extends StatelessWidget {
                                     ],
                                   ],
                                 ),
-                                if (showPreview &&
-                                    channel.latestPreview
-                                        .trim()
-                                        .isNotEmpty) ...[
+                                if (showPreview && subtitle.isNotEmpty) ...[
                                   const SizedBox(height: 4),
                                   Text(
-                                    channel.latestPreview,
+                                    subtitle,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppTheme.sans(
@@ -1383,13 +1390,23 @@ class _ChannelEmpty extends StatelessWidget {
   }
 }
 
-class _ReviewAvatar extends StatelessWidget {
-  const _ReviewAvatar({required this.size});
+class _ReviewAvatar extends ConsumerWidget {
+  const _ReviewAvatar({
+    required this.name,
+    required this.avatarUrl,
+    required this.size,
+  });
 
+  final String name;
+  final String avatarUrl;
   final double size;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final imageUrl = avatarHttpUrl(ref.watch(matrixClientProvider), avatarUrl);
+    if (imageUrl != null) {
+      return PortalAvatar(seed: name, size: size, imageUrl: imageUrl);
+    }
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: size,
@@ -1570,6 +1587,7 @@ class _ReviewItem {
     required this.channelName,
     required this.userMxid,
     required this.name,
+    required this.avatarUrl,
     required this.time,
     required this.status,
   });
@@ -1578,6 +1596,7 @@ class _ReviewItem {
   final String channelName;
   final String userMxid;
   final String name;
+  final String avatarUrl;
   final String time;
   final _ReviewStatus status;
 
@@ -1587,6 +1606,7 @@ class _ReviewItem {
       channelName: channelName,
       userMxid: userMxid,
       name: name,
+      avatarUrl: avatarUrl,
       time: time,
       status: status ?? this.status,
     );
@@ -1597,6 +1617,14 @@ const _meChannelSections = ['已加入', '我创建'];
 
 bool _channelIsTextType(ChannelInboxItem channel) {
   return normalizeAsChannelType(channel.channelType) == asChannelTypeChat;
+}
+
+String _channelInboxSubtitle(ChannelInboxItem channel) {
+  if (!_channelIsTextType(channel)) {
+    final count = channel.memberCount < 0 ? 0 : channel.memberCount;
+    return '$count 名成员';
+  }
+  return channel.latestPreview.trim();
 }
 
 String? _channelRoute(ChannelInboxItem channel) {

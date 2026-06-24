@@ -69,6 +69,17 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsBlacklist => '連絡先ブラックリスト';
 
   @override
+  String get blacklistRemove => '削除';
+
+  @override
+  String blacklistRemovedMessage(String name) {
+    return '$nameを削除しました';
+  }
+
+  @override
+  String get blacklistEmpty => 'ブロックした連絡先はありません';
+
+  @override
   String get settingsChangePassword => 'パスワードを変更';
 
   @override
@@ -1004,6 +1015,45 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get groupChatFile => 'ファイル';
+
+  @override
+  String get chatInputVoice => '音声';
+
+  @override
+  String get chatInputKeyboard => 'キーボード';
+
+  @override
+  String get chatInputHoldToTalk => '長押しして話す';
+
+  @override
+  String get chatInputReleaseToSend => '離して送信';
+
+  @override
+  String get chatInputReleaseToCancel => '離してキャンセル';
+
+  @override
+  String get chatInputReleaseToCancelCompact => '離してキャンセル';
+
+  @override
+  String get chatInputReleaseToSendSwipeCancel => '離して送信、上にスワイプでキャンセル';
+
+  @override
+  String get chatAttachmentAlbum => 'アルバム';
+
+  @override
+  String get chatAttachmentCamera => '撮影';
+
+  @override
+  String get chatAttachmentVideo => '動画';
+
+  @override
+  String get chatAttachmentLocation => '位置情報';
+
+  @override
+  String get chatAttachmentContactCard => '連絡先カード';
+
+  @override
+  String get chatAttachmentFile => 'ファイル';
 
   @override
   String groupChatLocalMediaMissing(String label) {

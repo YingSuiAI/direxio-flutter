@@ -46,6 +46,7 @@ lib/
 - Use the integrated P2P product API for product-layer data Matrix does not model cleanly: setup/bootstrap, access-token auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
 - Backend auth responses expose one `access_token`. P2P product API calls use it as bearer auth, and Matrix SDK/Matrix API behavior uses the same token. Do not add separate product or Matrix token fields.
 - Product API calls go through `/_p2p/query` or `/_p2p/command` with an `action` and `params` envelope. Do not add new URL-shaped client contracts unless the backend does.
+- Signed IM/BI public endpoints are a separate boundary from P2P Product API actions. Use the IM public client for `/im/*` and `/bi/*` calls that require `X-BI-Nonce` and `X-BI-Signature`.
 - Do not create duplicate list APIs or duplicate client flows. If data already arrives through `sync.bootstrap`, prefer extending that action contract and the client model.
 - Runtime views must prefer real Matrix/P2P data. Placeholder fixture data is not allowed in production UI.
 - Do not silently fall back to fixture data. A real empty state is better than fake data.
@@ -67,8 +68,10 @@ lib/
 - Channel join-request review actions return top-level statuses such as `approved`, `joining`, `joined`, and `join_failed`; approving a request must not be treated as joined unless the returned status is `joined`.
 - Channel list entries with terminal lifecycle such as `deleted`, `left`, `dissolve`, or `dissolved` must be hidden even if stale membership still says `joined`.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile completion is not part of initialization.
-- Channel invite/share cards first create `channels.invite_grant.create` with `channel_id` or `room_id` plus `share_room_id`; receivers call `channels.join` with `grant_id` and `share_room_id`.
+- Channel share cards must include `channel_id` and `room_id`. Owner/admin shares create `channels.invite_grant.create` and send `grant_id` plus `share_room_id` so receivers join through `channels.join`; ordinary member shares do not create invite grants and receivers apply through `channels.public.join_request` using the card Matrix `room_id` while preserving `channel_id` as channel metadata.
 - When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
+- User-facing reports use signed `POST /im/report`, not the P2P `reports.submit` action. Use target type `1` for friends, `2` for group chats, and `3` for channels; upload evidence images as repeated multipart `files`.
+- Public channel directory search/register/close uses signed `/im/channel/list`, `/im/channel/join`, and `/im/channel/close`. Only Matrix room-id channel search stays on the existing P2P room-id lookup path.
 
 ## Architecture
 
@@ -99,6 +102,7 @@ lib/
 - Channel list uses `AsSyncBootstrap.channels` as the primary logged-in source. Do not add a duplicate list endpoint without updating interface docs and tests.
 - `channels.create` creates a channel through the P2P product API, but owner semantics belong to the portal owner, not the Agent/bot.
 - Search, channel tab, channel detail, and channel chat must use the same channel identity source when logged in.
+- Channel conversations belong to the channel surfaces and must not appear in the home message list or home conversation summary cache.
 - Approval/invite does not mean joined. Wait for Matrix join projection before enabling chat send.
 
 ## Testing And Verification
@@ -108,6 +112,16 @@ Run focused checks for touched files:
 ```sh
 flutter analyze --no-pub
 flutter test --no-pub <relevant tests>
+```
+
+For low-noise local iteration, prefer `scripts/local_verify.sh`. It runs test
+commands serially, checks the required generated files, removes `flutter_*.log`
+crash logs, and reports iOS project-file churn from simulator builds. If
+`lib/core/router/app_router.g.dart` or
+`lib/presentation/providers/auth_provider.g.dart` is missing, regenerate with:
+
+```sh
+dart run build_runner build --delete-conflicting-outputs
 ```
 
 For channel/search work, at minimum run:

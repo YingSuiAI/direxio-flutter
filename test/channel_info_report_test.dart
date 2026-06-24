@@ -8,11 +8,13 @@ import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
-import 'package:portal_app/data/http_as_client.dart';
+import 'package:portal_app/data/im_public_client.dart';
 import 'package:portal_app/presentation/pages/channel_info_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
+import 'package:portal_app/presentation/providers/im_public_client_provider.dart';
+import 'support/mock_as_client.dart';
 
 void main() {
   testWidgets('channel info submits report through unified AS API',
@@ -20,19 +22,13 @@ void main() {
     late http.Request seen;
     final matrixClient = Client('ChannelInfoReportTest')
       ..setUserId('@owner:p2p-im.com');
-    final asClient = HttpAsClient(
-      baseUri: Uri.parse('http://portal.local/_p2p'),
-      portalToken: 'access-token',
+    final imPublicClient = ImPublicClient(
+      baseUri: Uri.parse('http://localhost:8888'),
+      secret: 'bi-secret',
       httpClient: MockClient((request) async {
         seen = request;
-        return http.Response.bytes(
-          utf8.encode(jsonEncode({
-            'id': 'report-8',
-            'reporter_domain': 'p2p-im.com',
-            'reported_domain': 'portal.local',
-            'target_type': 1,
-            'reason': '欺诈',
-          })),
+        return http.Response(
+          jsonEncode({'code': 0, 'data': {}, 'msg': 'success'}),
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
@@ -65,7 +61,8 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(matrixClient),
-          asClientProvider.overrideWithValue(asClient),
+          asClientProvider.overrideWithValue(MockAsClient()),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -87,15 +84,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(seen.method, 'POST');
-    expect(seen.url.path, '/_p2p/command');
+    expect(seen.url.path, '/im/report');
+    expect(seen.headers['X-BI-Nonce'], isNotEmpty);
+    expect(seen.headers['X-BI-Signature'], isNotEmpty);
     expect(jsonDecode(seen.body), {
-      'action': 'reports.submit',
-      'params': {
-        'reporter_domain': 'p2p-im.com',
-        'reported_domain': 'portal.local',
-        'target_type': 1,
-        'reason': '欺诈',
-      },
+      'reporterDomain': 'p2p-im.com',
+      'reportedDomain': '!real:portal.local',
+      'targetType': 3,
+      'reason': '欺诈',
     });
     expect(find.text('举报已提交'), findsOneWidget);
   });

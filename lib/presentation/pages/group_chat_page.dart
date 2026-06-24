@@ -34,6 +34,7 @@ import '../providers/voice_call_provider.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_share.dart';
+import '../channel/public_channel_target.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_attachment_panel.dart';
@@ -68,11 +69,17 @@ import 'group_call_member_select_page.dart';
 import '../utils/message_preview.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../utils/chat_file_actions.dart';
+import '../utils/save_image_to_gallery.dart';
 import '../widgets/async_image_preview.dart';
 import '../widgets/portal_avatar.dart';
 
 void _groupChatGestureLog(String message) {
   debugPrint('[group chat gesture] $message');
+}
+
+String _groupChatEventMimeType(Event event, {required String fallback}) {
+  final mimeType = event.attachmentMimetype.trim();
+  return mimeType.isEmpty ? fallback : mimeType;
 }
 
 final AppLocalizations _fallbackGroupChatL10n = AppLocalizationsZh();
@@ -317,6 +324,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   final Set<String> _downloadingFileEventIds = {};
   final Set<String> _downloadedFileEventIds = {};
   final Set<String> _joiningChannelShareIds = {};
+  final Set<String> _requestedChannelShareIds = {};
   final Map<String, AsCallSession> _roomAsCallHistory = {};
   final ChatInitialEntranceRegistry _initialTimelineEntrances =
       ChatInitialEntranceRegistry();
@@ -565,33 +573,61 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         throw StateError(l10n.groupChatCannotOpen(l10n.groupChatChannel));
       }
       final channelId = payload.channelId.trim();
-      final joined = await joinChannelWithInviteProjectionRetry(
-        ref,
-        () => ref.read(asClientProvider).joinChannel(
-              channelId.isEmpty ? roomId : channelId,
+      logChannelShareJoinStart(
+        source: 'group_chat_channel_share',
+        payload: payload,
+        action: channelShareHasInviteGrant(payload)
+            ? 'channels.join'
+            : 'channels.public.join_request',
+        targetId: channelShareHasInviteGrant(payload)
+            ? (channelId.isEmpty ? roomId : channelId)
+            : channelShareJoinRequestTargetId(payload),
+      );
+      final joined = channelShareHasInviteGrant(payload)
+          ? await joinChannelShareWithInviteProjection(
+              ref,
+              () => ref.read(asClientProvider).joinChannel(
+                    channelId.isEmpty ? roomId : channelId,
+                    roomId: roomId,
+                    grantId: payload.grantId,
+                    shareRoomId: payload.shareRoomId,
+                    discoveredChannel: payload.asDiscoveredChannel,
+                  ),
+              channelId: channelId,
               roomId: roomId,
-              grantId: payload.grantId,
-              shareRoomId: payload.shareRoomId,
-              discoveredChannel: payload.asDiscoveredChannel,
-            ),
+              debugSource: 'group_chat_channel_share',
+            )
+          : await ref.read(asClientProvider).joinChannelByRoomId(
+                channelShareJoinRequestTargetId(payload),
+                discoveredChannel: payload.asDiscoveredChannel,
+                remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
+              );
+      logChannelShareJoinResult(
+        source: 'group_chat_channel_share',
+        payload: payload,
+        channel: joined,
+        stage: isAsChannelMemberJoined(joined.memberStatus)
+            ? 'joined_or_projected'
+            : 'waiting',
       );
       if (isAsChannelMemberJoined(joined.memberStatus)) {
         await _refreshBootstrapAfterVisibilityMutation();
       }
       if (!mounted) return;
       if (!isAsChannelMemberJoined(joined.memberStatus)) {
+        setState(() => _requestedChannelShareIds.add(key));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(channelJoinInProgressText)),
+          SnackBar(content: Text(channelJoinStatusText(joined.memberStatus))),
         );
-        final projected = await waitForJoinedChannelProjection(
-          ref,
-          channelId: channelId.isEmpty ? joined.channelId : channelId,
-          roomId: roomId,
-        );
-        if (!mounted || !projected) return;
+        return;
       }
       context.push(channelShareJoinedRoute(payload, joined), extra: payload);
     } on Object catch (e) {
+      logChannelShareJoinError(
+        e,
+        source: 'group_chat_channel_share',
+        payload: payload,
+      );
       logChannelShareJoinForbidden(
         e,
         source: 'group_chat_channel_share',
@@ -841,7 +877,35 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         return MemoryImage(file.bytes);
       },
       meta: meta,
+      onDownload: () => _saveImageEventToAlbum(event),
     );
+  }
+
+  Future<void> _saveImageEventToAlbum(Event event) async {
+    try {
+      final matrixFile = await event.downloadAndDecryptAttachment();
+      final file = await writeChatActionFile(
+        directory:
+            Directory('${(await getTemporaryDirectory()).path}/p2p-im-save'),
+        fileName: event.body,
+        bytes: matrixFile.bytes,
+      );
+      await saveMediaFileToGallery(
+        path: file.path,
+        fileName: file.uri.pathSegments.last,
+        mimeType: _groupChatEventMimeType(event, fallback: 'image/jpeg'),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已保存原图到相册')),
+      );
+    } on Object catch (err) {
+      debugPrint('save group image failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存失败：$err')),
+      );
+    }
   }
 
   Future<File> _materializeFileEvent(
@@ -889,7 +953,18 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     try {
       final file = await _materializeFileEvent(event, persistent: false);
       if (!mounted) return;
-      await openChatVideoPreview(context, file: file, title: event.body);
+      await openChatVideoPreview(
+        context,
+        file: file,
+        title: event.body,
+        onSaveToAlbum: () {
+          return saveMediaFileToGallery(
+            path: file.path,
+            fileName: file.uri.pathSegments.last,
+            mimeType: _groupChatEventMimeType(event, fallback: 'video/mp4'),
+          );
+        },
+      );
     } on Object catch (err) {
       debugPrint('open group video failed: $err');
       if (!mounted) return;
@@ -3254,6 +3329,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                                 channelSharePayload,
                                               ) ||
                                               isMe),
+                                  channelShareAlreadyRequested:
+                                      _requestedChannelShareIds
+                                          .contains(channelShareJoinId),
                                   onJoinChannelShare:
                                       channelSharePayload == null
                                           ? null
@@ -4472,6 +4550,7 @@ class _GroupMessageBubble extends StatelessWidget {
     this.onAvatarLongPress,
     this.channelShareJoining = false,
     this.channelShareAlreadyJoined = false,
+    this.channelShareAlreadyRequested = false,
     this.onJoinChannelShare,
     this.onTap,
     this.onTapQuote,
@@ -4488,6 +4567,7 @@ class _GroupMessageBubble extends StatelessWidget {
   final VoidCallback? onAvatarLongPress;
   final bool channelShareJoining;
   final bool channelShareAlreadyJoined;
+  final bool channelShareAlreadyRequested;
   final VoidCallback? onJoinChannelShare;
   final VoidCallback? onTap;
   final ValueChanged<String?>? onTapQuote;
@@ -4523,6 +4603,7 @@ class _GroupMessageBubble extends StatelessWidget {
                 payload: channelSharePayload,
                 joining: channelShareJoining,
                 alreadyJoined: channelShareAlreadyJoined,
+                alreadyRequested: channelShareAlreadyRequested,
                 onJoin: onJoinChannelShare,
                 onTap: onTap,
                 onLongPressAt: (position) => onLongPressAt(

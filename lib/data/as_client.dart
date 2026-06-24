@@ -1742,6 +1742,49 @@ class AsChannelMember {
   }
 }
 
+class AsGroupMember {
+  const AsGroupMember({
+    required this.roomId,
+    required this.userMxid,
+    required this.role,
+    required this.status,
+    this.domain = '',
+    this.displayName = '',
+    this.avatarUrl = '',
+    this.joinedAtMs = 0,
+  });
+
+  final String roomId;
+  final String userMxid;
+  final String domain;
+  final String displayName;
+  final String avatarUrl;
+  final String role;
+  final String status;
+  final int joinedAtMs;
+
+  factory AsGroupMember.fromJson(Map<String, dynamic> json) {
+    return AsGroupMember(
+      roomId: json['room_id'] as String? ?? '',
+      userMxid: _firstString(
+        json,
+        const ['user_mxid', 'user_id', 'matrix_user_id', 'mxid'],
+      ),
+      domain: json['domain'] as String? ?? '',
+      displayName: json['display_name'] as String? ?? '',
+      avatarUrl: _firstString(
+        json,
+        const ['avatar_url', 'profile_avatar_url', 'user_avatar_url'],
+      ),
+      role: json['role'] as String? ?? asChannelRoleMember,
+      status: _normalizeChannelMemberStatus(
+        _firstString(json, const ['status', 'member_status', 'membership']),
+      ),
+      joinedAtMs: _parseInt(json['joined_at_ms'] ?? json['joined_at']),
+    );
+  }
+}
+
 class AsChannelComment {
   const AsChannelComment({
     required this.commentId,
@@ -2506,9 +2549,9 @@ abstract class AsClient {
 
   /// POST /_p2p/command action channels.invite_grant.create.
   ///
-  /// Creates a share grant for sending a Matrix channel share card into a
-  /// direct/group room. The card receiver later joins with grant_id +
-  /// share_room_id.
+  /// Creates a direct invite grant for owner/admin share cards that should join
+  /// through grant_id + share_room_id. Ordinary member share cards are sent
+  /// without a grant and receivers apply through public join request.
   Future<AsChannelInviteGrant> createChannelInviteGrant({
     String channelId = '',
     String roomId = '',
@@ -2637,6 +2680,12 @@ abstract class AsClient {
   Future<AsGroupResult> inviteGroupMembers({
     required String roomId,
     required List<String> invite,
+  });
+
+  /// P2P product API action.
+  Future<List<AsGroupMember>> getGroupMembers(
+    String roomId, {
+    String status = '',
   });
 
   /// P2P product API action.

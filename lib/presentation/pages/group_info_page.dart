@@ -3,24 +3,33 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
+import '../../data/as_client.dart';
 import '../chat/chat_glass_background.dart';
 import '../groups/group_leave_flow.dart';
 import '../groups/group_member_invite_flow.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/channel_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
+import '../providers/im_public_client_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/group_avatar_members.dart';
+import '../widgets/center_toast.dart';
+import '../widgets/group_composite_avatar.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/info_rows.dart';
+import '../widgets/report_reason_dialog.dart';
 
 class GroupInfoPage extends ConsumerStatefulWidget {
   const GroupInfoPage({super.key, required this.roomId});
@@ -66,22 +75,65 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final room = client.getRoomById(widget.roomId);
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
+    final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
+    final groupAvatarMemberAvatars =
+        ref.watch(groupAvatarMemberAvatarsProvider);
+    final syncCache = ref.watch(asSyncCacheProvider);
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
+    final authoritativeGroupMembers = ref
+            .watch(
+              groupMembersProvider(
+                GroupMembersKey(
+                  roomId: widget.roomId,
+                  status: asChannelMemberStatusJoined,
+                ),
+              ),
+            )
+            .valueOrNull ??
+        const <AsGroupMember>[];
     final currentNickname = _currentUserNickname(
       room,
       client.userID,
       currentUserProfile: currentUserProfile,
     );
+    final groupName = room?.getLocalizedDisplayname().trim() ?? widget.roomId;
+    final groupAvatarUrl = room == null ? null : roomAvatarHttpUrl(room);
+    final groupAvatarMembers = room == null
+        ? null
+        : stableGroupAvatarMembersForRoom(
+            room: room,
+            syncCache: syncCache,
+            cachedMemberOrder:
+                groupAvatarMemberOrders[widget.roomId] ?? const <String>[],
+            cachedMemberAvatarUrls:
+                groupAvatarMemberAvatars[widget.roomId] ?? const {},
+            authoritativeMembers: authoritativeGroupMembers,
+            currentUserProfile: currentUserProfile,
+          );
+    if (groupAvatarMembers != null) {
+      scheduleGroupAvatarMemberOrderPersist(
+        ref,
+        widget.roomId,
+        groupAvatarMembers,
+      );
+    }
     // 真实成员列表（已加入）；降级到空列表
-    final members = room
+    final matrixMembers = room
             ?.getParticipants()
             .where((m) =>
                 m.membership == Membership.join &&
                 !_locallyRemovedMemberIds.contains(m.id.trim()))
             .toList() ??
         const <User>[];
+    final members = sortGroupParticipantsByAuthoritativeMembers(
+      matrixMembers,
+      authoritativeGroupMembers.where((member) {
+        final mxid = member.userMxid.trim();
+        return mxid.isNotEmpty && !_locallyRemovedMemberIds.contains(mxid);
+      }).toList(growable: false),
+    );
     final existingMemberMxids = members
         .map((member) => member.id.trim())
         .where((mxid) => mxid.isNotEmpty)
@@ -92,10 +144,19 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
           client: client,
           room: room,
           member: member,
+          authoritativeMember: authoritativeGroupMemberForUser(
+            authoritativeGroupMembers,
+            member.id,
+          ),
           currentUserProfile: currentUserProfile,
         ),
     ];
-    final memberCount = room?.summary.mJoinedMemberCount ?? members.length;
+    final memberCount = authoritativeGroupMembers.isNotEmpty
+        ? authoritativeGroupMembers.where((member) {
+            final mxid = member.userMxid.trim();
+            return mxid.isNotEmpty && !_locallyRemovedMemberIds.contains(mxid);
+          }).length
+        : room?.summary.mJoinedMemberCount ?? members.length;
     final canManageGroup = room != null && _canManageGroup(room);
     final canDissolveGroup = room != null && _canDissolveGroup(room);
 
@@ -112,6 +173,22 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
                 children: [
                   M3Card(
+                    key: ValueKey(
+                      'group_info_identity_header_${widget.roomId}',
+                    ),
+                    child: _GroupIdentityHeader(
+                      name: groupName.isEmpty ? widget.roomId : groupName,
+                      uid: widget.roomId,
+                      avatarUrl: groupAvatarMembers?.members.isEmpty == true
+                          ? groupAvatarUrl
+                          : null,
+                      avatarMembers: groupAvatarMembers?.members ?? const [],
+                      seed: widget.roomId,
+                      onUidTap: () => _copyGroupUid(context, widget.roomId),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  M3Card(
                     child: _GroupMemberGrid(
                       children: [
                         for (final member in memberPresentations)
@@ -123,6 +200,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                             onTap: () => _openMemberProfile(member.userId),
                           ),
                         _InviteChip(
+                          key: const ValueKey('group_info_invite_member'),
                           onTap: () => showInviteGroupMembersFlow(
                             context,
                             ref,
@@ -234,6 +312,11 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                           onTap: _clearing
                               ? null
                               : () => _confirmClearChatHistory(context),
+                        ),
+                        const InfoDivider(),
+                        InfoNavRow(
+                          label: '举报群聊',
+                          onTap: () => _showReportDialog(context),
                         ),
                       ],
                     ),
@@ -641,6 +724,41 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       if (mounted) setState(() => _leaving = false);
     }
   }
+
+  Future<void> _showReportDialog(BuildContext context) async {
+    final result = await showDialog<ReportReasonResult>(
+      context: context,
+      barrierColor: context.tk.text.withValues(alpha: 0.7),
+      builder: (_) => const ReportReasonDialog(),
+    );
+    if (result == null || result.reason.trim().isEmpty || !context.mounted) {
+      return;
+    }
+    final reporterDomain = reportDomainForUserId(
+      ref.read(matrixClientProvider).userID ?? '',
+      null,
+    );
+    try {
+      await ref.read(imPublicClientProvider).submitReport(
+            reporterDomain: reporterDomain,
+            reportedDomain: widget.roomId,
+            targetType: 2,
+            reason: result.reason.trim(),
+            files: result.toImPublicFiles(),
+          );
+      if (!context.mounted) return;
+      _toast(context, '举报已提交');
+    } catch (error) {
+      if (!context.mounted) return;
+      _toast(context, '举报提交失败: $error');
+    }
+  }
+}
+
+Future<void> _copyGroupUid(BuildContext context, String uid) async {
+  await Clipboard.setData(ClipboardData(text: uid));
+  if (!context.mounted) return;
+  _toast(context, '已复制 UID');
 }
 
 Future<String?> _showTextEditDialog(
@@ -686,6 +804,7 @@ _GroupMemberPresentation _groupMemberPresentation({
   required Client client,
   required Room? room,
   required User member,
+  required AsGroupMember? authoritativeMember,
   required Profile? currentUserProfile,
 }) {
   final userId = member.id.trim();
@@ -697,15 +816,23 @@ _GroupMemberPresentation _groupMemberPresentation({
   final stateName = _usableDisplayName(
     memberState?.content.tryGet<String>('displayname') ?? '',
   );
+  final authoritativeName = _usableDisplayName(
+    authoritativeMember?.displayName ?? '',
+  );
   final userName = _usableDisplayName(member.calcDisplayname());
   final name = _firstUsableDisplayName([
     profileName,
+    authoritativeName,
     stateName,
     userName,
     _fallbackDisplayNameFromMxid(userId),
   ]);
   final profileAvatar =
       isSelf ? profileAvatarHttpUrl(currentUserProfile, client) : null;
+  final authoritativeAvatar = avatarHttpUrl(
+    client,
+    authoritativeMember?.avatarUrl,
+  );
   final stateAvatar = avatarHttpUrl(
     client,
     memberState?.content.tryGet<String>('avatar_url'),
@@ -714,7 +841,8 @@ _GroupMemberPresentation _groupMemberPresentation({
   return _GroupMemberPresentation(
     userId: userId,
     name: name,
-    avatarUrl: profileAvatar ?? stateAvatar ?? userAvatar,
+    avatarUrl:
+        profileAvatar ?? authoritativeAvatar ?? stateAvatar ?? userAvatar,
   );
 }
 
@@ -759,9 +887,7 @@ String _fallbackDisplayNameFromMxid(String mxid) {
 }
 
 void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message)),
-  );
+  showCenterToast(context, message);
 }
 
 class _GroupMemberPresentation {
@@ -774,6 +900,85 @@ class _GroupMemberPresentation {
   final String userId;
   final String name;
   final String? avatarUrl;
+}
+
+class _GroupIdentityHeader extends StatelessWidget {
+  const _GroupIdentityHeader({
+    required this.name,
+    required this.uid,
+    required this.seed,
+    required this.onUidTap,
+    this.avatarMembers = const [],
+    this.avatarUrl,
+  });
+
+  final String name;
+  final String uid;
+  final String seed;
+  final VoidCallback onUidTap;
+  final List<GroupCompositeAvatarMember> avatarMembers;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return SizedBox(
+      height: 60,
+      child: Row(
+        children: [
+          GroupCompositeAvatar(
+            seed: seed,
+            size: 60,
+            imageUrl: avatarUrl,
+            members: avatarMembers,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 20,
+                    weight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: onUidTap,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          uid,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(size: 13, color: t.textMute),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Symbols.content_copy,
+                        size: 14,
+                        color: t.textMute,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _GroupTextEditDialog extends StatefulWidget {
@@ -941,7 +1146,7 @@ class _MemberChip extends StatelessWidget {
 }
 
 class _InviteChip extends StatelessWidget {
-  const _InviteChip({required this.onTap});
+  const _InviteChip({super.key, required this.onTap});
   final VoidCallback onTap;
 
   @override

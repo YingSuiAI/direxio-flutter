@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../data/local_login_domain_hint.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../../core/theme/design_tokens.dart';
@@ -23,18 +24,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _obscure = true;
   bool _agreed = false;
   String? _error;
+  String? _domainHint;
 
   @override
   void initState() {
     super.initState();
+    _domainCtrl.addListener(_refreshDomainHint);
     _loadLastLogin();
+  }
+
+  void _refreshDomainHint() {
+    final hint = localLoginDomainHintFor(_domainCtrl.text);
+    final next = hint?.recommendedAuthority;
+    if (_domainHint == next) return;
+    setState(() => _domainHint = next);
   }
 
   Future<void> _loadLastLogin() async {
     // ?hs= URL param overrides storage (useful for testing)
     final hsParam = Uri.base.queryParameters['hs'];
     if (hsParam != null && hsParam.isNotEmpty) {
-      if (mounted) setState(() => _domainCtrl.text = _withoutScheme(hsParam));
+      if (mounted) _domainCtrl.text = _withoutScheme(hsParam);
       return;
     }
     const storage = FlutterSecureStorage();
@@ -48,16 +58,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final uri = Uri.tryParse(hs);
       final authority = uri?.hasAuthority == true ? uri!.authority : '';
       if (authority.isNotEmpty) {
-        setState(() => _domainCtrl.text = authority);
+        _domainCtrl.text = authority;
       }
     }
     if (portalToken != null && portalToken.trim().isNotEmpty) {
-      setState(() => _portalTokenCtrl.text = portalToken.trim());
+      _portalTokenCtrl.text = portalToken.trim();
     }
   }
 
   @override
   void dispose() {
+    _domainCtrl.removeListener(_refreshDomainHint);
     _domainCtrl.dispose();
     _portalTokenCtrl.dispose();
     super.dispose();
@@ -98,6 +109,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _login() async {
+    final localDomainHint = localLoginDomainHintFor(_domainCtrl.text);
+    if (localDomainHint != null) {
+      setState(() {
+        _error =
+            '本地三节点测试请使用 ${localDomainHint.recommendedAuthority}，不要填写 127.0.0.1 的 Matrix API 端口。';
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -185,6 +204,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       keyboardType: TextInputType.url,
                       tokens: loginTokens,
                     ),
+                    if (_domainHint != null) ...[
+                      const SizedBox(height: 8),
+                      _LocalDomainHintBanner(
+                        recommendedAuthority: _domainHint!,
+                      ),
+                    ],
                     const SizedBox(height: 15),
                     _LoginPillInputField(
                       controller: _portalTokenCtrl,
@@ -402,6 +427,39 @@ class _LoginPillInputField extends StatelessWidget {
           ),
           if (trailing != null) trailing!,
           const SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _LocalDomainHintBanner extends StatelessWidget {
+  const _LocalDomainHintBanner({required this.recommendedAuthority});
+
+  final String recommendedAuthority;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: t.surfaceHigh.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: t.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Symbols.info, size: 16, color: t.accentCool),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '本地三节点测试请填写 $recommendedAuthority',
+              style: AppTheme.sans(size: 13, color: t.text),
+            ),
+          ),
         ],
       ),
     );

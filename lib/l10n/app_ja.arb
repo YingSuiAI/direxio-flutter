@@ -20,6 +20,16 @@
   "settingsFavorites": "お気に入り",
   "settingsPrivacySecurity": "プライバシーとセキュリティ",
   "settingsBlacklist": "連絡先ブラックリスト",
+  "blacklistRemove": "削除",
+  "blacklistRemovedMessage": "{name}を削除しました",
+  "@blacklistRemovedMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blacklistEmpty": "ブロックした連絡先はありません",
   "settingsChangePassword": "パスワードを変更",
   "settingsMessagesNotifications": "メッセージと通知",
   "settingsDoNotDisturb": "おやすみモード",
@@ -538,6 +548,19 @@
   "groupChatImage": "画像",
   "groupChatVideo": "動画",
   "groupChatFile": "ファイル",
+  "chatInputVoice": "音声",
+  "chatInputKeyboard": "キーボード",
+  "chatInputHoldToTalk": "長押しして話す",
+  "chatInputReleaseToSend": "離して送信",
+  "chatInputReleaseToCancel": "離してキャンセル",
+  "chatInputReleaseToCancelCompact": "離してキャンセル",
+  "chatInputReleaseToSendSwipeCancel": "離して送信、上にスワイプでキャンセル",
+  "chatAttachmentAlbum": "アルバム",
+  "chatAttachmentCamera": "撮影",
+  "chatAttachmentVideo": "動画",
+  "chatAttachmentLocation": "位置情報",
+  "chatAttachmentContactCard": "連絡先カード",
+  "chatAttachmentFile": "ファイル",
   "groupChatLocalMediaMissing": "ローカルの元{label}が見つかりません。{label}を選択し直してください",
   "@groupChatLocalMediaMissing": {
     "placeholders": {

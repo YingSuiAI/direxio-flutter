@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
+import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/chat/chat_capsule_chrome.dart';
 
 void main() {
@@ -37,6 +38,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: Scaffold(
           body: ChatCapsuleHeader(
             title: 'Group',
@@ -53,7 +57,7 @@ void main() {
       ),
     );
 
-    expect(find.byTooltip('端对端加密'), findsOneWidget);
+    expect(find.byTooltip('Message Encryption'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('chat_header_encryption_lock')),
       findsOneWidget,
@@ -303,6 +307,53 @@ void main() {
 
     expect(find.text('按住 说话'), findsOneWidget);
     expect(find.byIcon(Symbols.keyboard), findsOneWidget);
+  });
+
+  testWidgets('chat capsule input localizes voice mode labels', (tester) async {
+    final ctrl = TextEditingController();
+    addTearDown(ctrl.dispose);
+    var started = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ChatCapsuleInputBar(
+              ctrl: ctrl,
+              onSend: () {},
+              onPlus: () {},
+              onEmoji: () {},
+              onVoiceRecordStart: () => started++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('chat_input_mic_circle')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hold to talk'), findsOneWidget);
+    expect(find.text('按住 说话'), findsNothing);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('voice_mode'))),
+    );
+    await tester.pump();
+
+    expect(started, 1);
+    expect(find.text('Release to send'), findsOneWidget);
+    expect(find.text('Release to send, swipe up to cancel'), findsOneWidget);
+    expect(find.text('松开 发送'), findsNothing);
+    expect(find.text('松开发送，上滑取消'), findsNothing);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('chat capsule input records voice while pressed', (tester) async {

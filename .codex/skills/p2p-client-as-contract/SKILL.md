@@ -21,6 +21,10 @@ Keep `lib/data/as_client.dart` as the interface contract. Update `HttpAsClient`,
 
 Use AS Admin API only for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
 
+Signed IM/BI public endpoints are not AS ProductCore `/_p2p` actions. Keep them in the IM public client boundary with `X-BI-Nonce` / `X-BI-Signature` signing. Public channel directory registration/close, non-room-id public channel list search, BI launch/login events, and user/group/channel report submissions use those signed `/im/*` and `/bi/*` endpoints.
+
+Report submissions from UI must call `/im/report`: `targetType = 1` for friends, `2` for groups, and `3` for channels. Image evidence is sent as repeated multipart `files` fields; do not send the legacy `images` field for uploaded files.
+
 Do not add or restore P2P ordinary message/search/backup action clients. These actions are removed, not deprecated compatibility paths: `sync.unread`, `sync.messages`, `search`, `rooms.send`, `rooms.send_media`, `rooms.messages.delete`, `rooms.messages.delete_batch`, `rooms.messages.delete_range`, `rooms.messages.recall`, `contacts.export`, `contacts.download`, and `contacts.import`.
 
 Ordinary message send, media send, history, unread, message search, and recall must use Matrix Client-Server APIs. Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both.
@@ -30,6 +34,11 @@ Do not add duplicate list APIs or duplicate client flows. If data already arrive
 Keep `sync.bootstrap` metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields.
 
 Keep auth responsibilities explicit. Backend auth responses expose one `access_token`; P2P product API calls use it as bearer auth, and Matrix-native behavior should still flow through the Matrix SDK or Matrix API layer using the same token. Do not add separate token fields such as `admin_token`, `matrix_token`, `admin_access_token`, or `matrix_access_token`.
+
+When AS requests fail with `M_UNKNOWN_TOKEN`, report the rejected bearer token to
+auth/session handling. Delayed failures from a previous bearer after login or
+password rotation must not clear a session that has already applied a newer
+token.
 
 Accepted-contact remark updates use `contacts.update` with `room_id` and
 `display_name`; the backend stores that remark as contact `display_name`.
@@ -64,7 +73,12 @@ Public remote channel lookup must use explicitly configured AS remotes or reques
 
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile data is not part of initialization.
 
-Channel share/invite cards must create `channels.invite_grant.create` before sending the Matrix share card. Join from the card sends `grant_id` and `share_room_id` to `channels.join`.
+Channel share cards must include `channel_id` and `room_id`. Owner/admin shares
+create `channels.invite_grant.create` and send `grant_id` plus `share_room_id`
+so receivers join through `channels.join`; ordinary member shares do not create
+invite grants and receivers apply through `channels.public.join_request` just
+using the card Matrix `room_id` while preserving `channel_id` as channel
+metadata.
 
 `groups.create`, `groups.join`, and `channels.join` may return top-level ProductCore `conversation`.
 Preserve it on `AsGroupResult.productConversation` or

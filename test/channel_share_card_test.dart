@@ -229,6 +229,87 @@ void main() {
     expect(result?.memberStatus, asChannelMemberStatusJoined);
   });
 
+  testWidgets('channel share grant join returns projected joined channel',
+      (tester) async {
+    AsChannel? result;
+    final matrixClient = Client('ChannelShareGrantProjectionTest')
+      ..setUserId('@receiver:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asBootstrapRepositoryProvider.overrideWithValue(
+            AsBootstrapRepository(
+              loadBootstrap: () async => AsSyncBootstrap(
+                syncedAt: DateTime.utc(2026, 6, 24),
+                user: const AsSyncUser(userId: '@receiver:p2p-im.com'),
+                rooms: const [],
+                contacts: const [],
+                groups: const [],
+                channels: const [
+                  AsSyncRoomSummary(
+                    channelId: 'ch_product',
+                    roomId: '!channel:p2p-im.com',
+                    name: '产品公告',
+                    avatarUrl: '',
+                    unreadCount: 0,
+                    lastActivityAt: null,
+                    memberStatus: asChannelMemberStatusJoined,
+                    channelType: asChannelTypeChat,
+                    tags: ['文字'],
+                  ),
+                ],
+                pending: const AsSyncPending.empty(),
+              ),
+              store: _MemoryAsBootstrapStore(),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          home: Consumer(
+            builder: (context, ref, _) => TextButton(
+              onPressed: () async {
+                result = await joinChannelShareWithInviteProjection(
+                  ref,
+                  () async => const AsChannel(
+                    channelId: 'ch_product',
+                    roomId: '!channel:p2p-im.com',
+                    name: '产品公告',
+                    homeDomain: 'p2p-im.com',
+                    memberStatus: asChannelMemberStatusInvite,
+                  ),
+                  channelId: 'ch_product',
+                  roomId: '!channel:p2p-im.com',
+                  projectionTimeout: const Duration(milliseconds: 1),
+                  projectionInterval: Duration.zero,
+                );
+              },
+              child: const Text('join'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('join'));
+    await tester.pumpAndSettle();
+
+    expect(result?.memberStatus, asChannelMemberStatusJoined);
+    expect(
+      channelShareJoinedRoute(
+        const ChannelSharePayload(
+          channelId: 'ch_product',
+          roomId: '!channel:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+        ),
+        result!,
+      ),
+      '/channel/ch_product/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
+    );
+  });
+
   testWidgets('channel share preview card joined button is disabled',
       (tester) async {
     var joins = 0;
@@ -262,6 +343,98 @@ void main() {
 
     expect(joins, 0);
     expect(opens, 0);
+  });
+
+  testWidgets('channel share preview card requested button is disabled',
+      (tester) async {
+    var joins = 0;
+    const payload = ChannelSharePayload(
+      channelId: 'ch_product',
+      roomId: '!channel:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '产品公告',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: Center(
+            child: ChannelSharePreviewCard(
+              payload: payload,
+              alreadyRequested: true,
+              onJoin: () => joins++,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('已申请加入频道'), findsOneWidget);
+    await tester.tap(find.text('已申请加入频道'));
+    await tester.pump();
+
+    expect(joins, 0);
+  });
+
+  test('channel share join request target uses Matrix room id', () {
+    const payload = ChannelSharePayload(
+      channelId: 'ch_product',
+      roomId: '!channel:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '产品公告',
+    );
+
+    expect(channelShareHasInviteGrant(payload), isFalse);
+    expect(channelShareJoinRequestTargetId(payload), '!channel:p2p-im.com');
+    expect(
+      channelShareJoinRequestTargetId(
+        const ChannelSharePayload(
+          channelId: '',
+          roomId: '!channel:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+        ),
+      ),
+      '!channel:p2p-im.com',
+    );
+  });
+
+  test('channel share with grant is treated as direct invite grant', () {
+    const payload = ChannelSharePayload(
+      channelId: 'ch_product',
+      roomId: '!channel:p2p-im.com',
+      grantId: 'grant-1',
+      shareRoomId: '!direct:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '产品公告',
+    );
+
+    expect(channelShareHasInviteGrant(payload), isTrue);
+  });
+
+  test('channel share invite grant payload keeps channel metadata', () {
+    const payload = ChannelSharePayload(
+      channelId: 'ch_product',
+      roomId: '!channel:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '产品公告',
+      description: '只发布重要产品更新',
+      channelType: asChannelTypePost,
+    );
+
+    final granted = channelSharePayloadWithInviteGrant(
+      payload,
+      grantId: 'grant-1',
+      shareRoomId: '!direct:p2p-im.com',
+    );
+
+    expect(granted.channelId, payload.channelId);
+    expect(granted.roomId, payload.roomId);
+    expect(granted.name, payload.name);
+    expect(granted.grantId, 'grant-1');
+    expect(granted.shareRoomId, '!direct:p2p-im.com');
+    expect(channelShareHasInviteGrant(granted), isTrue);
   });
 
   test('channel share route opens detail until channel is joined', () {

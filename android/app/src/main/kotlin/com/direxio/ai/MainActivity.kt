@@ -21,8 +21,11 @@ import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
     private data class PendingSave(
-        val bytes: ByteArray,
+        val bytes: ByteArray?,
+        val path: String?,
         val fileName: String,
+        val mimeType: String,
+        val video: Boolean,
         val result: MethodChannel.Result
     )
 
@@ -46,7 +49,14 @@ class MainActivity : FlutterActivity() {
                         return@setMethodCallHandler
                     }
                     if (needsLegacyStoragePermission()) {
-                        pendingSave = PendingSave(bytes, fileName, result)
+                        pendingSave = PendingSave(
+                            bytes = bytes,
+                            path = null,
+                            fileName = fileName,
+                            mimeType = "image/png",
+                            video = false,
+                            result = result
+                        )
                         requestPermissions(
                             arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
                             saveImagePermissionRequestCode
@@ -54,7 +64,43 @@ class MainActivity : FlutterActivity() {
                         return@setMethodCallHandler
                     }
                     try {
-                        savePngToPictures(bytes, fileName)
+                        saveBytesToGallery(bytes, fileName, "image/png", video = false)
+                        result.success(null)
+                    } catch (error: Exception) {
+                        result.error("save_failed", error.localizedMessage, null)
+                    }
+                }
+                "saveMediaFile" -> {
+                    val path = call.argument<String>("path")
+                    val fileName = call.argument<String>("fileName")
+                    val mimeType = call.argument<String>("mimeType")
+                    if (path.isNullOrBlank() || fileName.isNullOrBlank() || mimeType.isNullOrBlank()) {
+                        result.error("invalid_args", "path, fileName and mimeType are required.", null)
+                        return@setMethodCallHandler
+                    }
+                    val file = File(path)
+                    if (!file.exists() || !file.isFile) {
+                        result.error("media_not_found", "The media file does not exist.", path)
+                        return@setMethodCallHandler
+                    }
+                    val isVideo = mimeType.lowercase().startsWith("video/")
+                    if (needsLegacyStoragePermission()) {
+                        pendingSave = PendingSave(
+                            bytes = null,
+                            path = path,
+                            fileName = fileName,
+                            mimeType = mimeType,
+                            video = isVideo,
+                            result = result
+                        )
+                        requestPermissions(
+                            arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                            saveImagePermissionRequestCode
+                        )
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        saveFileToGallery(file, fileName, mimeType, isVideo)
                         result.success(null)
                     } catch (error: Exception) {
                         result.error("save_failed", error.localizedMessage, null)
@@ -140,7 +186,15 @@ class MainActivity : FlutterActivity() {
             return
         }
         try {
-            savePngToPictures(save.bytes, save.fileName)
+            val bytes = save.bytes
+            val path = save.path
+            if (bytes != null) {
+                saveBytesToGallery(bytes, save.fileName, save.mimeType, save.video)
+            } else if (path != null) {
+                saveFileToGallery(File(path), save.fileName, save.mimeType, save.video)
+            } else {
+                throw IllegalStateException("No pending media to save.")
+            }
             save.result.success(null)
         } catch (error: Exception) {
             save.result.error("save_failed", error.localizedMessage, null)
@@ -153,29 +207,72 @@ class MainActivity : FlutterActivity() {
             PackageManager.PERMISSION_GRANTED
     }
 
-    private fun savePngToPictures(bytes: ByteArray, fileName: String) {
+    private fun saveBytesToGallery(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        video: Boolean
+    ) {
+        saveToGallery(fileName, mimeType, video) { output ->
+            output.write(bytes)
+        }
+    }
+
+    private fun saveFileToGallery(
+        file: File,
+        fileName: String,
+        mimeType: String,
+        video: Boolean
+    ) {
+        if (!file.exists() || !file.isFile) {
+            throw IllegalArgumentException("The media file does not exist.")
+        }
+        saveToGallery(fileName, mimeType, video) { output ->
+            file.inputStream().use { input -> input.copyTo(output) }
+        }
+    }
+
+    private fun saveToGallery(
+        fileName: String,
+        mimeType: String,
+        video: Boolean,
+        write: (java.io.OutputStream) -> Unit
+    ) {
         val resolver = applicationContext.contentResolver
-        val imageCollection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val collection = if (video) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            } else {
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            }
         } else {
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            } else {
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            }
         }
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.MIME_TYPE, mimeType)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val directory = if (video) {
+                    Environment.DIRECTORY_MOVIES
+                } else {
+                    Environment.DIRECTORY_PICTURES
+                }
                 put(
                     MediaStore.Images.Media.RELATIVE_PATH,
-                    "${Environment.DIRECTORY_PICTURES}/P2P IM"
+                    "$directory/P2P IM"
                 )
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
         }
-        val uri = resolver.insert(imageCollection, values)
+        val uri = resolver.insert(collection, values)
             ?: throw IllegalStateException("Failed to create gallery item.")
         try {
             resolver.openOutputStream(uri)?.use { output ->
-                output.write(bytes)
+                write(output)
             } ?: throw IllegalStateException("Failed to open gallery item.")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 values.clear()

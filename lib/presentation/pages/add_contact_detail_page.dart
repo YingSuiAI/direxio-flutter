@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -7,10 +8,13 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
 
 class AddContactDetailPage extends ConsumerStatefulWidget {
@@ -72,10 +76,14 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
             roomId: acceptedContact.roomId,
           );
     final isAcceptedContact = acceptedContact != null;
+    final client = ref.watch(matrixClientProvider);
     final profile = _profileForAddContact(
       widget.userId,
-      acceptedContact?.displayName ?? widget.displayName,
-      avatarUrl: acceptedContact?.avatarUrl ?? widget.avatarUrl,
+      _firstNonEmpty(acceptedContact?.displayName, widget.displayName),
+      avatarUrl: _firstNonEmpty(
+        avatarHttpUrl(client, acceptedContact?.avatarUrl),
+        avatarHttpUrl(client, widget.avatarUrl),
+      ),
     );
     final t = context.tk;
     return Scaffold(
@@ -121,13 +129,11 @@ class _AddContactProfile {
   const _AddContactProfile({
     required this.name,
     required this.uid,
-    required this.domain,
     this.avatarUrl,
   });
 
   final String name;
   final String uid;
-  final String domain;
   final String? avatarUrl;
 }
 
@@ -145,24 +151,15 @@ _AddContactProfile _profileForAddContact(
   );
   return _AddContactProfile(
     name: name,
-    uid: _uidFromUserId(userId),
-    domain: domain,
+    uid: userId.trim(),
     avatarUrl: avatarUrl?.trim().isNotEmpty == true ? avatarUrl!.trim() : null,
   );
 }
 
-String _uidFromUserId(String userId) {
-  final digits =
-      RegExp(r'\d+').allMatches(userId).map((match) => match.group(0)!).join();
-  if (digits.length >= 6) return digits;
-  final localpart = userId.startsWith('@') && userId.contains(':')
-      ? userId.substring(1, userId.indexOf(':'))
-      : userId;
-  final hash = userId.codeUnits.fold<int>(0, (value, unit) => value + unit);
-  return '${localpart.hashCode.abs()}$hash'
-      .replaceAll('-', '')
-      .padRight(10, '0')
-      .substring(0, 10);
+String _firstNonEmpty(String? first, String? second) {
+  final firstValue = first?.trim() ?? '';
+  if (firstValue.isNotEmpty) return firstValue;
+  return second?.trim() ?? '';
 }
 
 class _DetailGlassBackButton extends StatelessWidget {
@@ -214,27 +211,69 @@ class _ProfileHeader extends StatelessWidget {
     return Row(
       children: [
         PortalAvatar(
-          seed: profile.uid,
+          seed: _avatarFallbackSeed(profile.name, profile.uid),
           imageUrl: profile.avatarUrl,
           size: 60,
           shape: AvatarShape.squircle,
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            profile.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTheme.sans(
-              size: 16,
-              weight: FontWeight.w600,
-              color: t.text,
-            ).copyWith(letterSpacing: -0.4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                profile.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(
+                  size: 20,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ),
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: () => _copyAddContactUid(context, profile.uid),
+                borderRadius: BorderRadius.circular(6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        profile.uid,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 13, color: t.textMute),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Symbols.content_copy,
+                      size: 14,
+                      color: t.textMute,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
+}
+
+Future<void> _copyAddContactUid(BuildContext context, String uid) async {
+  await Clipboard.setData(ClipboardData(text: uid));
+  if (!context.mounted) return;
+  _toast(context, '已复制 UID');
+}
+
+String _avatarFallbackSeed(String displayName, String fallback) {
+  final name = displayName.trim();
+  if (name.isNotEmpty) return name;
+  return fallback;
 }
 
 class _DetailNavigationRow extends StatelessWidget {
@@ -323,7 +362,5 @@ class _AddFriendRow extends StatelessWidget {
 }
 
 void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message)),
-  );
+  showCenterToast(context, message);
 }

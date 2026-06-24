@@ -25,7 +25,7 @@ typedef AsCallChanged = FutureOr<void> Function(AsCallSession call);
 final asEventStreamRefreshProvider =
     Provider<AsEventStreamRefreshController?>((ref) {
   final auth = ref.watch(authStateNotifierProvider).valueOrNull;
-  if (auth?.isLoggedIn != true) return null;
+  if (auth?.hasUsablePortalSession != true) return null;
 
   final asClient = ref.watch(asClientProvider);
   final bootstrapRepository = ref.watch(asBootstrapRepositoryProvider);

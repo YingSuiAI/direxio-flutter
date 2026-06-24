@@ -10,6 +10,7 @@ import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/channel_post_store.dart';
 import 'support/mock_as_client.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
+import 'package:portal_app/presentation/channel/channel_info_data.dart';
 import 'package:portal_app/presentation/pages/channel_conversation_page.dart';
 import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
 import 'package:portal_app/presentation/pages/channel_info_page.dart';
@@ -27,6 +28,92 @@ import 'package:portal_app/presentation/providers/product_conversations_provider
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 
 void main() {
+  test('channel detail public metadata keeps local owner share grant role', () {
+    const localOwner = ChannelInfoData(
+      id: 'ch_real',
+      roomId: '!real:p2p-im.com',
+      domain: 'p2p-im.com',
+      name: '本地频道名',
+      avatarUrl: '',
+      description: '本地描述',
+      visibility: asChannelVisibilityPublic,
+      joinPolicy: asChannelJoinPolicyApproval,
+      memberStatus: asChannelMemberStatusJoined,
+      isOwned: true,
+      commentsEnabled: true,
+      muted: false,
+      channelType: asChannelTypeChat,
+      tags: ['本地'],
+      memberCount: 3,
+    );
+    const publicDetail = ChannelInfoData(
+      id: 'ch_real',
+      roomId: '!real:p2p-im.com',
+      domain: 'p2p-im.com',
+      name: '公开频道名',
+      avatarUrl: 'mxc://p2p-im.com/avatar',
+      description: '公开描述',
+      visibility: asChannelVisibilityPublic,
+      joinPolicy: asChannelJoinPolicyOpen,
+      memberStatus: '',
+      isOwned: false,
+      commentsEnabled: true,
+      muted: false,
+      channelType: asChannelTypeChat,
+      tags: ['公开'],
+      memberCount: 9,
+    );
+
+    final merged = mergeChannelInfoDataForDetail(localOwner, publicDetail);
+
+    expect(merged.name, '公开频道名');
+    expect(merged.isOwned, isTrue);
+    expect(merged.memberStatus, asChannelMemberStatusJoined);
+    expect(merged.joinPolicy, asChannelJoinPolicyOpen);
+  });
+
+  test('channel detail public metadata does not promote ordinary member', () {
+    const localMember = ChannelInfoData(
+      id: 'ch_real',
+      roomId: '!real:p2p-im.com',
+      domain: 'p2p-im.com',
+      name: '本地频道名',
+      avatarUrl: '',
+      description: '',
+      visibility: asChannelVisibilityPublic,
+      joinPolicy: asChannelJoinPolicyApproval,
+      memberStatus: asChannelMemberStatusJoined,
+      isOwned: false,
+      commentsEnabled: true,
+      muted: false,
+      channelType: asChannelTypeChat,
+      tags: [],
+      memberCount: 3,
+    );
+    const publicDetail = ChannelInfoData(
+      id: 'ch_real',
+      roomId: '!real:p2p-im.com',
+      domain: 'p2p-im.com',
+      name: '公开频道名',
+      avatarUrl: '',
+      description: '公开描述',
+      visibility: asChannelVisibilityPublic,
+      joinPolicy: asChannelJoinPolicyOpen,
+      memberStatus: '',
+      isOwned: false,
+      commentsEnabled: true,
+      muted: false,
+      channelType: asChannelTypeChat,
+      tags: [],
+      memberCount: 9,
+    );
+
+    final merged = mergeChannelInfoDataForDetail(localMember, publicDetail);
+
+    expect(merged.isOwned, isFalse);
+    expect(merged.memberStatus, asChannelMemberStatusJoined);
+  });
+
   test('channel post parses sender author aliases for list display', () {
     final post = AsChannelPost.fromJson({
       'post_id': 'post_alias',

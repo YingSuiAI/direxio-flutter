@@ -10,6 +10,7 @@ import '../../l10n/app_localizations.dart';
 import '../../l10n/app_localizations_zh.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/channel_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../utils/group_creation_flow.dart';
@@ -53,6 +54,8 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
         productConversationsAsync.valueOrNull ?? const [];
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
+    final groupAvatarMemberAvatars =
+        ref.watch(groupAvatarMemberAvatarsProvider);
     final directContactRoomIds = syncCache.acceptedContacts
         .map((contact) => contact.roomId.trim())
         .where((roomId) => roomId.isNotEmpty)
@@ -84,12 +87,26 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           conversation.lastActivityAt;
       final productTitle = conversation.title.trim();
       final groupName = group?.name.trim() ?? '';
+      final authoritativeGroupMembers = ref
+              .watch(
+                groupMembersProvider(
+                  GroupMembersKey(
+                    roomId: roomId,
+                    status: asChannelMemberStatusJoined,
+                  ),
+                ),
+              )
+              .valueOrNull ??
+          const <AsGroupMember>[];
       final groupAvatarMembers = room == null
           ? null
           : stableGroupAvatarMembersForRoom(
               room: room,
               syncCache: syncCache,
               cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],
+              cachedMemberAvatarUrls:
+                  groupAvatarMemberAvatars[roomId] ?? const {},
+              authoritativeMembers: authoritativeGroupMembers,
             );
       if (groupAvatarMembers != null) {
         scheduleGroupAvatarMemberOrderPersist(
@@ -115,7 +132,12 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           preview: lastEvent == null
               ? _previewText(group?.topic ?? '')
               : roomEventPreviewText(lastEvent, isAgent: false),
-          avatarMembers: groupAvatarMembers?.members ?? const [],
+          avatarMembers: groupAvatarMembers?.members ??
+              cachedGroupAvatarMembers(
+                cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],
+                cachedMemberAvatarUrls:
+                    groupAvatarMemberAvatars[roomId] ?? const {},
+              ),
           time: lastActivityAt == null
               ? ''
               : _formatTime(lastActivityAt.millisecondsSinceEpoch, l10n),

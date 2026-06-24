@@ -28,6 +28,14 @@ Use `AsSyncBootstrap.channels` as the primary logged-in source for channel lists
 
 Search, channel tab, channel detail, and channel chat must use the same channel identity source when logged in.
 
+Channel search behavior is split by input shape: Matrix room ids still resolve through the P2P public room-id lookup; all other search text uses the signed IM public `/im/channel/list` endpoint with `name`.
+
+When creating a public channel, call the signed IM public `/im/channel/join` directory registration after the local `channels.create` succeeds. When dissolving a channel, call signed `/im/channel/close` with the Matrix `room_id` after the local dissolve succeeds.
+
+Channel conversations belong to channel surfaces only. Do not show channel
+ProductCore conversations in the home message list, and do not write them to
+the home conversation summary cache.
+
 `/channel/:id/conversation` may use bootstrap channel metadata only to map a
 channel id to its Matrix room id. It must still resolve an active ProductCore
 channel conversation before opening chat; do not fall back to treating the raw
@@ -61,7 +69,12 @@ the member projection becomes `joined`.
 
 For `/channel/:id/conversation`, normal text/media messages send through Matrix SDK when the user is joined. Product policy remains the server-side send gate.
 
-For channel share/invite cards, call `channels.invite_grant.create` first with `channel_id` or `room_id` plus `share_room_id`. Send the card through Matrix with the returned `grant_id`; card joins call `channels.join` with `grant_id` and `share_room_id`.
+Channel share cards must include `channel_id` and `room_id`. Owner/admin shares
+create `channels.invite_grant.create` and send `grant_id` plus `share_room_id`
+so receivers join through `channels.join`. Ordinary member share cards do not
+create invite grants; they are channel recommendations, and receivers apply
+through `channels.public.join_request` using the card Matrix `room_id` while
+preserving `channel_id` as channel metadata.
 
 After `channels.join` returns `joined`, chat-channel routes should prefer the
 returned ProductCore conversation (`AsChannel.productConversation`). If the

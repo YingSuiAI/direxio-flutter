@@ -23,6 +23,16 @@
   "settingsFavorites": "收藏",
   "settingsPrivacySecurity": "隐私与安全",
   "settingsBlacklist": "通讯录黑名单",
+  "blacklistRemove": "移除",
+  "blacklistRemovedMessage": "已移除 {name}",
+  "@blacklistRemovedMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blacklistEmpty": "暂无黑名单联系人",
   "settingsChangePassword": "修改密码",
   "settingsMessagesNotifications": "消息与通知",
   "settingsDoNotDisturb": "勿扰模式",
@@ -541,6 +551,19 @@
   "groupChatImage": "图片",
   "groupChatVideo": "视频",
   "groupChatFile": "文件",
+  "chatInputVoice": "语音",
+  "chatInputKeyboard": "键盘",
+  "chatInputHoldToTalk": "按住 说话",
+  "chatInputReleaseToSend": "松开 发送",
+  "chatInputReleaseToCancel": "松开 取消",
+  "chatInputReleaseToCancelCompact": "松开取消",
+  "chatInputReleaseToSendSwipeCancel": "松开发送，上滑取消",
+  "chatAttachmentAlbum": "相册",
+  "chatAttachmentCamera": "拍摄",
+  "chatAttachmentVideo": "视频",
+  "chatAttachmentLocation": "位置",
+  "chatAttachmentContactCard": "个人名片",
+  "chatAttachmentFile": "文件",
   "groupChatLocalMediaMissing": "本地原{label}已丢失，请重新选择{label}",
   "@groupChatLocalMediaMissing": {
     "placeholders": {

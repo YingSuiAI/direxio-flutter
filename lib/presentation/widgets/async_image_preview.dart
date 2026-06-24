@@ -192,7 +192,7 @@ class _PreviewDownloadButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: downloading ? null : onTap,
-      tooltip: downloaded ? '已下载' : '下载',
+      tooltip: downloaded ? '原图已保存' : '保存原图到相册',
       icon: downloading
           ? const SizedBox.square(
               dimension: 20,

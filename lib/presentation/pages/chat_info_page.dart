@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
@@ -15,9 +16,11 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
+import '../providers/im_public_client_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/avatar_url.dart';
+import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/report_reason_dialog.dart';
 
@@ -89,14 +92,17 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                   const SizedBox(height: 20),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: _PeerAvatar(
+                    child: _PeerIdentityHeader(
                       name: name,
+                      uid: peerId ?? widget.roomId,
                       avatarUrl: avatarUrl,
-                      onTap: canUseContactActions
+                      onAvatarTap: canUseContactActions
                           ? () => context.push(
                                 '/contact/${Uri.encodeComponent(peerId)}?source=chat_avatar',
                               )
                           : null,
+                      onUidTap: () =>
+                          _copyUid(context, peerId ?? widget.roomId),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -227,23 +233,26 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     BuildContext context, {
     required String reportedDomain,
   }) async {
-    final reason = await showDialog<String>(
+    final result = await showDialog<ReportReasonResult>(
       context: context,
       barrierColor: context.tk.text.withValues(alpha: 0.7),
       builder: (_) => const ReportReasonDialog(),
     );
-    if (reason == null || reason.trim().isEmpty || !context.mounted) return;
+    if (result == null || result.reason.trim().isEmpty || !context.mounted) {
+      return;
+    }
 
     final reporterDomain = reportDomainForUserId(
       ref.read(matrixClientProvider).userID ?? '',
       null,
     );
     try {
-      await ref.read(asClientProvider).submitReport(
+      await ref.read(imPublicClientProvider).submitReport(
             reporterDomain: reporterDomain,
             reportedDomain: reportedDomain,
             targetType: 1,
-            reason: reason.trim(),
+            reason: result.reason.trim(),
+            files: result.toImPublicFiles(),
           );
       if (!context.mounted) return;
       _toast(context, '举报已提交');
@@ -449,9 +458,13 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
 }
 
 void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message)),
-  );
+  showCenterToast(context, message);
+}
+
+Future<void> _copyUid(BuildContext context, String uid) async {
+  await Clipboard.setData(ClipboardData(text: uid));
+  if (!context.mounted) return;
+  _toast(context, '已复制 UID');
 }
 
 String _chatInfoDisplayName({
@@ -532,26 +545,86 @@ class _ChatInfoHeader extends StatelessWidget {
   }
 }
 
-class _PeerAvatar extends StatelessWidget {
-  const _PeerAvatar({required this.name, this.onTap, this.avatarUrl});
+class _PeerIdentityHeader extends StatelessWidget {
+  const _PeerIdentityHeader({
+    required this.name,
+    required this.uid,
+    required this.onUidTap,
+    this.onAvatarTap,
+    this.avatarUrl,
+  });
+
   final String name;
-  final VoidCallback? onTap;
+  final String uid;
+  final VoidCallback onUidTap;
+  final VoidCallback? onAvatarTap;
   final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: PortalAvatar(
-          seed: name,
-          size: 60,
-          shape: AvatarShape.squircle,
-          imageUrl: avatarUrl,
-        ),
+    final t = context.tk;
+    return SizedBox(
+      height: 60,
+      child: Row(
+        children: [
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: onAvatarTap,
+              borderRadius: BorderRadius.circular(12),
+              child: PortalAvatar(
+                seed: name,
+                size: 60,
+                shape: AvatarShape.squircle,
+                imageUrl: avatarUrl,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.sans(
+                    size: 20,
+                    weight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: onUidTap,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          uid,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTheme.sans(size: 13, color: t.textMute),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Symbols.content_copy,
+                        size: 14,
+                        color: t.textMute,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

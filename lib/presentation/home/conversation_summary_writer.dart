@@ -938,21 +938,32 @@ int conversationUnreadCountForSummary(
   );
   if (matrixUnread > 0) return matrixUnread;
 
-  if (room != null &&
-      isChannelShareEvent(room.lastEvent) &&
-      _lastEventIsUnreadForCurrentUser(room)) {
+  if (room != null && _lastVisibleChatEventIsUnreadForCurrentUser(room)) {
     return 1;
   }
 
   return 0;
 }
 
-bool _lastEventIsUnreadForCurrentUser(Room room) {
+bool _lastVisibleChatEventIsUnreadForCurrentUser(Room room) {
   final lastEvent = room.lastEvent;
   if (lastEvent == null) return false;
+  if (!_isVisibleChatMessageEvent(lastEvent)) return false;
   if (lastEvent.senderId == room.client.userID) return false;
   final readAtMs = room.receiptState.global.latestOwnReceipt?.ts ?? 0;
   return readAtMs < lastEvent.originServerTs.millisecondsSinceEpoch;
+}
+
+bool _isVisibleChatMessageEvent(Event event) {
+  if (event.redacted) return false;
+  if (event.type != EventTypes.Message) return false;
+  final content = event.content.map(
+    (key, value) => MapEntry(key.toString(), value),
+  );
+  final msgType = content['msgtype'];
+  if (msgType is String && msgType.trim().isNotEmpty) return true;
+  final productType = content['p2p.message_type'] ?? content['message_type'];
+  return productType is String && productType.trim().isNotEmpty;
 }
 
 int conversationSortTime(

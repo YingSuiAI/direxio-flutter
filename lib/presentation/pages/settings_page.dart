@@ -286,7 +286,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         ),
                         _SettingsRow(
                           icon: Symbols.person_remove,
-                          label: '通讯录黑名单',
+                          label: l10n?.settingsBlacklist ?? '通讯录黑名单',
                           onTap: () => context.push('/settings/blacklist'),
                         ),
                       ],

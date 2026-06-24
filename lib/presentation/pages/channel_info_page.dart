@@ -14,6 +14,7 @@ import '../channel/channel_confirm_dialog.dart';
 import '../channel/channel_info_data.dart';
 import '../channel/channel_leave_flow.dart';
 import '../channel/channel_member_avatar.dart';
+import '../channel/channel_member_invite_flow.dart';
 import '../channel/channel_share.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/app_warmup_provider.dart';
@@ -428,19 +429,17 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
                   ?.where(_isJoinedChannelMember)
                   .toList(growable: false) ??
               displayMembers;
-          final isLoading = snapshot.connectionState != ConnectionState.done &&
-              loadedMembers.isEmpty;
           return _OwnerMemberGrid(
             channel: channel,
             channelRoomId: _currentChannelRoomId(),
             members: loadedMembers,
             profileAvatarUrls: _memberProfileAvatarUrls,
             placeholderCount: loadedMembers.isEmpty ? visibleMemberCount : 0,
-            isLoading: isLoading,
             client: ref.read(matrixClientProvider),
             profileDirectory: ref.watch(userProfileDirectoryProvider),
             currentUserId: ref.read(matrixClientProvider).userID ?? '',
             onOpenMember: _openMemberHome,
+            onInvite: () => _showInviteMemberSheet(channel),
             onRemove: _showRemoveMemberSheet,
           );
         },
@@ -595,6 +594,24 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             ),
           ),
         );
+      },
+    );
+  }
+
+  Future<void> _showInviteMemberSheet(ChannelInfoData channel) async {
+    final members = _members.isEmpty
+        ? await _ensureMembersFuture()
+            .catchError((_) => const <AsChannelMember>[])
+        : _members;
+    if (!mounted) return;
+    final currentUserId = ref.read(matrixClientProvider).userID?.trim() ?? '';
+    await showInviteChannelMembersFlow(
+      context,
+      ref,
+      channel: channel,
+      existingMemberMxids: {
+        currentUserId,
+        for (final member in members) member.userMxid.trim(),
       },
     );
   }
@@ -889,11 +906,11 @@ class _OwnerMemberGrid extends StatelessWidget {
     required this.members,
     required this.profileAvatarUrls,
     required this.placeholderCount,
-    required this.isLoading,
     required this.client,
     required this.profileDirectory,
     required this.currentUserId,
     required this.onOpenMember,
+    required this.onInvite,
     required this.onRemove,
   });
 
@@ -902,11 +919,11 @@ class _OwnerMemberGrid extends StatelessWidget {
   final List<AsChannelMember> members;
   final Map<String, String> profileAvatarUrls;
   final int placeholderCount;
-  final bool isLoading;
   final Client client;
   final UserProfileDirectory profileDirectory;
   final String currentUserId;
   final ValueChanged<AsChannelMember> onOpenMember;
+  final VoidCallback onInvite;
   final VoidCallback onRemove;
 
   static const int _columns = 5;
@@ -944,9 +961,12 @@ class _OwnerMemberGrid extends StatelessWidget {
           size: 40,
           shape: AvatarShape.squircle,
         ),
+      _InviteMemberTile(
+        key: const ValueKey('channel_invite_member_tile'),
+        onTap: onInvite,
+      ),
       _RemoveMemberTile(
         key: const ValueKey('channel_remove_member_tile'),
-        isLoading: isLoading,
         onTap: onRemove,
       ),
     ];
@@ -995,21 +1015,49 @@ class _OwnerMemberGrid extends StatelessWidget {
   }
 }
 
-class _RemoveMemberTile extends StatelessWidget {
-  const _RemoveMemberTile({
+class _InviteMemberTile extends StatelessWidget {
+  const _InviteMemberTile({
     super.key,
-    required this.isLoading,
     required this.onTap,
   });
 
-  final bool isLoading;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(8),
-      onTap: isLoading ? null : onTap,
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: context.tk.surfaceHigh,
+        ),
+        child: Icon(
+          Symbols.add,
+          size: 20,
+          color: context.tk.text,
+        ),
+      ),
+    );
+  }
+}
+
+class _RemoveMemberTile extends StatelessWidget {
+  const _RemoveMemberTile({
+    super.key,
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
       child: Container(
         width: 40,
         height: 40,
@@ -1020,16 +1068,11 @@ class _RemoveMemberTile extends StatelessWidget {
             style: BorderStyle.solid,
           ),
         ),
-        child: isLoading
-            ? const Padding(
-                padding: EdgeInsets.all(11),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(
-                Symbols.remove,
-                size: 20,
-                color: context.tk.textMute,
-              ),
+        child: Icon(
+          Symbols.remove,
+          size: 20,
+          color: context.tk.textMute,
+        ),
       ),
     );
   }

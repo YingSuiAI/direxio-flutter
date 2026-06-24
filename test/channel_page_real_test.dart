@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:matrix/matrix.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
@@ -11,6 +15,7 @@ import 'package:portal_app/data/channel_post_store.dart';
 import 'support/mock_as_client.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/channel/channel_info_data.dart';
+import 'package:portal_app/presentation/channel/channel_share.dart';
 import 'package:portal_app/presentation/pages/channel_conversation_page.dart';
 import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
 import 'package:portal_app/presentation/pages/channel_info_page.dart';
@@ -1536,6 +1541,9 @@ void main() {
     final erinRect = tester.getRect(
       find.byKey(const ValueKey('channel_member_avatar_@erin:p2p-im.com')),
     );
+    final inviteRect = tester.getRect(
+      find.byKey(const ValueKey('channel_invite_member_tile')),
+    );
     final removeRect = tester.getRect(
       find.byKey(const ValueKey('channel_remove_member_tile')),
     );
@@ -1545,8 +1553,14 @@ void main() {
     expect(carolRect.top, ownerRect.top);
     expect(daveRect.top, ownerRect.top);
     expect(erinRect.top, greaterThan(ownerRect.top));
+    expect(inviteRect.top, erinRect.top);
     expect(removeRect.top, erinRect.top);
-    final removeGap = removeRect.left - erinRect.right;
+    expect(inviteRect.left, greaterThan(erinRect.right));
+    expect(removeRect.left, greaterThan(inviteRect.right));
+    final inviteGap = inviteRect.left - erinRect.right;
+    final removeGap = removeRect.left - inviteRect.right;
+    expect(inviteGap, greaterThanOrEqualTo(12));
+    expect(inviteGap, lessThanOrEqualTo(20));
     expect(removeGap, greaterThanOrEqualTo(12));
     expect(removeGap, lessThanOrEqualTo(20));
     expect(
@@ -1572,6 +1586,148 @@ void main() {
       ),
       findsAtLeastNWidgets(2),
     );
+  });
+
+  testWidgets('owned channel info invite tile sends invite grant card',
+      (tester) async {
+    var matrixInviteCardSends = 0;
+    final sentMatrixContents = <Map<String, dynamic>>[];
+    final matrixRequestPaths = <String>[];
+    final asClient = _ChannelInfoMembersAsClient();
+    final matrixClient = Client(
+      'ChannelInfoInviteGrantTest',
+      httpClient: MockClient((request) async {
+        matrixRequestPaths.add(request.url.path);
+        if (request.url.path.contains('/send/m.room.message')) {
+          matrixInviteCardSends++;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          sentMatrixContents.add(body);
+          return http.Response(
+            r'{"event_id":"$channel-invite-card"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    _addChannelInviteDirectRoom(
+      matrixClient,
+      roomId: '!zoe:p2p-im.com',
+      peerMxid: '@zoe:p2p-zoe.com',
+      peerName: 'Zoe',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@alex:p2p-liyanan.com',
+          displayName: 'Alex Chen',
+          avatarUrl: '',
+          roomId: '!alex:p2p-im.com',
+          domain: 'p2p-liyanan.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@zoe:p2p-zoe.com',
+          displayName: 'Zoe',
+          avatarUrl: '',
+          roomId: '!zoe:p2p-im.com',
+          domain: 'p2p-zoe.com',
+          status: 'accepted',
+        ),
+        AsSyncContact(
+          userId: '@pending:p2p-pending.com',
+          displayName: 'Pending',
+          avatarUrl: '',
+          roomId: '!pending:p2p-im.com',
+          domain: 'p2p-pending.com',
+          status: 'pending_outbound',
+        ),
+      ],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '频道介绍',
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 6,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          authStateNotifierProvider
+              .overrideWith(_ChannelTestLoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('channel_invite_member_tile')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('邀请频道成员'), findsOneWidget);
+    expect(find.text('Zoe'), findsOneWidget);
+    expect(find.text('Alex Chen'), findsNothing);
+    expect(find.text('Pending'), findsNothing);
+
+    await tester.tap(
+      find
+          .ancestor(
+            of: find.text('Zoe'),
+            matching: find.byType(InkWell),
+          )
+          .first,
+    );
+    await tester.pump();
+    await tester.tap(find.text('发送邀请'));
+    await tester.pumpAndSettle();
+
+    expect(asClient.createdInviteGrantChannelId, 'ch_real');
+    expect(asClient.createdInviteGrantRoomId, '!real:p2p-im.com');
+    expect(asClient.createdInviteGrantShareRoomId, '!zoe:p2p-im.com');
+    expect(asClient.createdInviteGrantReason, 'channel_member_invite');
+    expect(matrixInviteCardSends, 1, reason: matrixRequestPaths.join('\n'));
+    expect(sentMatrixContents, hasLength(1));
+    final content = sentMatrixContents.single;
+    expect(content['message_type'], channelShareMessageType);
+    expect(content['p2p.message_type'], channelShareMessageType);
+    final payload =
+        (content[channelShareMatrixPayloadKey] as Map).cast<String, dynamic>();
+    expect(payload['channel_id'], 'ch_real');
+    expect(payload['room_id'], '!real:p2p-im.com');
+    expect(payload['grant_id'], 'grant-zoe');
+    expect(payload['share_room_id'], '!zoe:p2p-im.com');
   });
 
   testWidgets('member channel info refreshes joined members from AS',
@@ -1626,6 +1782,117 @@ void main() {
     expect(asClient.requestedStatus, isNull);
     expect(find.text('频道信息'), findsOneWidget);
     expect(find.textContaining('频道信息('), findsNothing);
+    expect(
+        find.byKey(const ValueKey('channel_invite_member_tile')), findsNothing);
+    expect(
+        find.byKey(const ValueKey('channel_remove_member_tile')), findsNothing);
+  });
+
+  testWidgets('member channel info shares plain channel card without grant',
+      (tester) async {
+    final sentMatrixContents = <Map<String, dynamic>>[];
+    final matrixClient = Client(
+      'ChannelInfoMemberShareCardTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message')) {
+          sentMatrixContents.add(
+            (jsonDecode(request.body) as Map).cast<String, dynamic>(),
+          );
+          return http.Response(
+            r'{"event_id":"$channel-share-card"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@alex:p2p-liyanan.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    _addChannelInviteDirectRoom(
+      matrixClient,
+      roomId: '!carol:p2p-im.com',
+      peerMxid: '@carol:p2p-carol.com',
+      peerName: 'Carol',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@alex:p2p-liyanan.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@carol:p2p-carol.com',
+          displayName: 'Carol',
+          avatarUrl: '',
+          roomId: '!carol:p2p-im.com',
+          domain: 'p2p-carol.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          description: '频道介绍',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 3,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asClientProvider.overrideWithValue(_ChannelInfoMembersAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const ValueKey('channel_invite_member_tile')), findsNothing);
+    expect(
+        find.byKey(const ValueKey('channel_remove_member_tile')), findsNothing);
+
+    await tester.tap(find.text('分享频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('分享频道到'), findsOneWidget);
+    await tester.tap(find.text('Carol'));
+    await tester.pumpAndSettle();
+
+    expect(sentMatrixContents, hasLength(1));
+    final content = sentMatrixContents.single;
+    expect(content['message_type'], channelShareMessageType);
+    expect(content['p2p.message_type'], channelShareMessageType);
+    final payload =
+        (content[channelShareMatrixPayloadKey] as Map).cast<String, dynamic>();
+    expect(payload['channel_id'], 'ch_real');
+    expect(payload['room_id'], '!real:p2p-im.com');
+    expect(payload, isNot(contains('grant_id')));
+    expect(payload, isNot(contains('share_room_id')));
   });
 
   testWidgets('channel info title omits member count when members are empty',
@@ -2989,6 +3256,10 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
   String? mutedChannelId;
   String? unmutedChannelId;
   String? requestedPublicChannelUserId;
+  String? createdInviteGrantChannelId;
+  String? createdInviteGrantRoomId;
+  String? createdInviteGrantShareRoomId;
+  String? createdInviteGrantReason;
 
   @override
   Future<List<AsChannelMember>> getChannelMembers(
@@ -3083,6 +3354,40 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
     requestedPublicChannelUserId = userId;
     return publicChannels;
   }
+
+  @override
+  Future<AsChannelInviteGrant> createChannelInviteGrant({
+    String channelId = '',
+    String roomId = '',
+    required String shareRoomId,
+    String grantId = '',
+    String reason = '',
+  }) async {
+    createdInviteGrantChannelId = channelId;
+    createdInviteGrantRoomId = roomId;
+    createdInviteGrantShareRoomId = shareRoomId;
+    createdInviteGrantReason = reason;
+    return AsChannelInviteGrant(
+      grantId: grantId.trim().isEmpty ? 'grant-zoe' : grantId.trim(),
+      roomId: roomId,
+      channelId: channelId,
+      shareRoomId: shareRoomId,
+      status: 'created',
+      channel: AsChannel(
+        channelId: channelId,
+        roomId: roomId,
+        homeDomain: 'p2p-im.com',
+        name: '产品公告',
+        description: '频道介绍',
+        avatarUrl: '',
+        visibility: asChannelVisibilityPublic,
+        joinPolicy: asChannelJoinPolicyApproval,
+        commentsEnabled: true,
+        channelType: asChannelTypeChat,
+        memberCount: 6,
+      ),
+    );
+  }
 }
 
 class _EmptyChannelInfoMembersAsClient extends MockAsClient {
@@ -3099,6 +3404,55 @@ Finder _ownerSwitchFinder() {
   return find.byWidgetPredicate(
     (widget) => widget.runtimeType.toString() == '_OwnerSwitch',
   );
+}
+
+Room _addChannelInviteDirectRoom(
+  Client client, {
+  required String roomId,
+  required String peerMxid,
+  required String peerName,
+}) {
+  final room = Room(
+    id: roomId,
+    client: client,
+    membership: Membership.join,
+  );
+  client.rooms.add(room);
+  final selfMxid = client.userID ?? '@owner:p2p-im.com';
+  room.setState(
+    StrippedStateEvent(
+      type: 'io.direxio.room.profile',
+      senderId: selfMxid,
+      stateKey: '',
+      content: {
+        'room_type': 'io.direxio.room.direct',
+        'room_id': roomId,
+        'requester_mxid': selfMxid,
+        'target_mxid': peerMxid,
+        'display_name': peerName,
+      },
+    ),
+  );
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: selfMxid,
+      stateKey: selfMxid,
+      content: {'membership': Membership.join.name},
+    ),
+  );
+  room.setState(
+    StrippedStateEvent(
+      type: EventTypes.RoomMember,
+      senderId: peerMxid,
+      stateKey: peerMxid,
+      content: {
+        'membership': Membership.join.name,
+        'displayname': peerName,
+      },
+    ),
+  );
+  return room;
 }
 
 class _NoPostChannelAsClient extends MockAsClient {

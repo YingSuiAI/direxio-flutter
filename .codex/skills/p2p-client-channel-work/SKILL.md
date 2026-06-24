@@ -77,8 +77,8 @@ Channel share cards must include `channel_id` and `room_id` and must not create
 invite grants. Owner and ordinary member share buttons both send recommendation
 cards; receivers open the public channel detail by Matrix `room_id` and apply
 through `channels.public.join_request` while preserving `channel_id` as channel
-metadata. `channels.invite_grant.create` is reserved for explicit owner invite
-flows outside the share button.
+metadata. `channels.invite_grant.create` is reserved for the owner member-list
+`+` invite flow outside the share button.
 
 After `channels.join` returns `joined`, chat-channel routes should prefer the
 returned ProductCore conversation (`AsChannel.productConversation`). If the

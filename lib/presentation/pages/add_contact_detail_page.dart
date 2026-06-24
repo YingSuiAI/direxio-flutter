@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -13,6 +14,7 @@ import '../providers/product_conversations_provider.dart';
 import '../utils/avatar_url.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
 
 class AddContactDetailPage extends ConsumerStatefulWidget {
@@ -127,13 +129,11 @@ class _AddContactProfile {
   const _AddContactProfile({
     required this.name,
     required this.uid,
-    required this.domain,
     this.avatarUrl,
   });
 
   final String name;
   final String uid;
-  final String domain;
   final String? avatarUrl;
 }
 
@@ -151,24 +151,9 @@ _AddContactProfile _profileForAddContact(
   );
   return _AddContactProfile(
     name: name,
-    uid: _uidFromUserId(userId),
-    domain: domain,
+    uid: userId.trim(),
     avatarUrl: avatarUrl?.trim().isNotEmpty == true ? avatarUrl!.trim() : null,
   );
-}
-
-String _uidFromUserId(String userId) {
-  final digits =
-      RegExp(r'\d+').allMatches(userId).map((match) => match.group(0)!).join();
-  if (digits.length >= 6) return digits;
-  final localpart = userId.startsWith('@') && userId.contains(':')
-      ? userId.substring(1, userId.indexOf(':'))
-      : userId;
-  final hash = userId.codeUnits.fold<int>(0, (value, unit) => value + unit);
-  return '${localpart.hashCode.abs()}$hash'
-      .replaceAll('-', '')
-      .padRight(10, '0')
-      .substring(0, 10);
 }
 
 String _firstNonEmpty(String? first, String? second) {
@@ -233,20 +218,56 @@ class _ProfileHeader extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            profile.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTheme.sans(
-              size: 16,
-              weight: FontWeight.w600,
-              color: t.text,
-            ).copyWith(letterSpacing: -0.4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                profile.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(
+                  size: 20,
+                  weight: FontWeight.w600,
+                  color: t.text,
+                ),
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: () => _copyAddContactUid(context, profile.uid),
+                borderRadius: BorderRadius.circular(6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        profile.uid,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 13, color: t.textMute),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Symbols.content_copy,
+                      size: 14,
+                      color: t.textMute,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
+}
+
+Future<void> _copyAddContactUid(BuildContext context, String uid) async {
+  await Clipboard.setData(ClipboardData(text: uid));
+  if (!context.mounted) return;
+  _toast(context, '已复制 UID');
 }
 
 String _avatarFallbackSeed(String displayName, String fallback) {
@@ -341,7 +362,5 @@ class _AddFriendRow extends StatelessWidget {
 }
 
 void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message)),
-  );
+  showCenterToast(context, message);
 }

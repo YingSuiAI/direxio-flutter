@@ -9151,6 +9151,27 @@ void main() {
 
   testWidgets('add contact resolves portal url only after submit',
       (tester) async {
+    var clipboardText = '';
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        switch (call.method) {
+          case 'Clipboard.setData':
+            clipboardText = (call.arguments as Map)['text'] as String? ?? '';
+            return null;
+          case 'Clipboard.getData':
+            return {'text': clipboardText};
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+
     final client = Client(
       'DirexioAddContactTest',
       httpClient: MockClient((request) async {
@@ -9250,6 +9271,16 @@ void main() {
     expect(find.text('消息免打扰'), findsNothing);
     expect(find.text('屏蔽用户'), findsNothing);
     expect(find.text('举报用户'), findsNothing);
+    expect(find.text('@alice:portal.local'), findsOneWidget);
+
+    await tester.tap(find.text('@alice:portal.local'));
+    await tester.pump();
+
+    expect(find.text('已复制 UID'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    final copied = await Clipboard.getData(Clipboard.kTextPlain);
+    expect(copied?.text, '@alice:portal.local');
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('add contact falls back to Matrix profile for default owner name',

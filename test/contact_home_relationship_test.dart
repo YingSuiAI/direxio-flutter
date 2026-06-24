@@ -63,6 +63,7 @@ class _RelationshipAsClient extends Fake implements AsClient {
   Future<List<AsChannel>> getUserPublicChannels(
     String userId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async =>
       publicChannels;
 

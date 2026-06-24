@@ -2501,7 +2501,11 @@ abstract class AsClient {
   });
 
   /// P2P product API action.
-  Future<List<AsChannel>> getUserPublicChannels(String userId, {Uri? baseUri});
+  Future<List<AsChannel>> getUserPublicChannels(
+    String userId, {
+    Uri? baseUri,
+    Uri? remoteNodeBaseUri,
+  });
 
   /// P2P product API action.
   Future<AsChannel> updateChannel(AsChannel draft);

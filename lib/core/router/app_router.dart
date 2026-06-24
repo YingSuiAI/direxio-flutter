@@ -404,7 +404,11 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: '/contact-channels/:userId',
         pageBuilder: (_, state) => _slidePage(
-          ContactChannelsPage(userId: state.pathParameters['userId']!),
+          ContactChannelsPage(
+            userId: state.pathParameters['userId']!,
+            remoteNodeBaseUri:
+                _queryUri(state.uri.queryParameters['remote_node_base_url']),
+          ),
         ),
       ),
       GoRoute(
@@ -418,6 +422,8 @@ GoRouter appRouter(Ref ref) {
             userId: state.pathParameters['userId']!,
             displayName: state.uri.queryParameters['name'],
             avatarUrl: state.uri.queryParameters['avatar'],
+            remoteNodeBaseUri:
+                _queryUri(state.uri.queryParameters['remote_node_base_url']),
           ),
         ),
       ),
@@ -693,6 +699,15 @@ GoRouter appRouter(Ref ref) {
       ),
     ],
   );
+}
+
+Uri? _queryUri(String? value) {
+  final trimmed = value?.trim() ?? '';
+  if (trimmed.isEmpty) return null;
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed == null || parsed.host.isEmpty) return null;
+  if (parsed.scheme != 'http' && parsed.scheme != 'https') return null;
+  return parsed;
 }
 
 class _AuthRestorePage extends StatefulWidget {

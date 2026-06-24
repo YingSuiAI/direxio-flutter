@@ -846,10 +846,12 @@ class HttpAsClient implements AsClient {
   Future<List<AsChannel>> getUserPublicChannels(
     String userId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     final body = await _getPublicJson(
       'users/${_encodeStrictPathComponent(userId.trim())}/public-channels',
       baseUri: baseUri,
+      extraParams: _remoteNodeParams(remoteNodeBaseUri),
     );
     return _parseChannels(body['channels'] ?? body['results'] ?? body);
   }

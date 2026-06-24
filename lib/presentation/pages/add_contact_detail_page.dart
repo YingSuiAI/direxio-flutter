@@ -7,6 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
@@ -17,17 +18,32 @@ import '../utils/product_conversation_navigation.dart';
 import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
 
+typedef _AddContactPublicChannelsRequest = ({
+  String userId,
+  Uri? remoteNodeBaseUri,
+});
+
+final _addContactPublicChannelsProvider = FutureProvider.autoDispose
+    .family<List<AsChannel>, _AddContactPublicChannelsRequest>((ref, request) {
+  return ref.read(asClientProvider).getUserPublicChannels(
+        request.userId,
+        remoteNodeBaseUri: request.remoteNodeBaseUri,
+      );
+});
+
 class AddContactDetailPage extends ConsumerStatefulWidget {
   const AddContactDetailPage({
     super.key,
     required this.userId,
     this.displayName,
     this.avatarUrl,
+    this.remoteNodeBaseUri,
   });
 
   final String userId;
   final String? displayName;
   final String? avatarUrl;
+  final Uri? remoteNodeBaseUri;
 
   @override
   ConsumerState<AddContactDetailPage> createState() =>
@@ -61,6 +77,19 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
     context.go(route);
   }
 
+  void _openChannels() {
+    final query = Uri(
+      queryParameters: {
+        if (widget.remoteNodeBaseUri != null)
+          'remote_node_base_url': widget.remoteNodeBaseUri.toString(),
+      },
+    ).query;
+    context.push(
+      '/contact-channels/${Uri.encodeComponent(widget.userId)}'
+      '${query.isEmpty ? '' : '?$query'}',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final acceptedContact =
@@ -76,6 +105,14 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
             roomId: acceptedContact.roomId,
           );
     final isAcceptedContact = acceptedContact != null;
+    final publicChannelsValue = ref.watch(
+      _addContactPublicChannelsProvider((
+        userId: widget.userId,
+        remoteNodeBaseUri: widget.remoteNodeBaseUri,
+      )),
+    );
+    final publicChannels =
+        publicChannelsValue.valueOrNull ?? const <AsChannel>[];
     final client = ref.watch(matrixClientProvider);
     final profile = _profileForAddContact(
       widget.userId,
@@ -104,9 +141,8 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
               const SizedBox(height: 24),
               _DetailNavigationRow(
                 label: '他的频道',
-                onTap: () => context.push(
-                  '/contact-channels/${Uri.encodeComponent(widget.userId)}',
-                ),
+                previewChannels: publicChannels,
+                onTap: _openChannels,
               ),
               const SizedBox(height: 14),
               _AddFriendRow(
@@ -280,10 +316,12 @@ class _DetailNavigationRow extends StatelessWidget {
   const _DetailNavigationRow({
     required this.label,
     required this.onTap,
+    this.previewChannels = const [],
   });
 
   final String label;
   final VoidCallback onTap;
+  final List<AsChannel> previewChannels;
 
   @override
   Widget build(BuildContext context) {
@@ -310,6 +348,10 @@ class _DetailNavigationRow extends StatelessWidget {
                     color: t.text,
                   ).copyWith(letterSpacing: -0.4),
                 ),
+                if (previewChannels.isNotEmpty) ...[
+                  const SizedBox(width: 14),
+                  _AddContactChannelPreviews(channels: previewChannels),
+                ],
                 const Spacer(),
                 Icon(
                   Symbols.chevron_right,
@@ -321,6 +363,35 @@ class _DetailNavigationRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AddContactChannelPreviews extends ConsumerWidget {
+  const _AddContactChannelPreviews({required this.channels});
+
+  final List<AsChannel> channels;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final client = ref.watch(matrixClientProvider);
+    final previews = channels.take(3).toList(growable: false);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < previews.length; i++) ...[
+          PortalAvatar(
+            key: ValueKey('add_contact_channel_${previews[i].channelId}'),
+            seed: previews[i].name.trim().isEmpty
+                ? previews[i].channelId
+                : previews[i].name.trim(),
+            size: 32,
+            imageUrl: avatarHttpUrl(client, previews[i].avatarUrl),
+            shape: AvatarShape.squircle,
+          ),
+          if (i != previews.length - 1) const SizedBox(width: 6),
+        ],
+      ],
     );
   }
 }

@@ -8,19 +8,37 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../providers/as_client_provider.dart';
 
-final _contactPublicChannelsProvider =
-    FutureProvider.autoDispose.family<List<AsChannel>, String>((ref, userId) {
-  return ref.read(asClientProvider).getUserPublicChannels(userId);
+typedef _ContactPublicChannelsRequest = ({
+  String userId,
+  Uri? remoteNodeBaseUri,
+});
+
+final _contactPublicChannelsProvider = FutureProvider.autoDispose
+    .family<List<AsChannel>, _ContactPublicChannelsRequest>((ref, request) {
+  return ref.read(asClientProvider).getUserPublicChannels(
+        request.userId,
+        remoteNodeBaseUri: request.remoteNodeBaseUri,
+      );
 });
 
 class ContactChannelsPage extends ConsumerWidget {
-  const ContactChannelsPage({super.key, required this.userId});
+  const ContactChannelsPage({
+    super.key,
+    required this.userId,
+    this.remoteNodeBaseUri,
+  });
 
   final String userId;
+  final Uri? remoteNodeBaseUri;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final channelsValue = ref.watch(_contactPublicChannelsProvider(userId));
+    final channelsValue = ref.watch(
+      _contactPublicChannelsProvider((
+        userId: userId,
+        remoteNodeBaseUri: remoteNodeBaseUri,
+      )),
+    );
     final t = context.tk;
     return Scaffold(
       backgroundColor: t.bg,

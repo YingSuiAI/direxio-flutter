@@ -42,6 +42,7 @@ import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/pages/chat_info_page.dart';
 import 'package:portal_app/presentation/pages/chat_page.dart';
 import 'package:portal_app/presentation/pages/contact_detail_page.dart';
+import 'package:portal_app/presentation/pages/contact_channels_page.dart';
 import 'package:portal_app/presentation/pages/contact_home_page.dart';
 import 'package:portal_app/presentation/pages/follows_list_page.dart';
 import 'package:portal_app/presentation/pages/login_page.dart';
@@ -496,6 +497,7 @@ class _EmptyAsClient implements AsClient {
   Future<List<AsChannel>> getUserPublicChannels(
     String userId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async =>
       const [];
 
@@ -1233,6 +1235,7 @@ class _ConversationListWithPublicChannelsAsClient
   Future<List<AsChannel>> getUserPublicChannels(
     String userId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     requestedUserPublicChannelsUserId = userId;
     return userPublicChannels;
@@ -1886,9 +1889,10 @@ class _TrackingAsClient extends _EmptyAsClient {
   Future<List<AsChannel>> getUserPublicChannels(
     String userId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     requestedUserPublicChannelsUserId = userId;
-    requestedUserPublicChannelsBaseUri = baseUri;
+    requestedUserPublicChannelsBaseUri = remoteNodeBaseUri ?? baseUri;
     return userPublicChannels;
   }
 
@@ -9878,6 +9882,76 @@ void main() {
         .where((item) => item.size == 60)
         .single;
     expect(avatar.seed, 'A');
+  });
+
+  testWidgets('add contact detail loads public channels from remote owner node',
+      (tester) async {
+    final asClient = _TrackingAsClient()
+      ..userPublicChannels = const [
+        AsChannel(
+          channelId: 'ch_remote_alice',
+          roomId: '!alice-channel:remote.example',
+          name: 'Alice 远端频道',
+        ),
+      ];
+    final remoteNodeBaseUri = Uri.parse('https://remote.example/_p2p');
+    final router = GoRouter(
+      initialLocation:
+          '/add-contact/detail/%40alice%3Aremote.example?name=Alice&remote_node_base_url=${Uri.encodeComponent(remoteNodeBaseUri.toString())}',
+      routes: [
+        GoRoute(
+          path: '/add-contact/detail/:userId',
+          builder: (_, state) => AddContactDetailPage(
+            userId: state.pathParameters['userId']!,
+            displayName: state.uri.queryParameters['name'],
+            remoteNodeBaseUri: Uri.tryParse(
+              state.uri.queryParameters['remote_node_base_url'] ?? '',
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/contact-channels/:userId',
+          builder: (_, state) => ContactChannelsPage(
+            userId: state.pathParameters['userId']!,
+            remoteNodeBaseUri: Uri.tryParse(
+              state.uri.queryParameters['remote_node_base_url'] ?? '',
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedUserPublicChannelsUserId, '@alice:remote.example');
+    expect(asClient.requestedUserPublicChannelsBaseUri, remoteNodeBaseUri);
+    expect(
+      find.byKey(const ValueKey('add_contact_channel_ch_remote_alice')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('他的频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ContactChannelsPage), findsOneWidget);
+    expect(asClient.requestedUserPublicChannelsBaseUri, remoteNodeBaseUri);
   });
 
   testWidgets(

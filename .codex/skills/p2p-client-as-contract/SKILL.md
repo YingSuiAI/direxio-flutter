@@ -71,6 +71,8 @@ membership still normalizes to `joined`.
 
 Public remote channel lookup must use explicitly configured AS remotes or request-provided remote base URLs. Do not infer a remote AS URL from a Matrix `room_id` domain unless the current contract document explicitly says to derive and pass a concrete remote base URL.
 
+`users.public_channels` returns only the target user's owned/admin public channels. Cross-node profile/add-contact entry points must pass `remote_node_base_url` through `getUserPublicChannels(remoteNodeBaseUri:)` so the local AS can forward to the target owner node.
+
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile data is not part of initialization.
 
 Channel share cards must include `channel_id` and `room_id`. Owner/admin shares

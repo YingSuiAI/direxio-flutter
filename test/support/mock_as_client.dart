@@ -619,6 +619,7 @@ class MockAsClient implements AsClient {
   Future<List<AsChannel>> getUserPublicChannels(
     String userId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     await Future.delayed(_latency);
     return _channels.values

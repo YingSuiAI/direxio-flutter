@@ -11,6 +11,7 @@ import '../../data/well_known_service.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../channel/public_channel_target.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/portal_avatar.dart';
@@ -59,6 +60,7 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
       switch (result.availability) {
         case PortalAvailability.online:
           final owner = result.owner!;
+          final remoteNodeBaseUri = publicBaseUriForServerName(portalUrl);
           final ownerProfile = await _resolveOwnerProfileFallback(
             client,
             owner.matrixUserId,
@@ -74,6 +76,8 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                 domain: portalUrl,
               ),
               'avatar_url': avatarHttpUrl(client, ownerProfile.avatarUrl),
+              if (remoteNodeBaseUri != null)
+                'remote_node_base_url': remoteNodeBaseUri.toString(),
             };
           });
           break;
@@ -144,6 +148,8 @@ class _AddContactPageState extends ConsumerState<AddContactPage> {
                               _resolved!['mxid'] as String,
                               _resolved!['display_name'] as String,
                               avatarUrl: _resolved!['avatar_url'] as String?,
+                              remoteNodeBaseUri:
+                                  _resolvedRemoteNodeBaseUri(_resolved!),
                             ),
                           ),
                         )
@@ -232,13 +238,25 @@ String _addContactDetailRoute(
   String userId,
   String displayName, {
   String? avatarUrl,
+  Uri? remoteNodeBaseUri,
 }) {
   final query = <String, String>{
     'name': displayName,
     if (avatarUrl?.trim().isNotEmpty ?? false) 'avatar': avatarUrl!.trim(),
+    if (remoteNodeBaseUri != null)
+      'remote_node_base_url': remoteNodeBaseUri.toString(),
   };
   return '/add-contact/detail/${Uri.encodeComponent(userId)}'
       '?${Uri(queryParameters: query).query}';
+}
+
+Uri? _resolvedRemoteNodeBaseUri(Map<String, dynamic> resolved) {
+  final value = (resolved['remote_node_base_url'] as String?)?.trim() ?? '';
+  if (value.isEmpty) return null;
+  final parsed = Uri.tryParse(value);
+  if (parsed == null || parsed.host.isEmpty) return null;
+  if (parsed.scheme != 'http' && parsed.scheme != 'https') return null;
+  return parsed;
 }
 
 class _AddContactHeader extends StatelessWidget {

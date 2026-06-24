@@ -1515,6 +1515,45 @@ void main() {
     expect(channels.single.channelId, 'ch_alice');
   });
 
+  test('getUserPublicChannels sends remote owner node base when provided',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://local.example/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.toString(), 'https://local.example/_p2p/query');
+        expect(jsonDecode(request.body), {
+          'action': 'users.public_channels',
+          'params': {
+            'user_id': '@alice:remote.example',
+            'user_mxid': '@alice:remote.example',
+            'remote_node_base_url': 'https://remote.example/_p2p',
+          },
+        });
+        return _jsonResponse(
+          {
+            'channels': [
+              {
+                'channel_id': 'ch_remote_alice',
+                'room_id': '!alice-channel:remote.example',
+                'name': 'Alice 远端公开频道',
+              },
+            ],
+          },
+          200,
+        );
+      }),
+    );
+
+    final channels = await client.getUserPublicChannels(
+      '@alice:remote.example',
+      remoteNodeBaseUri: Uri.parse('https://remote.example/_p2p'),
+    );
+
+    expect(channels.single.channelId, 'ch_remote_alice');
+  });
+
   test('joinChannel sends room, grant, and share room params for invite grant',
       () async {
     final client = HttpAsClient(

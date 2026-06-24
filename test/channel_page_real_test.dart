@@ -3079,6 +3079,7 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
   Future<List<AsChannel>> getUserPublicChannels(
     String userId, {
     Uri? baseUri,
+    Uri? remoteNodeBaseUri,
   }) async {
     requestedPublicChannelUserId = userId;
     return publicChannels;

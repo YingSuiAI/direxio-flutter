@@ -43,6 +43,8 @@ channel id as a Matrix room id.
 
 Public remote channel lookup must use configured or contract-provided AS remotes. Do not guess a remote AS endpoint from a Matrix room id domain unless the contract explicitly requires a derived `remote_node_base_url`.
 
+Contact/profile "his channels" surfaces use `users.public_channels`. They should show only public channels owned/administered by the target user, and cross-node add-contact/profile flows must pass the target owner node base as `remote_node_base_url`.
+
 ## Membership And Sending
 
 Owner semantics belong to the portal owner, not the Agent/bot.

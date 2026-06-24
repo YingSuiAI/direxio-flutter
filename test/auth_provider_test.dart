@@ -11,7 +11,9 @@ import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/http_as_client.dart';
 import 'package:portal_app/data/matrix_token_refreshing_http_client.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
+import 'package:portal_app/presentation/providers/as_event_stream_provider.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
+import 'package:portal_app/presentation/providers/app_warmup_provider.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 
 Map<String, dynamic>? _p2pAction(http.Request request, String action) {
@@ -111,6 +113,15 @@ class _StoredRestoreInitFailsClient extends Client {
       onMigration: onMigration,
     );
   }
+}
+
+class _MatrixOnlyAuthStateNotifier extends AuthStateNotifier {
+  @override
+  Future<AuthState> build() async => const AuthState(
+        isLoggedIn: true,
+        userId: '@owner:example.com',
+        homeserver: 'https://example.com',
+      );
 }
 
 class _SdkStoreRestoreClient extends Client {
@@ -345,7 +356,9 @@ void main() {
   });
 
   test('restores auth state when Matrix client is already logged in', () async {
-    FlutterSecureStorage.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({
+      AuthStateNotifier.accessTokenKey: 'portal-token',
+    });
     final client = Client(
       'AuthAlreadyLoggedRestoreTest',
       httpClient: MockClient((request) async {
@@ -372,8 +385,68 @@ void main() {
 
     final auth = await container.read(authStateNotifierProvider.future);
 
+    expect(auth.isLoggedIn, isTrue);
     expect(auth.userId, anyOf('@owner:example.com', isNull));
     expect(auth.homeserver, 'https://example.com');
+    expect(auth.portalToken, 'portal-token');
+  });
+
+  test('Matrix-only restored state without portal credentials logs out',
+      () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final client = Client(
+      'AuthMatrixOnlyRestoreTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s0","rooms":{}}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'Direxio',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+
+    final auth = await container.read(authStateNotifierProvider.future);
+
+    expect(auth.isLoggedIn, isFalse);
+    expect(auth.portalToken, isNull);
+  });
+
+  test('event stream stays idle when auth lacks portal token', () {
+    final container = ProviderContainer(
+      overrides: [
+        authStateNotifierProvider
+            .overrideWith(_MatrixOnlyAuthStateNotifier.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    expect(container.read(asEventStreamRefreshProvider), isNull);
+  });
+
+  test('app warmup stays idle when auth lacks portal token', () async {
+    final container = ProviderContainer(
+      overrides: [
+        authStateNotifierProvider
+            .overrideWith(_MatrixOnlyAuthStateNotifier.new),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await expectLater(container.read(appWarmupProvider.future), completes);
   });
 
   test('restores stored auth state without waiting for first Matrix sync',
@@ -1069,7 +1142,7 @@ void main() {
     addTearDown(container.dispose);
     addTearDown(client.clear);
     final initialAuth = await container.read(authStateNotifierProvider.future);
-    expect(initialAuth.isLoggedIn, isTrue);
+    expect(initialAuth.isLoggedIn, isFalse);
 
     await container
         .read(authStateNotifierProvider.notifier)
@@ -3049,7 +3122,7 @@ void main() {
 
   test('AS 401 signed-in-elsewhere response expires local session', () async {
     FlutterSecureStorage.setMockInitialValues({
-      'matrix_token': 'matrix-token',
+      'matrix_token': 'stale-admin-token',
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
@@ -3093,12 +3166,29 @@ void main() {
         return http.Response('{}', 404);
       }),
     );
+    await client.init(
+      newToken: 'stale-admin-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'Direxio',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
     final container = ProviderContainer(
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
+    final authSub = container.listen(
+      authStateNotifierProvider,
+      (_, __) {},
+      fireImmediately: true,
+    );
+    addTearDown(authSub.close);
     addTearDown(container.dispose);
     addTearDown(client.clear);
-    await container.read(authStateNotifierProvider.future);
+    final auth = await container.read(authStateNotifierProvider.future);
+    expect(auth.isLoggedIn, isTrue);
+    expect(auth.portalToken, 'stale-admin-token');
 
     await expectLater(
       container.read(asClientProvider).syncBootstrap(),
@@ -3288,10 +3378,16 @@ void main() {
     final container = ProviderContainer(
       overrides: [matrixClientProvider.overrideWithValue(client)],
     );
+    final authSub = container.listen(
+      authStateNotifierProvider,
+      (_, __) {},
+      fireImmediately: true,
+    );
+    addTearDown(authSub.close);
     addTearDown(container.dispose);
     addTearDown(client.clear);
-    await container.read(authStateNotifierProvider.future);
-    container.read(asClientProvider);
+    final initialAuth = await container.read(authStateNotifierProvider.future);
+    expect(initialAuth.isLoggedIn, isTrue);
 
     await container.read(authStateNotifierProvider.notifier).logout();
     await container

@@ -40,7 +40,43 @@ test/              unit and widget tests
 
 ## Local Verification
 
-Use focused checks while iterating:
+Use the local wrapper while iterating. It checks required generated files, removes
+Flutter crash logs, and runs `flutter test` commands serially to avoid native
+assets manifest races:
+
+```sh
+scripts/local_verify.sh
+scripts/local_verify.sh -- test/auth_provider_test.dart --plain-name '<case name>'
+```
+
+The two generated files needed by local builds are tracked exceptions to the
+repo-wide `*.g.dart` ignore rule:
+
+```text
+lib/core/router/app_router.g.dart
+lib/presentation/providers/auth_provider.g.dart
+```
+
+If they are missing, regenerate them before validating:
+
+```sh
+dart run build_runner build --delete-conflicting-outputs
+```
+
+For the broad pre-finish check, include Flutter analysis:
+
+```sh
+scripts/local_verify.sh --flutter-analyze
+```
+
+For iOS simulator builds, ask the wrapper to report or restore build-tool-only
+project file churn:
+
+```sh
+scripts/local_verify.sh --ios-simulator-build --restore-ios-noise --skip-tests
+```
+
+Focused checks can still be run directly when needed:
 
 ```sh
 flutter analyze --no-pub

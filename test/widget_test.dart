@@ -19691,6 +19691,26 @@ void main() {
     expect(find.text('https://'), findsOneWidget);
   });
 
+  testWidgets('login page warns about local Matrix API ports', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField).first, '127.0.0.1:28008');
+    await tester.pump();
+
+    expect(
+      find.text('本地三节点测试请填写 host.docker.internal:28448'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('login page leaves password empty after session expiration',
       (tester) async {
     FlutterSecureStorage.setMockInitialValues({

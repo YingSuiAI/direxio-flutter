@@ -100,6 +100,9 @@ class AuthState {
   final String? portalToken;
   final String? ownerDisplayName;
   final bool requiresProfileSetup;
+
+  bool get hasUsablePortalSession =>
+      isLoggedIn && (portalToken?.trim().isNotEmpty ?? false);
 }
 
 class _ActivatedPortalSession {
@@ -371,6 +374,9 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (_sessionExpiredLocally) {
       return const AuthState(isLoggedIn: false);
     }
+    if (!(storedPortalToken?.trim().isNotEmpty ?? false)) {
+      return const AuthState(isLoggedIn: false);
+    }
 
     final restored = await _restoreMatrixSdkSession(client, storedPortalToken);
     if (_sessionExpiredLocally) return const AuthState(isLoggedIn: false);
@@ -591,6 +597,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     if (storedToken.isEmpty ||
         storedHomeserver.isEmpty ||
         storedUserId.isEmpty ||
+        (authPortalToken?.trim().isNotEmpty ?? false) == false ||
         homeserverUri == null ||
         homeserverUri.host.isEmpty) {
       return null;
@@ -1438,10 +1445,12 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       }
       final homeserver = client.homeserver;
       final accessToken = client.accessToken;
+      final cleanPortalToken = portalToken?.trim() ?? '';
       if (homeserver == null ||
           accessToken == null ||
           userId == null ||
-          userId.isEmpty) {
+          userId.isEmpty ||
+          cleanPortalToken.isEmpty) {
         return null;
       }
 
@@ -1453,17 +1462,15 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         key: 'matrix_device_id',
         value: client.deviceID ?? _createDeviceId(),
       );
-      if (portalToken != null && portalToken.isNotEmpty) {
-        await _storage.write(
-            key: AuthStateNotifier.accessTokenKey, value: portalToken);
-      }
+      await _storage.write(
+          key: AuthStateNotifier.accessTokenKey, value: cleanPortalToken);
 
       await _loadChatClearState();
       return AuthState(
         isLoggedIn: true,
         userId: userId,
         homeserver: homeserver.toString(),
-        portalToken: portalToken,
+        portalToken: cleanPortalToken,
         requiresProfileSetup:
             _parseStoredBool(await _storage.read(key: profileInitializedKey)) ==
                 false,

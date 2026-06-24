@@ -9,6 +9,14 @@ APP_PATH="${APP_PATH:-build/ios/iphonesimulator/Runner.app}"
 
 export DIREXIO_LOCAL_ENDPOINTS="${DIREXIO_LOCAL_ENDPOINTS:-host.docker.internal:18448=127.0.0.1:18008,host.docker.internal:28448=127.0.0.1:28008,host.docker.internal:38448=127.0.0.1:38008}"
 
+cat <<'EOF'
+Local three-node App login domains:
+  A: host.docker.internal:18448
+  B: host.docker.internal:28448
+  C: host.docker.internal:38448
+Do not enter 127.0.0.1:18008/28008/38008 in the App login domain field.
+EOF
+
 BOOTED_DEVICES=()
 while IFS= read -r udid; do
   BOOTED_DEVICES+=("$udid")

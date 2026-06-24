@@ -1317,6 +1317,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         requiresProfileSetup: profileInitialized == false,
       ),
     );
+    _startPostLoginConversationSync(
+      client,
+      homeserver: matrixUri,
+      portalToken: session.accessToken,
+    );
   }
 
   Future<void> bootstrapAndChangePortalToken(
@@ -1378,6 +1383,11 @@ class AuthStateNotifier extends _$AuthStateNotifier {
         portalToken: session.accessToken,
         requiresProfileSetup: true,
       ),
+    );
+    _startPostLoginConversationSync(
+      client,
+      homeserver: matrixUri,
+      portalToken: session.accessToken,
     );
   }
 

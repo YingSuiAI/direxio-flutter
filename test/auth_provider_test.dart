@@ -1853,11 +1853,12 @@ void main() {
     final requestPaths = <String>[];
     final requestActions = <String>[];
     String? bootstrapDeviceId;
-    final client = Client(
+    final client = _NoSyncInitClient(
       'AuthBootstrapPasswordChangeTest',
       httpClient: MockClient((request) async {
         requestPaths.add(request.url.path);
-        if (request.url.path == '/_p2p/command') {
+        if (request.url.path == '/_p2p/command' ||
+            request.url.path == '/_p2p/query') {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           requestActions.add(body['action'] as String);
           if (body['action'] == 'portal.bootstrap') {
@@ -1886,6 +1887,16 @@ void main() {
             return http.Response(
               '{"access_token":"changed-matrix-token",'
               '"device_id":"$bootstrapDeviceId"}',
+              200,
+            );
+          }
+          if (body['action'] == 'sync.bootstrap') {
+            expect(request.headers['Authorization'],
+                'Bearer changed-matrix-token');
+            return http.Response(
+              '{"user":{"user_id":"@owner:example.com"},'
+              '"rooms":[],"contacts":[],"groups":[],"channels":[],'
+              '"pending":{}}',
               200,
             );
           }
@@ -1933,17 +1944,19 @@ void main() {
           '11111111',
           '22222222',
         );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    final auth = container.read(authStateNotifierProvider).valueOrNull;
-    expect(auth?.isLoggedIn, isTrue);
-    expect(auth?.userId, '@owner:example.com');
-    expect(auth?.homeserver, 'https://example.com');
-    expect(auth?.portalToken, 'changed-matrix-token');
+    final auth = await container.read(authStateNotifierProvider.future);
+    expect(auth.isLoggedIn, isTrue);
+    expect(auth.userId, '@owner:example.com');
+    expect(auth.homeserver, 'https://example.com');
+    expect(auth.portalToken, 'changed-matrix-token');
     expect(client.accessToken, 'changed-matrix-token');
     expect(
       requestActions.indexOf('portal.bootstrap'),
       lessThan(requestActions.indexOf('portal.password')),
     );
+    expect(requestActions, contains('sync.bootstrap'));
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.accessTokenKey),
@@ -2395,6 +2408,88 @@ void main() {
           .read(key: AuthStateNotifier.profileInitializedKey),
       'true',
     );
+  });
+
+  test('password change restarts P2P sync with refreshed token', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'matrix_token': 'old-token',
+      'matrix_homeserver': 'https://example.com',
+      'matrix_user_id': '@owner:example.com',
+      'matrix_device_id': 'DEVICE1',
+      AuthStateNotifier.accessTokenKey: 'old-admin-token',
+      AuthStateNotifier.lastLoginPortalTokenKey: '11111111',
+      AuthStateNotifier.profileInitializedKey: 'true',
+    });
+    final bootstrapAuthorizations = <String>[];
+    final client = _NoSyncInitClient(
+      'AuthPasswordChangeRestartsSyncTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/_matrix/client/v3/account/whoami') {
+          return http.Response(
+            '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
+            200,
+          );
+        }
+        if (_p2pAction(request, 'portal.password') != null) {
+          return http.Response(
+            '{"access_token":"new-token",'
+            '"user_id":"@owner:example.com",'
+            '"homeserver":"https://example.com",'
+            '"device_id":"DEVICE1",'
+            '"profile_initialized":true}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/v3/sync') {
+          return http.Response('{"next_batch":"s1","rooms":{}}', 200);
+        }
+        if (_p2pAction(request, 'sync.bootstrap') != null) {
+          bootstrapAuthorizations.add(request.headers['Authorization'] ?? '');
+          return http.Response(
+            '{"user":{"user_id":"@owner:example.com"},'
+            '"rooms":[],"contacts":[],"groups":[],"channels":[],'
+            '"pending":{}}',
+            200,
+          );
+        }
+        if (request.url.path == '/_matrix/client/versions') {
+          return http.Response('{"versions":["v1.1"]}', 200);
+        }
+        if (request.url.path == '/_matrix/client/v3/login') {
+          return http.Response('{"flows":[{"type":"m.login.password"}]}', 200);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    await client.init(
+      newToken: 'old-token',
+      newUserID: '@owner:example.com',
+      newHomeserver: Uri.parse('https://example.com'),
+      newDeviceID: 'DEVICE1',
+      newDeviceName: 'Direxio',
+      waitForFirstSync: false,
+      waitUntilLoadCompletedLoaded: false,
+    );
+    final container = ProviderContainer(
+      overrides: [matrixClientProvider.overrideWithValue(client)],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    await container
+        .read(authStateNotifierProvider.notifier)
+        .changePortalPassword(
+          oldPassword: '11111111',
+          newPassword: '12345678',
+        );
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(client.accessToken, 'new-token');
+    expect(bootstrapAuthorizations, contains('Bearer new-token'));
+    expect((await container.read(authStateNotifierProvider.future)).isLoggedIn,
+        isTrue);
+    expect(container.read(sessionExpiredNoticeProvider), 0);
   });
 
   test('password change ignores delayed Matrix 401 from previous token',

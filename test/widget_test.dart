@@ -81,6 +81,7 @@ import 'package:portal_app/presentation/providers/voice_call_provider.dart';
 import 'package:portal_app/presentation/chat/cached_thumbnail_image.dart';
 import 'package:portal_app/presentation/chat/chat_history_backfill_policy.dart';
 import 'package:portal_app/presentation/utils/group_creation_flow.dart';
+import 'package:portal_app/presentation/utils/direct_contact_status.dart';
 import 'package:portal_app/presentation/utils/room_read_state.dart';
 import 'package:portal_app/presentation/widgets/group_composite_avatar.dart';
 import 'package:portal_app/presentation/widgets/m3/glass_header.dart';
@@ -18735,6 +18736,138 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
 
     expect(matrixSendCalls, 1);
+  });
+
+  testWidgets('agent chat shows thinking animation after send', (tester) async {
+    const roomId = '!agent-room:p2p-im.com';
+    const ownerMxid = '@owner:p2p-im.com';
+    const agentMxid = '@agent:p2p-im.com';
+    var matrixSendCalls = 0;
+    final client = Client(
+      'DirexioAgentThinkingBubbleTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message/')) {
+          matrixSendCalls++;
+          return http.Response(
+            r'{"event_id":"$agent-question"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId(ownerMxid);
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'matrix-token';
+    final room = Room(
+      id: roomId,
+      client: client,
+      membership: Membership.join,
+      summary: RoomSummary.fromJson({
+        'm.joined_member_count': 2,
+        'm.invited_member_count': 0,
+      }),
+    );
+    client.rooms.add(room);
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: ownerMxid,
+        stateKey: ownerMxid,
+        content: const {'membership': 'join'},
+      ),
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: agentMxid,
+        stateKey: agentMxid,
+        content: const {
+          'membership': 'join',
+          'displayname': 'Agent',
+        },
+      ),
+    );
+    expect(isPortalAgentDirectRoom(room), isFalse);
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24),
+      user: const AsSyncUser(userId: ownerMxid),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+      agentRoomId: roomId,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '帮我想一下');
+    await tester.pump();
+    await tester.tap(find.text('发送'));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(matrixSendCalls, 1);
+    expect(find.byKey(const ValueKey('agent_thinking_bubble')), findsOneWidget);
+    expect(find.byKey(const ValueKey('agent_thinking_dots')), findsOneWidget);
+
+    await client.handleSync(
+      SyncUpdate(
+        nextBatch: 'after-agent-reply',
+        rooms: RoomsUpdate(
+          join: {
+            roomId: JoinedRoomUpdate(
+              timeline: TimelineUpdate(
+                events: [
+                  MatrixEvent(
+                    type: EventTypes.Message,
+                    eventId: r'$agent-reply',
+                    roomId: roomId,
+                    senderId: agentMxid,
+                    originServerTs: DateTime.now().add(
+                      const Duration(seconds: 1),
+                    ),
+                    content: const {
+                      'msgtype': MessageTypes.Text,
+                      'body': '我想好了',
+                    },
+                  ),
+                ],
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('agent_thinking_bubble')), findsNothing);
+    expect(find.text('我想好了'), findsOneWidget);
   });
 
   testWidgets('chat waits for Matrix room load when AS knows conversation',

@@ -26,6 +26,7 @@ import '../providers/voice_call_provider.dart';
 import '../channel/channel_join_flow.dart';
 import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_share.dart';
+import '../chat/agent_thinking_bubble.dart';
 import '../chat/cached_thumbnail_image.dart';
 import '../chat/chat_attachment_panel.dart';
 import '../chat/chat_capsule_chrome.dart';
@@ -145,6 +146,23 @@ ConversationCapabilityPolicy _privateRoomCapabilityPolicy(
   );
 }
 
+bool _isAgentRoomForChat(
+  Room room,
+  AsSyncCacheState syncCache,
+  Iterable<AsConversation> productConversations,
+) {
+  if (isPortalAgentDirectRoom(room)) return true;
+  final roomId = room.id.trim();
+  if (roomId.isEmpty) return false;
+  if ((syncCache.bootstrap?.agentRoomId.trim() ?? '') == roomId) return true;
+  return productConversationForRoom(
+        productConversations,
+        roomId,
+        kinds: const {asConversationKindAgent},
+      ) !=
+      null;
+}
+
 bool _isPeerTyping(Room room, String peerMxid) {
   final peerId = peerMxid.trim();
   if (peerId.isEmpty) return false;
@@ -157,6 +175,20 @@ PresenceType? _peerPresence(Client client, String peerMxid) {
   // The header needs the latest sync cache without doing network work in build.
   // ignore: deprecated_member_use
   return client.presences[peerId]?.presence;
+}
+
+bool _hasAgentReplyAfter(
+  Iterable<Event> events,
+  String? agentMxid,
+  DateTime since,
+) {
+  final agent = agentMxid?.trim() ?? '';
+  if (agent.isEmpty) return false;
+  for (final event in events) {
+    if (event.senderId.trim() != agent) continue;
+    if (event.originServerTs.isAfter(since)) return true;
+  }
+  return false;
 }
 
 bool _conversationSummaryHasCachedMessage(
@@ -357,6 +389,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   StreamSubscription<VoiceCallUiState>? _voiceCallStateSub;
   Timer? _callHistoryFastReloadTimer;
   Timer? _callHistorySlowReloadTimer;
+  DateTime? _agentThinkingSince;
 
   Room? get _room => ref.read(matrixClientProvider).getRoomById(widget.roomId);
 
@@ -1064,9 +1097,12 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     if (room == null) return;
     final replyTo = _replyTo;
     final syncCache = ref.read(asSyncCacheProvider);
+    final productConversations =
+        ref.read(productConversationsProvider).valueOrNull ??
+            const <AsConversation>[];
+    final isAgent = _isAgentRoomForChat(room, syncCache, productConversations);
     final capabilityPolicy = _privateRoomCapabilityPolicy(
-      ref.read(productConversationsProvider).valueOrNull ??
-          const <AsConversation>[],
+      productConversations,
       room,
       syncCache,
     );
@@ -1089,7 +1125,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       debugPrint('start local text outbox failed: $e');
     }
     try {
-      if (isPortalAgentDirectRoom(room)) {
+      if (isAgent) {
+        if (mounted) {
+          setState(() => _agentThinkingSince = DateTime.now());
+          _scheduleViewportScrollToBottom();
+        }
         await room.sendTextEvent(text, inReplyTo: replyTo);
       } else if (_isProductDirectRoomForChat(room, syncCache)) {
         final eventId = await _sendProductDirectText(room, text, replyTo);
@@ -1106,6 +1146,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         await ref.read(localOutboxProvider.notifier).completeItem(pendingId);
       }
     } on Object catch (e) {
+      if (isAgent && mounted) {
+        setState(() => _agentThinkingSince = null);
+      }
       if (pendingId != null) {
         await ref.read(localOutboxProvider.notifier).failItem(pendingId);
       }
@@ -2613,11 +2656,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final joinedPeerMxid = joinedPersonPeerMxid(room);
     final mxid =
         productDirectPeerMxid(room) ?? joinedPeerMxid ?? contact?.userId ?? '';
-    final isAgent = isPortalAgentDirectRoom(room);
-    final isProductDirect = _isProductDirectRoomForChat(room, syncCache);
     final productConversations =
         ref.watch(productConversationsProvider).valueOrNull ??
             const <AsConversation>[];
+    final isAgent = _isAgentRoomForChat(room, syncCache, productConversations);
+    final agentThinkingSince = _agentThinkingSince;
+    final hasAgentReply = agentThinkingSince != null &&
+        _hasAgentReplyAfter(messageEvents, mxid, agentThinkingSince);
+    if (isAgent && hasAgentReply) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _agentThinkingSince = null);
+      });
+    }
+    final showAgentThinking =
+        isAgent && agentThinkingSince != null && !hasAgentReply;
+    final isProductDirect = _isProductDirectRoomForChat(room, syncCache);
     final productConversation = productDirectConversationForPeer(
       productConversations,
       peerMxid: mxid,
@@ -2759,7 +2812,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           messageLayer: Listener(
             behavior: HitTestBehavior.translucent,
             onPointerDown: (_) => _closePanels(),
-            child: timelineItems.isEmpty && topSystemNoticeText == null
+            child: timelineItems.isEmpty &&
+                    topSystemNoticeText == null &&
+                    !showAgentThinking
                 ? LayoutBuilder(
                     builder: (context, constraints) {
                       final emptyHeight = math.max(
@@ -2798,7 +2853,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   )
                 : ChatTimelineListMotion(
                     itemCount: timelineItems.length +
-                        (topSystemNoticeText == null ? 0 : 1),
+                        (topSystemNoticeText == null ? 0 : 1) +
+                        (showAgentThinking ? 1 : 0),
                     newestItemKey: newestTimelineItemKey,
                     child: RefreshIndicator(
                       color: t.accent,
@@ -2807,7 +2863,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         controller: _messageScrollCtrl,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: messagePadding,
-                        itemCount: timelineItems.length + 1,
+                        itemCount: timelineItems.length +
+                            1 +
+                            (showAgentThinking ? 1 : 0),
                         itemBuilder: (context, i) {
                           if (i == 0) {
                             if (topSystemNoticeText != null) {
@@ -2818,6 +2876,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             return const _E2eFooter();
                           }
                           final itemIndex = i - 1;
+                          if (showAgentThinking &&
+                              itemIndex >= displayTimelineItems.length) {
+                            return chatMessageEntrance(
+                              key: const ValueKey(
+                                'private_message_enter_agent_thinking',
+                              ),
+                              isMe: false,
+                              index: itemIndex,
+                              enabled: true,
+                              child: _SAgentThinkingBubble(
+                                avatarSeed: name,
+                                avatarUrl: peerAvatarUrl,
+                              ),
+                            );
+                          }
                           final itemKey = displayTimelineItemKeys[itemIndex];
                           final contextMenuPlacement =
                               _messageContextMenuPlacement(
@@ -3995,6 +4068,44 @@ class _MessageJumpFlash extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SAgentThinkingBubble extends StatelessWidget {
+  const _SAgentThinkingBubble({
+    required this.avatarSeed,
+    this.avatarUrl,
+  });
+
+  final String avatarSeed;
+  final String? avatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return _bubbleRow(
+      context: context,
+      isMe: false,
+      multiSelect: false,
+      selected: false,
+      avatarSeed: avatarSeed,
+      avatarUrl: avatarUrl,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: DecoratedBox(
+          key: const ValueKey('agent_thinking_bubble'),
+          decoration: BoxDecoration(
+            color: t.surfaceHigh,
+            borderRadius: chatDirectionalBubbleRadius(false),
+            border: Border.all(color: t.border),
+          ),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+            child: AgentThinkingBubble(),
+          ),
+        ),
+      ),
     );
   }
 }

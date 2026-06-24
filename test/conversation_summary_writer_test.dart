@@ -839,6 +839,77 @@ void main() {
     expect(result.displayEntries.single.unread, 1);
   });
 
+  test('counts unread visible chat messages without Matrix notification', () {
+    final cases = <String, Map<String, Object?>>{
+      'text': {
+        'msgtype': MessageTypes.Text,
+        'body': 'hello',
+      },
+      'image': {
+        'msgtype': MessageTypes.Image,
+        'body': 'photo.jpg',
+      },
+      'video': {
+        'msgtype': MessageTypes.Video,
+        'body': 'video.mp4',
+      },
+      'audio': {
+        'msgtype': MessageTypes.Audio,
+        'body': 'voice.m4a',
+      },
+      'file': {
+        'msgtype': MessageTypes.File,
+        'body': 'report.pdf',
+      },
+      'product card': {
+        'msgtype': MessageTypes.Text,
+        'body': '群邀请',
+        chatRecordMatrixMarkerKey: 'p2p.group.invite.v1',
+      },
+    };
+
+    for (final entry in cases.entries) {
+      final result = _summaryForLastEventContent(
+        clientName: 'ConversationSummaryWriterUnread${entry.key}Test',
+        eventId: '\$${entry.key.replaceAll(' ', '-')}',
+        senderId: '@alice:p2p-im.com',
+        content: entry.value,
+      );
+
+      expect(
+        result.displayEntries.single.unread,
+        1,
+        reason: entry.key,
+      );
+    }
+  });
+
+  test('does not count visible chat fallback unread for own or read messages',
+      () {
+    final ownMessage = _summaryForLastEventContent(
+      clientName: 'ConversationSummaryWriterOwnUnreadTest',
+      eventId: r'$own-file',
+      senderId: '@owner:p2p-im.com',
+      content: const {
+        'msgtype': MessageTypes.File,
+        'body': 'mine.pdf',
+      },
+    );
+    expect(ownMessage.displayEntries.single.unread, 0);
+
+    final readMessage = _summaryForLastEventContent(
+      clientName: 'ConversationSummaryWriterReadUnreadTest',
+      eventId: r'$read-file',
+      senderId: '@alice:p2p-im.com',
+      content: const {
+        'msgtype': MessageTypes.File,
+        'body': 'read.pdf',
+      },
+      ownReadAt: DateTime.utc(2026, 6, 23, 10, 0, 1),
+    );
+    expect(readMessage.displayEntries.single.unread, 0);
+  });
+
   test('shows accepted direct share card before ProductCore conversation sync',
       () {
     final client = Client('ConversationSummaryWriterAcceptedShareFallbackTest')
@@ -966,5 +1037,72 @@ AsConversation _conversation({
     avatarUrl: '',
     lastActivityAt: lastActivityAt,
     capabilities: AsConversationCapabilities(open: canOpen),
+  );
+}
+
+HomeConversationSummaryResult _summaryForLastEventContent({
+  required String clientName,
+  required String eventId,
+  required String senderId,
+  required Map<String, Object?> content,
+  DateTime? ownReadAt,
+}) {
+  final client = Client(clientName)..setUserId('@owner:p2p-im.com');
+  final room = Room(
+    id: '!direct:p2p-im.com',
+    client: client,
+    membership: Membership.join,
+  );
+  client.rooms.add(room);
+  final eventAt = DateTime.utc(2026, 6, 23, 10);
+  room.lastEvent = Event(
+    room: room,
+    eventId: eventId,
+    senderId: senderId,
+    type: EventTypes.Message,
+    originServerTs: eventAt,
+    content: content,
+  );
+  if (ownReadAt != null) {
+    room.roomAccountData[LatestReceiptState.eventType] = BasicRoomEvent(
+      type: LatestReceiptState.eventType,
+      roomId: room.id,
+      content: {
+        'global': {
+          'latest': {
+            'e': eventId,
+            'ts': ownReadAt.millisecondsSinceEpoch,
+          },
+          'others': <String, Object?>{},
+        },
+      },
+    );
+  }
+
+  return buildHomeConversationSummaryProjection(
+    client: client,
+    rooms: [room],
+    productConversations: [
+      _conversation(
+        id: 'conv_direct',
+        roomId: '!direct:p2p-im.com',
+        kind: asConversationKindDirect,
+        canOpen: true,
+        lastActivityAt: eventAt,
+      ),
+    ],
+    productConversationsLoaded: true,
+    syncCache: const AsSyncCacheState(),
+    summaryState: const ConversationSummaryState(
+      loaded: true,
+      userId: '@owner:p2p-im.com',
+      entries: [],
+    ),
+    hiddenConversationIds: const {},
+    pinnedConversationIds: const {},
+    outbox: const LocalOutboxState(),
+    messageOrder: const LocalMessageOrderState(),
+    groupRemarkNames: const {},
+    currentUserId: '@owner:p2p-im.com',
   );
 }

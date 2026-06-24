@@ -17819,6 +17819,35 @@ void main() {
     expect(find.text('注销登录'), findsOneWidget);
   });
 
+  testWidgets('settings blacklist row follows app locale', (tester) async {
+    final router = GoRouter(
+      initialLocation: '/settings',
+      routes: [
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Blocked Contacts'), findsOneWidget);
+    expect(find.text('通讯录黑名单'), findsNothing);
+  });
+
   testWidgets('settings deactivate login shows cancellation window',
       (tester) async {
     _RecordingLogoutAuthStateNotifier.logoutCalls = 0;

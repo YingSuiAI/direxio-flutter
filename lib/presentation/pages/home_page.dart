@@ -1536,6 +1536,8 @@ class _HomeConversationEntryList extends ConsumerWidget {
     final client = ref.watch(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
     final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
+    final groupAvatarMemberAvatars =
+        ref.watch(groupAvatarMemberAvatarsProvider);
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 96),
       itemCount: entries.length,
@@ -1550,6 +1552,8 @@ class _HomeConversationEntryList extends ConsumerWidget {
                 room: room,
                 syncCache: syncCache,
                 cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],
+                cachedMemberAvatarUrls:
+                    groupAvatarMemberAvatars[roomId] ?? const {},
               )
             : null;
         if (groupAvatarMembers != null) {
@@ -1568,7 +1572,15 @@ class _HomeConversationEntryList extends ConsumerWidget {
           isAgent: entry.isAgent,
           isGroup: entry.isGroup,
           avatarUrl: _homeAvatarUrl(client, entry.avatarUrl),
-          groupAvatarMembers: groupAvatarMembers?.members ?? const [],
+          groupAvatarMembers: groupAvatarMembers?.members ??
+              (entry.isGroup
+                  ? cachedGroupAvatarMembers(
+                      cachedMemberOrder:
+                          groupAvatarMemberOrders[roomId] ?? const [],
+                      cachedMemberAvatarUrls:
+                          groupAvatarMemberAvatars[roomId] ?? const {},
+                    )
+                  : const []),
           isPinned: pinnedConversationIds.contains(roomId),
           onTap: () {
             final route = productConversation == null

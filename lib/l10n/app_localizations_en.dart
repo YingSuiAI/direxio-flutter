@@ -69,6 +69,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsBlacklist => 'Blocked Contacts';
 
   @override
+  String get blacklistRemove => 'Remove';
+
+  @override
+  String blacklistRemovedMessage(String name) {
+    return 'Removed $name';
+  }
+
+  @override
+  String get blacklistEmpty => 'No blocked contacts';
+
+  @override
   String get settingsChangePassword => 'Change Password';
 
   @override

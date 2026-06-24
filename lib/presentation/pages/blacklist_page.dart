@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../widgets/portal_avatar.dart';
 
 class BlacklistPage extends StatefulWidget {
@@ -29,8 +30,16 @@ class _BlacklistPageState extends State<BlacklistPage> {
 
   void _remove(_BlacklistEntry entry) {
     setState(() => _entries.remove(entry));
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已移除 ${entry.name}')),
+      SnackBar(
+        content: Text(
+          l10n?.blacklistRemovedMessage(entry.name) ?? '已移除 ${entry.name}',
+        ),
+      ),
     );
   }
 
@@ -85,6 +94,10 @@ class _BlacklistHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return SizedBox(
       height: topInset + 57,
       child: Padding(
@@ -100,7 +113,7 @@ class _BlacklistHeader extends StatelessWidget {
               ),
             ),
             Text(
-              '通讯录黑名单',
+              l10n?.settingsBlacklist ?? '通讯录黑名单',
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w600,
@@ -224,6 +237,10 @@ class _RemoveButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Material(
       color: t.text,
       borderRadius: BorderRadius.circular(999),
@@ -236,7 +253,7 @@ class _RemoveButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Center(
               child: Text(
-                '移除',
+                l10n?.blacklistRemove ?? '移除',
                 style: AppTheme.sans(
                   size: 12,
                   weight: FontWeight.w500,
@@ -257,9 +274,13 @@ class _BlacklistEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Center(
       child: Text(
-        '暂无黑名单联系人',
+        l10n?.blacklistEmpty ?? '暂无黑名单联系人',
         style: AppTheme.sans(size: 14, color: t.textMute),
       ),
     );

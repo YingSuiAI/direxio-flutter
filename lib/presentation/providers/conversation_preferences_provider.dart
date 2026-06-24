@@ -11,6 +11,7 @@ class ConversationPreferencesState {
     this.pinnedConversationIds = const {},
     this.groupRemarkNames = const {},
     this.groupAvatarMemberOrders = const {},
+    this.groupAvatarMemberAvatars = const {},
     Set<String> mutedConversationIds = const {},
     Set<String> hiddenConversationIds = const {},
   })  : _mutedConversationIds = mutedConversationIds,
@@ -19,6 +20,7 @@ class ConversationPreferencesState {
   final Set<String> pinnedConversationIds;
   final Map<String, String> groupRemarkNames;
   final Map<String, List<String>> groupAvatarMemberOrders;
+  final Map<String, Map<String, String>> groupAvatarMemberAvatars;
   final Set<String>? _mutedConversationIds;
   final Set<String>? _hiddenConversationIds;
 
@@ -30,6 +32,7 @@ class ConversationPreferencesState {
     Set<String>? pinnedConversationIds,
     Map<String, String>? groupRemarkNames,
     Map<String, List<String>>? groupAvatarMemberOrders,
+    Map<String, Map<String, String>>? groupAvatarMemberAvatars,
     Set<String>? mutedConversationIds,
     Set<String>? hiddenConversationIds,
   }) {
@@ -40,6 +43,9 @@ class ConversationPreferencesState {
           Map.unmodifiable(groupRemarkNames ?? this.groupRemarkNames),
       groupAvatarMemberOrders: Map.unmodifiable(
         groupAvatarMemberOrders ?? this.groupAvatarMemberOrders,
+      ),
+      groupAvatarMemberAvatars: Map.unmodifiable(
+        groupAvatarMemberAvatars ?? this.groupAvatarMemberAvatars,
       ),
       mutedConversationIds:
           Set.unmodifiable(mutedConversationIds ?? this.mutedConversationIds),
@@ -75,6 +81,11 @@ final groupAvatarMemberOrdersProvider =
   return ref.watch(conversationPreferencesProvider).groupAvatarMemberOrders;
 });
 
+final groupAvatarMemberAvatarsProvider =
+    Provider<Map<String, Map<String, String>>>((ref) {
+  return ref.watch(conversationPreferencesProvider).groupAvatarMemberAvatars;
+});
+
 final mutedConversationIdsProvider = Provider<Set<String>>((ref) {
   return ref.watch(conversationPreferencesProvider).mutedConversationIds;
 });
@@ -100,6 +111,7 @@ class ConversationPreferencesController
         pinnedConversationIds: data.pinnedConversationIds,
         groupRemarkNames: data.groupRemarkNames,
         groupAvatarMemberOrders: data.groupAvatarMemberOrders,
+        groupAvatarMemberAvatars: data.groupAvatarMemberAvatars,
         mutedConversationIds: data.mutedConversationIds,
         hiddenConversationIds: data.hiddenConversationIds,
       );
@@ -160,6 +172,26 @@ class ConversationPreferencesController
     _persist();
   }
 
+  void setGroupAvatarMemberAvatars(
+    String roomId,
+    Map<String, String> memberAvatarUrls,
+  ) {
+    final trimmedRoomId = roomId.trim();
+    if (trimmedRoomId.isEmpty) return;
+    final nextAvatars = _cleanMemberAvatarUrls(memberAvatarUrls);
+    final current = state.groupAvatarMemberAvatars[trimmedRoomId] ?? const {};
+    if (_sameStringMap(current, nextAvatars)) return;
+    final next =
+        Map<String, Map<String, String>>.from(state.groupAvatarMemberAvatars);
+    if (nextAvatars.isEmpty) {
+      next.remove(trimmedRoomId);
+    } else {
+      next[trimmedRoomId] = Map.unmodifiable(nextAvatars);
+    }
+    state = state.copyWith(groupAvatarMemberAvatars: next);
+    _persist();
+  }
+
   void setMuted(String conversationId, bool muted) {
     final trimmed = conversationId.trim();
     if (trimmed.isEmpty) return;
@@ -196,6 +228,7 @@ class ConversationPreferencesController
                 pinnedConversationIds: state.pinnedConversationIds,
                 groupRemarkNames: state.groupRemarkNames,
                 groupAvatarMemberOrders: state.groupAvatarMemberOrders,
+                groupAvatarMemberAvatars: state.groupAvatarMemberAvatars,
                 mutedConversationIds: state.mutedConversationIds,
                 hiddenConversationIds: state.hiddenConversationIds,
               ),
@@ -230,6 +263,16 @@ void setGroupAvatarMemberOrder(
       .setGroupAvatarMemberOrder(roomId, memberIds);
 }
 
+void setGroupAvatarMemberAvatars(
+  WidgetRef ref,
+  String roomId,
+  Map<String, String> memberAvatarUrls,
+) {
+  ref
+      .read(conversationPreferencesProvider.notifier)
+      .setGroupAvatarMemberAvatars(roomId, memberAvatarUrls);
+}
+
 void setConversationMuted(WidgetRef ref, String conversationId, bool muted) {
   ref
       .read(conversationPreferencesProvider.notifier)
@@ -247,6 +290,23 @@ bool _sameStringList(List<String> a, List<String> b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
     if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+Map<String, String> _cleanMemberAvatarUrls(Map<String, String> value) {
+  return Map.unmodifiable({
+    for (final entry in value.entries)
+      if (entry.key.trim().isNotEmpty && entry.value.trim().isNotEmpty)
+        entry.key.trim(): entry.value.trim(),
+  });
+}
+
+bool _sameStringMap(Map<String, String> a, Map<String, String> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (final entry in a.entries) {
+    if (b[entry.key] != entry.value) return false;
   }
   return true;
 }

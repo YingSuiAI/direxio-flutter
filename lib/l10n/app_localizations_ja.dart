@@ -69,6 +69,17 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsBlacklist => '連絡先ブラックリスト';
 
   @override
+  String get blacklistRemove => '削除';
+
+  @override
+  String blacklistRemovedMessage(String name) {
+    return '$nameを削除しました';
+  }
+
+  @override
+  String get blacklistEmpty => 'ブロックした連絡先はありません';
+
+  @override
   String get settingsChangePassword => 'パスワードを変更';
 
   @override

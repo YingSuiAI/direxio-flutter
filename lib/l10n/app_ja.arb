@@ -20,6 +20,16 @@
   "settingsFavorites": "お気に入り",
   "settingsPrivacySecurity": "プライバシーとセキュリティ",
   "settingsBlacklist": "連絡先ブラックリスト",
+  "blacklistRemove": "削除",
+  "blacklistRemovedMessage": "{name}を削除しました",
+  "@blacklistRemovedMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blacklistEmpty": "ブロックした連絡先はありません",
   "settingsChangePassword": "パスワードを変更",
   "settingsMessagesNotifications": "メッセージと通知",
   "settingsDoNotDisturb": "おやすみモード",

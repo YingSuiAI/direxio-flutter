@@ -220,6 +220,24 @@ abstract class AppLocalizations {
   /// **'通讯录黑名单'**
   String get settingsBlacklist;
 
+  /// No description provided for @blacklistRemove.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除'**
+  String get blacklistRemove;
+
+  /// No description provided for @blacklistRemovedMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'已移除 {name}'**
+  String blacklistRemovedMessage(String name);
+
+  /// No description provided for @blacklistEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无黑名单联系人'**
+  String get blacklistEmpty;
+
   /// No description provided for @settingsChangePassword.
   ///
   /// In zh, this message translates to:

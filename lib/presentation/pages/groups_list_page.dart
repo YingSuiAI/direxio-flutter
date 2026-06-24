@@ -53,6 +53,8 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
         productConversationsAsync.valueOrNull ?? const [];
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
+    final groupAvatarMemberAvatars =
+        ref.watch(groupAvatarMemberAvatarsProvider);
     final directContactRoomIds = syncCache.acceptedContacts
         .map((contact) => contact.roomId.trim())
         .where((roomId) => roomId.isNotEmpty)
@@ -90,6 +92,8 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
               room: room,
               syncCache: syncCache,
               cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],
+              cachedMemberAvatarUrls:
+                  groupAvatarMemberAvatars[roomId] ?? const {},
             );
       if (groupAvatarMembers != null) {
         scheduleGroupAvatarMemberOrderPersist(
@@ -115,7 +119,12 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
           preview: lastEvent == null
               ? _previewText(group?.topic ?? '')
               : roomEventPreviewText(lastEvent, isAgent: false),
-          avatarMembers: groupAvatarMembers?.members ?? const [],
+          avatarMembers: groupAvatarMembers?.members ??
+              cachedGroupAvatarMembers(
+                cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],
+                cachedMemberAvatarUrls:
+                    groupAvatarMemberAvatars[roomId] ?? const {},
+              ),
           time: lastActivityAt == null
               ? ''
               : _formatTime(lastActivityAt.millisecondsSinceEpoch, l10n),

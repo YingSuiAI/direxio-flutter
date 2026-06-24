@@ -69,6 +69,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsBlacklist => '通讯录黑名单';
 
   @override
+  String get blacklistRemove => '移除';
+
+  @override
+  String blacklistRemovedMessage(String name) {
+    return '已移除 $name';
+  }
+
+  @override
+  String get blacklistEmpty => '暂无黑名单联系人';
+
+  @override
   String get settingsChangePassword => '修改密码';
 
   @override

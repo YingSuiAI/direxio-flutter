@@ -20,6 +20,16 @@
   "settingsFavorites": "Favorites",
   "settingsPrivacySecurity": "Privacy & Security",
   "settingsBlacklist": "Blocked Contacts",
+  "blacklistRemove": "Remove",
+  "blacklistRemovedMessage": "Removed {name}",
+  "@blacklistRemovedMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blacklistEmpty": "No blocked contacts",
   "settingsChangePassword": "Change Password",
   "settingsMessagesNotifications": "Messages & Notifications",
   "settingsDoNotDisturb": "Do Not Disturb",

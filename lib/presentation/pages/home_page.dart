@@ -2261,7 +2261,7 @@ class _ContactList extends ConsumerWidget {
                         onTap: () {
                           if (contact.mxid.isNotEmpty) {
                             context.push(
-                              '/contact/${Uri.encodeComponent(contact.mxid)}',
+                              '/contact/${Uri.encodeComponent(contact.mxid)}?source=chat_avatar',
                             );
                           }
                         },

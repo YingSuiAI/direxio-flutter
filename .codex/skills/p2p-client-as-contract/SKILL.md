@@ -73,7 +73,8 @@ Channel share cards must include `channel_id` and `room_id`. Owner/admin shares
 create `channels.invite_grant.create` and send `grant_id` plus `share_room_id`
 so receivers join through `channels.join`; ordinary member shares do not create
 invite grants and receivers apply through `channels.public.join_request` just
-like searching by channel id.
+using the card Matrix `room_id` while preserving `channel_id` as channel
+metadata.
 
 `groups.create`, `groups.join`, and `channels.join` may return top-level ProductCore `conversation`.
 Preserve it on `AsGroupResult.productConversation` or

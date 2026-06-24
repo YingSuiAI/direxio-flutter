@@ -1069,6 +1069,7 @@ class _PendingChannelReviewAsClient extends _EmptyAsClient {
           channelId: 'ch_review',
           userMxid: '@pending:p2p-im.com',
           displayName: '待审核用户',
+          avatarUrl: 'https://cdn.example.com/pending-review.png',
           status: asChannelMemberStatusPending,
           role: asChannelRoleMember,
           joinedAtMs: 1760000000000,
@@ -5438,7 +5439,8 @@ void main() {
         GoRoute(
           path: '/contact/:userId',
           builder: (_, state) => Text(
-            'contact route ${state.pathParameters['userId']}',
+            'contact route ${state.pathParameters['userId']} '
+            'source ${state.uri.queryParameters['source']}',
           ),
         ),
       ],
@@ -5486,6 +5488,14 @@ void main() {
             widget.seed == 'Bob' &&
             widget.imageUrl == 'https://example.com/bob-as.png',
       ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Alice'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('contact route @alice:p2p-im.com source chat_avatar'),
       findsOneWidget,
     );
   });
@@ -5655,7 +5665,8 @@ void main() {
   testWidgets('create group name field shows selected friends without avatars',
       (tester) async {
     final client = Client('DirexioCreateGroupNameFieldInitialsTest')
-      ..setUserId('@owner:p2p-im.com');
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 24, 16),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -5695,7 +5706,13 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
-          currentUserProfileProvider.overrideWith((ref) async => null),
+          currentUserProfileProvider.overrideWith(
+            (ref) async => Profile(
+              userId: '@owner:p2p-im.com',
+              displayName: 'Owner',
+              avatarUrl: Uri.parse('mxc://p2p-im.com/owner-avatar'),
+            ),
+          ),
           asClientProvider.overrideWithValue(_EmptyAsClient()),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
@@ -5739,6 +5756,17 @@ void main() {
       ),
       findsOneWidget,
     );
+    final avatarSeeds = tester
+        .widgetList<PortalAvatar>(
+          find.descendant(of: composite, matching: find.byType(PortalAvatar)),
+        )
+        .map((avatar) => avatar.seed)
+        .toList(growable: false);
+    expect(avatarSeeds, ['我', 'Alice', 'Bob']);
+    final firstAvatar = tester.widget<PortalAvatar>(
+      find.descendant(of: composite, matching: find.byType(PortalAvatar)).first,
+    );
+    expect(firstAvatar.imageUrl, contains('/download/p2p-im.com/owner-avatar'));
   });
 
   testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',
@@ -6719,6 +6747,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('频道审核'), findsAtLeastNWidgets(1));
+    expect(find.text('待审核用户'), findsOneWidget);
+    expect(find.text('#待审核用户'), findsNothing);
+    final avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
+    expect(
+      avatars.any(
+        (avatar) =>
+            avatar.imageUrl == 'https://cdn.example.com/pending-review.png',
+      ),
+      isTrue,
+    );
     expect(find.text('待审核'), findsOneWidget);
     expect(find.text('通过'), findsOneWidget);
     expect(find.text('拒绝'), findsOneWidget);

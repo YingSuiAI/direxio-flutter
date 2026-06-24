@@ -69,7 +69,8 @@ Channel share cards must include `channel_id` and `room_id`. Owner/admin shares
 create `channels.invite_grant.create` and send `grant_id` plus `share_room_id`
 so receivers join through `channels.join`. Ordinary member share cards do not
 create invite grants; they are channel recommendations, and receivers apply
-through `channels.public.join_request` just like searching by channel id.
+through `channels.public.join_request` using the card Matrix `room_id` while
+preserving `channel_id` as channel metadata.
 
 After `channels.join` returns `joined`, chat-channel routes should prefer the
 returned ProductCore conversation (`AsChannel.productConversation`). If the

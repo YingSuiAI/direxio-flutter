@@ -67,7 +67,7 @@ lib/
 - Channel join-request review actions return top-level statuses such as `approved`, `joining`, `joined`, and `join_failed`; approving a request must not be treated as joined unless the returned status is `joined`.
 - Channel list entries with terminal lifecycle such as `deleted`, `left`, `dissolve`, or `dissolved` must be hidden even if stale membership still says `joined`.
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`.
-- Channel share cards must include `channel_id` and `room_id`. Owner/admin shares create `channels.invite_grant.create` and send `grant_id` plus `share_room_id` so receivers join through `channels.join`; ordinary member shares do not create invite grants and receivers apply through `channels.public.join_request` just like searching by channel id.
+- Channel share cards must include `channel_id` and `room_id`. Owner/admin shares create `channels.invite_grant.create` and send `grant_id` plus `share_room_id` so receivers join through `channels.join`; ordinary member shares do not create invite grants and receivers apply through `channels.public.join_request` using the card Matrix `room_id` while preserving `channel_id` as channel metadata.
 - When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
 
 ## Architecture

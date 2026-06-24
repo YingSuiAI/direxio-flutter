@@ -94,6 +94,30 @@ ChannelInfoData channelInfoDataFromAsChannel(AsChannel channel) {
   );
 }
 
+ChannelInfoData mergeChannelInfoDataForDetail(
+  ChannelInfoData local,
+  ChannelInfoData remote,
+) {
+  return ChannelInfoData(
+    id: _preferReadableText(remote.id, local.id),
+    roomId: _preferReadableText(remote.roomId, local.roomId),
+    domain: _preferReadableText(remote.domain, local.domain),
+    name: _preferReadableText(remote.name, local.name),
+    avatarUrl: _preferReadableText(remote.avatarUrl, local.avatarUrl),
+    description: _preferReadableText(remote.description, local.description),
+    visibility: _preferReadableText(remote.visibility, local.visibility),
+    joinPolicy: _preferReadableText(remote.joinPolicy, local.joinPolicy),
+    memberStatus: _preferReadableText(local.memberStatus, remote.memberStatus),
+    isOwned: local.isOwned || remote.isOwned,
+    commentsEnabled: remote.commentsEnabled,
+    muted: local.muted || remote.muted,
+    channelType: _preferReadableText(remote.channelType, local.channelType),
+    tags: remote.tags.isEmpty ? local.tags : remote.tags,
+    memberCount:
+        remote.memberCount > 0 ? remote.memberCount : local.memberCount,
+  );
+}
+
 ChannelInfoData resolveChannelInfoData(WidgetRef ref, String channelId) {
   final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
   final productConversations =

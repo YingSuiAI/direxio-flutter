@@ -69,7 +69,10 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       return FutureBuilder<ChannelInfoData>(
         future: detailFuture,
         builder: (context, snapshot) {
-          return _buildScaffold(snapshot.data ?? fallbackChannel);
+          final channel = snapshot.data == null
+              ? fallbackChannel
+              : mergeChannelInfoDataForDetail(fallbackChannel, snapshot.data!);
+          return _buildScaffold(channel);
         },
       );
     }

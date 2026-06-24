@@ -445,7 +445,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(asClient.joinedRoomId, 'ch_private');
+    expect(asClient.joinedRoomId, '!private:p2p-im.com');
     expect(
         asClient.joinedRemoteNodeBaseUri, Uri.parse('https://p2p-im.com/_p2p'));
     expect(asClient.joinedChannelId, isNull);

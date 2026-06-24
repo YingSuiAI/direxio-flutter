@@ -13,7 +13,7 @@ This document is a current implementation inventory. It is not a roadmap and doe
 - Contacts, follows, pending requests, group metadata, channel metadata, public profiles, and public channel lists use the integrated P2P product API/bootstrap actions.
 - Group invite visibility uses Matrix room invites and `sync.bootstrap.pending.group_invites`; private chat invite messages are not the receiver contract.
 - Channel search uses the P2P public search action. Remote node URLs must be request-provided; the client must not infer a remote P2P URL from a Matrix room id.
-- Owner/admin channel shares create invite-grant cards for direct grant joins. Ordinary member channel share cards carry the channel id and send receivers through the same public join request flow as channel-id search.
+- Owner/admin channel shares create invite-grant cards for direct grant joins. Ordinary member channel share cards carry the channel id and Matrix room id, then send receivers through the public join request flow using the Matrix room id.
 - Contact public channels use the `users.public_channels` action through `getUserPublicChannels`.
 - Owner profile updates go through the P2P product API and best-effort Matrix profile update.
 - Settings, theme, language, hidden/pinned rows, and media caches are local state unless a named P2P/Matrix API handles that feature.

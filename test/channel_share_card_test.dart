@@ -377,7 +377,7 @@ void main() {
     expect(joins, 0);
   });
 
-  test('channel share join request target prefers channel id', () {
+  test('channel share join request target uses Matrix room id', () {
     const payload = ChannelSharePayload(
       channelId: 'ch_product',
       roomId: '!channel:p2p-im.com',
@@ -386,7 +386,7 @@ void main() {
     );
 
     expect(channelShareHasInviteGrant(payload), isFalse);
-    expect(channelShareJoinRequestTargetId(payload), 'ch_product');
+    expect(channelShareJoinRequestTargetId(payload), '!channel:p2p-im.com');
     expect(
       channelShareJoinRequestTargetId(
         const ChannelSharePayload(

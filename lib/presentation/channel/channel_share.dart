@@ -129,9 +129,9 @@ bool channelShareHasInviteGrant(ChannelSharePayload payload) =>
     payload.grantId.trim().isNotEmpty && payload.shareRoomId.trim().isNotEmpty;
 
 String channelShareJoinRequestTargetId(ChannelSharePayload payload) {
-  final channelId = payload.channelId.trim();
-  if (channelId.isNotEmpty) return channelId;
-  return payload.roomId.trim();
+  final roomId = payload.roomId.trim();
+  if (roomId.isNotEmpty) return roomId;
+  return payload.channelId.trim();
 }
 
 String channelShareJoinKey(ChannelSharePayload payload) {

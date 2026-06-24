@@ -406,7 +406,7 @@ class _CreateGroupResult {
   final List<String> inviteMxids;
 }
 
-class _CreateGroupScreen extends StatefulWidget {
+class _CreateGroupScreen extends ConsumerStatefulWidget {
   const _CreateGroupScreen({
     required this.client,
     required this.contacts,
@@ -416,10 +416,10 @@ class _CreateGroupScreen extends StatefulWidget {
   final List<AsSyncContact> contacts;
 
   @override
-  State<_CreateGroupScreen> createState() => _CreateGroupScreenState();
+  ConsumerState<_CreateGroupScreen> createState() => _CreateGroupScreenState();
 }
 
-class _CreateGroupScreenState extends State<_CreateGroupScreen> {
+class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
   final TextEditingController _queryController = TextEditingController();
   final TextEditingController _groupNameController = TextEditingController();
   final FocusNode _groupNameFocusNode = FocusNode();
@@ -458,6 +458,8 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
       });
     final canComplete = _selectedMxids.isNotEmpty;
     final selectedContacts = _selectedContacts();
+    final currentUserProfile =
+        ref.watch(currentUserProfileProvider).valueOrNull;
 
     return Material(
       color: _createGroupBg,
@@ -521,6 +523,8 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
                   if (_showGroupSetup)
                     Expanded(
                       child: _CreateGroupSetupStep(
+                        client: widget.client,
+                        currentUserProfile: currentUserProfile,
                         controller: _groupNameController,
                         focusNode: _groupNameFocusNode,
                         selectedContacts: selectedContacts,
@@ -661,6 +665,8 @@ class _CreateGroupScreenState extends State<_CreateGroupScreen> {
 
 class _CreateGroupSetupStep extends StatelessWidget {
   const _CreateGroupSetupStep({
+    required this.client,
+    required this.currentUserProfile,
     required this.controller,
     required this.focusNode,
     required this.selectedContacts,
@@ -670,6 +676,8 @@ class _CreateGroupSetupStep extends StatelessWidget {
     required this.onSubmit,
   });
 
+  final Client client;
+  final Profile? currentUserProfile;
   final TextEditingController controller;
   final FocusNode focusNode;
   final List<AsSyncContact> selectedContacts;
@@ -687,6 +695,8 @@ class _CreateGroupSetupStep extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 24),
             children: [
               _CreateGroupInfoCard(
+                client: client,
+                currentUserProfile: currentUserProfile,
                 controller: controller,
                 focusNode: focusNode,
                 selectedContacts: selectedContacts,
@@ -710,6 +720,8 @@ class _CreateGroupSetupStep extends StatelessWidget {
 
 class _CreateGroupInfoCard extends StatelessWidget {
   const _CreateGroupInfoCard({
+    required this.client,
+    required this.currentUserProfile,
     required this.controller,
     required this.focusNode,
     required this.selectedContacts,
@@ -717,6 +729,8 @@ class _CreateGroupInfoCard extends StatelessWidget {
     required this.contactAvatarUrl,
   });
 
+  final Client client;
+  final Profile? currentUserProfile;
   final TextEditingController controller;
   final FocusNode focusNode;
   final List<AsSyncContact> selectedContacts;
@@ -727,6 +741,10 @@ class _CreateGroupInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tk;
     final avatarMembers = [
+      GroupCompositeAvatarMember(
+        seed: '我',
+        imageUrl: profileAvatarHttpUrl(currentUserProfile, client),
+      ),
       for (final contact in selectedContacts)
         GroupCompositeAvatarMember(
           seed: contactName(contact),
@@ -744,7 +762,7 @@ class _CreateGroupInfoCard extends StatelessWidget {
         children: [
           GroupCompositeAvatar(
             key: const ValueKey('create_group_composite_avatar'),
-            seed: selectedContacts.map(contactName).join('|'),
+            seed: ['我', ...selectedContacts.map(contactName)].join('|'),
             size: 48,
             members: avatarMembers,
           ),

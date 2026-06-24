@@ -2598,11 +2598,19 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     final activeRoomId = room.id;
     final remarkName =
         ref.watch(groupRemarkNamesProvider)[activeRoomId]?.trim() ?? '';
-    final name =
-        remarkName.isNotEmpty ? remarkName : room.getLocalizedDisplayname();
-    final memberCount = room.summary.mJoinedMemberCount ?? 0;
     final syncCache = ref.watch(asSyncCacheProvider);
     final currentChannel = _currentChannelSummary(syncCache);
+    final currentGroup =
+        currentChannel == null ? _groupSummary(syncCache) : null;
+    final productName = (currentChannel?.name.trim().isNotEmpty ?? false)
+        ? currentChannel!.name.trim()
+        : currentGroup?.name.trim() ?? '';
+    final name = remarkName.isNotEmpty
+        ? remarkName
+        : productName.isNotEmpty
+            ? productName
+            : room.getLocalizedDisplayname();
+    final memberCount = room.summary.mJoinedMemberCount ?? 0;
     final explicitChannelId = widget.channelId?.trim() ?? '';
     final resolvedChannelId = explicitChannelId.isNotEmpty
         ? explicitChannelId

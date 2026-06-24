@@ -172,7 +172,7 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
       );
       if (draft.isPublic) {
         final roomId = channel.roomId.trim();
-        final channelDomain = _channelDirectoryDomain(
+        final channelDomain = channelDirectoryDomainForCreatedChannel(
           channel,
           ref.read(matrixClientProvider).homeserver,
         );
@@ -1008,15 +1008,18 @@ String _imageMimeTypeForName(String name) {
   return 'image/jpeg';
 }
 
-String _channelDirectoryDomain(AsChannel channel, Uri? homeserver) {
+String channelDirectoryDomainForCreatedChannel(
+  AsChannel channel,
+  Uri? homeserver,
+) {
+  if (homeserver != null && homeserver.host.trim().isNotEmpty) {
+    return homeserver.replace(path: '', query: null, fragment: null).toString();
+  }
   final homeDomain = channel.homeDomain.trim();
   if (homeDomain.startsWith('http://') || homeDomain.startsWith('https://')) {
     return homeDomain;
   }
   if (homeDomain.isNotEmpty) return Uri.parse('https://$homeDomain').toString();
-  if (homeserver != null && homeserver.host.trim().isNotEmpty) {
-    return homeserver.replace(path: '', queryParameters: const {}).toString();
-  }
   return '';
 }
 

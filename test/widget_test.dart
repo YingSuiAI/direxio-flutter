@@ -6734,6 +6734,27 @@ void main() {
     );
   });
 
+  test('create channel directory domain prefers reachable homeserver', () {
+    const channel = AsChannel(
+      channelId: 'ch_local',
+      roomId: '!local:host.docker.internal:18448',
+      homeDomain: 'host.docker.internal:18448',
+      name: 'Local public channel',
+    );
+
+    expect(
+      channelDirectoryDomainForCreatedChannel(
+        channel,
+        Uri.parse('http://127.0.0.1:18008/_matrix/client'),
+      ),
+      'http://127.0.0.1:18008',
+    );
+    expect(
+      channelDirectoryDomainForCreatedChannel(channel, null),
+      'https://host.docker.internal:18448',
+    );
+  });
+
   testWidgets('create channel empty name stays on form with prompt',
       (tester) async {
     final client = Client('DirexioCreateChannelEmptyNameTest');

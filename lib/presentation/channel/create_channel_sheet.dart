@@ -15,6 +15,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/im_public_client_provider.dart';
 import '../providers/local_created_channels_provider.dart';
 import '../widgets/m3/glass_header.dart';
 
@@ -169,6 +170,23 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
       ApiLogger.info(
         '[P2P product] create channel result ${jsonEncode(channel.toJson())}',
       );
+      if (draft.isPublic) {
+        final roomId = channel.roomId.trim();
+        final channelDomain = channelDirectoryDomainForCreatedChannel(
+          channel,
+          ref.read(matrixClientProvider).homeserver,
+        );
+        if (roomId.isNotEmpty && channelDomain.isNotEmpty) {
+          try {
+            await ref.read(imPublicClientProvider).joinChannelDirectory(
+                  channelDomain: channelDomain,
+                  roomId: roomId,
+                );
+          } catch (e) {
+            ApiLogger.info('[IM public] channel directory register failed: $e');
+          }
+        }
+      }
       final createdAt = DateTime.now().toUtc();
       final cachedChannel = _channelWithDraftProfile(channel, draft);
       await ref
@@ -988,6 +1006,21 @@ String _imageMimeTypeForName(String name) {
   if (lower.endsWith('.heic')) return 'image/heic';
   if (lower.endsWith('.heif')) return 'image/heif';
   return 'image/jpeg';
+}
+
+String channelDirectoryDomainForCreatedChannel(
+  AsChannel channel,
+  Uri? homeserver,
+) {
+  if (homeserver != null && homeserver.host.trim().isNotEmpty) {
+    return homeserver.replace(path: '', query: null, fragment: null).toString();
+  }
+  final homeDomain = channel.homeDomain.trim();
+  if (homeDomain.startsWith('http://') || homeDomain.startsWith('https://')) {
+    return homeDomain;
+  }
+  if (homeDomain.isNotEmpty) return Uri.parse('https://$homeDomain').toString();
+  return '';
 }
 
 Color _createShadowColor(BuildContext context) {

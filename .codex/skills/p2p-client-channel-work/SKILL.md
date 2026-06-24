@@ -28,6 +28,10 @@ Use `AsSyncBootstrap.channels` as the primary logged-in source for channel lists
 
 Search, channel tab, channel detail, and channel chat must use the same channel identity source when logged in.
 
+Channel search behavior is split by input shape: Matrix room ids still resolve through the P2P public room-id lookup; all other search text uses the signed IM public `/im/channel/list` endpoint with `name`.
+
+When creating a public channel, call the signed IM public `/im/channel/join` directory registration after the local `channels.create` succeeds. When dissolving a channel, call signed `/im/channel/close` with the Matrix `room_id` after the local dissolve succeeds.
+
 Channel conversations belong to channel surfaces only. Do not show channel
 ProductCore conversations in the home message list, and do not write them to
 the home conversation summary cache.

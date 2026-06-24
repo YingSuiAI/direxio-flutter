@@ -36,6 +36,10 @@ Channel conversations belong to channel surfaces only. Do not show channel
 ProductCore conversations in the home message list, and do not write them to
 the home conversation summary cache.
 
+Channel message rooms are locally muted by default for sound/vibration
+notifications. Channel list rows should signal unread channel messages with a
+red dot only; do not show unread counts for channel rows.
+
 `/channel/:id/conversation` may use bootstrap channel metadata only to map a
 channel id to its Matrix room id. It must still resolve an active ProductCore
 channel conversation before opening chat; do not fall back to treating the raw

@@ -656,6 +656,11 @@ GoRouter appRouter(Ref ref) {
         pageBuilder: (_, state) => _slidePage(
           ChannelDetailInfoPage(
             channelId: state.pathParameters['channelId']!,
+            routeRoomId: state.uri.queryParameters['room_id'],
+            routeName: state.uri.queryParameters['name'],
+            routeAvatarUrl: state.uri.queryParameters['avatar'],
+            routeDescription: state.uri.queryParameters['description'],
+            routeChannelType: state.uri.queryParameters['type'],
             sharePayload: state.extra is ChannelSharePayload
                 ? state.extra! as ChannelSharePayload
                 : null,

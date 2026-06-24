@@ -2282,7 +2282,7 @@ abstract class AppLocalizations {
   /// No description provided for @sessionExpiredMessage.
   ///
   /// In zh, this message translates to:
-  /// **'请重新登录'**
+  /// **'当前账号已在其他设备登录。点击确定后请重新手动输入密码登录。'**
   String get sessionExpiredMessage;
 
   /// No description provided for @chatRecordForwarded.

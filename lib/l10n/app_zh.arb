@@ -637,7 +637,7 @@
   "commonOk": "确定",
   "commonRetry": "重试",
   "sessionExpiredTitle": "账号在其他设备登录",
-  "sessionExpiredMessage": "请重新登录",
+  "sessionExpiredMessage": "当前账号已在其他设备登录。点击确定后请重新手动输入密码登录。",
   "chatRecordForwarded": "已转发聊天记录",
   "chatRecordForwardFailed": "转发失败：{error}",
   "@chatRecordForwardFailed": {

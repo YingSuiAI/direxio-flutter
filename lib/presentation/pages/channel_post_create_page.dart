@@ -18,9 +18,14 @@ import '../providers/auth_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 
 class ChannelPostCreatePage extends ConsumerStatefulWidget {
-  const ChannelPostCreatePage({super.key, required this.channelId});
+  const ChannelPostCreatePage({
+    super.key,
+    required this.channelId,
+    this.imagePicker,
+  });
 
   final String channelId;
+  final ChatImageAttachmentPicker? imagePicker;
 
   @override
   ConsumerState<ChannelPostCreatePage> createState() =>
@@ -89,7 +94,9 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
     if (remaining <= 0) return;
     setState(() => _imageUploading = true);
     try {
-      final selected = await ChatImageAttachmentPicker.platform().pickImages(
+      final selected =
+          await (widget.imagePicker ?? ChatImageAttachmentPicker.platform())
+              .pickImages(
         original: false,
         limit: remaining,
       );
@@ -361,6 +368,7 @@ class _CreatePostImageGrid extends StatelessWidget {
               SizedBox.square(
                 dimension: itemSize,
                 child: Material(
+                  key: const ValueKey('channel_post_add_image'),
                   color: t.surfaceHigh.withValues(alpha: 0.56),
                   child: InkWell(
                     onTap: uploading ? null : onAdd,

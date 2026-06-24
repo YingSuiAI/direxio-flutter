@@ -40,7 +40,6 @@ class GroupInfoPage extends ConsumerStatefulWidget {
 }
 
 class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
-  bool _mute = false;
   bool _showMemberNick = true;
   bool _leaving = false;
   bool _clearing = false;
@@ -74,6 +73,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final client = ref.watch(matrixClientProvider);
     final room = client.getRoomById(widget.roomId);
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
+    final mutedConversationIds = ref.watch(mutedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final groupAvatarMemberOrders = ref.watch(groupAvatarMemberOrdersProvider);
     final groupAvatarMemberAvatars =
@@ -98,7 +98,12 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       client.userID,
       currentUserProfile: currentUserProfile,
     );
-    final groupName = room?.getLocalizedDisplayname().trim() ?? widget.roomId;
+    final groupName = _groupDisplayName(
+      roomId: widget.roomId,
+      room: room,
+      remark: groupRemark,
+      syncCache: syncCache,
+    );
     final groupAvatarUrl = room == null ? null : roomAvatarHttpUrl(room);
     final groupAvatarMembers = room == null
         ? null
@@ -177,7 +182,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                       'group_info_identity_header_${widget.roomId}',
                     ),
                     child: _GroupIdentityHeader(
-                      name: groupName.isEmpty ? widget.roomId : groupName,
+                      name: groupName,
                       uid: widget.roomId,
                       avatarUrl: groupAvatarMembers?.members.isEmpty == true
                           ? groupAvatarUrl
@@ -243,7 +248,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                             context,
                             currentName: groupRemark.isNotEmpty
                                 ? groupRemark
-                                : room?.getLocalizedDisplayname() ?? '',
+                                : groupName,
                           ),
                         ),
                       ],
@@ -268,8 +273,9 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                       children: [
                         InfoSwitchRow(
                           label: '消息免打扰',
-                          value: _mute,
-                          onChanged: (v) => setState(() => _mute = v),
+                          value: mutedConversationIds.contains(widget.roomId),
+                          onChanged: (v) =>
+                              setConversationMuted(ref, widget.roomId, v),
                         ),
                         const InfoDivider(),
                         InfoSwitchRow(
@@ -759,6 +765,38 @@ Future<void> _copyGroupUid(BuildContext context, String uid) async {
   await Clipboard.setData(ClipboardData(text: uid));
   if (!context.mounted) return;
   _toast(context, '已复制 UID');
+}
+
+String _groupDisplayName({
+  required String roomId,
+  required Room? room,
+  required String remark,
+  required AsSyncCacheState syncCache,
+}) {
+  return _firstUsableDisplayName([
+    remark,
+    _productGroupNameForRoom(syncCache, roomId),
+    _usableGroupRoomDisplayName(room?.getLocalizedDisplayname() ?? ''),
+    roomId,
+  ]);
+}
+
+String _productGroupNameForRoom(AsSyncCacheState syncCache, String roomId) {
+  final targetRoomId = roomId.trim();
+  if (targetRoomId.isEmpty) return '';
+  for (final group
+      in syncCache.bootstrap?.groups ?? const <AsSyncRoomSummary>[]) {
+    if (group.roomId.trim() == targetRoomId) {
+      return group.name.trim();
+    }
+  }
+  return '';
+}
+
+String _usableGroupRoomDisplayName(String value) {
+  final name = _usableDisplayName(value);
+  if (name.toLowerCase() == 'empty chat') return '';
+  return name;
 }
 
 Future<String?> _showTextEditDialog(

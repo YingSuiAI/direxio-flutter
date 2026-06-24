@@ -739,7 +739,8 @@ void main() {
     );
   });
 
-  test('refreshes stale stored Matrix token from saved portal login', () async {
+  test('stale stored Matrix token expires without saved password login',
+      () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
@@ -750,33 +751,18 @@ void main() {
     });
     final authHeaders = <String>[];
     final requestPaths = <String>[];
-    final requestActions = <String>[];
+    var portalAuthCalls = 0;
     late MatrixTokenRefreshingHttpClient refreshingClient;
     final client = _NoSyncInitClient(
-      'AuthStoredStaleMatrixTokenRefreshTest',
+      'AuthStoredStaleMatrixTokenExpiresTest',
       httpClient: refreshingClient = MatrixTokenRefreshingHttpClient(
         inner: MockClient((request) async {
           requestPaths.add(request.url.path);
           authHeaders.add(request.headers['authorization'] ?? '');
-          if (request.url.path == '/_p2p/command' ||
-              request.url.path == '/_p2p/query') {
-            final body = jsonDecode(request.body) as Map<String, dynamic>;
-            requestActions.add(body['action'] as String);
-          }
           final authAction = _p2pAction(request, 'portal.auth');
           if (authAction != null) {
-            expect(authAction['params'], {
-              'password': 'portal-token',
-              'device_id': 'DEVICE1',
-            });
-            return http.Response(
-              '{"access_token":"fresh-token",'
-              '"user_id":"@owner:example.com",'
-              '"homeserver":"https://example.com",'
-              '"device_id":"DEVICE1",'
-              '"initialized":true}',
-              200,
-            );
+            portalAuthCalls++;
+            return http.Response('{"error":"should not auto login"}', 500);
           }
           if (request.url.path == '/_matrix/client/versions') {
             return http.Response('{"versions":["v1.1"]}', 200);
@@ -788,12 +774,6 @@ void main() {
             );
           }
           if (request.url.path == '/_matrix/client/v3/account/whoami') {
-            if (request.headers['authorization'] == 'Bearer fresh-token') {
-              return http.Response(
-                '{"user_id":"@owner:example.com","device_id":"DEVICE1"}',
-                200,
-              );
-            }
             return http.Response(
               '{"errcode":"M_UNKNOWN_TOKEN","error":"Unknown token"}',
               401,
@@ -816,29 +796,22 @@ void main() {
     await container
         .read(authStateNotifierProvider.future)
         .timeout(const Duration(milliseconds: 1000));
-    final deadline = DateTime.now().add(const Duration(seconds: 1));
-    while (client.accessToken != 'fresh-token' &&
-        DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
-    expect(refreshingClient.refreshAccessToken, isNotNull);
-    expect(client.accessToken, 'fresh-token');
-    expect(requestActions, contains('portal.auth'));
-    expect(container.read(sessionExpiredNoticeProvider), 0);
+    expect(refreshingClient.refreshAccessToken, isNull);
+    expect(portalAuthCalls, 0);
+    expect(container.read(sessionExpiredNoticeProvider), greaterThan(0));
     expect(
-      await const FlutterSecureStorage()
-          .read(key: AuthStateNotifier.accessTokenKey),
-      'fresh-token',
+      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isNot(true),
     );
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.accessTokenKey),
-      'fresh-token',
+      isNull,
     );
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
-      'portal-token',
+      isNull,
     );
   });
 
@@ -881,8 +854,7 @@ void main() {
     expect(auth.portalToken, 'stored-token');
   });
 
-  test('access token failure refreshes portal session and retries request',
-      () async {
+  test('access token failure expires session without portal retry', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
@@ -891,10 +863,10 @@ void main() {
       AuthStateNotifier.lastLoginPortalTokenKey: 'oldpass123',
       AuthStateNotifier.initializedKey: 'true',
     });
-    final seenAuthorizations = <String>[];
     final requestActions = <String>[];
+    var portalAuthCalls = 0;
     final client = Client(
-      'AuthAsAdminTokenRefreshTest',
+      'AuthAsAdminTokenFailureExpiresTest',
       httpClient: MockClient((request) async {
         final action = _p2pActionName(request);
         if (action != null) requestActions.add(action);
@@ -905,36 +877,13 @@ void main() {
           );
         }
         if (_p2pAction(request, 'portal.auth') != null) {
-          expect(_p2pAction(request, 'portal.auth')!['params'], {
-            'password': 'oldpass123',
-            'device_id': 'DEVICE1',
-          });
-          return http.Response(
-            '{"access_token":"matrix-token",'
-            '"user_id":"@owner:example.com",'
-            '"homeserver":"https://example.com",'
-            '"device_id":"DEVICE1",'
-            '"initialized":true}',
-            200,
-          );
+          portalAuthCalls++;
+          return http.Response('{"error":"should not retry"}', 500);
         }
         if (_p2pAction(request, 'sync.bootstrap') != null) {
-          final authorization = request.headers['Authorization'] ?? '';
-          seenAuthorizations.add(authorization);
-          if (authorization == 'Bearer old-access-token') {
-            return http.Response(
-              '{"error":"M_UNKNOWN_TOKEN"}',
-              401,
-              headers: {'content-type': 'application/json'},
-            );
-          }
-          expect(authorization, 'Bearer matrix-token');
           return http.Response(
-            '{"synced_at":"2026-06-20T00:00:00Z",'
-            '"user":{"user_id":"@owner:example.com"},'
-            '"rooms":[],"contacts":[],"groups":[],"channels":[],'
-            '"pending":{}}',
-            200,
+            '{"error":"M_UNKNOWN_TOKEN"}',
+            401,
             headers: {'content-type': 'application/json'},
           );
         }
@@ -964,29 +913,37 @@ void main() {
     final initialAuth = await container.read(authStateNotifierProvider.future);
     expect(initialAuth.isLoggedIn, isTrue);
 
-    final bootstrap = await container.read(asClientProvider).syncBootstrap();
-
-    expect(bootstrap.user.userId, '@owner:example.com');
-    expect(seenAuthorizations, [
-      'Bearer old-access-token',
-      'Bearer matrix-token',
-    ]);
+    await expectLater(
+      container.read(asClientProvider).syncBootstrap(),
+      throwsA(
+        isA<AsClientException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          401,
+        ),
+      ),
+    );
+    expect(portalAuthCalls, 0);
     expect(
-        requestActions,
-        containsAllInOrder([
-          'sync.bootstrap',
-          'portal.auth',
-          'sync.bootstrap',
-        ]));
+      requestActions.where((action) => action == 'sync.bootstrap'),
+      hasLength(1),
+    );
+    expect(requestActions, isNot(contains('portal.auth')));
     expect(
-      container.read(authStateNotifierProvider).valueOrNull?.portalToken,
-      'matrix-token',
+      container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
+      isFalse,
     );
     expect(
       await const FlutterSecureStorage().read(
         key: AuthStateNotifier.accessTokenKey,
       ),
-      'matrix-token',
+      isNull,
+    );
+    expect(
+      await const FlutterSecureStorage().read(
+        key: AuthStateNotifier.lastLoginPortalTokenKey,
+      ),
+      isNull,
     );
   });
 
@@ -2584,34 +2541,29 @@ void main() {
     );
   });
 
-  test('recent refreshed Matrix token rejection waits before expiring session',
-      () async {
+  test('Matrix 401 expires session without portal auth', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
       'matrix_device_id': 'DEVICE1',
-      AuthStateNotifier.accessTokenKey: 'old-access-token',
+      AuthStateNotifier.accessTokenKey: 'cached-token',
       AuthStateNotifier.lastLoginPortalTokenKey: 'portal-pass',
       AuthStateNotifier.initializedKey: 'true',
     });
     late MatrixTokenRefreshingHttpClient refreshingClient;
+    var portalAuthCalls = 0;
     final client = _NoSyncInitClient(
-      'AuthRecentRefreshedTokenGraceTest',
+      'AuthMatrixRefreshExpiresSessionTest',
       httpClient: refreshingClient = MatrixTokenRefreshingHttpClient(
         inner: MockClient((request) async {
-          final authAction = _p2pAction(request, 'portal.auth');
-          if (authAction != null) {
-            expect(authAction['params'], {
-              'password': 'portal-pass',
-              'device_id': 'DEVICE1',
-            });
+          if (_p2pAction(request, 'portal.auth') != null) {
+            portalAuthCalls++;
+            return http.Response('{"error":"should not refresh"}', 500);
+          }
+          if (request.url.path == '/_matrix/client/v3/account/whoami') {
             return http.Response(
-              '{"access_token":"fresh-token",'
-              '"user_id":"@owner:example.com",'
-              '"homeserver":"https://example.com",'
-              '"device_id":"DEVICE1",'
-              '"initialized":true}',
-              200,
+              '{"errcode":"M_UNKNOWN_TOKEN","error":"Unknown token"}',
+              401,
             );
           }
           return http.Response('{}', 404);
@@ -2625,28 +2577,34 @@ void main() {
     addTearDown(client.clear);
 
     await container.read(authStateNotifierProvider.future);
-    final refreshed = await refreshingClient.refreshAccessToken!();
-    expect(refreshed, 'fresh-token');
-    expect(client.accessToken, 'fresh-token');
-
-    await container
-        .read(authStateNotifierProvider.notifier)
-        .expireSessionDueInvalidTokenIfCurrent('fresh-token');
+    expect(refreshingClient.refreshAccessToken, isNull);
+    final request = http.Request(
+      'GET',
+      Uri.parse('https://example.com/_matrix/client/v3/account/whoami'),
+    )..headers['authorization'] = 'Bearer cached-token';
+    final response = await refreshingClient.send(request);
+    await response.stream.drain<void>();
+    expect(response.statusCode, 401);
 
     expect(
       container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
-      isNot(false),
+      isNot(true),
     );
-    expect(container.read(sessionExpiredNoticeProvider), 0);
+    expect(container.read(sessionExpiredNoticeProvider), greaterThan(0));
+    expect(portalAuthCalls, 0);
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.accessTokenKey),
-      'fresh-token',
+      isNull,
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
+      isNull,
     );
   });
 
-  test('transient portal refresh failure preserves stored login session',
-      () async {
+  test('current Matrix token rejection expires without auto login', () async {
     FlutterSecureStorage.setMockInitialValues({
       'matrix_homeserver': 'https://example.com',
       'matrix_user_id': '@owner:example.com',
@@ -2656,8 +2614,9 @@ void main() {
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
       AuthStateNotifier.initializedKey: 'true',
     });
+    var portalAuthCalls = 0;
     final client = _NoSyncInitClient(
-      'AuthTransientPortalRefreshPreservesSessionTest',
+      'AuthCurrentMatrixTokenRejectionExpiresTest',
       httpClient: MockClient((request) async {
         if (request.url.path == '/_matrix/client/v3/account/whoami') {
           return http.Response(
@@ -2666,6 +2625,7 @@ void main() {
           );
         }
         if (_p2pAction(request, 'portal.auth') != null) {
+          portalAuthCalls++;
           return http.Response('{"error":"temporarily unavailable"}', 503);
         }
         return http.Response('{}', 404);
@@ -2684,13 +2644,19 @@ void main() {
 
     expect(
       container.read(authStateNotifierProvider).valueOrNull?.isLoggedIn,
-      isNot(false),
+      isFalse,
     );
-    expect(container.read(sessionExpiredNoticeProvider), 0);
+    expect(container.read(sessionExpiredNoticeProvider), greaterThan(0));
+    expect(portalAuthCalls, 0);
     expect(
       await const FlutterSecureStorage()
           .read(key: AuthStateNotifier.accessTokenKey),
-      'cached-token',
+      isNull,
+    );
+    expect(
+      await const FlutterSecureStorage()
+          .read(key: AuthStateNotifier.lastLoginPortalTokenKey),
+      isNull,
     );
   });
 

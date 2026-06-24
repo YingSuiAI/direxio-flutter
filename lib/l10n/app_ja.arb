@@ -634,7 +634,7 @@
   "commonOk": "OK",
   "commonRetry": "再試行",
   "sessionExpiredTitle": "別の端末でログインされました",
-  "sessionExpiredMessage": "もう一度ログインしてください",
+  "sessionExpiredMessage": "このアカウントは別の端末でログインされました。OKをタップしてから、パスワードを手動で入力して再ログインしてください。",
   "chatRecordForwarded": "チャット履歴を転送しました",
   "chatRecordForwardFailed": "転送に失敗しました：{error}",
   "@chatRecordForwardFailed": {

@@ -29,7 +29,6 @@ class GroupDetailPage extends ConsumerStatefulWidget {
 }
 
 class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
-  bool _mute = false;
   bool _showNicknames = true;
   bool _leaving = false;
   bool _clearing = false;
@@ -39,6 +38,7 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
     final client = ref.read(matrixClientProvider);
     final room = client.getRoomById(widget.roomId);
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
+    final mutedConversationIds = ref.watch(mutedConversationIdsProvider);
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final groupRemark = groupRemarkNames[widget.roomId]?.trim() ?? '';
     final currentUserProfile =
@@ -148,8 +148,9 @@ class _GroupDetailPageState extends ConsumerState<GroupDetailPage> {
                     children: [
                       _RowSwitch(
                         label: '消息免打扰',
-                        value: _mute,
-                        onChanged: (v) => setState(() => _mute = v),
+                        value: mutedConversationIds.contains(widget.roomId),
+                        onChanged: (v) =>
+                            setConversationMuted(ref, widget.roomId, v),
                       ),
                       _Divider(),
                       _RowSwitch(

@@ -440,7 +440,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             client: ref.read(matrixClientProvider),
             profileDirectory: ref.watch(userProfileDirectoryProvider),
             currentUserId: ref.read(matrixClientProvider).userID ?? '',
-            onOpenMember: _openMemberHome,
+            onOpenMember: _openMemberProfileFromAvatar,
             onRemove: _showRemoveMemberSheet,
           );
         },
@@ -599,10 +599,12 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     );
   }
 
-  void _openMemberHome(AsChannelMember member) {
+  void _openMemberProfileFromAvatar(AsChannelMember member) {
     final userMxid = member.userMxid.trim();
-    if (userMxid.isEmpty) return;
-    context.push('/contact-home/${Uri.encodeComponent(userMxid)}');
+    if (!userMxid.startsWith('@') || !userMxid.contains(':')) return;
+    context.push(
+      '/contact/${Uri.encodeComponent(userMxid)}?source=chat_avatar',
+    );
   }
 
   Future<void> _confirmRemoveMember(

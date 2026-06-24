@@ -1219,11 +1219,10 @@ class ChannelInboxTile extends StatelessWidget {
                                 const Spacer(),
                                 if (_channelIsTextType(channel) &&
                                     channel.unreadCount > 0)
-                                  _UnreadBadge(
+                                  _UnreadDot(
                                     key: ValueKey(
-                                      'channel_unread_count_${channel.id}',
+                                      'channel_unread_dot_${channel.id}',
                                     ),
-                                    count: channel.unreadCount,
                                   ),
                               ],
                             ),
@@ -1311,34 +1310,18 @@ class _ChannelAvatar extends ConsumerWidget {
   }
 }
 
-class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge({super.key, required this.count});
-
-  final int count;
+class _UnreadDot extends StatelessWidget {
+  const _UnreadDot({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final label = _formatBadgeCount(count);
     return Container(
-      width: 20,
-      height: 20,
+      width: 8,
+      height: 8,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: context.tk.danger,
         shape: BoxShape.circle,
-      ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        textHeightBehavior: const TextHeightBehavior(
-          applyHeightToFirstAscent: false,
-          applyHeightToLastDescent: false,
-        ),
-        style: AppTheme.sans(
-          size: label.length > 2 ? 8 : 11,
-          weight: FontWeight.w700,
-          color: context.tk.onAccent,
-        ).copyWith(height: 1),
       ),
     );
   }

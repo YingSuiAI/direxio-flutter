@@ -1215,7 +1215,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sessionExpiredTitle => 'Signed in on another device';
 
   @override
-  String get sessionExpiredMessage => 'Please sign in again';
+  String get sessionExpiredMessage =>
+      'This account was signed in on another device. Tap OK, then enter your password manually to sign in again.';
 
   @override
   String get chatRecordForwarded => 'Chat record forwarded';

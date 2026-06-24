@@ -18,7 +18,6 @@ import 'package:portal_app/presentation/pages/channel_management_page.dart';
 import 'package:portal_app/presentation/pages/channel_page.dart';
 import 'package:portal_app/presentation/pages/channel_post_create_page.dart';
 import 'package:portal_app/presentation/pages/channel_post_detail_page.dart';
-import 'package:portal_app/presentation/pages/contact_home_page.dart';
 import 'package:portal_app/presentation/providers/auth_provider.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
 import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.dart';
@@ -1680,7 +1679,7 @@ void main() {
     expect(find.textContaining('频道信息('), findsNothing);
   });
 
-  testWidgets('owned channel member avatar opens visitor public channels',
+  testWidgets('owned channel member avatar opens chat avatar contact detail',
       (tester) async {
     final asClient = _ChannelInfoMembersAsClient(
       publicChannels: const [
@@ -1751,9 +1750,15 @@ void main() {
           builder: (_, __) => const Scaffold(body: Text('个人信息页面')),
         ),
         GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
-            userId: state.pathParameters['userId']!,
+          path: '/contact/:userId',
+          builder: (_, state) => Scaffold(
+            body: Column(
+              children: [
+                const Text('聊天头像联系人详情'),
+                Text(state.pathParameters['userId']!),
+                Text(state.uri.queryParameters['source'] ?? ''),
+              ],
+            ),
           ),
         ),
       ],
@@ -1788,10 +1793,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('个人信息页面'), findsNothing);
-    expect(find.text('主页'), findsOneWidget);
-    expect(asClient.requestedPublicChannelUserId, '@alex:p2p-liyanan.com');
-    expect(find.text('Alex 公开频道'), findsOneWidget);
-    expect(find.text('还没有公开频道'), findsNothing);
+    expect(find.text('聊天头像联系人详情'), findsOneWidget);
+    expect(find.text('@alex:p2p-liyanan.com'), findsOneWidget);
+    expect(find.text('chat_avatar'), findsOneWidget);
+    expect(asClient.requestedPublicChannelUserId, isNull);
   });
 
   testWidgets('owned channel info mute switch calls AS APIs', (tester) async {
@@ -2389,6 +2394,42 @@ void main() {
     );
     expect(find.text('每周产品更新和频道公告'), findsOneWidget);
     expect(find.text('申请加入'), findsNothing);
+  });
+
+  testWidgets('channel detail info uses routed avatar fallback',
+      (tester) async {
+    const avatarUrl = 'https://cdn.example.com/alice-channel.png';
+    final client = Client('ChannelDetailInfoRoutedAvatarTest')
+      ..setUserId('@owner:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelDetailInfoPage(
+            channelId: 'ch_remote_alice',
+            routeName: 'Alice 公开频道',
+            routeAvatarUrl: avatarUrl,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final avatarImage = tester.widget<Image>(
+      find.descendant(
+        of: find.byType(PortalAvatar),
+        matching: find.byType(Image),
+      ),
+    );
+    expect((avatarImage.image as NetworkImage).url, avatarUrl);
   });
 
   testWidgets('channel detail info uses Matrix room name instead of room id',

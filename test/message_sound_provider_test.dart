@@ -117,6 +117,55 @@ void main() {
     expect(channelRoomIdsFromBootstrap(bootstrap), {'!channel:p2p-im.com'});
   });
 
+  test('reads default-muted channel rooms from Matrix room profile', () {
+    final client = Client('MessageSoundChannelRoomProfileTest');
+    final channelRoom = Room(
+      id: '!channel:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    final directRoom = Room(
+      id: '!direct:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.addAll([channelRoom, directRoom]);
+    channelRoom.setState(
+      StrippedStateEvent(
+        type: 'io.direxio.room.profile',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: const {'room_type': 'io.direxio.room.channel'},
+      ),
+    );
+
+    expect(
+        channelRoomIdsFromMatrixRooms(client.rooms), {'!channel:p2p-im.com'});
+  });
+
+  test('reads default-muted channel rooms from legacy Matrix kind', () {
+    final client = Client('MessageSoundLegacyChannelKindTest');
+    final channelRoom = Room(
+      id: '!legacy-channel:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(channelRoom);
+    channelRoom.setState(
+      StrippedStateEvent(
+        type: 'p2p.room.kind',
+        senderId: '@owner:p2p-im.com',
+        stateKey: '',
+        content: const {'kind': 'channel'},
+      ),
+    );
+
+    expect(
+      channelRoomIdsFromMatrixRooms(client.rooms),
+      {'!legacy-channel:p2p-im.com'},
+    );
+  });
+
   test('message vibration uses mobile-compatible pattern', () async {
     final patterns = <List<int>>[];
     final player = MessageVibrationPlayer(

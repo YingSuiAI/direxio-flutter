@@ -28,7 +28,6 @@ final asClientProvider = Provider<AsClient>((ref) {
       baseUri: HttpAsClient.defaultAdminBaseUri(homeserver),
       portalToken: portalToken,
       accessTokenForDebug: client.accessToken,
-      onAuthenticationRefresh: authNotifier.refreshPortalSessionForAsAdminToken,
       onAuthenticationFailedForToken:
           authNotifier.expireSessionDueInvalidTokenIfCurrent,
       httpClient: client.httpClient,

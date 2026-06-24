@@ -25,10 +25,12 @@ Portal bootstrap, password auth, and owner profile updates are P2P product-layer
 
 Only confirmed credential rejection should expire a restored session. Transient SDK/network restore failures should keep stored credentials and present a retryable logged-in shell when that is the current product behavior.
 
-After login or portal-token refresh applies a new Matrix access token, do not
-expire the session because of stale in-flight Matrix 401s from the old token.
-Use the current-token check and the short recent-token retry window before
-sending the user back to login.
+After login or password change applies a new Matrix access token, do not expire
+the session because of stale in-flight Matrix 401s from the old token. Current
+token rejection means the account was signed in elsewhere or the session is no
+longer valid: expire the local session, clear saved login secrets, show the
+session-expired dialog, and require the user to manually enter the password
+again.
 
 After `portal.password` succeeds, persist the new login password and new AS
 bearer token before any Matrix or AS follow-up request can trigger auth refresh.
@@ -37,12 +39,8 @@ From that point, the old password must not be used for `portal.auth`.
 After login or password change rotates the P2P/AS bearer token, do not expire
 the session because of stale in-flight AS `M_UNKNOWN_TOKEN` responses from the
 old bearer. AS clients should report the rejected bearer token so auth state can
-compare it with the current token before clearing local session state.
-
-When a Matrix token rejection triggers portal-token refresh, do not clear local
-session state if the portal refresh fails due to timeout, network, or 5xx
-server errors. Keep the stored Matrix/portal credentials and retry later; only
-non-retryable AS auth rejection such as 4xx should expire the restored session.
+compare it with the current token before clearing local session state. Current
+bearer rejection must not auto-login with the saved password.
 
 On iOS, direct app uninstall/reinstall must not restore stale Keychain login
 state. Use non-Keychain app-local install state to detect a fresh install and

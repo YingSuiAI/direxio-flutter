@@ -12,6 +12,7 @@ import 'auth_provider.dart';
 import 'as_sync_cache_provider.dart';
 import 'conversation_preferences_provider.dart';
 import 'message_notification_preferences_provider.dart';
+import '../utils/direct_contact_status.dart';
 
 const _messageSoundAsset = '0.m4a';
 const _messageSoundThrottle = Duration(milliseconds: 900);
@@ -37,9 +38,10 @@ final messageSoundControllerProvider = Provider<void>((ref) {
   if (auth?.isLoggedIn != true) return;
   final client = ref.watch(matrixClientProvider);
   if (!client.isLogged()) return;
-  final mutedChannelRoomIds = channelRoomIdsFromBootstrap(
-    ref.watch(asSyncCacheProvider).bootstrap,
-  );
+  final mutedChannelRoomIds = {
+    ...channelRoomIdsFromBootstrap(ref.watch(asSyncCacheProvider).bootstrap),
+    ...channelRoomIdsFromMatrixRooms(client.rooms),
+  };
 
   DateTime? lastPlayedAt;
   final subscription = client.onEvent.stream.listen((update) {
@@ -106,6 +108,31 @@ Set<String> channelRoomIdsFromBootstrap(AsSyncBootstrap? bootstrap) {
     for (final channel in channels)
       if (channel.roomId.trim().isNotEmpty) channel.roomId.trim(),
   };
+}
+
+@visibleForTesting
+Set<String> channelRoomIdsFromMatrixRooms(Iterable<Room> rooms) {
+  return {
+    for (final room in rooms)
+      if (_isMatrixChannelRoom(room) && room.id.trim().isNotEmpty)
+        room.id.trim(),
+  };
+}
+
+bool _isMatrixChannelRoom(Room room) {
+  final profile = room.getState(nativeRoomProfileEventType)?.content;
+  if (_profileString(profile, 'room_type') == nativeChannelRoomType) {
+    return true;
+  }
+  final legacyKind = room.getState('p2p.room.kind')?.content;
+  return _profileString(legacyKind, 'kind') == 'channel';
+}
+
+String? _profileString(Map<String, dynamic>? content, String key) {
+  final value = content?[key];
+  if (value is! String) return null;
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
 }
 
 class MessageSoundPlayer {

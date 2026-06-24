@@ -1180,7 +1180,8 @@ class AppLocalizationsJa extends AppLocalizations {
   String get sessionExpiredTitle => '別の端末でログインされました';
 
   @override
-  String get sessionExpiredMessage => 'もう一度ログインしてください';
+  String get sessionExpiredMessage =>
+      'このアカウントは別の端末でログインされました。OKをタップしてから、パスワードを手動で入力して再ログインしてください。';
 
   @override
   String get chatRecordForwarded => 'チャット履歴を転送しました';

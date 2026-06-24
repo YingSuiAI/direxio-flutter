@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'l10n/app_localizations.dart';
@@ -25,6 +27,7 @@ bool _sessionExpiredDialogShowing = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _configureAndroidPhotoPicker();
   await _initializeAndroidFcm();
   // Web 上禁用浏览器原生右键菜单（翻译/检查等），让我们自己的
   // chat-ctx / msg-ctx 菜单不被遮挡。
@@ -44,6 +47,14 @@ void main() async {
       child: const PortalApp(),
     ),
   );
+}
+
+void _configureAndroidPhotoPicker() {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  final imagePicker = ImagePickerPlatform.instance;
+  if (imagePicker is ImagePickerAndroid) {
+    imagePicker.useAndroidPhotoPicker = true;
+  }
 }
 
 bool get _androidFcmSupported {
@@ -94,7 +105,6 @@ class PortalApp extends ConsumerWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted || _sessionExpiredDialogShowing) return;
         _sessionExpiredDialogShowing = true;
-        router.go('/login');
         showCupertinoDialog<void>(
           context: context,
           barrierDismissible: false,
@@ -106,7 +116,10 @@ class PortalApp extends ConsumerWidget {
               actions: [
                 CupertinoDialogAction(
                   isDefaultAction: true,
-                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    router.go('/login');
+                  },
                   child: Text(l10n.commonOk),
                 ),
               ],

@@ -25,11 +25,21 @@ class ChannelDetailInfoPage extends ConsumerStatefulWidget {
   const ChannelDetailInfoPage({
     super.key,
     required this.channelId,
+    this.routeRoomId,
+    this.routeName,
+    this.routeAvatarUrl,
+    this.routeDescription,
+    this.routeChannelType,
     this.sharePayload,
     this.showJoinButton = false,
   });
 
   final String channelId;
+  final String? routeRoomId;
+  final String? routeName;
+  final String? routeAvatarUrl;
+  final String? routeDescription;
+  final String? routeChannelType;
   final ChannelSharePayload? sharePayload;
   final bool showJoinButton;
 
@@ -62,7 +72,8 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
   @override
   Widget build(BuildContext context) {
     final fallbackChannel = widget.sharePayload == null
-        ? resolveChannelInfoData(ref, widget.channelId)
+        ? _mergeRouteChannelFallback(
+            resolveChannelInfoData(ref, widget.channelId))
         : channelInfoDataFromSharePayload(widget.sharePayload!);
     final detailFuture = _publicDetailFuture;
     if (detailFuture != null) {
@@ -180,10 +191,13 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
         sharePayload.visibility.trim() == asChannelVisibilityPrivate) {
       return Future.value(channelInfoDataFromSharePayload(sharePayload));
     }
+    final routeRoomId = widget.routeRoomId?.trim() ?? '';
     final roomId = sharePayload?.roomId.trim() ??
-        (_looksLikeMatrixRoomId(widget.channelId)
-            ? widget.channelId.trim()
-            : '');
+        (routeRoomId.isNotEmpty
+            ? routeRoomId
+            : _looksLikeMatrixRoomId(widget.channelId)
+                ? widget.channelId.trim()
+                : '');
     if (roomId.isEmpty) return null;
     return ref
         .read(asClientProvider)
@@ -192,6 +206,41 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
           remoteNodeBaseUri: publicBaseUriForMatrixRoomId(roomId),
         )
         .then(channelInfoDataFromAsChannel);
+  }
+
+  ChannelInfoData _mergeRouteChannelFallback(ChannelInfoData fallback) {
+    final routeRoomId = widget.routeRoomId?.trim() ?? '';
+    final routeName = widget.routeName?.trim() ?? '';
+    final routeAvatarUrl = widget.routeAvatarUrl?.trim() ?? '';
+    final routeDescription = widget.routeDescription?.trim() ?? '';
+    final routeChannelType = widget.routeChannelType?.trim() ?? '';
+    if (routeRoomId.isEmpty &&
+        routeName.isEmpty &&
+        routeAvatarUrl.isEmpty &&
+        routeDescription.isEmpty &&
+        routeChannelType.isEmpty) {
+      return fallback;
+    }
+    return ChannelInfoData(
+      id: fallback.id,
+      roomId: routeRoomId.isNotEmpty ? routeRoomId : fallback.roomId,
+      domain: fallback.domain,
+      name: routeName.isNotEmpty ? routeName : fallback.name,
+      avatarUrl:
+          routeAvatarUrl.isNotEmpty ? routeAvatarUrl : fallback.avatarUrl,
+      description:
+          routeDescription.isNotEmpty ? routeDescription : fallback.description,
+      visibility: fallback.visibility,
+      joinPolicy: fallback.joinPolicy,
+      memberStatus: fallback.memberStatus,
+      isOwned: fallback.isOwned,
+      commentsEnabled: fallback.commentsEnabled,
+      muted: fallback.muted,
+      channelType:
+          routeChannelType.isNotEmpty ? routeChannelType : fallback.channelType,
+      tags: fallback.tags,
+      memberCount: fallback.memberCount,
+    );
   }
 
   Future<void> _joinChannel(ChannelInfoData channel) async {

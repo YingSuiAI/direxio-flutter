@@ -8,6 +8,9 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/auth_provider.dart';
+import '../utils/avatar_url.dart';
+import '../widgets/portal_avatar.dart';
 
 typedef _ContactPublicChannelsRequest = ({
   String userId,
@@ -167,7 +170,10 @@ class _ContactChannelItem {
     required this.roomId,
     required this.title,
     required this.subtitle,
+    required this.avatarUrl,
     required this.tag,
+    required this.channelType,
+    required this.description,
     required this.joined,
   });
 
@@ -185,7 +191,10 @@ class _ContactChannelItem {
       roomId: channel.roomId.trim(),
       title: title,
       subtitle: subtitle,
+      avatarUrl: channel.avatarUrl.trim(),
       tag: type == asChannelTypePost ? '帖子' : '文字',
+      channelType: type,
+      description: channel.description.trim(),
       joined: viewerJoined,
     );
   }
@@ -194,13 +203,36 @@ class _ContactChannelItem {
   final String roomId;
   final String title;
   final String subtitle;
+  final String avatarUrl;
   final String tag;
+  final String channelType;
+  final String description;
   final bool joined;
 
   String get routeTarget {
     if (joined && channelId.isNotEmpty) return channelId;
     if (roomId.isNotEmpty) return roomId;
     return channelId;
+  }
+
+  String get detailRoute {
+    final params = <String, String>{
+      if (roomId.isNotEmpty) 'room_id': roomId,
+      if (title.trim().isNotEmpty) 'name': title.trim(),
+      if (avatarUrl.trim().isNotEmpty) 'avatar': avatarUrl.trim(),
+      if (description.trim().isNotEmpty) 'description': description.trim(),
+      if (channelType.trim().isNotEmpty) 'type': channelType.trim(),
+    };
+    final query = params.entries
+        .map(
+          (entry) =>
+              '${Uri.encodeQueryComponent(entry.key)}=${Uri.encodeQueryComponent(entry.value)}',
+        )
+        .join('&');
+    final target = Uri.encodeComponent(routeTarget);
+    return query.isEmpty
+        ? '/channel/$target/detail'
+        : '/channel/$target/detail?$query';
   }
 }
 
@@ -218,7 +250,7 @@ bool _viewerHasJoinedChannel(AsSyncBootstrap? bootstrap, AsChannel channel) {
   return false;
 }
 
-class _ContactChannelListItem extends StatelessWidget {
+class _ContactChannelListItem extends ConsumerWidget {
   const _ContactChannelListItem({
     required this.item,
     required this.showDivider,
@@ -228,19 +260,26 @@ class _ContactChannelListItem extends StatelessWidget {
   final bool showDivider;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
     final target = item.routeTarget;
+    final avatarUrl = avatarHttpUrl(
+      ref.watch(matrixClientProvider),
+      item.avatarUrl,
+    );
     return InkWell(
       borderRadius: BorderRadius.circular(8),
-      onTap: target.isEmpty
-          ? null
-          : () => context.push('/channel/${Uri.encodeComponent(target)}'),
+      onTap: target.isEmpty ? null : () => context.push(item.detailRoute),
       child: SizedBox(
         height: 64,
         child: Row(
           children: [
-            _ChannelInitialBadge(title: item.title),
+            PortalAvatar(
+              seed: item.title,
+              size: 42,
+              imageUrl: avatarUrl,
+              shape: AvatarShape.squircle,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Stack(
@@ -299,35 +338,6 @@ class _ContactChannelListItem extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ChannelInitialBadge extends StatelessWidget {
-  const _ChannelInitialBadge({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final initial = title.trim().isEmpty ? '频' : title.trim().characters.first;
-    return Container(
-      width: 42,
-      height: 42,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: t.accent.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        initial,
-        style: AppTheme.sans(
-          size: 15,
-          weight: FontWeight.w600,
-          color: t.accent,
         ),
       ),
     );

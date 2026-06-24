@@ -634,7 +634,7 @@
   "commonOk": "OK",
   "commonRetry": "Retry",
   "sessionExpiredTitle": "Signed in on another device",
-  "sessionExpiredMessage": "Please sign in again",
+  "sessionExpiredMessage": "This account was signed in on another device. Tap OK, then enter your password manually to sign in again.",
   "chatRecordForwarded": "Chat record forwarded",
   "chatRecordForwardFailed": "Forward failed: {error}",
   "@chatRecordForwardFailed": {

@@ -1174,7 +1174,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sessionExpiredTitle => '账号在其他设备登录';
 
   @override
-  String get sessionExpiredMessage => '请重新登录';
+  String get sessionExpiredMessage => '当前账号已在其他设备登录。点击确定后请重新手动输入密码登录。';
 
   @override
   String get chatRecordForwarded => '已转发聊天记录';

@@ -78,6 +78,7 @@ import 'package:portal_app/presentation/providers/im_public_client_provider.dart
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 import 'package:portal_app/presentation/providers/matrix_message_clients_provider.dart';
 import 'package:portal_app/presentation/providers/media_thumbnail_cache_provider.dart';
+import 'package:portal_app/presentation/providers/message_sound_provider.dart';
 import 'package:portal_app/presentation/providers/profile_provider.dart';
 import 'package:portal_app/presentation/providers/product_conversations_provider.dart';
 import 'package:portal_app/presentation/providers/voice_call_provider.dart';
@@ -87,6 +88,7 @@ import 'package:portal_app/presentation/utils/group_creation_flow.dart';
 import 'package:portal_app/presentation/utils/direct_contact_status.dart';
 import 'package:portal_app/presentation/utils/room_read_state.dart';
 import 'package:portal_app/presentation/widgets/group_composite_avatar.dart';
+import 'package:portal_app/presentation/widgets/info_rows.dart';
 import 'package:portal_app/presentation/widgets/m3/glass_header.dart';
 import 'package:portal_app/presentation/widgets/m3/m3_search_field.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
@@ -1717,6 +1719,24 @@ class _MemoryConversationSummaryStore implements ConversationSummaryStore {
   Future<void> clear() async {
     snapshot = null;
   }
+}
+
+EventUpdate _messageSoundUpdate({
+  required String roomId,
+  required String sender,
+}) {
+  return EventUpdate(
+    roomID: roomId,
+    type: EventUpdateType.timeline,
+    content: {
+      'type': EventTypes.Message,
+      'sender': sender,
+      'content': {
+        'msgtype': MessageTypes.Text,
+        'body': 'hello',
+      },
+    },
+  );
 }
 
 class _MemoryMediaThumbnailCache implements MediaThumbnailCache {
@@ -9962,6 +9982,7 @@ void main() {
           channelId: 'ch_alice_public',
           roomId: '!alice-public:remote.example',
           name: 'Alice 公开频道',
+          avatarUrl: 'https://cdn.example.com/alice-public.png',
           visibility: asChannelVisibilityPublic,
           joinPolicy: asChannelJoinPolicyApproval,
           memberStatus: asChannelMemberStatusJoined,
@@ -9977,9 +9998,14 @@ void main() {
           ),
         ),
         GoRoute(
-          path: '/channel/:channelId',
+          path: '/channel/:channelId/detail',
           builder: (_, state) => Scaffold(
-            body: Text('opened ${state.pathParameters['channelId']}'),
+            body: Column(
+              children: [
+                Text('opened ${state.pathParameters['channelId']}'),
+                Text('avatar:${state.uri.queryParameters['avatar']}'),
+              ],
+            ),
           ),
         ),
       ],
@@ -10005,6 +10031,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('opened !alice-public:remote.example'), findsOneWidget);
+    expect(
+      find.text('avatar:https://cdn.example.com/alice-public.png'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('contact channels list opens joined channel by channel id',
@@ -10035,6 +10065,7 @@ void main() {
           channelId: 'ch_alice_joined',
           roomId: '!alice-joined:remote.example',
           name: 'Alice 已加入频道',
+          avatarUrl: 'https://cdn.example.com/alice-joined.png',
           visibility: asChannelVisibilityPublic,
           joinPolicy: asChannelJoinPolicyOpen,
           memberStatus: asChannelMemberStatusJoined,
@@ -10050,9 +10081,14 @@ void main() {
           ),
         ),
         GoRoute(
-          path: '/channel/:channelId',
+          path: '/channel/:channelId/detail',
           builder: (_, state) => Scaffold(
-            body: Text('opened ${state.pathParameters['channelId']}'),
+            body: Column(
+              children: [
+                Text('opened ${state.pathParameters['channelId']}'),
+                Text('avatar:${state.uri.queryParameters['avatar']}'),
+              ],
+            ),
           ),
         ),
       ],
@@ -10081,6 +10117,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('opened ch_alice_joined'), findsOneWidget);
+    expect(
+      find.text('avatar:https://cdn.example.com/alice-joined.png'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -12086,6 +12126,56 @@ void main() {
     expect(matrixInviteCardSends, 1, reason: matrixRequestPaths.join('\n'));
   });
 
+  testWidgets('group info prefers product group name over empty Matrix title',
+      (tester) async {
+    const roomId = '!group:p2p-im.com';
+    final client = Client('DirexioGroupInfoProductNameTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: 'Empty chat',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24, 9),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '产品群名',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('产品群名'), findsOneWidget);
+    expect(find.text('Empty chat'), findsNothing);
+  });
+
   testWidgets('group detail reports roomless invite contacts as skipped',
       (tester) async {
     final client = Client('DirexioGroupDetailInviteRoomlessTest')
@@ -12214,6 +12304,63 @@ void main() {
 
     expect(find.text('群管理'), findsOneWidget);
     expect(find.text('移除'), findsOneWidget);
+  });
+
+  testWidgets('group info persists message mute toggle for notification sound',
+      (tester) async {
+    const roomId = '!group-muted:p2p-im.com';
+    final client = Client('DirexioGroupInfoMuteTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '免打扰群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final store = _MemoryConversationPreferencesStore();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          conversationPreferencesStoreProvider.overrideWith(
+            (ref) async => store,
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final muteSwitch = find.widgetWithText(InfoSwitchRow, '消息免打扰');
+    expect(muteSwitch, findsOneWidget);
+    expect(
+      tester
+          .widget<Switch>(
+            find.descendant(of: muteSwitch, matching: find.byType(Switch)),
+          )
+          .value,
+      isFalse,
+    );
+
+    await tester.tap(
+      find.descendant(of: muteSwitch, matching: find.byType(Switch)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(store.data.mutedConversationIds, contains(roomId));
+    expect(
+      shouldPlayMessageSound(
+        _messageSoundUpdate(roomId: roomId, sender: '@alice:p2p-im.com'),
+        currentUserId: '@owner:p2p-im.com',
+        mutedConversationIds: store.data.mutedConversationIds,
+      ),
+      isFalse,
+    );
   });
 
   testWidgets('group info identity header shows and copies room uid',
@@ -15420,7 +15567,7 @@ void main() {
     expect(find.text('还没有频道'), findsOneWidget);
   });
 
-  testWidgets('channel unread badge appears only for chat channels',
+  testWidgets('channel unread dot appears only for chat channels',
       (tester) async {
     final client = Client('DirexioTest');
 
@@ -15470,10 +15617,12 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byKey(const ValueKey('channel_unread_count_ch_updates')),
+    expect(find.byKey(const ValueKey('channel_unread_dot_ch_updates')),
         findsOneWidget);
-    expect(find.byKey(const ValueKey('channel_unread_count_ch_posts')),
+    expect(find.byKey(const ValueKey('channel_unread_dot_ch_posts')),
         findsNothing);
+    expect(find.text('12'), findsNothing);
+    expect(find.text('8'), findsNothing);
   });
 
   testWidgets('home message list excludes channel conversations',

@@ -6,9 +6,10 @@ This document is a current implementation inventory. It is not a roadmap and doe
 
 ## Real Data Surfaces
 
-- Authentication/session restore uses Matrix SDK session state plus the persisted `access_token`; initialization is complete once the generated initial password has been changed.
+- Authentication/session restore uses Matrix SDK session state plus the persisted `access_token`; initialization is complete once the generated initial password has been changed. Runtime current-token rejection signs the user out, clears saved login secrets, shows the session-expired dialog, and requires manual password entry before logging in again.
 - Home conversations use ProductCore direct/group conversations, Matrix rooms, and local summary snapshots only as startup cache. Channel conversations stay under the channel surfaces.
 - Direct/group/channel chat uses Matrix timelines for text, media, history, read state, local delete, and search.
+- Channel message rooms are muted by default for local sound/vibration notifications, and channel list items show unread presence as a red dot rather than an unread count.
 - Removed or exited group conversations stay visible in home conversations and Contacts -> Groups as read-only history; opening them shows the exited-group send block.
 - Contacts, follows, pending requests, group metadata, channel metadata, public profiles, and public channel lists use the integrated P2P product API/bootstrap actions.
 - Group invite visibility uses Matrix room invites and `sync.bootstrap.pending.group_invites`; private chat invite messages are not the receiver contract.

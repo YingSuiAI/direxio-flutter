@@ -32,7 +32,7 @@ Expected: FAIL because `ImPublicClient` currently sends no signature headers.
 
 - [x] **Step 3: Implement shared config and signing**
 
-Add `defaultImPublicBaseUrl = 'http://localhost:8888'`, `defaultImPublicSecret = 'f88c10fe-4559-fa77-b8b9-beadf468ddba'`, `canonicalImPublicJson`, `buildImPublicSignature`, and `signedImPublicHeaders`. Use them from BI and IM public clients.
+Add `defaultImPublicBaseUrl = 'https://imadmin.direxio.ai/api'`, `defaultImPublicSecret = 'f88c10fe-4559-fa77-b8b9-beadf468ddba'`, `canonicalImPublicJson`, `buildImPublicSignature`, and `signedImPublicHeaders`. Use them from BI and IM public clients.
 
 - [x] **Step 4: Run green test**
 
@@ -178,7 +178,7 @@ flutter test --no-pub test/im_public_client_test.dart test/channel_search_page_t
 
 - [x] **Step 3: Host smoke check**
 
-Call `GET http://localhost:8888/im/channel/list?page=1&pageSize=1&desc=false` with generated signed headers. Expected: either a valid envelope from the current host or a connection failure that is reported explicitly.
+Call `GET https://imadmin.direxio.ai/api/im/channel/list?page=1&pageSize=1&desc=false` with generated signed headers. Expected: either a valid envelope from the current host or a connection failure that is reported explicitly.
 
 - [x] **Step 4: Self-review and commit**
 

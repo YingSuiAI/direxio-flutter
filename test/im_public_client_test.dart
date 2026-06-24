@@ -96,6 +96,50 @@ void main() {
     expect(page.items.single.channel.description, 'Release notes');
   });
 
+  test('public clients preserve base URI path prefixes', () async {
+    late http.Request imRequest;
+    final imClient = ImPublicClient(
+      baseUri: Uri.parse('https://admin.example.com/api'),
+      secret: 'bi-secret',
+      httpClient: MockClient((request) async {
+        imRequest = request;
+        return _json({
+          'code': 0,
+          'data': {
+            'list': [],
+            'total': 0,
+            'page': 1,
+            'pageSize': 10,
+          },
+          'msg': 'success',
+        });
+      }),
+    );
+
+    await imClient.listChannels();
+
+    late http.Request biRequest;
+    final reporter = HttpBiAnalyticsReporter(
+      baseUri: Uri.parse('https://admin.example.com/api'),
+      secret: 'bi-secret',
+      httpClient: MockClient((request) async {
+        biRequest = request;
+        return _json({'code': 0, 'data': {}, 'msg': 'success'});
+      }),
+    );
+
+    await reporter(const BiAnalyticsEvent(
+      eventType: 'login',
+      deviceNo: 'device-001',
+      phoneModel: '',
+      reportTime: 1780934400000,
+      payload: {},
+    ));
+
+    expect(imRequest.url.path, '/api/im/channel/list');
+    expect(biRequest.url.path, '/api/bi/events/report');
+  });
+
   test('joinChannelDirectory posts signed documented body', () async {
     late http.Request seen;
     final client = ImPublicClient(

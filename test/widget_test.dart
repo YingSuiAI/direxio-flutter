@@ -9954,6 +9954,135 @@ void main() {
     expect(asClient.requestedUserPublicChannelsBaseUri, remoteNodeBaseUri);
   });
 
+  testWidgets('contact channels list opens channel from list item',
+      (tester) async {
+    final asClient = _TrackingAsClient()
+      ..userPublicChannels = const [
+        AsChannel(
+          channelId: 'ch_alice_public',
+          roomId: '!alice-public:remote.example',
+          name: 'Alice 公开频道',
+          visibility: asChannelVisibilityPublic,
+          joinPolicy: asChannelJoinPolicyApproval,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ];
+    final router = GoRouter(
+      initialLocation: '/contact-channels/%40alice%3Aremote.example',
+      routes: [
+        GoRoute(
+          path: '/contact-channels/:userId',
+          builder: (_, state) => ContactChannelsPage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => Scaffold(
+            body: Text('opened ${state.pathParameters['channelId']}'),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Alice 公开频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('opened !alice-public:remote.example'), findsOneWidget);
+  });
+
+  testWidgets('contact channels list opens joined channel by channel id',
+      (tester) async {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          roomId: '!alice-joined:remote.example',
+          channelId: 'ch_alice_joined',
+          name: 'Alice 已加入频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _TrackingAsClient()
+      ..userPublicChannels = const [
+        AsChannel(
+          channelId: 'ch_alice_joined',
+          roomId: '!alice-joined:remote.example',
+          name: 'Alice 已加入频道',
+          visibility: asChannelVisibilityPublic,
+          joinPolicy: asChannelJoinPolicyOpen,
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ];
+    final router = GoRouter(
+      initialLocation: '/contact-channels/%40alice%3Aremote.example',
+      routes: [
+        GoRoute(
+          path: '/contact-channels/:userId',
+          builder: (_, state) => ContactChannelsPage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => Scaffold(
+            body: Text('opened ${state.pathParameters['channelId']}'),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Alice 已加入频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('opened ch_alice_joined'), findsOneWidget);
+  });
+
   testWidgets(
       'add contact detail keeps routed avatar when accepted contact avatar is empty',
       (tester) async {

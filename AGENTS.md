@@ -46,6 +46,7 @@ lib/
 - Use the integrated P2P product API for product-layer data Matrix does not model cleanly: setup/bootstrap, access-token auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
 - Backend auth responses expose one `access_token`. P2P product API calls use it as bearer auth, and Matrix SDK/Matrix API behavior uses the same token. Do not add separate product or Matrix token fields.
 - Product API calls go through `/_p2p/query` or `/_p2p/command` with an `action` and `params` envelope. Do not add new URL-shaped client contracts unless the backend does.
+- Signed IM/BI public endpoints are a separate boundary from P2P Product API actions. Use the IM public client for `/im/*` and `/bi/*` calls that require `X-BI-Nonce` and `X-BI-Signature`.
 - Do not create duplicate list APIs or duplicate client flows. If data already arrives through `sync.bootstrap`, prefer extending that action contract and the client model.
 - Runtime views must prefer real Matrix/P2P data. Placeholder fixture data is not allowed in production UI.
 - Do not silently fall back to fixture data. A real empty state is better than fake data.
@@ -69,6 +70,8 @@ lib/
 - `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile completion is not part of initialization.
 - Channel share cards must include `channel_id` and `room_id`. Owner/admin shares create `channels.invite_grant.create` and send `grant_id` plus `share_room_id` so receivers join through `channels.join`; ordinary member shares do not create invite grants and receivers apply through `channels.public.join_request` using the card Matrix `room_id` while preserving `channel_id` as channel metadata.
 - When the product API contract changes, update `AsClient`, `HttpAsClient`, test doubles under `test/support/`, focused tests, and `docs/P2P_API_BOUNDARY.md` together.
+- User-facing reports use signed `POST /im/report`, not the P2P `reports.submit` action. Use target type `1` for friends, `2` for group chats, and `3` for channels; upload evidence images as repeated multipart `files`.
+- Public channel directory search/register/close uses signed `/im/channel/list`, `/im/channel/join`, and `/im/channel/close`. Only Matrix room-id channel search stays on the existing P2P room-id lookup path.
 
 ## Architecture
 

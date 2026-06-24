@@ -12,7 +12,10 @@ This document is a current implementation inventory. It is not a roadmap and doe
 - Removed or exited group conversations stay visible in home conversations and Contacts -> Groups as read-only history; opening them shows the exited-group send block.
 - Contacts, follows, pending requests, group metadata, channel metadata, public profiles, and public channel lists use the integrated P2P product API/bootstrap actions.
 - Group invite visibility uses Matrix room invites and `sync.bootstrap.pending.group_invites`; private chat invite messages are not the receiver contract.
-- Channel search uses the P2P public search action. Remote node URLs must be request-provided; the client must not infer a remote P2P URL from a Matrix room id.
+- Channel search uses Matrix-room-id lookup for room ids and the signed IM public `/im/channel/list` endpoint for other search text.
+- Public channel creation registers the channel in the signed IM public directory, and channel dissolve closes it there.
+- User, group, and channel reports use the signed IM public `/im/report` endpoint. Report screenshots/images are sent as multipart `files`.
+- BI startup reporting uses the signed IM public `/bi/events/report` endpoint with a stored device number.
 - Owner/admin channel shares create invite-grant cards for direct grant joins. Ordinary member channel share cards carry the channel id and Matrix room id, then send receivers through the public join request flow using the Matrix room id.
 - Contact public channels use the `users.public_channels` action through `getUserPublicChannels`.
 - Owner profile updates go through the P2P product API and best-effort Matrix profile update.

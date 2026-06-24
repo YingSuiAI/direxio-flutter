@@ -14,6 +14,7 @@ import '../../l10n/app_localizations.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/im_public_client_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_created_channels_provider.dart';
 import '../providers/product_conversations_provider.dart';
@@ -38,7 +39,10 @@ final _channelListProvider = FutureProvider.autoDispose<List<AsChannel>>((ref) {
 final _publicChannelListProvider =
     FutureProvider.autoDispose<List<AsChannel>>((ref) async {
   try {
-    return await ref.read(asClientProvider).searchPublicChannels('', limit: 10);
+    final page = await ref.read(imPublicClientProvider).listChannels(
+          pageSize: 10,
+        );
+    return page.items.map((item) => item.channel).toList(growable: false);
   } catch (_) {
     return const <AsChannel>[];
   }

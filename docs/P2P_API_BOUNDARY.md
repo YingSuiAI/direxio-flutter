@@ -4,6 +4,16 @@ Last verified from current code: 2026-06-23
 
 This document records the current P2P product API / Matrix boundary used by the Flutter client. It intentionally omits historical change logs.
 
+## Signed IM/BI Public API Boundary
+
+- The IM/BI public endpoints are separate from the authenticated P2P ProductCore `/_p2p` action boundary.
+- The client configures the public base URL from `P2P_IM_PUBLIC_BASE_URL` / `P2P_BI_BASE_URL`, defaulting to `http://localhost:8888`, and signs requests with `X-BI-Nonce` plus `X-BI-Signature`.
+- The default public secret is `f88c10fe-4559-fa77-b8b9-beadf468ddba`; deployments may override it with `P2P_IM_PUBLIC_SECRET` / `P2P_BI_SECRET`.
+- Public channel directory registration uses `POST /im/channel/join` after a public channel is created locally; directory closure uses `POST /im/channel/close` after local channel dissolve.
+- Channel search keeps Matrix-room-id lookup on the existing P2P public room detail action. All other channel search text uses signed `GET /im/channel/list` with `name`.
+- User-facing report submissions use signed `POST /im/report`; friend reports send `targetType = 1`, group reports send `targetType = 2`, and channel reports send `targetType = 3`. Report images are uploaded as repeated multipart `files` fields, not `images`.
+- BI startup events use signed `POST /bi/events/report`. First install reports `eventType = launch`; every app startup/login path reports `eventType = login`; payload is currently empty.
+
 ## Token Boundary
 
 - Backend auth responses expose one `access_token`.
@@ -63,7 +73,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 - ProductCore conversations are the openable conversation source.
 - UI must not reconstruct chat routes from names, member counts, or local placeholder ids when ProductCore denies or omits a conversation.
 - Channel list uses P2P/bootstrap channel metadata for logged-in users.
-- Channel search uses P2P public search.
+- Channel search uses P2P room-id lookup only for Matrix room ids; other search text uses the signed IM public channel list.
 - Channel member status must be normalized:
   - `join`, `joined` -> `joined`
   - `invite`, `invited` -> `invite`

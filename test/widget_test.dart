@@ -22,6 +22,7 @@ import 'package:portal_app/data/chat_clear_state_store.dart';
 import 'package:portal_app/data/conversation_preferences_store.dart';
 import 'package:portal_app/data/friend_request_read_store.dart';
 import 'package:portal_app/data/conversation_summary_store.dart';
+import 'package:portal_app/data/im_public_client.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
 import 'package:portal_app/data/matrix_message_search_client.dart';
 import 'package:portal_app/data/matrix_message_visibility_client.dart';
@@ -72,6 +73,7 @@ import 'package:portal_app/presentation/providers/conversation_preferences_provi
 import 'package:portal_app/presentation/providers/friend_request_read_provider.dart';
 import 'package:portal_app/presentation/providers/conversation_summary_provider.dart';
 import 'package:portal_app/presentation/providers/home_hidden_conversations_provider.dart';
+import 'package:portal_app/presentation/providers/im_public_client_provider.dart';
 import 'package:portal_app/presentation/providers/local_outbox_provider.dart';
 import 'package:portal_app/presentation/providers/matrix_message_clients_provider.dart';
 import 'package:portal_app/presentation/providers/media_thumbnail_cache_provider.dart';
@@ -1011,6 +1013,57 @@ class _EmptyAsClient implements AsClient {
 
   @override
   Future<AgentConfig> updateAgentConfig(AgentConfig config) async => config;
+}
+
+class _WidgetImPublicClient extends ImPublicClient {
+  _WidgetImPublicClient()
+      : super(
+          baseUri: Uri.parse('https://admin.example.com'),
+          secret: 'test-secret',
+        );
+
+  String? lastName;
+
+  @override
+  Future<ImPublicChannelPage> listChannels({
+    int page = 1,
+    int pageSize = 10,
+    String name = '',
+    String sortBy = 'createdAt',
+    bool desc = false,
+  }) async {
+    lastName = name;
+    return ImPublicChannelPage(
+      items: [
+        ImPublicChannelListing(
+          id: 1,
+          channelDomain: 'https://example.com',
+          roomId: '!search:example.com',
+          ownerDomain: 'example.com',
+          intro: '频道说明',
+          channel: AsChannel(
+            channelId: 'ch_search',
+            roomId: '!search:example.com',
+            name: name,
+            homeDomain: 'example.com',
+            description: '频道说明',
+            visibility: asChannelVisibilityPublic,
+          ),
+          tagId: 0,
+          tag: null,
+          status: 1,
+          syncStatus: 0,
+          failureCount: 0,
+          reportCount: 0,
+          joinCount: 0,
+          lastJoinTime: null,
+        ),
+      ],
+      total: 1,
+      page: page,
+      pageSize: pageSize,
+    );
+  }
 }
 
 class _MissingPublicChannelAsClient extends _EmptyAsClient {
@@ -6595,10 +6648,11 @@ void main() {
     expect(asClient.lastPublicChannelLookupBaseUri, isNull);
   });
 
-  testWidgets('channel search uses unified AS public search for keywords',
+  testWidgets('channel search uses IM public list for keywords',
       (tester) async {
     final client = Client('DirexioChannelSearchUnifiedTest');
     final asClient = _EmptyAsClient();
+    final imPublicClient = _WidgetImPublicClient();
 
     await tester.pumpWidget(
       ProviderScope(
@@ -6607,6 +6661,7 @@ void main() {
           authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
           currentUserProfileProvider.overrideWith((ref) async => null),
           asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
         ],
         child:
             MaterialApp(theme: AppTheme.light, home: const ChannelSearchPage()),
@@ -6618,9 +6673,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
 
-    expect(asClient.lastPublicChannelSearchQuery, 'garden');
+    expect(asClient.lastPublicChannelSearchQuery, isNull);
+    expect(imPublicClient.lastName, 'garden');
     expect(find.text('garden'), findsWidgets);
-    expect(find.text('example.com'), findsOneWidget);
   });
 
   testWidgets('create channel entry opens figma form', (tester) async {

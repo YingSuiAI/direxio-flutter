@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:package_info_plus/package_info_plus.dart';
+
+import 'im_public_config.dart';
 
 class BiAnalyticsService {
   BiAnalyticsService({
@@ -27,7 +27,7 @@ class BiAnalyticsService {
     if (!_enabled) return;
     final installReported = await _storage.read(key: _installReportedKey);
     if (installReported != 'true') {
-      await _report('install', payload: await _basePayload(page: '/install'));
+      await _report('launch');
       await _storage.write(key: _installReportedKey, value: 'true');
     }
     await reportLaunch();
@@ -35,19 +35,12 @@ class BiAnalyticsService {
 
   Future<void> reportLaunch() async {
     if (!_enabled) return;
-    await _report('launch', payload: await _basePayload(page: '/home'));
+    await _report('login');
   }
 
   Future<void> reportLogin({String homeserver = '', String userId = ''}) async {
     if (!_enabled) return;
-    await _report(
-      'login',
-      payload: {
-        ...await _basePayload(page: '/login'),
-        if (homeserver.trim().isNotEmpty) 'homeserver': homeserver.trim(),
-        if (userId.trim().isNotEmpty) 'userId': userId.trim(),
-      },
-    );
+    await _report('login');
   }
 
   Future<void> _report(
@@ -64,16 +57,6 @@ class BiAnalyticsService {
       reportTime: DateTime.now().millisecondsSinceEpoch,
       payload: payload,
     ));
-  }
-
-  Future<Map<String, Object?>> _basePayload({required String page}) async {
-    final info = await PackageInfo.fromPlatform();
-    return {
-      'appVersion': info.version,
-      'buildNumber': info.buildNumber,
-      'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
-      'page': page,
-    };
   }
 
   Future<String> _deviceNo() async {
@@ -135,21 +118,18 @@ class HttpBiAnalyticsReporter {
 
   Future<void> call(BiAnalyticsEvent event) async {
     if (_secret.isEmpty) return;
-    final nonce = '${DateTime.now().microsecondsSinceEpoch}-'
-        '${event.deviceNo.hashCode.toUnsigned(32)}';
-    final body = canonicalBiJson(event.toJson());
-    final signature = buildBiSignature(
-      secret: _secret,
-      nonce: nonce,
-      canonicalBody: body,
-    );
+    final nonce = buildImPublicNonce(seed: event.deviceNo);
+    final body = canonicalImPublicJson(event.toJson());
     final response = await _http.post(
       _resolve('bi/events/report'),
-      headers: {
-        'content-type': 'application/json',
-        'X-BI-Nonce': nonce,
-        'X-BI-Signature': signature,
-      },
+      headers: signedImPublicHeaders(
+        secret: _secret,
+        nonce: nonce,
+        canonicalBody: body,
+        headers: {
+          'content-type': 'application/json',
+        },
+      ),
       body: body,
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -174,30 +154,4 @@ class HttpBiAnalyticsReporter {
         baseUri.path == '/' ? '' : baseUri.path.replaceAll(RegExp(r'/+$'), '');
     return baseUri.replace(path: path, queryParameters: const {});
   }
-}
-
-String buildBiSignature({
-  required String secret,
-  required String nonce,
-  required String canonicalBody,
-}) {
-  final input = '$secret\n$nonce\n$canonicalBody';
-  return md5.convert(utf8.encode(input)).toString();
-}
-
-String canonicalBiJson(Object? value) {
-  if (value is Map) {
-    final entries = value.entries
-        .where((entry) => entry.key != null)
-        .map((entry) => MapEntry(entry.key.toString(), entry.value))
-        .toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    return '{${entries.map((entry) {
-      return '${jsonEncode(entry.key)}:${canonicalBiJson(entry.value)}';
-    }).join(',')}}';
-  }
-  if (value is Iterable) {
-    return '[${value.map(canonicalBiJson).join(',')}]';
-  }
-  return jsonEncode(value);
 }

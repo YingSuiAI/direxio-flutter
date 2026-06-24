@@ -18,6 +18,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
+import '../providers/im_public_client_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
@@ -28,6 +29,7 @@ import '../widgets/m3/glass_header.dart';
 import '../widgets/m3/m3_card.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/info_rows.dart';
+import '../widgets/report_reason_dialog.dart';
 
 class GroupInfoPage extends ConsumerStatefulWidget {
   const GroupInfoPage({super.key, required this.roomId});
@@ -310,6 +312,11 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                           onTap: _clearing
                               ? null
                               : () => _confirmClearChatHistory(context),
+                        ),
+                        const InfoDivider(),
+                        InfoNavRow(
+                          label: '举报群聊',
+                          onTap: () => _showReportDialog(context),
                         ),
                       ],
                     ),
@@ -715,6 +722,35 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       );
     } finally {
       if (mounted) setState(() => _leaving = false);
+    }
+  }
+
+  Future<void> _showReportDialog(BuildContext context) async {
+    final result = await showDialog<ReportReasonResult>(
+      context: context,
+      barrierColor: context.tk.text.withValues(alpha: 0.7),
+      builder: (_) => const ReportReasonDialog(),
+    );
+    if (result == null || result.reason.trim().isEmpty || !context.mounted) {
+      return;
+    }
+    final reporterDomain = reportDomainForUserId(
+      ref.read(matrixClientProvider).userID ?? '',
+      null,
+    );
+    try {
+      await ref.read(imPublicClientProvider).submitReport(
+            reporterDomain: reporterDomain,
+            reportedDomain: widget.roomId,
+            targetType: 2,
+            reason: result.reason.trim(),
+            files: result.toImPublicFiles(),
+          );
+      if (!context.mounted) return;
+      _toast(context, '举报已提交');
+    } catch (error) {
+      if (!context.mounted) return;
+      _toast(context, '举报提交失败: $error');
     }
   }
 }

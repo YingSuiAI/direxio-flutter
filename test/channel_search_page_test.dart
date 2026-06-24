@@ -4,21 +4,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/data/im_public_client.dart';
 import 'package:portal_app/l10n/app_localizations.dart';
 import 'support/mock_as_client.dart';
 import 'package:portal_app/presentation/channel/channel_share.dart';
 import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
 import 'package:portal_app/presentation/pages/channel_search_page.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
+import 'package:portal_app/presentation/providers/im_public_client_provider.dart';
 
 void main() {
   testWidgets('channel search uses localized empty state and actions',
       (tester) async {
     final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -39,16 +43,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
 
+    expect(imPublicClient.lastName, 'product');
+    expect(asClient.publicSearchCallCount, 0);
     expect(find.text('Request to join'), findsOneWidget);
   });
 
-  testWidgets('channel search uses public discovery and marks approval pending',
+  testWidgets('channel search uses public directory and marks approval pending',
       (tester) async {
     final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -61,8 +69,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
 
-    expect(asClient.lastPublicSearchQuery, '产品');
-    expect(asClient.lastPublicSearchBaseUri, isNull);
+    expect(imPublicClient.lastName, '产品');
+    expect(asClient.publicSearchCallCount, 0);
     expect(find.text('产品公告'), findsOneWidget);
     expect(find.text('申请加入'), findsOneWidget);
 
@@ -75,12 +83,15 @@ void main() {
     expect(find.text('待审核'), findsWidgets);
   });
 
-  testWidgets('channel search treats domain as target node', (tester) async {
+  testWidgets('channel search treats domain text as public directory name',
+      (tester) async {
     final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -93,8 +104,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
 
-    expect(asClient.lastPublicSearchQuery, '');
-    expect(asClient.lastPublicSearchBaseUri?.host, 'p2p-liyanan.com');
+    expect(imPublicClient.lastName, 'p2p-liyanan.com');
+    expect(asClient.publicSearchCallCount, 0);
   });
 
   testWidgets('channel search loads public detail directly for room id',
@@ -225,6 +236,7 @@ void main() {
 
   testWidgets('channel search opens public detail by room id', (tester) async {
     final asClient = _ChannelSearchAsClient();
+    final imPublicClient = _ChannelSearchImPublicClient();
     final router = GoRouter(
       initialLocation: '/search',
       routes: [
@@ -246,6 +258,7 @@ void main() {
       ProviderScope(
         overrides: [
           asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -292,6 +305,7 @@ void main() {
           capabilities: AsConversationCapabilities(open: true),
         ),
       );
+    final imPublicClient = _ChannelSearchImPublicClient();
     final router = GoRouter(
       initialLocation: '/search',
       routes: [
@@ -317,6 +331,7 @@ void main() {
       ProviderScope(
         overrides: [
           asClientProvider.overrideWithValue(asClient),
+          imPublicClientProvider.overrideWithValue(imPublicClient),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -388,7 +403,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(asClient.requestedPublicRoomId, isNull);
-    expect(find.text('私密频道（32）'), findsOneWidget);
+    expect(find.text('私密频道'), findsOneWidget);
 
     await tester.tap(find.text('申请加入'));
     await tester.pump();
@@ -572,6 +587,61 @@ class _ChannelSearchAsClient extends MockAsClient {
       visibility: asChannelVisibilityPublic,
       joinPolicy: asChannelJoinPolicyApproval,
       commentsEnabled: true,
+    );
+  }
+}
+
+class _ChannelSearchImPublicClient extends ImPublicClient {
+  _ChannelSearchImPublicClient()
+      : super(
+          baseUri: Uri.parse('https://admin.example.com'),
+          secret: 'bi-secret',
+        );
+
+  String? lastName;
+  int callCount = 0;
+
+  @override
+  Future<ImPublicChannelPage> listChannels({
+    int page = 1,
+    int pageSize = 10,
+    String name = '',
+    String sortBy = 'createdAt',
+    bool desc = false,
+  }) async {
+    callCount += 1;
+    lastName = name;
+    return const ImPublicChannelPage(
+      items: [
+        ImPublicChannelListing(
+          id: 1,
+          channelDomain: 'https://p2p-im.com',
+          roomId: '!ch_product:p2p-im.com',
+          ownerDomain: 'p2p-im.com',
+          intro: '只发布重要产品更新',
+          channel: AsChannel(
+            channelId: 'ch_product',
+            roomId: '!ch_product:p2p-im.com',
+            homeDomain: 'p2p-im.com',
+            name: '产品公告',
+            description: '只发布重要产品更新',
+            visibility: asChannelVisibilityPublic,
+            joinPolicy: asChannelJoinPolicyApproval,
+            commentsEnabled: true,
+          ),
+          tagId: 0,
+          tag: null,
+          status: 1,
+          syncStatus: 0,
+          failureCount: 0,
+          reportCount: 0,
+          joinCount: 0,
+          lastJoinTime: null,
+        ),
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 10,
     );
   }
 }

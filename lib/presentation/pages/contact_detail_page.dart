@@ -19,6 +19,7 @@ import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/home_hidden_conversations_provider.dart';
+import '../providers/im_public_client_provider.dart';
 import '../providers/product_conversations_provider.dart';
 import '../providers/profile_provider.dart';
 import '../utils/avatar_url.dart';
@@ -597,23 +598,26 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     BuildContext context, {
     required String reportedDomain,
   }) async {
-    final reason = await showDialog<String>(
+    final result = await showDialog<ReportReasonResult>(
       context: context,
       barrierColor: context.tk.text.withValues(alpha: 0.7),
       builder: (_) => const ReportReasonDialog(),
     );
-    if (reason == null || reason.trim().isEmpty || !context.mounted) return;
+    if (result == null || result.reason.trim().isEmpty || !context.mounted) {
+      return;
+    }
 
     final reporterDomain = reportDomainForUserId(
       ref.read(matrixClientProvider).userID ?? '',
       null,
     );
     try {
-      await ref.read(asClientProvider).submitReport(
+      await ref.read(imPublicClientProvider).submitReport(
             reporterDomain: reporterDomain,
             reportedDomain: reportedDomain,
             targetType: 1,
-            reason: reason.trim(),
+            reason: result.reason.trim(),
+            files: result.toImPublicFiles(),
           );
       if (!context.mounted) return;
       final l10n = _contactDetailL10n(context);

@@ -16,6 +16,7 @@ import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/im_public_client_provider.dart';
 import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/m3_search_field.dart';
 
@@ -82,11 +83,14 @@ class _ChannelSearchPageState extends ConsumerState<ChannelSearchPage> {
         });
         return;
       }
-      final target = _channelSearchTarget(query);
-      final results = await ref.read(asClientProvider).searchPublicChannels(
-            target.keyword,
-            baseUri: target.baseUri,
+      final page = await ref.read(imPublicClientProvider).listChannels(
+            name: query.trim(),
+            pageSize: 20,
           );
+      final results = page.items
+          .map((item) => item.channel)
+          .where((channel) => channel.roomId.trim().isNotEmpty)
+          .toList(growable: false);
       if (!mounted || serial != _serial) return;
       setState(() {
         _results = results;
@@ -320,30 +324,6 @@ String _channelJoinWaitingText(BuildContext context, String status) {
     status,
     approval: false,
   );
-}
-
-class _ChannelSearchTarget {
-  const _ChannelSearchTarget({
-    this.keyword = '',
-    this.baseUri,
-  });
-
-  final String keyword;
-  final Uri? baseUri;
-}
-
-_ChannelSearchTarget _channelSearchTarget(String rawQuery) {
-  final query = rawQuery.trim();
-  final uri = Uri.tryParse(query);
-  final host = uri == null || uri.host.isEmpty ? '' : uri.host.trim();
-  if ((uri?.scheme == 'http' || uri?.scheme == 'https') && host.isNotEmpty) {
-    return _ChannelSearchTarget(baseUri: publicBaseUriForServerName(query));
-  }
-  final domainLike = RegExp(r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
-  if (domainLike.hasMatch(query)) {
-    return _ChannelSearchTarget(baseUri: publicBaseUriForServerName(query));
-  }
-  return _ChannelSearchTarget(keyword: query);
 }
 
 class _ChannelSearchEmpty extends StatelessWidget {

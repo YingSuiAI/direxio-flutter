@@ -1460,7 +1460,7 @@ class _ViewRequestButton extends StatelessWidget {
     final l10n = _requestsL10n(context);
     final t = context.tk;
     return Material(
-      color: enabled ? t.text : t.textMute.withValues(alpha: 0.24),
+      color: enabled ? t.accent : t.textMute.withValues(alpha: 0.24),
       borderRadius: BorderRadius.circular(4),
       child: InkWell(
         borderRadius: BorderRadius.circular(4),
@@ -1572,7 +1572,7 @@ class _AcceptButton extends StatelessWidget {
     final l10n = _requestsL10n(context);
     final t = context.tk;
     return Material(
-      color: t.text,
+      color: onTap == null ? t.textMute.withValues(alpha: 0.24) : t.accent,
       borderRadius: BorderRadius.circular(4),
       child: InkWell(
         borderRadius: BorderRadius.circular(4),

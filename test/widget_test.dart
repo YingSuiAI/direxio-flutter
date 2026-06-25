@@ -8954,6 +8954,57 @@ void main() {
     expect(find.text('我是 C，请通过好友申请'), findsWidgets);
   });
 
+  testWidgets('new friends request actions use dark theme accent contrast',
+      (tester) async {
+    final client = Client('DirexioRequestsDarkActionContrastTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addTestRoom(
+      client,
+      roomId: '!dark-action-invite:p2p-im.com',
+      roomMembership: Membership.invite,
+      directPeerMxid: '@alice:p2p-im.com',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(_EmptyAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => const AsSyncCacheState(),
+          ),
+        ],
+        child: MaterialApp(theme: AppTheme.dark, home: const RequestsPage()),
+      ),
+    );
+    await tester.pump();
+
+    final viewText = tester.widget<Text>(find.text('查看'));
+    final viewMaterial = tester.widget<Material>(
+      find.ancestor(
+        of: find.text('查看'),
+        matching: find.byType(Material),
+      ).first,
+    );
+    expect(viewMaterial.color, PortalTokens.dark.accent);
+    expect(viewText.style?.color, PortalTokens.dark.onAccent);
+
+    await tester.tap(find.text('查看'));
+    await tester.pumpAndSettle();
+
+    final acceptText = tester.widget<Text>(find.text('接受'));
+    final acceptMaterial = tester.widget<Material>(
+      find.ancestor(
+        of: find.text('接受'),
+        matching: find.byType(Material),
+      ).first,
+    );
+    expect(acceptMaterial.color, PortalTokens.dark.accent);
+    expect(acceptText.style?.color, PortalTokens.dark.onAccent);
+  });
+
   testWidgets('new friends page uses directional copy for room notices',
       (tester) async {
     final client = Client('DirexioRequestsRoomNoticeCopyTest')

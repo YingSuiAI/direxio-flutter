@@ -34,8 +34,23 @@ void main() {
     });
     expect(await store.readClearedBeforeTs(), 1234);
 
+    await store.writeDeletedEventIds('!group:example.com', [
+      r'$event-b',
+      '',
+      '  ',
+      r'$event-a',
+    ]);
+    await store.writeDeletedEventIds('!group:example.com', [
+      r'$event-a',
+      r'$event-c',
+    ]);
+    expect(await store.readDeletedEventIdsByRoom(), {
+      '!group:example.com': {r'$event-a', r'$event-b', r'$event-c'},
+    });
+
     await store.clear();
     expect(await store.readClearedBeforeTs(), 0);
     expect(await store.readRoomClearedBeforeTs(), isEmpty);
+    expect(await store.readDeletedEventIdsByRoom(), isEmpty);
   });
 }

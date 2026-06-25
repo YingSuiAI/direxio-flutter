@@ -23,6 +23,7 @@ import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/chat_clear_state_provider.dart';
 import '../providers/conversation_preferences_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
@@ -2289,6 +2290,8 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
         roomId: widget.roomId,
         eventIds: [eventId],
       );
+      await ref.read(chatClearStateStoreProvider.future).then(
+          (store) => store.writeDeletedEventIds(widget.roomId, [eventId]));
       if (!mounted) return;
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withDeletedMessage(widget.roomId, eventId),
@@ -2320,6 +2323,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
             roomId: widget.roomId,
             eventIds: eventIds,
           );
+      await ref
+          .read(chatClearStateStoreProvider.future)
+          .then((store) => store.writeDeletedEventIds(widget.roomId, eventIds));
       if (!mounted) return;
       ref.read(asSyncCacheProvider.notifier).update((state) {
         var next = state;

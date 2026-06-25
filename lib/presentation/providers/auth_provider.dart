@@ -594,11 +594,17 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       final store = await ref.read(chatClearStateStoreProvider.future);
       final clearedBeforeTs = await store.readClearedBeforeTs();
       final roomClearedBeforeTs = await store.readRoomClearedBeforeTs();
-      if (clearedBeforeTs <= 0 && roomClearedBeforeTs.isEmpty) return;
+      final deletedEventIdsByRoom = await store.readDeletedEventIdsByRoom();
+      if (clearedBeforeTs <= 0 &&
+          roomClearedBeforeTs.isEmpty &&
+          deletedEventIdsByRoom.isEmpty) {
+        return;
+      }
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.copyWith(
               localClearedBeforeTs: clearedBeforeTs,
               localRoomClearedBeforeTs: roomClearedBeforeTs,
+              localDeletedEventIdsByRoomId: deletedEventIdsByRoom,
             ),
           );
     } catch (e) {

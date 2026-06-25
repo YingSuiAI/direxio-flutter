@@ -14,6 +14,7 @@ import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_call_session_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
+import '../providers/chat_clear_state_provider.dart';
 import '../providers/conversation_summary_provider.dart';
 import '../widgets/portal_avatar.dart';
 import '../providers/local_message_order_provider.dart';
@@ -1775,6 +1776,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         roomId: widget.roomId,
         eventIds: [eventId],
       );
+      await ref.read(chatClearStateStoreProvider.future).then(
+          (store) => store.writeDeletedEventIds(widget.roomId, [eventId]));
       if (!mounted) return;
       ref.read(asSyncCacheProvider.notifier).update(
             (state) => state.withDeletedMessage(widget.roomId, eventId),

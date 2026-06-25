@@ -233,6 +233,7 @@ class _LoadingAuthStateNotifier extends AuthStateNotifier {
 class _MemoryChatClearStateStore implements ChatClearStateStore {
   int clearedBeforeTs = 0;
   final Map<String, int> roomClearedBeforeTs = {};
+  final Map<String, Set<String>> deletedEventIdsByRoom = {};
 
   @override
   Future<int> readClearedBeforeTs() async => clearedBeforeTs;
@@ -240,6 +241,13 @@ class _MemoryChatClearStateStore implements ChatClearStateStore {
   @override
   Future<Map<String, int>> readRoomClearedBeforeTs() async =>
       Map.unmodifiable(roomClearedBeforeTs);
+
+  @override
+  Future<Map<String, Set<String>>> readDeletedEventIdsByRoom() async =>
+      Map.unmodifiable({
+        for (final entry in deletedEventIdsByRoom.entries)
+          entry.key: Set.unmodifiable(entry.value),
+      });
 
   @override
   Future<void> writeClearedBeforeTs(int timestamp) async {
@@ -252,9 +260,23 @@ class _MemoryChatClearStateStore implements ChatClearStateStore {
   }
 
   @override
+  Future<void> writeDeletedEventIds(
+    String roomId,
+    Iterable<String> eventIds,
+  ) async {
+    final ids =
+        eventIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet();
+    if (ids.isEmpty) return;
+    deletedEventIdsByRoom.putIfAbsent(roomId.trim(), () => <String>{}).addAll(
+          ids,
+        );
+  }
+
+  @override
   Future<void> clear() async {
     clearedBeforeTs = 0;
     roomClearedBeforeTs.clear();
+    deletedEventIdsByRoom.clear();
   }
 }
 
@@ -2800,6 +2822,7 @@ class _GroupChatHarness {
     required this.asClient,
     required this.bootstrapStore,
     required this.visibilityClient,
+    required this.clearStore,
     this.sentMatrixEvents = const [],
     this.matrixRedactionPaths = const [],
     this.matrixLocalDeleteBodies = const [],
@@ -2809,6 +2832,7 @@ class _GroupChatHarness {
   final _TrackingAsClient asClient;
   final _MemoryAsBootstrapStore bootstrapStore;
   final _RecordingMatrixMessageVisibilityClient visibilityClient;
+  final _MemoryChatClearStateStore clearStore;
   final List<Map<String, dynamic>> sentMatrixEvents;
   final List<String> matrixRedactionPaths;
   final List<Map<String, dynamic>> matrixLocalDeleteBodies;
@@ -2818,12 +2842,16 @@ class _DirectChatHarness {
   const _DirectChatHarness({
     required this.client,
     required this.asClient,
+    required this.visibilityClient,
+    required this.clearStore,
     this.matrixRedactionPaths = const [],
     this.matrixLocalDeleteBodies = const [],
   });
 
   final Client client;
   final _TrackingAsClient asClient;
+  final _RecordingMatrixMessageVisibilityClient visibilityClient;
+  final _MemoryChatClearStateStore clearStore;
   final List<String> matrixRedactionPaths;
   final List<Map<String, dynamic>> matrixLocalDeleteBodies;
 }
@@ -2845,6 +2873,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
   final matrixRedactionPaths = <String>[];
   final matrixLocalDeleteBodies = <Map<String, dynamic>>[];
   final visibilityClient = _RecordingMatrixMessageVisibilityClient();
+  final clearStore = _MemoryChatClearStateStore();
   final client = Client(
     'DirexioGroupActionTest',
     httpClient: MockClient((request) async {
@@ -2924,6 +2953,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
         matrixMessageVisibilityClientProvider.overrideWithValue(
           visibilityClient,
         ),
+        chatClearStateStoreProvider.overrideWith((ref) async => clearStore),
         asBootstrapRepositoryProvider.overrideWithValue(
           AsBootstrapRepository(
             loadBootstrap: asClient.syncBootstrap,
@@ -2960,6 +2990,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
       asClient: asClient,
       bootstrapStore: bootstrapStore,
       visibilityClient: visibilityClient,
+      clearStore: clearStore,
       sentMatrixEvents: sentMatrixEvents,
       matrixRedactionPaths: matrixRedactionPaths,
       matrixLocalDeleteBodies: matrixLocalDeleteBodies,
@@ -3000,6 +3031,7 @@ Future<_GroupChatHarness> _pumpGroupChatWithTextEvent(
     asClient: asClient,
     bootstrapStore: bootstrapStore,
     visibilityClient: visibilityClient,
+    clearStore: clearStore,
     sentMatrixEvents: sentMatrixEvents,
     matrixRedactionPaths: matrixRedactionPaths,
     matrixLocalDeleteBodies: matrixLocalDeleteBodies,
@@ -3020,6 +3052,8 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
 }) async {
   final matrixRedactionPaths = <String>[];
   final matrixLocalDeleteBodies = <Map<String, dynamic>>[];
+  final visibilityClient = _RecordingMatrixMessageVisibilityClient();
+  final clearStore = _MemoryChatClearStateStore();
   final client = Client(
     'DirexioDirectActionTest',
     httpClient: MockClient((request) async {
@@ -3085,6 +3119,10 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
         matrixClientProvider.overrideWithValue(client),
         authStateNotifierProvider.overrideWith(_LoggedInAuthStateNotifier.new),
         asClientProvider.overrideWithValue(asClient),
+        matrixMessageVisibilityClientProvider.overrideWithValue(
+          visibilityClient,
+        ),
+        chatClearStateStoreProvider.overrideWith((ref) async => clearStore),
         asSyncCacheProvider.overrideWith(
           (ref) => AsSyncCacheState(bootstrap: bootstrap),
         ),
@@ -3107,6 +3145,8 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
     return _DirectChatHarness(
       client: client,
       asClient: asClient,
+      visibilityClient: visibilityClient,
+      clearStore: clearStore,
       matrixRedactionPaths: matrixRedactionPaths,
       matrixLocalDeleteBodies: matrixLocalDeleteBodies,
     );
@@ -3143,6 +3183,8 @@ Future<_DirectChatHarness> _pumpDirectChatWithPeerTextEvent(
   return _DirectChatHarness(
     client: client,
     asClient: asClient,
+    visibilityClient: visibilityClient,
+    clearStore: clearStore,
     matrixRedactionPaths: matrixRedactionPaths,
     matrixLocalDeleteBodies: matrixLocalDeleteBodies,
   );
@@ -15714,10 +15756,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('删除'));
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 13));
 
     expect(harness.visibilityClient.hiddenEventIdsByRoom['!group:p2p-im.com'], [
       r'$group-text',
     ]);
+    expect(harness.clearStore.deletedEventIdsByRoom['!group:p2p-im.com'], {
+      r'$group-text',
+    });
     expect(find.text('群聊长按消息'), findsNothing);
   });
 
@@ -20323,6 +20369,27 @@ void main() {
     expect(find.text('删除'), findsOneWidget);
     expect(find.text('多选'), findsOneWidget);
     expect(find.text('引用'), findsOneWidget);
+  });
+
+  testWidgets('private chat delete hides message through Matrix local delete',
+      (tester) async {
+    final harness = await _pumpDirectChatWithPeerTextEvent(tester);
+
+    await tester.longPress(find.text('别人发来的消息'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+
+    expect(
+        harness.visibilityClient.hiddenEventIdsByRoom['!direct:p2p-im.com'], [
+      r'$direct-text',
+    ]);
+    expect(harness.clearStore.deletedEventIdsByRoom['!direct:p2p-im.com'], {
+      r'$direct-text',
+    });
+    expect(find.text('别人发来的消息'), findsNothing);
+    await tester.pump(const Duration(seconds: 13));
   });
 
   testWidgets('private chat recalls own message through Matrix redaction',

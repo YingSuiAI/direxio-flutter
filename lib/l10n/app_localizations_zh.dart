@@ -177,6 +177,29 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonShare => '分享';
 
   @override
+  String get avatarAdjustTitle => '调整头像';
+
+  @override
+  String get avatarAdjustHint => '双指缩放或拖动图片';
+
+  @override
+  String get avatarAdjustReset => '重置';
+
+  @override
+  String get avatarAdjustDone => '完成';
+
+  @override
+  String avatarAdjustUpdateFailed(String error) {
+    return '头像更新失败: $error';
+  }
+
+  @override
+  String get avatarAdjustPreviewNotReady => '头像预览尚未准备好';
+
+  @override
+  String get avatarAdjustExportFailed => '头像导出失败';
+
+  @override
   String get profileInfoTitle => '我的信息';
 
   @override

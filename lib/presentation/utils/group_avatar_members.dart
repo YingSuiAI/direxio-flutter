@@ -59,7 +59,6 @@ StableGroupAvatarMembers stableGroupAvatarMembersForRoom({
         )
       : _resolveAuthoritativeMemberOrder(
           authoritativeMemberOrder: authoritativeOrder,
-          liveMemberOrder: liveMemberIds,
         );
   final states = room.states[EventTypes.RoomMember] ?? const {};
   final currentUserId = room.client.userID?.trim() ?? '';
@@ -191,11 +190,7 @@ List<String> _liveGroupMemberIds(Room room) {
     final mxid = state.stateKey?.trim() ?? '';
     if (mxid.isEmpty || !seen.add(mxid)) continue;
     final member = state.asUser(room);
-    if (member.membership != Membership.join &&
-        member.membership != Membership.invite &&
-        member.membership != Membership.knock) {
-      continue;
-    }
+    if (member.membership != Membership.join) continue;
     out.add(mxid);
   }
   return List.unmodifiable(out);
@@ -208,6 +203,7 @@ Map<String, AsGroupMember> _authoritativeGroupMembersById(
   for (final member in members) {
     final mxid = member.userMxid.trim();
     if (mxid.isEmpty || out.containsKey(mxid)) continue;
+    if (!isAsChannelMemberJoined(member.status)) continue;
     out[mxid] = member;
   }
   return Map.unmodifiable(out);
@@ -242,15 +238,10 @@ List<String> _resolveStableMemberOrder({
 
 List<String> _resolveAuthoritativeMemberOrder({
   required List<String> authoritativeMemberOrder,
-  required List<String> liveMemberOrder,
 }) {
   final next = <String>[];
   final seen = <String>{};
   for (final mxid in authoritativeMemberOrder) {
-    final trimmed = mxid.trim();
-    if (trimmed.isNotEmpty && seen.add(trimmed)) next.add(trimmed);
-  }
-  for (final mxid in liveMemberOrder) {
     final trimmed = mxid.trim();
     if (trimmed.isNotEmpty && seen.add(trimmed)) next.add(trimmed);
   }

@@ -735,6 +735,7 @@ class _ResultThumbnail extends StatelessWidget {
         size: 28,
         imageUrl: result.avatarUrl,
         members: result.groupAvatarMembers,
+        minimumSlots: 4,
         radius: 5.6,
       );
     }

@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
+import 'package:portal_app/core/theme/design_tokens.dart';
+import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/widgets/avatar_adjust_sheet.dart';
 
 final _png1x1 = base64Decode(
@@ -37,6 +39,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
+        locale: const Locale('en'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: Scaffold(
           body: AvatarAdjustSheet(
             imageBytes: Uint8List.fromList(_png1x1),
@@ -48,11 +53,41 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('调整头像'), findsOneWidget);
-    expect(find.text('取消'), findsOneWidget);
-    expect(find.text('完成'), findsOneWidget);
+    expect(find.text('Adjust avatar'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Done'), findsOneWidget);
     expect(find.byType(Slider), findsOneWidget);
-    expect(find.text('双指缩放或拖动图片'), findsOneWidget);
+    expect(find.text('Pinch to zoom or drag the image'), findsOneWidget);
+    expect(find.text('调整头像'), findsNothing);
+  });
+
+  testWidgets('avatar adjust sheet uses dark theme surface tokens',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: Scaffold(
+          body: AvatarAdjustSheet(
+            imageBytes: Uint8List.fromList(_png1x1),
+            initialImageSize: const Size(1, 1),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final rootDecoration = tester
+        .widget<DecoratedBox>(find.byType(DecoratedBox).first)
+        .decoration as BoxDecoration;
+    expect(rootDecoration.color, PortalTokens.dark.bg);
+
+    final previewBg = tester
+        .widgetList<ColoredBox>(find.byType(ColoredBox))
+        .map((widget) => widget.color)
+        .where((color) => color == PortalTokens.dark.surface)
+        .toList();
+    expect(previewBg, isNotEmpty);
   });
 
   testWidgets('avatar adjust sheet closes after successful upload',
@@ -61,6 +96,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
+        locale: const Locale('zh'),
+        supportedLocales: AppLocalizations.supportedLocales,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(

@@ -100,7 +100,6 @@ Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
       client,
       roomId: roomId,
       name: group.name.trim().isEmpty ? result.name : group.name,
-      inviteMxids: result.inviteMxids,
     );
     _cacheCreatedGroup(
       ref,
@@ -326,7 +325,6 @@ void _ensureOptimisticGroupRoom(
   Client client, {
   required String roomId,
   required String name,
-  required List<String> inviteMxids,
 }) {
   final existing = client.getRoomById(roomId);
   final room =
@@ -337,7 +335,7 @@ void _ensureOptimisticGroupRoom(
     room.membership = Membership.join;
   }
   final self = client.userID;
-  final sender = self ?? (inviteMxids.isNotEmpty ? inviteMxids.first : roomId);
+  final sender = self ?? roomId;
   if (self != null && self.isNotEmpty) {
     room.setState(
       StrippedStateEvent(
@@ -345,16 +343,6 @@ void _ensureOptimisticGroupRoom(
         senderId: self,
         stateKey: self,
         content: {'membership': Membership.join.name},
-      ),
-    );
-  }
-  for (final mxid in inviteMxids) {
-    room.setState(
-      StrippedStateEvent(
-        type: EventTypes.RoomMember,
-        senderId: sender,
-        stateKey: mxid,
-        content: {'membership': Membership.invite.name},
       ),
     );
   }
@@ -699,9 +687,6 @@ class _CreateGroupSetupStep extends StatelessWidget {
                 currentUserProfile: currentUserProfile,
                 controller: controller,
                 focusNode: focusNode,
-                selectedContacts: selectedContacts,
-                contactName: contactName,
-                contactAvatarUrl: contactAvatarUrl,
               ),
               const SizedBox(height: 12),
               _CreateGroupSelectedMembersCard(
@@ -724,32 +709,21 @@ class _CreateGroupInfoCard extends StatelessWidget {
     required this.currentUserProfile,
     required this.controller,
     required this.focusNode,
-    required this.selectedContacts,
-    required this.contactName,
-    required this.contactAvatarUrl,
   });
 
   final Client client;
   final Profile? currentUserProfile;
   final TextEditingController controller;
   final FocusNode focusNode;
-  final List<AsSyncContact> selectedContacts;
-  final String Function(AsSyncContact contact) contactName;
-  final String? Function(AsSyncContact contact) contactAvatarUrl;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final avatarMembers = [
+    final avatarMembers = <GroupCompositeAvatarMember>[
       GroupCompositeAvatarMember(
         seed: '我',
         imageUrl: profileAvatarHttpUrl(currentUserProfile, client),
       ),
-      for (final contact in selectedContacts)
-        GroupCompositeAvatarMember(
-          seed: contactName(contact),
-          imageUrl: contactAvatarUrl(contact),
-        ),
     ];
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -762,9 +736,10 @@ class _CreateGroupInfoCard extends StatelessWidget {
         children: [
           GroupCompositeAvatar(
             key: const ValueKey('create_group_composite_avatar'),
-            seed: ['我', ...selectedContacts.map(contactName)].join('|'),
+            seed: '我',
             size: 48,
             members: avatarMembers,
+            minimumSlots: 4,
           ),
           const SizedBox(width: 12),
           Expanded(

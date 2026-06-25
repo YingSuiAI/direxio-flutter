@@ -2736,6 +2736,23 @@ class _RecoveringDirectRoomClient extends Client {
   }
 }
 
+class _GroupMembersAsClient extends _EmptyAsClient {
+  _GroupMembersAsClient(this.members);
+
+  final List<AsGroupMember> members;
+
+  @override
+  Future<List<AsGroupMember>> getGroupMembers(
+    String roomId, {
+    String status = '',
+  }) async {
+    return [
+      for (final member in members)
+        if (member.roomId.trim() == roomId.trim()) member,
+    ];
+  }
+}
+
 class _GroupChatHarness {
   const _GroupChatHarness({
     required this.client,
@@ -5823,7 +5840,7 @@ void main() {
           (widget) => widget is PortalAvatar && widget.seed == 'Alice',
         ),
       ),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.descendant(
@@ -5832,7 +5849,7 @@ void main() {
           (widget) => widget is PortalAvatar && widget.seed == 'Bob',
         ),
       ),
-      findsOneWidget,
+      findsNothing,
     );
     final avatarSeeds = tester
         .widgetList<PortalAvatar>(
@@ -5840,11 +5857,14 @@ void main() {
         )
         .map((avatar) => avatar.seed)
         .toList(growable: false);
-    expect(avatarSeeds, ['我', 'Alice', 'Bob']);
-    final firstAvatar = tester.widget<PortalAvatar>(
-      find.descendant(of: composite, matching: find.byType(PortalAvatar)).first,
-    );
-    expect(firstAvatar.imageUrl, contains('/download/p2p-im.com/owner-avatar'));
+    expect(avatarSeeds, ['我']);
+    final ownerAvatarFinder =
+        find.descendant(of: composite, matching: find.byType(PortalAvatar));
+    final ownerAvatar = tester.widget<PortalAvatar>(ownerAvatarFinder.first);
+    expect(ownerAvatar.size, closeTo(23.5, 0.001));
+    expect(ownerAvatar.imageUrl, contains('/download/p2p-im.com/owner-avatar'));
+    expect(tester.getTopLeft(ownerAvatarFinder.first),
+        tester.getTopLeft(composite));
   });
 
   testWidgets('messages hide duplicate Matrix direct rooms not accepted by AS',
@@ -11655,6 +11675,18 @@ void main() {
     final createdRoom = client.getRoomById('!new-group:p2p-im.com');
     expect(createdRoom, isNotNull);
     expect(createdRoom!.avatar, isNull);
+    expect(
+      createdRoom.getState(EventTypes.RoomMember, '@owner:p2p-im.com'),
+      isNotNull,
+    );
+    expect(
+      createdRoom.getState(EventTypes.RoomMember, '@alice:p2p-liyanan.com'),
+      isNull,
+    );
+    expect(
+      createdRoom.getState(EventTypes.RoomMember, '@bob:p2p-liyanan.com'),
+      isNull,
+    );
   });
 
   testWidgets('messages hide Matrix group invite room before AS join',
@@ -12304,6 +12336,48 @@ void main() {
 
     expect(find.text('群管理'), findsOneWidget);
     expect(find.text('移除'), findsOneWidget);
+  });
+
+  testWidgets('group info member count uses Matrix and AS union',
+      (tester) async {
+    final client = Client('DirexioGroupInfoMemberCountUnionTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addNamedGroupRoom(
+      client,
+      roomId: '!group:p2p-im.com',
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(
+            _GroupMembersAsClient(
+              const [
+                AsGroupMember(
+                  roomId: '!group:p2p-im.com',
+                  userMxid: '@owner:p2p-im.com',
+                  role: 'owner',
+                  status: 'joined',
+                  displayName: 'Owner',
+                ),
+              ],
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupInfoPage(roomId: '!group:p2p-im.com'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('聊天信息(2)'), findsOneWidget);
+    expect(find.text('聊天信息(1)'), findsNothing);
   });
 
   testWidgets('group info persists message mute toggle for notification sound',
@@ -18937,6 +19011,24 @@ void main() {
         .where((item) => item.size == 60)
         .single;
     expect(avatar.imageUrl, isNull);
+  });
+
+  test('me qr payload includes current avatar url', () {
+    final payload = Uri.parse(
+      buildMeQrPayload(
+        userId: '@owner:p2p-im.com',
+        domain: 'https://p2p-im.com',
+        displayName: 'Owner',
+        avatarUrl:
+            'https://p2p-im.com/_matrix/media/v3/download/p2p-im.com/owner-avatar',
+      ),
+    );
+
+    expect(payload.queryParameters['mxid'], '@owner:p2p-im.com');
+    expect(
+      payload.queryParameters['avatar_url'],
+      'https://p2p-im.com/_matrix/media/v3/download/p2p-im.com/owner-avatar',
+    );
   });
 
   testWidgets('editing profile name updates me page header', (tester) async {

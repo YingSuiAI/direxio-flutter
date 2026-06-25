@@ -182,6 +182,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonShare => 'Share';
 
   @override
+  String get avatarAdjustTitle => 'Adjust avatar';
+
+  @override
+  String get avatarAdjustHint => 'Pinch to zoom or drag the image';
+
+  @override
+  String get avatarAdjustReset => 'Reset';
+
+  @override
+  String get avatarAdjustDone => 'Done';
+
+  @override
+  String avatarAdjustUpdateFailed(String error) {
+    return 'Failed to update avatar: $error';
+  }
+
+  @override
+  String get avatarAdjustPreviewNotReady => 'Avatar preview is not ready yet';
+
+  @override
+  String get avatarAdjustExportFailed => 'Failed to export avatar';
+
+  @override
   String get profileInfoTitle => 'My Info';
 
   @override

@@ -179,6 +179,29 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonShare => '共有';
 
   @override
+  String get avatarAdjustTitle => 'アバターを調整';
+
+  @override
+  String get avatarAdjustHint => 'ピンチで拡大、ドラッグで移動';
+
+  @override
+  String get avatarAdjustReset => 'リセット';
+
+  @override
+  String get avatarAdjustDone => '完了';
+
+  @override
+  String avatarAdjustUpdateFailed(String error) {
+    return 'アバターの更新に失敗しました: $error';
+  }
+
+  @override
+  String get avatarAdjustPreviewNotReady => 'アバターのプレビューはまだ準備できていません';
+
+  @override
+  String get avatarAdjustExportFailed => 'アバターの書き出しに失敗しました';
+
+  @override
   String get profileInfoTitle => '自分の情報';
 
   @override

@@ -156,12 +156,12 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
           currentUserProfile: currentUserProfile,
         ),
     ];
-    final memberCount = authoritativeGroupMembers.isNotEmpty
-        ? authoritativeGroupMembers.where((member) {
-            final mxid = member.userMxid.trim();
-            return mxid.isNotEmpty && !_locallyRemovedMemberIds.contains(mxid);
-          }).length
-        : room?.summary.mJoinedMemberCount ?? members.length;
+    final memberCount = _groupInfoMemberCount(
+      room: room,
+      matrixMembers: members,
+      authoritativeMembers: authoritativeGroupMembers,
+      locallyRemovedMemberIds: _locallyRemovedMemberIds,
+    );
     final canManageGroup = room != null && _canManageGroup(room);
     final canDissolveGroup = room != null && _canDissolveGroup(room);
 
@@ -793,6 +793,29 @@ String _productGroupNameForRoom(AsSyncCacheState syncCache, String roomId) {
   return '';
 }
 
+int _groupInfoMemberCount({
+  required Room? room,
+  required Iterable<User> matrixMembers,
+  required Iterable<AsGroupMember> authoritativeMembers,
+  required Set<String> locallyRemovedMemberIds,
+}) {
+  final memberIds = <String>{};
+  for (final member in matrixMembers) {
+    final mxid = member.id.trim();
+    if (mxid.isNotEmpty && !locallyRemovedMemberIds.contains(mxid)) {
+      memberIds.add(mxid);
+    }
+  }
+  for (final member in authoritativeMembers) {
+    final mxid = member.userMxid.trim();
+    if (mxid.isNotEmpty && !locallyRemovedMemberIds.contains(mxid)) {
+      memberIds.add(mxid);
+    }
+  }
+  if (memberIds.isNotEmpty) return memberIds.length;
+  return room?.summary.mJoinedMemberCount ?? 0;
+}
+
 String _usableGroupRoomDisplayName(String value) {
   final name = _usableDisplayName(value);
   if (name.toLowerCase() == 'empty chat') return '';
@@ -969,6 +992,7 @@ class _GroupIdentityHeader extends StatelessWidget {
             size: 60,
             imageUrl: avatarUrl,
             members: avatarMembers,
+            minimumSlots: 4,
           ),
           const SizedBox(width: 8),
           Expanded(

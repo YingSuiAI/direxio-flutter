@@ -39,15 +39,12 @@ class MeQrPage extends ConsumerWidget {
     final avatarUrl = profileAvatarHttpUrl(profile, client);
     final l10n = AppLocalizations.of(context);
     final domain = _domainFromMxid(userId, l10n);
-    final payload = Uri(
-      scheme: 'p2pim',
-      host: 'add-contact',
-      queryParameters: {
-        'mxid': userId,
-        'domain': domain,
-        'name': displayName,
-      },
-    ).toString();
+    final payload = buildMeQrPayload(
+      userId: userId,
+      domain: domain,
+      displayName: displayName,
+      avatarUrl: avatarUrl,
+    );
     final uid = _meUidUrl(client, userId);
     final topInset = MediaQuery.of(context).padding.top;
 
@@ -77,6 +74,25 @@ class MeQrPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+@visibleForTesting
+String buildMeQrPayload({
+  required String userId,
+  required String domain,
+  required String displayName,
+  String? avatarUrl,
+}) {
+  return Uri(
+    scheme: 'p2pim',
+    host: 'add-contact',
+    queryParameters: {
+      'mxid': userId,
+      'domain': domain,
+      'name': displayName,
+      if (avatarUrl?.trim().isNotEmpty == true) 'avatar_url': avatarUrl!.trim(),
+    },
+  ).toString();
 }
 
 class _QrHeader extends StatelessWidget {

@@ -450,6 +450,43 @@ void main() {
     );
   });
 
+  test('uses localized Agent empty preview for default Agent conversation', () {
+    final client = Client('ConversationSummaryWriterLocalizedAgentPreviewTest')
+      ..setUserId('@owner:p2p-im.com');
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: const [],
+      productConversations: const [],
+      productConversationsLoaded: true,
+      syncCache: AsSyncCacheState(
+        bootstrap: AsSyncBootstrap(
+          syncedAt: DateTime.utc(2026, 6, 25, 10),
+          user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+          rooms: const [],
+          contacts: const [],
+          groups: const [],
+          channels: const [],
+          pending: const AsSyncPending.empty(),
+          agentRoomId: '!agent-room:p2p-im.com',
+        ),
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+      agentEmptyPreview: 'Start our chat',
+    );
+
+    expect(result.displayEntries.single.lastMessage, 'Start our chat');
+  });
+
   test('does not build legacy Agent pseudo room without synced agent room', () {
     final client = Client('ConversationSummaryWriterFallbackAgentTest')
       ..setUserId('@owner:p2p-im.com');

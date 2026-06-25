@@ -12,6 +12,7 @@ class GroupCompositeAvatar extends StatelessWidget {
     this.imageUrl,
     this.members = const [],
     this.memberAvatarUrls = const [],
+    this.minimumSlots = 0,
     this.radius = 8,
   });
 
@@ -20,6 +21,7 @@ class GroupCompositeAvatar extends StatelessWidget {
   final String? imageUrl;
   final List<GroupCompositeAvatarMember> members;
   final List<String> memberAvatarUrls;
+  final int minimumSlots;
   final double radius;
 
   @override
@@ -56,13 +58,26 @@ class GroupCompositeAvatar extends StatelessWidget {
       );
     }
 
-    final columns = _groupAvatarColumns(items.length);
-    final rows = _groupAvatarRows(items.length);
+    final normalizedMinimumSlots = minimumSlots < 0
+        ? 0
+        : minimumSlots > 9
+            ? 9
+            : minimumSlots;
+    final cellCount = items.length > normalizedMinimumSlots
+        ? items.length
+        : normalizedMinimumSlots;
+    final columns = _groupAvatarColumns(cellCount);
+    final rows = _groupAvatarRows(cellCount);
     const gap = 1.0;
     final itemSize = (size - gap * (columns - 1)) / columns;
     final rowData = [
       for (var row = 0; row < rows; row++)
-        items.skip(row * columns).take(columns).toList(growable: false),
+        [
+          for (var column = 0; column < columns; column++)
+            row * columns + column < items.length
+                ? items[row * columns + column]
+                : null,
+        ],
     ];
 
     return Container(
@@ -124,11 +139,15 @@ class _GroupCompositeAvatarCell extends StatelessWidget {
     required this.size,
   });
 
-  final GroupCompositeAvatarMember member;
+  final GroupCompositeAvatarMember? member;
   final double size;
 
   @override
   Widget build(BuildContext context) {
+    final member = this.member;
+    if (member == null) {
+      return SizedBox.square(dimension: size);
+    }
     final url = member.imageUrl?.trim() ?? '';
     if (!_isValidGroupAvatarUrl(url)) {
       return PortalAvatar(

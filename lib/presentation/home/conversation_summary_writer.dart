@@ -109,8 +109,11 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
   required LocalMessageOrderState messageOrder,
   required Map<String, String> groupRemarkNames,
   required String? currentUserId,
+  String? agentEmptyPreview,
   bool includeDefaultAgentConversation = false,
 }) {
+  final resolvedAgentEmptyPreview =
+      _resolvedAgentEmptyPreview(agentEmptyPreview);
   final productList = productConversations.toList(growable: false);
   final bootstrapAgentRoomId = syncCache.bootstrap?.agentRoomId.trim() ?? '';
   final canonicalAgentRoomId =
@@ -155,6 +158,7 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
           messageOrder: messageOrder,
           groupRemarkNames: groupRemarkNames,
           conversation: conversation,
+          agentEmptyPreview: resolvedAgentEmptyPreview,
         ),
   ];
   return HomeConversationSummaryResult(
@@ -541,6 +545,7 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
   required LocalMessageOrderState messageOrder,
   required Map<String, String> groupRemarkNames,
   required VisibleHomeConversation conversation,
+  String? agentEmptyPreview,
 }) {
   final room = conversation.room;
   final lastEvent = room?.lastEvent;
@@ -578,6 +583,7 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
     latestFailedOutbox: failedOutbox,
     lastEventSortTime: lastEventSortTime,
     cleared: cleared,
+    agentEmptyPreview: agentEmptyPreview,
   );
   final displayName = conversationDisplayName(
     conversation,
@@ -888,19 +894,28 @@ String _conversationPreviewTextForConversation(
   required LocalOutboxItem? latestFailedOutbox,
   DateTime? lastEventSortTime,
   bool cleared = false,
+  String? agentEmptyPreview,
 }) {
   if (cleared) return '';
+  final resolvedAgentEmptyPreview =
+      _resolvedAgentEmptyPreview(agentEmptyPreview);
   final text = conversationPreviewText(
     lastEvent: lastEvent,
     latestFailedOutbox: latestFailedOutbox,
     lastEventSortTime: lastEventSortTime,
     isAgent: conversation.isAgent,
+    agentFallback: resolvedAgentEmptyPreview,
   );
   if (text.isNotEmpty) return text;
   final productLastMessage = conversation.product?.lastMessage.trim() ?? '';
   if (productLastMessage.isNotEmpty) return productLastMessage;
-  if (conversation.isAgent) return defaultAgentConversationPreview;
+  if (conversation.isAgent) return resolvedAgentEmptyPreview;
   return '';
+}
+
+String _resolvedAgentEmptyPreview(String? value) {
+  final clean = value?.trim() ?? '';
+  return clean.isNotEmpty ? clean : defaultAgentConversationPreview;
 }
 
 DateTime? _conversationPreviewTimeForConversation(

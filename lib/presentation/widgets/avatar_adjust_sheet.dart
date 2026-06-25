@@ -9,6 +9,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 
 const double _minAvatarScale = 1;
 const double _maxAvatarScale = 4;
@@ -166,6 +167,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
   }
 
   Future<void> _finish() async {
+    final l10n = _avatarAdjustL10n(context);
     if (_exporting) return;
     setState(() {
       _exporting = true;
@@ -188,7 +190,9 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
       debugPrint('Avatar export failed: $e');
       if (mounted) {
         setState(() {
-          _errorText = e is StateError ? e.message : '头像更新失败: $e';
+          _errorText = e is StateError
+              ? e.message
+              : l10n?.avatarAdjustUpdateFailed('$e') ?? '头像更新失败: $e';
           _exporting = false;
         });
       }
@@ -199,10 +203,11 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
     final exportForTesting = widget.exportForTesting;
     if (exportForTesting != null) return exportForTesting();
 
+    final l10n = _avatarAdjustL10n(context);
     final boundary =
         _cropKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) {
-      throw StateError('头像预览尚未准备好');
+      throw StateError(l10n?.avatarAdjustPreviewNotReady ?? '头像预览尚未准备好');
     }
     final image = await boundary.toImage(
       pixelRatio: _avatarOutputSize / boundary.size.width,
@@ -210,7 +215,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     if (byteData == null) {
-      throw StateError('头像导出失败');
+      throw StateError(l10n?.avatarAdjustExportFailed ?? '头像导出失败');
     }
     return byteData.buffer.asUint8List();
   }
@@ -218,7 +223,12 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _avatarAdjustL10n(context);
     final imageSize = _imageSize;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final previewBg = isDark ? t.surface : t.text;
+    final overlayDimColor = t.bg.withValues(alpha: isDark ? 0.62 : 0.54);
+    final cropRingColor = t.onAccent.withValues(alpha: 0.96);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -256,7 +266,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        '双指缩放或拖动图片',
+                        l10n?.avatarAdjustHint ?? '双指缩放或拖动图片',
                         style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
                       if (_errorText != null) ...[
@@ -279,7 +289,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
                                 key: _cropKey,
                                 child: ClipRect(
                                   child: ColoredBox(
-                                    color: Colors.black,
+                                    color: previewBg,
                                     child: Center(
                                       child: Transform.translate(
                                         offset: _offset,
@@ -303,9 +313,8 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
                               IgnorePointer(
                                 child: CustomPaint(
                                   painter: _AvatarCropOverlayPainter(
-                                    dimColor:
-                                        Colors.black.withValues(alpha: 0.44),
-                                    ringColor: Colors.white,
+                                    dimColor: overlayDimColor,
+                                    ringColor: cropRingColor,
                                   ),
                                 ),
                               ),
@@ -335,7 +344,7 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
                             ? null
                             : () => _reset(baseSize, cropSize),
                         icon: const Icon(Symbols.refresh, size: 18),
-                        label: const Text('重置'),
+                        label: Text(l10n?.avatarAdjustReset ?? '重置'),
                       ),
                     ],
                   );
@@ -344,6 +353,10 @@ class _AvatarAdjustSheetState extends State<AvatarAdjustSheet> {
       ),
     );
   }
+}
+
+AppLocalizations? _avatarAdjustL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
 }
 
 class _Header extends StatelessWidget {
@@ -360,18 +373,19 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _avatarAdjustL10n(context);
     return Row(
       children: [
         SizedBox(
           width: 64,
           child: TextButton(
             onPressed: exporting ? null : onCancel,
-            child: const Text('取消'),
+            child: Text(l10n?.commonCancel ?? '取消'),
           ),
         ),
         Expanded(
           child: Text(
-            '调整头像',
+            l10n?.avatarAdjustTitle ?? '调整头像',
             textAlign: TextAlign.center,
             style:
                 AppTheme.sans(size: 17, color: t.text, weight: FontWeight.w700),
@@ -388,7 +402,7 @@ class _Header extends StatelessWidget {
                     color: t.accent,
                   ),
                 )
-              : const Text('完成'),
+              : Text(l10n?.avatarAdjustDone ?? '完成'),
         ),
       ],
     );

@@ -6,17 +6,20 @@ class QrScanTarget {
   const QrScanTarget.user({
     required this.userId,
     this.displayName,
+    this.avatarUrl,
   })  : kind = QrScanKind.user,
         groupId = null;
 
   const QrScanTarget.group({required this.groupId})
       : kind = QrScanKind.group,
         userId = null,
-        displayName = null;
+        displayName = null,
+        avatarUrl = null;
 
   final QrScanKind kind;
   final String? userId;
   final String? displayName;
+  final String? avatarUrl;
   final String? groupId;
 }
 
@@ -71,6 +74,10 @@ QrScanTarget? _parseJsonQr(String value) {
         decoded,
         const ['display_name', 'displayName', 'name'],
       ),
+      avatarUrl: _firstString(
+        decoded,
+        const ['avatar_url', 'avatarUrl', 'avatar'],
+      ),
     );
   }
   final groupId = _firstString(decoded, const [
@@ -106,6 +113,7 @@ QrScanTarget? _parseP2pQr(String value) {
       userId: mxid,
       displayName:
           _queryParam(uri, const ['name', 'display_name', 'displayName']),
+      avatarUrl: _queryParam(uri, const ['avatar_url', 'avatarUrl', 'avatar']),
     );
   }
 
@@ -132,6 +140,7 @@ QrScanTarget? _parseUniversalUri(Uri uri, String rawValue) {
       userId: mxid,
       displayName:
           _queryParam(uri, const ['name', 'display_name', 'displayName']),
+      avatarUrl: _queryParam(uri, const ['avatar_url', 'avatarUrl', 'avatar']),
     );
   }
 

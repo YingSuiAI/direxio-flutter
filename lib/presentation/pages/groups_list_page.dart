@@ -469,6 +469,7 @@ class _GroupRow extends StatelessWidget {
                 members: item.avatarUrl.trim().isEmpty
                     ? item.avatarMembers
                     : const [],
+                minimumSlots: 4,
                 radius: 12,
               ),
               const SizedBox(width: 8),

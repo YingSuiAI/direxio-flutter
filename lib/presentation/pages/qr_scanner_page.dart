@@ -56,7 +56,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
           return;
         }
         context.pushReplacement(
-          _addContactDetailRoute(userId, target.displayName),
+          addContactDetailRouteForQrTarget(target),
         );
       case QrScanKind.group:
         final groupId = target.groupId?.trim();
@@ -142,10 +142,18 @@ String _rawPreview(String raw) {
   return '${compact.substring(0, 48)}...';
 }
 
-String _addContactDetailRoute(String userId, String? displayName) {
-  final query = displayName == null || displayName.trim().isEmpty
+@visibleForTesting
+String addContactDetailRouteForQrTarget(QrScanTarget target) {
+  final userId = target.userId?.trim() ?? '';
+  final queryParameters = <String, String>{
+    if (target.displayName?.trim().isNotEmpty == true)
+      'name': target.displayName!.trim(),
+    if (target.avatarUrl?.trim().isNotEmpty == true)
+      'avatar': target.avatarUrl!.trim(),
+  };
+  final query = queryParameters.isEmpty
       ? ''
-      : '?name=${Uri.encodeQueryComponent(displayName.trim())}';
+      : '?${Uri(queryParameters: queryParameters).query}';
   return '/add-contact/detail/${Uri.encodeComponent(userId)}$query';
 }
 

@@ -62,6 +62,20 @@
   "commonSave": "Save",
   "commonSearch": "Search",
   "commonShare": "Share",
+  "avatarAdjustTitle": "Adjust avatar",
+  "avatarAdjustHint": "Pinch to zoom or drag the image",
+  "avatarAdjustReset": "Reset",
+  "avatarAdjustDone": "Done",
+  "avatarAdjustUpdateFailed": "Failed to update avatar: {error}",
+  "@avatarAdjustUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarAdjustPreviewNotReady": "Avatar preview is not ready yet",
+  "avatarAdjustExportFailed": "Failed to export avatar",
   "profileInfoTitle": "My Info",
   "profileInfoAvatarEdit": "Edit",
   "profileInfoMatrixSessionMissing": "Current Matrix session is missing",

@@ -121,6 +121,104 @@ void main() {
     expect(result.shouldPersistOrder, isTrue);
   });
 
+  test('ignores invited Matrix members until they join the group', () {
+    final client = Client('GroupAvatarMembersJoinedOnlyTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!group:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '@owner:p2p-im.com',
+        content: const {'membership': 'join'},
+      ),
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {'membership': 'invite'},
+      ),
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '@bob:p2p-im.com',
+        content: const {'membership': 'knock'},
+      ),
+    );
+
+    final result = stableGroupAvatarMembersForRoom(
+      room: room,
+      syncCache: const AsSyncCacheState(),
+      cachedMemberOrder: const [],
+    );
+
+    expect(result.members.map((member) => member.seed), [
+      '@owner:p2p-im.com',
+    ]);
+  });
+
+  test('ignores non-joined AS group members in avatar order', () {
+    final client = Client('GroupAvatarMembersAsJoinedOnlyTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!group:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    for (final mxid in const [
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+      '@bob:p2p-im.com',
+    ]) {
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: '@owner:p2p-im.com',
+          stateKey: mxid,
+          content: const {'membership': 'join'},
+        ),
+      );
+    }
+
+    final result = stableGroupAvatarMembersForRoom(
+      room: room,
+      syncCache: const AsSyncCacheState(),
+      cachedMemberOrder: const [],
+      authoritativeMembers: const [
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@owner:p2p-im.com',
+          role: asChannelRoleOwner,
+          status: asChannelMemberStatusJoined,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@alice:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusInvite,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@bob:p2p-im.com',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusPending,
+        ),
+      ],
+    );
+
+    expect(result.members.map((member) => member.seed), [
+      '@owner:p2p-im.com',
+    ]);
+  });
+
   test('sorts Matrix participants by AS group member order', () {
     final client = Client('GroupParticipantsAsOrderTest')
       ..setUserId('@owner:p2p-im.com');

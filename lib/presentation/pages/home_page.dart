@@ -1469,6 +1469,10 @@ class _ChatList extends ConsumerWidget {
     final groupRemarkNames = ref.watch(groupRemarkNamesProvider);
     final outbox = ref.watch(localOutboxProvider);
     final messageOrder = ref.watch(localMessageOrderProvider);
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final productConversationsAsync = ref.watch(productConversationsProvider);
     final productConversations =
         productConversationsAsync.valueOrNull ?? const <AsConversation>[];
@@ -1493,6 +1497,7 @@ class _ChatList extends ConsumerWidget {
       messageOrder: messageOrder,
       groupRemarkNames: groupRemarkNames,
       currentUserId: currentUserId,
+      agentEmptyPreview: l10n?.agentChatEmptyTitle ?? '开始我们的聊天吧',
       includeDefaultAgentConversation: true,
     );
     recordHomeConversationSummaryProjection(
@@ -1813,6 +1818,7 @@ class _ConvRow extends StatelessWidget {
                   size: _conversationTileAvatarSize,
                   imageUrl: avatarUrl,
                   members: groupAvatarMembers,
+                  minimumSlots: 4,
                 )
               : PortalAvatar(
                   seed: name,

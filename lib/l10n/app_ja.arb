@@ -62,6 +62,20 @@
   "commonSave": "保存",
   "commonSearch": "検索",
   "commonShare": "共有",
+  "avatarAdjustTitle": "アバターを調整",
+  "avatarAdjustHint": "ピンチで拡大、ドラッグで移動",
+  "avatarAdjustReset": "リセット",
+  "avatarAdjustDone": "完了",
+  "avatarAdjustUpdateFailed": "アバターの更新に失敗しました: {error}",
+  "@avatarAdjustUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarAdjustPreviewNotReady": "アバターのプレビューはまだ準備できていません",
+  "avatarAdjustExportFailed": "アバターの書き出しに失敗しました",
   "profileInfoTitle": "自分の情報",
   "profileInfoAvatarEdit": "編集",
   "profileInfoMatrixSessionMissing": "現在の Matrix ログイン状態が見つかりません",

@@ -4,12 +4,13 @@ import 'package:portal_app/presentation/qr/qr_scan_parser.dart';
 void main() {
   test('parses p2p user qr payload', () {
     final target = parseQrScanTarget(
-      'p2pim://add-contact?mxid=@alice:p2p-im.com&name=Alice',
+      'p2pim://add-contact?mxid=@alice:p2p-im.com&name=Alice&avatar_url=mxc%3A%2F%2Fp2p-im.com%2Falice',
     );
 
     expect(target?.kind, QrScanKind.user);
     expect(target?.userId, '@alice:p2p-im.com');
     expect(target?.displayName, 'Alice');
+    expect(target?.avatarUrl, 'mxc://p2p-im.com/alice');
   });
 
   test('parses mobile add friend qr formats', () {
@@ -27,9 +28,15 @@ void main() {
   test('parses common user qr wrappers', () {
     expect(
       parseQrScanTarget(
-        '{"matrix_user_id":"@alice:portal.local","display_name":"Alice"}',
+        '{"matrix_user_id":"@alice:portal.local","display_name":"Alice","avatar_url":"mxc://portal.local/alice"}',
       )?.userId,
       '@alice:portal.local',
+    );
+    expect(
+      parseQrScanTarget(
+        '{"matrix_user_id":"@alice:portal.local","display_name":"Alice","avatar_url":"mxc://portal.local/alice"}',
+      )?.avatarUrl,
+      'mxc://portal.local/alice',
     );
     expect(
       parseQrScanTarget(

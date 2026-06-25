@@ -430,6 +430,48 @@ abstract class AppLocalizations {
   /// **'分享'**
   String get commonShare;
 
+  /// No description provided for @avatarAdjustTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'调整头像'**
+  String get avatarAdjustTitle;
+
+  /// No description provided for @avatarAdjustHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'双指缩放或拖动图片'**
+  String get avatarAdjustHint;
+
+  /// No description provided for @avatarAdjustReset.
+  ///
+  /// In zh, this message translates to:
+  /// **'重置'**
+  String get avatarAdjustReset;
+
+  /// No description provided for @avatarAdjustDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'完成'**
+  String get avatarAdjustDone;
+
+  /// No description provided for @avatarAdjustUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'头像更新失败: {error}'**
+  String avatarAdjustUpdateFailed(String error);
+
+  /// No description provided for @avatarAdjustPreviewNotReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'头像预览尚未准备好'**
+  String get avatarAdjustPreviewNotReady;
+
+  /// No description provided for @avatarAdjustExportFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'头像导出失败'**
+  String get avatarAdjustExportFailed;
+
   /// No description provided for @profileInfoTitle.
   ///
   /// In zh, this message translates to:

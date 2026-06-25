@@ -65,6 +65,20 @@
   "commonSave": "保存",
   "commonSearch": "搜索",
   "commonShare": "分享",
+  "avatarAdjustTitle": "调整头像",
+  "avatarAdjustHint": "双指缩放或拖动图片",
+  "avatarAdjustReset": "重置",
+  "avatarAdjustDone": "完成",
+  "avatarAdjustUpdateFailed": "头像更新失败: {error}",
+  "@avatarAdjustUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "avatarAdjustPreviewNotReady": "头像预览尚未准备好",
+  "avatarAdjustExportFailed": "头像导出失败",
   "profileInfoTitle": "我的信息",
   "profileInfoAvatarEdit": "修改",
   "profileInfoMatrixSessionMissing": "当前 Matrix 登录态缺失",

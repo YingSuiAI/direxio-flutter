@@ -5,10 +5,18 @@ import '../chat/call_timeline_events.dart';
 import '../chat/chat_record_forwarding.dart';
 
 const _channelShareMessageType = 'channel_share';
-const defaultAgentConversationPreview = '开始我们的聊天吧～';
+const defaultAgentConversationPreview = '开始我们的聊天吧';
 
-String roomEventPreviewText(Event? event, {required bool isAgent}) {
-  final fallback = isAgent ? defaultAgentConversationPreview : '';
+String roomEventPreviewText(
+  Event? event, {
+  required bool isAgent,
+  String? agentFallback,
+}) {
+  final fallback = isAgent
+      ? (agentFallback?.trim().isNotEmpty == true
+          ? agentFallback!.trim()
+          : defaultAgentConversationPreview)
+      : '';
   if (event == null) return fallback;
   final callText = callPreviewText(event);
   if (callText.isNotEmpty) return callText;
@@ -49,6 +57,7 @@ String conversationPreviewText({
   required LocalOutboxItem? latestFailedOutbox,
   DateTime? lastEventSortTime,
   required bool isAgent,
+  String? agentFallback,
 }) {
   final failedAt = latestFailedOutbox?.createdAt;
   final eventAt = lastEventSortTime ?? lastEvent?.originServerTs;
@@ -56,7 +65,11 @@ String conversationPreviewText({
       (eventAt == null || failedAt == null || failedAt.isAfter(eventAt))) {
     return '发送失败';
   }
-  return roomEventPreviewText(lastEvent, isAgent: isAgent);
+  return roomEventPreviewText(
+    lastEvent,
+    isAgent: isAgent,
+    agentFallback: agentFallback,
+  );
 }
 
 String quotedEventPreviewText(Event? event) {

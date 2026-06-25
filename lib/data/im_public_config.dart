@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 
-const defaultImPublicBaseUrl = 'https://im.direxio.ai/api';
+const defaultImPublicBaseUrl = 'https://imadmin.direxio.ai/api';
 const defaultImPublicSecret = 'f88c10fe-4559-fa77-b8b9-beadf468ddba';
 
 String buildImPublicNonce({String seed = ''}) {

@@ -12712,7 +12712,7 @@ void main() {
     expect(find.text('owner'), findsNothing);
   });
 
-  testWidgets('group info member avatar opens contact home for friend actions',
+  testWidgets('group info member avatar opens chat avatar profile',
       (tester) async {
     final client = Client('DirexioGroupInfoMemberProfileTest')
       ..setUserId('@owner:p2p-im.com');
@@ -12751,9 +12751,11 @@ void main() {
           ),
         ),
         GoRoute(
-          path: '/contact-home/:userId',
-          builder: (_, state) => ContactHomePage(
+          path: '/contact/:userId',
+          builder: (_, state) => ContactDetailPage(
             userId: state.pathParameters['userId']!,
+            fromChatAvatar:
+                state.uri.queryParameters['source'] == 'chat_avatar',
           ),
         ),
         GoRoute(
@@ -12788,16 +12790,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(ContactHomePage), findsOneWidget);
-    expect(find.text('alice'), findsOneWidget);
-    expect(find.text('p2p-im.com'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('contact_home_add_friend_button')),
-        matching: find.text('加好友'),
-      ),
-      findsOneWidget,
+    expect(find.byType(ContactDetailPage), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey('group_info_member_@owner:p2p-im.com')),
     );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ContactDetailPage), findsOneWidget);
+    expect(find.text('owner'), findsWidgets);
   });
 
   testWidgets('group owner can remove member from group info', (tester) async {

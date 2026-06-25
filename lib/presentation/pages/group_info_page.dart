@@ -375,12 +375,9 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   void _openMemberProfile(String userId) {
     final mxid = userId.trim();
     if (!mxid.startsWith('@') || !mxid.contains(':')) return;
-    final self = ref.read(matrixClientProvider).userID?.trim();
-    if (self != null && self == mxid) {
-      context.push('/me/profile');
-      return;
-    }
-    context.push('/contact-home/${Uri.encodeComponent(mxid)}');
+    context.push(
+      '/contact/${Uri.encodeComponent(mxid)}?source=chat_avatar',
+    );
   }
 
   bool _canDissolveGroup(Room room) {

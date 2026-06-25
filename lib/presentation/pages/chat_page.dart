@@ -2537,7 +2537,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     return _QuotedMessagePreview(
       eventId: quoted.eventId,
       sender: quoted.senderFromMemoryOrFallback.calcDisplayname(),
-      text: quotedEventPreviewText(quoted),
+      text: quotedEventPreviewText(
+        quoted,
+        l10n: Localizations.of<AppLocalizations>(context, AppLocalizations),
+      ),
     );
   }
 
@@ -2547,7 +2550,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     _localReplyPreviews[trimmed] = _QuotedMessagePreview(
       eventId: replyTo.eventId,
       sender: replyTo.senderFromMemoryOrFallback.calcDisplayname(),
-      text: quotedEventPreviewText(replyTo),
+      text: quotedEventPreviewText(
+        replyTo,
+        l10n: Localizations.of<AppLocalizations>(context, AppLocalizations),
+      ),
     );
   }
 

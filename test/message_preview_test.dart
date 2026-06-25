@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/local_outbox_store.dart';
+import 'package:portal_app/l10n/app_localizations_en.dart';
 import 'package:portal_app/presentation/chat/chat_record_forwarding.dart';
 import 'package:portal_app/presentation/utils/message_preview.dart';
 
@@ -165,6 +166,41 @@ void main() {
 
     expect(roomEventPreviewText(sent, isAgent: false), '发送视频');
     expect(roomEventPreviewText(received, isAgent: false), '收到视频');
+  });
+
+  test('uses localized message type labels when l10n is provided', () {
+    final l10n = AppLocalizationsEn();
+    final client = Client('MessagePreviewLocalizedTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final sent = Event(
+      room: room,
+      eventId: r'$sent-image-localized',
+      senderId: '@me:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 25),
+      content: {
+        'msgtype': MessageTypes.Image,
+        'body': 'photo.jpg',
+      },
+    );
+    final quotedFile = Event(
+      room: room,
+      eventId: r'$quoted-file-localized',
+      senderId: '@peer:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 25),
+      content: {
+        'msgtype': MessageTypes.File,
+        'body': 'doc.pdf',
+      },
+    );
+
+    expect(
+      roomEventPreviewText(sent, isAgent: false, l10n: l10n),
+      'Sent an image',
+    );
+    expect(quotedEventPreviewText(quotedFile, l10n: l10n), '[File]');
   });
 
   test('keeps text previews readable', () {

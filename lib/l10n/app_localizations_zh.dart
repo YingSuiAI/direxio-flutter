@@ -1144,6 +1144,75 @@ class AppLocalizationsZh extends AppLocalizations {
   String get groupChatFile => '文件';
 
   @override
+  String get messagePreviewSentImage => '发送图片';
+
+  @override
+  String get messagePreviewReceivedImage => '收到图片';
+
+  @override
+  String get messagePreviewSentVideo => '发送视频';
+
+  @override
+  String get messagePreviewReceivedVideo => '收到视频';
+
+  @override
+  String get messagePreviewSentFile => '发送文件';
+
+  @override
+  String get messagePreviewReceivedFile => '收到文件';
+
+  @override
+  String get messagePreviewImageBracket => '[图片]';
+
+  @override
+  String get messagePreviewVideoBracket => '[视频]';
+
+  @override
+  String get messagePreviewFileBracket => '[文件]';
+
+  @override
+  String get messagePreviewVoiceBracket => '[语音]';
+
+  @override
+  String get messagePreviewChatRecordBracket => '[聊天记录]';
+
+  @override
+  String get messagePreviewChannelBracket => '[频道]';
+
+  @override
+  String get messagePreviewMessage => '消息';
+
+  @override
+  String get messagePreviewSendFailed => '发送失败';
+
+  @override
+  String get messagePreviewCallRejected => '已拒绝通话';
+
+  @override
+  String get messagePreviewCallMissed => '未接通通话';
+
+  @override
+  String get messagePreviewGroupCall => '群通话';
+
+  @override
+  String get messagePreviewCall => '通话';
+
+  @override
+  String get messagePreviewChatRecord => '聊天记录';
+
+  @override
+  String get messagePreviewGroupChatRecord => '群聊的聊天记录';
+
+  @override
+  String get messagePreviewDirectChatRecord => '私聊的聊天记录';
+
+  @override
+  String get messagePreviewChannelChatRecord => '频道的聊天记录';
+
+  @override
+  String get messagePreviewAgentChatRecord => 'Agent 聊天记录';
+
+  @override
   String get chatInputVoice => '语音';
 
   @override

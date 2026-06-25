@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../../data/local_outbox_store.dart';
+import '../../l10n/app_localizations.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_record_forwarding.dart';
 
@@ -11,6 +12,7 @@ String roomEventPreviewText(
   Event? event, {
   required bool isAgent,
   String? agentFallback,
+  AppLocalizations? l10n,
 }) {
   final fallback = isAgent
       ? (agentFallback?.trim().isNotEmpty == true
@@ -18,25 +20,33 @@ String roomEventPreviewText(
           : defaultAgentConversationPreview)
       : '';
   if (event == null) return fallback;
-  final callText = callPreviewText(event);
+  final callText = callPreviewText(event, l10n: l10n);
   if (callText.isNotEmpty) return callText;
   if (event.type != EventTypes.Message && event.text.isEmpty) return fallback;
   if (event.type == EventTypes.Message &&
       event.messageType == MessageTypes.Image) {
-    return event.senderId == event.room.client.userID ? '发送图片' : '收到图片';
+    return event.senderId == event.room.client.userID
+        ? l10n?.messagePreviewSentImage ?? '发送图片'
+        : l10n?.messagePreviewReceivedImage ?? '收到图片';
   }
   if (event.type == EventTypes.Message &&
       event.messageType == MessageTypes.Video) {
-    return event.senderId == event.room.client.userID ? '发送视频' : '收到视频';
+    return event.senderId == event.room.client.userID
+        ? l10n?.messagePreviewSentVideo ?? '发送视频'
+        : l10n?.messagePreviewReceivedVideo ?? '收到视频';
   }
   if (event.type == EventTypes.Message &&
       event.messageType == MessageTypes.Audio) {
-    return '[语音]';
+    return l10n?.messagePreviewVoiceBracket ?? '[语音]';
   }
   if (event.type == EventTypes.Message &&
       event.messageType == MessageTypes.File) {
-    if (_isAudioFileEvent(event)) return '[语音]';
-    return event.senderId == event.room.client.userID ? '发送文件' : '收到文件';
+    if (_isAudioFileEvent(event)) {
+      return l10n?.messagePreviewVoiceBracket ?? '[语音]';
+    }
+    return event.senderId == event.room.client.userID
+        ? l10n?.messagePreviewSentFile ?? '发送文件'
+        : l10n?.messagePreviewReceivedFile ?? '收到文件';
   }
   return previewText(event.plaintextBody);
 }
@@ -58,42 +68,54 @@ String conversationPreviewText({
   DateTime? lastEventSortTime,
   required bool isAgent,
   String? agentFallback,
+  AppLocalizations? l10n,
 }) {
   final failedAt = latestFailedOutbox?.createdAt;
   final eventAt = lastEventSortTime ?? lastEvent?.originServerTs;
   if (latestFailedOutbox != null &&
       (eventAt == null || failedAt == null || failedAt.isAfter(eventAt))) {
-    return '发送失败';
+    return l10n?.messagePreviewSendFailed ?? '发送失败';
   }
   return roomEventPreviewText(
     lastEvent,
     isAgent: isAgent,
     agentFallback: agentFallback,
+    l10n: l10n,
   );
 }
 
-String quotedEventPreviewText(Event? event) {
-  if (event == null) return '原消息暂不可见';
-  final callText = callPreviewText(event);
+String quotedEventPreviewText(Event? event, {AppLocalizations? l10n}) {
+  if (event == null) {
+    return l10n?.groupChatOriginalMessageUnavailable ?? '原消息暂不可见';
+  }
+  final callText = callPreviewText(event, l10n: l10n);
   if (callText.isNotEmpty) return callText;
-  if (event.type != EventTypes.Message && event.text.isEmpty) return '消息';
+  if (event.type != EventTypes.Message && event.text.isEmpty) {
+    return l10n?.messagePreviewMessage ?? '消息';
+  }
   final content = event.content.map(
     (key, value) => MapEntry(key.toString(), value),
   );
   final productType = (content[chatRecordMatrixMarkerKey] as String?) ?? '';
-  if (productType == chatRecordMessageType) return '[聊天记录]';
-  if (productType == _channelShareMessageType) return '[频道]';
+  if (productType == chatRecordMessageType) {
+    return l10n?.messagePreviewChatRecordBracket ?? '[聊天记录]';
+  }
+  if (productType == _channelShareMessageType) {
+    return l10n?.messagePreviewChannelBracket ?? '[频道]';
+  }
   if (event.type == EventTypes.Message) {
     switch (event.messageType) {
       case MessageTypes.Image:
-        return '[图片]';
+        return l10n?.messagePreviewImageBracket ?? '[图片]';
       case MessageTypes.Video:
-        return '[视频]';
+        return l10n?.messagePreviewVideoBracket ?? '[视频]';
       case MessageTypes.Audio:
-        return '[语音]';
+        return l10n?.messagePreviewVoiceBracket ?? '[语音]';
       case MessageTypes.File:
-        if (_isAudioFileEvent(event)) return '[语音]';
-        return '[文件]';
+        if (_isAudioFileEvent(event)) {
+          return l10n?.messagePreviewVoiceBracket ?? '[语音]';
+        }
+        return l10n?.messagePreviewFileBracket ?? '[文件]';
     }
   }
   return previewText(_stripMatrixReplyFallback(event.plaintextBody));

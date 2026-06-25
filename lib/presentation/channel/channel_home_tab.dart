@@ -32,7 +32,9 @@ const _channelText = Color(0xFF262628);
 const _channelMuted = Color(0xFFA3A3A4);
 const _channelBorder = Color(0xFFE6E6E6);
 
-final _channelListProvider = FutureProvider.autoDispose<List<AsChannel>>((ref) {
+final _channelListProvider =
+    FutureProvider.autoDispose.family<List<AsChannel>, String>((ref, scope) {
+  if (scope.trim().isEmpty) return const <AsChannel>[];
   return ref.read(asClientProvider).listChannels();
 });
 
@@ -52,10 +54,22 @@ final _hiddenChannelListKeysProvider = StateProvider<Set<String>>(
   (ref) => const <String>{},
 );
 
-final _channelPendingReviewCountProvider = FutureProvider.autoDispose<int>((
-  ref,
-) async {
-  final channels = await ref.watch(_channelListProvider.future);
+String _channelListScope(Client client, AuthState? auth) {
+  final authUserId = auth?.isLoggedIn == true ? auth?.userId?.trim() ?? '' : '';
+  final matrixUserId = client.userID?.trim() ?? '';
+  final userId = authUserId.isNotEmpty ? authUserId : matrixUserId;
+  final authHomeserver = auth?.homeserver?.trim() ?? '';
+  final clientHomeserver = client.homeserver?.toString().trim() ?? '';
+  final homeserver =
+      authHomeserver.isNotEmpty ? authHomeserver : clientHomeserver;
+  if (userId.isEmpty && homeserver.isEmpty) return '';
+  return '$userId@$homeserver';
+}
+
+final _channelPendingReviewCountProvider =
+    FutureProvider.autoDispose.family<int, String>((ref, scope) async {
+  if (scope.trim().isEmpty) return 0;
+  final channels = await ref.watch(_channelListProvider(scope).future);
   var count = 0;
   for (final channel in channels.where(_canReviewChannel)) {
     final channelId = channel.channelId.trim().isEmpty
@@ -91,11 +105,13 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     );
     final bootstrap = syncCache.bootstrap;
     final useRealChannels = auth?.isLoggedIn == true || client.isLogged();
+    final channelListScope = _channelListScope(client, auth);
     final publicChannels = useRealChannels && bootstrap == null
         ? ref.watch(_publicChannelListProvider).valueOrNull
         : null;
-    final listedChannels =
-        useRealChannels ? ref.watch(_channelListProvider).valueOrNull : null;
+    final listedChannels = useRealChannels
+        ? ref.watch(_channelListProvider(channelListScope)).valueOrNull
+        : null;
     final productConversations = useRealChannels
         ? ref.watch(productConversationsProvider).valueOrNull ??
             const <AsConversation>[]
@@ -106,6 +122,10 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
     final hiddenChannelKeys = ref.watch(_hiddenChannelListKeysProvider);
     final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
     final fallbackDomain = _clientServerName(client);
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final syncHiddenChannelKeys = _hiddenChannelKeys(syncCache);
     final publicChannelItems = useRealChannels && publicChannels != null
         ? ChannelInboxData.fromChannels(
@@ -115,7 +135,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
             latestPreviewForRoomId: (roomId) =>
-                _matrixRoomLatestPreview(client, roomId),
+                _matrixRoomLatestPreview(client, roomId, l10n: l10n),
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           )
@@ -134,7 +154,8 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                         roomAvatarForRoomId: (roomId) =>
                             _matrixRoomAvatar(client, roomId),
                         latestPreviewForRoomId: (roomId) =>
-                            _matrixRoomLatestPreview(client, roomId),
+                            _matrixRoomLatestPreview(client, roomId,
+                                l10n: l10n),
                         latestAtForRoomId: (roomId) =>
                             _matrixRoomLatestAt(client, roomId),
                       )
@@ -148,7 +169,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                     roomAvatarForRoomId: (roomId) =>
                         _matrixRoomAvatar(client, roomId),
                     latestPreviewForRoomId: (roomId) =>
-                        _matrixRoomLatestPreview(client, roomId),
+                        _matrixRoomLatestPreview(client, roomId, l10n: l10n),
                     latestAtForRoomId: (roomId) =>
                         _matrixRoomLatestAt(client, roomId),
                     hiddenChannelKeys: syncHiddenChannelKeys,
@@ -159,7 +180,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
             latestPreviewForRoomId: (roomId) =>
-                _matrixRoomLatestPreview(client, roomId),
+                _matrixRoomLatestPreview(client, roomId, l10n: l10n),
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           )
@@ -182,14 +203,15 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
       syncCache,
       localCreatedChannels,
     );
-    final l10n = Localizations.of<AppLocalizations>(
-      context,
-      AppLocalizations,
-    );
     final sourcePendingCount = _channelPendingCount(sourceChannels);
     final pendingReviewCount = useRealChannels
         ? math.max(
-            ref.watch(_channelPendingReviewCountProvider).valueOrNull ?? 0,
+            ref
+                    .watch(
+                      _channelPendingReviewCountProvider(channelListScope),
+                    )
+                    .valueOrNull ??
+                0,
             sourcePendingCount,
           )
         : sourcePendingCount;
@@ -362,6 +384,10 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
     final localCreatedChannels = ref.watch(localCreatedChannelsProvider);
     final hiddenChannelKeys = ref.watch(_hiddenChannelListKeysProvider);
     final pinnedChannelKeys = ref.watch(pinnedConversationIdsProvider);
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final syncHiddenChannelKeys = _hiddenChannelKeys(syncCache);
     final channels = bootstrap == null
         ? ChannelInboxData.mergeCreatedCache(
@@ -372,7 +398,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
             latestPreviewForRoomId: (roomId) =>
-                _matrixRoomLatestPreview(client, roomId),
+                _matrixRoomLatestPreview(client, roomId, l10n: l10n),
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
           )
         : ChannelInboxData.mergeCreatedCache(
@@ -384,7 +410,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
               roomAvatarForRoomId: (roomId) =>
                   _matrixRoomAvatar(client, roomId),
               latestPreviewForRoomId: (roomId) =>
-                  _matrixRoomLatestPreview(client, roomId),
+                  _matrixRoomLatestPreview(client, roomId, l10n: l10n),
               latestAtForRoomId: (roomId) =>
                   _matrixRoomLatestAt(client, roomId),
             ),
@@ -394,7 +420,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
             latestPreviewForRoomId: (roomId) =>
-                _matrixRoomLatestPreview(client, roomId),
+                _matrixRoomLatestPreview(client, roomId, l10n: l10n),
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           );
@@ -2060,9 +2086,17 @@ String _matrixRoomAvatar(Client client, String roomId) {
   return client.getRoomById(roomId.trim())?.avatar?.toString() ?? '';
 }
 
-String _matrixRoomLatestPreview(Client client, String roomId) {
+String _matrixRoomLatestPreview(
+  Client client,
+  String roomId, {
+  AppLocalizations? l10n,
+}) {
   final event = client.getRoomById(roomId.trim())?.lastEvent;
-  final preview = roomEventPreviewText(event, isAgent: false).trim();
+  final preview = roomEventPreviewText(
+    event,
+    isAgent: false,
+    l10n: l10n,
+  ).trim();
   return preview;
 }
 

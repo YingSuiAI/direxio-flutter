@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import 'chat_record_forwarding.dart';
 
 const chatMessageCardWidth = 220.0;
@@ -234,11 +235,15 @@ class ChatRecordPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final titleColor = t.text;
     final secondaryColor = t.textMute;
     final dividerColor = t.border.withValues(alpha: 0.45);
     final previews = chatRecordItems(payload)
-        .where((item) => _chatRecordPreviewLine(item).isNotEmpty)
+        .where((item) => _chatRecordPreviewLine(item, l10n: l10n).isNotEmpty)
         .take(3)
         .toList(growable: false);
     return ChatCardBubbleFrame(
@@ -248,7 +253,7 @@ class ChatRecordPreviewCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _chatRecordCardTitle(payload),
+            _chatRecordCardTitle(payload, l10n: l10n),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTheme.sans(
@@ -268,6 +273,7 @@ class ChatRecordPreviewCard extends StatelessWidget {
                     child: _ChatRecordPreviewRow(
                       key: ValueKey('chat_record_preview_row_${entry.$1}'),
                       item: entry.$2,
+                      l10n: l10n,
                       color: secondaryColor,
                       avatarKey: ValueKey(
                         'chat_record_preview_avatar_${entry.$1}',
@@ -280,7 +286,7 @@ class ChatRecordPreviewCard extends StatelessWidget {
           Container(height: 1, color: dividerColor),
           const SizedBox(height: 5),
           Text(
-            '聊天记录',
+            l10n?.messagePreviewChatRecord ?? '聊天记录',
             style: AppTheme.sans(size: 11, color: secondaryColor),
           ),
         ],
@@ -293,17 +299,19 @@ class _ChatRecordPreviewRow extends StatelessWidget {
   const _ChatRecordPreviewRow({
     super.key,
     required this.item,
+    required this.l10n,
     required this.color,
     required this.avatarKey,
   });
 
   final ChatRecordItem item;
+  final AppLocalizations? l10n;
   final Color color;
   final Key avatarKey;
 
   @override
   Widget build(BuildContext context) {
-    final line = _chatRecordPreviewLine(item);
+    final line = _chatRecordPreviewLine(item, l10n: l10n);
     final seed = item.senderName.trim().isNotEmpty
         ? item.senderName.trim()
         : item.senderId.trim();
@@ -716,32 +724,42 @@ class _VoiceIconState extends State<_VoiceIcon>
   }
 }
 
-String _chatRecordCardTitle(ChatRecordPayload payload) {
+String _chatRecordCardTitle(
+  ChatRecordPayload payload, {
+  AppLocalizations? l10n,
+}) {
   return switch (payload.sourceRoomType) {
-    'group' => '群聊的聊天记录',
-    'direct' => '私聊的聊天记录',
-    'channel' => '频道的聊天记录',
-    'agent' => 'Agent 聊天记录',
-    _ => '聊天记录',
+    'group' => l10n?.messagePreviewGroupChatRecord ?? '群聊的聊天记录',
+    'direct' => l10n?.messagePreviewDirectChatRecord ?? '私聊的聊天记录',
+    'channel' => l10n?.messagePreviewChannelChatRecord ?? '频道的聊天记录',
+    'agent' => l10n?.messagePreviewAgentChatRecord ?? 'Agent 聊天记录',
+    _ => l10n?.messagePreviewChatRecord ?? '聊天记录',
   };
 }
 
-String _chatRecordPreviewLine(ChatRecordItem item) {
+String _chatRecordPreviewLine(ChatRecordItem item, {AppLocalizations? l10n}) {
   final sender = item.senderName.trim();
-  final content = _chatRecordPreviewBody(item);
+  final content = _chatRecordPreviewBody(item, l10n: l10n);
   if (content.isEmpty) return '';
   return sender.isEmpty ? content : '$sender: $content';
 }
 
-String _chatRecordPreviewBody(ChatRecordItem item) {
+String _chatRecordPreviewBody(ChatRecordItem item, {AppLocalizations? l10n}) {
   final messageType = item.messageType.trim();
   final nested = chatRecordPayloadFromContent(item.content);
-  if (nested != null) return '[聊天记录] ${nested.title}';
-  if (messageType == MessageTypes.Image) return '[图片]';
-  if (messageType == MessageTypes.Video) return '[视频]';
+  if (nested != null) {
+    return '${l10n?.messagePreviewChatRecordBracket ?? '[聊天记录]'} ${nested.title}';
+  }
+  if (messageType == MessageTypes.Image) {
+    return l10n?.messagePreviewImageBracket ?? '[图片]';
+  }
+  if (messageType == MessageTypes.Video) {
+    return l10n?.messagePreviewVideoBracket ?? '[视频]';
+  }
   if (messageType == MessageTypes.File) {
     final name = item.filename.trim();
-    return name.isEmpty ? '[文件]' : '[文件] $name';
+    final label = l10n?.messagePreviewFileBracket ?? '[文件]';
+    return name.isEmpty ? label : '$label $name';
   }
   return item.body.replaceAll(RegExp(r'\s+'), ' ').trim();
 }

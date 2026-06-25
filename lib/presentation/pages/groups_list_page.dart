@@ -131,7 +131,7 @@ class _GroupsListPageState extends ConsumerState<GroupsListPage> {
                       : room?.getLocalizedDisplayname() ?? l10n.contactsGroups,
           preview: lastEvent == null
               ? _previewText(group?.topic ?? '')
-              : roomEventPreviewText(lastEvent, isAgent: false),
+              : roomEventPreviewText(lastEvent, isAgent: false, l10n: l10n),
           avatarMembers: groupAvatarMembers?.members ??
               cachedGroupAvatarMembers(
                 cachedMemberOrder: groupAvatarMemberOrders[roomId] ?? const [],

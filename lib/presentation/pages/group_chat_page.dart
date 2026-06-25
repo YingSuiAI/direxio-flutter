@@ -1460,7 +1460,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     return _GroupQuotedMessagePreview(
       eventId: quoted.eventId,
       sender: quoted.senderFromMemoryOrFallback.calcDisplayname(),
-      text: quotedEventPreviewText(quoted),
+      text: quotedEventPreviewText(quoted, l10n: l10n),
     );
   }
 
@@ -1470,7 +1470,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     _localReplyPreviews[trimmed] = _GroupQuotedMessagePreview(
       eventId: replyTo.eventId,
       sender: replyTo.senderFromMemoryOrFallback.calcDisplayname(),
-      text: quotedEventPreviewText(replyTo),
+      text: quotedEventPreviewText(replyTo, l10n: _groupChatL10n(context)),
     );
   }
 

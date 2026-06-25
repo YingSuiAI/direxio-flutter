@@ -2219,6 +2219,144 @@ abstract class AppLocalizations {
   /// **'文件'**
   String get groupChatFile;
 
+  /// No description provided for @messagePreviewSentImage.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送图片'**
+  String get messagePreviewSentImage;
+
+  /// No description provided for @messagePreviewReceivedImage.
+  ///
+  /// In zh, this message translates to:
+  /// **'收到图片'**
+  String get messagePreviewReceivedImage;
+
+  /// No description provided for @messagePreviewSentVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送视频'**
+  String get messagePreviewSentVideo;
+
+  /// No description provided for @messagePreviewReceivedVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'收到视频'**
+  String get messagePreviewReceivedVideo;
+
+  /// No description provided for @messagePreviewSentFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送文件'**
+  String get messagePreviewSentFile;
+
+  /// No description provided for @messagePreviewReceivedFile.
+  ///
+  /// In zh, this message translates to:
+  /// **'收到文件'**
+  String get messagePreviewReceivedFile;
+
+  /// No description provided for @messagePreviewImageBracket.
+  ///
+  /// In zh, this message translates to:
+  /// **'[图片]'**
+  String get messagePreviewImageBracket;
+
+  /// No description provided for @messagePreviewVideoBracket.
+  ///
+  /// In zh, this message translates to:
+  /// **'[视频]'**
+  String get messagePreviewVideoBracket;
+
+  /// No description provided for @messagePreviewFileBracket.
+  ///
+  /// In zh, this message translates to:
+  /// **'[文件]'**
+  String get messagePreviewFileBracket;
+
+  /// No description provided for @messagePreviewVoiceBracket.
+  ///
+  /// In zh, this message translates to:
+  /// **'[语音]'**
+  String get messagePreviewVoiceBracket;
+
+  /// No description provided for @messagePreviewChatRecordBracket.
+  ///
+  /// In zh, this message translates to:
+  /// **'[聊天记录]'**
+  String get messagePreviewChatRecordBracket;
+
+  /// No description provided for @messagePreviewChannelBracket.
+  ///
+  /// In zh, this message translates to:
+  /// **'[频道]'**
+  String get messagePreviewChannelBracket;
+
+  /// No description provided for @messagePreviewMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'消息'**
+  String get messagePreviewMessage;
+
+  /// No description provided for @messagePreviewSendFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'发送失败'**
+  String get messagePreviewSendFailed;
+
+  /// No description provided for @messagePreviewCallRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拒绝通话'**
+  String get messagePreviewCallRejected;
+
+  /// No description provided for @messagePreviewCallMissed.
+  ///
+  /// In zh, this message translates to:
+  /// **'未接通通话'**
+  String get messagePreviewCallMissed;
+
+  /// No description provided for @messagePreviewGroupCall.
+  ///
+  /// In zh, this message translates to:
+  /// **'群通话'**
+  String get messagePreviewGroupCall;
+
+  /// No description provided for @messagePreviewCall.
+  ///
+  /// In zh, this message translates to:
+  /// **'通话'**
+  String get messagePreviewCall;
+
+  /// No description provided for @messagePreviewChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'聊天记录'**
+  String get messagePreviewChatRecord;
+
+  /// No description provided for @messagePreviewGroupChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊的聊天记录'**
+  String get messagePreviewGroupChatRecord;
+
+  /// No description provided for @messagePreviewDirectChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'私聊的聊天记录'**
+  String get messagePreviewDirectChatRecord;
+
+  /// No description provided for @messagePreviewChannelChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道的聊天记录'**
+  String get messagePreviewChannelChatRecord;
+
+  /// No description provided for @messagePreviewAgentChatRecord.
+  ///
+  /// In zh, this message translates to:
+  /// **'Agent 聊天记录'**
+  String get messagePreviewAgentChatRecord;
+
   /// No description provided for @chatInputVoice.
   ///
   /// In zh, this message translates to:

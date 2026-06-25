@@ -1183,6 +1183,75 @@ class AppLocalizationsEn extends AppLocalizations {
   String get groupChatFile => 'file';
 
   @override
+  String get messagePreviewSentImage => 'Sent an image';
+
+  @override
+  String get messagePreviewReceivedImage => 'Received an image';
+
+  @override
+  String get messagePreviewSentVideo => 'Sent a video';
+
+  @override
+  String get messagePreviewReceivedVideo => 'Received a video';
+
+  @override
+  String get messagePreviewSentFile => 'Sent a file';
+
+  @override
+  String get messagePreviewReceivedFile => 'Received a file';
+
+  @override
+  String get messagePreviewImageBracket => '[Image]';
+
+  @override
+  String get messagePreviewVideoBracket => '[Video]';
+
+  @override
+  String get messagePreviewFileBracket => '[File]';
+
+  @override
+  String get messagePreviewVoiceBracket => '[Voice]';
+
+  @override
+  String get messagePreviewChatRecordBracket => '[Chat history]';
+
+  @override
+  String get messagePreviewChannelBracket => '[Channel]';
+
+  @override
+  String get messagePreviewMessage => 'Message';
+
+  @override
+  String get messagePreviewSendFailed => 'Send failed';
+
+  @override
+  String get messagePreviewCallRejected => 'Call declined';
+
+  @override
+  String get messagePreviewCallMissed => 'Missed call';
+
+  @override
+  String get messagePreviewGroupCall => 'Group call';
+
+  @override
+  String get messagePreviewCall => 'Call';
+
+  @override
+  String get messagePreviewChatRecord => 'Chat history';
+
+  @override
+  String get messagePreviewGroupChatRecord => 'Group chat history';
+
+  @override
+  String get messagePreviewDirectChatRecord => 'Direct chat history';
+
+  @override
+  String get messagePreviewChannelChatRecord => 'Channel chat history';
+
+  @override
+  String get messagePreviewAgentChatRecord => 'Agent chat history';
+
+  @override
   String get chatInputVoice => 'Voice';
 
   @override

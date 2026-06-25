@@ -1150,6 +1150,75 @@ class AppLocalizationsJa extends AppLocalizations {
   String get groupChatFile => 'ファイル';
 
   @override
+  String get messagePreviewSentImage => '画像を送信しました';
+
+  @override
+  String get messagePreviewReceivedImage => '画像を受信しました';
+
+  @override
+  String get messagePreviewSentVideo => '動画を送信しました';
+
+  @override
+  String get messagePreviewReceivedVideo => '動画を受信しました';
+
+  @override
+  String get messagePreviewSentFile => 'ファイルを送信しました';
+
+  @override
+  String get messagePreviewReceivedFile => 'ファイルを受信しました';
+
+  @override
+  String get messagePreviewImageBracket => '[画像]';
+
+  @override
+  String get messagePreviewVideoBracket => '[動画]';
+
+  @override
+  String get messagePreviewFileBracket => '[ファイル]';
+
+  @override
+  String get messagePreviewVoiceBracket => '[音声]';
+
+  @override
+  String get messagePreviewChatRecordBracket => '[チャット履歴]';
+
+  @override
+  String get messagePreviewChannelBracket => '[チャンネル]';
+
+  @override
+  String get messagePreviewMessage => 'メッセージ';
+
+  @override
+  String get messagePreviewSendFailed => '送信に失敗しました';
+
+  @override
+  String get messagePreviewCallRejected => '通話を拒否しました';
+
+  @override
+  String get messagePreviewCallMissed => '不在着信';
+
+  @override
+  String get messagePreviewGroupCall => 'グループ通話';
+
+  @override
+  String get messagePreviewCall => '通話';
+
+  @override
+  String get messagePreviewChatRecord => 'チャット履歴';
+
+  @override
+  String get messagePreviewGroupChatRecord => 'グループチャット履歴';
+
+  @override
+  String get messagePreviewDirectChatRecord => '個人チャット履歴';
+
+  @override
+  String get messagePreviewChannelChatRecord => 'チャンネルチャット履歴';
+
+  @override
+  String get messagePreviewAgentChatRecord => 'Agent チャット履歴';
+
+  @override
   String get chatInputVoice => '音声';
 
   @override

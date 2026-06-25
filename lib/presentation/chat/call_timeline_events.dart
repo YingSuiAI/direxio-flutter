@@ -1,6 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 
 const _missedReason = 'invite_timeout';
 const _rejectedReasons = {
@@ -226,13 +227,17 @@ Event? callRecordSenderEvent(Event event, Iterable<Event> roomEvents) {
   return _matchingInvite(event, roomEvents);
 }
 
-String callPreviewText(Event event) {
-  if (event.type == EventTypes.CallReject) return '已拒绝通话';
-  if (event.type == EventTypes.CallHangup && _reason(event) == _missedReason) {
-    return '未接通通话';
+String callPreviewText(Event event, {AppLocalizations? l10n}) {
+  if (event.type == EventTypes.CallReject) {
+    return l10n?.messagePreviewCallRejected ?? '已拒绝通话';
   }
-  if (isProductGroupCallEvent(event)) return '群通话';
-  if (isCallTimelineEvent(event)) return '通话';
+  if (event.type == EventTypes.CallHangup && _reason(event) == _missedReason) {
+    return l10n?.messagePreviewCallMissed ?? '未接通通话';
+  }
+  if (isProductGroupCallEvent(event)) {
+    return l10n?.messagePreviewGroupCall ?? '群通话';
+  }
+  if (isCallTimelineEvent(event)) return l10n?.messagePreviewCall ?? '通话';
   return '';
 }
 

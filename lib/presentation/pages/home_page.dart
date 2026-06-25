@@ -100,7 +100,7 @@ Color _homeBorderColor(BuildContext context) {
 
 Color _homeTabColor(BuildContext context, {required bool active}) {
   if (active) return context.tk.accent;
-  if (_homeDark(context)) return context.tk.accent;
+  if (_homeDark(context)) return context.tk.onAccent;
   return _homeText;
 }
 
@@ -1153,9 +1153,6 @@ class _BottomSearchButton extends StatelessWidget {
               _iconBottomSearchTg,
               width: _bottomSearchIconSize,
               height: _bottomSearchIconSize,
-              colorFilter: isDark
-                  ? ColorFilter.mode(context.tk.accent, BlendMode.srcIn)
-                  : null,
             ),
           ),
         ),
@@ -1250,6 +1247,7 @@ class _LiquidTabPill extends StatelessWidget {
                                     ? item.activeIconAsset ?? item.iconAsset
                                     : item.inactiveIconAsset ?? item.iconAsset,
                                 size: active ? 24 : 22,
+                                color: _homeTabColor(context, active: active),
                               ),
                               if (item.badge != null)
                                 Positioned(

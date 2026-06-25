@@ -38,6 +38,8 @@ class M3BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inactiveColor = isDark ? t.onAccent : t.textMute;
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -74,6 +76,7 @@ class M3BottomNav extends StatelessWidget {
                         children: List.generate(items.length, (i) {
                           final item = items[i];
                           final active = i == currentIndex;
+                          final foreground = active ? t.accent : inactiveColor;
                           return Expanded(
                             child: InkWell(
                               onTap: () => onTap(i),
@@ -87,7 +90,7 @@ class M3BottomNav extends StatelessWidget {
                                       Icon(
                                         active ? item.activeIcon : item.icon,
                                         size: 23,
-                                        color: active ? t.accent : t.textMute,
+                                        color: foreground,
                                         fill: active ? 1 : 0,
                                       ),
                                       if (item.badge != null)
@@ -107,7 +110,7 @@ class M3BottomNav extends StatelessWidget {
                                     item.label,
                                     style: AppTheme.sans(
                                       size: 11,
-                                      color: active ? t.accent : t.textMute,
+                                      color: foreground,
                                       weight: active
                                           ? FontWeight.w600
                                           : FontWeight.w400,

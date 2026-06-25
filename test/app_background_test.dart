@@ -121,6 +121,43 @@ void main() {
     expect(borderedNavContainers, isEmpty);
   });
 
+  testWidgets('bottom nav inactive items are white in dark mode',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: Scaffold(
+          body: Center(
+            child: M3BottomNav(
+              currentIndex: 0,
+              onTap: (_) {},
+              items: const [
+                M3NavItem(
+                  icon: Symbols.chat_bubble,
+                  activeIcon: Symbols.chat_bubble,
+                  label: '消息',
+                ),
+                M3NavItem(
+                  icon: Symbols.contacts,
+                  activeIcon: Symbols.contacts,
+                  label: '联系人',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final inactiveText = tester.widget<Text>(find.text('联系人'));
+    final inactiveIcon = tester.widget<Icon>(
+      find.byIcon(Symbols.contacts).first,
+    );
+
+    expect(inactiveText.style?.color, Colors.white);
+    expect(inactiveIcon.color, Colors.white);
+  });
+
   testWidgets('glass panel creates an independent frosted surface',
       (tester) async {
     await tester.pumpWidget(

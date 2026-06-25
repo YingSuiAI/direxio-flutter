@@ -65,7 +65,6 @@ const _assetTabChannelNormal = 'assets/images/频道2.png';
 const _assetTabChannelSelected = 'assets/images/频道选中.png';
 const _assetTabMeNormal = 'assets/images/我的.png';
 const _assetTabMeSelected = 'assets/images/我的选中.png';
-const _assetAgentAvatar = 'assets/images/ai_icon.png';
 const _contactShortcutIconColor = Color(0xFF3DCFFF);
 const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
@@ -1692,7 +1691,7 @@ class _ConvRow extends StatelessWidget {
           ? ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.asset(
-                _assetAgentAvatar,
+                agentAvatarAsset,
                 width: _conversationTileAvatarSize,
                 height: _conversationTileAvatarSize,
                 fit: BoxFit.cover,
@@ -2704,7 +2703,7 @@ class _AgentContactEntryTile extends StatelessWidget {
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: Image.asset(
-          _assetAgentAvatar,
+          agentAvatarAsset,
           width: 28,
           height: 28,
           fit: BoxFit.cover,

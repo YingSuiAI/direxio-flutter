@@ -16,6 +16,7 @@ class PortalAvatar extends StatelessWidget {
     required this.seed,
     this.size = 40,
     this.imageUrl,
+    this.imageAsset,
     this.imageBytes,
     this.shape = AvatarShape.circle,
   });
@@ -23,6 +24,7 @@ class PortalAvatar extends StatelessWidget {
   final String seed;
   final double size;
   final String? imageUrl;
+  final String? imageAsset;
   final Uint8List? imageBytes;
   final AvatarShape shape;
 
@@ -82,7 +84,17 @@ class PortalAvatar extends StatelessWidget {
                   errorBuilder: (_, error, ___) =>
                       _imageError(letter, fg, error),
                 )
-              : _letter(letter, fg),
+              : imageAsset != null
+                  ? Image.asset(
+                      imageAsset!,
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                      errorBuilder: (_, error, ___) =>
+                          _imageError(letter, fg, error),
+                    )
+                  : _letter(letter, fg),
     );
   }
 

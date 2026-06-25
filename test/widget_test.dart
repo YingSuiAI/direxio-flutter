@@ -20949,6 +20949,25 @@ void main() {
     expect(matrixSendCalls, 1);
     expect(find.byKey(const ValueKey('agent_thinking_bubble')), findsOneWidget);
     expect(find.byKey(const ValueKey('agent_thinking_dots')), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image == const AssetImage('assets/images/ai_icon.png'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PortalAvatar &&
+            widget.size == 40 &&
+            widget.seed == 'Agent' &&
+            widget.imageAsset == null &&
+            (widget.imageUrl == null || widget.imageUrl!.isEmpty),
+      ),
+      findsNothing,
+    );
 
     await client.handleSync(
       SyncUpdate(
@@ -20983,6 +21002,7 @@ void main() {
 
     expect(find.byKey(const ValueKey('agent_thinking_bubble')), findsNothing);
     expect(find.text('我想好了'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 13));
   });
 
   testWidgets('chat waits for Matrix room load when AS knows conversation',

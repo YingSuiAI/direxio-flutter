@@ -2945,6 +2945,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               child: _SAgentThinkingBubble(
                                 avatarSeed: name,
                                 avatarUrl: peerAvatarUrl,
+                                avatarAsset: agentAvatarAsset,
                               ),
                             );
                           }
@@ -3176,6 +3177,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       room.client,
                                     )
                                   : peerAvatarUrl;
+                              final callerAvatarAsset =
+                                  isAgent && !isMe ? agentAvatarAsset : null;
                               return enter(
                                 _SChatCallRecordBubble(
                                   isMe: isMe,
@@ -3187,6 +3190,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   showRead: false,
                                   avatarSeed: callerName,
                                   avatarUrl: callerAvatarUrl,
+                                  avatarAsset: callerAvatarAsset,
                                   onAvatarTap: isMe
                                       ? null
                                       : () => _openContactInfo(mxid),
@@ -3237,6 +3241,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   currentUserProfile,
                                   fallbackUserId: authUserId,
                                 );
+                                final callerAvatarAsset =
+                                    isAgent && !isMe ? agentAvatarAsset : null;
                                 final avatarTap = isMe
                                     ? null
                                     : _senderAvatarTap(callerEvent ?? e, isMe);
@@ -3259,6 +3265,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                     showRead: false,
                                     avatarSeed: callerName,
                                     avatarUrl: callerAvatarUrl,
+                                    avatarAsset: callerAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     selected: selected,
                                     multiSelect: _multiSelect,
@@ -3290,6 +3297,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 currentUserProfile,
                                 fallbackUserId: authUserId,
                               );
+                              final senderAvatarAsset =
+                                  isAgent && !isMe ? agentAvatarAsset : null;
                               final localOrder =
                                   messageOrder.entryForEvent(e.eventId);
                               final time = _formatMsgTime(
@@ -3323,6 +3332,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         peerReadEventIds.contains(e.eventId),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
+                                    avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     selected: selected,
                                     multiSelect: _multiSelect,
@@ -3366,6 +3376,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         ),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
+                                    avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     selected: selected,
                                     multiSelect: _multiSelect,
@@ -3406,6 +3417,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         ),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
+                                    avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     selected: selected,
                                     multiSelect: _multiSelect,
@@ -3470,6 +3482,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         ),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
+                                    avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     selected: selected,
                                     multiSelect: _multiSelect,
@@ -3506,6 +3519,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         ),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
+                                    avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     mediaSize: chatMediaBubbleSizeForEvent(e),
                                     thumb: _MatrixThumb(
@@ -3549,6 +3563,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         ),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
+                                    avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     mediaSize: chatMessageDefaultMediaSize,
                                     thumb: _MatrixThumb(
@@ -3608,6 +3623,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         ),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
+                                    avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     durationSeconds:
                                         _voiceDurationSecondsForEvent(e),
@@ -3658,6 +3674,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                         ),
                                     avatarSeed: senderName,
                                     avatarUrl: senderAvatarUrl,
+                                    avatarAsset: senderAvatarAsset,
                                     onAvatarTap: avatarTap,
                                     leadingIcon: Symbols.description,
                                     fileName: e.body,
@@ -3705,6 +3722,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       peerReadEventIds.contains(e.eventId),
                                   avatarSeed: senderName,
                                   avatarUrl: senderAvatarUrl,
+                                  avatarAsset: senderAvatarAsset,
                                   onAvatarTap: avatarTap,
                                   selected: selected,
                                   multiSelect: _multiSelect,
@@ -4135,10 +4153,12 @@ class _SAgentThinkingBubble extends StatelessWidget {
   const _SAgentThinkingBubble({
     required this.avatarSeed,
     this.avatarUrl,
+    this.avatarAsset,
   });
 
   final String avatarSeed;
   final String? avatarUrl;
+  final String? avatarAsset;
 
   @override
   Widget build(BuildContext context) {
@@ -4150,6 +4170,7 @@ class _SAgentThinkingBubble extends StatelessWidget {
       selected: false,
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
       child: Align(
         alignment: Alignment.centerLeft,
         child: DecoratedBox(
@@ -4179,6 +4200,7 @@ class _SChatBubble extends StatelessWidget {
     required this.avatarSeed,
     this.quote,
     this.avatarUrl,
+    this.avatarAsset,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -4195,6 +4217,7 @@ class _SChatBubble extends StatelessWidget {
   final String avatarSeed;
   final _QuotedMessagePreview? quote;
   final String? avatarUrl;
+  final String? avatarAsset;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -4335,6 +4358,7 @@ class _SChatBubble extends StatelessWidget {
             _MessageAvatar(
               seed: avatarSeed,
               imageUrl: avatarUrl,
+              imageAsset: avatarAsset,
               onAvatarTap: onAvatarTap,
             ),
             const SizedBox(width: 8),
@@ -4352,6 +4376,7 @@ class _SChatBubble extends StatelessWidget {
             _MessageAvatar(
               seed: avatarSeed,
               imageUrl: avatarUrl,
+              imageAsset: avatarAsset,
               onAvatarTap: onAvatarTap,
             ),
           ],
@@ -4443,6 +4468,7 @@ class _SChatRecordBubble extends StatelessWidget {
     required this.showRead,
     required this.avatarSeed,
     this.avatarUrl,
+    this.avatarAsset,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -4456,6 +4482,7 @@ class _SChatRecordBubble extends StatelessWidget {
   final bool showRead;
   final String avatarSeed;
   final String? avatarUrl;
+  final String? avatarAsset;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -4472,6 +4499,7 @@ class _SChatRecordBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -4501,6 +4529,7 @@ class _SBusinessCardBubble extends StatelessWidget {
     required this.showRead,
     required this.avatarSeed,
     this.avatarUrl,
+    this.avatarAsset,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -4514,6 +4543,7 @@ class _SBusinessCardBubble extends StatelessWidget {
   final bool showRead;
   final String avatarSeed;
   final String? avatarUrl;
+  final String? avatarAsset;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -4529,6 +4559,7 @@ class _SBusinessCardBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
       onAvatarTap: onAvatarTap,
       onSelectTap: multiSelect ? onTap : null,
       child: Column(
@@ -4551,6 +4582,7 @@ class _SChannelShareBubble extends StatelessWidget {
     required this.showRead,
     required this.avatarSeed,
     this.avatarUrl,
+    this.avatarAsset,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -4568,6 +4600,7 @@ class _SChannelShareBubble extends StatelessWidget {
   final bool showRead;
   final String avatarSeed;
   final String? avatarUrl;
+  final String? avatarAsset;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -4588,6 +4621,7 @@ class _SChannelShareBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -4621,6 +4655,7 @@ class _SGroupInviteBubble extends StatelessWidget {
     required this.showRead,
     required this.avatarSeed,
     this.avatarUrl,
+    this.avatarAsset,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -4637,6 +4672,7 @@ class _SGroupInviteBubble extends StatelessWidget {
   final bool showRead;
   final String avatarSeed;
   final String? avatarUrl;
+  final String? avatarAsset;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -4655,6 +4691,7 @@ class _SGroupInviteBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -4684,6 +4721,7 @@ class _SChatCallRecordBubble extends StatelessWidget {
     required this.showRead,
     required this.avatarSeed,
     this.avatarUrl,
+    this.avatarAsset,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -4698,6 +4736,7 @@ class _SChatCallRecordBubble extends StatelessWidget {
   final bool showRead;
   final String avatarSeed;
   final String? avatarUrl;
+  final String? avatarAsset;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -4714,6 +4753,7 @@ class _SChatCallRecordBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -4742,11 +4782,13 @@ class _MessageAvatar extends StatelessWidget {
   const _MessageAvatar({
     required this.seed,
     this.imageUrl,
+    this.imageAsset,
     this.onAvatarTap,
   });
 
   final String? seed;
   final String? imageUrl;
+  final String? imageAsset;
   final VoidCallback? onAvatarTap;
 
   @override
@@ -4755,6 +4797,7 @@ class _MessageAvatar extends StatelessWidget {
       seed: (seed == null || seed!.trim().isEmpty) ? 'peer' : seed!,
       size: 40,
       imageUrl: imageUrl,
+      imageAsset: imageAsset,
       shape: AvatarShape.squircle,
     );
     if (onAvatarTap == null) return avatar;
@@ -4802,6 +4845,7 @@ Widget _bubbleRow({
   required bool selected,
   String? avatarSeed,
   String? avatarUrl,
+  String? avatarAsset,
   VoidCallback? onAvatarTap,
   VoidCallback? onSelectTap,
   required Widget child,
@@ -4826,6 +4870,7 @@ Widget _bubbleRow({
           _MessageAvatar(
             seed: avatarSeed,
             imageUrl: avatarUrl,
+            imageAsset: avatarAsset,
             onAvatarTap: onAvatarTap,
           ),
           const SizedBox(width: 8),
@@ -4843,6 +4888,7 @@ Widget _bubbleRow({
           _MessageAvatar(
             seed: avatarSeed,
             imageUrl: avatarUrl,
+            imageAsset: avatarAsset,
             onAvatarTap: onAvatarTap,
           ),
         ],
@@ -4895,6 +4941,7 @@ class _SChatImageBubble extends StatelessWidget {
     this.statusOverlay,
     this.centerOverlay,
     this.avatarUrl,
+    this.avatarAsset,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -4911,6 +4958,7 @@ class _SChatImageBubble extends StatelessWidget {
   final Widget? statusOverlay;
   final Widget? centerOverlay;
   final String? avatarUrl;
+  final String? avatarAsset;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -4987,6 +5035,7 @@ class _SChatImageBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -5011,6 +5060,7 @@ class _SChatVoiceBubble extends StatelessWidget {
     this.currentPlaySeconds = 0,
     this.onSeek,
     this.avatarUrl,
+    this.avatarAsset,
     this.onAvatarTap,
     this.selected = false,
     this.multiSelect = false,
@@ -5027,6 +5077,7 @@ class _SChatVoiceBubble extends StatelessWidget {
   final int currentPlaySeconds;
   final ValueChanged<int>? onSeek;
   final String? avatarUrl;
+  final String? avatarAsset;
   final VoidCallback? onAvatarTap;
   final bool selected;
   final bool multiSelect;
@@ -5119,6 +5170,7 @@ class _SChatVoiceBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(
@@ -5144,6 +5196,7 @@ class _SChatFileBubble extends StatelessWidget {
     required this.onTap,
     this.leadingIcon = Symbols.description,
     this.avatarUrl,
+    this.avatarAsset,
     this.onAvatarTap,
     this.trailing,
     this.selected = false,
@@ -5160,6 +5213,7 @@ class _SChatFileBubble extends StatelessWidget {
   final VoidCallback? onTap;
   final IconData leadingIcon;
   final String? avatarUrl;
+  final String? avatarAsset;
   final VoidCallback? onAvatarTap;
   final Widget? trailing;
   final bool selected;
@@ -5302,6 +5356,7 @@ class _SChatFileBubble extends StatelessWidget {
       selected: selected,
       avatarSeed: avatarSeed,
       avatarUrl: avatarUrl,
+      avatarAsset: avatarAsset,
       onAvatarTap: onAvatarTap,
       onSelectTap: onTap,
       child: Column(

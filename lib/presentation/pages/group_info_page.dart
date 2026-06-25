@@ -93,10 +93,11 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
             )
             .valueOrNull ??
         const <AsGroupMember>[];
+    final locallyRemovedMemberIds = _activeLocallyRemovedMemberIds(room);
     final visibleAuthoritativeGroupMembers =
         authoritativeGroupMembers.where((member) {
       final mxid = member.userMxid.trim();
-      return mxid.isNotEmpty && !_locallyRemovedMemberIds.contains(mxid);
+      return mxid.isNotEmpty && !locallyRemovedMemberIds.contains(mxid);
     }).toList(growable: false);
     final currentNickname = _currentUserNickname(
       room,
@@ -134,7 +135,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
             ?.getParticipants()
             .where((m) =>
                 m.membership == Membership.join &&
-                !_locallyRemovedMemberIds.contains(m.id.trim()))
+                !locallyRemovedMemberIds.contains(m.id.trim()))
             .toList() ??
         const <User>[];
     final members = sortGroupParticipantsByAuthoritativeMembers(
@@ -162,7 +163,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       room: room,
       matrixMembers: members,
       authoritativeMembers: visibleAuthoritativeGroupMembers,
-      locallyRemovedMemberIds: _locallyRemovedMemberIds,
+      locallyRemovedMemberIds: locallyRemovedMemberIds,
     );
     final canManageGroup = room != null && _canManageGroup(room);
     final canDissolveGroup = room != null && _canDissolveGroup(room);
@@ -349,6 +350,20 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
         ),
       ),
     );
+  }
+
+  Set<String> _activeLocallyRemovedMemberIds(Room? room) {
+    if (_locallyRemovedMemberIds.isEmpty || room == null) {
+      return _locallyRemovedMemberIds;
+    }
+    final active = <String>{};
+    for (final mxid in _locallyRemovedMemberIds) {
+      final memberState = room.getState(EventTypes.RoomMember, mxid.trim());
+      if (memberState?.asUser(room).membership != Membership.join) {
+        active.add(mxid);
+      }
+    }
+    return active;
   }
 
   bool _canManageGroup(Room room) {

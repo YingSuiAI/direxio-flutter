@@ -12879,6 +12879,38 @@ void main() {
       ),
       findsNothing,
     );
+
+    final room = client.getRoomById('!group:p2p-im.com')!;
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {
+          'membership': 'join',
+          'displayname': 'Alice',
+          'avatar_url': 'https://example.com/alice.png',
+        },
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(GroupInfoPage)),
+    );
+    container.invalidate(
+      groupMembersProvider(
+        const GroupMembersKey(
+          roomId: '!group:p2p-im.com',
+          status: asChannelMemberStatusJoined,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('聊天信息(2)'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('group_info_member_@alice:p2p-im.com')),
+      findsOneWidget,
+    );
   });
 
   testWidgets(

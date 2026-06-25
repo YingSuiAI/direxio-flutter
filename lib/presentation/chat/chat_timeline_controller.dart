@@ -58,6 +58,7 @@ class ChatTimelineController {
 
   Future<void> hydrateInitialTimeline(Timeline timeline) async {
     await backfillLocalStoredHistory(timeline);
+    await syncEmptyRoomHistoryIfNeeded(timeline);
     await requestInitialRemoteHistory(timeline);
   }
 

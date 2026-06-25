@@ -32,7 +32,7 @@ class MatrixPusherProfile {
 }
 
 const direxioAndroidFcmPusherProfile = MatrixPusherProfile(
-  appId: 'io.direxio.app.android',
+  appId: direxioAndroidPackageName,
   provider: 'fcm',
   platform: 'android',
   deviceDisplayPrefix: 'Android',
@@ -40,7 +40,7 @@ const direxioAndroidFcmPusherProfile = MatrixPusherProfile(
 );
 
 const direxioIosApnsPusherProfile = MatrixPusherProfile(
-  appId: 'io.direxio.app.ios',
+  appId: 'com.direxio.app',
   provider: 'apns',
   platform: 'ios',
   deviceDisplayPrefix: 'iOS',

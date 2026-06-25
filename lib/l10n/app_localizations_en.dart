@@ -503,6 +503,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginButtonLoading => 'Logging in…';
 
   @override
+  String get loginGettingStartedGuide => 'Getting Started Guide';
+
+  @override
+  String get loginProductOverview => 'Product Overview';
+
+  @override
+  String get loginGuideIntroPrimary =>
+      'Before your first use, prepare a functional AI Agent (such as Codex, OpenClaw, Hermes), along with cloud accounts and a domain name required for deployment.\nSend your Agent the repository address for the Direxio deployment skill:https://github.com/YingSuiAI/direxio-deployer';
+
+  @override
+  String get loginGuideIntroSecondary =>
+      'so it can automatically complete installation, deployment, domain binding and plugin configuration following the standard workflow.\nOnce deployment succeeds, your Agent will return your IM access URL, initial account and password.\nAfter receiving these details, return to this App and enter the server address and password to sign in.\nOfficial Website: direxio.ai';
+
+  @override
   String get loginTermsOpenFailed =>
       'Unable to open the Terms and Privacy Policy';
 
@@ -518,6 +532,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agreementPrefix => 'I have read and agree to ';
+
+  @override
+  String get agreementTerms => 'Terms of Service';
+
+  @override
+  String get agreementPrivacy => 'Privacy Policy';
 
   @override
   String get agreementTermsPrivacy => 'Terms & Privacy Policy';
@@ -1881,6 +1901,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelPostType => 'Post';
+
+  @override
+  String get channelPostNewTextPreview => 'New text post';
 
   @override
   String get channelPostDefaultTitle => 'My post';

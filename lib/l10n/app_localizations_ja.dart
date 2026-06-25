@@ -494,6 +494,20 @@ class AppLocalizationsJa extends AppLocalizations {
   String get loginButtonLoading => 'ログイン中…';
 
   @override
+  String get loginGettingStartedGuide => 'Getting Started Guide';
+
+  @override
+  String get loginProductOverview => 'Product Overview';
+
+  @override
+  String get loginGuideIntroPrimary =>
+      '初回利用前に、利用可能な AI Agent（Codex、OpenClaw、Hermes など）と、デプロイに必要なクラウドアカウントおよびドメイン名を準備してください。\nDirexio デプロイスキルのリポジトリアドレスを Agent に送信します：https://github.com/YingSuiAI/direxio-deployer';
+
+  @override
+  String get loginGuideIntroSecondary =>
+      'Agent は標準ワークフローに沿って、インストール、デプロイ、ドメイン紐付け、プラグイン設定を自動で完了します。\nデプロイが成功すると、Agent は IM アクセス URL、初期アカウント、パスワードを返します。\nこれらを受け取ったら、この App に戻ってサーバーアドレスとパスワードを入力してログインしてください。\n公式サイト：direxio.ai';
+
+  @override
   String get loginTermsOpenFailed => '利用規約とプライバシーポリシーを開けません';
 
   @override
@@ -508,6 +522,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get agreementPrefix => '確認して同意します';
+
+  @override
+  String get agreementTerms => '利用規約';
+
+  @override
+  String get agreementPrivacy => 'プライバシーポリシー';
 
   @override
   String get agreementTermsPrivacy => '利用規約・プライバシーポリシー';
@@ -1829,6 +1849,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get channelPostType => '投稿';
+
+  @override
+  String get channelPostNewTextPreview => '新しいテキスト投稿';
 
   @override
   String get channelPostDefaultTitle => '自分の投稿';

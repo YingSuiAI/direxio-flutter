@@ -127,6 +127,16 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
       AppLocalizations,
     );
     final syncHiddenChannelKeys = _hiddenChannelKeys(syncCache);
+    final latestPreviewForRoomId = _matrixRoomLatestPreviewResolver(
+      client,
+      l10n: l10n,
+      bootstrap: bootstrap,
+      channels: [
+        ...?publicChannels,
+        ...?listedChannels,
+        for (final entry in localCreatedChannels) entry.channel,
+      ],
+    );
     final publicChannelItems = useRealChannels && publicChannels != null
         ? ChannelInboxData.fromChannels(
             publicChannels,
@@ -134,8 +144,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             bootstrap: bootstrap,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
-            latestPreviewForRoomId: (roomId) =>
-                _matrixRoomLatestPreview(client, roomId, l10n: l10n),
+            latestPreviewForRoomId: latestPreviewForRoomId,
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             unreadCountForRoomId: (roomId) =>
                 _matrixRoomUnreadCount(client, roomId),
@@ -155,9 +164,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                             _matrixRoomName(client, roomId),
                         roomAvatarForRoomId: (roomId) =>
                             _matrixRoomAvatar(client, roomId),
-                        latestPreviewForRoomId: (roomId) =>
-                            _matrixRoomLatestPreview(client, roomId,
-                                l10n: l10n),
+                        latestPreviewForRoomId: latestPreviewForRoomId,
                         latestAtForRoomId: (roomId) =>
                             _matrixRoomLatestAt(client, roomId),
                         unreadCountForRoomId: (roomId) =>
@@ -172,8 +179,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                         _matrixRoomName(client, roomId),
                     roomAvatarForRoomId: (roomId) =>
                         _matrixRoomAvatar(client, roomId),
-                    latestPreviewForRoomId: (roomId) =>
-                        _matrixRoomLatestPreview(client, roomId, l10n: l10n),
+                    latestPreviewForRoomId: latestPreviewForRoomId,
                     latestAtForRoomId: (roomId) =>
                         _matrixRoomLatestAt(client, roomId),
                     unreadCountForRoomId: (roomId) =>
@@ -185,8 +191,7 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             productConversations: productConversations,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
-            latestPreviewForRoomId: (roomId) =>
-                _matrixRoomLatestPreview(client, roomId, l10n: l10n),
+            latestPreviewForRoomId: latestPreviewForRoomId,
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             unreadCountForRoomId: (roomId) =>
                 _matrixRoomUnreadCount(client, roomId),
@@ -397,6 +402,14 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
       AppLocalizations,
     );
     final syncHiddenChannelKeys = _hiddenChannelKeys(syncCache);
+    final latestPreviewForRoomId = _matrixRoomLatestPreviewResolver(
+      client,
+      l10n: l10n,
+      bootstrap: bootstrap,
+      channels: [
+        for (final entry in localCreatedChannels) entry.channel,
+      ],
+    );
     final channels = bootstrap == null
         ? ChannelInboxData.mergeCreatedCache(
             const <ChannelInboxItem>[],
@@ -405,8 +418,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             productConversations: productConversations,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
-            latestPreviewForRoomId: (roomId) =>
-                _matrixRoomLatestPreview(client, roomId, l10n: l10n),
+            latestPreviewForRoomId: latestPreviewForRoomId,
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             unreadCountForRoomId: (roomId) =>
                 _matrixRoomUnreadCount(client, roomId),
@@ -419,8 +431,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
               roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
               roomAvatarForRoomId: (roomId) =>
                   _matrixRoomAvatar(client, roomId),
-              latestPreviewForRoomId: (roomId) =>
-                  _matrixRoomLatestPreview(client, roomId, l10n: l10n),
+              latestPreviewForRoomId: latestPreviewForRoomId,
               latestAtForRoomId: (roomId) =>
                   _matrixRoomLatestAt(client, roomId),
               unreadCountForRoomId: (roomId) =>
@@ -431,8 +442,7 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             productConversations: productConversations,
             roomNameForRoomId: (roomId) => _matrixRoomName(client, roomId),
             roomAvatarForRoomId: (roomId) => _matrixRoomAvatar(client, roomId),
-            latestPreviewForRoomId: (roomId) =>
-                _matrixRoomLatestPreview(client, roomId, l10n: l10n),
+            latestPreviewForRoomId: latestPreviewForRoomId,
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
             unreadCountForRoomId: (roomId) =>
                 _matrixRoomUnreadCount(client, roomId),
@@ -2182,18 +2192,79 @@ String _matrixRoomAvatar(Client client, String roomId) {
   return client.getRoomById(roomId.trim())?.avatar?.toString() ?? '';
 }
 
+String Function(String roomId) _matrixRoomLatestPreviewResolver(
+  Client client, {
+  AppLocalizations? l10n,
+  AsSyncBootstrap? bootstrap,
+  Iterable<AsChannel> channels = const [],
+}) {
+  final channelTypeByRoomId = <String, String>{};
+  for (final channel in bootstrap?.channels ?? const <AsSyncRoomSummary>[]) {
+    final roomId = channel.roomId.trim();
+    if (roomId.isEmpty) continue;
+    channelTypeByRoomId[roomId] = normalizeAsChannelType(channel.channelType);
+  }
+  for (final channel in channels) {
+    final roomId = channel.roomId.trim();
+    if (roomId.isEmpty) continue;
+    channelTypeByRoomId[roomId] = normalizeAsChannelType(channel.channelType);
+  }
+  return (roomId) => _matrixRoomLatestPreview(
+        client,
+        roomId,
+        l10n: l10n,
+        channelType: channelTypeByRoomId[roomId.trim()] ?? '',
+      );
+}
+
 String _matrixRoomLatestPreview(
   Client client,
   String roomId, {
   AppLocalizations? l10n,
+  String channelType = '',
 }) {
   final event = client.getRoomById(roomId.trim())?.lastEvent;
+  if (normalizeAsChannelType(channelType) == asChannelTypePost) {
+    if (!_matrixEventLooksLikeChannelPost(event)) return '';
+    return l10n?.channelPostNewTextPreview ?? '新文字帖';
+  }
   final preview = roomEventPreviewText(
     event,
     isAgent: false,
     l10n: l10n,
   ).trim();
   return preview;
+}
+
+bool _matrixEventLooksLikeChannelPost(Event? event) {
+  if (event == null) return false;
+  if (_matrixEventLooksLikeChannelCommentOrReaction(event)) return false;
+  if (event.type != EventTypes.Message) return false;
+  final msgType = _stringContentValue(event, 'msgtype');
+  return msgType == MessageTypes.Text ||
+      msgType == MessageTypes.Image ||
+      msgType == MessageTypes.File ||
+      msgType == MessageTypes.Video;
+}
+
+bool _matrixEventLooksLikeChannelCommentOrReaction(Event event) {
+  if (event.type == EventTypes.Reaction) return true;
+  if (_stringContentValue(event, 'comment_id').isNotEmpty) return true;
+  if (_stringContentValue(event, 'reply_to_comment_id').isNotEmpty) {
+    return true;
+  }
+  if (_stringContentValue(event, 'reaction').isNotEmpty) return true;
+  final relatesTo = event.content['m.relates_to'];
+  if (relatesTo is Map) {
+    final relType = (relatesTo['rel_type'] as String? ?? '').trim();
+    if (relType == 'm.annotation') return true;
+  }
+  return false;
+}
+
+String _stringContentValue(Event event, String key) {
+  final value = event.content[key];
+  return value is String ? value.trim() : '';
 }
 
 DateTime? _matrixRoomLatestAt(Client client, String roomId) {

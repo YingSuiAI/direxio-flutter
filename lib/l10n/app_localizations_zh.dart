@@ -491,6 +491,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginButtonLoading => '登录中…';
 
   @override
+  String get loginGettingStartedGuide => 'Getting Started Guide';
+
+  @override
+  String get loginProductOverview => 'Product Overview';
+
+  @override
+  String get loginGuideIntroPrimary =>
+      '首次使用前，请准备一个可用的 AI Agent（如 Codex、OpenClaw、Hermes），以及部署所需的云账号和域名。\n将 Direxio 部署技能仓库地址发送给你的 Agent：https://github.com/YingSuiAI/direxio-deployer';
+
+  @override
+  String get loginGuideIntroSecondary =>
+      '它会按照标准流程自动完成安装、部署、域名绑定和插件配置。\n部署成功后，Agent 会返回你的 IM 访问地址、初始账号和密码。\n拿到这些信息后，回到本 App 输入服务器地址和密码即可登录。\n官方网站：direxio.ai';
+
+  @override
   String get loginTermsOpenFailed => '无法打开用户协议与隐私条款';
 
   @override
@@ -504,6 +518,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get agreementPrefix => '阅读并同意';
+
+  @override
+  String get agreementTerms => '《用户协议》';
+
+  @override
+  String get agreementPrivacy => '《隐私条款》';
 
   @override
   String get agreementTermsPrivacy => '《用户协议&隐私条款》';
@@ -1820,6 +1840,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get channelPostType => '帖子';
+
+  @override
+  String get channelPostNewTextPreview => '新文字帖';
 
   @override
   String get channelPostDefaultTitle => '我发布的帖子';

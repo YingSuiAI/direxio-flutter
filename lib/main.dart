@@ -150,7 +150,7 @@ class PortalApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       builder: (context, child) {
-        return _StartupSplashOverlay(
+        return StartupSplashOverlay(
           child: AppGlassBackground(child: child ?? const SizedBox.shrink()),
         );
       },
@@ -158,24 +158,31 @@ class PortalApp extends ConsumerWidget {
   }
 }
 
-class _StartupSplashOverlay extends StatefulWidget {
-  const _StartupSplashOverlay({required this.child});
+class StartupSplashOverlay extends StatefulWidget {
+  const StartupSplashOverlay({required this.child, super.key});
 
   final Widget child;
 
   @override
-  State<_StartupSplashOverlay> createState() => _StartupSplashOverlayState();
+  State<StartupSplashOverlay> createState() => _StartupSplashOverlayState();
 }
 
-class _StartupSplashOverlayState extends State<_StartupSplashOverlay> {
+class _StartupSplashOverlayState extends State<StartupSplashOverlay> {
   bool _visible = true;
+  Timer? _hideTimer;
 
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(milliseconds: 1300), () {
+    _hideTimer = Timer(const Duration(milliseconds: 1300), () {
       if (mounted) setState(() => _visible = false);
     });
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
   }
 
   @override

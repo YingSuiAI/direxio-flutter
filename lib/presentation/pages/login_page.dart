@@ -23,6 +23,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _loading = false;
   bool _obscure = true;
   bool _agreed = false;
+  bool _guideOpen = false;
   String? _error;
   String? _domainHint;
 
@@ -132,8 +133,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
-  Future<void> _openTerms() async {
-    final uri = Uri.parse('https://im2.direxio.ai/terms');
+  Future<void> _openLegalUrl(String url) async {
+    final uri = Uri.parse(url);
     final opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
     if (!opened && mounted) {
       final l10n = Localizations.of<AppLocalizations>(
@@ -147,6 +148,39 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _showGettingStartedGuide() async {
+    if (_guideOpen) return;
+    const loginTokens = PortalTokens.dark;
+    setState(() => _guideOpen = true);
+    try {
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: MaterialLocalizations.of(context).closeButtonLabel,
+        barrierColor: loginTokens.surface.withValues(alpha: 0.7),
+        transitionDuration: const Duration(milliseconds: 180),
+        pageBuilder: (_, __, ___) => const _GettingStartedGuideDialog(
+          tokens: loginTokens,
+        ),
+        transitionBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _guideOpen = false);
     }
   }
 
@@ -262,12 +296,41 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 214),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: loginTokens.accent,
+                        minimumSize: Size.zero,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        textStyle: AppTheme.sans(
+                          size: 14,
+                          weight: FontWeight.w600,
+                          color: loginTokens.accent,
+                        ),
+                      ),
+                      onPressed: _showGettingStartedGuide,
+                      child: Text(
+                        _guideOpen
+                            ? l10n?.loginProductOverview ?? 'Product Overview'
+                            : l10n?.loginGettingStartedGuide ??
+                                'Getting Started Guide',
+                      ),
+                    ),
+                    const SizedBox(height: 175),
                     _LoginAgreementLine(
                       agreed: _agreed,
                       tokens: loginTokens,
                       onToggle: () => setState(() => _agreed = !_agreed),
-                      onTermsTap: _openTerms,
+                      onTermsTap: () => _openLegalUrl(
+                        'https://www.direxio.ai/legal/terms/',
+                      ),
+                      onPrivacyTap: () => _openLegalUrl(
+                        'https://www.direxio.ai/legal/privacy-policy/',
+                      ),
                     ),
                   ],
                 ),
@@ -280,18 +343,184 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 }
 
+class _GettingStartedGuideDialog extends StatelessWidget {
+  const _GettingStartedGuideDialog({required this.tokens});
+
+  final PortalTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final size = MediaQuery.sizeOf(context);
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 30),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 315,
+              maxHeight: size.height - 80,
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      tokens.primaryContainer,
+                      tokens.surface,
+                    ],
+                    stops: const [0, 0.78],
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _GuideIllustration(tokens: tokens),
+                        const SizedBox(height: 16),
+                        _GuideParagraph(
+                          text: l10n?.loginGuideIntroPrimary ??
+                              'Before your first use, prepare a functional AI Agent (such as Codex, OpenClaw, Hermes), along with cloud accounts and a domain name required for deployment.\nSend your Agent the repository address for the Direxio deployment skill:https://github.com/YingSuiAI/direxio-deployer',
+                          tokens: tokens,
+                        ),
+                        const SizedBox(height: 8),
+                        _GuideParagraph(
+                          text: l10n?.loginGuideIntroSecondary ??
+                              'so it can automatically complete installation, deployment, domain binding and plugin configuration following the standard workflow.\nOnce deployment succeeds, your Agent will return your IM access URL, initial account and password.\nAfter receiving these details, return to this App and enter the server address and password to sign in.\nOfficial Website: direxio.ai',
+                          tokens: tokens,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GuideIllustration extends StatelessWidget {
+  const _GuideIllustration({required this.tokens});
+
+  final PortalTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 199,
+      height: 169,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 169,
+            height: 169,
+            decoration: BoxDecoration(
+              color: tokens.surface.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: tokens.onPrimaryContainer.withValues(alpha: 0.18),
+              ),
+            ),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(26),
+            child: Image.asset(
+              'assets/images/2d-logo.png',
+              width: 151,
+              height: 151,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 11,
+            right: 0,
+            child: Container(
+              height: 33,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: tokens.surface.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: tokens.onPrimaryContainer.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Symbols.smart_toy,
+                    size: 16,
+                    color: tokens.accent,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'AI',
+                    style: AppTheme.sans(
+                      size: 13,
+                      weight: FontWeight.w700,
+                      color: tokens.onPrimaryContainer,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideParagraph extends StatelessWidget {
+  const _GuideParagraph({
+    required this.text,
+    required this.tokens,
+  });
+
+  final String text;
+  final PortalTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: AppTheme.sans(
+        size: 14,
+        weight: FontWeight.w600,
+        color: tokens.onPrimaryContainer,
+      ).copyWith(height: 1.42),
+    );
+  }
+}
+
 class _LoginAgreementLine extends StatelessWidget {
   const _LoginAgreementLine({
     required this.agreed,
     required this.tokens,
     required this.onToggle,
     required this.onTermsTap,
+    required this.onPrivacyTap,
   });
 
   final bool agreed;
   final PortalTokens tokens;
   final VoidCallback onToggle;
   final VoidCallback onTermsTap;
+  final VoidCallback onPrivacyTap;
 
   @override
   Widget build(BuildContext context) {
@@ -327,7 +556,18 @@ class _LoginAgreementLine extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
-              l10n?.agreementTermsPrivacy ?? '《用户协议&隐私条款》',
+              l10n?.agreementTerms ?? '《用户协议》',
+              style: AppTheme.sans(size: 12, color: tokens.text),
+            ),
+          ),
+        ),
+        InkWell(
+          onTap: onPrivacyTap,
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              l10n?.agreementPrivacy ?? '《隐私条款》',
               style: AppTheme.sans(size: 12, color: tokens.text),
             ),
           ),

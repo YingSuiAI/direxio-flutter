@@ -16023,6 +16023,157 @@ void main() {
     expect(find.text('5'), findsNothing);
   });
 
+  testWidgets('post channel list subtitle ignores comments and reactions',
+      (tester) async {
+    final client = Client('DirexioPostChannelSubtitleTest')
+      ..setUserId('@member:p2p-im.com')
+      ..homeserver = Uri.parse('https://p2p-im.com');
+    void addPostRoom(
+      String roomId,
+      Event? event,
+    ) {
+      final room = Room(
+        id: roomId,
+        client: client,
+        membership: Membership.join,
+      );
+      room.lastEvent = event;
+      client.rooms.add(room);
+    }
+
+    Event eventFor({
+      required String roomId,
+      required String eventId,
+      required String type,
+      required Map<String, Object?> content,
+    }) {
+      final room = client.getRoomById(roomId)!;
+      return Event(
+        room: room,
+        eventId: eventId,
+        senderId: '@owner:p2p-im.com',
+        type: type,
+        originServerTs: DateTime.utc(2026, 6, 25, 10),
+        content: content,
+      );
+    }
+
+    const textRoomId = '!post-text:p2p-im.com';
+    const imageRoomId = '!post-image:p2p-im.com';
+    const commentRoomId = '!post-comment:p2p-im.com';
+    const reactionRoomId = '!post-reaction:p2p-im.com';
+    const emptyRoomId = '!post-empty:p2p-im.com';
+    addPostRoom(textRoomId, null);
+    addPostRoom(imageRoomId, null);
+    addPostRoom(commentRoomId, null);
+    addPostRoom(reactionRoomId, null);
+    addPostRoom(emptyRoomId, null);
+    client.getRoomById(textRoomId)!.lastEvent = eventFor(
+      roomId: textRoomId,
+      eventId: r'$post-text',
+      type: EventTypes.Message,
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '频道主正文',
+        'post_id': 'post-text',
+      },
+    );
+    client.getRoomById(imageRoomId)!.lastEvent = eventFor(
+      roomId: imageRoomId,
+      eventId: r'$post-image',
+      type: EventTypes.Message,
+      content: {
+        'msgtype': MessageTypes.Image,
+        'body': 'photo.jpg',
+        'post_id': 'post-image',
+      },
+    );
+    client.getRoomById(commentRoomId)!.lastEvent = eventFor(
+      roomId: commentRoomId,
+      eventId: r'$comment',
+      type: EventTypes.Message,
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '这是一条评论',
+        'post_id': 'post-text',
+        'comment_id': 'comment-1',
+      },
+    );
+    client.getRoomById(reactionRoomId)!.lastEvent = eventFor(
+      roomId: reactionRoomId,
+      eventId: r'$reaction',
+      type: EventTypes.Reaction,
+      content: {
+        'post_id': 'post-text',
+        'reaction': 'like',
+      },
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 25, 10),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        for (final entry in const [
+          ('ch_text', textRoomId, '文字帖频道', '文字帖简介'),
+          ('ch_image', imageRoomId, '图片帖频道', '图片帖简介'),
+          ('ch_comment', commentRoomId, '评论频道', '评论频道简介'),
+          ('ch_reaction', reactionRoomId, '点赞频道', '点赞频道简介'),
+          ('ch_empty', emptyRoomId, '空帖子频道', '空频道简介'),
+        ])
+          AsSyncRoomSummary(
+            channelId: entry.$1,
+            roomId: entry.$2,
+            homeDomain: 'p2p-im.com',
+            name: entry.$3,
+            avatarUrl: '',
+            unreadCount: 0,
+            lastActivityAt: DateTime.utc(2026, 6, 25, 9),
+            description: entry.$4,
+            memberStatus: asChannelMemberStatusJoined,
+            role: asChannelRoleMember,
+            channelType: asChannelTypePost,
+          ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_MemberLoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          asBootstrapLiveRefreshIntervalProvider.overrideWith((ref) => null),
+          asClientProvider.overrideWithValue(_NeverListChannelsAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: ChannelExplorePage()),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('新文字帖'), findsNWidgets(2));
+    expect(find.text('空频道简介'), findsOneWidget);
+    expect(find.text('评论频道简介'), findsOneWidget);
+    expect(find.text('点赞频道简介'), findsOneWidget);
+    expect(find.text('频道主正文'), findsNothing);
+    expect(find.text('photo.jpg'), findsNothing);
+    expect(find.text('这是一条评论'), findsNothing);
+    expect(find.text('like'), findsNothing);
+  });
+
   testWidgets('home message list excludes channel conversations',
       (tester) async {
     const roomId = '!channel-home-unread:p2p-im.com';
@@ -21002,6 +21153,36 @@ void main() {
     expect(find.text('或'), findsNothing);
     expect(find.text('扫码添加服务器'), findsNothing);
     expect(find.text('初始化 Portal'), findsNothing);
+    expect(find.text('《用户协议》'), findsOneWidget);
+    expect(find.text('《隐私条款》'), findsOneWidget);
+  });
+
+  testWidgets('login page opens getting started guide dialog', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Getting Started Guide'), findsOneWidget);
+
+    await tester.tap(find.text('Getting Started Guide'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Product Overview'), findsOneWidget);
+    expect(
+      find.textContaining(
+          'Before your first use, prepare a functional AI Agent'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('github.com/YingSuiAI/direxio-deployer'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('init page shows weak prompt for required avatar',
@@ -21053,7 +21234,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('https://p2p-im.com'), findsNothing);
-    expect(find.text('https://'), findsOneWidget);
+    final domainInput = tester.widget<EditableText>(
+      find.byType(EditableText).first,
+    );
+    expect(domainInput.controller.text, isEmpty);
   });
 
   testWidgets('login page warns about local Matrix API ports', (tester) async {
@@ -21115,6 +21299,8 @@ void main() {
 
     expect(find.text('Log In'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
+    expect(find.text('Terms of Service'), findsOneWidget);
+    expect(find.text('Privacy Policy'), findsOneWidget);
     expect(find.text('登录'), findsNothing);
   });
 }

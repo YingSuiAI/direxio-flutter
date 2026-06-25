@@ -1025,6 +1025,30 @@ abstract class AppLocalizations {
   /// **'登录中…'**
   String get loginButtonLoading;
 
+  /// No description provided for @loginGettingStartedGuide.
+  ///
+  /// In zh, this message translates to:
+  /// **'Getting Started Guide'**
+  String get loginGettingStartedGuide;
+
+  /// No description provided for @loginProductOverview.
+  ///
+  /// In zh, this message translates to:
+  /// **'Product Overview'**
+  String get loginProductOverview;
+
+  /// No description provided for @loginGuideIntroPrimary.
+  ///
+  /// In zh, this message translates to:
+  /// **'首次使用前，请准备一个可用的 AI Agent（如 Codex、OpenClaw、Hermes），以及部署所需的云账号和域名。\n将 Direxio 部署技能仓库地址发送给你的 Agent：https://github.com/YingSuiAI/direxio-deployer'**
+  String get loginGuideIntroPrimary;
+
+  /// No description provided for @loginGuideIntroSecondary.
+  ///
+  /// In zh, this message translates to:
+  /// **'它会按照标准流程自动完成安装、部署、域名绑定和插件配置。\n部署成功后，Agent 会返回你的 IM 访问地址、初始账号和密码。\n拿到这些信息后，回到本 App 输入服务器地址和密码即可登录。\n官方网站：direxio.ai'**
+  String get loginGuideIntroSecondary;
+
   /// No description provided for @loginTermsOpenFailed.
   ///
   /// In zh, this message translates to:
@@ -1054,6 +1078,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'阅读并同意'**
   String get agreementPrefix;
+
+  /// No description provided for @agreementTerms.
+  ///
+  /// In zh, this message translates to:
+  /// **'《用户协议》'**
+  String get agreementTerms;
+
+  /// No description provided for @agreementPrivacy.
+  ///
+  /// In zh, this message translates to:
+  /// **'《隐私条款》'**
+  String get agreementPrivacy;
 
   /// No description provided for @agreementTermsPrivacy.
   ///
@@ -3514,6 +3550,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'帖子'**
   String get channelPostType;
+
+  /// No description provided for @channelPostNewTextPreview.
+  ///
+  /// In zh, this message translates to:
+  /// **'新文字帖'**
+  String get channelPostNewTextPreview;
 
   /// No description provided for @channelPostDefaultTitle.
   ///

@@ -173,20 +173,30 @@ void main() {
       client: client,
       membership: Membership.join,
     );
-    for (final mxid in const [
-      '@owner:p2p-im.com',
-      '@alice:p2p-im.com',
-      '@bob:p2p-im.com',
-    ]) {
-      room.setState(
-        StrippedStateEvent(
-          type: EventTypes.RoomMember,
-          senderId: '@owner:p2p-im.com',
-          stateKey: mxid,
-          content: const {'membership': 'join'},
-        ),
-      );
-    }
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '@owner:p2p-im.com',
+        content: const {'membership': 'join'},
+      ),
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '@alice:p2p-im.com',
+        content: const {'membership': 'invite'},
+      ),
+    );
+    room.setState(
+      StrippedStateEvent(
+        type: EventTypes.RoomMember,
+        senderId: '@owner:p2p-im.com',
+        stateKey: '@bob:p2p-im.com',
+        content: const {'membership': 'knock'},
+      ),
+    );
 
     final result = stableGroupAvatarMembersForRoom(
       room: room,
@@ -216,6 +226,50 @@ void main() {
 
     expect(result.members.map((member) => member.seed), [
       '@owner:p2p-im.com',
+    ]);
+  });
+
+  test('appends joined Matrix members missing from AS group member order', () {
+    final client = Client('GroupAvatarMembersAppendLiveJoinedTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!group:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    for (final mxid in const [
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+      '@bob:p2p-im.com',
+    ]) {
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomMember,
+          senderId: '@owner:p2p-im.com',
+          stateKey: mxid,
+          content: const {'membership': 'join'},
+        ),
+      );
+    }
+
+    final result = stableGroupAvatarMembersForRoom(
+      room: room,
+      syncCache: const AsSyncCacheState(),
+      cachedMemberOrder: const [],
+      authoritativeMembers: const [
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@owner:p2p-im.com',
+          role: asChannelRoleOwner,
+          status: asChannelMemberStatusJoined,
+        ),
+      ],
+    );
+
+    expect(result.members.map((member) => member.seed), [
+      '@owner:p2p-im.com',
+      '@alice:p2p-im.com',
+      '@bob:p2p-im.com',
     ]);
   });
 

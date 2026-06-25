@@ -27,13 +27,6 @@ import '../widgets/portal_avatar.dart';
 
 final groupCreationSyncAfterCreateProvider = Provider<bool>((ref) => true);
 
-const _createGroupBg = Color(0xFFEFEFF3);
-const _createGroupText = Color(0xFF262628);
-const _createGroupHint = Color(0xFF999999);
-const _createGroupMuted = Color(0xFFA3A3A4);
-const _createGroupBorder = Color(0xFFE6E6E6);
-const _createGroupAccent = Color(0xFF34C759);
-
 Future<void> showCreateGroupFlow(BuildContext context, WidgetRef ref) async {
   final client = ref.read(matrixClientProvider);
   final contacts = _acceptedInviteContacts(ref.read(asSyncCacheProvider));
@@ -449,8 +442,9 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
     final currentUserProfile =
         ref.watch(currentUserProfileProvider).valueOrNull;
 
+    final t = context.tk;
     return Material(
-      color: _createGroupBg,
+      color: t.surfaceHover,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
@@ -484,7 +478,7 @@ class _CreateGroupScreenState extends ConsumerState<_CreateGroupScreen> {
                               style: AppTheme.sans(
                                 size: _showGroupSetup ? 20 : 16,
                                 weight: FontWeight.w700,
-                                color: _createGroupText,
+                                color: t.text,
                               ),
                             ),
                           ),
@@ -748,11 +742,11 @@ class _CreateGroupInfoCard extends StatelessWidget {
               controller: controller,
               focusNode: focusNode,
               maxLength: 16,
-              cursorColor: _createGroupAccent,
-              style: AppTheme.sans(size: 17, color: _createGroupText),
+              cursorColor: t.accent,
+              style: AppTheme.sans(size: 17, color: t.text),
               decoration: InputDecoration(
                 hintText: '请输入群聊名称',
-                hintStyle: AppTheme.sans(size: 17, color: _createGroupHint),
+                hintStyle: AppTheme.sans(size: 17, color: t.textMute),
                 counterText: '',
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
@@ -799,12 +793,12 @@ class _CreateGroupSelectedMembersCard extends StatelessWidget {
               children: [
                 Text(
                   '群成员',
-                  style: AppTheme.sans(size: 15, color: _createGroupHint),
+                  style: AppTheme.sans(size: 15, color: t.textMute),
                 ),
                 const Spacer(),
                 Text(
                   '${selectedContacts.length}人',
-                  style: AppTheme.sans(size: 15, color: _createGroupHint),
+                  style: AppTheme.sans(size: 15, color: t.textMute),
                 ),
               ],
             ),
@@ -837,7 +831,7 @@ class _CreateGroupSelectedMembersCard extends StatelessWidget {
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sans(size: 10, color: _createGroupHint),
+                    style: AppTheme.sans(size: 10, color: t.textMute),
                   ),
                 ],
               );
@@ -867,7 +861,7 @@ class _CreateGroupSubmitBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Material(
-          color: enabled ? t.accent : _createGroupMuted,
+          color: enabled ? t.accent : t.surfaceHigh,
           borderRadius: BorderRadius.circular(8),
           child: InkWell(
             onTap: onTap,
@@ -881,7 +875,7 @@ class _CreateGroupSubmitBar extends StatelessWidget {
                   style: AppTheme.sans(
                     size: 17,
                     weight: FontWeight.w700,
-                    color: Colors.white,
+                    color: enabled ? t.onAccent : t.textMute,
                   ),
                 ),
               ),
@@ -947,19 +941,20 @@ class _CreateGroupCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: Colors.white.withValues(alpha: 0.65),
+        color: t.surface.withValues(alpha: 0.78),
         shape: const CircleBorder(),
         elevation: 7,
-        shadowColor: Colors.black.withValues(alpha: 0.12),
+        shadowColor: t.text.withValues(alpha: 0.12),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox.square(
             dimension: 40,
-            child: Icon(icon, size: 24, color: _createGroupText),
+            child: Icon(icon, size: 24, color: t.text),
           ),
         ),
       ),
@@ -980,8 +975,9 @@ class _CreateGroupDoneButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
-      color: enabled ? _createGroupAccent : _createGroupMuted,
+      color: enabled ? t.accent : t.surfaceHigh,
       borderRadius: BorderRadius.circular(4),
       child: InkWell(
         onTap: onTap,
@@ -996,7 +992,7 @@ class _CreateGroupDoneButton extends StatelessWidget {
               style: AppTheme.sans(
                 size: 12,
                 weight: FontWeight.w700,
-                color: Colors.white,
+                color: enabled ? t.onAccent : t.textMute,
               ).copyWith(letterSpacing: -0.4011),
             ),
           ),
@@ -1028,6 +1024,7 @@ class _CreateGroupSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return SizedBox(
       height: 28,
       child: Padding(
@@ -1039,7 +1036,7 @@ class _CreateGroupSectionHeader extends StatelessWidget {
             style: AppTheme.sans(
               size: 16,
               weight: FontWeight.w700,
-              color: _createGroupText,
+              color: t.text,
             ),
           ),
         ),
@@ -1063,6 +1060,7 @@ class _CreateGroupContactRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1082,9 +1080,9 @@ class _CreateGroupContactRow extends StatelessWidget {
                 child: Container(
                   height: 52,
                   padding: const EdgeInsets.only(right: 16),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     border: Border(
-                      bottom: BorderSide(color: _createGroupBorder, width: 0.5),
+                      bottom: BorderSide(color: t.border, width: 0.5),
                     ),
                   ),
                   child: Row(
@@ -1097,7 +1095,7 @@ class _CreateGroupContactRow extends StatelessWidget {
                           style: AppTheme.sans(
                             size: 14,
                             weight: FontWeight.w500,
-                            color: _createGroupText,
+                            color: t.text,
                           ),
                         ),
                       ),
@@ -1121,21 +1119,20 @@ class _CreateGroupCheck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 140),
       width: 16,
       height: 16,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected ? _createGroupAccent : Colors.transparent,
+        color: selected ? t.accent : Colors.transparent,
         border: Border.all(
-          color: selected ? _createGroupAccent : _createGroupBorder,
+          color: selected ? t.accent : t.border,
           width: 1,
         ),
       ),
-      child: selected
-          ? const Icon(Symbols.check, size: 12, color: Colors.white)
-          : null,
+      child: selected ? Icon(Symbols.check, size: 12, color: t.onAccent) : null,
     );
   }
 }
@@ -1177,6 +1174,7 @@ class _CreateGroupAlphabetIndex extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return IgnorePointer(
       child: SizedBox(
         width: 12,
@@ -1193,7 +1191,8 @@ class _CreateGroupAlphabetIndex extends StatelessWidget {
                       weight: activeLetters.contains(letter)
                           ? FontWeight.w600
                           : FontWeight.w500,
-                      color: const Color(0xFF333333),
+                      color:
+                          activeLetters.contains(letter) ? t.text : t.textMute,
                     ),
                   ),
                 )
@@ -1216,6 +1215,7 @@ class _CreateGroupEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.tk;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -1225,7 +1225,7 @@ class _CreateGroupEmptyState extends StatelessWidget {
             Icon(
               Symbols.group_add,
               size: 38,
-              color: _createGroupMuted.withValues(alpha: 0.86),
+              color: t.textMute.withValues(alpha: 0.86),
             ),
             const SizedBox(height: 10),
             Text(
@@ -1233,14 +1233,14 @@ class _CreateGroupEmptyState extends StatelessWidget {
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w700,
-                color: _createGroupText,
+                color: t.text,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: AppTheme.sans(size: 13, color: _createGroupHint),
+              style: AppTheme.sans(size: 13, color: t.textMute),
             ),
           ],
         ),

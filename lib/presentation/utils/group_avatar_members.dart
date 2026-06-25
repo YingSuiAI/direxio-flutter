@@ -59,6 +59,7 @@ StableGroupAvatarMembers stableGroupAvatarMembersForRoom({
         )
       : _resolveAuthoritativeMemberOrder(
           authoritativeMemberOrder: authoritativeOrder,
+          liveMemberOrder: liveMemberIds,
         );
   final states = room.states[EventTypes.RoomMember] ?? const {};
   final currentUserId = room.client.userID?.trim() ?? '';
@@ -238,10 +239,15 @@ List<String> _resolveStableMemberOrder({
 
 List<String> _resolveAuthoritativeMemberOrder({
   required List<String> authoritativeMemberOrder,
+  required List<String> liveMemberOrder,
 }) {
   final next = <String>[];
   final seen = <String>{};
   for (final mxid in authoritativeMemberOrder) {
+    final trimmed = mxid.trim();
+    if (trimmed.isNotEmpty && seen.add(trimmed)) next.add(trimmed);
+  }
+  for (final mxid in liveMemberOrder) {
     final trimmed = mxid.trim();
     if (trimmed.isNotEmpty && seen.add(trimmed)) next.add(trimmed);
   }

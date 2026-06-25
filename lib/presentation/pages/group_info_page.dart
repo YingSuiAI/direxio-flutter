@@ -93,6 +93,11 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
             )
             .valueOrNull ??
         const <AsGroupMember>[];
+    final visibleAuthoritativeGroupMembers =
+        authoritativeGroupMembers.where((member) {
+      final mxid = member.userMxid.trim();
+      return mxid.isNotEmpty && !_locallyRemovedMemberIds.contains(mxid);
+    }).toList(growable: false);
     final currentNickname = _currentUserNickname(
       room,
       client.userID,
@@ -114,7 +119,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                 groupAvatarMemberOrders[widget.roomId] ?? const <String>[],
             cachedMemberAvatarUrls:
                 groupAvatarMemberAvatars[widget.roomId] ?? const {},
-            authoritativeMembers: authoritativeGroupMembers,
+            authoritativeMembers: visibleAuthoritativeGroupMembers,
             currentUserProfile: currentUserProfile,
           );
     if (groupAvatarMembers != null) {
@@ -134,10 +139,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
         const <User>[];
     final members = sortGroupParticipantsByAuthoritativeMembers(
       matrixMembers,
-      authoritativeGroupMembers.where((member) {
-        final mxid = member.userMxid.trim();
-        return mxid.isNotEmpty && !_locallyRemovedMemberIds.contains(mxid);
-      }).toList(growable: false),
+      visibleAuthoritativeGroupMembers,
     );
     final existingMemberMxids = members
         .map((member) => member.id.trim())
@@ -150,7 +152,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
           room: room,
           member: member,
           authoritativeMember: authoritativeGroupMemberForUser(
-            authoritativeGroupMembers,
+            visibleAuthoritativeGroupMembers,
             member.id,
           ),
           currentUserProfile: currentUserProfile,
@@ -159,7 +161,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     final memberCount = _groupInfoMemberCount(
       room: room,
       matrixMembers: members,
-      authoritativeMembers: authoritativeGroupMembers,
+      authoritativeMembers: visibleAuthoritativeGroupMembers,
       locallyRemovedMemberIds: _locallyRemovedMemberIds,
     );
     final canManageGroup = room != null && _canManageGroup(room);
@@ -545,6 +547,14 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       );
       if (!mounted) return;
       setState(() => _locallyRemovedMemberIds.add(peerMxid));
+      ref.invalidate(
+        groupMembersProvider(
+          GroupMembersKey(
+            roomId: widget.roomId,
+            status: asChannelMemberStatusJoined,
+          ),
+        ),
+      );
       messenger.showSnackBar(SnackBar(content: Text('已移除$displayName')));
       await _fetchMembers();
     } on Object catch (e) {

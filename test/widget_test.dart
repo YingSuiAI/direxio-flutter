@@ -1858,6 +1858,7 @@ class _TrackingAsClient extends _EmptyAsClient {
   int removeGroupMemberCalls = 0;
   String? removedGroupRoomId;
   String? removedGroupPeerMxid;
+  List<AsGroupMember> groupMembers = const [];
   AsSyncBootstrap? bootstrapAfterLeave;
   int updateGroupInvitePolicyCalls = 0;
   String? updatedGroupInvitePolicyRoomId;
@@ -2038,8 +2039,12 @@ class _TrackingAsClient extends _EmptyAsClient {
   Future<List<AsGroupMember>> getGroupMembers(
     String roomId, {
     String status = '',
-  }) async =>
-      const [];
+  }) async {
+    return [
+      for (final member in groupMembers)
+        if (member.roomId.trim() == roomId.trim()) member,
+    ];
+  }
 
   @override
   Future<AsGroupResult> joinGroup({
@@ -12805,7 +12810,23 @@ void main() {
       creatorMxid: '@owner:p2p-im.com',
       members: const {'@alice:p2p-im.com': 'Alice'},
     );
-    final asClient = _TrackingAsClient();
+    final asClient = _TrackingAsClient()
+      ..groupMembers = const [
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@owner:p2p-im.com',
+          role: asChannelRoleOwner,
+          status: asChannelMemberStatusJoined,
+        ),
+        AsGroupMember(
+          roomId: '!group:p2p-im.com',
+          userMxid: '@alice:p2p-im.com',
+          displayName: 'Alice',
+          avatarUrl: 'https://example.com/alice.png',
+          role: asChannelRoleMember,
+          status: asChannelMemberStatusJoined,
+        ),
+      ];
 
     await tester.pumpWidget(
       ProviderScope(
@@ -12825,6 +12846,14 @@ void main() {
       find.byKey(const ValueKey('group_info_member_@alice:p2p-im.com')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(
+        const ValueKey(
+          'group_composite_avatar_member_@alice:p2p-im.com_https://example.com/alice.png',
+        ),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('移除'));
     await tester.pumpAndSettle();
@@ -12840,6 +12869,14 @@ void main() {
     expect(asClient.removedGroupPeerMxid, '@alice:p2p-im.com');
     expect(
       find.byKey(const ValueKey('group_info_member_@alice:p2p-im.com')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(
+        const ValueKey(
+          'group_composite_avatar_member_@alice:p2p-im.com_https://example.com/alice.png',
+        ),
+      ),
       findsNothing,
     );
   });

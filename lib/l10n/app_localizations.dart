@@ -3203,6 +3203,24 @@ abstract class AppLocalizations {
   /// **'处理中'**
   String get channelJoinProcessing;
 
+  /// No description provided for @channelShareRequested.
+  ///
+  /// In zh, this message translates to:
+  /// **'已申请加入频道'**
+  String get channelShareRequested;
+
+  /// No description provided for @channelShareTextType.
+  ///
+  /// In zh, this message translates to:
+  /// **'文字'**
+  String get channelShareTextType;
+
+  /// No description provided for @channelShareTargetTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'分享频道到'**
+  String get channelShareTargetTitle;
+
   /// No description provided for @channelReviewTitle.
   ///
   /// In zh, this message translates to:
@@ -3326,7 +3344,7 @@ abstract class AppLocalizations {
   /// No description provided for @channelSearchPrompt.
   ///
   /// In zh, this message translates to:
-  /// **'输入频道ID查找频道'**
+  /// **'输入频道名称/ID查找频道'**
   String get channelSearchPrompt;
 
   /// No description provided for @channelSearchFailed.

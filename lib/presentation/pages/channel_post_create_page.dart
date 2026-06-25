@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../channel/channel_post_media.dart';
 import '../chat/ordered_chat_image_picker.dart';
@@ -16,6 +17,8 @@ import '../providers/as_client_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
+import '../providers/profile_provider.dart';
+import '../providers/user_profile_directory_provider.dart';
 
 class ChannelPostCreatePage extends ConsumerStatefulWidget {
   const ChannelPostCreatePage({
@@ -65,12 +68,12 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
       final post = await ref.read(asClientProvider).createChannelPost(
             channelId,
             messageType: hasImage ? 'm.image' : 'text',
-            body: body.isEmpty ? mediaImages.first.name : body,
+            body: body,
             media: hasImage ? channelPostMediaForImages(mediaImages) : const {},
           );
       await ref
           .read(channelPostsProvider(channelId).notifier)
-          .upsertLocal(post);
+          .upsertLocal(_withLocalAuthorIdentity(ref, post));
       if (!mounted) return;
       context.pop();
     } catch (err) {
@@ -298,6 +301,42 @@ class _ChannelPostCreatePageState extends ConsumerState<ChannelPostCreatePage> {
       ),
     );
   }
+}
+
+AsChannelPost _withLocalAuthorIdentity(WidgetRef ref, AsChannelPost post) {
+  final currentProfile = ref.read(currentUserProfileProvider).valueOrNull;
+  final auth = ref.read(authStateNotifierProvider).valueOrNull;
+  final currentUserId = _firstNonEmptyString([
+    ref.read(matrixClientProvider).userID,
+    currentProfile?.userId,
+    auth?.userId,
+  ]);
+  final authorId = _firstNonEmptyString([post.authorId, currentUserId]);
+  final identity = ref.read(userProfileDirectoryProvider).resolve(
+        userId: authorId,
+        displayName: post.authorName,
+        avatarUrl: post.authorAvatarUrl,
+      );
+  return post.copyWith(
+    authorId: authorId,
+    authorName: _firstNonEmptyString([
+      post.authorName,
+      identity.displayName,
+      identity.resolvedName,
+    ]),
+    authorAvatarUrl: _firstNonEmptyString([
+      post.authorAvatarUrl,
+      identity.avatarUrl,
+    ]),
+  );
+}
+
+String _firstNonEmptyString(Iterable<String?> values) {
+  for (final value in values) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isNotEmpty) return trimmed;
+  }
+  return '';
 }
 
 class _SelectedPostImage {

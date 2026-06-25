@@ -29,6 +29,7 @@ import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.da
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 import 'package:portal_app/presentation/providers/channel_provider.dart';
 import 'package:portal_app/presentation/providers/product_conversations_provider.dart';
+import 'package:portal_app/presentation/providers/profile_provider.dart';
 import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 
 void main() {
@@ -596,16 +597,18 @@ void main() {
     expect(find.text('新帖子'), findsOneWidget);
   });
 
-  testWidgets('channel post list renders uploaded post image as avatar',
+  testWidgets('channel post list uses author avatar instead of post image',
       (tester) async {
-    const avatarUrl = 'https://cdn.example.com/post-avatar.png';
+    const imageUrl = 'https://cdn.example.com/post-image.png';
+    const authorAvatarUrl = 'https://cdn.example.com/author-avatar.png';
     await _pumpRealChannelPage(
       tester,
       _PostingChannelAsClient(
+        postAuthorAvatarUrl: authorAvatarUrl,
         postMedia: const {
-          'url': avatarUrl,
+          'url': imageUrl,
           'images': [
-            {'url': avatarUrl, 'name': 'post-avatar.png'},
+            {'url': imageUrl, 'name': 'post-image.png'},
           ],
         },
       ),
@@ -613,9 +616,128 @@ void main() {
 
     expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
     expect(
-      find.byKey(const ValueKey('channel_post_avatar_$avatarUrl')),
+      find.byKey(const ValueKey('channel_post_avatar_$authorAvatarUrl')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('channel_post_image_$imageUrl')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'channel newly published post fills missing local author identity',
+      (tester) async {
+    final asClient = _PostingChannelAsClient(
+      createdAuthorId: '',
+      createdAuthorName: '',
+      createdAuthorAvatarUrl: '',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: true,
+          role: asChannelRoleOwner,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+    final router = GoRouter(
+      initialLocation: '/channel/ch_real',
+      routes: [
+        GoRoute(
+          path: '/channel/:channelId',
+          builder: (_, state) => ChannelPage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId/post/create',
+          builder: (_, state) => ChannelPostCreatePage(
+            channelId: state.pathParameters['channelId']!,
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          currentUserProfileProvider.overrideWith(
+            (ref) async => Profile(
+              userId: '@owner:p2p-im.com',
+              displayName: 'Owner Profile',
+              avatarUrl: Uri.parse('https://cdn.example.com/owner.png'),
+            ),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('channel_post_create_fab')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '第二条帖子');
+    await tester.tap(find.text('发表'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('第二条帖子'), findsOneWidget);
+    expect(find.text('Owner Profile'), findsAtLeastNWidgets(1));
+    expect(
+      find.byKey(
+        const ValueKey(
+          'channel_post_avatar_https://cdn.example.com/owner.png',
+        ),
+      ),
+      findsAtLeastNWidgets(1),
+    );
+  });
+
+  testWidgets('channel image-only post hides media filename body',
+      (tester) async {
+    const imageUrl = 'https://cdn.example.com/photo.jpg';
+    await _pumpRealChannelPage(
+      tester,
+      _PostingChannelAsClient(
+        postBody: 'photo.jpg',
+        postMedia: const {
+          'url': imageUrl,
+          'images': [
+            {'url': imageUrl, 'name': 'photo.jpg'},
+          ],
+        },
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('channel_post_image_$imageUrl')),
+      findsOneWidget,
+    );
+    expect(find.text('photo.jpg'), findsNothing);
   });
 
   testWidgets('channel post list shows author display name', (tester) async {
@@ -1035,6 +1157,71 @@ void main() {
     expect(find.byIcon(Symbols.arrow_back), findsOneWidget);
     expect(find.text('第一条帖子'), findsAtLeastNWidgets(1));
     expect(find.text('共0条评论'), findsOneWidget);
+  });
+
+  testWidgets('channel post detail reuses list media before text layout',
+      (tester) async {
+    const imageUrl = 'https://cdn.example.com/detail-photo.jpg';
+    final asClient = _PostingChannelAsClient(
+      postBody: '带图正文',
+      postMedia: const {
+        'url': imageUrl,
+        'images': [
+          {'url': imageUrl, 'name': 'detail-photo.jpg'},
+        ],
+      },
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPostDetailPage(
+            channelId: 'ch_real',
+            postId: 'post1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final imageTop = tester.getTopLeft(
+      find.byKey(const ValueKey('channel_post_image_$imageUrl')),
+    );
+    final bodyTop = tester.getTopLeft(find.text('带图正文'));
+
+    expect(imageTop.dy, lessThan(bodyTop.dy));
   });
 
   testWidgets('channel post list input opens detail for commenting',
@@ -1470,6 +1657,86 @@ void main() {
     expect(find.byKey(const ValueKey('channel_comment_like_comment-react')),
         findsNothing);
     expect(asClient.toggledCommentId, isNull);
+  });
+
+  testWidgets('channel post detail resolves comment author from profile cache',
+      (tester) async {
+    const memberAvatarUrl = 'https://cdn.example.com/member-comment.png';
+    final asClient = _PostingChannelAsClient(
+      comments: const [
+        AsChannelComment(
+          commentId: 'comment-member',
+          postId: 'post1',
+          channelId: 'ch_real',
+          eventId: r'$comment-member',
+          authorId: '@member:p2p-im.com',
+          messageType: 'text',
+          body: '成员评论内容',
+          originServerTs: 1000,
+        ),
+      ],
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@member:p2p-im.com',
+          displayName: '成员昵称',
+          avatarUrl: memberAvatarUrl,
+          roomId: '!member:p2p-im.com',
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPostDetailPage(
+            channelId: 'ch_real',
+            postId: 'post1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('成员评论内容'), findsOneWidget);
+    expect(find.text('成员昵称'), findsOneWidget);
+    expect(find.text('member'), findsNothing);
+    expect(
+      tester.widget<PortalAvatar>(find.byType(PortalAvatar).last).imageUrl,
+      memberAvatarUrl,
+    );
   });
 
   testWidgets('channel info page renders figma actions', (tester) async {
@@ -3644,18 +3911,26 @@ class _PostingChannelAsClient extends MockAsClient {
   _PostingChannelAsClient({
     this.postBody,
     this.postMedia = const {},
+    this.postAuthorAvatarUrl = '',
     this.reactedByMe = false,
     this.postId = 'post1',
     this.authorName = 'Yanan',
+    this.createdAuthorId = '@owner:p2p-im.com',
+    this.createdAuthorName = 'Yanan',
+    this.createdAuthorAvatarUrl = '',
     this.comments = const [],
     this.commentReactionCount = 1,
   });
 
   final String? postBody;
   final Map<String, Object?> postMedia;
+  final String postAuthorAvatarUrl;
   final bool reactedByMe;
   final String postId;
   final String authorName;
+  final String createdAuthorId;
+  final String createdAuthorName;
+  final String createdAuthorAvatarUrl;
   final List<AsChannelComment> comments;
   final int commentReactionCount;
   final List<int> requestedCommentPages = [];
@@ -3691,6 +3966,7 @@ class _PostingChannelAsClient extends MockAsClient {
         eventId: r'$post1',
         authorId: '@owner:p2p-im.com',
         authorName: authorName,
+        authorAvatarUrl: postAuthorAvatarUrl,
         messageType: 'text',
         body: createdBody ?? postBody ?? '第一条帖子',
         media: postMedia,
@@ -3726,8 +4002,9 @@ class _PostingChannelAsClient extends MockAsClient {
       channelId: channelId,
       roomId: '!real:p2p-im.com',
       eventId: r'$post2',
-      authorId: '@owner:p2p-im.com',
-      authorName: 'Yanan',
+      authorId: createdAuthorId,
+      authorName: createdAuthorName,
+      authorAvatarUrl: createdAuthorAvatarUrl,
       messageType: messageType,
       body: body,
       media: media,

@@ -1654,6 +1654,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelJoinProcessing => '处理中';
 
   @override
+  String get channelShareRequested => '已申请加入频道';
+
+  @override
+  String get channelShareTextType => '文字';
+
+  @override
+  String get channelShareTargetTitle => '分享频道到';
+
+  @override
   String get channelReviewTitle => '频道审核';
 
   @override
@@ -1718,7 +1727,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelSearchTitle => '搜索频道';
 
   @override
-  String get channelSearchPrompt => '输入频道ID查找频道';
+  String get channelSearchPrompt => '输入频道名称/ID查找频道';
 
   @override
   String get channelSearchFailed => '搜索失败，请稍后重试';

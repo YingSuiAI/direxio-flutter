@@ -14,6 +14,7 @@ import '../../l10n/app_localizations.dart';
 import '../channel/channel_inbox_data.dart';
 import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_join_flow.dart';
+import '../channel/channel_post_content.dart';
 import '../channel/channel_post_media.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/cached_thumbnail_image.dart';
@@ -27,8 +28,10 @@ import '../providers/channel_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
 import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../providers/user_profile_directory_provider.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../utils/user_profile_directory.dart';
 import '../widgets/m3/glass_header.dart';
 import 'channel_info_page.dart';
 
@@ -326,6 +329,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
     final channel = widget.channel;
     final postsAsync = ref.watch(channelPostsProvider(channel.id));
     final posts = postsAsync.valueOrNull ?? const <AsChannelPost>[];
+    final authorDirectory = ref.watch(userProfileDirectoryProvider);
     _markLatestPostRead(channel, posts);
     return Scaffold(
       backgroundColor: _channelPageBackground(context),
@@ -372,6 +376,7 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
                         child: _RealChannelPostCard(
                           channel: channel,
                           post: post,
+                          authorDirectory: authorDirectory,
                           onOpen: () => context.push(
                             '/channel/${Uri.encodeComponent(channel.id)}'
                             '/post/${Uri.encodeComponent(_realPostKey(post))}',
@@ -850,6 +855,7 @@ class _RealChannelPostCard extends StatefulWidget {
   const _RealChannelPostCard({
     required this.channel,
     required this.post,
+    required this.authorDirectory,
     required this.canComment,
     required this.canReact,
     this.onOpen,
@@ -859,6 +865,7 @@ class _RealChannelPostCard extends StatefulWidget {
 
   final ChannelInboxItem channel;
   final AsChannelPost post;
+  final UserProfileDirectory authorDirectory;
   final bool canComment;
   final bool canReact;
   final VoidCallback? onOpen;
@@ -877,10 +884,17 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
   Widget build(BuildContext context) {
     final t = context.tk;
     final post = widget.post;
-    final body = _postBodyText(context, post);
+    final body = channelPostBodyText(post);
     final images = channelPostImagesFromPost(post);
-    final author = _postAuthorLabel(post);
-    final avatarUrl = _postListAvatarUrl(post, images);
+    final authorIdentity = widget.authorDirectory.resolve(
+      userId: post.authorId,
+      displayName: post.authorName,
+      avatarUrl: post.authorAvatarUrl,
+    );
+    final author = authorIdentity.resolvedName.trim().isNotEmpty
+        ? authorIdentity.resolvedName
+        : _postAuthorLabel(post);
+    final avatarUrl = _postListAvatarUrl(post, authorIdentity.avatarUrl);
     return InkWell(
       onTap: widget.onOpen,
       borderRadius: BorderRadius.circular(20),
@@ -949,18 +963,12 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
               ],
             ),
             const SizedBox(height: 14),
-            if (images.isNotEmpty) ...[
-              ChannelPostImageGrid(images: images),
-              if (body.isNotEmpty) const SizedBox(height: 10),
-            ],
-            if (body.isNotEmpty)
-              _ExpandablePostExcerpt(
-                body,
-                expanded: _expanded,
-                onToggle: () => setState(() => _expanded = !_expanded),
-              )
-            else
-              const SizedBox.shrink(),
+            ChannelPostContent(
+              images: images,
+              body: body,
+              expanded: _expanded,
+              onToggle: () => setState(() => _expanded = !_expanded),
+            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -1138,10 +1146,10 @@ class _PostListAvatarImage extends ConsumerWidget {
 
 String _postListAvatarUrl(
   AsChannelPost post,
-  List<ChannelPostMediaImage> images,
+  String resolvedAuthorAvatarUrl,
 ) {
-  final postAvatarUrl = images.isEmpty ? '' : images.first.url.trim();
-  if (postAvatarUrl.isNotEmpty) return postAvatarUrl;
+  final resolved = resolvedAuthorAvatarUrl.trim();
+  if (resolved.isNotEmpty) return resolved;
   return post.authorAvatarUrl.trim();
 }
 
@@ -1172,122 +1180,6 @@ class _PostTypeBadge extends StatelessWidget {
           weight: FontWeight.w500,
           color: t.textMute,
         ).copyWith(height: 16 / 8),
-      ),
-    );
-  }
-}
-
-class _ExpandablePostExcerpt extends StatelessWidget {
-  const _ExpandablePostExcerpt(
-    this.text, {
-    required this.expanded,
-    required this.onToggle,
-  });
-
-  final String text;
-  final bool expanded;
-  final VoidCallback onToggle;
-
-  static const _collapsedLines = 3;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final style = AppTheme.sans(
-      size: 13,
-      weight: FontWeight.w500,
-      color: t.text,
-    ).copyWith(height: 18 / 13);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final canExpand = _exceedsCollapsedLines(
-          context,
-          style,
-          constraints.maxWidth,
-        );
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              text,
-              maxLines: expanded ? null : _collapsedLines,
-              overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-              style: style,
-            ),
-            if (canExpand) ...[
-              const SizedBox(height: 10),
-              _PostExpandControl(
-                expanded: expanded,
-                onTap: onToggle,
-              ),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  bool _exceedsCollapsedLines(
-    BuildContext context,
-    TextStyle style,
-    double maxWidth,
-  ) {
-    if (!maxWidth.isFinite || maxWidth <= 0) return false;
-    final painter = TextPainter(
-      text: TextSpan(text: text, style: style),
-      maxLines: _collapsedLines,
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-    )..layout(maxWidth: maxWidth);
-    return painter.didExceedMaxLines;
-  }
-}
-
-class _PostExpandControl extends StatelessWidget {
-  const _PostExpandControl({
-    required this.expanded,
-    required this.onTap,
-  });
-
-  final bool expanded;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final l10n = _l10n(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!expanded) ...[
-              Container(width: 24, height: 1, color: t.border),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              expanded
-                  ? l10n?.channelPostCollapse ?? '收起'
-                  : l10n?.channelPostExpandMore ?? '展开更多',
-              style: AppTheme.sans(
-                size: 13,
-                weight: FontWeight.w500,
-                color: t.textMute,
-              ).copyWith(height: 20 / 13),
-            ),
-            const SizedBox(width: 2),
-            Icon(
-              expanded
-                  ? Symbols.keyboard_arrow_up
-                  : Symbols.keyboard_arrow_down,
-              size: 16,
-              color: t.textMute,
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1379,15 +1271,6 @@ class _PostStatButton extends StatelessWidget {
       ),
     );
   }
-}
-
-String _postBodyText(BuildContext context, AsChannelPost post) {
-  final body = post.body.trim();
-  if (body.isNotEmpty) return body;
-  if (channelPostImagesFromPost(post).isNotEmpty) {
-    return _l10n(context)?.channelPostDefaultTitle ?? '我发布的帖子';
-  }
-  return '';
 }
 
 String _localpartFromMxid(String mxid) {

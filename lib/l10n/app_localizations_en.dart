@@ -1709,6 +1709,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelJoinProcessing => 'Processing';
 
   @override
+  String get channelShareRequested => 'Requested to join';
+
+  @override
+  String get channelShareTextType => 'Text';
+
+  @override
+  String get channelShareTargetTitle => 'Share channel to';
+
+  @override
   String get channelReviewTitle => 'Channel Review';
 
   @override

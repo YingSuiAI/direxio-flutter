@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../chat/chat_message_cards.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -409,12 +410,19 @@ class ChannelSharePreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final subtitle = payload.description.trim().isEmpty
         ? payload.homeDomain.trim()
         : payload.description.trim();
-    final typeLabel = _channelShareTypeLabel(payload);
+    final typeLabel = _channelShareTypeLabel(payload, l10n: l10n);
     final buttonDisabled = joining || alreadyJoined || alreadyRequested;
     final buttonTap = buttonDisabled ? () {} : onJoin;
+    final displayName = payload.name.trim().isEmpty
+        ? l10n?.channelSearchUnnamed ?? payload.displayName
+        : payload.displayName;
     return ChatCardBubbleFrame(
       onTap: onTap,
       onLongPressAt: onLongPressAt,
@@ -434,7 +442,7 @@ class ChannelSharePreviewCard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              payload.displayName,
+                              displayName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTheme.sans(
@@ -450,7 +458,9 @@ class ChannelSharePreviewCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        subtitle.isEmpty ? '公开频道' : subtitle,
+                        subtitle.isEmpty
+                            ? l10n?.channelSearchPublicChannel ?? '公开频道'
+                            : subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(size: 12, color: t.textMute)
@@ -476,12 +486,12 @@ class ChannelSharePreviewCard extends StatelessWidget {
                 child: Center(
                   child: Text(
                     joining
-                        ? '加入中…'
+                        ? l10n?.groupInviteJoiningButton ?? '加入中…'
                         : alreadyJoined
-                            ? '已加入'
+                            ? l10n?.channelJoinJoined ?? '已加入'
                             : alreadyRequested
-                                ? '已申请加入频道'
-                                : '加入频道',
+                                ? l10n?.channelShareRequested ?? '已申请加入频道'
+                                : l10n?.channelJoinAction ?? '加入频道',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.sans(
@@ -531,10 +541,13 @@ class _ChannelShareTypePill extends StatelessWidget {
   }
 }
 
-String _channelShareTypeLabel(ChannelSharePayload payload) {
+String _channelShareTypeLabel(
+  ChannelSharePayload payload, {
+  AppLocalizations? l10n,
+}) {
   return normalizeAsChannelType(payload.channelType) == asChannelTypePost
-      ? '帖子'
-      : '文字';
+      ? l10n?.channelPostType ?? '帖子'
+      : l10n?.channelShareTextType ?? '文字';
 }
 
 class _ChannelShareAvatar extends StatelessWidget {
@@ -577,6 +590,10 @@ class _ChannelShareTargetSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final client = ref.watch(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
     return DraggableScrollableSheet(
@@ -597,7 +614,7 @@ class _ChannelShareTargetSheet extends ConsumerWidget {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
-                    '分享频道到',
+                    l10n?.channelShareTargetTitle ?? '分享频道到',
                     style: AppTheme.sans(
                       size: 17,
                       weight: FontWeight.w700,

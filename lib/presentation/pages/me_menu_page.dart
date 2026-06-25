@@ -14,9 +14,10 @@ import '../../l10n/app_localizations.dart';
 import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_voice_player.dart';
-import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/as_client_provider.dart';
+import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/media_thumbnail_cache_provider.dart';
 import '../providers/matrix_media_cache_provider.dart';
 import '../providers/user_profile_directory_provider.dart';
 import '../utils/avatar_url.dart';
@@ -647,7 +648,7 @@ class _MeCommentsPageState extends ConsumerState<MeCommentsPage> {
   }
 }
 
-class _MeCommentCard extends StatelessWidget {
+class _MeCommentCard extends ConsumerWidget {
   const _MeCommentCard({
     super.key,
     required this.item,
@@ -656,11 +657,16 @@ class _MeCommentCard extends StatelessWidget {
   final AsChannelCommentHistory item;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
     final l10n = _l10n(context);
     final comment = item.comment;
-    final channelTitle = _channelActivityChannelLabel(item.channel);
+    final channelDisplay = _channelActivityDisplay(
+      item.channel,
+      ref.watch(asSyncCacheProvider).bootstrap,
+      ref.watch(matrixClientProvider),
+    );
+    final channelTitle = channelDisplay.title;
     final commentBody = comment.body.trim().isEmpty
         ? l10n?.meCommentFallback ?? '评论'
         : comment.body.trim();
@@ -684,9 +690,9 @@ class _MeCommentCard extends StatelessWidget {
                 seed: item.channel.channelId.trim().isEmpty
                     ? channelTitle
                     : item.channel.channelId.trim(),
-                imageUrl: item.channel.avatarUrl.trim().isEmpty
+                imageUrl: channelDisplay.avatarUrl.trim().isEmpty
                     ? null
-                    : item.channel.avatarUrl.trim(),
+                    : channelDisplay.avatarUrl.trim(),
                 size: 40,
                 shape: AvatarShape.squircle,
               ),
@@ -695,23 +701,17 @@ class _MeCommentCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      height: 20,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          channelTitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTheme.sans(
-                            size: 16,
-                            weight: FontWeight.w600,
-                            color: t.text,
-                          ).copyWith(height: 33 / 16),
-                        ),
-                      ),
+                    Text(
+                      channelTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.sans(
+                        size: 16,
+                        weight: FontWeight.w600,
+                        color: t.text,
+                      ).copyWith(height: 20 / 16),
                     ),
-                    const SizedBox(height: 1),
+                    const SizedBox(height: 4),
                     Text(
                       l10n?.meCommentedWith(commentBody) ?? '你评论了：$commentBody',
                       maxLines: 2,
@@ -722,7 +722,7 @@ class _MeCommentCard extends StatelessWidget {
                         color: t.text,
                       ).copyWith(height: 20 / 13),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       postPreview,
                       maxLines: 2,
@@ -733,7 +733,7 @@ class _MeCommentCard extends StatelessWidget {
                         color: t.textMute,
                       ).copyWith(height: 20 / 13),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
                       _commentTimeLabel(comment.originServerTs),
                       maxLines: 1,
@@ -1659,6 +1659,60 @@ String _channelActivityChannelLabel(AsChannel channel) {
   final domain = channel.homeDomain.trim();
   if (domain.isNotEmpty) return domain;
   return '频道';
+}
+
+_ChannelActivityDisplay _channelActivityDisplay(
+  AsChannel channel,
+  AsSyncBootstrap? bootstrap,
+  Client client,
+) {
+  final channelId = channel.channelId.trim();
+  final roomId = channel.roomId.trim();
+  AsSyncRoomSummary? cached;
+  if (bootstrap != null) {
+    for (final item in bootstrap.channels) {
+      final itemChannelId = item.channelId.trim();
+      final itemRoomId = item.roomId.trim();
+      if (channelId.isNotEmpty && itemChannelId == channelId) {
+        cached = item;
+        break;
+      }
+      if (roomId.isNotEmpty && itemRoomId == roomId) {
+        cached = item;
+        break;
+      }
+    }
+  }
+  final title = _firstNonEmpty([
+    channel.name,
+    cached?.name,
+    channel.homeDomain,
+    cached?.homeDomain,
+    '频道',
+  ]);
+  final rawAvatar = _firstNonEmpty([channel.avatarUrl, cached?.avatarUrl]);
+  return _ChannelActivityDisplay(
+    title: title,
+    avatarUrl: avatarHttpUrl(client, rawAvatar) ?? rawAvatar,
+  );
+}
+
+String _firstNonEmpty(Iterable<String?> values) {
+  for (final value in values) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isNotEmpty) return trimmed;
+  }
+  return '';
+}
+
+class _ChannelActivityDisplay {
+  const _ChannelActivityDisplay({
+    required this.title,
+    required this.avatarUrl,
+  });
+
+  final String title;
+  final String avatarUrl;
 }
 
 String _reactionHistoryMessage(AppLocalizations? l10n, String reaction) {

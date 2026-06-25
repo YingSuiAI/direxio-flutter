@@ -137,6 +137,8 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             latestPreviewForRoomId: (roomId) =>
                 _matrixRoomLatestPreview(client, roomId, l10n: l10n),
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
+            unreadCountForRoomId: (roomId) =>
+                _matrixRoomUnreadCount(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           )
         : const <ChannelInboxItem>[];
@@ -158,6 +160,8 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                                 l10n: l10n),
                         latestAtForRoomId: (roomId) =>
                             _matrixRoomLatestAt(client, roomId),
+                        unreadCountForRoomId: (roomId) =>
+                            _matrixRoomUnreadCount(client, roomId),
                       )
                 : ChannelInboxData.fromChannels(
                     listedChannels,
@@ -172,6 +176,8 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
                         _matrixRoomLatestPreview(client, roomId, l10n: l10n),
                     latestAtForRoomId: (roomId) =>
                         _matrixRoomLatestAt(client, roomId),
+                    unreadCountForRoomId: (roomId) =>
+                        _matrixRoomUnreadCount(client, roomId),
                     hiddenChannelKeys: syncHiddenChannelKeys,
                   ),
             localCreatedChannels,
@@ -182,6 +188,8 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
             latestPreviewForRoomId: (roomId) =>
                 _matrixRoomLatestPreview(client, roomId, l10n: l10n),
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
+            unreadCountForRoomId: (roomId) =>
+                _matrixRoomUnreadCount(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           )
         : const <ChannelInboxItem>[];
@@ -400,6 +408,8 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             latestPreviewForRoomId: (roomId) =>
                 _matrixRoomLatestPreview(client, roomId, l10n: l10n),
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
+            unreadCountForRoomId: (roomId) =>
+                _matrixRoomUnreadCount(client, roomId),
           )
         : ChannelInboxData.mergeCreatedCache(
             ChannelInboxData.fromBootstrap(
@@ -413,6 +423,8 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
                   _matrixRoomLatestPreview(client, roomId, l10n: l10n),
               latestAtForRoomId: (roomId) =>
                   _matrixRoomLatestAt(client, roomId),
+              unreadCountForRoomId: (roomId) =>
+                  _matrixRoomUnreadCount(client, roomId),
             ),
             localCreatedChannels,
             fallbackDomain: _clientServerName(client),
@@ -422,6 +434,8 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
             latestPreviewForRoomId: (roomId) =>
                 _matrixRoomLatestPreview(client, roomId, l10n: l10n),
             latestAtForRoomId: (roomId) => _matrixRoomLatestAt(client, roomId),
+            unreadCountForRoomId: (roomId) =>
+                _matrixRoomUnreadCount(client, roomId),
             hiddenChannelKeys: syncHiddenChannelKeys,
           );
     final filteredChannels = channels.where((channel) {
@@ -1301,14 +1315,14 @@ class ChannelInboxTile extends StatelessWidget {
                                       color: _channelMutedColor(context),
                                     ).copyWith(height: 15 / 12),
                                   ),
-                                const Spacer(),
-                                if (_channelIsTextType(channel) &&
-                                    channel.unreadCount > 0)
+                                if (showTime && channel.unreadCount > 0) ...[
+                                  const SizedBox(height: 7),
                                   _UnreadDot(
                                     key: ValueKey(
                                       'channel_unread_dot_${channel.id}',
                                     ),
                                   ),
+                                ],
                               ],
                             ),
                           ),
@@ -1689,10 +1703,6 @@ bool _channelIsTextType(ChannelInboxItem channel) {
 }
 
 String _channelInboxSubtitle(ChannelInboxItem channel) {
-  if (!_channelIsTextType(channel)) {
-    final count = channel.memberCount < 0 ? 0 : channel.memberCount;
-    return '$count 名成员';
-  }
   return channel.latestPreview.trim();
 }
 
@@ -2164,6 +2174,16 @@ String _matrixRoomLatestPreview(
 
 DateTime? _matrixRoomLatestAt(Client client, String roomId) {
   return client.getRoomById(roomId.trim())?.lastEvent?.originServerTs;
+}
+
+int _matrixRoomUnreadCount(Client client, String roomId) {
+  final room = client.getRoomById(roomId.trim());
+  if (room == null) return 0;
+  final notificationCount = room.notificationCount;
+  final highlightCount = room.highlightCount;
+  if (notificationCount > 0) return notificationCount;
+  if (highlightCount > 0) return highlightCount;
+  return 0;
 }
 
 bool _looksLikeMatrixRoomId(String text) {

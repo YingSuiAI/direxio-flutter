@@ -615,7 +615,7 @@ void main() {
     expect(opened, 'chat:ch_chat');
   });
 
-  testWidgets('post channel inbox tile shows member count below title',
+  testWidgets('post channel inbox tile hides member count below title',
       (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -645,8 +645,8 @@ void main() {
     );
 
     expect(find.text('帖子频道'), findsOneWidget);
-    expect(find.text('18 名成员'), findsOneWidget);
-    expect(find.text('帖子更新'), findsNothing);
+    expect(find.text('18 名成员'), findsNothing);
+    expect(find.text('帖子更新'), findsOneWidget);
   });
 
   testWidgets('channel inbox list tap callback can show dissolved hint',

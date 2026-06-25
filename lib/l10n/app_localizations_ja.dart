@@ -1662,6 +1662,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get channelJoinProcessing => '処理中';
 
   @override
+  String get channelShareRequested => '参加申請済み';
+
+  @override
+  String get channelShareTextType => 'テキスト';
+
+  @override
+  String get channelShareTargetTitle => 'チャンネルの共有先';
+
+  @override
   String get channelReviewTitle => 'チャンネル審査';
 
   @override

@@ -11,12 +11,14 @@ import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
 import '../../l10n/app_localizations.dart';
 import '../channel/channel_inbox_data.dart';
+import '../channel/channel_post_content.dart';
 import '../channel/channel_post_media.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/product_conversations_provider.dart';
+import '../providers/user_profile_directory_provider.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/portal_avatar.dart';
 
@@ -436,20 +438,13 @@ class _PostDetailContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          detail.body,
-          maxLines: bodyExpanded ? null : 4,
-          overflow: bodyExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
-          style: AppTheme.sans(
-            size: 13,
-            weight: FontWeight.w500,
-            color: _detailBodyColor(context),
-          ).copyWith(height: 18 / 13),
+        ChannelPostContent(
+          images: detail.images,
+          body: detail.body,
+          expanded: bodyExpanded,
+          onToggle: onToggleBodyExpanded,
+          bodyColor: _detailBodyColor(context),
         ),
-        if (detail.images.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          ChannelPostImageGrid(images: detail.images),
-        ],
         const SizedBox(height: 15),
         Row(
           children: [
@@ -1005,9 +1000,7 @@ _PostDetailData? _resolvePostDetail(
           : realPost.authorName.trim(),
       timeLabel: _formatTime(realPost.originServerTs),
       title: _titleFromBody(realPost.body),
-      body: realPost.body.trim().isEmpty
-          ? '[${realPost.messageType}]'
-          : realPost.body,
+      body: channelPostBodyText(realPost),
       reactionCount: realPost.reactionCount,
       reactedByMe: realPost.reactedByMe,
       commentCount: realPost.commentCount,
@@ -1030,14 +1023,27 @@ String _realPostKey(AsChannelPost post) {
 }
 
 _PostComment _commentFromAs(WidgetRef ref, AsChannelComment item) {
+  final directory = ref.read(userProfileDirectoryProvider);
+  final identity = directory.resolve(
+    userId: item.authorId,
+    displayName: item.authorName,
+    avatarUrl: item.authorAvatarUrl,
+    domain: item.authorDomain,
+  );
+  final authorName = identity.resolvedName.trim().isNotEmpty
+      ? identity.resolvedName
+      : _localpartFromMxid(item.authorId);
+  final avatarUrl = _commentAvatarUrl(
+      ref,
+      identity.avatarUrl.trim().isNotEmpty
+          ? identity.avatarUrl
+          : item.authorAvatarUrl);
   return _PostComment(
     commentId: item.commentId,
     channelId: item.channelId,
     postId: item.postId,
-    authorName: item.authorName.trim().isEmpty
-        ? _localpartFromMxid(item.authorId)
-        : item.authorName.trim(),
-    avatarUrl: _commentAvatarUrl(ref, item.authorAvatarUrl),
+    authorName: authorName,
+    avatarUrl: avatarUrl,
     body: item.body.trim().isEmpty ? '[${item.messageType}]' : item.body,
     timeLabel: _formatTime(item.originServerTs),
     likeCount: item.reactionCount,

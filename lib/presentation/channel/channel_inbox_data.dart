@@ -151,6 +151,7 @@ class ChannelInboxData {
     String Function(String roomId)? roomAvatarForRoomId,
     String Function(String roomId)? latestPreviewForRoomId,
     DateTime? Function(String roomId)? latestAtForRoomId,
+    int Function(String roomId)? unreadCountForRoomId,
   }) {
     final productConversationByRoomId =
         _channelProductConversationsByRoomId(productConversations);
@@ -194,7 +195,10 @@ class ChannelInboxData {
                       ? '暂无频道内容'
                       : topic,
           latestAt: latestAt ?? channel.lastActivityAt,
-          unreadCount: channel.unreadCount,
+          unreadCount: _maxUnreadCount(
+            channel.unreadCount,
+            unreadCountForRoomId?.call(roomId) ?? 0,
+          ),
           isOwned: _isChannelOwnerRole(channel.role) || channel.isOwned,
           tags: channel.tags,
           description: description,
@@ -223,6 +227,7 @@ class ChannelInboxData {
     String Function(String roomId)? roomAvatarForRoomId,
     String Function(String roomId)? latestPreviewForRoomId,
     DateTime? Function(String roomId)? latestAtForRoomId,
+    int Function(String roomId)? unreadCountForRoomId,
     Set<String> hiddenChannelKeys = const <String>{},
   }) {
     final productConversationByRoomId =
@@ -311,7 +316,10 @@ class ChannelInboxData {
         latestAt: latestAt ??
             channel.latestActivityAt ??
             bootstrapChannel?.lastActivityAt,
-        unreadCount: bootstrapChannel?.unreadCount ?? 0,
+        unreadCount: _maxUnreadCount(
+          bootstrapChannel?.unreadCount ?? 0,
+          unreadCountForRoomId?.call(roomId) ?? 0,
+        ),
         isOwned: _isChannelOwnerRole(channel.role) ||
             _isChannelOwnerRole(bootstrapChannel?.role ?? '') ||
             (bootstrapChannel?.isOwned ?? false),
@@ -354,6 +362,7 @@ class ChannelInboxData {
     String Function(String roomId)? roomAvatarForRoomId,
     String Function(String roomId)? latestPreviewForRoomId,
     DateTime? Function(String roomId)? latestAtForRoomId,
+    int Function(String roomId)? unreadCountForRoomId,
     Set<String> hiddenChannelKeys = const <String>{},
   }) {
     if (cached.isEmpty) return _sortByLatest([...items]);
@@ -368,6 +377,7 @@ class ChannelInboxData {
         roomAvatarForRoomId: roomAvatarForRoomId,
         latestPreviewForRoomId: latestPreviewForRoomId,
         latestAtForRoomId: latestAtForRoomId,
+        unreadCountForRoomId: unreadCountForRoomId,
       );
       if (cachedItems.isEmpty) continue;
       final cachedItem = cachedItems.single.copyWith(
@@ -406,6 +416,10 @@ class ChannelInboxData {
               : mergedItem.memberStatus,
           productConversation:
               mergedItem.productConversation ?? cachedItem.productConversation,
+          unreadCount: _maxUnreadCount(
+            mergedItem.unreadCount,
+            cachedItem.unreadCount,
+          ),
         );
       }
     }
@@ -450,6 +464,12 @@ class ChannelInboxData {
   static DateTime _latestOf(DateTime? a, DateTime b) {
     if (a == null) return b;
     return a.isAfter(b) ? a : b;
+  }
+
+  static int _maxUnreadCount(int a, int b) {
+    final safeA = a < 0 ? 0 : a;
+    final safeB = b < 0 ? 0 : b;
+    return safeA > safeB ? safeA : safeB;
   }
 
   static Map<String, AsConversation> _channelProductConversationsByRoomId(

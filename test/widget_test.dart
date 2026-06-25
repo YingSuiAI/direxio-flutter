@@ -1685,6 +1685,40 @@ class _ChannelActivityAsClient extends _EmptyAsClient {
   }
 }
 
+class _ChannelActivityMissingChannelAsClient extends _ChannelActivityAsClient {
+  @override
+  Future<List<AsChannelCommentHistory>> getMyChannelComments({
+    int limit = 50,
+  }) async {
+    commentsCallCount += 1;
+    lastCommentsLimit = limit;
+    return const [
+      AsChannelCommentHistory(
+        comment: AsChannelComment(
+          commentId: 'comment-missing-channel',
+          postId: 'post1',
+          channelId: 'ch_product',
+          eventId: r'$comment-missing-channel',
+          authorId: '@owner:p2p-im.com',
+          authorName: 'Yanan',
+          authorDomain: 'p2p-im.com',
+          messageType: 'text',
+          body: '评论内容',
+          originServerTs: 1780731800000,
+        ),
+        channel: AsChannel(
+          channelId: 'ch_product',
+          roomId: '!ch_product:p2p-im.com',
+          name: '',
+          homeDomain: 'p2p-im.com',
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+        post: _ChannelActivityAsClient._post,
+      ),
+    ];
+  }
+}
+
 class _MemoryConversationPreferencesStore
     implements ConversationPreferencesStore {
   _MemoryConversationPreferencesStore([
@@ -15806,7 +15840,7 @@ void main() {
     expect(find.text('还没有频道'), findsOneWidget);
   });
 
-  testWidgets('channel unread dot appears only for chat channels',
+  testWidgets('channel unread dot appears under time for unread channels',
       (tester) async {
     final client = Client('DirexioTest');
 
@@ -15859,7 +15893,7 @@ void main() {
     expect(find.byKey(const ValueKey('channel_unread_dot_ch_updates')),
         findsOneWidget);
     expect(find.byKey(const ValueKey('channel_unread_dot_ch_posts')),
-        findsNothing);
+        findsOneWidget);
     expect(find.text('12'), findsNothing);
     expect(find.text('8'), findsNothing);
   });
@@ -18374,6 +18408,57 @@ void main() {
     expect(find.text('产品公告'), findsOneWidget);
     expect(find.text('你评论了：这条评论来自真实用户名'), findsOneWidget);
     expect(find.text('频道发帖已打通'), findsOneWidget);
+  });
+
+  testWidgets('me comments page fills channel identity from bootstrap cache',
+      (tester) async {
+    const channelAvatarUrl = 'https://cdn.example.com/comment-channel.png';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_product',
+          roomId: '!ch_product:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '缓存频道名称',
+          avatarUrl: channelAvatarUrl,
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          memberStatus: asChannelMemberStatusJoined,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(
+            _ChannelActivityMissingChannelAsClient(),
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const MeCommentsPage(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('缓存频道名称'), findsOneWidget);
+    expect(find.text('p2p-im.com'), findsNothing);
+    expect(
+      tester.widget<PortalAvatar>(find.byType(PortalAvatar).last).imageUrl,
+      channelAvatarUrl,
+    );
   });
 
   testWidgets('me comments page follows dark mode tokens', (tester) async {

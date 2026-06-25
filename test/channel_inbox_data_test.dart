@@ -57,6 +57,40 @@ void main() {
     expect(items.first.tags, ['产品', '公告']);
   });
 
+  test('merges Matrix room unread count for channel inbox dots', () {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-25T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_matrix_unread',
+          roomId: '!matrix-unread:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '频道消息',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-25T10:20:00Z'),
+          topic: 'Matrix unread should show a dot',
+          isOwned: false,
+          tags: const [],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+      unreadCountForRoomId: (roomId) =>
+          roomId == '!matrix-unread:p2p-im.com' ? 1 : 0,
+    );
+
+    expect(items.single.unreadCount, 1);
+  });
+
   test('builds categories and filters owned or tagged channels', () {
     final items = [
       ChannelInboxItem(

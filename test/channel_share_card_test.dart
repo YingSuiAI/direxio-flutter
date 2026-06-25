@@ -5,6 +5,7 @@ import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/l10n/app_localizations.dart';
 import 'package:portal_app/presentation/channel/channel_join_flow.dart';
 import 'package:portal_app/presentation/channel/channel_share.dart';
 import 'package:portal_app/presentation/chat/chat_record_forwarding.dart';
@@ -116,6 +117,39 @@ void main() {
 
     expect(find.text('文字频道'), findsOneWidget);
     expect(find.byKey(const ValueKey('channel_share_type_文字')), findsOneWidget);
+  });
+
+  testWidgets('channel share preview card localizes labels', (tester) async {
+    const payload = ChannelSharePayload(
+      channelId: 'ch_chat',
+      roomId: '!chat:p2p-im.com',
+      homeDomain: '',
+      name: '',
+      channelType: asChannelTypeChat,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(
+          body: Center(
+            child: ChannelSharePreviewCard(
+              payload: payload,
+              alreadyRequested: true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Untitled channel'), findsOneWidget);
+    expect(find.text('Public channel'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('channel_share_type_Text')), findsOneWidget);
+    expect(find.text('Requested to join'), findsOneWidget);
   });
 
   testWidgets('channel share preview card join button invokes join',

@@ -365,6 +365,7 @@ class _HelpFeedbackDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 18),
       backgroundColor: Colors.transparent,
@@ -381,6 +382,8 @@ class _HelpFeedbackDialog extends StatelessWidget {
                   _feedbackBackgroundAsset,
                   key: const ValueKey('help_feedback_background'),
                   fit: BoxFit.contain,
+                  color: isDark ? t.surface : null,
+                  colorBlendMode: isDark ? BlendMode.modulate : null,
                 ),
               ),
               Positioned(
@@ -411,36 +414,44 @@ class _HelpFeedbackDialog extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        headline,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(
-                          size: 26,
-                          weight: FontWeight.w800,
-                          color: t.text,
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const ClampingScrollPhysics(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                headline,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(
+                                  size: 26,
+                                  weight: FontWeight.w800,
+                                  color: t.text,
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              Text(
+                                prompt,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(size: 15, color: t.text),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                contactLine,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTheme.sans(size: 15, color: t.text),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                note,
+                                style: AppTheme.sans(size: 15, color: t.text),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 22),
-                      Text(
-                        prompt,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(size: 15, color: t.text),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        contactLine,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(size: 15, color: t.text),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        note,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(size: 15, color: t.text),
                       ),
                       const SizedBox(height: 18),
                       Center(

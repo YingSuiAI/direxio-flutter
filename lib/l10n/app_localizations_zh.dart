@@ -343,6 +343,85 @@ class AppLocalizationsZh extends AppLocalizations {
   String get channelManageCreateChannelValue => '名称、头像、简介';
 
   @override
+  String get createChannelTitle => '创建频道';
+
+  @override
+  String get createChannelNameTitle => '频道名称';
+
+  @override
+  String get createChannelNameHint => '请输入';
+
+  @override
+  String get createChannelAvatarTitle => '上传频道头像';
+
+  @override
+  String get createChannelAvatarSubtitle => '支持图片上传，作为频道展示头像';
+
+  @override
+  String get createChannelTypeTitle => '选择频道类型';
+
+  @override
+  String get createChannelTypeText => '文字';
+
+  @override
+  String get createChannelTypeTextSubtitle => '成员自由发言';
+
+  @override
+  String get createChannelTypePosts => '帖子';
+
+  @override
+  String get createChannelTypePostsSubtitle => '帖子与评论';
+
+  @override
+  String get createChannelPermissionsTitle => '频道权限';
+
+  @override
+  String get createChannelPublicTitle => '是否公开';
+
+  @override
+  String get createChannelPublicSubtitle => '关闭后仅通过邀请加入';
+
+  @override
+  String get createChannelApprovalTitle => '加入是否需要审核';
+
+  @override
+  String get createChannelApprovalSubtitle => '开启后新成员加入前需要频道审核';
+
+  @override
+  String get createChannelIntroTitle => '频道介绍';
+
+  @override
+  String get createChannelIntroHint => '输入频道介绍...';
+
+  @override
+  String get createChannelSubmit => '创建频道';
+
+  @override
+  String get createChannelAvatarUploading => '频道头像上传中，请稍候';
+
+  @override
+  String get createChannelNameRequired => '频道名称不能为空';
+
+  @override
+  String get createChannelAvatarRequired => '请上传频道头像';
+
+  @override
+  String get createChannelIntroRequired => '频道介绍不能为空';
+
+  @override
+  String createChannelAvatarUploadFailed(String error) {
+    return '频道头像上传失败：$error';
+  }
+
+  @override
+  String get createChannelCreated => '频道已创建';
+
+  @override
+  String createChannelFailed(String error) {
+    return '创建频道失败：$error';
+  }
+
+  @override
   String get channelManageInviteLinks => '频道邀请链接';
 
   @override
@@ -741,6 +820,152 @@ class AppLocalizationsZh extends AppLocalizations {
   String get contactRoomMissingRemark => '缺少联系人房间信息，无法保存备注';
 
   @override
+  String get chatInfoTitle => '聊天信息';
+
+  @override
+  String get chatInfoMissingConversation => '会话不存在';
+
+  @override
+  String get chatInfoSearchRecords => '搜索聊天记录';
+
+  @override
+  String get chatInfoContactMissingRemark => '缺少联系人信息，无法设置备注';
+
+  @override
+  String get chatInfoSelfBlockDisabled => '当前用户无法拉黑';
+
+  @override
+  String get chatInfoSelfReportDisabled => '当前用户无法举报';
+
+  @override
+  String get chatInfoClearHistory => '清空聊天记录';
+
+  @override
+  String get chatInfoClearHistoryConfirm => '确定清空所有聊天记录？该操作不可恢复。';
+
+  @override
+  String get chatInfoClearHistoryAction => '清空';
+
+  @override
+  String get chatInfoClearHistoryCleared => '聊天记录已清空';
+
+  @override
+  String chatInfoClearHistoryFailed(String error) {
+    return '清空聊天记录失败: $error';
+  }
+
+  @override
+  String get chatInfoUidCopied => '已复制 UID';
+
+  @override
+  String get chatInfoContactSyncing => '正在同步联系人信息';
+
+  @override
+  String groupInfoTitle(int count) {
+    return '聊天信息($count)';
+  }
+
+  @override
+  String get groupInfoInvite => '邀请';
+
+  @override
+  String get groupInfoRemove => '移除';
+
+  @override
+  String get groupInfoManagement => '群管理';
+
+  @override
+  String get groupInfoSearchRecords => '查找聊天记录';
+
+  @override
+  String get groupInfoPinChat => '置顶聊天';
+
+  @override
+  String get groupInfoMyNickname => '我在本群昵称';
+
+  @override
+  String get groupInfoShowMemberNicknames => '显示群成员昵称';
+
+  @override
+  String get groupInfoReportGroup => '举报群聊';
+
+  @override
+  String get groupInfoDissolveGroup => '解散群聊';
+
+  @override
+  String get groupInfoLeaveGroup => '退出群聊';
+
+  @override
+  String get groupInfoNoRemovableMembers => '暂无可移除成员';
+
+  @override
+  String get groupInfoRemoveMemberTitle => '移除成员';
+
+  @override
+  String groupInfoRemoveMemberConfirm(String name) {
+    return '确定将 $name 移出群聊吗？';
+  }
+
+  @override
+  String groupInfoMemberRemoved(String name) {
+    return '已移除$name';
+  }
+
+  @override
+  String groupInfoRemoveMemberFailed(String error) {
+    return '移除成员失败: $error';
+  }
+
+  @override
+  String get groupInfoRemarkTitle => '备注';
+
+  @override
+  String get groupInfoRemarkHint => '输入群聊备注';
+
+  @override
+  String get groupInfoRemarkCleared => '已清除群聊备注';
+
+  @override
+  String get groupInfoRemarkUpdated => '群聊备注已更新';
+
+  @override
+  String get groupInfoNicknameHint => '输入群昵称';
+
+  @override
+  String get groupInfoNicknameEmpty => '群昵称不能为空';
+
+  @override
+  String get groupInfoCurrentUserMissing => '缺少当前用户信息';
+
+  @override
+  String get groupInfoNicknameUpdated => '群昵称已更新';
+
+  @override
+  String groupInfoNicknameUpdateFailed(String error) {
+    return '设置群昵称失败: $error';
+  }
+
+  @override
+  String get groupInfoClearHistoryConfirm => '确定清空当前群聊的所有聊天记录？该操作不可恢复。';
+
+  @override
+  String get groupInfoDissolveConfirm => '确定要解散该群聊吗？';
+
+  @override
+  String get groupInfoLeaveConfirm => '确定要退出该群聊吗？';
+
+  @override
+  String get groupInfoDissolveAction => '解散';
+
+  @override
+  String get groupInfoLeaveAction => '退出';
+
+  @override
+  String groupInfoLeaveFailed(String action, String error) {
+    return '$action群聊失败: $error';
+  }
+
+  @override
   String get contactFriendRequestRestored => '已恢复旧会话，可以继续聊天。';
 
   @override
@@ -787,6 +1012,46 @@ class AppLocalizationsZh extends AppLocalizations {
   String contactReportSubmitFailed(String error) {
     return '举报提交失败: $error';
   }
+
+  @override
+  String get reportReasonDialogTitle => '请选择举报原因';
+
+  @override
+  String get reportReasonHarassment => '骚扰/辱骂';
+
+  @override
+  String get reportReasonSpam => '垃圾信息/广告';
+
+  @override
+  String get reportReasonSexual => '色情/不当内容';
+
+  @override
+  String get reportReasonViolence => '暴力内容';
+
+  @override
+  String get reportReasonFraud => '欺诈';
+
+  @override
+  String get reportReasonOther => '其他';
+
+  @override
+  String get reportReasonOtherHint => '请填写举报原因';
+
+  @override
+  String get reportReasonPickImages => '上传图片';
+
+  @override
+  String reportReasonImagesSelected(int count) {
+    return '已选择$count张图片';
+  }
+
+  @override
+  String reportReasonPickImageFailed(String error) {
+    return '图片选择失败: $error';
+  }
+
+  @override
+  String get reportReasonSubmit => '提交';
 
   @override
   String get contactRemarkEmpty => '备注不能为空';
@@ -1198,6 +1463,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messagePreviewChannelBracket => '[频道]';
+
+  @override
+  String get messagePreviewChannelShare => '频道分享';
+
+  @override
+  String get messagePreviewGroupInvite => '邀请加入群聊';
 
   @override
   String get messagePreviewMessage => '消息';
@@ -1613,6 +1884,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonRetry => '重试';
 
   @override
+  String get commonUser => '用户';
+
+  @override
   String get sessionExpiredTitle => '账号在其他设备登录';
 
   @override
@@ -1646,6 +1920,210 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get channelEmptySubtitle => '加入或创建频道后会显示在这里';
+
+  @override
+  String get channelSyncingTitle => '正在同步频道';
+
+  @override
+  String get channelSyncingSubtitle => '请稍候';
+
+  @override
+  String get channelMyChannelsTitle => '我的频道';
+
+  @override
+  String get channelJoinedSection => '已加入';
+
+  @override
+  String get channelCreatedSection => '我创建';
+
+  @override
+  String get channelCreatedEmptyTitle => '暂无我创建的频道';
+
+  @override
+  String get channelJoinedEmptyTitle => '暂无已加入频道';
+
+  @override
+  String get channelCreatedEmptySubtitle => '创建的频道会显示在这里';
+
+  @override
+  String get channelJoinedEmptySubtitle => '加入的频道会显示在这里';
+
+  @override
+  String get channelOpenSyncing => '频道正在同步，请稍后重试';
+
+  @override
+  String get channelDissolved => '频道已经解散';
+
+  @override
+  String get channelKindText => '文字';
+
+  @override
+  String get channelKindPost => '帖子';
+
+  @override
+  String get channelAvatarFallback => '频';
+
+  @override
+  String get channelMenuPin => '置顶';
+
+  @override
+  String get channelMenuUnpin => '取消置顶';
+
+  @override
+  String channelMenuPinned(String name) {
+    return '已置顶「$name」';
+  }
+
+  @override
+  String channelMenuUnpinned(String name) {
+    return '已取消置顶「$name」';
+  }
+
+  @override
+  String get channelMenuHide => '不显示';
+
+  @override
+  String channelMenuHidden(String name) {
+    return '已隐藏「$name」';
+  }
+
+  @override
+  String get channelMenuDelete => '删除频道';
+
+  @override
+  String channelMenuDeleted(String name) {
+    return '已删除「$name」';
+  }
+
+  @override
+  String get channelTimeMonday => '周一';
+
+  @override
+  String get channelTimeTuesday => '周二';
+
+  @override
+  String get channelTimeWednesday => '周三';
+
+  @override
+  String get channelTimeThursday => '周四';
+
+  @override
+  String get channelTimeFriday => '周五';
+
+  @override
+  String get channelTimeSaturday => '周六';
+
+  @override
+  String get channelTimeSunday => '周日';
+
+  @override
+  String get channelInfoTitle => '频道信息';
+
+  @override
+  String get channelInfoDetailAction => '频道详情';
+
+  @override
+  String get channelInfoShareAction => '分享频道';
+
+  @override
+  String get channelInfoReportAction => '举报频道';
+
+  @override
+  String get channelInfoLeaveAction => '退出频道';
+
+  @override
+  String get channelInfoDissolveAction => '解散频道';
+
+  @override
+  String get channelInfoNoRemovableMembers => '暂无可移除成员';
+
+  @override
+  String get channelInfoRemoveMembersTitle => '移除频道成员';
+
+  @override
+  String channelInfoConfirmRemove(String name) {
+    return '确认移除$name';
+  }
+
+  @override
+  String get channelInfoMemberRemoved => '已移除成员';
+
+  @override
+  String channelInfoRemoveFailed(String error) {
+    return '移除失败：$error';
+  }
+
+  @override
+  String get channelInfoMuteAll => '全员禁言';
+
+  @override
+  String get channelInfoMuteEnabled => '已开启全员禁言';
+
+  @override
+  String get channelInfoMuteDisabled => '已解除全员禁言';
+
+  @override
+  String channelInfoMuteEnableFailed(String error) {
+    return '开启全员禁言失败：$error';
+  }
+
+  @override
+  String channelInfoMuteDisableFailed(String error) {
+    return '解除全员禁言失败：$error';
+  }
+
+  @override
+  String get channelInfoReportMissingRoom => '举报提交失败: 缺少频道房间ID';
+
+  @override
+  String get channelInfoReportSubmitted => '举报已提交';
+
+  @override
+  String channelInfoReportFailed(String error) {
+    return '举报提交失败: $error';
+  }
+
+  @override
+  String get channelInfoShared => '已分享频道';
+
+  @override
+  String channelInfoShareFailed(String error) {
+    return '分享频道失败：$error';
+  }
+
+  @override
+  String get channelInfoLeaveConfirm => '确定退出？';
+
+  @override
+  String get channelInfoLeft => '已退出频道';
+
+  @override
+  String channelInfoLeaveFailed(String error) {
+    return '退出频道失败：$error';
+  }
+
+  @override
+  String get channelInfoDissolveConfirm => '确定解散？';
+
+  @override
+  String get channelInfoDissolved => '已解散频道';
+
+  @override
+  String channelInfoDissolveFailed(String error) {
+    return '解散频道失败：$error';
+  }
+
+  @override
+  String get channelDetailIntroTitle => '频道介绍';
+
+  @override
+  String get channelDetailTitle => '频道详情';
+
+  @override
+  String get channelDetailCopiedId => '已复制频道 ID';
+
+  @override
+  String get channelDetailNoIntro => '暂无频道介绍';
 
   @override
   String channelJoinFailed(String error) {

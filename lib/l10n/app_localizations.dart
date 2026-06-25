@@ -742,6 +742,156 @@ abstract class AppLocalizations {
   /// **'名称、头像、简介'**
   String get channelManageCreateChannelValue;
 
+  /// No description provided for @createChannelTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建频道'**
+  String get createChannelTitle;
+
+  /// No description provided for @createChannelNameTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道名称'**
+  String get createChannelNameTitle;
+
+  /// No description provided for @createChannelNameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入'**
+  String get createChannelNameHint;
+
+  /// No description provided for @createChannelAvatarTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'上传频道头像'**
+  String get createChannelAvatarTitle;
+
+  /// No description provided for @createChannelAvatarSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'支持图片上传，作为频道展示头像'**
+  String get createChannelAvatarSubtitle;
+
+  /// No description provided for @createChannelTypeTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择频道类型'**
+  String get createChannelTypeTitle;
+
+  /// No description provided for @createChannelTypeText.
+  ///
+  /// In zh, this message translates to:
+  /// **'文字'**
+  String get createChannelTypeText;
+
+  /// No description provided for @createChannelTypeTextSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'成员自由发言'**
+  String get createChannelTypeTextSubtitle;
+
+  /// No description provided for @createChannelTypePosts.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子'**
+  String get createChannelTypePosts;
+
+  /// No description provided for @createChannelTypePostsSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子与评论'**
+  String get createChannelTypePostsSubtitle;
+
+  /// No description provided for @createChannelPermissionsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道权限'**
+  String get createChannelPermissionsTitle;
+
+  /// No description provided for @createChannelPublicTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'是否公开'**
+  String get createChannelPublicTitle;
+
+  /// No description provided for @createChannelPublicSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭后仅通过邀请加入'**
+  String get createChannelPublicSubtitle;
+
+  /// No description provided for @createChannelApprovalTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入是否需要审核'**
+  String get createChannelApprovalTitle;
+
+  /// No description provided for @createChannelApprovalSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启后新成员加入前需要频道审核'**
+  String get createChannelApprovalSubtitle;
+
+  /// No description provided for @createChannelIntroTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道介绍'**
+  String get createChannelIntroTitle;
+
+  /// No description provided for @createChannelIntroHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入频道介绍...'**
+  String get createChannelIntroHint;
+
+  /// No description provided for @createChannelSubmit.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建频道'**
+  String get createChannelSubmit;
+
+  /// No description provided for @createChannelAvatarUploading.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道头像上传中，请稍候'**
+  String get createChannelAvatarUploading;
+
+  /// No description provided for @createChannelNameRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道名称不能为空'**
+  String get createChannelNameRequired;
+
+  /// No description provided for @createChannelAvatarRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请上传频道头像'**
+  String get createChannelAvatarRequired;
+
+  /// No description provided for @createChannelIntroRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道介绍不能为空'**
+  String get createChannelIntroRequired;
+
+  /// No description provided for @createChannelAvatarUploadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道头像上传失败：{error}'**
+  String createChannelAvatarUploadFailed(String error);
+
+  /// No description provided for @createChannelCreated.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道已创建'**
+  String get createChannelCreated;
+
+  /// No description provided for @createChannelFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建频道失败：{error}'**
+  String createChannelFailed(String error);
+
   /// No description provided for @channelManageInviteLinks.
   ///
   /// In zh, this message translates to:
@@ -1517,6 +1667,270 @@ abstract class AppLocalizations {
   /// **'缺少联系人房间信息，无法保存备注'**
   String get contactRoomMissingRemark;
 
+  /// No description provided for @chatInfoTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'聊天信息'**
+  String get chatInfoTitle;
+
+  /// No description provided for @chatInfoMissingConversation.
+  ///
+  /// In zh, this message translates to:
+  /// **'会话不存在'**
+  String get chatInfoMissingConversation;
+
+  /// No description provided for @chatInfoSearchRecords.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索聊天记录'**
+  String get chatInfoSearchRecords;
+
+  /// No description provided for @chatInfoContactMissingRemark.
+  ///
+  /// In zh, this message translates to:
+  /// **'缺少联系人信息，无法设置备注'**
+  String get chatInfoContactMissingRemark;
+
+  /// No description provided for @chatInfoSelfBlockDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前用户无法拉黑'**
+  String get chatInfoSelfBlockDisabled;
+
+  /// No description provided for @chatInfoSelfReportDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前用户无法举报'**
+  String get chatInfoSelfReportDisabled;
+
+  /// No description provided for @chatInfoClearHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空聊天记录'**
+  String get chatInfoClearHistory;
+
+  /// No description provided for @chatInfoClearHistoryConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定清空所有聊天记录？该操作不可恢复。'**
+  String get chatInfoClearHistoryConfirm;
+
+  /// No description provided for @chatInfoClearHistoryAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空'**
+  String get chatInfoClearHistoryAction;
+
+  /// No description provided for @chatInfoClearHistoryCleared.
+  ///
+  /// In zh, this message translates to:
+  /// **'聊天记录已清空'**
+  String get chatInfoClearHistoryCleared;
+
+  /// No description provided for @chatInfoClearHistoryFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空聊天记录失败: {error}'**
+  String chatInfoClearHistoryFailed(String error);
+
+  /// No description provided for @chatInfoUidCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制 UID'**
+  String get chatInfoUidCopied;
+
+  /// No description provided for @chatInfoContactSyncing.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在同步联系人信息'**
+  String get chatInfoContactSyncing;
+
+  /// No description provided for @groupInfoTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'聊天信息({count})'**
+  String groupInfoTitle(int count);
+
+  /// No description provided for @groupInfoInvite.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请'**
+  String get groupInfoInvite;
+
+  /// No description provided for @groupInfoRemove.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除'**
+  String get groupInfoRemove;
+
+  /// No description provided for @groupInfoManagement.
+  ///
+  /// In zh, this message translates to:
+  /// **'群管理'**
+  String get groupInfoManagement;
+
+  /// No description provided for @groupInfoSearchRecords.
+  ///
+  /// In zh, this message translates to:
+  /// **'查找聊天记录'**
+  String get groupInfoSearchRecords;
+
+  /// No description provided for @groupInfoPinChat.
+  ///
+  /// In zh, this message translates to:
+  /// **'置顶聊天'**
+  String get groupInfoPinChat;
+
+  /// No description provided for @groupInfoMyNickname.
+  ///
+  /// In zh, this message translates to:
+  /// **'我在本群昵称'**
+  String get groupInfoMyNickname;
+
+  /// No description provided for @groupInfoShowMemberNicknames.
+  ///
+  /// In zh, this message translates to:
+  /// **'显示群成员昵称'**
+  String get groupInfoShowMemberNicknames;
+
+  /// No description provided for @groupInfoReportGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报群聊'**
+  String get groupInfoReportGroup;
+
+  /// No description provided for @groupInfoDissolveGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'解散群聊'**
+  String get groupInfoDissolveGroup;
+
+  /// No description provided for @groupInfoLeaveGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出群聊'**
+  String get groupInfoLeaveGroup;
+
+  /// No description provided for @groupInfoNoRemovableMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可移除成员'**
+  String get groupInfoNoRemovableMembers;
+
+  /// No description provided for @groupInfoRemoveMemberTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除成员'**
+  String get groupInfoRemoveMemberTitle;
+
+  /// No description provided for @groupInfoRemoveMemberConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定将 {name} 移出群聊吗？'**
+  String groupInfoRemoveMemberConfirm(String name);
+
+  /// No description provided for @groupInfoMemberRemoved.
+  ///
+  /// In zh, this message translates to:
+  /// **'已移除{name}'**
+  String groupInfoMemberRemoved(String name);
+
+  /// No description provided for @groupInfoRemoveMemberFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除成员失败: {error}'**
+  String groupInfoRemoveMemberFailed(String error);
+
+  /// No description provided for @groupInfoRemarkTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'备注'**
+  String get groupInfoRemarkTitle;
+
+  /// No description provided for @groupInfoRemarkHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入群聊备注'**
+  String get groupInfoRemarkHint;
+
+  /// No description provided for @groupInfoRemarkCleared.
+  ///
+  /// In zh, this message translates to:
+  /// **'已清除群聊备注'**
+  String get groupInfoRemarkCleared;
+
+  /// No description provided for @groupInfoRemarkUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊备注已更新'**
+  String get groupInfoRemarkUpdated;
+
+  /// No description provided for @groupInfoNicknameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'输入群昵称'**
+  String get groupInfoNicknameHint;
+
+  /// No description provided for @groupInfoNicknameEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'群昵称不能为空'**
+  String get groupInfoNicknameEmpty;
+
+  /// No description provided for @groupInfoCurrentUserMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'缺少当前用户信息'**
+  String get groupInfoCurrentUserMissing;
+
+  /// No description provided for @groupInfoNicknameUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'群昵称已更新'**
+  String get groupInfoNicknameUpdated;
+
+  /// No description provided for @groupInfoNicknameUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'设置群昵称失败: {error}'**
+  String groupInfoNicknameUpdateFailed(String error);
+
+  /// No description provided for @groupInfoClearHistoryConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定清空当前群聊的所有聊天记录？该操作不可恢复。'**
+  String get groupInfoClearHistoryConfirm;
+
+  /// No description provided for @groupInfoDissolveConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要解散该群聊吗？'**
+  String get groupInfoDissolveConfirm;
+
+  /// No description provided for @groupInfoLeaveConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定要退出该群聊吗？'**
+  String get groupInfoLeaveConfirm;
+
+  /// No description provided for @groupInfoDissolveAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'解散'**
+  String get groupInfoDissolveAction;
+
+  /// No description provided for @groupInfoLeaveAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出'**
+  String get groupInfoLeaveAction;
+
+  /// No description provided for @groupInfoLeaveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'{action}群聊失败: {error}'**
+  String groupInfoLeaveFailed(String action, String error);
+
   /// No description provided for @contactFriendRequestRestored.
   ///
   /// In zh, this message translates to:
@@ -1600,6 +2014,78 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'举报提交失败: {error}'**
   String contactReportSubmitFailed(String error);
+
+  /// No description provided for @reportReasonDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'请选择举报原因'**
+  String get reportReasonDialogTitle;
+
+  /// No description provided for @reportReasonHarassment.
+  ///
+  /// In zh, this message translates to:
+  /// **'骚扰/辱骂'**
+  String get reportReasonHarassment;
+
+  /// No description provided for @reportReasonSpam.
+  ///
+  /// In zh, this message translates to:
+  /// **'垃圾信息/广告'**
+  String get reportReasonSpam;
+
+  /// No description provided for @reportReasonSexual.
+  ///
+  /// In zh, this message translates to:
+  /// **'色情/不当内容'**
+  String get reportReasonSexual;
+
+  /// No description provided for @reportReasonViolence.
+  ///
+  /// In zh, this message translates to:
+  /// **'暴力内容'**
+  String get reportReasonViolence;
+
+  /// No description provided for @reportReasonFraud.
+  ///
+  /// In zh, this message translates to:
+  /// **'欺诈'**
+  String get reportReasonFraud;
+
+  /// No description provided for @reportReasonOther.
+  ///
+  /// In zh, this message translates to:
+  /// **'其他'**
+  String get reportReasonOther;
+
+  /// No description provided for @reportReasonOtherHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请填写举报原因'**
+  String get reportReasonOtherHint;
+
+  /// No description provided for @reportReasonPickImages.
+  ///
+  /// In zh, this message translates to:
+  /// **'上传图片'**
+  String get reportReasonPickImages;
+
+  /// No description provided for @reportReasonImagesSelected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择{count}张图片'**
+  String reportReasonImagesSelected(int count);
+
+  /// No description provided for @reportReasonPickImageFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'图片选择失败: {error}'**
+  String reportReasonPickImageFailed(String error);
+
+  /// No description provided for @reportReasonSubmit.
+  ///
+  /// In zh, this message translates to:
+  /// **'提交'**
+  String get reportReasonSubmit;
 
   /// No description provided for @contactRemarkEmpty.
   ///
@@ -2326,6 +2812,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'[频道]'**
   String get messagePreviewChannelBracket;
+
+  /// No description provided for @messagePreviewChannelShare.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道分享'**
+  String get messagePreviewChannelShare;
+
+  /// No description provided for @messagePreviewGroupInvite.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请加入群聊'**
+  String get messagePreviewGroupInvite;
 
   /// No description provided for @messagePreviewMessage.
   ///
@@ -3125,6 +3623,12 @@ abstract class AppLocalizations {
   /// **'重试'**
   String get commonRetry;
 
+  /// No description provided for @commonUser.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户'**
+  String get commonUser;
+
   /// No description provided for @sessionExpiredTitle.
   ///
   /// In zh, this message translates to:
@@ -3190,6 +3694,366 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'加入或创建频道后会显示在这里'**
   String get channelEmptySubtitle;
+
+  /// No description provided for @channelSyncingTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在同步频道'**
+  String get channelSyncingTitle;
+
+  /// No description provided for @channelSyncingSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'请稍候'**
+  String get channelSyncingSubtitle;
+
+  /// No description provided for @channelMyChannelsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的频道'**
+  String get channelMyChannelsTitle;
+
+  /// No description provided for @channelJoinedSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入'**
+  String get channelJoinedSection;
+
+  /// No description provided for @channelCreatedSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'我创建'**
+  String get channelCreatedSection;
+
+  /// No description provided for @channelCreatedEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无我创建的频道'**
+  String get channelCreatedEmptyTitle;
+
+  /// No description provided for @channelJoinedEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无已加入频道'**
+  String get channelJoinedEmptyTitle;
+
+  /// No description provided for @channelCreatedEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'创建的频道会显示在这里'**
+  String get channelCreatedEmptySubtitle;
+
+  /// No description provided for @channelJoinedEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入的频道会显示在这里'**
+  String get channelJoinedEmptySubtitle;
+
+  /// No description provided for @channelOpenSyncing.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道正在同步，请稍后重试'**
+  String get channelOpenSyncing;
+
+  /// No description provided for @channelDissolved.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道已经解散'**
+  String get channelDissolved;
+
+  /// No description provided for @channelKindText.
+  ///
+  /// In zh, this message translates to:
+  /// **'文字'**
+  String get channelKindText;
+
+  /// No description provided for @channelKindPost.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子'**
+  String get channelKindPost;
+
+  /// No description provided for @channelAvatarFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'频'**
+  String get channelAvatarFallback;
+
+  /// No description provided for @channelMenuPin.
+  ///
+  /// In zh, this message translates to:
+  /// **'置顶'**
+  String get channelMenuPin;
+
+  /// No description provided for @channelMenuUnpin.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消置顶'**
+  String get channelMenuUnpin;
+
+  /// No description provided for @channelMenuPinned.
+  ///
+  /// In zh, this message translates to:
+  /// **'已置顶「{name}」'**
+  String channelMenuPinned(String name);
+
+  /// No description provided for @channelMenuUnpinned.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消置顶「{name}」'**
+  String channelMenuUnpinned(String name);
+
+  /// No description provided for @channelMenuHide.
+  ///
+  /// In zh, this message translates to:
+  /// **'不显示'**
+  String get channelMenuHide;
+
+  /// No description provided for @channelMenuHidden.
+  ///
+  /// In zh, this message translates to:
+  /// **'已隐藏「{name}」'**
+  String channelMenuHidden(String name);
+
+  /// No description provided for @channelMenuDelete.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除频道'**
+  String get channelMenuDelete;
+
+  /// No description provided for @channelMenuDeleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除「{name}」'**
+  String channelMenuDeleted(String name);
+
+  /// No description provided for @channelTimeMonday.
+  ///
+  /// In zh, this message translates to:
+  /// **'周一'**
+  String get channelTimeMonday;
+
+  /// No description provided for @channelTimeTuesday.
+  ///
+  /// In zh, this message translates to:
+  /// **'周二'**
+  String get channelTimeTuesday;
+
+  /// No description provided for @channelTimeWednesday.
+  ///
+  /// In zh, this message translates to:
+  /// **'周三'**
+  String get channelTimeWednesday;
+
+  /// No description provided for @channelTimeThursday.
+  ///
+  /// In zh, this message translates to:
+  /// **'周四'**
+  String get channelTimeThursday;
+
+  /// No description provided for @channelTimeFriday.
+  ///
+  /// In zh, this message translates to:
+  /// **'周五'**
+  String get channelTimeFriday;
+
+  /// No description provided for @channelTimeSaturday.
+  ///
+  /// In zh, this message translates to:
+  /// **'周六'**
+  String get channelTimeSaturday;
+
+  /// No description provided for @channelTimeSunday.
+  ///
+  /// In zh, this message translates to:
+  /// **'周日'**
+  String get channelTimeSunday;
+
+  /// No description provided for @channelInfoTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道信息'**
+  String get channelInfoTitle;
+
+  /// No description provided for @channelInfoDetailAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道详情'**
+  String get channelInfoDetailAction;
+
+  /// No description provided for @channelInfoShareAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'分享频道'**
+  String get channelInfoShareAction;
+
+  /// No description provided for @channelInfoReportAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报频道'**
+  String get channelInfoReportAction;
+
+  /// No description provided for @channelInfoLeaveAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出频道'**
+  String get channelInfoLeaveAction;
+
+  /// No description provided for @channelInfoDissolveAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'解散频道'**
+  String get channelInfoDissolveAction;
+
+  /// No description provided for @channelInfoNoRemovableMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可移除成员'**
+  String get channelInfoNoRemovableMembers;
+
+  /// No description provided for @channelInfoRemoveMembersTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除频道成员'**
+  String get channelInfoRemoveMembersTitle;
+
+  /// No description provided for @channelInfoConfirmRemove.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认移除{name}'**
+  String channelInfoConfirmRemove(String name);
+
+  /// No description provided for @channelInfoMemberRemoved.
+  ///
+  /// In zh, this message translates to:
+  /// **'已移除成员'**
+  String get channelInfoMemberRemoved;
+
+  /// No description provided for @channelInfoRemoveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除失败：{error}'**
+  String channelInfoRemoveFailed(String error);
+
+  /// No description provided for @channelInfoMuteAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全员禁言'**
+  String get channelInfoMuteAll;
+
+  /// No description provided for @channelInfoMuteEnabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已开启全员禁言'**
+  String get channelInfoMuteEnabled;
+
+  /// No description provided for @channelInfoMuteDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已解除全员禁言'**
+  String get channelInfoMuteDisabled;
+
+  /// No description provided for @channelInfoMuteEnableFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'开启全员禁言失败：{error}'**
+  String channelInfoMuteEnableFailed(String error);
+
+  /// No description provided for @channelInfoMuteDisableFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'解除全员禁言失败：{error}'**
+  String channelInfoMuteDisableFailed(String error);
+
+  /// No description provided for @channelInfoReportMissingRoom.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报提交失败: 缺少频道房间ID'**
+  String get channelInfoReportMissingRoom;
+
+  /// No description provided for @channelInfoReportSubmitted.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报已提交'**
+  String get channelInfoReportSubmitted;
+
+  /// No description provided for @channelInfoReportFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'举报提交失败: {error}'**
+  String channelInfoReportFailed(String error);
+
+  /// No description provided for @channelInfoShared.
+  ///
+  /// In zh, this message translates to:
+  /// **'已分享频道'**
+  String get channelInfoShared;
+
+  /// No description provided for @channelInfoShareFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'分享频道失败：{error}'**
+  String channelInfoShareFailed(String error);
+
+  /// No description provided for @channelInfoLeaveConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定退出？'**
+  String get channelInfoLeaveConfirm;
+
+  /// No description provided for @channelInfoLeft.
+  ///
+  /// In zh, this message translates to:
+  /// **'已退出频道'**
+  String get channelInfoLeft;
+
+  /// No description provided for @channelInfoLeaveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出频道失败：{error}'**
+  String channelInfoLeaveFailed(String error);
+
+  /// No description provided for @channelInfoDissolveConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定解散？'**
+  String get channelInfoDissolveConfirm;
+
+  /// No description provided for @channelInfoDissolved.
+  ///
+  /// In zh, this message translates to:
+  /// **'已解散频道'**
+  String get channelInfoDissolved;
+
+  /// No description provided for @channelInfoDissolveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'解散频道失败：{error}'**
+  String channelInfoDissolveFailed(String error);
+
+  /// No description provided for @channelDetailIntroTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道介绍'**
+  String get channelDetailIntroTitle;
+
+  /// No description provided for @channelDetailTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道详情'**
+  String get channelDetailTitle;
+
+  /// No description provided for @channelDetailCopiedId.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制频道 ID'**
+  String get channelDetailCopiedId;
+
+  /// No description provided for @channelDetailNoIntro.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无频道介绍'**
+  String get channelDetailNoIntro;
 
   /// No description provided for @channelJoinFailed.
   ///

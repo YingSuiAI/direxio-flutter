@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import 'package:intl/intl.dart';
 import '../channel/channel_home_tab.dart';
+import '../home/home_plus_menu.dart';
 import '../home/conversation_summary_writer.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -55,8 +55,6 @@ const _homeMuted = Color(0xFFA3A3A4);
 const _homeBorder = Color(0xFFE6E6E6);
 const _conversationTileAvatarSize = 42.0;
 const _iconMenuAddFriend = 'assets/icons/menu_add_friend.svg';
-const _iconMenuCreateGroup = 'assets/icons/menu_create_group.svg';
-const _iconMenuScan = 'assets/icons/menu_scan.svg';
 const _iconTabContacts = 'assets/icons/tab_contacts.svg';
 const _iconBottomSearchTg = 'assets/icons/bottom_search_tg.svg';
 const _assetTabChatsNormal = 'assets/images/Vector (1).png';
@@ -804,24 +802,22 @@ List<String> _pendingFriendRequestReadKeys({
 
 String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';
 
-enum _PlusAction { contact, group, scan }
-
 Future<void> _handleHomePlusTap(BuildContext context, WidgetRef ref) async {
   final action = await _showHomePlusMenu(context);
   if (action == null || !context.mounted) return;
   switch (action) {
-    case _PlusAction.contact:
+    case HomePlusAction.contact:
       context.push('/add-contact');
-    case _PlusAction.group:
+    case HomePlusAction.group:
       showCreateGroupFlow(context, ref);
-    case _PlusAction.scan:
+    case HomePlusAction.scan:
       context.push('/scan');
   }
 }
 
-Future<_PlusAction?> _showHomePlusMenu(BuildContext context) {
+Future<HomePlusAction?> _showHomePlusMenu(BuildContext context) {
   final padding = MediaQuery.of(context).viewPadding;
-  return showGeneralDialog<_PlusAction>(
+  return showGeneralDialog<HomePlusAction>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'home-plus-menu',
@@ -833,9 +829,9 @@ Future<_PlusAction?> _showHomePlusMenu(BuildContext context) {
           Positioned(
             top: padding.top + 53,
             right: 15,
-            width: 126,
-            height: 126,
-            child: const _HomePlusMenuPanel(),
+            width: HomePlusMenuPanel.width,
+            height: HomePlusMenuPanel.height,
+            child: const HomePlusMenuPanel(),
           ),
         ],
       );
@@ -858,114 +854,6 @@ Future<_PlusAction?> _showHomePlusMenu(BuildContext context) {
       );
     },
   );
-}
-
-class _HomePlusMenuPanel extends StatelessWidget {
-  const _HomePlusMenuPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tk;
-    final isDark = _homeDark(context);
-    final panelColor =
-        (isDark ? t.surfaceHigh : t.surface).withValues(alpha: 0.86);
-    final borderColor =
-        (isDark ? t.border : t.surface).withValues(alpha: isDark ? 0.9 : 1);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
-          key: const ValueKey('home_plus_menu_panel'),
-          decoration: BoxDecoration(
-            color: panelColor,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: borderColor),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.32 : 0.12),
-                blurRadius: 36,
-                offset: const Offset(0, 7),
-              ),
-            ],
-          ),
-          child: const Material(
-            color: Colors.transparent,
-            child: Padding(
-              padding: EdgeInsets.only(top: 15),
-              child: Column(
-                children: [
-                  _PlusMenuTile(
-                    iconAsset: _iconMenuAddFriend,
-                    label: '添加好友',
-                    value: _PlusAction.contact,
-                  ),
-                  SizedBox(height: 5),
-                  _PlusMenuTile(
-                    iconAsset: _iconMenuCreateGroup,
-                    label: '创建群聊',
-                    value: _PlusAction.group,
-                  ),
-                  SizedBox(height: 5),
-                  _PlusMenuTile(
-                    iconAsset: _iconMenuScan,
-                    label: '扫一扫',
-                    value: _PlusAction.scan,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlusMenuTile extends StatelessWidget {
-  const _PlusMenuTile({
-    required this.iconAsset,
-    required this.label,
-    required this.value,
-  });
-
-  final String iconAsset;
-  final String label;
-  final _PlusAction value;
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = _homeTextColor(context);
-    return InkWell(
-      onTap: () => Navigator.of(context).pop(value),
-      child: SizedBox(
-        height: 32,
-        child: Row(
-          children: [
-            const SizedBox(width: 20),
-            _DesignAssetIcon(
-              assetName: iconAsset,
-              size: 20,
-              color: textColor,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTheme.sans(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: textColor,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _HomeNavItem {
@@ -1498,6 +1386,7 @@ class _ChatList extends ConsumerWidget {
       messageOrder: messageOrder,
       groupRemarkNames: groupRemarkNames,
       currentUserId: currentUserId,
+      l10n: l10n,
       agentEmptyPreview: l10n?.agentChatEmptyTitle ?? '开始我们的聊天吧',
       includeDefaultAgentConversation: true,
     );

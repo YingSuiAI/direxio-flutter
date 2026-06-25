@@ -350,6 +350,89 @@ class AppLocalizationsEn extends AppLocalizations {
   String get channelManageCreateChannelValue => 'Name, avatar, bio';
 
   @override
+  String get createChannelTitle => 'Create Channel';
+
+  @override
+  String get createChannelNameTitle => 'Channel Name';
+
+  @override
+  String get createChannelNameHint => 'Enter';
+
+  @override
+  String get createChannelAvatarTitle => 'Upload Channel Avatar';
+
+  @override
+  String get createChannelAvatarSubtitle =>
+      'Upload an image to use as the channel avatar';
+
+  @override
+  String get createChannelTypeTitle => 'Select Channel Type';
+
+  @override
+  String get createChannelTypeText => 'Text';
+
+  @override
+  String get createChannelTypeTextSubtitle => 'Members can chat freely';
+
+  @override
+  String get createChannelTypePosts => 'Posts';
+
+  @override
+  String get createChannelTypePostsSubtitle => 'Posts and comments';
+
+  @override
+  String get createChannelPermissionsTitle => 'Channel Permissions';
+
+  @override
+  String get createChannelPublicTitle => 'Public';
+
+  @override
+  String get createChannelPublicSubtitle =>
+      'When off, members can only join by invite';
+
+  @override
+  String get createChannelApprovalTitle => 'Require Join Approval';
+
+  @override
+  String get createChannelApprovalSubtitle =>
+      'When on, new members need channel approval';
+
+  @override
+  String get createChannelIntroTitle => 'Channel Intro';
+
+  @override
+  String get createChannelIntroHint => 'Enter channel intro...';
+
+  @override
+  String get createChannelSubmit => 'Create Channel';
+
+  @override
+  String get createChannelAvatarUploading =>
+      'Channel avatar is uploading. Please wait.';
+
+  @override
+  String get createChannelNameRequired => 'Channel name is required';
+
+  @override
+  String get createChannelAvatarRequired => 'Upload a channel avatar';
+
+  @override
+  String get createChannelIntroRequired => 'Channel intro is required';
+
+  @override
+  String createChannelAvatarUploadFailed(String error) {
+    return 'Failed to upload channel avatar: $error';
+  }
+
+  @override
+  String get createChannelCreated => 'Channel created';
+
+  @override
+  String createChannelFailed(String error) {
+    return 'Failed to create channel: $error';
+  }
+
+  @override
   String get channelManageInviteLinks => 'Invite Links';
 
   @override
@@ -768,6 +851,155 @@ class AppLocalizationsEn extends AppLocalizations {
       'Missing contact room information. Cannot save remark.';
 
   @override
+  String get chatInfoTitle => 'Chat Info';
+
+  @override
+  String get chatInfoMissingConversation => 'Conversation not found';
+
+  @override
+  String get chatInfoSearchRecords => 'Search Chat';
+
+  @override
+  String get chatInfoContactMissingRemark =>
+      'Missing contact information. Cannot set remark.';
+
+  @override
+  String get chatInfoSelfBlockDisabled => 'You cannot block the current user';
+
+  @override
+  String get chatInfoSelfReportDisabled => 'You cannot report the current user';
+
+  @override
+  String get chatInfoClearHistory => 'Clear Chat History';
+
+  @override
+  String get chatInfoClearHistoryConfirm =>
+      'Clear all chat history? This cannot be undone.';
+
+  @override
+  String get chatInfoClearHistoryAction => 'Clear';
+
+  @override
+  String get chatInfoClearHistoryCleared => 'Chat history cleared';
+
+  @override
+  String chatInfoClearHistoryFailed(String error) {
+    return 'Failed to clear chat history: $error';
+  }
+
+  @override
+  String get chatInfoUidCopied => 'UID copied';
+
+  @override
+  String get chatInfoContactSyncing => 'Syncing contact information';
+
+  @override
+  String groupInfoTitle(int count) {
+    return 'Chat Info ($count)';
+  }
+
+  @override
+  String get groupInfoInvite => 'Invite';
+
+  @override
+  String get groupInfoRemove => 'Remove';
+
+  @override
+  String get groupInfoManagement => 'Group Management';
+
+  @override
+  String get groupInfoSearchRecords => 'Search Chat';
+
+  @override
+  String get groupInfoPinChat => 'Pin Chat';
+
+  @override
+  String get groupInfoMyNickname => 'My Nickname in This Group';
+
+  @override
+  String get groupInfoShowMemberNicknames => 'Show Member Nicknames';
+
+  @override
+  String get groupInfoReportGroup => 'Report Group';
+
+  @override
+  String get groupInfoDissolveGroup => 'Dissolve Group';
+
+  @override
+  String get groupInfoLeaveGroup => 'Leave Group';
+
+  @override
+  String get groupInfoNoRemovableMembers => 'No removable members';
+
+  @override
+  String get groupInfoRemoveMemberTitle => 'Remove Member';
+
+  @override
+  String groupInfoRemoveMemberConfirm(String name) {
+    return 'Remove $name from this group?';
+  }
+
+  @override
+  String groupInfoMemberRemoved(String name) {
+    return 'Removed $name';
+  }
+
+  @override
+  String groupInfoRemoveMemberFailed(String error) {
+    return 'Failed to remove member: $error';
+  }
+
+  @override
+  String get groupInfoRemarkTitle => 'Remark';
+
+  @override
+  String get groupInfoRemarkHint => 'Enter group remark';
+
+  @override
+  String get groupInfoRemarkCleared => 'Group remark cleared';
+
+  @override
+  String get groupInfoRemarkUpdated => 'Group remark updated';
+
+  @override
+  String get groupInfoNicknameHint => 'Enter group nickname';
+
+  @override
+  String get groupInfoNicknameEmpty => 'Group nickname cannot be empty';
+
+  @override
+  String get groupInfoCurrentUserMissing => 'Missing current user information';
+
+  @override
+  String get groupInfoNicknameUpdated => 'Group nickname updated';
+
+  @override
+  String groupInfoNicknameUpdateFailed(String error) {
+    return 'Failed to set group nickname: $error';
+  }
+
+  @override
+  String get groupInfoClearHistoryConfirm =>
+      'Clear all chat history in this group? This cannot be undone.';
+
+  @override
+  String get groupInfoDissolveConfirm => 'Dissolve this group?';
+
+  @override
+  String get groupInfoLeaveConfirm => 'Leave this group?';
+
+  @override
+  String get groupInfoDissolveAction => 'Dissolve';
+
+  @override
+  String get groupInfoLeaveAction => 'Leave';
+
+  @override
+  String groupInfoLeaveFailed(String action, String error) {
+    return 'Failed to $action group: $error';
+  }
+
+  @override
   String get contactFriendRequestRestored =>
       'Previous conversation restored. You can continue chatting.';
 
@@ -818,6 +1050,46 @@ class AppLocalizationsEn extends AppLocalizations {
   String contactReportSubmitFailed(String error) {
     return 'Failed to submit report: $error';
   }
+
+  @override
+  String get reportReasonDialogTitle => 'Select a report reason';
+
+  @override
+  String get reportReasonHarassment => 'Harassment / Abuse';
+
+  @override
+  String get reportReasonSpam => 'Spam / Advertising';
+
+  @override
+  String get reportReasonSexual => 'Sexual / Inappropriate content';
+
+  @override
+  String get reportReasonViolence => 'Violence';
+
+  @override
+  String get reportReasonFraud => 'Fraud';
+
+  @override
+  String get reportReasonOther => 'Other';
+
+  @override
+  String get reportReasonOtherHint => 'Describe the report reason';
+
+  @override
+  String get reportReasonPickImages => 'Upload images';
+
+  @override
+  String reportReasonImagesSelected(int count) {
+    return '$count images selected';
+  }
+
+  @override
+  String reportReasonPickImageFailed(String error) {
+    return 'Failed to pick images: $error';
+  }
+
+  @override
+  String get reportReasonSubmit => 'Submit';
 
   @override
   String get contactRemarkEmpty => 'Remark cannot be empty';
@@ -1237,6 +1509,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messagePreviewChannelBracket => '[Channel]';
+
+  @override
+  String get messagePreviewChannelShare => 'Channel share';
+
+  @override
+  String get messagePreviewGroupInvite => 'Group invitation';
 
   @override
   String get messagePreviewMessage => 'Message';
@@ -1664,6 +1942,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonRetry => 'Retry';
 
   @override
+  String get commonUser => 'User';
+
+  @override
   String get sessionExpiredTitle => 'Signed in on another device';
 
   @override
@@ -1701,6 +1982,213 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get channelEmptySubtitle =>
       'Channels you join or create will appear here.';
+
+  @override
+  String get channelSyncingTitle => 'Syncing channels';
+
+  @override
+  String get channelSyncingSubtitle => 'Please wait';
+
+  @override
+  String get channelMyChannelsTitle => 'My Channels';
+
+  @override
+  String get channelJoinedSection => 'Joined';
+
+  @override
+  String get channelCreatedSection => 'Created';
+
+  @override
+  String get channelCreatedEmptyTitle => 'No channels created yet';
+
+  @override
+  String get channelJoinedEmptyTitle => 'No joined channels yet';
+
+  @override
+  String get channelCreatedEmptySubtitle =>
+      'Channels you create will appear here.';
+
+  @override
+  String get channelJoinedEmptySubtitle =>
+      'Channels you join will appear here.';
+
+  @override
+  String get channelOpenSyncing => 'Channel is syncing. Try again later.';
+
+  @override
+  String get channelDissolved => 'Channel has been dissolved';
+
+  @override
+  String get channelKindText => 'Text';
+
+  @override
+  String get channelKindPost => 'Post';
+
+  @override
+  String get channelAvatarFallback => 'C';
+
+  @override
+  String get channelMenuPin => 'Pin';
+
+  @override
+  String get channelMenuUnpin => 'Unpin';
+
+  @override
+  String channelMenuPinned(String name) {
+    return 'Pinned \"$name\"';
+  }
+
+  @override
+  String channelMenuUnpinned(String name) {
+    return 'Unpinned \"$name\"';
+  }
+
+  @override
+  String get channelMenuHide => 'Hide';
+
+  @override
+  String channelMenuHidden(String name) {
+    return 'Hidden \"$name\"';
+  }
+
+  @override
+  String get channelMenuDelete => 'Delete channel';
+
+  @override
+  String channelMenuDeleted(String name) {
+    return 'Deleted \"$name\"';
+  }
+
+  @override
+  String get channelTimeMonday => 'Mon';
+
+  @override
+  String get channelTimeTuesday => 'Tue';
+
+  @override
+  String get channelTimeWednesday => 'Wed';
+
+  @override
+  String get channelTimeThursday => 'Thu';
+
+  @override
+  String get channelTimeFriday => 'Fri';
+
+  @override
+  String get channelTimeSaturday => 'Sat';
+
+  @override
+  String get channelTimeSunday => 'Sun';
+
+  @override
+  String get channelInfoTitle => 'Channel Info';
+
+  @override
+  String get channelInfoDetailAction => 'Channel details';
+
+  @override
+  String get channelInfoShareAction => 'Share channel';
+
+  @override
+  String get channelInfoReportAction => 'Report channel';
+
+  @override
+  String get channelInfoLeaveAction => 'Leave channel';
+
+  @override
+  String get channelInfoDissolveAction => 'Dissolve channel';
+
+  @override
+  String get channelInfoNoRemovableMembers => 'No removable members';
+
+  @override
+  String get channelInfoRemoveMembersTitle => 'Remove channel members';
+
+  @override
+  String channelInfoConfirmRemove(String name) {
+    return 'Remove $name?';
+  }
+
+  @override
+  String get channelInfoMemberRemoved => 'Member removed';
+
+  @override
+  String channelInfoRemoveFailed(String error) {
+    return 'Failed to remove: $error';
+  }
+
+  @override
+  String get channelInfoMuteAll => 'Mute all members';
+
+  @override
+  String get channelInfoMuteEnabled => 'All-member mute enabled';
+
+  @override
+  String get channelInfoMuteDisabled => 'All-member mute disabled';
+
+  @override
+  String channelInfoMuteEnableFailed(String error) {
+    return 'Failed to enable all-member mute: $error';
+  }
+
+  @override
+  String channelInfoMuteDisableFailed(String error) {
+    return 'Failed to disable all-member mute: $error';
+  }
+
+  @override
+  String get channelInfoReportMissingRoom =>
+      'Report failed: missing channel room ID';
+
+  @override
+  String get channelInfoReportSubmitted => 'Report submitted';
+
+  @override
+  String channelInfoReportFailed(String error) {
+    return 'Report failed: $error';
+  }
+
+  @override
+  String get channelInfoShared => 'Channel shared';
+
+  @override
+  String channelInfoShareFailed(String error) {
+    return 'Failed to share channel: $error';
+  }
+
+  @override
+  String get channelInfoLeaveConfirm => 'Leave this channel?';
+
+  @override
+  String get channelInfoLeft => 'Left channel';
+
+  @override
+  String channelInfoLeaveFailed(String error) {
+    return 'Failed to leave channel: $error';
+  }
+
+  @override
+  String get channelInfoDissolveConfirm => 'Dissolve this channel?';
+
+  @override
+  String get channelInfoDissolved => 'Channel dissolved';
+
+  @override
+  String channelInfoDissolveFailed(String error) {
+    return 'Failed to dissolve channel: $error';
+  }
+
+  @override
+  String get channelDetailIntroTitle => 'Channel intro';
+
+  @override
+  String get channelDetailTitle => 'Channel details';
+
+  @override
+  String get channelDetailCopiedId => 'Channel ID copied';
+
+  @override
+  String get channelDetailNoIntro => 'No channel intro yet';
 
   @override
   String channelJoinFailed(String error) {

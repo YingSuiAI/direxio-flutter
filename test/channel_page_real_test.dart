@@ -1775,6 +1775,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: const ChannelInfoPage(channelId: 'ch_real'),
         ),
       ),
@@ -1835,6 +1838,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: const ChannelInfoPage(channelId: 'ch_real'),
         ),
       ),
@@ -2032,6 +2038,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: const ChannelInfoPage(channelId: 'ch_real'),
         ),
       ),
@@ -2686,6 +2695,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: const ChannelInfoPage(channelId: 'ch_real'),
         ),
       ),
@@ -3926,6 +3938,9 @@ Future<void> _pumpRealChannelPage(
       ],
       child: MaterialApp(
         theme: AppTheme.light,
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const ChannelPage(channelId: 'ch_real'),
       ),
     ),

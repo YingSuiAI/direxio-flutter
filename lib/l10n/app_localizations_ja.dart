@@ -345,6 +345,85 @@ class AppLocalizationsJa extends AppLocalizations {
   String get channelManageCreateChannelValue => '名前、アバター、紹介';
 
   @override
+  String get createChannelTitle => 'チャンネルを作成';
+
+  @override
+  String get createChannelNameTitle => 'チャンネル名';
+
+  @override
+  String get createChannelNameHint => '入力してください';
+
+  @override
+  String get createChannelAvatarTitle => 'チャンネルアバターをアップロード';
+
+  @override
+  String get createChannelAvatarSubtitle => 'チャンネル表示用の画像をアップロードできます';
+
+  @override
+  String get createChannelTypeTitle => 'チャンネルタイプを選択';
+
+  @override
+  String get createChannelTypeText => 'テキスト';
+
+  @override
+  String get createChannelTypeTextSubtitle => 'メンバーが自由に発言';
+
+  @override
+  String get createChannelTypePosts => '投稿';
+
+  @override
+  String get createChannelTypePostsSubtitle => '投稿とコメント';
+
+  @override
+  String get createChannelPermissionsTitle => 'チャンネル権限';
+
+  @override
+  String get createChannelPublicTitle => '公開する';
+
+  @override
+  String get createChannelPublicSubtitle => 'オフの場合は招待からのみ参加できます';
+
+  @override
+  String get createChannelApprovalTitle => '参加に承認が必要';
+
+  @override
+  String get createChannelApprovalSubtitle => 'オンの場合、新メンバーの参加前に承認が必要です';
+
+  @override
+  String get createChannelIntroTitle => 'チャンネル紹介';
+
+  @override
+  String get createChannelIntroHint => 'チャンネル紹介を入力...';
+
+  @override
+  String get createChannelSubmit => 'チャンネルを作成';
+
+  @override
+  String get createChannelAvatarUploading => 'チャンネルアバターをアップロード中です。お待ちください';
+
+  @override
+  String get createChannelNameRequired => 'チャンネル名は必須です';
+
+  @override
+  String get createChannelAvatarRequired => 'チャンネルアバターをアップロードしてください';
+
+  @override
+  String get createChannelIntroRequired => 'チャンネル紹介は必須です';
+
+  @override
+  String createChannelAvatarUploadFailed(String error) {
+    return 'チャンネルアバターのアップロードに失敗しました: $error';
+  }
+
+  @override
+  String get createChannelCreated => 'チャンネルを作成しました';
+
+  @override
+  String createChannelFailed(String error) {
+    return 'チャンネルの作成に失敗しました: $error';
+  }
+
+  @override
   String get channelManageInviteLinks => '招待リンク';
 
   @override
@@ -746,6 +825,153 @@ class AppLocalizationsJa extends AppLocalizations {
   String get contactRoomMissingRemark => '連絡先のルーム情報がないため、備考を保存できません';
 
   @override
+  String get chatInfoTitle => 'チャット情報';
+
+  @override
+  String get chatInfoMissingConversation => '会話が見つかりません';
+
+  @override
+  String get chatInfoSearchRecords => 'チャット履歴を検索';
+
+  @override
+  String get chatInfoContactMissingRemark => '連絡先情報がないため、備考を設定できません';
+
+  @override
+  String get chatInfoSelfBlockDisabled => '現在のユーザーはブロックできません';
+
+  @override
+  String get chatInfoSelfReportDisabled => '現在のユーザーは報告できません';
+
+  @override
+  String get chatInfoClearHistory => 'チャット履歴を消去';
+
+  @override
+  String get chatInfoClearHistoryConfirm => 'すべてのチャット履歴を消去しますか？この操作は元に戻せません。';
+
+  @override
+  String get chatInfoClearHistoryAction => '消去';
+
+  @override
+  String get chatInfoClearHistoryCleared => 'チャット履歴を消去しました';
+
+  @override
+  String chatInfoClearHistoryFailed(String error) {
+    return 'チャット履歴の消去に失敗しました: $error';
+  }
+
+  @override
+  String get chatInfoUidCopied => 'UID をコピーしました';
+
+  @override
+  String get chatInfoContactSyncing => '連絡先情報を同期中';
+
+  @override
+  String groupInfoTitle(int count) {
+    return 'チャット情報（$count）';
+  }
+
+  @override
+  String get groupInfoInvite => '招待';
+
+  @override
+  String get groupInfoRemove => '削除';
+
+  @override
+  String get groupInfoManagement => 'グループ管理';
+
+  @override
+  String get groupInfoSearchRecords => 'チャットを検索';
+
+  @override
+  String get groupInfoPinChat => 'チャットをピン留め';
+
+  @override
+  String get groupInfoMyNickname => 'このグループでのニックネーム';
+
+  @override
+  String get groupInfoShowMemberNicknames => 'メンバーのニックネームを表示';
+
+  @override
+  String get groupInfoReportGroup => 'グループを報告';
+
+  @override
+  String get groupInfoDissolveGroup => 'グループを解散';
+
+  @override
+  String get groupInfoLeaveGroup => 'グループを退出';
+
+  @override
+  String get groupInfoNoRemovableMembers => '削除できるメンバーはいません';
+
+  @override
+  String get groupInfoRemoveMemberTitle => 'メンバーを削除';
+
+  @override
+  String groupInfoRemoveMemberConfirm(String name) {
+    return '$nameをグループから削除しますか？';
+  }
+
+  @override
+  String groupInfoMemberRemoved(String name) {
+    return '$nameを削除しました';
+  }
+
+  @override
+  String groupInfoRemoveMemberFailed(String error) {
+    return 'メンバーの削除に失敗しました: $error';
+  }
+
+  @override
+  String get groupInfoRemarkTitle => '備考';
+
+  @override
+  String get groupInfoRemarkHint => 'グループの備考を入力';
+
+  @override
+  String get groupInfoRemarkCleared => 'グループの備考を消去しました';
+
+  @override
+  String get groupInfoRemarkUpdated => 'グループの備考を更新しました';
+
+  @override
+  String get groupInfoNicknameHint => 'グループでのニックネームを入力';
+
+  @override
+  String get groupInfoNicknameEmpty => 'グループでのニックネームは空にできません';
+
+  @override
+  String get groupInfoCurrentUserMissing => '現在のユーザー情報がありません';
+
+  @override
+  String get groupInfoNicknameUpdated => 'グループでのニックネームを更新しました';
+
+  @override
+  String groupInfoNicknameUpdateFailed(String error) {
+    return 'グループでのニックネーム設定に失敗しました: $error';
+  }
+
+  @override
+  String get groupInfoClearHistoryConfirm =>
+      'このグループのすべてのチャット履歴を消去しますか？この操作は元に戻せません。';
+
+  @override
+  String get groupInfoDissolveConfirm => 'このグループを解散しますか？';
+
+  @override
+  String get groupInfoLeaveConfirm => 'このグループを退出しますか？';
+
+  @override
+  String get groupInfoDissolveAction => '解散';
+
+  @override
+  String get groupInfoLeaveAction => '退出';
+
+  @override
+  String groupInfoLeaveFailed(String action, String error) {
+    return 'グループの$actionに失敗しました: $error';
+  }
+
+  @override
   String get contactFriendRequestRestored => '以前の会話を復元しました。続けてチャットできます。';
 
   @override
@@ -793,6 +1019,46 @@ class AppLocalizationsJa extends AppLocalizations {
   String contactReportSubmitFailed(String error) {
     return '報告の送信に失敗しました: $error';
   }
+
+  @override
+  String get reportReasonDialogTitle => '報告理由を選択';
+
+  @override
+  String get reportReasonHarassment => '嫌がらせ / 暴言';
+
+  @override
+  String get reportReasonSpam => 'スパム / 広告';
+
+  @override
+  String get reportReasonSexual => '性的 / 不適切な内容';
+
+  @override
+  String get reportReasonViolence => '暴力的な内容';
+
+  @override
+  String get reportReasonFraud => '詐欺';
+
+  @override
+  String get reportReasonOther => 'その他';
+
+  @override
+  String get reportReasonOtherHint => '報告理由を入力してください';
+
+  @override
+  String get reportReasonPickImages => '画像をアップロード';
+
+  @override
+  String reportReasonImagesSelected(int count) {
+    return '$count 枚の画像を選択済み';
+  }
+
+  @override
+  String reportReasonPickImageFailed(String error) {
+    return '画像の選択に失敗しました: $error';
+  }
+
+  @override
+  String get reportReasonSubmit => '送信';
 
   @override
   String get contactRemarkEmpty => '備考は空にできません';
@@ -1204,6 +1470,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get messagePreviewChannelBracket => '[チャンネル]';
+
+  @override
+  String get messagePreviewChannelShare => 'チャンネル共有';
+
+  @override
+  String get messagePreviewGroupInvite => 'グループ招待';
 
   @override
   String get messagePreviewMessage => 'メッセージ';
@@ -1619,6 +1891,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonRetry => '再試行';
 
   @override
+  String get commonUser => 'ユーザー';
+
+  @override
   String get sessionExpiredTitle => '別の端末でログインされました';
 
   @override
@@ -1654,6 +1929,210 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get channelEmptySubtitle => '参加または作成したチャンネルがここに表示されます。';
+
+  @override
+  String get channelSyncingTitle => 'チャンネルを同期中';
+
+  @override
+  String get channelSyncingSubtitle => 'しばらくお待ちください';
+
+  @override
+  String get channelMyChannelsTitle => '自分のチャンネル';
+
+  @override
+  String get channelJoinedSection => '参加済み';
+
+  @override
+  String get channelCreatedSection => '作成済み';
+
+  @override
+  String get channelCreatedEmptyTitle => '作成したチャンネルはまだありません';
+
+  @override
+  String get channelJoinedEmptyTitle => '参加中のチャンネルはまだありません';
+
+  @override
+  String get channelCreatedEmptySubtitle => '作成したチャンネルがここに表示されます。';
+
+  @override
+  String get channelJoinedEmptySubtitle => '参加したチャンネルがここに表示されます。';
+
+  @override
+  String get channelOpenSyncing => 'チャンネルを同期中です。しばらくしてから再試行してください';
+
+  @override
+  String get channelDissolved => 'チャンネルは解散済みです';
+
+  @override
+  String get channelKindText => 'テキスト';
+
+  @override
+  String get channelKindPost => '投稿';
+
+  @override
+  String get channelAvatarFallback => 'チ';
+
+  @override
+  String get channelMenuPin => 'ピン留め';
+
+  @override
+  String get channelMenuUnpin => 'ピン留めを解除';
+
+  @override
+  String channelMenuPinned(String name) {
+    return '「$name」をピン留めしました';
+  }
+
+  @override
+  String channelMenuUnpinned(String name) {
+    return '「$name」のピン留めを解除しました';
+  }
+
+  @override
+  String get channelMenuHide => '非表示';
+
+  @override
+  String channelMenuHidden(String name) {
+    return '「$name」を非表示にしました';
+  }
+
+  @override
+  String get channelMenuDelete => 'チャンネルを削除';
+
+  @override
+  String channelMenuDeleted(String name) {
+    return '「$name」を削除しました';
+  }
+
+  @override
+  String get channelTimeMonday => '月';
+
+  @override
+  String get channelTimeTuesday => '火';
+
+  @override
+  String get channelTimeWednesday => '水';
+
+  @override
+  String get channelTimeThursday => '木';
+
+  @override
+  String get channelTimeFriday => '金';
+
+  @override
+  String get channelTimeSaturday => '土';
+
+  @override
+  String get channelTimeSunday => '日';
+
+  @override
+  String get channelInfoTitle => 'チャンネル情報';
+
+  @override
+  String get channelInfoDetailAction => 'チャンネル詳細';
+
+  @override
+  String get channelInfoShareAction => 'チャンネルを共有';
+
+  @override
+  String get channelInfoReportAction => 'チャンネルを報告';
+
+  @override
+  String get channelInfoLeaveAction => 'チャンネルを退出';
+
+  @override
+  String get channelInfoDissolveAction => 'チャンネルを解散';
+
+  @override
+  String get channelInfoNoRemovableMembers => '削除できるメンバーはいません';
+
+  @override
+  String get channelInfoRemoveMembersTitle => 'チャンネルメンバーを削除';
+
+  @override
+  String channelInfoConfirmRemove(String name) {
+    return '$name を削除しますか？';
+  }
+
+  @override
+  String get channelInfoMemberRemoved => 'メンバーを削除しました';
+
+  @override
+  String channelInfoRemoveFailed(String error) {
+    return '削除に失敗しました：$error';
+  }
+
+  @override
+  String get channelInfoMuteAll => '全員をミュート';
+
+  @override
+  String get channelInfoMuteEnabled => '全員ミュートを有効にしました';
+
+  @override
+  String get channelInfoMuteDisabled => '全員ミュートを解除しました';
+
+  @override
+  String channelInfoMuteEnableFailed(String error) {
+    return '全員ミュートの有効化に失敗しました：$error';
+  }
+
+  @override
+  String channelInfoMuteDisableFailed(String error) {
+    return '全員ミュートの解除に失敗しました：$error';
+  }
+
+  @override
+  String get channelInfoReportMissingRoom => '報告に失敗しました：チャンネルルームIDがありません';
+
+  @override
+  String get channelInfoReportSubmitted => '報告を送信しました';
+
+  @override
+  String channelInfoReportFailed(String error) {
+    return '報告に失敗しました：$error';
+  }
+
+  @override
+  String get channelInfoShared => 'チャンネルを共有しました';
+
+  @override
+  String channelInfoShareFailed(String error) {
+    return 'チャンネルの共有に失敗しました：$error';
+  }
+
+  @override
+  String get channelInfoLeaveConfirm => 'このチャンネルを退出しますか？';
+
+  @override
+  String get channelInfoLeft => 'チャンネルを退出しました';
+
+  @override
+  String channelInfoLeaveFailed(String error) {
+    return 'チャンネルの退出に失敗しました：$error';
+  }
+
+  @override
+  String get channelInfoDissolveConfirm => 'このチャンネルを解散しますか？';
+
+  @override
+  String get channelInfoDissolved => 'チャンネルを解散しました';
+
+  @override
+  String channelInfoDissolveFailed(String error) {
+    return 'チャンネルの解散に失敗しました：$error';
+  }
+
+  @override
+  String get channelDetailIntroTitle => 'チャンネル紹介';
+
+  @override
+  String get channelDetailTitle => 'チャンネル詳細';
+
+  @override
+  String get channelDetailCopiedId => 'チャンネルIDをコピーしました';
+
+  @override
+  String get channelDetailNoIntro => 'チャンネル紹介はまだありません';
 
   @override
   String channelJoinFailed(String error) {

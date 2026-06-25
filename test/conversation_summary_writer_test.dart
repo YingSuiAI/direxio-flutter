@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
 import 'package:portal_app/data/conversation_summary_store.dart';
+import 'package:portal_app/l10n/app_localizations_en.dart';
 import 'package:portal_app/presentation/home/conversation_summary_writer.dart';
 import 'package:portal_app/presentation/utils/message_preview.dart';
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
@@ -930,6 +931,59 @@ void main() {
     );
 
     expect(result.displayEntries.single.unread, 1);
+  });
+
+  test('uses localized product card previews in home summary', () {
+    final client = Client('ConversationSummaryWriterLocalizedCardsTest')
+      ..setUserId('@owner:p2p-im.com');
+    final room = Room(
+      id: '!direct:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.lastEvent = Event(
+      room: room,
+      eventId: r'$channel-share',
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 25, 10),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '频道分享\n产品公告',
+        chatRecordMatrixMarkerKey: 'channel_share',
+      },
+    );
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: [room],
+      productConversations: [
+        _conversation(
+          id: 'conv_direct',
+          roomId: '!direct:p2p-im.com',
+          kind: asConversationKindDirect,
+          canOpen: true,
+          lastActivityAt: DateTime.utc(2026, 6, 25, 10),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+      l10n: AppLocalizationsEn(),
+    );
+
+    expect(result.displayEntries.single.lastMessage, 'Channel share');
   });
 
   test('counts unread visible chat messages without Matrix notification', () {

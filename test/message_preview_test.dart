@@ -203,6 +203,47 @@ void main() {
     expect(quotedEventPreviewText(quotedFile, l10n: l10n), '[File]');
   });
 
+  test('uses localized product card labels when l10n is provided', () {
+    final l10n = AppLocalizationsEn();
+    final client = Client('MessagePreviewLocalizedProductCardsTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final channelShare = Event(
+      room: room,
+      eventId: r'$channel-share-localized',
+      senderId: '@peer:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 25),
+      content: {
+        'msgtype': MessageTypes.Text,
+        'body': '频道分享\n产品公告',
+        chatRecordMatrixMarkerKey: 'channel_share',
+      },
+    );
+    final groupInvite = Event(
+      room: room,
+      eventId: r'$group-invite-localized',
+      senderId: '@peer:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 25),
+      content: {
+        'msgtype': 'p2p.group.invite.v1',
+        'body': '邀请加入群聊\n产品测试群',
+        'group_room_id': '!group:p2p-im.com',
+        'group_name': '产品测试群',
+      },
+    );
+
+    expect(
+      roomEventPreviewText(channelShare, isAgent: false, l10n: l10n),
+      'Channel share',
+    );
+    expect(
+      roomEventPreviewText(groupInvite, isAgent: false, l10n: l10n),
+      'Group invitation',
+    );
+  });
+
   test('keeps text previews readable', () {
     final client = Client('MessagePreviewTextTest')
       ..setUserId('@me:p2p-im.com');

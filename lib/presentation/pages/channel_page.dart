@@ -505,15 +505,17 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
       if (!mounted) return;
       final l10n = _l10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n?.channelPostDeleted ?? '帖子已删除')),
+        SnackBar(content: Text(l10n?.channelPostDeleted ?? 'Post deleted')),
       );
     } catch (error) {
       if (!mounted) return;
       final l10n = _l10n(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text(l10n?.channelPostDeleteFailed('$error') ?? '删除帖子失败：$error'),
+          content: Text(
+            l10n?.channelPostDeleteFailed('$error') ??
+                'Failed to delete post: $error',
+          ),
         ),
       );
     }
@@ -644,7 +646,8 @@ class _PublicChannelScaffoldState
       return _ChannelEmptyState(
         icon: Symbols.search_off,
         title: l10n?.channelMissingTitle ?? '频道不存在',
-        subtitle: l10n?.channelMissingSubtitle ?? '该频道可能是私密频道、已删除，或目标节点暂时不可达',
+        subtitle: l10n?.channelMissingSubtitle ??
+            'This channel may be private, deleted, or temporarily unreachable.',
       );
     }
     final l10n = _l10n(context);
@@ -822,7 +825,7 @@ class _PublicChannelJoinBar extends StatelessWidget {
     final approval = channel.joinPolicy == asChannelJoinPolicyApproval;
     final l10n = _l10n(context);
     final label = joined
-        ? l10n?.channelJoinJoined ?? '已加入'
+        ? l10n?.channelJoinJoined ?? 'Joined'
         : pending
             ? l10n?.channelJoinPending ?? '待审核'
             : approved
@@ -910,6 +913,7 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _l10n(context);
     final post = widget.post;
     final body = channelPostBodyText(post);
     final images = channelPostImagesFromPost(post);
@@ -920,7 +924,7 @@ class _RealChannelPostCardState extends State<_RealChannelPostCard> {
     );
     final author = authorIdentity.resolvedName.trim().isNotEmpty
         ? authorIdentity.resolvedName
-        : _postAuthorLabel(post);
+        : _postAuthorLabel(post, l10n);
     final avatarUrl = _postListAvatarUrl(post, authorIdentity.avatarUrl);
     return InkWell(
       onTap: widget.onOpen,
@@ -1054,7 +1058,7 @@ class _PostRecallButton extends StatelessWidget {
     final l10n = _l10n(context);
     final t = context.tk;
     return Tooltip(
-      message: l10n?.channelPostDeleteTooltip ?? '删除帖子',
+      message: l10n?.channelPostDeleteTooltip ?? 'Delete post',
       child: Material(
         color: t.surfaceHover,
         borderRadius: BorderRadius.circular(16),
@@ -1180,12 +1184,12 @@ String _postListAvatarUrl(
   return post.authorAvatarUrl.trim();
 }
 
-String _postAuthorLabel(AsChannelPost post) {
+String _postAuthorLabel(AsChannelPost post, AppLocalizations? l10n) {
   final name = post.authorName.trim();
   if (name.isNotEmpty) return name;
-  final localpart = _localpartFromMxid(post.authorId).trim();
+  final localpart = _localpartFromMxid(post.authorId, l10n).trim();
   if (localpart.isNotEmpty) return localpart;
-  return '用户';
+  return l10n?.commonUser ?? 'User';
 }
 
 class _PostTypeBadge extends StatelessWidget {
@@ -1201,7 +1205,7 @@ class _PostTypeBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        _l10n(context)?.channelPostType ?? '帖子',
+        _l10n(context)?.channelPostType ?? 'Post',
         style: AppTheme.sans(
           size: 8,
           weight: FontWeight.w500,
@@ -1300,12 +1304,14 @@ class _PostStatButton extends StatelessWidget {
   }
 }
 
-String _localpartFromMxid(String mxid) {
-  if (!mxid.startsWith('@')) return mxid.trim().isEmpty ? '用户' : mxid.trim();
+String _localpartFromMxid(String mxid, AppLocalizations? l10n) {
+  if (!mxid.startsWith('@')) {
+    return mxid.trim().isEmpty ? l10n?.commonUser ?? 'User' : mxid.trim();
+  }
   final colon = mxid.indexOf(':');
   final end = colon < 0 ? mxid.length : colon;
   return mxid.substring(1, end).trim().isEmpty
-      ? '用户'
+      ? l10n?.commonUser ?? 'User'
       : mxid.substring(1, end).trim();
 }
 

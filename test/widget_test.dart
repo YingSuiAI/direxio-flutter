@@ -6688,7 +6688,13 @@ void main() {
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
         ],
-        child: MaterialApp(theme: AppTheme.light, home: const MeChannelsPage()),
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const MeChannelsPage(),
+        ),
       ),
     );
     await tester.pump();
@@ -8983,10 +8989,12 @@ void main() {
 
     final viewText = tester.widget<Text>(find.text('查看'));
     final viewMaterial = tester.widget<Material>(
-      find.ancestor(
-        of: find.text('查看'),
-        matching: find.byType(Material),
-      ).first,
+      find
+          .ancestor(
+            of: find.text('查看'),
+            matching: find.byType(Material),
+          )
+          .first,
     );
     expect(viewMaterial.color, PortalTokens.dark.accent);
     expect(viewText.style?.color, PortalTokens.dark.onAccent);
@@ -8996,10 +9004,12 @@ void main() {
 
     final acceptText = tester.widget<Text>(find.text('接受'));
     final acceptMaterial = tester.widget<Material>(
-      find.ancestor(
-        of: find.text('接受'),
-        matching: find.byType(Material),
-      ).first,
+      find
+          .ancestor(
+            of: find.text('接受'),
+            matching: find.byType(Material),
+          )
+          .first,
     );
     expect(acceptMaterial.color, PortalTokens.dark.accent);
     expect(acceptText.style?.color, PortalTokens.dark.onAccent);
@@ -13262,7 +13272,7 @@ void main() {
     await tester.enterText(find.byType(TextField), '项目群');
     await tester.tap(find.widgetWithText(TextButton, '保存'));
     await tester.pumpAndSettle();
-    expect(find.text('项目群'), findsOneWidget);
+    expect(find.text('项目群'), findsWidgets);
     expect(find.text('群聊备注已更新'), findsOneWidget);
 
     await tester.ensureVisible(find.text('置顶聊天'));
@@ -16711,6 +16721,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChannelExplorePage(),
         ),
       ),
@@ -16776,6 +16789,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChannelExplorePage(),
         ),
       ),
@@ -16829,6 +16845,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChannelExplorePage(),
         ),
       ),

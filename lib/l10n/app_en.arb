@@ -152,6 +152,45 @@
   "channelManageMyChannels": "My Channels",
   "channelManageCreateChannel": "Create Channel",
   "channelManageCreateChannelValue": "Name, avatar, bio",
+  "createChannelTitle": "Create Channel",
+  "createChannelNameTitle": "Channel Name",
+  "createChannelNameHint": "Enter",
+  "createChannelAvatarTitle": "Upload Channel Avatar",
+  "createChannelAvatarSubtitle": "Upload an image to use as the channel avatar",
+  "createChannelTypeTitle": "Select Channel Type",
+  "createChannelTypeText": "Text",
+  "createChannelTypeTextSubtitle": "Members can chat freely",
+  "createChannelTypePosts": "Posts",
+  "createChannelTypePostsSubtitle": "Posts and comments",
+  "createChannelPermissionsTitle": "Channel Permissions",
+  "createChannelPublicTitle": "Public",
+  "createChannelPublicSubtitle": "When off, members can only join by invite",
+  "createChannelApprovalTitle": "Require Join Approval",
+  "createChannelApprovalSubtitle": "When on, new members need channel approval",
+  "createChannelIntroTitle": "Channel Intro",
+  "createChannelIntroHint": "Enter channel intro...",
+  "createChannelSubmit": "Create Channel",
+  "createChannelAvatarUploading": "Channel avatar is uploading. Please wait.",
+  "createChannelNameRequired": "Channel name is required",
+  "createChannelAvatarRequired": "Upload a channel avatar",
+  "createChannelIntroRequired": "Channel intro is required",
+  "createChannelAvatarUploadFailed": "Failed to upload channel avatar: {error}",
+  "@createChannelAvatarUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "createChannelCreated": "Channel created",
+  "createChannelFailed": "Failed to create channel: {error}",
+  "@createChannelFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "channelManageInviteLinks": "Invite Links",
   "channelManageInviteLinksValue": "{count} active",
   "@channelManageInviteLinksValue": {
@@ -315,6 +354,102 @@
   "contactRoomMissingBlock": "Failed to block user: missing contact room information",
   "contactRoomMissingDelete": "Failed to delete friend: missing contact room information",
   "contactRoomMissingRemark": "Missing contact room information. Cannot save remark.",
+  "chatInfoTitle": "Chat Info",
+  "chatInfoMissingConversation": "Conversation not found",
+  "chatInfoSearchRecords": "Search Chat",
+  "chatInfoContactMissingRemark": "Missing contact information. Cannot set remark.",
+  "chatInfoSelfBlockDisabled": "You cannot block the current user",
+  "chatInfoSelfReportDisabled": "You cannot report the current user",
+  "chatInfoClearHistory": "Clear Chat History",
+  "chatInfoClearHistoryConfirm": "Clear all chat history? This cannot be undone.",
+  "chatInfoClearHistoryAction": "Clear",
+  "chatInfoClearHistoryCleared": "Chat history cleared",
+  "chatInfoClearHistoryFailed": "Failed to clear chat history: {error}",
+  "@chatInfoClearHistoryFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInfoUidCopied": "UID copied",
+  "chatInfoContactSyncing": "Syncing contact information",
+  "groupInfoTitle": "Chat Info ({count})",
+  "@groupInfoTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupInfoInvite": "Invite",
+  "groupInfoRemove": "Remove",
+  "groupInfoManagement": "Group Management",
+  "groupInfoSearchRecords": "Search Chat",
+  "groupInfoPinChat": "Pin Chat",
+  "groupInfoMyNickname": "My Nickname in This Group",
+  "groupInfoShowMemberNicknames": "Show Member Nicknames",
+  "groupInfoReportGroup": "Report Group",
+  "groupInfoDissolveGroup": "Dissolve Group",
+  "groupInfoLeaveGroup": "Leave Group",
+  "groupInfoNoRemovableMembers": "No removable members",
+  "groupInfoRemoveMemberTitle": "Remove Member",
+  "groupInfoRemoveMemberConfirm": "Remove {name} from this group?",
+  "@groupInfoRemoveMemberConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoMemberRemoved": "Removed {name}",
+  "@groupInfoMemberRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoRemoveMemberFailed": "Failed to remove member: {error}",
+  "@groupInfoRemoveMemberFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoRemarkTitle": "Remark",
+  "groupInfoRemarkHint": "Enter group remark",
+  "groupInfoRemarkCleared": "Group remark cleared",
+  "groupInfoRemarkUpdated": "Group remark updated",
+  "groupInfoNicknameHint": "Enter group nickname",
+  "groupInfoNicknameEmpty": "Group nickname cannot be empty",
+  "groupInfoCurrentUserMissing": "Missing current user information",
+  "groupInfoNicknameUpdated": "Group nickname updated",
+  "groupInfoNicknameUpdateFailed": "Failed to set group nickname: {error}",
+  "@groupInfoNicknameUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoClearHistoryConfirm": "Clear all chat history in this group? This cannot be undone.",
+  "groupInfoDissolveConfirm": "Dissolve this group?",
+  "groupInfoLeaveConfirm": "Leave this group?",
+  "groupInfoDissolveAction": "Dissolve",
+  "groupInfoLeaveAction": "Leave",
+  "groupInfoLeaveFailed": "Failed to {action} group: {error}",
+  "@groupInfoLeaveFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "contactFriendRequestRestored": "Previous conversation restored. You can continue chatting.",
   "contactFriendRequestSent": "Friend request sent. Waiting for acceptance.",
   "contactDeleteConfirmTitle": "Delete Friend",
@@ -350,6 +485,32 @@
       }
     }
   },
+  "reportReasonDialogTitle": "Select a report reason",
+  "reportReasonHarassment": "Harassment / Abuse",
+  "reportReasonSpam": "Spam / Advertising",
+  "reportReasonSexual": "Sexual / Inappropriate content",
+  "reportReasonViolence": "Violence",
+  "reportReasonFraud": "Fraud",
+  "reportReasonOther": "Other",
+  "reportReasonOtherHint": "Describe the report reason",
+  "reportReasonPickImages": "Upload images",
+  "reportReasonImagesSelected": "{count} images selected",
+  "@reportReasonImagesSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reportReasonPickImageFailed": "Failed to pick images: {error}",
+  "@reportReasonPickImageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "reportReasonSubmit": "Submit",
   "contactRemarkEmpty": "Remark cannot be empty",
   "contactRemarkUpdateFailed": "Failed to update remark: {error}",
   "@contactRemarkUpdateFailed": {
@@ -645,6 +806,8 @@
   "messagePreviewVoiceBracket": "[Voice]",
   "messagePreviewChatRecordBracket": "[Chat history]",
   "messagePreviewChannelBracket": "[Channel]",
+  "messagePreviewChannelShare": "Channel share",
+  "messagePreviewGroupInvite": "Group invitation",
   "messagePreviewMessage": "Message",
   "messagePreviewSendFailed": "Send failed",
   "messagePreviewCallRejected": "Call declined",
@@ -830,6 +993,7 @@
   "groupChatRemovedCannotSend": "You cannot send messages in a group you left",
   "commonOk": "OK",
   "commonRetry": "Retry",
+  "commonUser": "User",
   "sessionExpiredTitle": "Signed in on another device",
   "sessionExpiredMessage": "This account was signed in on another device. Tap OK, then enter your password manually to sign in again.",
   "chatRecordForwarded": "Chat record forwarded",
@@ -848,6 +1012,150 @@
   "channelNoPublicContentSubtitle": "Join the channel to see future posts.",
   "channelEmptyTitle": "No channels yet",
   "channelEmptySubtitle": "Channels you join or create will appear here.",
+  "channelSyncingTitle": "Syncing channels",
+  "channelSyncingSubtitle": "Please wait",
+  "channelMyChannelsTitle": "My Channels",
+  "channelJoinedSection": "Joined",
+  "channelCreatedSection": "Created",
+  "channelCreatedEmptyTitle": "No channels created yet",
+  "channelJoinedEmptyTitle": "No joined channels yet",
+  "channelCreatedEmptySubtitle": "Channels you create will appear here.",
+  "channelJoinedEmptySubtitle": "Channels you join will appear here.",
+  "channelOpenSyncing": "Channel is syncing. Try again later.",
+  "channelDissolved": "Channel has been dissolved",
+  "channelKindText": "Text",
+  "channelKindPost": "Post",
+  "channelAvatarFallback": "C",
+  "channelMenuPin": "Pin",
+  "channelMenuUnpin": "Unpin",
+  "channelMenuPinned": "Pinned \"{name}\"",
+  "@channelMenuPinned": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelMenuUnpinned": "Unpinned \"{name}\"",
+  "@channelMenuUnpinned": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelMenuHide": "Hide",
+  "channelMenuHidden": "Hidden \"{name}\"",
+  "@channelMenuHidden": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelMenuDelete": "Delete channel",
+  "channelMenuDeleted": "Deleted \"{name}\"",
+  "@channelMenuDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelTimeMonday": "Mon",
+  "channelTimeTuesday": "Tue",
+  "channelTimeWednesday": "Wed",
+  "channelTimeThursday": "Thu",
+  "channelTimeFriday": "Fri",
+  "channelTimeSaturday": "Sat",
+  "channelTimeSunday": "Sun",
+  "channelInfoTitle": "Channel Info",
+  "channelInfoDetailAction": "Channel details",
+  "channelInfoShareAction": "Share channel",
+  "channelInfoReportAction": "Report channel",
+  "channelInfoLeaveAction": "Leave channel",
+  "channelInfoDissolveAction": "Dissolve channel",
+  "channelInfoNoRemovableMembers": "No removable members",
+  "channelInfoRemoveMembersTitle": "Remove channel members",
+  "channelInfoConfirmRemove": "Remove {name}?",
+  "@channelInfoConfirmRemove": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoMemberRemoved": "Member removed",
+  "channelInfoRemoveFailed": "Failed to remove: {error}",
+  "@channelInfoRemoveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoMuteAll": "Mute all members",
+  "channelInfoMuteEnabled": "All-member mute enabled",
+  "channelInfoMuteDisabled": "All-member mute disabled",
+  "channelInfoMuteEnableFailed": "Failed to enable all-member mute: {error}",
+  "@channelInfoMuteEnableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoMuteDisableFailed": "Failed to disable all-member mute: {error}",
+  "@channelInfoMuteDisableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoReportMissingRoom": "Report failed: missing channel room ID",
+  "channelInfoReportSubmitted": "Report submitted",
+  "channelInfoReportFailed": "Report failed: {error}",
+  "@channelInfoReportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoShared": "Channel shared",
+  "channelInfoShareFailed": "Failed to share channel: {error}",
+  "@channelInfoShareFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoLeaveConfirm": "Leave this channel?",
+  "channelInfoLeft": "Left channel",
+  "channelInfoLeaveFailed": "Failed to leave channel: {error}",
+  "@channelInfoLeaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoDissolveConfirm": "Dissolve this channel?",
+  "channelInfoDissolved": "Channel dissolved",
+  "channelInfoDissolveFailed": "Failed to dissolve channel: {error}",
+  "@channelInfoDissolveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelDetailIntroTitle": "Channel intro",
+  "channelDetailTitle": "Channel details",
+  "channelDetailCopiedId": "Channel ID copied",
+  "channelDetailNoIntro": "No channel intro yet",
   "channelJoinFailed": "Failed to join channel: {error}",
   "@channelJoinFailed": {
     "placeholders": {

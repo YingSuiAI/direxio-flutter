@@ -7,6 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../channel/channel_info_data.dart';
 import '../channel/channel_join_debug_log.dart';
 import '../channel/channel_join_flow.dart';
@@ -135,7 +136,9 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                         ).copyWith(height: 33 / 15),
                       ),
                       const SizedBox(width: 4),
-                      _ChannelTypeBadge(label: _channelTypeLabel(channel)),
+                      _ChannelTypeBadge(
+                        label: _channelTypeLabel(context, channel),
+                      ),
                     ],
                   ),
                 ),
@@ -149,7 +152,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                 ],
                 const SizedBox(height: 26),
                 Text(
-                  '频道介绍',
+                  _channelInfoL10n(context)?.channelDetailIntroTitle ?? '频道介绍',
                   style: AppTheme.sans(
                     size: 18,
                     weight: FontWeight.w600,
@@ -157,7 +160,7 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
                   ).copyWith(height: 33 / 18),
                 ),
                 const SizedBox(height: 5),
-                _IntroCard(text: _channelDescription(channel)),
+                _IntroCard(text: _channelDescription(context, channel)),
                 if (!widget.showJoinButton) ...[
                   const SizedBox(height: 16),
                   _ShareChannelButton(
@@ -365,7 +368,12 @@ class _ChannelDetailInfoPageState extends ConsumerState<ChannelDetailInfoPage> {
       if (!mounted) return;
       setState(() => _joining = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('加入频道失败：$err')),
+        SnackBar(
+          content: Text(
+            _channelInfoL10n(context)?.channelJoinFailed('$err') ??
+                '加入频道失败：$err',
+          ),
+        ),
       );
     }
   }
@@ -434,13 +442,19 @@ Future<void> _shareChannelDetail(
       currentRoomName: channel.name,
     );
     if (!context.mounted || !sent) return;
+    final l10n = _channelInfoL10n(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已分享频道')),
+      SnackBar(content: Text(l10n?.channelInfoShared ?? '已分享频道')),
     );
   } catch (err) {
     if (!context.mounted) return;
+    final l10n = _channelInfoL10n(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('分享频道失败：$err')),
+      SnackBar(
+        content: Text(
+          l10n?.channelInfoShareFailed('$err') ?? '分享频道失败：$err',
+        ),
+      ),
     );
   }
 }
@@ -513,7 +527,7 @@ class _DetailTopBar extends StatelessWidget {
             ),
           ),
           Text(
-            '频道详情',
+            _channelInfoL10n(context)?.channelDetailTitle ?? '频道详情',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTheme.sans(
@@ -532,7 +546,11 @@ Future<void> _copyChannelId(BuildContext context, String channelId) async {
   await Clipboard.setData(ClipboardData(text: channelId));
   if (!context.mounted) return;
   ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('已复制频道 ID')),
+    SnackBar(
+      content: Text(
+        _channelInfoL10n(context)?.channelDetailCopiedId ?? '已复制频道 ID',
+      ),
+    ),
   );
 }
 
@@ -622,7 +640,7 @@ class _ShareChannelButton extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '分享频道',
+                _channelInfoL10n(context)?.channelInfoShareAction ?? '分享频道',
                 style: AppTheme.sans(
                   size: 15,
                   weight: FontWeight.w600,
@@ -671,7 +689,10 @@ class _JoinButton extends StatelessWidget {
               ),
             )
           : Text(
-              requested ? '已申请加入频道' : '申请加入',
+              requested
+                  ? _channelInfoL10n(context)?.channelShareRequested ??
+                      '已申请加入频道'
+                  : _channelInfoL10n(context)?.channelJoinApply ?? '申请加入',
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w500,
@@ -682,12 +703,12 @@ class _JoinButton extends StatelessWidget {
   }
 }
 
-String _channelDescription(ChannelInfoData channel) {
+String _channelDescription(BuildContext context, ChannelInfoData channel) {
   final description = channel.description.trim();
   if (description.isNotEmpty && description != '暂无频道内容') {
     return description;
   }
-  return '暂无频道介绍';
+  return _channelInfoL10n(context)?.channelDetailNoIntro ?? '暂无频道介绍';
 }
 
 String _channelDetailDisplayId(ChannelInfoData channel) {
@@ -696,8 +717,10 @@ String _channelDetailDisplayId(ChannelInfoData channel) {
   return channel.id.trim();
 }
 
-String _channelTypeLabel(ChannelInfoData channel) {
-  return _channelInfoIsPostType(channel) ? '帖子' : '文字';
+String _channelTypeLabel(BuildContext context, ChannelInfoData channel) {
+  return _channelInfoIsPostType(channel)
+      ? _channelInfoL10n(context)?.channelKindPost ?? '帖子'
+      : _channelInfoL10n(context)?.channelKindText ?? '文字';
 }
 
 bool _channelInfoIsPostType(ChannelInfoData channel) {
@@ -725,4 +748,8 @@ bool _channelTagIsChatType(String tag) {
   return trimmed == '文字' ||
       trimmed == 'text' ||
       normalizeAsChannelType(trimmed) == asChannelTypeChat;
+}
+
+AppLocalizations? _channelInfoL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
 }

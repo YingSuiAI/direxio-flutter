@@ -7,7 +7,7 @@ This document records the current P2P product API / Matrix boundary used by the 
 ## Signed IM/BI Public API Boundary
 
 - The IM/BI public endpoints are separate from the authenticated P2P ProductCore `/_p2p` action boundary.
-- The client configures the public base URL from `P2P_IM_PUBLIC_BASE_URL` / `P2P_BI_BASE_URL`, defaulting to `https://im.direxio.ai/api`, and signs requests with `X-BI-Nonce` plus `X-BI-Signature`.
+- The client configures the public base URL from `P2P_IM_PUBLIC_BASE_URL` / `P2P_BI_BASE_URL`, defaulting to `https://imadmin.direxio.ai/api`, and signs requests with `X-BI-Nonce` plus `X-BI-Signature`.
 - The default public secret is `f88c10fe-4559-fa77-b8b9-beadf468ddba`; deployments may override it with `P2P_IM_PUBLIC_SECRET` / `P2P_BI_SECRET`.
 - Public channel directory registration uses `POST /im/channel/join` after a public channel is created locally; directory closure uses `POST /im/channel/close` after local channel dissolve.
 - Channel search keeps Matrix-room-id lookup on the existing P2P public room detail action. All other channel search text uses signed `GET /im/channel/list` with `name`.

@@ -21,6 +21,10 @@ void main() {
     );
   });
 
+  test('default IM public base URL uses imadmin API host', () {
+    expect(defaultImPublicBaseUrl, 'https://imadmin.direxio.ai/api');
+  });
+
   test(
       'listChannels sends signed name query and reads IM public channel envelope',
       () async {

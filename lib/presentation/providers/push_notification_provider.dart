@@ -1,28 +1,39 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/router/app_router.dart';
 import '../../data/matrix_push_registration.dart';
+import '../utils/direct_contact_status.dart';
+import '../utils/push_notification_navigation.dart';
+import 'as_sync_cache_provider.dart';
 import 'auth_provider.dart';
 
-const _fcmTokenAttemptTimeout = Duration(seconds: 15);
-const _fcmTokenRetryDelays = [
+const _pushTokenAttemptTimeout = Duration(seconds: 15);
+const _pushTokenRetryDelays = [
   Duration(seconds: 5),
   Duration(seconds: 20),
 ];
 
 final pushNotificationBootstrapProvider = Provider<void>((ref) {
-  if (!androidFcmMatrixPushSupported) {
-    debugPrint('[push-registration] bootstrap skip: not Android runtime');
+  final profile = currentMatrixPusherProfile;
+  if (profile == null) {
+    debugPrint('[push-registration] bootstrap skip: unsupported runtime');
     return;
   }
   if (!matrixPushGatewayConfigured) {
     debugPrint('[push-registration] bootstrap skip: invalid gateway URL');
     return;
   }
+  if (Firebase.apps.isEmpty) {
+    debugPrint('[push-registration] bootstrap skip: Firebase not initialized');
+    return;
+  }
   final client = ref.watch(matrixClientProvider);
+  final router = ref.watch(appRouterProvider);
   final messaging = FirebaseMessaging.instance;
   var registrationInFlight = false;
 
@@ -38,9 +49,10 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
       );
       return Future<void>.value();
     }
-    return registerAndroidFcmMatrixPusher(
+    return registerMatrixPusher(
       client: client,
-      fcmToken: token,
+      profile: profile,
+      pushToken: token,
     );
   }
 
@@ -62,7 +74,11 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
     registrationInFlight = true;
     try {
       debugPrint('[push-registration] bootstrap start reason=$reason');
-      await _registerCurrentToken(messaging, registerToken);
+      await _registerCurrentToken(
+        messaging: messaging,
+        profile: profile,
+        registerToken: registerToken,
+      );
     } finally {
       registrationInFlight = false;
     }
@@ -85,24 +101,49 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
       'initial',
     ),
   );
-  unawaited(_syncAfterNotificationOpen(messaging, client.oneShotSync));
+  unawaited(
+    _syncAfterInitialNotificationOpen(
+      messaging: messaging,
+      sync: client.oneShotSync,
+      openNotification: (message) => _openPushNotificationRoute(
+        ref: ref,
+        message: message,
+        routerGo: router.go,
+      ),
+    ),
+  );
   final tokenRefresh = messaging.onTokenRefresh.listen((token) {
-    unawaited(registerToken(token).catchError((Object error) {
+    final registration = profile == direxioAndroidFcmPusherProfile
+        ? registerToken(token)
+        : _registerCurrentToken(
+            messaging: messaging,
+            profile: profile,
+            registerToken: registerToken,
+          );
+    unawaited(registration.catchError((Object error) {
       debugPrint(
-        '[push-registration] FCM token refresh pusher registration failed: '
+        '[push-registration] token refresh pusher registration failed: '
         '$error',
       );
     }));
   });
   final foreground = FirebaseMessaging.onMessage.listen((message) {
     debugPrint(
-      '[push-notification] foreground FCM data=${message.data} '
+      '[push-notification] foreground data=${message.data} '
       'has_notification=${message.notification != null}',
     );
   });
-  final opened = FirebaseMessaging.onMessageOpenedApp.listen((_) {
-    unawaited(client.oneShotSync().catchError((Object error) {
-      debugPrint('Matrix one-shot sync after notification open failed: $error');
+  final opened = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    unawaited(() async {
+      await client.oneShotSync();
+      await _openPushNotificationRoute(
+        ref: ref,
+        message: message,
+        routerGo: router.go,
+      );
+    }()
+        .catchError((Object error) {
+      debugPrint('Matrix notification open handling failed: $error');
     }));
   });
   ref.onDispose(() {
@@ -112,24 +153,26 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
   });
 });
 
-Future<void> _registerCurrentToken(
-  FirebaseMessaging messaging,
-  Future<void> Function(String token) registerToken,
-) async {
+Future<void> _registerCurrentToken({
+  required FirebaseMessaging messaging,
+  required MatrixPusherProfile profile,
+  required Future<void> Function(String token) registerToken,
+}) async {
   try {
     final settings = await messaging.requestPermission();
     debugPrint(
       '[push-registration] notification permission '
       'status=${settings.authorizationStatus.name}',
     );
-    for (var attempt = 0; attempt <= _fcmTokenRetryDelays.length; attempt++) {
+    for (var attempt = 0; attempt <= _pushTokenRetryDelays.length; attempt++) {
       try {
-        final token = await messaging.getToken().timeout(
-              _fcmTokenAttemptTimeout,
-            );
+        final token = await _fetchCurrentToken(messaging, profile).timeout(
+          _pushTokenAttemptTimeout,
+        );
         if (token == null || token.trim().isEmpty) {
           debugPrint(
-            '[push-registration] Firebase returned an empty FCM token '
+            '[push-registration] Firebase returned an empty '
+            '${profile.provider} token '
             'attempt=${attempt + 1}',
           );
         } else {
@@ -139,28 +182,86 @@ Future<void> _registerCurrentToken(
       } catch (error) {
         debugPrint(
           '[push-registration] Firebase token fetch failed '
+          'provider=${profile.provider} '
           'attempt=${attempt + 1}: $error',
         );
       }
-      if (attempt < _fcmTokenRetryDelays.length) {
-        await Future<void>.delayed(_fcmTokenRetryDelays[attempt]);
+      if (attempt < _pushTokenRetryDelays.length) {
+        await Future<void>.delayed(_pushTokenRetryDelays[attempt]);
       }
     }
   } catch (error) {
-    debugPrint('FCM pusher registration failed: $error');
+    debugPrint('Matrix pusher registration failed: $error');
   }
 }
 
-Future<void> _syncAfterNotificationOpen(
+Future<String?> _fetchCurrentToken(
   FirebaseMessaging messaging,
-  Future<void> Function() sync,
-) async {
+  MatrixPusherProfile profile,
+) {
+  if (profile == direxioIosApnsPusherProfile) {
+    return messaging.getAPNSToken();
+  }
+  return messaging.getToken();
+}
+
+Future<void> _syncAfterInitialNotificationOpen({
+  required FirebaseMessaging messaging,
+  required Future<void> Function() sync,
+  required Future<void> Function(RemoteMessage message) openNotification,
+}) async {
   try {
     final initialMessage = await messaging.getInitialMessage();
     if (initialMessage == null) return;
     await sync();
+    await openNotification(initialMessage);
   } catch (error) {
     debugPrint(
-        'Matrix one-shot sync after initial notification failed: $error');
+      'Matrix notification open handling after initial notification failed: '
+      '$error',
+    );
   }
+}
+
+Future<void> _openPushNotificationRoute({
+  required Ref ref,
+  required RemoteMessage message,
+  required void Function(String location) routerGo,
+}) async {
+  if (ref.read(authStateNotifierProvider).valueOrNull?.isLoggedIn != true) {
+    debugPrint('[push-notification] open skip: user is not logged in');
+    return;
+  }
+  final data = message.data;
+  final roomId = pushNotificationRoomIdFromData(data);
+  if (roomId == null) {
+    debugPrint('[push-notification] open skip: missing room_id data=$data');
+    return;
+  }
+
+  final bootstrapContext = pushNotificationRouteContextFromBootstrap(
+    ref.read(asSyncCacheProvider).bootstrap,
+    roomId,
+  );
+  final nativeRoomType = pushNotificationRouteRoomTypeFromNativeProfile(
+    ref
+        .read(matrixClientProvider)
+        .getRoomById(roomId)
+        ?.getState(nativeRoomProfileEventType)
+        ?.content,
+  );
+  final route = pushNotificationRouteForData(
+    data,
+    context: PushNotificationRouteContext(
+      roomType: bootstrapContext.roomType ?? nativeRoomType,
+      channelId: bootstrapContext.channelId,
+      roomName: bootstrapContext.roomName,
+    ),
+  );
+  if (route == null) {
+    debugPrint('[push-notification] open skip: unsupported data=$data');
+    return;
+  }
+  debugPrint('[push-notification] open route=$route room_id=$roomId');
+  routerGo(route);
 }

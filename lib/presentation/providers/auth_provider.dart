@@ -1938,7 +1938,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     final lastHomeserver = await _storage.read(key: lastLoginHomeserverKey) ??
         await _storage.read(key: 'matrix_homeserver');
     try {
-      await unregisterStoredAndroidFcmMatrixPusher(client);
+      await unregisterStoredMatrixPusher(client);
     } catch (e) {
       debugPrint('Matrix pusher unregister during logout failed: $e');
     }

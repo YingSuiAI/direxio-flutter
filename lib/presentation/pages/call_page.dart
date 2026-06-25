@@ -9,6 +9,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../call/voice_call_controller.dart';
 import '../call/voice_call_display_name.dart';
 import '../providers/auth_provider.dart';
@@ -58,12 +59,15 @@ LocalVideoControlState localVideoControlState({
       : LocalVideoControlState.active;
 }
 
-String localVideoControlLabel(LocalVideoControlState state) {
+String localVideoControlLabel(
+  LocalVideoControlState state, {
+  AppLocalizations? l10n,
+}) {
   return switch (state) {
     LocalVideoControlState.inactive => '',
-    LocalVideoControlState.unavailable => '开摄像头',
-    LocalVideoControlState.active => '关摄像头',
-    LocalVideoControlState.muted => '开摄像头',
+    LocalVideoControlState.unavailable => l10n?.callCameraOn ?? '开摄像头',
+    LocalVideoControlState.active => l10n?.callCameraOff ?? '关摄像头',
+    LocalVideoControlState.muted => l10n?.callCameraOn ?? '开摄像头',
   };
 }
 
@@ -73,28 +77,36 @@ bool localVideoControlCanToggle(LocalVideoControlState state) {
       state == LocalVideoControlState.muted;
 }
 
-String remoteVideoPlaceholderTitle(VoiceCallUiState state) {
-  return state.status == VoiceCallStatus.connected ? '对方摄像头不可用' : '等待对方画面';
+String remoteVideoPlaceholderTitle(
+  VoiceCallUiState state, {
+  AppLocalizations? l10n,
+}) {
+  return state.status == VoiceCallStatus.connected
+      ? l10n?.callRemoteCameraUnavailable ?? '对方摄像头不可用'
+      : l10n?.callWaitingRemoteVideo ?? '等待对方画面';
 }
 
-String speakerControlLabel(bool isSpeakerOn) {
-  return isSpeakerOn ? '扬声器' : '听筒';
+String speakerControlLabel(bool isSpeakerOn, {AppLocalizations? l10n}) {
+  return isSpeakerOn ? l10n?.callSpeaker ?? '扬声器' : l10n?.callEarpiece ?? '听筒';
 }
 
 String callStatusDisplayText(
   VoiceCallUiState state, {
   String? overrideText,
   required DateTime now,
+  AppLocalizations? l10n,
 }) {
   final stateError = state.error?.trim();
   if (overrideText?.trim().isNotEmpty ?? false) return overrideText!.trim();
-  if (stateError != null && stateError.isNotEmpty) return stateError;
+  if (stateError != null && stateError.isNotEmpty) {
+    return localizedCallErrorText(stateError, l10n);
+  }
   if ((state.status == VoiceCallStatus.connected ||
           state.status == VoiceCallStatus.ended) &&
       state.connectedAt != null) {
     return _formatCallElapsed(now.difference(state.connectedAt!));
   }
-  return voiceCallStatusLabel(state);
+  return voiceCallStatusLabel(state, l10n: l10n);
 }
 
 bool callPageShouldAutoCloseForState(
@@ -297,7 +309,11 @@ class _CallPageState extends ConsumerState<CallPage> {
     final peerUserId = _resolvePeerUserId(client);
     if (peerUserId == null) {
       if (mounted) {
-        setState(() => _localError = '无法确定通话对象');
+        final l10n = Localizations.of<AppLocalizations>(
+          context,
+          AppLocalizations,
+        );
+        setState(() => _localError = l10n?.callNoPeer ?? '无法确定通话对象');
       }
       return;
     }
@@ -365,6 +381,10 @@ class _CallPageState extends ConsumerState<CallPage> {
       stream: controller.stateStream,
       initialData: controller.currentState,
       builder: (context, snapshot) {
+        final l10n = Localizations.of<AppLocalizations>(
+          context,
+          AppLocalizations,
+        );
         final rawState = snapshot.data ?? controller.currentState;
         final state =
             rawState.roomId == widget.roomId || rawState.roomId == null
@@ -447,7 +467,9 @@ class _CallPageState extends ConsumerState<CallPage> {
                         Expanded(
                           child: Center(
                             child: Text(
-                              isVideoCall ? '视频通话' : '语音通话',
+                              isVideoCall
+                                  ? l10n?.contactVideoCall ?? '视频通话'
+                                  : l10n?.groupChatVoiceCall ?? '语音通话',
                               style: AppTheme.sans(
                                 size: 13,
                                 weight: FontWeight.w500,
@@ -784,7 +806,13 @@ class _ConnectedRemoteVideoSurface extends StatelessWidget {
               _CallAvatar(name: displayName, imageUrl: avatarUrl, size: 92),
               const SizedBox(height: 20),
               Text(
-                remoteVideoPlaceholderTitle(state),
+                remoteVideoPlaceholderTitle(
+                  state,
+                  l10n: Localizations.of<AppLocalizations>(
+                    context,
+                    AppLocalizations,
+                  ),
+                ),
                 style: AppTheme.sans(
                   size: 22,
                   weight: FontWeight.w700,
@@ -830,7 +858,13 @@ class _LocalVideoPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasActiveVideo = hasLocalVideoTrack && !isCameraMuted;
-    final placeholderLabel = isCameraMuted ? '摄像头已关' : '摄像头打开中';
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final placeholderLabel = isCameraMuted
+        ? l10n?.callCameraOffState ?? '摄像头已关'
+        : l10n?.callCameraStarting ?? '摄像头打开中';
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -1081,7 +1115,9 @@ class _MutedVideoBadge extends StatelessWidget {
           const Icon(Symbols.videocam_off, size: 16, color: _callText),
           const SizedBox(width: 6),
           Text(
-            '摄像头已关',
+            Localizations.of<AppLocalizations>(context, AppLocalizations)
+                    ?.callCameraOffState ??
+                '摄像头已关',
             style: AppTheme.sans(size: 12, color: _callText),
           ),
         ],
@@ -1147,6 +1183,7 @@ class _CallStatusTextState extends State<_CallStatusText> {
       widget.state,
       overrideText: widget.overrideText,
       now: DateTime.now(),
+      l10n: Localizations.of<AppLocalizations>(context, AppLocalizations),
     );
     return Text(
       text,
@@ -1260,7 +1297,9 @@ class _SecureBadge extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            '端到端加密',
+            Localizations.of<AppLocalizations>(context, AppLocalizations)
+                    ?.callEncrypted ??
+                '端到端加密',
             style: AppTheme.sans(
               size: 13,
               weight: FontWeight.w500,
@@ -1289,13 +1328,17 @@ class _IncomingControls extends StatelessWidget {
       children: [
         _RoundActionButton(
           icon: Symbols.call_end,
-          label: '拒绝',
+          label: Localizations.of<AppLocalizations>(context, AppLocalizations)
+                  ?.callReject ??
+              '拒绝',
           color: _callDanger,
           onTap: onReject,
         ),
         _RoundActionButton(
           icon: Symbols.call,
-          label: '接听',
+          label: Localizations.of<AppLocalizations>(context, AppLocalizations)
+                  ?.callAnswer ??
+              '接听',
           color: _callSuccess,
           onTap: onAnswer,
         ),
@@ -1330,6 +1373,10 @@ class _ActiveControls extends StatelessWidget {
       hasLocalVideoTrack: hasLocalVideoTrack,
       isCameraMuted: state.isCameraMuted,
     );
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final canToggleVideo = localVideoControlCanToggle(videoState);
     return Column(
       children: [
@@ -1338,7 +1385,9 @@ class _ActiveControls extends StatelessWidget {
           children: [
             _ControlButton(
               icon: state.isMuted ? Symbols.mic_off : Symbols.mic,
-              label: state.isMuted ? '已静音' : '静音',
+              label: state.isMuted
+                  ? l10n?.callMuted ?? '已静音'
+                  : l10n?.callMute ?? '静音',
               selected: state.isMuted,
               onTap: onToggleMute,
             ),
@@ -1351,7 +1400,7 @@ class _ActiveControls extends StatelessWidget {
                   LocalVideoControlState.unavailable =>
                     Symbols.videocam_off,
                 },
-                label: localVideoControlLabel(videoState),
+                label: localVideoControlLabel(videoState, l10n: l10n),
                 selected: videoState == LocalVideoControlState.muted ||
                     videoState == LocalVideoControlState.unavailable,
                 enabled: canToggleVideo,
@@ -1359,7 +1408,7 @@ class _ActiveControls extends StatelessWidget {
               ),
             _ControlButton(
               icon: state.isSpeakerOn ? Symbols.volume_up : Symbols.volume_off,
-              label: speakerControlLabel(state.isSpeakerOn),
+              label: speakerControlLabel(state.isSpeakerOn, l10n: l10n),
               selected: state.isSpeakerOn,
               onTap: onToggleSpeaker,
             ),
@@ -1560,7 +1609,9 @@ class _HangupButtonState extends State<_HangupButton>
           ),
           const SizedBox(height: 8),
           Text(
-            '挂断',
+            Localizations.of<AppLocalizations>(context, AppLocalizations)
+                    ?.callHangup ??
+                '挂断',
             style: AppTheme.sans(
               size: 11,
               color: _callText.withValues(alpha: 0.5),

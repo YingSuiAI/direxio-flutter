@@ -1219,6 +1219,226 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagePreviewAgentChatRecord => 'Agent チャット履歴';
 
   @override
+  String get callReady => '通話の準備中';
+
+  @override
+  String get callCalling => '発信中...';
+
+  @override
+  String get callInviteVoice => '音声通話に招待しています';
+
+  @override
+  String get callInviteVideo => 'ビデオ通話に招待しています';
+
+  @override
+  String get callWaitingAnswer => '相手の応答を待っています';
+
+  @override
+  String get callConnecting => '接続中...';
+
+  @override
+  String get callVideoConnected => 'ビデオ通話中';
+
+  @override
+  String get callVoiceConnected => '通話中';
+
+  @override
+  String get callEnded => '通話が終了しました';
+
+  @override
+  String get callFailed => '通話に失敗しました';
+
+  @override
+  String get callPeerRejected => '相手が拒否しました';
+
+  @override
+  String get callRejected => '通話を拒否しました';
+
+  @override
+  String get callPeerHungUp => '相手が切断しました';
+
+  @override
+  String get callMissed => '不在着信';
+
+  @override
+  String get callNoPeer => '通話相手を特定できません';
+
+  @override
+  String get callAlreadyActive => '通話がすでに進行中です';
+
+  @override
+  String get callServiceNotReady => '通話サービスの準備ができていません';
+
+  @override
+  String get callStarting => '通話を開始しています';
+
+  @override
+  String get callRoomMissing => '通話ルームが存在しません';
+
+  @override
+  String get callStartFailed => '通話の開始に失敗しました。後でもう一度お試しください';
+
+  @override
+  String get callOutgoingNetworkFailed => '発信に失敗しました。ネットワークまたはノードを確認してください';
+
+  @override
+  String get callPeerNoResponse => '相手が応答しません。通話を終了しました';
+
+  @override
+  String get callNetworkUnstable => 'ネットワークが不安定です';
+
+  @override
+  String get callInterrupted => '通話が中断されました';
+
+  @override
+  String get callMediaPermissionVideo => 'カメラまたはマイクを使用できません。権限を確認してください';
+
+  @override
+  String get callMediaPermissionVoice => 'マイクを使用できません。権限を確認してください';
+
+  @override
+  String get callPeerBusy => '相手は通話中です';
+
+  @override
+  String get callCameraOn => 'カメラをオン';
+
+  @override
+  String get callCameraOff => 'カメラをオフ';
+
+  @override
+  String get callCameraOffState => 'カメラはオフです';
+
+  @override
+  String get callCameraStarting => 'カメラを起動中';
+
+  @override
+  String get callRemoteCameraUnavailable => '相手のカメラは使用できません';
+
+  @override
+  String get callWaitingRemoteVideo => '映像を待っています';
+
+  @override
+  String get callSpeaker => 'スピーカー';
+
+  @override
+  String get callEarpiece => '受話口';
+
+  @override
+  String get callEncrypted => 'エンドツーエンド暗号化';
+
+  @override
+  String get callReject => '拒否';
+
+  @override
+  String get callAnswer => '応答';
+
+  @override
+  String get callMuted => 'ミュート中';
+
+  @override
+  String get callMute => 'ミュート';
+
+  @override
+  String get callUnmute => 'ミュート解除';
+
+  @override
+  String get callHangup => '切断';
+
+  @override
+  String get groupCallTitleVoice => 'グループ音声通話';
+
+  @override
+  String get groupCallTitleVideo => 'グループビデオ通話';
+
+  @override
+  String get groupCallInviteVoice => 'グループ音声通話に招待しています';
+
+  @override
+  String get groupCallInviteVideo => 'グループビデオ通話に招待しています';
+
+  @override
+  String get groupCallJoiningVoice => 'グループ音声通話に参加中';
+
+  @override
+  String get groupCallJoiningVideo => 'グループビデオ通話に参加中';
+
+  @override
+  String get groupCallConnectedVoice => 'グループ音声通話中';
+
+  @override
+  String get groupCallConnectedVideo => 'グループビデオ通話中';
+
+  @override
+  String get groupCallEnded => 'グループ通話が終了しました';
+
+  @override
+  String get groupCallFailed => 'グループ通話に失敗しました';
+
+  @override
+  String get groupCallNetworkFailed => 'グループ通話の開始に失敗しました。ネットワークまたはノードを確認してください';
+
+  @override
+  String get groupCallRoomMissing => 'グループチャットが存在しません';
+
+  @override
+  String get groupCallUnsupported => 'このグループはまだグループ通話に対応していません';
+
+  @override
+  String get groupCallCameraUnavailable => 'カメラは使用できません';
+
+  @override
+  String get groupCallWaitingVideo => '映像を待っています';
+
+  @override
+  String get groupCallWaitingMembersVideo => 'グループメンバーの映像を待っています';
+
+  @override
+  String get groupCallMemberFallback => 'メンバー';
+
+  @override
+  String get groupCallWaitingMembers => 'メンバーの参加を待っています';
+
+  @override
+  String groupCallParticipantCount(int count) {
+    return '$count人が通話中';
+  }
+
+  @override
+  String get groupCallReadyToJoin => '参加準備中';
+
+  @override
+  String get groupCallBack => '戻る';
+
+  @override
+  String get groupCallJoin => '参加';
+
+  @override
+  String get groupCallLeave => '退出';
+
+  @override
+  String get groupCallSelectVideoMembers => 'ビデオメンバーを選択';
+
+  @override
+  String get groupCallSelectVoiceMembers => '音声メンバーを選択';
+
+  @override
+  String get groupCallStartVideo => 'ビデオ通話を開始';
+
+  @override
+  String get groupCallStartVoice => '音声通話を開始';
+
+  @override
+  String get groupCallSelectAtLeastOne => '招待するメンバーを1人以上選択してください';
+
+  @override
+  String groupCallSelectedMembers(int selected, int total) {
+    return '$selected / $total 人を選択済み';
+  }
+
+  @override
+  String get groupCallNoInviteMembers => '招待できるメンバーはいません';
+
+  @override
   String get chatInputVoice => '音声';
 
   @override
@@ -1440,6 +1660,64 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get channelJoinProcessing => '処理中';
+
+  @override
+  String get channelReviewTitle => 'チャンネル審査';
+
+  @override
+  String get channelReviewLoadFailedTitle => '審査の読み込みに失敗しました';
+
+  @override
+  String get channelReviewLoadFailedSubtitle => 'しばらくしてから再試行してください';
+
+  @override
+  String get channelReviewEmptyTitle => '参加申請はありません';
+
+  @override
+  String get channelReviewEmptySubtitle => '新しいチャンネル参加申請がここに表示されます。';
+
+  @override
+  String get channelReviewUnnamedChannel => '名称未設定のチャンネル';
+
+  @override
+  String get channelReviewApprove => '承認';
+
+  @override
+  String get channelReviewReject => '拒否';
+
+  @override
+  String get channelReviewStatusPending => '審査待ち';
+
+  @override
+  String get channelReviewStatusApproved => '承認済み';
+
+  @override
+  String get channelReviewStatusJoining => '参加中';
+
+  @override
+  String get channelReviewStatusJoined => '参加済み';
+
+  @override
+  String get channelReviewStatusJoinFailed => '参加失敗';
+
+  @override
+  String get channelReviewStatusRejected => '拒否済み';
+
+  @override
+  String channelReviewApproveFailed(String error) {
+    return '承認に失敗しました：$error';
+  }
+
+  @override
+  String channelReviewRejectFailed(String error) {
+    return '拒否に失敗しました：$error';
+  }
+
+  @override
+  String get channelReviewTimeNow => 'たった今';
+
+  @override
+  String get channelReviewTimeYesterday => '昨日';
 
   @override
   String get channelSearchHint => 'チャンネルを検索...';

@@ -2357,6 +2357,438 @@ abstract class AppLocalizations {
   /// **'Agent 聊天记录'**
   String get messagePreviewAgentChatRecord;
 
+  /// No description provided for @callReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'准备通话'**
+  String get callReady;
+
+  /// No description provided for @callCalling.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在呼叫...'**
+  String get callCalling;
+
+  /// No description provided for @callInviteVoice.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请你语音通话'**
+  String get callInviteVoice;
+
+  /// No description provided for @callInviteVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请你视频通话'**
+  String get callInviteVideo;
+
+  /// No description provided for @callWaitingAnswer.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待对方接听'**
+  String get callWaitingAnswer;
+
+  /// No description provided for @callConnecting.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在连接...'**
+  String get callConnecting;
+
+  /// No description provided for @callVideoConnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'视频通话中'**
+  String get callVideoConnected;
+
+  /// No description provided for @callVoiceConnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'通话中'**
+  String get callVoiceConnected;
+
+  /// No description provided for @callEnded.
+  ///
+  /// In zh, this message translates to:
+  /// **'通话已结束'**
+  String get callEnded;
+
+  /// No description provided for @callFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'通话失败'**
+  String get callFailed;
+
+  /// No description provided for @callPeerRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方已拒绝'**
+  String get callPeerRejected;
+
+  /// No description provided for @callRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拒绝通话'**
+  String get callRejected;
+
+  /// No description provided for @callPeerHungUp.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方已挂断'**
+  String get callPeerHungUp;
+
+  /// No description provided for @callMissed.
+  ///
+  /// In zh, this message translates to:
+  /// **'未接听'**
+  String get callMissed;
+
+  /// No description provided for @callNoPeer.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法确定通话对象'**
+  String get callNoPeer;
+
+  /// No description provided for @callAlreadyActive.
+  ///
+  /// In zh, this message translates to:
+  /// **'已有通话正在进行'**
+  String get callAlreadyActive;
+
+  /// No description provided for @callServiceNotReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'通话服务还没有准备好'**
+  String get callServiceNotReady;
+
+  /// No description provided for @callStarting.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在发起通话'**
+  String get callStarting;
+
+  /// No description provided for @callRoomMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'通话房间不存在'**
+  String get callRoomMissing;
+
+  /// No description provided for @callStartFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'通话发起失败，请稍后重试'**
+  String get callStartFailed;
+
+  /// No description provided for @callOutgoingNetworkFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'拨打失败，请检查你的网络或节点后重试'**
+  String get callOutgoingNetworkFailed;
+
+  /// No description provided for @callPeerNoResponse.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方暂无响应，已结束拨打'**
+  String get callPeerNoResponse;
+
+  /// No description provided for @callNetworkUnstable.
+  ///
+  /// In zh, this message translates to:
+  /// **'网络不稳定'**
+  String get callNetworkUnstable;
+
+  /// No description provided for @callInterrupted.
+  ///
+  /// In zh, this message translates to:
+  /// **'通话中断'**
+  String get callInterrupted;
+
+  /// No description provided for @callMediaPermissionVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法使用摄像头或麦克风，请检查权限'**
+  String get callMediaPermissionVideo;
+
+  /// No description provided for @callMediaPermissionVoice.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法使用麦克风，请检查权限'**
+  String get callMediaPermissionVoice;
+
+  /// No description provided for @callPeerBusy.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方正在通话中'**
+  String get callPeerBusy;
+
+  /// No description provided for @callCameraOn.
+  ///
+  /// In zh, this message translates to:
+  /// **'开摄像头'**
+  String get callCameraOn;
+
+  /// No description provided for @callCameraOff.
+  ///
+  /// In zh, this message translates to:
+  /// **'关摄像头'**
+  String get callCameraOff;
+
+  /// No description provided for @callCameraOffState.
+  ///
+  /// In zh, this message translates to:
+  /// **'摄像头已关'**
+  String get callCameraOffState;
+
+  /// No description provided for @callCameraStarting.
+  ///
+  /// In zh, this message translates to:
+  /// **'摄像头打开中'**
+  String get callCameraStarting;
+
+  /// No description provided for @callRemoteCameraUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'对方摄像头不可用'**
+  String get callRemoteCameraUnavailable;
+
+  /// No description provided for @callWaitingRemoteVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待对方画面'**
+  String get callWaitingRemoteVideo;
+
+  /// No description provided for @callSpeaker.
+  ///
+  /// In zh, this message translates to:
+  /// **'扬声器'**
+  String get callSpeaker;
+
+  /// No description provided for @callEarpiece.
+  ///
+  /// In zh, this message translates to:
+  /// **'听筒'**
+  String get callEarpiece;
+
+  /// No description provided for @callEncrypted.
+  ///
+  /// In zh, this message translates to:
+  /// **'端到端加密'**
+  String get callEncrypted;
+
+  /// No description provided for @callReject.
+  ///
+  /// In zh, this message translates to:
+  /// **'拒绝'**
+  String get callReject;
+
+  /// No description provided for @callAnswer.
+  ///
+  /// In zh, this message translates to:
+  /// **'接听'**
+  String get callAnswer;
+
+  /// No description provided for @callMuted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已静音'**
+  String get callMuted;
+
+  /// No description provided for @callMute.
+  ///
+  /// In zh, this message translates to:
+  /// **'静音'**
+  String get callMute;
+
+  /// No description provided for @callUnmute.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消静音'**
+  String get callUnmute;
+
+  /// No description provided for @callHangup.
+  ///
+  /// In zh, this message translates to:
+  /// **'挂断'**
+  String get callHangup;
+
+  /// No description provided for @groupCallTitleVoice.
+  ///
+  /// In zh, this message translates to:
+  /// **'群语音通话'**
+  String get groupCallTitleVoice;
+
+  /// No description provided for @groupCallTitleVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'群视频通话'**
+  String get groupCallTitleVideo;
+
+  /// No description provided for @groupCallInviteVoice.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请你加入群语音通话'**
+  String get groupCallInviteVoice;
+
+  /// No description provided for @groupCallInviteVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'邀请你加入群视频通话'**
+  String get groupCallInviteVideo;
+
+  /// No description provided for @groupCallJoiningVoice.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在进入群语音通话'**
+  String get groupCallJoiningVoice;
+
+  /// No description provided for @groupCallJoiningVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在进入群视频通话'**
+  String get groupCallJoiningVideo;
+
+  /// No description provided for @groupCallConnectedVoice.
+  ///
+  /// In zh, this message translates to:
+  /// **'群语音通话中'**
+  String get groupCallConnectedVoice;
+
+  /// No description provided for @groupCallConnectedVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'群视频通话中'**
+  String get groupCallConnectedVideo;
+
+  /// No description provided for @groupCallEnded.
+  ///
+  /// In zh, this message translates to:
+  /// **'群通话已结束'**
+  String get groupCallEnded;
+
+  /// No description provided for @groupCallFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'群通话失败'**
+  String get groupCallFailed;
+
+  /// No description provided for @groupCallNetworkFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'群通话发起失败，请检查网络或节点后重试'**
+  String get groupCallNetworkFailed;
+
+  /// No description provided for @groupCallRoomMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'群聊不存在'**
+  String get groupCallRoomMissing;
+
+  /// No description provided for @groupCallUnsupported.
+  ///
+  /// In zh, this message translates to:
+  /// **'该群暂不支持群通话'**
+  String get groupCallUnsupported;
+
+  /// No description provided for @groupCallCameraUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'摄像头不可用'**
+  String get groupCallCameraUnavailable;
+
+  /// No description provided for @groupCallWaitingVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待视频画面'**
+  String get groupCallWaitingVideo;
+
+  /// No description provided for @groupCallWaitingMembersVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待群成员视频画面'**
+  String get groupCallWaitingMembersVideo;
+
+  /// No description provided for @groupCallMemberFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'成员'**
+  String get groupCallMemberFallback;
+
+  /// No description provided for @groupCallWaitingMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'等待成员加入'**
+  String get groupCallWaitingMembers;
+
+  /// No description provided for @groupCallParticipantCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 人通话中'**
+  String groupCallParticipantCount(int count);
+
+  /// No description provided for @groupCallReadyToJoin.
+  ///
+  /// In zh, this message translates to:
+  /// **'准备加入'**
+  String get groupCallReadyToJoin;
+
+  /// No description provided for @groupCallBack.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回'**
+  String get groupCallBack;
+
+  /// No description provided for @groupCallJoin.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入'**
+  String get groupCallJoin;
+
+  /// No description provided for @groupCallLeave.
+  ///
+  /// In zh, this message translates to:
+  /// **'离开'**
+  String get groupCallLeave;
+
+  /// No description provided for @groupCallSelectVideoMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择视频成员'**
+  String get groupCallSelectVideoMembers;
+
+  /// No description provided for @groupCallSelectVoiceMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择语音成员'**
+  String get groupCallSelectVoiceMembers;
+
+  /// No description provided for @groupCallStartVideo.
+  ///
+  /// In zh, this message translates to:
+  /// **'发起视频通话'**
+  String get groupCallStartVideo;
+
+  /// No description provided for @groupCallStartVoice.
+  ///
+  /// In zh, this message translates to:
+  /// **'发起语音通话'**
+  String get groupCallStartVoice;
+
+  /// No description provided for @groupCallSelectAtLeastOne.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择至少 1 名成员发起邀请'**
+  String get groupCallSelectAtLeastOne;
+
+  /// No description provided for @groupCallSelectedMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择 {selected} / {total} 名成员'**
+  String groupCallSelectedMembers(int selected, int total);
+
+  /// No description provided for @groupCallNoInviteMembers.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可邀请成员'**
+  String get groupCallNoInviteMembers;
+
   /// No description provided for @chatInputVoice.
   ///
   /// In zh, this message translates to:
@@ -2770,6 +3202,114 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'处理中'**
   String get channelJoinProcessing;
+
+  /// No description provided for @channelReviewTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道审核'**
+  String get channelReviewTitle;
+
+  /// No description provided for @channelReviewLoadFailedTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'审核加载失败'**
+  String get channelReviewLoadFailedTitle;
+
+  /// No description provided for @channelReviewLoadFailedSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'请稍后重试'**
+  String get channelReviewLoadFailedSubtitle;
+
+  /// No description provided for @channelReviewEmptyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无加入申请'**
+  String get channelReviewEmptyTitle;
+
+  /// No description provided for @channelReviewEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'新的频道加入申请会显示在这里'**
+  String get channelReviewEmptySubtitle;
+
+  /// No description provided for @channelReviewUnnamedChannel.
+  ///
+  /// In zh, this message translates to:
+  /// **'未命名频道'**
+  String get channelReviewUnnamedChannel;
+
+  /// No description provided for @channelReviewApprove.
+  ///
+  /// In zh, this message translates to:
+  /// **'通过'**
+  String get channelReviewApprove;
+
+  /// No description provided for @channelReviewReject.
+  ///
+  /// In zh, this message translates to:
+  /// **'拒绝'**
+  String get channelReviewReject;
+
+  /// No description provided for @channelReviewStatusPending.
+  ///
+  /// In zh, this message translates to:
+  /// **'待审核'**
+  String get channelReviewStatusPending;
+
+  /// No description provided for @channelReviewStatusApproved.
+  ///
+  /// In zh, this message translates to:
+  /// **'已同意'**
+  String get channelReviewStatusApproved;
+
+  /// No description provided for @channelReviewStatusJoining.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入中'**
+  String get channelReviewStatusJoining;
+
+  /// No description provided for @channelReviewStatusJoined.
+  ///
+  /// In zh, this message translates to:
+  /// **'已加入'**
+  String get channelReviewStatusJoined;
+
+  /// No description provided for @channelReviewStatusJoinFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入失败'**
+  String get channelReviewStatusJoinFailed;
+
+  /// No description provided for @channelReviewStatusRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'已拒绝'**
+  String get channelReviewStatusRejected;
+
+  /// No description provided for @channelReviewApproveFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'同意失败：{error}'**
+  String channelReviewApproveFailed(String error);
+
+  /// No description provided for @channelReviewRejectFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'拒绝失败：{error}'**
+  String channelReviewRejectFailed(String error);
+
+  /// No description provided for @channelReviewTimeNow.
+  ///
+  /// In zh, this message translates to:
+  /// **'刚刚'**
+  String get channelReviewTimeNow;
+
+  /// No description provided for @channelReviewTimeYesterday.
+  ///
+  /// In zh, this message translates to:
+  /// **'昨天'**
+  String get channelReviewTimeYesterday;
 
   /// No description provided for @channelSearchHint.
   ///

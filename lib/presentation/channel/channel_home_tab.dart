@@ -502,6 +502,10 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
   Future<List<_ReviewItem>> _loadReviewItems() async {
     final auth = ref.read(authStateNotifierProvider).valueOrNull;
     if (auth?.isLoggedIn != true) return const <_ReviewItem>[];
+    final syncCache = asSyncCacheForUser(
+      ref.read(asSyncCacheProvider),
+      auth?.userId,
+    );
     final listedChannels = await ref.read(asClientProvider).listChannels();
     final ownedChannels = listedChannels.where(_canReviewChannel).toList(
           growable: false,
@@ -517,16 +521,15 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
           .getChannelMembers(channelId, status: asChannelMemberStatusPending);
       for (final member in members) {
         if (member.status != asChannelMemberStatusPending) continue;
+        final identity = _reviewMemberIdentity(syncCache, member);
         items.add(
           _ReviewItem(
             channelId: channelId,
-            channelName: channel.name.trim().isEmpty ? '未命名频道' : channel.name,
+            channelName: channel.name.trim(),
             userMxid: member.userMxid,
-            name: member.displayName.trim().isEmpty
-                ? _localpartFromMxid(member.userMxid)
-                : member.displayName.trim(),
-            avatarUrl: member.avatarUrl.trim(),
-            time: _formatReviewTime(member.joinedAtMs),
+            name: identity.name,
+            avatarUrl: identity.avatarUrl,
+            joinedAtMs: member.joinedAtMs,
             status: _ReviewStatus.pending,
           ),
         );
@@ -538,6 +541,10 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
       backgroundColor: _channelBgColor(context),
       body: Stack(
@@ -552,6 +559,7 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
                   .where((item) => item.status == _ReviewStatus.pending)
                   .length,
               onBack: () => context.pop(),
+              title: l10n?.channelReviewTitle ?? '频道审核',
             ),
           ),
           Positioned.fill(
@@ -563,17 +571,18 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return const _ChannelEmpty(
+                  return _ChannelEmpty(
                     icon: Symbols.error,
-                    title: '审核加载失败',
-                    subtitle: '请稍后重试',
+                    title: l10n?.channelReviewLoadFailedTitle ?? '审核加载失败',
+                    subtitle: l10n?.channelReviewLoadFailedSubtitle ?? '请稍后重试',
                   );
                 }
                 if (_items.isEmpty) {
-                  return const _ChannelEmpty(
+                  return _ChannelEmpty(
                     icon: Symbols.check_circle,
-                    title: '暂无加入申请',
-                    subtitle: '新的频道加入申请会显示在这里',
+                    title: l10n?.channelReviewEmptyTitle ?? '暂无加入申请',
+                    subtitle:
+                        l10n?.channelReviewEmptySubtitle ?? '新的频道加入申请会显示在这里',
                   );
                 }
                 return ListView.separated(
@@ -584,6 +593,7 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
                     final item = _items[index];
                     return _ReviewCard(
                       item: item,
+                      l10n: l10n,
                       onApprove: () => _resolve(index, _ReviewStatus.approved),
                       onReject: () => _resolve(index, _ReviewStatus.rejected),
                     );
@@ -599,6 +609,10 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
 
   Future<void> _resolve(int index, _ReviewStatus status) async {
     final item = _items[index];
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     try {
       var nextStatus = status;
       if (status == _ReviewStatus.approved) {
@@ -621,11 +635,48 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(
-                status == _ReviewStatus.approved ? '同意失败：$err' : '拒绝失败：$err')),
+          content: Text(
+            status == _ReviewStatus.approved
+                ? l10n?.channelReviewApproveFailed('$err') ?? '同意失败：$err'
+                : l10n?.channelReviewRejectFailed('$err') ?? '拒绝失败：$err',
+          ),
+        ),
       );
     }
   }
+}
+
+_ReviewMemberIdentity _reviewMemberIdentity(
+  AsSyncCacheState syncCache,
+  AsChannelMember member,
+) {
+  final mxid = member.userMxid.trim();
+  final contact = syncCache.contactForUserId(mxid);
+  final memberName = member.displayName.trim();
+  final contactName = contactDisplayNameFromIdentity(
+    mxid: mxid,
+    displayName: contact?.displayName ?? '',
+    domain: contact?.domain ?? member.domain,
+  ).trim();
+  final name = memberName.isNotEmpty
+      ? memberName
+      : contactName.isNotEmpty
+          ? contactName
+          : _localpartFromMxid(mxid);
+  final avatarUrl = member.avatarUrl.trim().isNotEmpty
+      ? member.avatarUrl.trim()
+      : contact?.avatarUrl.trim() ?? '';
+  return _ReviewMemberIdentity(name: name, avatarUrl: avatarUrl);
+}
+
+class _ReviewMemberIdentity {
+  const _ReviewMemberIdentity({
+    required this.name,
+    required this.avatarUrl,
+  });
+
+  final String name;
+  final String avatarUrl;
 }
 
 _ReviewStatus _reviewStatusFromJoinResult(String status) {
@@ -658,11 +709,13 @@ class _ReviewTopBar extends StatelessWidget {
     required this.topInset,
     required this.pendingCount,
     required this.onBack,
+    required this.title,
   });
 
   final double topInset;
   final int pendingCount;
   final VoidCallback onBack;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -682,7 +735,7 @@ class _ReviewTopBar extends StatelessWidget {
               ),
             ),
             Text(
-              '频道审核',
+              title,
               style: AppTheme.sans(
                 size: 20,
                 weight: FontWeight.w600,
@@ -704,17 +757,23 @@ class _ReviewTopBar extends StatelessWidget {
 class _ReviewCard extends StatelessWidget {
   const _ReviewCard({
     required this.item,
+    required this.l10n,
     required this.onApprove,
     required this.onReject,
   });
 
   final _ReviewItem item;
+  final AppLocalizations? l10n;
   final VoidCallback onApprove;
   final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context) {
     final pending = item.status == _ReviewStatus.pending;
+    final channelName = item.channelName.trim().isEmpty
+        ? l10n?.channelReviewUnnamedChannel ?? '未命名频道'
+        : item.channelName.trim();
+    final time = _formatReviewTime(l10n, item.joinedAtMs);
     return Container(
       height: pending ? 118 : 64,
       decoration: BoxDecoration(
@@ -762,7 +821,7 @@ class _ReviewCard extends StatelessWidget {
               children: [
                 Flexible(
                   child: Text(
-                    item.channelName,
+                    channelName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTheme.sans(
@@ -774,7 +833,7 @@ class _ReviewCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  item.time,
+                  time,
                   style: AppTheme.sans(
                     size: 12,
                     weight: FontWeight.w500,
@@ -789,7 +848,7 @@ class _ReviewCard extends StatelessWidget {
           Positioned(
             right: 14,
             top: 14,
-            child: _ReviewStatusPill(status: item.status),
+            child: _ReviewStatusPill(status: item.status, l10n: l10n),
           ),
           if (pending) ...[
             Positioned(
@@ -799,7 +858,7 @@ class _ReviewCard extends StatelessWidget {
               height: 34,
               child: _ReviewActionButton(
                 key: ValueKey('channel-review-approve-${item.userMxid}'),
-                label: '通过',
+                label: l10n?.channelReviewApprove ?? '通过',
                 foreground: context.tk.onAccent,
                 background: context.tk.accent,
                 onTap: onApprove,
@@ -812,7 +871,7 @@ class _ReviewCard extends StatelessWidget {
               height: 34,
               child: _ReviewActionButton(
                 key: ValueKey('channel-review-reject-${item.userMxid}'),
-                label: '拒绝',
+                label: l10n?.channelReviewReject ?? '拒绝',
                 foreground: _channelMutedColor(context),
                 background: _channelSoftFillColor(context),
                 onTap: onReject,
@@ -1444,40 +1503,41 @@ class _ReviewAvatar extends ConsumerWidget {
 }
 
 class _ReviewStatusPill extends StatelessWidget {
-  const _ReviewStatusPill({required this.status});
+  const _ReviewStatusPill({required this.status, required this.l10n});
 
   final _ReviewStatus status;
+  final AppLocalizations? l10n;
 
   @override
   Widget build(BuildContext context) {
     final (label, bg, fg) = switch (status) {
       _ReviewStatus.pending => (
-          '待审核',
+          l10n?.channelReviewStatusPending ?? '待审核',
           _channelStatusBgColor(context, _ReviewStatus.pending),
           _channelStatusTextColor(context, _ReviewStatus.pending),
         ),
       _ReviewStatus.approved => (
-          '已同意',
+          l10n?.channelReviewStatusApproved ?? '已同意',
           _channelStatusBgColor(context, _ReviewStatus.approved),
           _channelStatusTextColor(context, _ReviewStatus.approved),
         ),
       _ReviewStatus.joining => (
-          '加入中',
+          l10n?.channelReviewStatusJoining ?? '加入中',
           _channelStatusBgColor(context, _ReviewStatus.joining),
           _channelStatusTextColor(context, _ReviewStatus.joining),
         ),
       _ReviewStatus.joined => (
-          '已加入',
+          l10n?.channelReviewStatusJoined ?? '已加入',
           _channelStatusBgColor(context, _ReviewStatus.joined),
           _channelStatusTextColor(context, _ReviewStatus.joined),
         ),
       _ReviewStatus.joinFailed => (
-          '加入失败',
+          l10n?.channelReviewStatusJoinFailed ?? '加入失败',
           _channelStatusBgColor(context, _ReviewStatus.joinFailed),
           _channelStatusTextColor(context, _ReviewStatus.joinFailed),
         ),
       _ReviewStatus.rejected => (
-          '已拒绝',
+          l10n?.channelReviewStatusRejected ?? '已拒绝',
           _channelStatusBgColor(context, _ReviewStatus.rejected),
           _channelStatusTextColor(context, _ReviewStatus.rejected),
         ),
@@ -1597,7 +1657,7 @@ class _ReviewItem {
     required this.userMxid,
     required this.name,
     required this.avatarUrl,
-    required this.time,
+    required this.joinedAtMs,
     required this.status,
   });
 
@@ -1606,7 +1666,7 @@ class _ReviewItem {
   final String userMxid;
   final String name;
   final String avatarUrl;
-  final String time;
+  final int joinedAtMs;
   final _ReviewStatus status;
 
   _ReviewItem copyWith({_ReviewStatus? status}) {
@@ -1616,7 +1676,7 @@ class _ReviewItem {
       userMxid: userMxid,
       name: name,
       avatarUrl: avatarUrl,
-      time: time,
+      joinedAtMs: joinedAtMs,
       status: status ?? this.status,
     );
   }
@@ -2046,8 +2106,8 @@ String _formatChannelTime(DateTime? value) {
 
 String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';
 
-String _formatReviewTime(int millis) {
-  if (millis <= 0) return '刚刚';
+String _formatReviewTime(AppLocalizations? l10n, int millis) {
+  if (millis <= 0) return l10n?.channelReviewTimeNow ?? '刚刚';
   final local = DateTime.fromMillisecondsSinceEpoch(millis).toLocal();
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
@@ -2056,7 +2116,9 @@ String _formatReviewTime(int millis) {
     return '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
   }
-  if (date == today.subtract(const Duration(days: 1))) return '昨天';
+  if (date == today.subtract(const Duration(days: 1))) {
+    return l10n?.channelReviewTimeYesterday ?? '昨天';
+  }
   return '${local.month}/${local.day}';
 }
 

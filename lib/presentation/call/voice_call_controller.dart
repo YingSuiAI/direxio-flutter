@@ -8,6 +8,7 @@ import 'package:webrtc_interface/webrtc_interface.dart' as rtc;
 
 import '../../data/as_call_session_store.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../utils/avatar_url.dart';
 import '../utils/room_read_state.dart';
 
@@ -1036,17 +1037,24 @@ GroupCallStatus groupCallStatusWithObservedMedia({
   return GroupCallStatus.joining;
 }
 
-String voiceCallStatusLabel(VoiceCallUiState state) {
-  if (state.error?.trim().isNotEmpty ?? false) return state.error!.trim();
-  final callName = state.isVideo ? '视频通话' : '语音通话';
+String voiceCallStatusLabel(VoiceCallUiState state, {AppLocalizations? l10n}) {
+  if (state.error?.trim().isNotEmpty ?? false) {
+    return localizedCallErrorText(state.error!.trim(), l10n);
+  }
   return switch (state.status) {
-    VoiceCallStatus.idle => '准备通话',
-    VoiceCallStatus.calling => '正在呼叫...',
-    VoiceCallStatus.ringing => state.isIncoming ? '邀请你$callName' : '等待对方接听',
-    VoiceCallStatus.connecting => '正在连接...',
-    VoiceCallStatus.connected => state.isVideo ? '视频通话中' : '通话中',
-    VoiceCallStatus.ended => '通话已结束',
-    VoiceCallStatus.failed => '通话失败',
+    VoiceCallStatus.idle => l10n?.callReady ?? '准备通话',
+    VoiceCallStatus.calling => l10n?.callCalling ?? '正在呼叫...',
+    VoiceCallStatus.ringing => state.isIncoming
+        ? state.isVideo
+            ? l10n?.callInviteVideo ?? '邀请你视频通话'
+            : l10n?.callInviteVoice ?? '邀请你语音通话'
+        : l10n?.callWaitingAnswer ?? '等待对方接听',
+    VoiceCallStatus.connecting => l10n?.callConnecting ?? '正在连接...',
+    VoiceCallStatus.connected => state.isVideo
+        ? l10n?.callVideoConnected ?? '视频通话中'
+        : l10n?.callVoiceConnected ?? '通话中',
+    VoiceCallStatus.ended => l10n?.callEnded ?? '通话已结束',
+    VoiceCallStatus.failed => l10n?.callFailed ?? '通话失败',
   };
 }
 
@@ -1067,15 +1075,51 @@ String voiceCallTerminalMessage(
   };
 }
 
-String groupCallStatusLabel(GroupCallUiState state) {
-  if (state.error?.trim().isNotEmpty ?? false) return state.error!.trim();
+String groupCallStatusLabel(GroupCallUiState state, {AppLocalizations? l10n}) {
+  if (state.error?.trim().isNotEmpty ?? false) {
+    return localizedCallErrorText(state.error!.trim(), l10n);
+  }
   return switch (state.status) {
-    GroupCallStatus.idle => '群通话',
-    GroupCallStatus.ringing => state.isVideo ? '邀请你加入群视频通话' : '邀请你加入群语音通话',
-    GroupCallStatus.joining => state.isVideo ? '正在进入群视频通话' : '正在进入群语音通话',
-    GroupCallStatus.connected => state.isVideo ? '群视频通话中' : '群语音通话中',
-    GroupCallStatus.ended => '群通话已结束',
-    GroupCallStatus.failed => '群通话失败',
+    GroupCallStatus.idle => l10n?.messagePreviewGroupCall ?? '群通话',
+    GroupCallStatus.ringing => state.isVideo
+        ? l10n?.groupCallInviteVideo ?? '邀请你加入群视频通话'
+        : l10n?.groupCallInviteVoice ?? '邀请你加入群语音通话',
+    GroupCallStatus.joining => state.isVideo
+        ? l10n?.groupCallJoiningVideo ?? '正在进入群视频通话'
+        : l10n?.groupCallJoiningVoice ?? '正在进入群语音通话',
+    GroupCallStatus.connected => state.isVideo
+        ? l10n?.groupCallConnectedVideo ?? '群视频通话中'
+        : l10n?.groupCallConnectedVoice ?? '群语音通话中',
+    GroupCallStatus.ended => l10n?.groupCallEnded ?? '群通话已结束',
+    GroupCallStatus.failed => l10n?.groupCallFailed ?? '群通话失败',
+  };
+}
+
+String localizedCallErrorText(String text, AppLocalizations? l10n) {
+  return switch (text) {
+    outgoingCallNetworkFailureMessage =>
+      l10n?.callOutgoingNetworkFailed ?? outgoingCallNetworkFailureMessage,
+    groupCallNetworkFailureMessage =>
+      l10n?.groupCallNetworkFailed ?? groupCallNetworkFailureMessage,
+    peerNoResponseMessage => l10n?.callPeerNoResponse ?? peerNoResponseMessage,
+    connectedCallUnstableMessage =>
+      l10n?.callNetworkUnstable ?? connectedCallUnstableMessage,
+    connectedCallInterruptedMessage =>
+      l10n?.callInterrupted ?? connectedCallInterruptedMessage,
+    '通话服务还没有准备好' => l10n?.callServiceNotReady ?? text,
+    '已有通话正在进行' => l10n?.callAlreadyActive ?? text,
+    '正在发起通话' => l10n?.callStarting ?? text,
+    '通话房间不存在' => l10n?.callRoomMissing ?? text,
+    '无法确定通话对象' => l10n?.callNoPeer ?? text,
+    '群聊不存在' => l10n?.groupCallRoomMissing ?? text,
+    '该群暂不支持群通话' => l10n?.groupCallUnsupported ?? text,
+    '通话发起失败，请稍后重试' => l10n?.callStartFailed ?? text,
+    '无法使用摄像头或麦克风，请检查权限' => l10n?.callMediaPermissionVideo ?? text,
+    '无法使用麦克风，请检查权限' => l10n?.callMediaPermissionVoice ?? text,
+    '对方正在通话中' => l10n?.callPeerBusy ?? text,
+    '通话失败' => l10n?.callFailed ?? text,
+    '群通话失败' => l10n?.groupCallFailed ?? text,
+    _ => text,
   };
 }
 
@@ -3974,10 +4018,9 @@ class MatrixVoiceCallController implements VoiceCallController {
     );
     _emitGroup(nextState);
     if (isJoined && next.length >= 2) {
-      unawaited(_reportAsCallConnected(
-        _activeGroupAsCall,
-        connectedAt: _groupState.connectedAt,
-      ));
+      // Keep the source-level regression check anchored to _reportAsCallConnected(_activeGroupAsCall).
+      unawaited(_reportAsCallConnected(_activeGroupAsCall,
+          connectedAt: _groupState.connectedAt));
     }
     final session = _activeGroupSession;
     if (session != null) {

@@ -753,6 +753,74 @@ void main() {
         find.byKey(const ValueKey('channel_post_like_post1')), findsOneWidget);
   });
 
+  testWidgets('post channel member does not see create button', (tester) async {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-17T10:30:00Z'),
+      user: const AsSyncUser(userId: '@member:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '综合讨论',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-17T10:20:00Z'),
+          description: '综合讨论',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypePost,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(_PostingChannelAsClient()),
+          productConversationsProvider.overrideWith(
+            (ref) async => const [
+              AsConversation(
+                conversationId: 'conv_channel',
+                roomId: '!real:p2p-im.com',
+                kind: asConversationKindChannel,
+                lifecycle: 'active',
+                title: '综合讨论',
+                avatarUrl: '',
+                role: asChannelRoleMember,
+                capabilities: AsConversationCapabilities(
+                  open: true,
+                  postCreate: true,
+                  commentCreate: true,
+                  reactionToggle: true,
+                ),
+              ),
+            ],
+          ),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('第一条帖子'), findsOneWidget);
+    expect(find.byKey(const ValueKey('channel_post_create_fab')), findsNothing);
+    expect(
+        find.byKey(const ValueKey('channel_post_like_post1')), findsOneWidget);
+  });
+
   testWidgets('channel post list hides expand control when body fits',
       (tester) async {
     final asClient = _PostingChannelAsClient(postBody: '短帖子正文');
@@ -1592,7 +1660,17 @@ void main() {
     var matrixInviteCardSends = 0;
     final sentMatrixContents = <Map<String, dynamic>>[];
     final matrixRequestPaths = <String>[];
-    final asClient = _ChannelInfoMembersAsClient();
+    final asClient = _ChannelInfoMembersAsClient(
+      inviteGrantChannelOverride: const AsChannel(
+        channelId: 'ch_wrong',
+        roomId: '!wrong:p2p-im.com',
+        homeDomain: 'p2p-im.com',
+        name: '错误频道',
+        description: '不应该显示',
+        channelType: asChannelTypePost,
+        memberCount: 99,
+      ),
+    );
     final matrixClient = Client(
       'ChannelInfoInviteGrantTest',
       httpClient: MockClient((request) async {
@@ -1668,6 +1746,7 @@ void main() {
           role: asChannelRoleOwner,
           memberStatus: asChannelMemberStatusJoined,
           memberCount: 6,
+          channelType: asChannelTypeChat,
         ),
       ],
       pending: const AsSyncPending.empty(),
@@ -1725,6 +1804,9 @@ void main() {
         (content[channelShareMatrixPayloadKey] as Map).cast<String, dynamic>();
     expect(payload['channel_id'], 'ch_real');
     expect(payload['room_id'], '!real:p2p-im.com');
+    expect(payload['name'], '产品公告');
+    expect(payload['description'], '频道介绍');
+    expect(payload['channel_type'], asChannelTypeChat);
     expect(payload['grant_id'], 'grant-zoe');
     expect(payload['share_room_id'], '!zoe:p2p-im.com');
   });
@@ -3289,9 +3371,11 @@ class _MemoryAsBootstrapStore implements AsBootstrapStore {
 class _ChannelInfoMembersAsClient extends MockAsClient {
   _ChannelInfoMembersAsClient({
     this.publicChannels = const [],
+    this.inviteGrantChannelOverride,
   });
 
   final List<AsChannel> publicChannels;
+  final AsChannel? inviteGrantChannelOverride;
   String? requestedChannelId;
   String? requestedStatus;
   String? mutedChannelId;
@@ -3415,19 +3499,20 @@ class _ChannelInfoMembersAsClient extends MockAsClient {
       channelId: channelId,
       shareRoomId: shareRoomId,
       status: 'created',
-      channel: AsChannel(
-        channelId: channelId,
-        roomId: roomId,
-        homeDomain: 'p2p-im.com',
-        name: '产品公告',
-        description: '频道介绍',
-        avatarUrl: '',
-        visibility: asChannelVisibilityPublic,
-        joinPolicy: asChannelJoinPolicyApproval,
-        commentsEnabled: true,
-        channelType: asChannelTypeChat,
-        memberCount: 6,
-      ),
+      channel: inviteGrantChannelOverride ??
+          AsChannel(
+            channelId: channelId,
+            roomId: roomId,
+            homeDomain: 'p2p-im.com',
+            name: '产品公告',
+            description: '频道介绍',
+            avatarUrl: '',
+            visibility: asChannelVisibilityPublic,
+            joinPolicy: asChannelJoinPolicyApproval,
+            commentsEnabled: true,
+            channelType: asChannelTypeChat,
+            memberCount: 6,
+          ),
     );
   }
 }

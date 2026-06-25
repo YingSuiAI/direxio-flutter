@@ -96,7 +96,7 @@ String channelShareOpenRoute(
 }) {
   final channelId = payload.channelId.trim();
   final roomId = payload.roomId.trim();
-  final routeId = channelId.isEmpty ? roomId : channelId;
+  final routeId = roomId.isEmpty ? channelId : roomId;
   final encodedRouteId = Uri.encodeComponent(routeId);
   if (_channelShareIsJoined(syncCache, payload)) {
     if (_channelShareIsPostType(payload)) return '/channel/$encodedRouteId';
@@ -106,12 +106,15 @@ String channelShareOpenRoute(
         roomId,
         kinds: const {asConversationKindChannel},
       ),
-      channelId:
-          payload.channelId.trim().isEmpty ? payload.roomId : payload.channelId,
+      channelId: payload.roomId.trim().isEmpty
+          ? payload.channelId
+          : payload.roomId.trim(),
     );
     if (productRoute != null) return productRoute;
     final fallbackRoute = joinedTextChannelConversationRoute(
-      channelId: payload.channelId,
+      channelId: payload.roomId.trim().isEmpty
+          ? payload.channelId
+          : payload.roomId.trim(),
       roomId: payload.roomId,
       memberStatus: asChannelMemberStatusJoined,
       channelType: payload.channelType,
@@ -119,7 +122,7 @@ String channelShareOpenRoute(
     );
     if (fallbackRoute != null) return fallbackRoute;
   }
-  return '/channel/$encodedRouteId/detail';
+  return _channelShareDetailRoute(encodedRouteId, payload);
 }
 
 bool channelShareIsJoined(
@@ -139,8 +142,35 @@ String channelShareJoinRequestTargetId(ChannelSharePayload payload) {
 
 String channelShareJoinKey(ChannelSharePayload payload) {
   final channelId = payload.channelId.trim();
-  if (channelId.isNotEmpty) return channelId;
-  return payload.roomId.trim();
+  final roomId = payload.roomId.trim();
+  final channelType = normalizeAsChannelType(payload.channelType).trim();
+  final grantId = payload.grantId.trim();
+  final parts = [
+    if (channelId.isNotEmpty) 'channel:$channelId',
+    if (roomId.isNotEmpty) 'room:$roomId',
+    if (channelType.isNotEmpty) 'type:$channelType',
+    if (grantId.isNotEmpty) 'grant:$grantId',
+  ];
+  return parts.join('|');
+}
+
+String _channelShareDetailRoute(
+    String encodedRouteId, ChannelSharePayload payload) {
+  final queryParameters = <String, String>{};
+  final roomId = payload.roomId.trim();
+  final name = payload.name.trim();
+  final avatarUrl = payload.avatarUrl.trim();
+  final description = payload.description.trim();
+  final channelType = normalizeAsChannelType(payload.channelType).trim();
+  if (roomId.isNotEmpty) queryParameters['room_id'] = roomId;
+  if (name.isNotEmpty) queryParameters['name'] = name;
+  if (avatarUrl.isNotEmpty) queryParameters['avatar'] = avatarUrl;
+  if (description.isNotEmpty) queryParameters['description'] = description;
+  if (channelType.isNotEmpty) queryParameters['type'] = channelType;
+  final query = queryParameters.isEmpty
+      ? ''
+      : '?${Uri(queryParameters: queryParameters).query}';
+  return '/channel/$encodedRouteId/detail$query';
 }
 
 String channelShareJoinedRoute(
@@ -150,20 +180,23 @@ String channelShareJoinedRoute(
   final channelId = joined.channelId.trim().isEmpty
       ? payload.channelId.trim()
       : joined.channelId.trim();
+  final roomId = joined.roomId.trim().isEmpty
+      ? payload.roomId.trim()
+      : joined.roomId.trim();
   final encodedId = Uri.encodeComponent(
-    channelId.isEmpty ? payload.roomId.trim() : channelId,
+    roomId.isEmpty ? channelId : roomId,
   );
   if (_channelShareIsPostType(payload)) {
     return '/channel/$encodedId';
   }
   final productRoute = productConversationRoute(
     joined.productConversation,
-    channelId: channelId.isEmpty ? payload.roomId : channelId,
+    channelId: roomId.isEmpty ? channelId : roomId,
   );
   if (productRoute != null) return productRoute;
   final fallbackRoute = joinedTextChannelConversationRoute(
-    channelId: channelId,
-    roomId: joined.roomId.trim().isEmpty ? payload.roomId : joined.roomId,
+    channelId: roomId.isEmpty ? channelId : roomId,
+    roomId: roomId,
     memberStatus: joined.memberStatus,
     channelType: joined.channelType,
     name: joined.name.trim().isEmpty ? payload.name : joined.name,

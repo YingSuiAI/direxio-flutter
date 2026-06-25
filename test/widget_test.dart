@@ -1126,8 +1126,8 @@ class _PendingChannelReviewAsClient extends _EmptyAsClient {
         AsChannelMember(
           channelId: 'ch_review',
           userMxid: '@pending:p2p-im.com',
-          displayName: '待审核用户',
-          avatarUrl: 'https://cdn.example.com/pending-review.png',
+          displayName: '',
+          avatarUrl: '',
           status: asChannelMemberStatusPending,
           role: asChannelRoleMember,
           joinedAtMs: 1760000000000,
@@ -6482,6 +6482,28 @@ void main() {
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
           asClientProvider.overrideWithValue(_PendingChannelReviewAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(
+              bootstrap: AsSyncBootstrap(
+                syncedAt: DateTime.utc(2026, 6, 25),
+                user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+                rooms: const [],
+                contacts: const [
+                  AsSyncContact(
+                    userId: '@pending:p2p-im.com',
+                    displayName: '待审核用户',
+                    avatarUrl: 'https://cdn.example.com/pending-review.png',
+                    roomId: '!pending:p2p-im.com',
+                    domain: 'p2p-im.com',
+                    status: 'accepted',
+                  ),
+                ],
+                groups: const [],
+                channels: const [],
+                pending: const AsSyncPending.empty(),
+              ),
+            ),
+          ),
         ],
         child: MaterialApp(theme: AppTheme.light, home: const HomePage()),
       ),
@@ -6855,6 +6877,28 @@ void main() {
           currentUserProfileProvider.overrideWith((ref) async => null),
           appWarmupProvider.overrideWith((ref) async {}),
           asClientProvider.overrideWithValue(_PendingChannelReviewAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(
+              bootstrap: AsSyncBootstrap(
+                syncedAt: DateTime.utc(2026, 6, 25),
+                user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+                rooms: const [],
+                contacts: const [
+                  AsSyncContact(
+                    userId: '@pending:p2p-im.com',
+                    displayName: '待审核用户',
+                    avatarUrl: 'https://cdn.example.com/pending-review.png',
+                    roomId: '!pending:p2p-im.com',
+                    domain: 'p2p-im.com',
+                    status: 'accepted',
+                  ),
+                ],
+                groups: const [],
+                channels: const [],
+                pending: const AsSyncPending.empty(),
+              ),
+            ),
+          ),
         ],
         child: MaterialApp.router(
           theme: AppTheme.light,
@@ -6887,6 +6931,53 @@ void main() {
     expect(find.text('待审核'), findsOneWidget);
     expect(find.text('通过'), findsOneWidget);
     expect(find.text('拒绝'), findsOneWidget);
+  });
+
+  testWidgets('channel review page follows app locale', (tester) async {
+    final client = Client('DirexioChannelReviewLocaleTest')
+      ..setUserId('@owner:p2p-im.com');
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, __) => const HomePage()),
+        GoRoute(
+          path: '/channels/review',
+          builder: (_, __) => const ChannelReviewPage(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+          appWarmupProvider.overrideWith((ref) async {}),
+          asClientProvider.overrideWithValue(_PendingChannelReviewAsClient()),
+        ],
+        child: MaterialApp.router(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Channels'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('channel_review_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Channel Review'), findsOneWidget);
+    expect(find.text('Pending'), findsOneWidget);
+    expect(find.text('Approve'), findsOneWidget);
+    expect(find.text('Reject'), findsOneWidget);
+    expect(find.text('频道审核'), findsOneWidget);
+    expect(find.text('待审核'), findsNothing);
+    expect(find.text('通过'), findsNothing);
   });
 
   testWidgets('channel review approve surfaces join failure', (tester) async {

@@ -653,6 +653,95 @@
   "messagePreviewDirectChatRecord": "私聊的聊天记录",
   "messagePreviewChannelChatRecord": "频道的聊天记录",
   "messagePreviewAgentChatRecord": "Agent 聊天记录",
+  "callReady": "准备通话",
+  "callCalling": "正在呼叫...",
+  "callInviteVoice": "邀请你语音通话",
+  "callInviteVideo": "邀请你视频通话",
+  "callWaitingAnswer": "等待对方接听",
+  "callConnecting": "正在连接...",
+  "callVideoConnected": "视频通话中",
+  "callVoiceConnected": "通话中",
+  "callEnded": "通话已结束",
+  "callFailed": "通话失败",
+  "callPeerRejected": "对方已拒绝",
+  "callRejected": "已拒绝通话",
+  "callPeerHungUp": "对方已挂断",
+  "callMissed": "未接听",
+  "callNoPeer": "无法确定通话对象",
+  "callAlreadyActive": "已有通话正在进行",
+  "callServiceNotReady": "通话服务还没有准备好",
+  "callStarting": "正在发起通话",
+  "callRoomMissing": "通话房间不存在",
+  "callStartFailed": "通话发起失败，请稍后重试",
+  "callOutgoingNetworkFailed": "拨打失败，请检查你的网络或节点后重试",
+  "callPeerNoResponse": "对方暂无响应，已结束拨打",
+  "callNetworkUnstable": "网络不稳定",
+  "callInterrupted": "通话中断",
+  "callMediaPermissionVideo": "无法使用摄像头或麦克风，请检查权限",
+  "callMediaPermissionVoice": "无法使用麦克风，请检查权限",
+  "callPeerBusy": "对方正在通话中",
+  "callCameraOn": "开摄像头",
+  "callCameraOff": "关摄像头",
+  "callCameraOffState": "摄像头已关",
+  "callCameraStarting": "摄像头打开中",
+  "callRemoteCameraUnavailable": "对方摄像头不可用",
+  "callWaitingRemoteVideo": "等待对方画面",
+  "callSpeaker": "扬声器",
+  "callEarpiece": "听筒",
+  "callEncrypted": "端到端加密",
+  "callReject": "拒绝",
+  "callAnswer": "接听",
+  "callMuted": "已静音",
+  "callMute": "静音",
+  "callUnmute": "取消静音",
+  "callHangup": "挂断",
+  "groupCallTitleVoice": "群语音通话",
+  "groupCallTitleVideo": "群视频通话",
+  "groupCallInviteVoice": "邀请你加入群语音通话",
+  "groupCallInviteVideo": "邀请你加入群视频通话",
+  "groupCallJoiningVoice": "正在进入群语音通话",
+  "groupCallJoiningVideo": "正在进入群视频通话",
+  "groupCallConnectedVoice": "群语音通话中",
+  "groupCallConnectedVideo": "群视频通话中",
+  "groupCallEnded": "群通话已结束",
+  "groupCallFailed": "群通话失败",
+  "groupCallNetworkFailed": "群通话发起失败，请检查网络或节点后重试",
+  "groupCallRoomMissing": "群聊不存在",
+  "groupCallUnsupported": "该群暂不支持群通话",
+  "groupCallCameraUnavailable": "摄像头不可用",
+  "groupCallWaitingVideo": "等待视频画面",
+  "groupCallWaitingMembersVideo": "等待群成员视频画面",
+  "groupCallMemberFallback": "成员",
+  "groupCallWaitingMembers": "等待成员加入",
+  "groupCallParticipantCount": "{count} 人通话中",
+  "@groupCallParticipantCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupCallReadyToJoin": "准备加入",
+  "groupCallBack": "返回",
+  "groupCallJoin": "加入",
+  "groupCallLeave": "离开",
+  "groupCallSelectVideoMembers": "选择视频成员",
+  "groupCallSelectVoiceMembers": "选择语音成员",
+  "groupCallStartVideo": "发起视频通话",
+  "groupCallStartVoice": "发起语音通话",
+  "groupCallSelectAtLeastOne": "选择至少 1 名成员发起邀请",
+  "groupCallSelectedMembers": "已选择 {selected} / {total} 名成员",
+  "@groupCallSelectedMembers": {
+    "placeholders": {
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "groupCallNoInviteMembers": "暂无可邀请成员",
   "chatInputVoice": "语音",
   "chatInputKeyboard": "键盘",
   "chatInputHoldToTalk": "按住 说话",
@@ -771,6 +860,38 @@
   "channelJoinApply": "申请加入",
   "channelJoinAction": "加入频道",
   "channelJoinProcessing": "处理中",
+  "channelReviewTitle": "频道审核",
+  "channelReviewLoadFailedTitle": "审核加载失败",
+  "channelReviewLoadFailedSubtitle": "请稍后重试",
+  "channelReviewEmptyTitle": "暂无加入申请",
+  "channelReviewEmptySubtitle": "新的频道加入申请会显示在这里",
+  "channelReviewUnnamedChannel": "未命名频道",
+  "channelReviewApprove": "通过",
+  "channelReviewReject": "拒绝",
+  "channelReviewStatusPending": "待审核",
+  "channelReviewStatusApproved": "已同意",
+  "channelReviewStatusJoining": "加入中",
+  "channelReviewStatusJoined": "已加入",
+  "channelReviewStatusJoinFailed": "加入失败",
+  "channelReviewStatusRejected": "已拒绝",
+  "channelReviewApproveFailed": "同意失败：{error}",
+  "@channelReviewApproveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelReviewRejectFailed": "拒绝失败：{error}",
+  "@channelReviewRejectFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelReviewTimeNow": "刚刚",
+  "channelReviewTimeYesterday": "昨天",
   "channelSearchHint": "搜索频道...",
   "channelSearchTitle": "搜索频道",
   "channelSearchPrompt": "输入频道ID查找频道",

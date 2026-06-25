@@ -54,12 +54,20 @@ class ChannelInboxItem {
 
   bool get _fallbackOpen => _channelListMemberStatusVisible(memberStatus);
   bool get _fallbackOwner => _isChannelOwnerRole(role) || isOwned;
+  bool get _canPostAsOwner {
+    final productRole = productConversation?.role.trim() ?? '';
+    if (productRole.isNotEmpty) return _isChannelOwnerRole(productRole);
+    return _fallbackOwner;
+  }
+
   bool get _fallbackPostChannel =>
       normalizeAsChannelType(channelType) == asChannelTypePost;
 
   bool get canCreatePost =>
-      productConversation?.canCreatePost ??
-      (_fallbackOpen && _fallbackOwner && _fallbackPostChannel);
+      _fallbackOpen &&
+      _fallbackPostChannel &&
+      _canPostAsOwner &&
+      (productConversation?.canCreatePost ?? true);
   bool get canCreateComment =>
       productConversation?.canCreateComment ??
       (_fallbackOpen && _fallbackPostChannel && commentsEnabled);

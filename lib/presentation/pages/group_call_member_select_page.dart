@@ -8,6 +8,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../call/voice_call_controller.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
@@ -168,7 +169,11 @@ class _GroupCallMemberSelectPageState
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
     final room = client.getRoomById(widget.roomId);
-    final roomName = widget.roomName ?? room?.getLocalizedDisplayname() ?? '群聊';
+    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
+    final roomName = widget.roomName ??
+        room?.getLocalizedDisplayname() ??
+        l10n?.contactsGroups ??
+        '群聊';
     return FutureBuilder<List<GroupCallInviteMember>>(
       future: _membersFuture,
       builder: (context, snapshot) {
@@ -235,6 +240,10 @@ class _GroupCallMemberSelectViewState extends State<GroupCallMemberSelectView> {
   @override
   Widget build(BuildContext context) {
     final selectedCount = _selectedUserIds.length;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return _GroupCallSelectScaffold(
       roomName: widget.roomName,
       callType: widget.callType,
@@ -274,7 +283,9 @@ class _GroupCallMemberSelectViewState extends State<GroupCallMemberSelectView> {
             top: false,
             minimum: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: M3PrimaryButton(
-              label: _isVideo ? '发起视频通话' : '发起语音通话',
+              label: _isVideo
+                  ? l10n?.groupCallStartVideo ?? '发起视频通话'
+                  : l10n?.groupCallStartVoice ?? '发起语音通话',
               icon: _isVideo ? Symbols.videocam : Symbols.call,
               onPressed: selectedCount == 0
                   ? null
@@ -309,13 +320,19 @@ class _GroupCallSelectScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isVideo = callType == ProductCallType.video;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: AppGlassBackground(
         child: Column(
           children: [
             GlassHeader.detail(
-              title: isVideo ? '选择视频成员' : '选择语音成员',
+              title: isVideo
+                  ? l10n?.groupCallSelectVideoMembers ?? '选择视频成员'
+                  : l10n?.groupCallSelectVoiceMembers ?? '选择语音成员',
               subtitle: roomName,
               subtitleIcon: Symbols.groups,
             ),
@@ -341,6 +358,10 @@ class _SelectedSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return AppGlassPanel(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -354,8 +375,12 @@ class _SelectedSummary extends StatelessWidget {
           Expanded(
             child: Text(
               selectedCount == 0
-                  ? '选择至少 1 名成员发起邀请'
-                  : '已选择 $selectedCount / $totalCount 名成员',
+                  ? l10n?.groupCallSelectAtLeastOne ?? '选择至少 1 名成员发起邀请'
+                  : l10n?.groupCallSelectedMembers(
+                        selectedCount,
+                        totalCount,
+                      ) ??
+                      '已选择 $selectedCount / $totalCount 名成员',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTheme.sans(
@@ -415,7 +440,9 @@ class _EmptyMemberState extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Text(
-          '暂无可邀请成员',
+          Localizations.of<AppLocalizations>(context, AppLocalizations)
+                  ?.groupCallNoInviteMembers ??
+              '暂无可邀请成员',
           textAlign: TextAlign.center,
           style: AppTheme.sans(size: 16, color: t.textMute),
         ),

@@ -650,6 +650,95 @@
   "messagePreviewDirectChatRecord": "Direct chat history",
   "messagePreviewChannelChatRecord": "Channel chat history",
   "messagePreviewAgentChatRecord": "Agent chat history",
+  "callReady": "Ready to call",
+  "callCalling": "Calling...",
+  "callInviteVoice": "Inviting you to a voice call",
+  "callInviteVideo": "Inviting you to a video call",
+  "callWaitingAnswer": "Waiting for the other person to answer",
+  "callConnecting": "Connecting...",
+  "callVideoConnected": "Video call in progress",
+  "callVoiceConnected": "Call in progress",
+  "callEnded": "Call ended",
+  "callFailed": "Call failed",
+  "callPeerRejected": "The other person declined",
+  "callRejected": "Call declined",
+  "callPeerHungUp": "The other person hung up",
+  "callMissed": "Missed call",
+  "callNoPeer": "Could not identify the call recipient",
+  "callAlreadyActive": "A call is already in progress",
+  "callServiceNotReady": "Call service is not ready",
+  "callStarting": "Starting call",
+  "callRoomMissing": "Call room does not exist",
+  "callStartFailed": "Failed to start the call. Try again later",
+  "callOutgoingNetworkFailed": "Call failed. Check your network or node and try again",
+  "callPeerNoResponse": "No response. The call has ended",
+  "callNetworkUnstable": "Network is unstable",
+  "callInterrupted": "Call interrupted",
+  "callMediaPermissionVideo": "Could not access camera or microphone. Check permissions",
+  "callMediaPermissionVoice": "Could not access microphone. Check permissions",
+  "callPeerBusy": "The other person is in a call",
+  "callCameraOn": "Turn camera on",
+  "callCameraOff": "Turn camera off",
+  "callCameraOffState": "Camera off",
+  "callCameraStarting": "Camera starting",
+  "callRemoteCameraUnavailable": "The other person's camera is unavailable",
+  "callWaitingRemoteVideo": "Waiting for video",
+  "callSpeaker": "Speaker",
+  "callEarpiece": "Earpiece",
+  "callEncrypted": "End-to-end encrypted",
+  "callReject": "Decline",
+  "callAnswer": "Answer",
+  "callMuted": "Muted",
+  "callMute": "Mute",
+  "callUnmute": "Unmute",
+  "callHangup": "Hang up",
+  "groupCallTitleVoice": "Group voice call",
+  "groupCallTitleVideo": "Group video call",
+  "groupCallInviteVoice": "Inviting you to join a group voice call",
+  "groupCallInviteVideo": "Inviting you to join a group video call",
+  "groupCallJoiningVoice": "Joining group voice call",
+  "groupCallJoiningVideo": "Joining group video call",
+  "groupCallConnectedVoice": "Group voice call in progress",
+  "groupCallConnectedVideo": "Group video call in progress",
+  "groupCallEnded": "Group call ended",
+  "groupCallFailed": "Group call failed",
+  "groupCallNetworkFailed": "Failed to start group call. Check your network or node and try again",
+  "groupCallRoomMissing": "Group chat does not exist",
+  "groupCallUnsupported": "This group does not support group calls yet",
+  "groupCallCameraUnavailable": "Camera unavailable",
+  "groupCallWaitingVideo": "Waiting for video",
+  "groupCallWaitingMembersVideo": "Waiting for group member video",
+  "groupCallMemberFallback": "Member",
+  "groupCallWaitingMembers": "Waiting for members to join",
+  "groupCallParticipantCount": "{count} people in call",
+  "@groupCallParticipantCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupCallReadyToJoin": "Ready to join",
+  "groupCallBack": "Back",
+  "groupCallJoin": "Join",
+  "groupCallLeave": "Leave",
+  "groupCallSelectVideoMembers": "Select video members",
+  "groupCallSelectVoiceMembers": "Select voice members",
+  "groupCallStartVideo": "Start video call",
+  "groupCallStartVoice": "Start voice call",
+  "groupCallSelectAtLeastOne": "Select at least 1 member to invite",
+  "groupCallSelectedMembers": "Selected {selected} / {total} members",
+  "@groupCallSelectedMembers": {
+    "placeholders": {
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "groupCallNoInviteMembers": "No members available to invite",
   "chatInputVoice": "Voice",
   "chatInputKeyboard": "Keyboard",
   "chatInputHoldToTalk": "Hold to talk",
@@ -768,6 +857,38 @@
   "channelJoinApply": "Request to join",
   "channelJoinAction": "Join channel",
   "channelJoinProcessing": "Processing",
+  "channelReviewTitle": "Channel Review",
+  "channelReviewLoadFailedTitle": "Failed to load reviews",
+  "channelReviewLoadFailedSubtitle": "Try again later",
+  "channelReviewEmptyTitle": "No join requests",
+  "channelReviewEmptySubtitle": "New channel join requests will appear here.",
+  "channelReviewUnnamedChannel": "Untitled channel",
+  "channelReviewApprove": "Approve",
+  "channelReviewReject": "Reject",
+  "channelReviewStatusPending": "Pending",
+  "channelReviewStatusApproved": "Approved",
+  "channelReviewStatusJoining": "Joining",
+  "channelReviewStatusJoined": "Joined",
+  "channelReviewStatusJoinFailed": "Join failed",
+  "channelReviewStatusRejected": "Rejected",
+  "channelReviewApproveFailed": "Failed to approve: {error}",
+  "@channelReviewApproveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelReviewRejectFailed": "Failed to reject: {error}",
+  "@channelReviewRejectFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelReviewTimeNow": "Just now",
+  "channelReviewTimeYesterday": "Yesterday",
   "channelSearchHint": "Search channels...",
   "channelSearchTitle": "Search channels",
   "channelSearchPrompt": "Enter a channel ID to find a channel",

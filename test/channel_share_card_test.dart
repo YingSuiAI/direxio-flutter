@@ -306,7 +306,7 @@ void main() {
         ),
         result!,
       ),
-      '/channel/ch_product/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
+      '/channel/!channel%3Ap2p-im.com/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
     );
   });
 
@@ -400,6 +400,28 @@ void main() {
     );
   });
 
+  test('channel share join key distinguishes cards with reused channel id', () {
+    const textPayload = ChannelSharePayload(
+      channelId: 'ch_reused',
+      roomId: '!text:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '文字频道',
+      channelType: asChannelTypeChat,
+    );
+    const postPayload = ChannelSharePayload(
+      channelId: 'ch_reused',
+      roomId: '!post:p2p-im.com',
+      homeDomain: 'p2p-im.com',
+      name: '帖子频道',
+      channelType: asChannelTypePost,
+    );
+
+    expect(channelShareJoinKey(textPayload),
+        isNot(channelShareJoinKey(postPayload)));
+    expect(channelShareJoinKey(textPayload), contains('room:!text:p2p-im.com'));
+    expect(channelShareJoinKey(postPayload), contains('type:post'));
+  });
+
   test('channel share with grant is treated as direct invite grant', () {
     const payload = ChannelSharePayload(
       channelId: 'ch_product',
@@ -448,7 +470,7 @@ void main() {
 
     expect(
       channelShareOpenRoute(const AsSyncCacheState(), payload),
-      '/channel/ch_product/detail',
+      '/channel/!channel%3Ap2p-im.com/detail?room_id=%21channel%3Ap2p-im.com&name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A&description=%E5%8F%AA%E5%8F%91%E5%B8%83%E9%87%8D%E8%A6%81%E4%BA%A7%E5%93%81%E6%9B%B4%E6%96%B0&type=chat',
     );
 
     final joined = AsSyncCacheState(
@@ -490,7 +512,7 @@ void main() {
           ),
         ],
       ),
-      '/channel/ch_product/conversation?conversation=conv_channel&name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
+      '/channel/!channel%3Ap2p-im.com/conversation?conversation=conv_channel&name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
     );
   });
 
@@ -527,7 +549,7 @@ void main() {
 
     expect(
       channelShareOpenRoute(joined, payload),
-      '/channel/ch_product/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
+      '/channel/!channel%3Ap2p-im.com/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
     );
   });
 
@@ -563,7 +585,7 @@ void main() {
     expect(channelShareIsJoined(discoveredOnly, payload), isFalse);
     expect(
       channelShareOpenRoute(discoveredOnly, payload),
-      '/channel/ch_product/detail',
+      '/channel/!channel%3Ap2p-im.com/detail?room_id=%21channel%3Ap2p-im.com&name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A&type=chat',
     );
   });
 
@@ -578,7 +600,7 @@ void main() {
 
     expect(
       channelShareOpenRoute(const AsSyncCacheState(), payload),
-      '/channel/!channel%3Ap2p-im.com/detail',
+      '/channel/!channel%3Ap2p-im.com/detail?room_id=%21channel%3Ap2p-im.com&name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A&type=chat',
     );
   });
 
@@ -609,7 +631,7 @@ void main() {
 
     expect(
       channelShareJoinedRoute(payload, joined),
-      '/channel/ch_product/conversation?conversation=conv_channel&name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
+      '/channel/!channel%3Ap2p-im.com/conversation?conversation=conv_channel&name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
     );
   });
 
@@ -632,7 +654,7 @@ void main() {
 
     expect(
       channelShareJoinedRoute(payload, joined),
-      '/channel/ch_product/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
+      '/channel/!channel%3Ap2p-im.com/conversation?name=%E4%BA%A7%E5%93%81%E5%85%AC%E5%91%8A',
     );
   });
 
@@ -656,7 +678,7 @@ void main() {
         ),
         joined,
       ),
-      '/channel/ch_posts',
+      '/channel/!posts%3Ap2p-im.com',
     );
     expect(
       channelShareJoinedRoute(
@@ -669,7 +691,7 @@ void main() {
         ),
         joined,
       ),
-      '/channel/ch_posts',
+      '/channel/!posts%3Ap2p-im.com',
     );
   });
 }

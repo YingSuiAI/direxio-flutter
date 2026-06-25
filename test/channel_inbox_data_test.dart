@@ -259,6 +259,46 @@ void main() {
     expect(items.single.canToggleReaction, isFalse);
   });
 
+  test('post create capability still requires channel owner role', () {
+    final bootstrap = AsSyncBootstrap.fromJson({
+      'synced_at': '2026-06-17T10:30:00Z',
+      'user': {'user_id': '@member:p2p-im.com'},
+      'channels': [
+        {
+          'channel_id': 'ch_member_post',
+          'room_id': '!member-post:p2p-im.com',
+          'display_name': '综合讨论',
+          'is_owned': false,
+          'role': asChannelRoleMember,
+          'member_status': asChannelMemberStatusJoined,
+          'channel_type': asChannelTypePost,
+        },
+      ],
+    });
+
+    final items = ChannelInboxData.fromBootstrap(
+      bootstrap,
+      fallbackDomain: 'p2p-im.com',
+      productConversations: const [
+        AsConversation(
+          conversationId: 'conv_channel',
+          roomId: '!member-post:p2p-im.com',
+          kind: asConversationKindChannel,
+          lifecycle: 'active',
+          title: '综合讨论',
+          avatarUrl: '',
+          role: asChannelRoleMember,
+          capabilities: AsConversationCapabilities(
+            open: true,
+            postCreate: true,
+          ),
+        ),
+      ],
+    );
+
+    expect(items.single.canCreatePost, isFalse);
+  });
+
   test('ignores non-channel rooms from AS channel list results', () {
     final items = ChannelInboxData.fromChannels(
       [

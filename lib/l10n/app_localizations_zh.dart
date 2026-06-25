@@ -1213,6 +1213,226 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagePreviewAgentChatRecord => 'Agent 聊天记录';
 
   @override
+  String get callReady => '准备通话';
+
+  @override
+  String get callCalling => '正在呼叫...';
+
+  @override
+  String get callInviteVoice => '邀请你语音通话';
+
+  @override
+  String get callInviteVideo => '邀请你视频通话';
+
+  @override
+  String get callWaitingAnswer => '等待对方接听';
+
+  @override
+  String get callConnecting => '正在连接...';
+
+  @override
+  String get callVideoConnected => '视频通话中';
+
+  @override
+  String get callVoiceConnected => '通话中';
+
+  @override
+  String get callEnded => '通话已结束';
+
+  @override
+  String get callFailed => '通话失败';
+
+  @override
+  String get callPeerRejected => '对方已拒绝';
+
+  @override
+  String get callRejected => '已拒绝通话';
+
+  @override
+  String get callPeerHungUp => '对方已挂断';
+
+  @override
+  String get callMissed => '未接听';
+
+  @override
+  String get callNoPeer => '无法确定通话对象';
+
+  @override
+  String get callAlreadyActive => '已有通话正在进行';
+
+  @override
+  String get callServiceNotReady => '通话服务还没有准备好';
+
+  @override
+  String get callStarting => '正在发起通话';
+
+  @override
+  String get callRoomMissing => '通话房间不存在';
+
+  @override
+  String get callStartFailed => '通话发起失败，请稍后重试';
+
+  @override
+  String get callOutgoingNetworkFailed => '拨打失败，请检查你的网络或节点后重试';
+
+  @override
+  String get callPeerNoResponse => '对方暂无响应，已结束拨打';
+
+  @override
+  String get callNetworkUnstable => '网络不稳定';
+
+  @override
+  String get callInterrupted => '通话中断';
+
+  @override
+  String get callMediaPermissionVideo => '无法使用摄像头或麦克风，请检查权限';
+
+  @override
+  String get callMediaPermissionVoice => '无法使用麦克风，请检查权限';
+
+  @override
+  String get callPeerBusy => '对方正在通话中';
+
+  @override
+  String get callCameraOn => '开摄像头';
+
+  @override
+  String get callCameraOff => '关摄像头';
+
+  @override
+  String get callCameraOffState => '摄像头已关';
+
+  @override
+  String get callCameraStarting => '摄像头打开中';
+
+  @override
+  String get callRemoteCameraUnavailable => '对方摄像头不可用';
+
+  @override
+  String get callWaitingRemoteVideo => '等待对方画面';
+
+  @override
+  String get callSpeaker => '扬声器';
+
+  @override
+  String get callEarpiece => '听筒';
+
+  @override
+  String get callEncrypted => '端到端加密';
+
+  @override
+  String get callReject => '拒绝';
+
+  @override
+  String get callAnswer => '接听';
+
+  @override
+  String get callMuted => '已静音';
+
+  @override
+  String get callMute => '静音';
+
+  @override
+  String get callUnmute => '取消静音';
+
+  @override
+  String get callHangup => '挂断';
+
+  @override
+  String get groupCallTitleVoice => '群语音通话';
+
+  @override
+  String get groupCallTitleVideo => '群视频通话';
+
+  @override
+  String get groupCallInviteVoice => '邀请你加入群语音通话';
+
+  @override
+  String get groupCallInviteVideo => '邀请你加入群视频通话';
+
+  @override
+  String get groupCallJoiningVoice => '正在进入群语音通话';
+
+  @override
+  String get groupCallJoiningVideo => '正在进入群视频通话';
+
+  @override
+  String get groupCallConnectedVoice => '群语音通话中';
+
+  @override
+  String get groupCallConnectedVideo => '群视频通话中';
+
+  @override
+  String get groupCallEnded => '群通话已结束';
+
+  @override
+  String get groupCallFailed => '群通话失败';
+
+  @override
+  String get groupCallNetworkFailed => '群通话发起失败，请检查网络或节点后重试';
+
+  @override
+  String get groupCallRoomMissing => '群聊不存在';
+
+  @override
+  String get groupCallUnsupported => '该群暂不支持群通话';
+
+  @override
+  String get groupCallCameraUnavailable => '摄像头不可用';
+
+  @override
+  String get groupCallWaitingVideo => '等待视频画面';
+
+  @override
+  String get groupCallWaitingMembersVideo => '等待群成员视频画面';
+
+  @override
+  String get groupCallMemberFallback => '成员';
+
+  @override
+  String get groupCallWaitingMembers => '等待成员加入';
+
+  @override
+  String groupCallParticipantCount(int count) {
+    return '$count 人通话中';
+  }
+
+  @override
+  String get groupCallReadyToJoin => '准备加入';
+
+  @override
+  String get groupCallBack => '返回';
+
+  @override
+  String get groupCallJoin => '加入';
+
+  @override
+  String get groupCallLeave => '离开';
+
+  @override
+  String get groupCallSelectVideoMembers => '选择视频成员';
+
+  @override
+  String get groupCallSelectVoiceMembers => '选择语音成员';
+
+  @override
+  String get groupCallStartVideo => '发起视频通话';
+
+  @override
+  String get groupCallStartVoice => '发起语音通话';
+
+  @override
+  String get groupCallSelectAtLeastOne => '选择至少 1 名成员发起邀请';
+
+  @override
+  String groupCallSelectedMembers(int selected, int total) {
+    return '已选择 $selected / $total 名成员';
+  }
+
+  @override
+  String get groupCallNoInviteMembers => '暂无可邀请成员';
+
+  @override
   String get chatInputVoice => '语音';
 
   @override
@@ -1432,6 +1652,64 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get channelJoinProcessing => '处理中';
+
+  @override
+  String get channelReviewTitle => '频道审核';
+
+  @override
+  String get channelReviewLoadFailedTitle => '审核加载失败';
+
+  @override
+  String get channelReviewLoadFailedSubtitle => '请稍后重试';
+
+  @override
+  String get channelReviewEmptyTitle => '暂无加入申请';
+
+  @override
+  String get channelReviewEmptySubtitle => '新的频道加入申请会显示在这里';
+
+  @override
+  String get channelReviewUnnamedChannel => '未命名频道';
+
+  @override
+  String get channelReviewApprove => '通过';
+
+  @override
+  String get channelReviewReject => '拒绝';
+
+  @override
+  String get channelReviewStatusPending => '待审核';
+
+  @override
+  String get channelReviewStatusApproved => '已同意';
+
+  @override
+  String get channelReviewStatusJoining => '加入中';
+
+  @override
+  String get channelReviewStatusJoined => '已加入';
+
+  @override
+  String get channelReviewStatusJoinFailed => '加入失败';
+
+  @override
+  String get channelReviewStatusRejected => '已拒绝';
+
+  @override
+  String channelReviewApproveFailed(String error) {
+    return '同意失败：$error';
+  }
+
+  @override
+  String channelReviewRejectFailed(String error) {
+    return '拒绝失败：$error';
+  }
+
+  @override
+  String get channelReviewTimeNow => '刚刚';
+
+  @override
+  String get channelReviewTimeYesterday => '昨天';
 
   @override
   String get channelSearchHint => '搜索频道...';

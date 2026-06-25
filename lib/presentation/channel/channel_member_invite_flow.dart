@@ -156,32 +156,33 @@ ChannelSharePayload _channelInvitePayload(
   final grantChannel = grant.channel;
   return channelSharePayloadFromChannel(
     channelId:
-        _firstNonEmpty(grant.channelId, grantChannel?.channelId, channel.id),
-    roomId: _firstNonEmpty(grant.roomId, grantChannel?.roomId, channel.roomId),
-    homeDomain: _firstNonEmpty(grantChannel?.homeDomain, channel.domain),
-    name: _firstNonEmpty(grantChannel?.name, channel.name, '频道'),
-    description: _firstNonEmpty(grantChannel?.description, channel.description),
-    avatarUrl: _firstNonEmpty(grantChannel?.avatarUrl, channel.avatarUrl),
+        _firstNonEmpty(channel.id, grant.channelId, grantChannel?.channelId),
+    roomId: _firstNonEmpty(channel.roomId, grant.roomId, grantChannel?.roomId),
+    homeDomain: _firstNonEmpty(channel.domain, grantChannel?.homeDomain),
+    name: _firstNonEmpty(channel.name, grantChannel?.name, '频道'),
+    description: _firstNonEmpty(channel.description, grantChannel?.description),
+    avatarUrl: _firstNonEmpty(channel.avatarUrl, grantChannel?.avatarUrl),
     visibility: _firstNonEmpty(
-      grantChannel?.visibility,
       channel.visibility,
+      grantChannel?.visibility,
       asChannelVisibilityPublic,
     ),
     joinPolicy: _firstNonEmpty(
-      grantChannel?.joinPolicy,
       channel.joinPolicy,
+      grantChannel?.joinPolicy,
       asChannelJoinPolicyOpen,
     ),
-    commentsEnabled: grantChannel?.commentsEnabled ?? channel.commentsEnabled,
+    commentsEnabled: channel.commentsEnabled,
     channelType: _firstNonEmpty(
-      grantChannel?.channelType,
       channel.channelType,
+      grantChannel?.channelType,
       asChannelTypeChat,
     ),
-    tags: grantChannel?.tags.isNotEmpty == true
-        ? grantChannel!.tags
-        : channel.tags,
-    memberCount: grantChannel?.memberCount ?? channel.memberCount,
+    tags:
+        channel.tags.isNotEmpty ? channel.tags : grantChannel?.tags ?? const [],
+    memberCount: channel.memberCount >= 0
+        ? channel.memberCount
+        : grantChannel?.memberCount ?? -1,
   );
 }
 

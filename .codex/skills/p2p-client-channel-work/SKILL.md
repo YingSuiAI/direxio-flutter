@@ -63,6 +63,11 @@ Normalize member status through `AsChannel` / `AsChannelMember`, and treat only 
 
 `invite` and `pending` are waiting states. They must not unlock channel sending, post creation, or joined-only navigation.
 
+Post creation is owner-only. Show the post-list create entry only when the user
+is joined, the channel type is `post`, the resolved role is `owner`, and the
+ProductCore `postCreate` capability allows it. Ordinary `member` roles must not
+see the create entry even if stale capabilities report `postCreate: true`.
+
 Channel join-request review actions return a top-level status such as
 `approved`, `joining`, `joined`, or `join_failed`. Preserve that status in the
 client UI; do not treat a successful approve request as successful membership

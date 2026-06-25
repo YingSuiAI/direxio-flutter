@@ -1252,6 +1252,232 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messagePreviewAgentChatRecord => 'Agent chat history';
 
   @override
+  String get callReady => 'Ready to call';
+
+  @override
+  String get callCalling => 'Calling...';
+
+  @override
+  String get callInviteVoice => 'Inviting you to a voice call';
+
+  @override
+  String get callInviteVideo => 'Inviting you to a video call';
+
+  @override
+  String get callWaitingAnswer => 'Waiting for the other person to answer';
+
+  @override
+  String get callConnecting => 'Connecting...';
+
+  @override
+  String get callVideoConnected => 'Video call in progress';
+
+  @override
+  String get callVoiceConnected => 'Call in progress';
+
+  @override
+  String get callEnded => 'Call ended';
+
+  @override
+  String get callFailed => 'Call failed';
+
+  @override
+  String get callPeerRejected => 'The other person declined';
+
+  @override
+  String get callRejected => 'Call declined';
+
+  @override
+  String get callPeerHungUp => 'The other person hung up';
+
+  @override
+  String get callMissed => 'Missed call';
+
+  @override
+  String get callNoPeer => 'Could not identify the call recipient';
+
+  @override
+  String get callAlreadyActive => 'A call is already in progress';
+
+  @override
+  String get callServiceNotReady => 'Call service is not ready';
+
+  @override
+  String get callStarting => 'Starting call';
+
+  @override
+  String get callRoomMissing => 'Call room does not exist';
+
+  @override
+  String get callStartFailed => 'Failed to start the call. Try again later';
+
+  @override
+  String get callOutgoingNetworkFailed =>
+      'Call failed. Check your network or node and try again';
+
+  @override
+  String get callPeerNoResponse => 'No response. The call has ended';
+
+  @override
+  String get callNetworkUnstable => 'Network is unstable';
+
+  @override
+  String get callInterrupted => 'Call interrupted';
+
+  @override
+  String get callMediaPermissionVideo =>
+      'Could not access camera or microphone. Check permissions';
+
+  @override
+  String get callMediaPermissionVoice =>
+      'Could not access microphone. Check permissions';
+
+  @override
+  String get callPeerBusy => 'The other person is in a call';
+
+  @override
+  String get callCameraOn => 'Turn camera on';
+
+  @override
+  String get callCameraOff => 'Turn camera off';
+
+  @override
+  String get callCameraOffState => 'Camera off';
+
+  @override
+  String get callCameraStarting => 'Camera starting';
+
+  @override
+  String get callRemoteCameraUnavailable =>
+      'The other person\'s camera is unavailable';
+
+  @override
+  String get callWaitingRemoteVideo => 'Waiting for video';
+
+  @override
+  String get callSpeaker => 'Speaker';
+
+  @override
+  String get callEarpiece => 'Earpiece';
+
+  @override
+  String get callEncrypted => 'End-to-end encrypted';
+
+  @override
+  String get callReject => 'Decline';
+
+  @override
+  String get callAnswer => 'Answer';
+
+  @override
+  String get callMuted => 'Muted';
+
+  @override
+  String get callMute => 'Mute';
+
+  @override
+  String get callUnmute => 'Unmute';
+
+  @override
+  String get callHangup => 'Hang up';
+
+  @override
+  String get groupCallTitleVoice => 'Group voice call';
+
+  @override
+  String get groupCallTitleVideo => 'Group video call';
+
+  @override
+  String get groupCallInviteVoice => 'Inviting you to join a group voice call';
+
+  @override
+  String get groupCallInviteVideo => 'Inviting you to join a group video call';
+
+  @override
+  String get groupCallJoiningVoice => 'Joining group voice call';
+
+  @override
+  String get groupCallJoiningVideo => 'Joining group video call';
+
+  @override
+  String get groupCallConnectedVoice => 'Group voice call in progress';
+
+  @override
+  String get groupCallConnectedVideo => 'Group video call in progress';
+
+  @override
+  String get groupCallEnded => 'Group call ended';
+
+  @override
+  String get groupCallFailed => 'Group call failed';
+
+  @override
+  String get groupCallNetworkFailed =>
+      'Failed to start group call. Check your network or node and try again';
+
+  @override
+  String get groupCallRoomMissing => 'Group chat does not exist';
+
+  @override
+  String get groupCallUnsupported =>
+      'This group does not support group calls yet';
+
+  @override
+  String get groupCallCameraUnavailable => 'Camera unavailable';
+
+  @override
+  String get groupCallWaitingVideo => 'Waiting for video';
+
+  @override
+  String get groupCallWaitingMembersVideo => 'Waiting for group member video';
+
+  @override
+  String get groupCallMemberFallback => 'Member';
+
+  @override
+  String get groupCallWaitingMembers => 'Waiting for members to join';
+
+  @override
+  String groupCallParticipantCount(int count) {
+    return '$count people in call';
+  }
+
+  @override
+  String get groupCallReadyToJoin => 'Ready to join';
+
+  @override
+  String get groupCallBack => 'Back';
+
+  @override
+  String get groupCallJoin => 'Join';
+
+  @override
+  String get groupCallLeave => 'Leave';
+
+  @override
+  String get groupCallSelectVideoMembers => 'Select video members';
+
+  @override
+  String get groupCallSelectVoiceMembers => 'Select voice members';
+
+  @override
+  String get groupCallStartVideo => 'Start video call';
+
+  @override
+  String get groupCallStartVoice => 'Start voice call';
+
+  @override
+  String get groupCallSelectAtLeastOne => 'Select at least 1 member to invite';
+
+  @override
+  String groupCallSelectedMembers(int selected, int total) {
+    return 'Selected $selected / $total members';
+  }
+
+  @override
+  String get groupCallNoInviteMembers => 'No members available to invite';
+
+  @override
   String get chatInputVoice => 'Voice';
 
   @override
@@ -1481,6 +1707,65 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelJoinProcessing => 'Processing';
+
+  @override
+  String get channelReviewTitle => 'Channel Review';
+
+  @override
+  String get channelReviewLoadFailedTitle => 'Failed to load reviews';
+
+  @override
+  String get channelReviewLoadFailedSubtitle => 'Try again later';
+
+  @override
+  String get channelReviewEmptyTitle => 'No join requests';
+
+  @override
+  String get channelReviewEmptySubtitle =>
+      'New channel join requests will appear here.';
+
+  @override
+  String get channelReviewUnnamedChannel => 'Untitled channel';
+
+  @override
+  String get channelReviewApprove => 'Approve';
+
+  @override
+  String get channelReviewReject => 'Reject';
+
+  @override
+  String get channelReviewStatusPending => 'Pending';
+
+  @override
+  String get channelReviewStatusApproved => 'Approved';
+
+  @override
+  String get channelReviewStatusJoining => 'Joining';
+
+  @override
+  String get channelReviewStatusJoined => 'Joined';
+
+  @override
+  String get channelReviewStatusJoinFailed => 'Join failed';
+
+  @override
+  String get channelReviewStatusRejected => 'Rejected';
+
+  @override
+  String channelReviewApproveFailed(String error) {
+    return 'Failed to approve: $error';
+  }
+
+  @override
+  String channelReviewRejectFailed(String error) {
+    return 'Failed to reject: $error';
+  }
+
+  @override
+  String get channelReviewTimeNow => 'Just now';
+
+  @override
+  String get channelReviewTimeYesterday => 'Yesterday';
 
   @override
   String get channelSearchHint => 'Search channels...';

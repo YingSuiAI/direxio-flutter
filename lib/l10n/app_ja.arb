@@ -650,6 +650,95 @@
   "messagePreviewDirectChatRecord": "個人チャット履歴",
   "messagePreviewChannelChatRecord": "チャンネルチャット履歴",
   "messagePreviewAgentChatRecord": "Agent チャット履歴",
+  "callReady": "通話の準備中",
+  "callCalling": "発信中...",
+  "callInviteVoice": "音声通話に招待しています",
+  "callInviteVideo": "ビデオ通話に招待しています",
+  "callWaitingAnswer": "相手の応答を待っています",
+  "callConnecting": "接続中...",
+  "callVideoConnected": "ビデオ通話中",
+  "callVoiceConnected": "通話中",
+  "callEnded": "通話が終了しました",
+  "callFailed": "通話に失敗しました",
+  "callPeerRejected": "相手が拒否しました",
+  "callRejected": "通話を拒否しました",
+  "callPeerHungUp": "相手が切断しました",
+  "callMissed": "不在着信",
+  "callNoPeer": "通話相手を特定できません",
+  "callAlreadyActive": "通話がすでに進行中です",
+  "callServiceNotReady": "通話サービスの準備ができていません",
+  "callStarting": "通話を開始しています",
+  "callRoomMissing": "通話ルームが存在しません",
+  "callStartFailed": "通話の開始に失敗しました。後でもう一度お試しください",
+  "callOutgoingNetworkFailed": "発信に失敗しました。ネットワークまたはノードを確認してください",
+  "callPeerNoResponse": "相手が応答しません。通話を終了しました",
+  "callNetworkUnstable": "ネットワークが不安定です",
+  "callInterrupted": "通話が中断されました",
+  "callMediaPermissionVideo": "カメラまたはマイクを使用できません。権限を確認してください",
+  "callMediaPermissionVoice": "マイクを使用できません。権限を確認してください",
+  "callPeerBusy": "相手は通話中です",
+  "callCameraOn": "カメラをオン",
+  "callCameraOff": "カメラをオフ",
+  "callCameraOffState": "カメラはオフです",
+  "callCameraStarting": "カメラを起動中",
+  "callRemoteCameraUnavailable": "相手のカメラは使用できません",
+  "callWaitingRemoteVideo": "映像を待っています",
+  "callSpeaker": "スピーカー",
+  "callEarpiece": "受話口",
+  "callEncrypted": "エンドツーエンド暗号化",
+  "callReject": "拒否",
+  "callAnswer": "応答",
+  "callMuted": "ミュート中",
+  "callMute": "ミュート",
+  "callUnmute": "ミュート解除",
+  "callHangup": "切断",
+  "groupCallTitleVoice": "グループ音声通話",
+  "groupCallTitleVideo": "グループビデオ通話",
+  "groupCallInviteVoice": "グループ音声通話に招待しています",
+  "groupCallInviteVideo": "グループビデオ通話に招待しています",
+  "groupCallJoiningVoice": "グループ音声通話に参加中",
+  "groupCallJoiningVideo": "グループビデオ通話に参加中",
+  "groupCallConnectedVoice": "グループ音声通話中",
+  "groupCallConnectedVideo": "グループビデオ通話中",
+  "groupCallEnded": "グループ通話が終了しました",
+  "groupCallFailed": "グループ通話に失敗しました",
+  "groupCallNetworkFailed": "グループ通話の開始に失敗しました。ネットワークまたはノードを確認してください",
+  "groupCallRoomMissing": "グループチャットが存在しません",
+  "groupCallUnsupported": "このグループはまだグループ通話に対応していません",
+  "groupCallCameraUnavailable": "カメラは使用できません",
+  "groupCallWaitingVideo": "映像を待っています",
+  "groupCallWaitingMembersVideo": "グループメンバーの映像を待っています",
+  "groupCallMemberFallback": "メンバー",
+  "groupCallWaitingMembers": "メンバーの参加を待っています",
+  "groupCallParticipantCount": "{count}人が通話中",
+  "@groupCallParticipantCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupCallReadyToJoin": "参加準備中",
+  "groupCallBack": "戻る",
+  "groupCallJoin": "参加",
+  "groupCallLeave": "退出",
+  "groupCallSelectVideoMembers": "ビデオメンバーを選択",
+  "groupCallSelectVoiceMembers": "音声メンバーを選択",
+  "groupCallStartVideo": "ビデオ通話を開始",
+  "groupCallStartVoice": "音声通話を開始",
+  "groupCallSelectAtLeastOne": "招待するメンバーを1人以上選択してください",
+  "groupCallSelectedMembers": "{selected} / {total} 人を選択済み",
+  "@groupCallSelectedMembers": {
+    "placeholders": {
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "groupCallNoInviteMembers": "招待できるメンバーはいません",
   "chatInputVoice": "音声",
   "chatInputKeyboard": "キーボード",
   "chatInputHoldToTalk": "長押しして話す",
@@ -768,6 +857,38 @@
   "channelJoinApply": "参加申請",
   "channelJoinAction": "チャンネルに参加",
   "channelJoinProcessing": "処理中",
+  "channelReviewTitle": "チャンネル審査",
+  "channelReviewLoadFailedTitle": "審査の読み込みに失敗しました",
+  "channelReviewLoadFailedSubtitle": "しばらくしてから再試行してください",
+  "channelReviewEmptyTitle": "参加申請はありません",
+  "channelReviewEmptySubtitle": "新しいチャンネル参加申請がここに表示されます。",
+  "channelReviewUnnamedChannel": "名称未設定のチャンネル",
+  "channelReviewApprove": "承認",
+  "channelReviewReject": "拒否",
+  "channelReviewStatusPending": "審査待ち",
+  "channelReviewStatusApproved": "承認済み",
+  "channelReviewStatusJoining": "参加中",
+  "channelReviewStatusJoined": "参加済み",
+  "channelReviewStatusJoinFailed": "参加失敗",
+  "channelReviewStatusRejected": "拒否済み",
+  "channelReviewApproveFailed": "承認に失敗しました：{error}",
+  "@channelReviewApproveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelReviewRejectFailed": "拒否に失敗しました：{error}",
+  "@channelReviewRejectFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelReviewTimeNow": "たった今",
+  "channelReviewTimeYesterday": "昨日",
   "channelSearchHint": "チャンネルを検索...",
   "channelSearchTitle": "チャンネル検索",
   "channelSearchPrompt": "チャンネルIDを入力して検索",

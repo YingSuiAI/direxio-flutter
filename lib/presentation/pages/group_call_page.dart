@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../call/voice_call_controller.dart';
 import '../providers/auth_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -241,7 +242,9 @@ class _GroupCallHeader extends StatelessWidget {
       children: [
         _RoundCallButton(
           icon: Symbols.arrow_back,
-          label: '返回',
+          label: Localizations.of<AppLocalizations>(context, AppLocalizations)
+                  ?.groupCallBack ??
+              '返回',
           onTap: onClose,
         ),
         const SizedBox(width: 12),
@@ -268,7 +271,17 @@ class _GroupCallHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    isVideo ? '群视频通话' : '群语音通话',
+                    isVideo
+                        ? Localizations.of<AppLocalizations>(
+                              context,
+                              AppLocalizations,
+                            )?.groupCallTitleVideo ??
+                            '群视频通话'
+                        : Localizations.of<AppLocalizations>(
+                              context,
+                              AppLocalizations,
+                            )?.groupCallTitleVoice ??
+                            '群语音通话',
                     style: AppTheme.sans(
                       size: 12,
                       color: _groupCallText.withValues(alpha: 0.62),
@@ -307,7 +320,13 @@ class _GroupVoiceStage extends StatelessWidget {
             _GroupCallParticipants(state: state),
             const SizedBox(height: 24),
             Text(
-              groupCallStatusLabel(state),
+              groupCallStatusLabel(
+                state,
+                l10n: Localizations.of<AppLocalizations>(
+                  context,
+                  AppLocalizations,
+                ),
+              ),
               style: AppTheme.sans(
                 size: 24,
                 weight: FontWeight.w700,
@@ -352,7 +371,13 @@ class _GroupVideoStage extends StatelessWidget {
                     _GroupCallParticipants(state: state),
                     const SizedBox(height: 16),
                     Text(
-                      groupCallStatusLabel(state),
+                      groupCallStatusLabel(
+                        state,
+                        l10n: Localizations.of<AppLocalizations>(
+                          context,
+                          AppLocalizations,
+                        ),
+                      ),
                       style: AppTheme.sans(
                         size: 24,
                         weight: FontWeight.w700,
@@ -363,7 +388,11 @@ class _GroupVideoStage extends StatelessWidget {
                     _ParticipantCountText(state: state),
                     const SizedBox(height: 16),
                     Text(
-                      '等待群成员视频画面',
+                      Localizations.of<AppLocalizations>(
+                            context,
+                            AppLocalizations,
+                          )?.groupCallWaitingMembersVideo ??
+                          '等待群成员视频画面',
                       textAlign: TextAlign.center,
                       style: AppTheme.sans(
                         size: 14,
@@ -435,7 +464,13 @@ class _GroupVideoGrid extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        groupCallStatusLabel(state),
+                        groupCallStatusLabel(
+                          state,
+                          l10n: Localizations.of<AppLocalizations>(
+                            context,
+                            AppLocalizations,
+                          ),
+                        ),
                         textAlign: TextAlign.center,
                         style: AppTheme.sans(
                           size: 20,
@@ -482,11 +517,15 @@ class _GroupVideoTile extends StatelessWidget {
         ? participant!.displayName
         : _fallbackName(stream.userId);
     final canRender = stream.canRender;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final streamStatusLabel = !stream.hasVideo
-        ? '摄像头不可用'
+        ? l10n?.groupCallCameraUnavailable ?? '摄像头不可用'
         : stream.isMuted
-            ? '摄像头已关'
-            : '等待视频画面';
+            ? l10n?.callCameraOffState ?? '摄像头已关'
+            : l10n?.groupCallWaitingVideo ?? '等待视频画面';
     return ClipRRect(
       key: ValueKey(
         stream.isLocal
@@ -717,14 +756,18 @@ class _ParticipantCountTextState extends State<_ParticipantCountText> {
     final count = state.effectiveParticipantCount <= 0
         ? 1
         : state.effectiveParticipantCount;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final label =
         state.status == GroupCallStatus.connected && connectedAt != null
             ? _formatGroupCallElapsed(_now.difference(connectedAt))
             : state.status == GroupCallStatus.connected
                 ? count <= 1
-                    ? '等待成员加入'
-                    : '$count 人通话中'
-                : '准备加入';
+                    ? l10n?.groupCallWaitingMembers ?? '等待成员加入'
+                    : l10n?.groupCallParticipantCount(count) ?? '$count 人通话中'
+                : l10n?.groupCallReadyToJoin ?? '准备加入';
     return Text(
       label,
       style: AppTheme.sans(
@@ -1140,25 +1183,29 @@ class _GroupCallControls extends StatelessWidget {
     final hasLocalVideoTrack = state.videoStreams.any(
       (stream) => stream.isLocal && stream.hasVideo,
     );
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final canToggleCamera = !isVideo || hasLocalVideoTrack;
     final cameraLabel = !hasLocalVideoTrack
-        ? '摄像头不可用'
+        ? l10n?.groupCallCameraUnavailable ?? '摄像头不可用'
         : state.isCameraMuted
-            ? '开摄像头'
-            : '关摄像头';
+            ? l10n?.callCameraOn ?? '开摄像头'
+            : l10n?.callCameraOff ?? '关摄像头';
     if (onAnswer != null) {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _RoundCallButton(
             icon: Symbols.call_end,
-            label: '挂断',
+            label: l10n?.callHangup ?? '挂断',
             backgroundColor: _groupCallDanger,
             onTap: onLeave,
           ),
           _RoundCallButton(
             icon: isVideo ? Symbols.video_call : Symbols.call,
-            label: '加入',
+            label: l10n?.groupCallJoin ?? '加入',
             backgroundColor: const Color(0xFF2E7D32),
             onTap: onAnswer!,
           ),
@@ -1170,7 +1217,9 @@ class _GroupCallControls extends StatelessWidget {
       children: [
         _RoundCallButton(
           icon: state.isMuted ? Symbols.mic_off : Symbols.mic,
-          label: state.isMuted ? '取消静音' : '静音',
+          label: state.isMuted
+              ? l10n?.callUnmute ?? '取消静音'
+              : l10n?.callMute ?? '静音',
           onTap: onToggleMute,
         ),
         if (isVideo)
@@ -1182,13 +1231,15 @@ class _GroupCallControls extends StatelessWidget {
           ),
         _RoundCallButton(
           icon: state.isSpeakerOn ? Symbols.volume_up : Symbols.hearing,
-          label: state.isSpeakerOn ? '扬声器' : '听筒',
+          label: state.isSpeakerOn
+              ? l10n?.callSpeaker ?? '扬声器'
+              : l10n?.callEarpiece ?? '听筒',
           onTap: onToggleSpeaker,
         ),
         _RoundCallButton(
           key: const Key('group-call-leave-button'),
           icon: Symbols.call_end,
-          label: '离开',
+          label: l10n?.groupCallLeave ?? '离开',
           backgroundColor: _groupCallDanger,
           onTap: onLeave,
         ),

@@ -10,6 +10,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/avatar_url.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../widgets/portal_avatar.dart';
 
 typedef _ContactPublicChannelsRequest = ({
@@ -82,7 +83,7 @@ class ContactChannelsPage extends ConsumerWidget {
                               _ContactChannelListItem(
                                 item: _ContactChannelItem.fromAsChannel(
                                   channels[i],
-                                  viewerJoined: _viewerHasJoinedChannel(
+                                  joinedChannel: _viewerJoinedChannel(
                                     bootstrap,
                                     channels[i],
                                   ),
@@ -179,23 +180,34 @@ class _ContactChannelItem {
 
   factory _ContactChannelItem.fromAsChannel(
     AsChannel channel, {
-    required bool viewerJoined,
+    required AsSyncRoomSummary? joinedChannel,
   }) {
     final title = channel.name.trim().isEmpty ? '未命名频道' : channel.name.trim();
     final subtitle = channel.description.trim().isEmpty
         ? channel.homeDomain.trim()
         : channel.description.trim();
-    final type = normalizeAsChannelType(channel.channelType);
+    final joined = joinedChannel != null &&
+        isAsChannelMemberJoined(joinedChannel.memberStatus);
+    final type = normalizeAsChannelType(
+      (joinedChannel?.channelType.trim().isNotEmpty == true
+              ? joinedChannel!.channelType
+              : channel.channelType)
+          .trim(),
+    );
     return _ContactChannelItem(
-      channelId: channel.channelId.trim(),
-      roomId: channel.roomId.trim(),
+      channelId: channel.channelId.trim().isEmpty
+          ? joinedChannel?.channelId.trim() ?? ''
+          : channel.channelId.trim(),
+      roomId: channel.roomId.trim().isEmpty
+          ? joinedChannel?.roomId.trim() ?? ''
+          : channel.roomId.trim(),
       title: title,
       subtitle: subtitle,
       avatarUrl: channel.avatarUrl.trim(),
       tag: type == asChannelTypePost ? '帖子' : '文字',
       channelType: type,
       description: channel.description.trim(),
-      joined: viewerJoined,
+      joined: joined,
     );
   }
 
@@ -215,8 +227,29 @@ class _ContactChannelItem {
     return channelId;
   }
 
+  String? get openRoute {
+    if (!joined) {
+      final target = roomId.isNotEmpty ? roomId : channelId;
+      return target.isEmpty ? null : detailRoute;
+    }
+    final target = routeTarget.trim();
+    if (target.isEmpty) return null;
+    if (normalizeAsChannelType(channelType) == asChannelTypePost) {
+      return '/channel/${Uri.encodeComponent(target)}';
+    }
+    return joinedTextChannelConversationRoute(
+          channelId: channelId,
+          roomId: roomId,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: channelType,
+          name: title,
+        ) ??
+        channelConversationRoute(target, name: title);
+  }
+
   String get detailRoute {
     final params = <String, String>{
+      'join': '1',
       if (roomId.isNotEmpty) 'room_id': roomId,
       if (title.trim().isNotEmpty) 'name': title.trim(),
       if (avatarUrl.trim().isNotEmpty) 'avatar': avatarUrl.trim(),
@@ -229,15 +262,19 @@ class _ContactChannelItem {
               '${Uri.encodeQueryComponent(entry.key)}=${Uri.encodeQueryComponent(entry.value)}',
         )
         .join('&');
-    final target = Uri.encodeComponent(routeTarget);
+    final detailTarget = roomId.isNotEmpty ? roomId : channelId;
+    final target = Uri.encodeComponent(detailTarget);
     return query.isEmpty
         ? '/channel/$target/detail'
         : '/channel/$target/detail?$query';
   }
 }
 
-bool _viewerHasJoinedChannel(AsSyncBootstrap? bootstrap, AsChannel channel) {
-  if (bootstrap == null) return false;
+AsSyncRoomSummary? _viewerJoinedChannel(
+  AsSyncBootstrap? bootstrap,
+  AsChannel channel,
+) {
+  if (bootstrap == null) return null;
   final channelId = channel.channelId.trim();
   final roomId = channel.roomId.trim();
   for (final item in bootstrap.channels) {
@@ -245,9 +282,10 @@ bool _viewerHasJoinedChannel(AsSyncBootstrap? bootstrap, AsChannel channel) {
         channelId.isNotEmpty && item.channelId.trim() == channelId;
     final sameRoom = roomId.isNotEmpty && item.roomId.trim() == roomId;
     if (!sameChannel && !sameRoom) continue;
-    return isAsChannelMemberJoined(item.memberStatus);
+    if (isAsChannelMemberJoined(item.memberStatus)) return item;
+    return null;
   }
-  return false;
+  return null;
 }
 
 class _ContactChannelListItem extends ConsumerWidget {
@@ -262,14 +300,14 @@ class _ContactChannelListItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.tk;
-    final target = item.routeTarget;
+    final route = item.openRoute;
     final avatarUrl = avatarHttpUrl(
       ref.watch(matrixClientProvider),
       item.avatarUrl,
     );
     return InkWell(
       borderRadius: BorderRadius.circular(8),
-      onTap: target.isEmpty ? null : () => context.push(item.detailRoute),
+      onTap: route == null ? null : () => context.push(route),
       child: SizedBox(
         height: 64,
         child: Row(

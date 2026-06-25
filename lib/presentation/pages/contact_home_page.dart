@@ -13,6 +13,7 @@ import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/contact_identity_label.dart';
+import '../utils/product_conversation_navigation.dart';
 import '../utils/product_conversation_summary_writer.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
@@ -257,10 +258,11 @@ class _ContactHomePageState extends ConsumerState<ContactHomePage> {
   Widget build(BuildContext context) {
     final bootstrap = ref.watch(asSyncCacheProvider).bootstrap;
     final home = _visitorHomeForUserId(widget.userId, bootstrap);
-    final visitorChannels =
-        _publicChannels?.map(_contactChannelFromAs).toList(growable: false) ??
-            home?.channels ??
-            const <_ContactHomeChannel>[];
+    final visitorChannels = _publicChannels
+            ?.map((channel) => _contactChannelFromAs(channel, bootstrap))
+            .toList(growable: false) ??
+        home?.channels ??
+        const <_ContactHomeChannel>[];
     final auth = ref.watch(authStateNotifierProvider).valueOrNull;
     if (home != null &&
         auth?.isLoggedIn == true &&
@@ -360,16 +362,52 @@ _ContactHomeData? _visitorHomeForUserId(
   );
 }
 
-_ContactHomeChannel _contactChannelFromAs(AsChannel channel) {
+_ContactHomeChannel _contactChannelFromAs(
+  AsChannel channel,
+  AsSyncBootstrap? bootstrap,
+) {
+  final joinedChannel = _viewerJoinedHomeChannel(bootstrap, channel);
+  final joined = joinedChannel != null &&
+      isAsChannelMemberJoined(joinedChannel.memberStatus);
+  final channelType = normalizeAsChannelType(
+    (joinedChannel?.channelType.trim().isNotEmpty == true
+            ? joinedChannel!.channelType
+            : channel.channelType)
+        .trim(),
+  );
   return _ContactHomeChannel(
     name: channel.name.trim().isEmpty ? channel.roomId : channel.name.trim(),
     description: channel.roomId.trim(),
     memberCount: channel.memberCount,
-    roomId: channel.roomId.trim(),
-    channelId: channel.channelId.trim(),
+    roomId: channel.roomId.trim().isEmpty
+        ? joinedChannel?.roomId.trim() ?? ''
+        : channel.roomId.trim(),
+    channelId: channel.channelId.trim().isEmpty
+        ? joinedChannel?.channelId.trim() ?? ''
+        : channel.channelId.trim(),
+    channelType: channelType,
+    joined: joined,
     avatarUrl:
         channel.avatarUrl.trim().isEmpty ? null : channel.avatarUrl.trim(),
   );
+}
+
+AsSyncRoomSummary? _viewerJoinedHomeChannel(
+  AsSyncBootstrap? bootstrap,
+  AsChannel channel,
+) {
+  if (bootstrap == null) return null;
+  final channelId = channel.channelId.trim();
+  final roomId = channel.roomId.trim();
+  for (final item in bootstrap.channels) {
+    final sameChannel =
+        channelId.isNotEmpty && item.channelId.trim() == channelId;
+    final sameRoom = roomId.isNotEmpty && item.roomId.trim() == roomId;
+    if (!sameChannel && !sameRoom) continue;
+    if (isAsChannelMemberJoined(item.memberStatus)) return item;
+    return null;
+  }
+  return null;
 }
 
 AsSyncContact? _contactForIdentity(
@@ -447,6 +485,8 @@ class _ContactHomeChannel {
     required this.memberCount,
     this.roomId = '',
     this.channelId = '',
+    this.channelType = asChannelTypePost,
+    this.joined = false,
     this.avatarUrl,
   });
 
@@ -455,7 +495,41 @@ class _ContactHomeChannel {
   final int memberCount;
   final String roomId;
   final String channelId;
+  final String channelType;
+  final bool joined;
   final String? avatarUrl;
+
+  String? get openRoute {
+    final detailTarget =
+        roomId.trim().isNotEmpty ? roomId.trim() : channelId.trim();
+    if (!joined) {
+      if (detailTarget.isEmpty) return null;
+      final params = <String, String>{
+        'join': '1',
+        if (roomId.trim().isNotEmpty) 'room_id': roomId.trim(),
+        if (name.trim().isNotEmpty) 'name': name.trim(),
+        if (description.trim().isNotEmpty) 'description': description.trim(),
+        if (channelType.trim().isNotEmpty) 'type': channelType.trim(),
+      };
+      final query = Uri(queryParameters: params).query;
+      final base = '/channel/${Uri.encodeComponent(detailTarget)}/detail';
+      return query.isEmpty ? base : '$base?$query';
+    }
+    final joinedTarget =
+        channelId.trim().isNotEmpty ? channelId.trim() : detailTarget;
+    if (joinedTarget.isEmpty) return null;
+    if (normalizeAsChannelType(channelType) == asChannelTypePost) {
+      return '/channel/${Uri.encodeComponent(joinedTarget)}';
+    }
+    return joinedTextChannelConversationRoute(
+          channelId: channelId,
+          roomId: roomId,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: channelType,
+          name: name,
+        ) ??
+        channelConversationRoute(joinedTarget, name: name);
+  }
 }
 
 _FriendButtonState _friendStateFromContact(AsSyncContact? contact) {
@@ -701,6 +775,7 @@ class _VisitorChannelTile extends StatelessWidget {
     final target = channel.roomId.trim().isNotEmpty
         ? channel.roomId.trim()
         : channel.channelId.trim();
+    final route = channel.openRoute;
     return GlassListTile(
       margin: const EdgeInsets.only(bottom: glassListTileGap),
       leading: channel.avatarUrl?.trim().isNotEmpty == true
@@ -721,7 +796,9 @@ class _VisitorChannelTile extends StatelessWidget {
       ].join(' · '),
       onTap: target.isEmpty
           ? null
-          : () => context.push('/channel/${Uri.encodeComponent(target)}'),
+          : route == null
+              ? null
+              : () => context.push(route),
     );
   }
 }

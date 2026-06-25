@@ -6,7 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'package:portal_app/core/theme/app_theme.dart';
 import 'package:portal_app/data/as_bootstrap_store.dart';
 import 'package:portal_app/data/as_client.dart';
-import 'package:portal_app/presentation/pages/channel_page.dart';
+import 'package:portal_app/presentation/pages/channel_detail_info_page.dart';
 import 'package:portal_app/presentation/pages/contact_home_page.dart';
 import 'package:portal_app/presentation/providers/as_bootstrap_store_provider.dart';
 import 'package:portal_app/presentation/providers/as_client_provider.dart';
@@ -192,7 +192,19 @@ void main() {
           matrixClientProvider.overrideWithValue(client),
           authStateNotifierProvider
               .overrideWith(_LoggedInAuthStateNotifier.new),
-          asClientProvider.overrideWithValue(_RelationshipAsClient()),
+          asClientProvider.overrideWithValue(
+            _RelationshipAsClient(
+              publicChannels: const [
+                AsChannel(
+                  channelId: 'ch_owner',
+                  roomId: '!owner-channel:p2p-liyanan.com',
+                  name: 'owner 公开频道',
+                  visibility: asChannelVisibilityPublic,
+                  memberCount: 6,
+                ),
+              ],
+            ),
+          ),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
@@ -208,7 +220,10 @@ void main() {
     expect(find.text('联系人主页不存在'), findsNothing);
     expect(find.text('owner'), findsOneWidget);
     expect(find.text('p2p-liyanan.com'), findsOneWidget);
-    expect(find.text('她的频道'), findsNothing);
+    expect(find.text('她的频道'), findsOneWidget);
+    expect(find.text('owner 公开频道'), findsOneWidget);
+    expect(
+        find.textContaining('!owner-channel:p2p-liyanan.com'), findsOneWidget);
     expect(find.text('还没有公开频道'), findsNothing);
     expect(find.text('还没有公开动态'), findsNothing);
     expect(
@@ -320,9 +335,14 @@ void main() {
           ),
         ),
         GoRoute(
-          path: '/channel/:channelId',
-          builder: (_, state) => ChannelPage(
+          path: '/channel/:channelId/detail',
+          builder: (_, state) => ChannelDetailInfoPage(
             channelId: state.pathParameters['channelId']!,
+            routeRoomId: state.uri.queryParameters['room_id'],
+            routeName: state.uri.queryParameters['name'],
+            routeDescription: state.uri.queryParameters['description'],
+            routeChannelType: state.uri.queryParameters['type'],
+            showJoinButton: state.uri.queryParameters['join'] == '1',
           ),
         ),
       ],
@@ -354,15 +374,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Alice 公开频道'));
-    await tester.pump();
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    });
-    await tester.pump();
-    await tester.runAsync(() async {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    });
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(asClient.requestedPublicRoomId, '!alice-channel:portal.local');
     expect(find.text('申请加入'), findsOneWidget);

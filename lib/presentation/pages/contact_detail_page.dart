@@ -13,6 +13,7 @@ import '../../data/as_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../l10n/app_localizations.dart';
+import '../channel/public_channel_target.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -52,9 +53,18 @@ class ContactDetailPage extends ConsumerStatefulWidget {
   ConsumerState<ContactDetailPage> createState() => _ContactDetailPageState();
 }
 
-final _avatarProfilePublicChannelsProvider =
-    FutureProvider.autoDispose.family<List<AsChannel>, String>((ref, userId) {
-  return ref.read(asClientProvider).getUserPublicChannels(userId);
+final _avatarProfilePublicChannelsProvider = FutureProvider.autoDispose
+    .family<List<AsChannel>, _AvatarProfilePublicChannelsRequest>(
+        (ref, request) {
+  return ref.read(asClientProvider).getUserPublicChannels(
+        request.userId,
+        remoteNodeBaseUri: request.remoteNodeBaseUri,
+      );
+});
+
+typedef _AvatarProfilePublicChannelsRequest = ({
+  String userId,
+  Uri? remoteNodeBaseUri,
 });
 
 class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
@@ -160,9 +170,21 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final hideChatAvatarEntries = widget.fromChatAvatar;
     final hideRecommendFriend = widget.fromChatInfo;
     final existingContact = syncCache.contactForUserId(userId);
-    final avatarProfileChannels = widget.fromChatAvatar
-        ? ref.watch(_avatarProfilePublicChannelsProvider(userId))
+    final contactStatus =
+        acceptedContactForUser?.status.trim().toLowerCase() ?? '';
+    final shouldLoadPublicChannels =
+        widget.fromChatAvatar || contactStatus == 'accepted';
+    final publicChannelsRemoteNodeBaseUri =
+        _publicChannelsRemoteNodeBaseUri(userId, acceptedContact);
+    final profileChannels = shouldLoadPublicChannels
+        ? ref.watch(
+            _avatarProfilePublicChannelsProvider((
+              userId: userId,
+              remoteNodeBaseUri: publicChannelsRemoteNodeBaseUri,
+            )),
+          )
         : null;
+    final publicChannels = profileChannels?.valueOrNull ?? const <AsChannel>[];
 
     if (widget.fromChatAvatar) {
       return _buildChatAvatarProfile(
@@ -193,9 +215,12 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                 )
             : null,
         onChannels: () => context.push(
-          '/contact-channels/${Uri.encodeComponent(userId)}',
+          _contactChannelsRoute(
+            userId,
+            remoteNodeBaseUri: publicChannelsRemoteNodeBaseUri,
+          ),
         ),
-        publicChannels: avatarProfileChannels?.valueOrNull ?? const [],
+        publicChannels: publicChannels,
         onRecommend: isSelf ? null : () => _shareContact(displayName, userId),
         onAddFriend: isSelf || _isPendingContact(existingContact?.status)
             ? null
@@ -282,6 +307,17 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     ),
                     if (!isSelf) ...[
                       const SizedBox(height: 26),
+                      _ContactSettingRow(
+                        label: l10n?.contactHisChannels ?? '他的频道',
+                        onTap: () => context.push(
+                          _contactChannelsRoute(
+                            userId,
+                            remoteNodeBaseUri: publicChannelsRemoteNodeBaseUri,
+                          ),
+                        ),
+                        previewChannels: publicChannels,
+                      ),
+                      const SizedBox(height: 16),
                       _ContactSettingRow(
                         label: l10n?.contactSetRemark ?? '设置备注',
                         onTap: () => _showRemarkDialog(
@@ -751,6 +787,37 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
       );
     }
   }
+}
+
+Uri? _publicChannelsRemoteNodeBaseUri(
+  String userId,
+  AsSyncContact? contact,
+) {
+  final contactDomain = contact?.domain.trim() ?? '';
+  if (contactDomain.isNotEmpty) {
+    return publicBaseUriForServerName(contactDomain);
+  }
+  final separator = userId.indexOf(':');
+  if (!userId.startsWith('@') ||
+      separator <= 1 ||
+      separator + 1 >= userId.length) {
+    return null;
+  }
+  return publicBaseUriForServerName(userId.substring(separator + 1));
+}
+
+String _contactChannelsRoute(
+  String userId, {
+  Uri? remoteNodeBaseUri,
+}) {
+  final query = Uri(
+    queryParameters: {
+      if (remoteNodeBaseUri != null)
+        'remote_node_base_url': remoteNodeBaseUri.toString(),
+    },
+  ).query;
+  return '/contact-channels/${Uri.encodeComponent(userId)}'
+      '${query.isEmpty ? '' : '?$query'}';
 }
 
 class _ContactBackButton extends StatelessWidget {
@@ -1322,10 +1389,12 @@ class _ContactSettingRow extends StatelessWidget {
   const _ContactSettingRow({
     required this.label,
     required this.onTap,
+    this.previewChannels = const [],
   });
 
   final String label;
   final VoidCallback onTap;
+  final List<AsChannel> previewChannels;
 
   @override
   Widget build(BuildContext context) {
@@ -1354,6 +1423,10 @@ class _ContactSettingRow extends StatelessWidget {
                     ).copyWith(letterSpacing: -0.4),
                   ),
                 ),
+                if (previewChannels.isNotEmpty) ...[
+                  const SizedBox(width: 12),
+                  _AvatarProfileChannelPreviews(channels: previewChannels),
+                ],
                 Icon(
                   Symbols.chevron_right,
                   size: 24,

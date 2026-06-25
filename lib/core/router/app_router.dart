@@ -664,7 +664,8 @@ GoRouter appRouter(Ref ref) {
             sharePayload: state.extra is ChannelSharePayload
                 ? state.extra! as ChannelSharePayload
                 : null,
-            showJoinButton: state.extra is ChannelSharePayload,
+            showJoinButton: state.extra is ChannelSharePayload ||
+                state.uri.queryParameters['join'] == '1',
           ),
         ),
       ),

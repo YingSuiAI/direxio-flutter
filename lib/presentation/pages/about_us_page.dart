@@ -38,12 +38,12 @@ class AboutUsPage extends StatelessWidget {
               const SizedBox(height: 50),
               _AboutInfoRow(
                 label: l10n?.aboutWebsite ?? '官网',
-                value: 'https://im2.direxio.ai',
+                value: 'direxio.ai',
               ),
               const SizedBox(height: 12),
               _AboutInfoRow(
                 label: l10n?.aboutEmail ?? '邮箱',
-                value: 'lInnebdeb@imdire.enwxio',
+                value: 'liyananinsh@outlook.com',
               ),
               const SizedBox(height: 12),
               _AboutInfoRow(

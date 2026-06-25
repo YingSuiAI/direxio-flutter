@@ -1903,7 +1903,19 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get meHelpFeedbackBody =>
-      '公式メール：support@direxio.ai\n\nヒント：フィードバックには問題が発生したページ、操作手順、端末モデルを記載してください。';
+      '公式メール：liyananinsh@outlook.com\n\nヒント：フィードバックには問題が発生したページ、操作手順、端末モデルを記載してください。';
+
+  @override
+  String get meHelpFeedbackHeadline => 'より良い\nDirexio を一緒に';
+
+  @override
+  String get meHelpFeedbackPrompt => '問題や良いアイデアがありますか？';
+
+  @override
+  String get meHelpFeedbackContactLabel => 'お問い合わせ';
+
+  @override
+  String get meHelpFeedbackNote => 'いただいたフィードバックをもとに改善を続けます。';
 
   @override
   String get meHelpFeedbackOk => '了解';

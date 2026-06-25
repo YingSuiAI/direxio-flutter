@@ -1126,7 +1126,7 @@ class _PendingChannelReviewAsClient extends _EmptyAsClient {
         AsChannelMember(
           channelId: 'ch_review',
           userMxid: '@pending:p2p-im.com',
-          displayName: '',
+          displayName: 'pending',
           avatarUrl: '',
           status: asChannelMemberStatusPending,
           role: asChannelRoleMember,
@@ -1232,6 +1232,7 @@ class _ConversationListWithPublicChannelsAsClient
 
   final List<AsChannel> userPublicChannels;
   String? requestedUserPublicChannelsUserId;
+  Uri? requestedUserPublicChannelsBaseUri;
 
   @override
   Future<List<AsChannel>> getUserPublicChannels(
@@ -1240,6 +1241,7 @@ class _ConversationListWithPublicChannelsAsClient
     Uri? remoteNodeBaseUri,
   }) async {
     requestedUserPublicChannelsUserId = userId;
+    requestedUserPublicChannelsBaseUri = remoteNodeBaseUri ?? baseUri;
     return userPublicChannels;
   }
 }
@@ -6227,7 +6229,16 @@ void main() {
       peerName: 'owner',
     );
     final bootstrapStore = _MemoryAsBootstrapStore();
-    final asClient = _TrackingAsClient();
+    final asClient = _TrackingAsClient()
+      ..userPublicChannels = const [
+        AsChannel(
+          channelId: 'ch_chat_info_1',
+          roomId: '!chat-info-channel:p2p-liyanan.com',
+          name: 'owner 创建的频道',
+          avatarUrl: 'https://example.com/chat-info-channel.png',
+          visibility: asChannelVisibilityPublic,
+        ),
+      ];
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 5, 26, 10),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -6266,9 +6277,15 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('搜索聊天记录'), findsOneWidget);
+    expect(asClient.requestedUserPublicChannelsUserId, peerMxid);
+    expect(find.text('他的频道'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('chat_info_channel_ch_chat_info_1')),
+      findsOneWidget,
+    );
     expect(find.text('owner'), findsOneWidget);
     expect(find.text(peerMxid), findsOneWidget);
     expect(find.text('推荐给朋友'), findsNothing);
@@ -6953,6 +6970,7 @@ void main() {
 
     expect(find.text('频道审核'), findsAtLeastNWidgets(1));
     expect(find.text('待审核用户'), findsOneWidget);
+    expect(find.text('pending'), findsNothing);
     expect(find.text('#待审核用户'), findsNothing);
     final avatars = tester.widgetList<PortalAvatar>(find.byType(PortalAvatar));
     expect(
@@ -10187,7 +10205,7 @@ void main() {
     );
   });
 
-  testWidgets('contact channels list opens joined channel by channel id',
+  testWidgets('contact channels list opens joined post channel by channel id',
       (tester) async {
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.utc(2026, 6, 24, 10),
@@ -10205,6 +10223,7 @@ void main() {
           lastActivityAt: null,
           role: asChannelRoleMember,
           memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypePost,
         ),
       ],
       pending: const AsSyncPending.empty(),
@@ -10219,6 +10238,7 @@ void main() {
           visibility: asChannelVisibilityPublic,
           joinPolicy: asChannelJoinPolicyOpen,
           memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypePost,
         ),
       ];
     final router = GoRouter(
@@ -10231,12 +10251,11 @@ void main() {
           ),
         ),
         GoRoute(
-          path: '/channel/:channelId/detail',
+          path: '/channel/:channelId',
           builder: (_, state) => Scaffold(
             body: Column(
               children: [
-                Text('opened ${state.pathParameters['channelId']}'),
-                Text('avatar:${state.uri.queryParameters['avatar']}'),
+                Text('opened post ${state.pathParameters['channelId']}'),
               ],
             ),
           ),
@@ -10266,11 +10285,93 @@ void main() {
     await tester.tap(find.text('Alice 已加入频道'));
     await tester.pumpAndSettle();
 
-    expect(find.text('opened ch_alice_joined'), findsOneWidget);
-    expect(
-      find.text('avatar:https://cdn.example.com/alice-joined.png'),
-      findsOneWidget,
+    expect(find.text('opened post ch_alice_joined'), findsOneWidget);
+  });
+
+  testWidgets('contact channels list opens joined text channel conversation',
+      (tester) async {
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 24, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: const [
+        AsSyncRoomSummary(
+          roomId: '!alice-text:remote.example',
+          channelId: 'ch_alice_text',
+          name: 'Alice 文字频道',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypeChat,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
     );
+    final asClient = _TrackingAsClient()
+      ..userPublicChannels = const [
+        AsChannel(
+          channelId: 'ch_alice_text',
+          roomId: '!alice-text:remote.example',
+          name: 'Alice 文字频道',
+          visibility: asChannelVisibilityPublic,
+          joinPolicy: asChannelJoinPolicyOpen,
+          memberStatus: asChannelMemberStatusJoined,
+          channelType: asChannelTypeChat,
+        ),
+      ];
+    final router = GoRouter(
+      initialLocation: '/contact-channels/%40alice%3Aremote.example',
+      routes: [
+        GoRoute(
+          path: '/contact-channels/:userId',
+          builder: (_, state) => ContactChannelsPage(
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+        GoRoute(
+          path: '/channel/:channelId/conversation',
+          builder: (_, state) => Scaffold(
+            body: Column(
+              children: [
+                Text(
+                  'opened chat ${state.pathParameters['channelId']}',
+                ),
+                Text('name:${state.uri.queryParameters['name']}'),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Alice 文字频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('opened chat ch_alice_text'), findsOneWidget);
+    expect(find.text('name:Alice 文字频道'), findsOneWidget);
   });
 
   testWidgets(
@@ -15352,10 +15453,16 @@ void main() {
     expect(find.byType(ContactDetailPage), findsOneWidget);
     expect(find.text('Alice'), findsOneWidget);
     expect(find.text('他的频道'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('avatar_profile_channel_ch_alice_group')),
+      findsOneWidget,
+    );
     expect(find.text('添加好友'), findsOneWidget);
     expect(find.text('发消息'), findsNothing);
     expect(find.text('音频通话'), findsNothing);
     expect(find.text('视频通话'), findsNothing);
+    await tester.pump(const Duration(seconds: 12));
+    await tester.pump();
   });
 
   testWidgets('group chat long pressing member avatar inserts mention',
@@ -15840,7 +15947,7 @@ void main() {
     expect(find.text('还没有频道'), findsOneWidget);
   });
 
-  testWidgets('channel unread dot appears under time for unread channels',
+  testWidgets('channel unread dot appears for text and member post channels',
       (tester) async {
     final client = Client('DirexioTest');
 
@@ -15869,16 +15976,31 @@ void main() {
                   channelType: asChannelTypeChat,
                 ),
                 ChannelInboxItem(
-                  id: 'ch_posts',
+                  id: 'ch_owner_posts',
                   roomId: '!posts:p2p-im.com',
                   domain: 'p2p-im.com',
-                  name: '帖子频道',
+                  name: '我创建的帖子频道',
                   avatarUrl: '',
                   latestPreview: '帖子更新',
                   latestAt: DateTime.parse('2026-06-07T10:15:00Z'),
                   unreadCount: 8,
                   tags: const ['帖子'],
                   isOwned: true,
+                  role: asChannelRoleOwner,
+                  channelType: asChannelTypePost,
+                ),
+                ChannelInboxItem(
+                  id: 'ch_member_posts',
+                  roomId: '!member-posts:p2p-im.com',
+                  domain: 'p2p-im.com',
+                  name: '成员帖子频道',
+                  avatarUrl: '',
+                  latestPreview: '频道主发布了新帖',
+                  latestAt: DateTime.parse('2026-06-07T10:10:00Z'),
+                  unreadCount: 5,
+                  tags: const ['帖子'],
+                  isOwned: false,
+                  role: asChannelRoleMember,
                   channelType: asChannelTypePost,
                 ),
               ],
@@ -15892,10 +16014,13 @@ void main() {
 
     expect(find.byKey(const ValueKey('channel_unread_dot_ch_updates')),
         findsOneWidget);
-    expect(find.byKey(const ValueKey('channel_unread_dot_ch_posts')),
+    expect(find.byKey(const ValueKey('channel_unread_dot_ch_owner_posts')),
+        findsNothing);
+    expect(find.byKey(const ValueKey('channel_unread_dot_ch_member_posts')),
         findsOneWidget);
     expect(find.text('12'), findsNothing);
     expect(find.text('8'), findsNothing);
+    expect(find.text('5'), findsNothing);
   });
 
   testWidgets('home message list excludes channel conversations',
@@ -17197,6 +17322,75 @@ void main() {
     expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
   });
 
+  testWidgets('accepted contact detail shows public channel previews',
+      (tester) async {
+    const roomId = '!alice:p2p-im.com';
+    const peerMxid = '@alice:p2p-im.com';
+    final client = Client('DirexioContactDetailPublicChannelsTest')
+      ..setUserId('@owner:p2p-im.com');
+    _addUndirectedJoinedRoom(
+      client,
+      roomId: roomId,
+      peerMxid: peerMxid,
+      peerName: 'Alice',
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 25, 12),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: peerMxid,
+          displayName: 'Alice',
+          avatarUrl: '',
+          roomId: roomId,
+          domain: 'p2p-im.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+    final asClient = _ConversationListWithPublicChannelsAsClient(
+      const [],
+      userPublicChannels: const [
+        AsChannel(
+          channelId: 'ch_contact_1',
+          roomId: '!contact-1:p2p-im.com',
+          name: 'Alice 好友公开频道',
+          avatarUrl: 'https://example.com/contact-channel-1.png',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ContactDetailPage(userId: peerMxid),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(asClient.requestedUserPublicChannelsUserId, peerMxid);
+    expect(find.text('他的频道'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('avatar_profile_channel_ch_contact_1')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
       'contact detail uses Matrix member nickname when AS name is empty',
       (tester) async {
@@ -17400,6 +17594,15 @@ void main() {
             fromChatInfo: state.uri.queryParameters['source'] == 'chat_info',
           ),
         ),
+        GoRoute(
+          path: '/contact-channels/:userId',
+          builder: (_, state) => ContactChannelsPage(
+            userId: state.pathParameters['userId']!,
+            remoteNodeBaseUri: Uri.tryParse(
+              state.uri.queryParameters['remote_node_base_url'] ?? '',
+            ),
+          ),
+        ),
       ],
     );
 
@@ -17428,6 +17631,10 @@ void main() {
     expect(find.text('音频通话'), findsOneWidget);
     expect(find.text('视频通话'), findsOneWidget);
     expect(asClient.requestedUserPublicChannelsUserId, peerMxid);
+    expect(
+      asClient.requestedUserPublicChannelsBaseUri,
+      Uri.parse('https://p2p-im.com/_p2p'),
+    );
     for (final channelId in const [
       'ch_avatar_1',
       'ch_avatar_2',
@@ -17438,6 +17645,19 @@ void main() {
         findsOneWidget,
       );
     }
+    await tester.tap(find.text('他的频道'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ContactChannelsPage), findsOneWidget);
+    expect(asClient.requestedUserPublicChannelsUserId, peerMxid);
+    expect(
+      asClient.requestedUserPublicChannelsBaseUri,
+      Uri.parse('https://p2p-im.com/_p2p'),
+    );
+    expect(find.text('Alice 频道一'), findsOneWidget);
+    expect(find.text('Alice 频道二'), findsOneWidget);
+    expect(find.text('Alice 频道三'), findsOneWidget);
+    router.pop();
+    await tester.pumpAndSettle();
     await tester.tap(find.text(peerMxid));
     await tester.pump();
     expect(find.text('已复制 UID'), findsOneWidget);
@@ -18008,6 +18228,15 @@ void main() {
     expect(find.text('赞'), findsOneWidget);
     expect(find.text('评论'), findsOneWidget);
     expect(find.text('帮助与反馈'), findsOneWidget);
+    await tester.tap(find.text('帮助与反馈'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('help_feedback_background')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('liyananinsh@outlook.com'), findsOneWidget);
+    await tester.tap(find.text('知道了'));
+    await tester.pumpAndSettle();
     expect(
       find.byWidgetPredicate(
         (widget) => widget is Icon && widget.icon == Symbols.settings,
@@ -19482,6 +19711,8 @@ void main() {
       find.byKey(const ValueKey('about_us_logo_asset')),
     );
     expect(image.image, const AssetImage('assets/images/logo.png'));
+    expect(find.text('direxio.ai'), findsOneWidget);
+    expect(find.text('liyananinsh@outlook.com'), findsOneWidget);
   });
 
   testWidgets('account security page setting icons are neutral',

@@ -31,6 +31,7 @@ import '../providers/product_conversations_provider.dart';
 import '../providers/user_profile_directory_provider.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/product_conversation_navigation.dart';
+import '../utils/room_read_state.dart';
 import '../utils/user_profile_directory.dart';
 import '../widgets/m3/glass_header.dart';
 import 'channel_info_page.dart';
@@ -441,7 +442,33 @@ class _RealChannelPageState extends ConsumerState<_RealChannelPage> {
     final eventId = latest.eventId.trim();
     if (eventId.isEmpty || eventId == _lastReadMarkerEventId) return;
     _lastReadMarkerEventId = eventId;
+    final roomId = channel.roomId.trim();
+    final readAt = latest.originServerTs > 0
+        ? DateTime.fromMillisecondsSinceEpoch(
+            latest.originServerTs,
+            isUtc: true,
+          )
+        : DateTime.now().toUtc();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      if (roomId.isNotEmpty) {
+        final room = ref.read(matrixClientProvider).getRoomById(roomId);
+        if (room != null) {
+          markRoomLocallyRead(room);
+          if (room.client.isLogged() && room.client.homeserver != null) {
+            unawaited(
+              room.setReadMarker(eventId, mRead: eventId).catchError(
+                (Object e) {
+                  debugPrint('channel post Matrix read marker failed: $e');
+                },
+              ),
+            );
+          }
+        }
+        ref.read(asSyncCacheProvider.notifier).update(
+              (state) => state.withRoomUnreadCleared(roomId, readAt: readAt),
+            );
+      }
       try {
         await ref.read(asClientProvider).updateChannelReadMarker(
               channel.id,

@@ -667,20 +667,32 @@ _ReviewMemberIdentity _reviewMemberIdentity(
   final mxid = member.userMxid.trim();
   final contact = syncCache.contactForUserId(mxid);
   final memberName = member.displayName.trim();
-  final contactName = contactDisplayNameFromIdentity(
-    mxid: mxid,
-    displayName: contact?.displayName ?? '',
-    domain: contact?.domain ?? member.domain,
-  ).trim();
-  final name = memberName.isNotEmpty
-      ? memberName
-      : contactName.isNotEmpty
-          ? contactName
-          : _localpartFromMxid(mxid);
+  final contactName = _reviewContactName(contact, mxid).trim();
+  final name = contactName.isNotEmpty
+      ? contactName
+      : memberName.isNotEmpty
+          ? memberName
+          : contactDisplayNameFromIdentity(
+              mxid: mxid,
+              domain: member.domain,
+            ).trim();
   final avatarUrl = member.avatarUrl.trim().isNotEmpty
       ? member.avatarUrl.trim()
       : contact?.avatarUrl.trim() ?? '';
   return _ReviewMemberIdentity(name: name, avatarUrl: avatarUrl);
+}
+
+String _reviewContactName(AsSyncContact? contact, String mxid) {
+  if (contact == null) return '';
+  final name = contactDisplayNameFromIdentity(
+    mxid: mxid,
+    displayName:
+        contact.remark.trim().isNotEmpty ? contact.remark : contact.displayName,
+    domain: contact.domain,
+  ).trim();
+  final localpart = _localpartFromMxid(mxid);
+  if (name.isEmpty || name == mxid || name == localpart) return '';
+  return name;
 }
 
 class _ReviewMemberIdentity {
@@ -1315,7 +1327,8 @@ class ChannelInboxTile extends StatelessWidget {
                                       color: _channelMutedColor(context),
                                     ).copyWith(height: 15 / 12),
                                   ),
-                                if (showTime && channel.unreadCount > 0) ...[
+                                if (showTime &&
+                                    _channelShowsUnreadDot(channel)) ...[
                                   const SizedBox(height: 7),
                                   _UnreadDot(
                                     key: ValueKey(
@@ -1700,6 +1713,17 @@ const _meChannelSections = ['已加入', '我创建'];
 
 bool _channelIsTextType(ChannelInboxItem channel) {
   return normalizeAsChannelType(channel.channelType) == asChannelTypeChat;
+}
+
+bool _channelShowsUnreadDot(ChannelInboxItem channel) {
+  if (channel.unreadCount <= 0) return false;
+  final type = normalizeAsChannelType(channel.channelType);
+  if (type == asChannelTypeChat) return true;
+  if (type != asChannelTypePost) return false;
+  if (channel.isOwned || channel.role.trim() == asChannelRoleOwner) {
+    return false;
+  }
+  return true;
 }
 
 String _channelInboxSubtitle(ChannelInboxItem channel) {

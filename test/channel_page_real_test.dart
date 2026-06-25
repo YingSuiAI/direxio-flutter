@@ -3420,6 +3420,16 @@ void main() {
 
   testWidgets('real channel page marks latest post as read', (tester) async {
     final asClient = _PostingChannelAsClient();
+    final client = Client('DirexioChannelPostReadMarkerTest');
+    final room = Room(
+      id: '!real:p2p-im.com',
+      client: client,
+      membership: Membership.join,
+      notificationCount: 2,
+      highlightCount: 1,
+    );
+    client.rooms.add(room);
+    late ProviderContainer container;
     final bootstrap = AsSyncBootstrap(
       syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
       user: const AsSyncUser(userId: '@owner:p2p-im.com'),
@@ -3447,14 +3457,20 @@ void main() {
       ProviderScope(
         overrides: [
           _channelPostStoreOverride(),
+          matrixClientProvider.overrideWithValue(client),
           asClientProvider.overrideWithValue(asClient),
           asSyncCacheProvider.overrideWith(
             (ref) => AsSyncCacheState(bootstrap: bootstrap),
           ),
         ],
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: const ChannelPage(channelId: 'ch_real'),
+        child: Builder(
+          builder: (context) {
+            container = ProviderScope.containerOf(context);
+            return MaterialApp(
+              theme: AppTheme.light,
+              home: const ChannelPage(channelId: 'ch_real'),
+            );
+          },
         ),
       ),
     );
@@ -3462,6 +3478,16 @@ void main() {
 
     expect(asClient.readMarkerChannelId, 'ch_real');
     expect(asClient.readMarkerEventId, r'$post1');
+    expect(room.notificationCount, 0);
+    expect(room.highlightCount, 0);
+    expect(
+        container
+            .read(asSyncCacheProvider)
+            .bootstrap
+            ?.channels
+            .single
+            .unreadCount,
+        0);
   });
 }
 

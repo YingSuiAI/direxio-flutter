@@ -1893,7 +1893,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get meHelpFeedbackBody =>
-      '官方邮箱：support@direxio.ai\n\n温馨提示：请在反馈中描述问题发生的页面、操作步骤和设备型号。';
+      '官方邮箱：liyananinsh@outlook.com\n\n温馨提示：请在反馈中描述问题发生的页面、操作步骤和设备型号。';
+
+  @override
+  String get meHelpFeedbackHeadline => '一起打造更好的\nDirexio';
+
+  @override
+  String get meHelpFeedbackPrompt => '发现问题或有好想法？';
+
+  @override
+  String get meHelpFeedbackContactLabel => '联系我们';
+
+  @override
+  String get meHelpFeedbackNote => '我们会持续根据你的反馈优化产品。';
 
   @override
   String get meHelpFeedbackOk => '知道了';

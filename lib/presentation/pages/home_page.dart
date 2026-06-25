@@ -67,6 +67,7 @@ const _assetTabChannelNormal = 'assets/images/频道2.png';
 const _assetTabChannelSelected = 'assets/images/频道选中.png';
 const _assetTabMeNormal = 'assets/images/我的.png';
 const _assetTabMeSelected = 'assets/images/我的选中.png';
+const _assetAgentAvatar = 'assets/images/ai_icon.png';
 const _contactShortcutIconColor = Color(0xFF3DCFFF);
 const _bottomSearchTapSize = 56.0;
 const _bottomSearchIconSize = 48.0;
@@ -1799,17 +1800,13 @@ class _ConvRow extends StatelessWidget {
       width: _conversationTileAvatarSize,
       height: _conversationTileAvatarSize,
       child: isAgent
-          ? Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F3FF),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              alignment: Alignment.center,
-              child: const Icon(
-                Symbols.robot_2,
-                size: 22,
-                color: Color(0xFF0066A8),
-                fill: 1,
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                _assetAgentAvatar,
+                width: _conversationTileAvatarSize,
+                height: _conversationTileAvatarSize,
+                fit: BoxFit.cover,
               ),
             )
           : isGroup
@@ -2815,15 +2812,13 @@ class _AgentContactEntryTile extends StatelessWidget {
     return _ContactFlatRow(
       key: const ValueKey('contacts_agent_entry'),
       onTap: onTap,
-      leading: Container(
-        width: 28,
-        height: 28,
-        alignment: Alignment.center,
-        child: const Icon(
-          Symbols.robot_2,
-          size: 18,
-          color: _contactShortcutIconColor,
-          fill: 1,
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.asset(
+          _assetAgentAvatar,
+          width: 28,
+          height: 28,
+          fit: BoxFit.cover,
         ),
       ),
       title: title,

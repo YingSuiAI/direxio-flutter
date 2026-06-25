@@ -17,6 +17,8 @@ import '../widgets/portal_avatar.dart';
 const _homeBg = Color(0xFFFAFAFA);
 const _homeText = Color(0xFF262628);
 const _homeMuted = Color(0xFFA3A3A4);
+const _feedbackBackgroundAsset = 'assets/images/fankui.png';
+const _feedbackEmail = 'liyananinsh@outlook.com';
 
 class MePage extends ConsumerWidget {
   const MePage({super.key, required this.client});
@@ -333,21 +335,145 @@ Future<void> _showHelpFeedback(BuildContext context) {
         context,
         AppLocalizations,
       );
-      return AlertDialog(
-        title: Text(l10n?.meHelpFeedbackTitle ?? '帮助与反馈'),
-        content: Text(
-          l10n?.meHelpFeedbackBody ??
-              '官方邮箱：support@direxio.ai\n\n温馨提示：请在反馈中描述问题发生的页面、操作步骤和设备型号。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n?.meHelpFeedbackOk ?? '知道了'),
-          ),
-        ],
+      return _HelpFeedbackDialog(
+        headline: l10n?.meHelpFeedbackHeadline ?? '一起打造更好的\nDirexio',
+        prompt: l10n?.meHelpFeedbackPrompt ?? '发现问题或有好想法？',
+        contactLabel: l10n?.meHelpFeedbackContactLabel ?? '联系我们',
+        note: l10n?.meHelpFeedbackNote ?? '我们会持续根据你的反馈优化产品。',
+        okLabel: l10n?.meHelpFeedbackOk ?? '知道了',
       );
     },
   );
+}
+
+class _HelpFeedbackDialog extends StatelessWidget {
+  const _HelpFeedbackDialog({
+    required this.headline,
+    required this.prompt,
+    required this.contactLabel,
+    required this.note,
+    required this.okLabel,
+  });
+
+  final String headline;
+  final String prompt;
+  final String contactLabel;
+  final String note;
+  final String okLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: AspectRatio(
+          aspectRatio: 1052 / 1161,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                child: Image.asset(
+                  _feedbackBackgroundAsset,
+                  key: const ValueKey('help_feedback_background'),
+                  fit: BoxFit.contain,
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Material(
+                  color: t.surface.withValues(alpha: 0.55),
+                  shape: CircleBorder(
+                    side: BorderSide(color: t.surface.withValues(alpha: 0.85)),
+                  ),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => Navigator.of(context).pop(),
+                    child: SizedBox.square(
+                      dimension: 28,
+                      child: Icon(
+                        Symbols.close,
+                        size: 22,
+                        color: t.textMute,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(46, 82, 44, 56),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        headline,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(
+                          size: 28,
+                          weight: FontWeight.w800,
+                          color: t.text,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Text(
+                        prompt,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 15, color: t.text),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        '$contactLabel : $_feedbackEmail',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 15, color: t.text),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        note,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTheme.sans(size: 15, color: t.text),
+                      ),
+                      const Spacer(),
+                      Center(
+                        child: SizedBox(
+                          width: 148,
+                          height: 45,
+                          child: FilledButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: t.accent,
+                              foregroundColor: t.onAccent,
+                              shape: const StadiumBorder(),
+                            ),
+                            child: Text(
+                              okLabel,
+                              style: AppTheme.sans(
+                                size: 15,
+                                weight: FontWeight.w700,
+                                color: t.onAccent,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 String _localpartFromMxid(String mxid) {

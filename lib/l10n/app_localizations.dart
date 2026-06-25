@@ -3650,8 +3650,32 @@ abstract class AppLocalizations {
   /// No description provided for @meHelpFeedbackBody.
   ///
   /// In zh, this message translates to:
-  /// **'官方邮箱：support@direxio.ai\n\n温馨提示：请在反馈中描述问题发生的页面、操作步骤和设备型号。'**
+  /// **'官方邮箱：liyananinsh@outlook.com\n\n温馨提示：请在反馈中描述问题发生的页面、操作步骤和设备型号。'**
   String get meHelpFeedbackBody;
+
+  /// No description provided for @meHelpFeedbackHeadline.
+  ///
+  /// In zh, this message translates to:
+  /// **'一起打造更好的\nDirexio'**
+  String get meHelpFeedbackHeadline;
+
+  /// No description provided for @meHelpFeedbackPrompt.
+  ///
+  /// In zh, this message translates to:
+  /// **'发现问题或有好想法？'**
+  String get meHelpFeedbackPrompt;
+
+  /// No description provided for @meHelpFeedbackContactLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'联系我们'**
+  String get meHelpFeedbackContactLabel;
+
+  /// No description provided for @meHelpFeedbackNote.
+  ///
+  /// In zh, this message translates to:
+  /// **'我们会持续根据你的反馈优化产品。'**
+  String get meHelpFeedbackNote;
 
   /// No description provided for @meHelpFeedbackOk.
   ///

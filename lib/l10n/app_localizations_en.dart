@@ -1955,7 +1955,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get meHelpFeedbackBody =>
-      'Official email: support@direxio.ai\n\nTip: please include the page, steps to reproduce, and device model in your feedback.';
+      'Official email: liyananinsh@outlook.com\n\nTip: please include the page, steps to reproduce, and device model in your feedback.';
+
+  @override
+  String get meHelpFeedbackHeadline => 'Build a Better\nDirexio Together';
+
+  @override
+  String get meHelpFeedbackPrompt => 'Found an issue or have a great idea?';
+
+  @override
+  String get meHelpFeedbackContactLabel => 'Contact Us';
+
+  @override
+  String get meHelpFeedbackNote =>
+      'We will keep optimizing based on your feedback.';
 
   @override
   String get meHelpFeedbackOk => 'Got it';

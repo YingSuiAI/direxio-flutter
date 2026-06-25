@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,19 +8,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/matrix_push_registration.dart';
 import 'auth_provider.dart';
 
-const _fcmTokenAttemptTimeout = Duration(seconds: 15);
-const _fcmTokenRetryDelays = [
+const _pushTokenAttemptTimeout = Duration(seconds: 15);
+const _pushTokenRetryDelays = [
   Duration(seconds: 5),
   Duration(seconds: 20),
 ];
 
 final pushNotificationBootstrapProvider = Provider<void>((ref) {
-  if (!androidFcmMatrixPushSupported) {
-    debugPrint('[push-registration] bootstrap skip: not Android runtime');
+  final profile = currentMatrixPusherProfile;
+  if (profile == null) {
+    debugPrint('[push-registration] bootstrap skip: unsupported runtime');
     return;
   }
   if (!matrixPushGatewayConfigured) {
     debugPrint('[push-registration] bootstrap skip: invalid gateway URL');
+    return;
+  }
+  if (Firebase.apps.isEmpty) {
+    debugPrint('[push-registration] bootstrap skip: Firebase not initialized');
     return;
   }
   final client = ref.watch(matrixClientProvider);
@@ -38,9 +44,10 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
       );
       return Future<void>.value();
     }
-    return registerAndroidFcmMatrixPusher(
+    return registerMatrixPusher(
       client: client,
-      fcmToken: token,
+      profile: profile,
+      pushToken: token,
     );
   }
 
@@ -62,7 +69,11 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
     registrationInFlight = true;
     try {
       debugPrint('[push-registration] bootstrap start reason=$reason');
-      await _registerCurrentToken(messaging, registerToken);
+      await _registerCurrentToken(
+        messaging: messaging,
+        profile: profile,
+        registerToken: registerToken,
+      );
     } finally {
       registrationInFlight = false;
     }
@@ -87,16 +98,23 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
   );
   unawaited(_syncAfterNotificationOpen(messaging, client.oneShotSync));
   final tokenRefresh = messaging.onTokenRefresh.listen((token) {
-    unawaited(registerToken(token).catchError((Object error) {
+    final registration = profile == direxioAndroidFcmPusherProfile
+        ? registerToken(token)
+        : _registerCurrentToken(
+            messaging: messaging,
+            profile: profile,
+            registerToken: registerToken,
+          );
+    unawaited(registration.catchError((Object error) {
       debugPrint(
-        '[push-registration] FCM token refresh pusher registration failed: '
+        '[push-registration] token refresh pusher registration failed: '
         '$error',
       );
     }));
   });
   final foreground = FirebaseMessaging.onMessage.listen((message) {
     debugPrint(
-      '[push-notification] foreground FCM data=${message.data} '
+      '[push-notification] foreground data=${message.data} '
       'has_notification=${message.notification != null}',
     );
   });
@@ -112,24 +130,26 @@ final pushNotificationBootstrapProvider = Provider<void>((ref) {
   });
 });
 
-Future<void> _registerCurrentToken(
-  FirebaseMessaging messaging,
-  Future<void> Function(String token) registerToken,
-) async {
+Future<void> _registerCurrentToken({
+  required FirebaseMessaging messaging,
+  required MatrixPusherProfile profile,
+  required Future<void> Function(String token) registerToken,
+}) async {
   try {
     final settings = await messaging.requestPermission();
     debugPrint(
       '[push-registration] notification permission '
       'status=${settings.authorizationStatus.name}',
     );
-    for (var attempt = 0; attempt <= _fcmTokenRetryDelays.length; attempt++) {
+    for (var attempt = 0; attempt <= _pushTokenRetryDelays.length; attempt++) {
       try {
-        final token = await messaging.getToken().timeout(
-              _fcmTokenAttemptTimeout,
-            );
+        final token = await _fetchCurrentToken(messaging, profile).timeout(
+          _pushTokenAttemptTimeout,
+        );
         if (token == null || token.trim().isEmpty) {
           debugPrint(
-            '[push-registration] Firebase returned an empty FCM token '
+            '[push-registration] Firebase returned an empty '
+            '${profile.provider} token '
             'attempt=${attempt + 1}',
           );
         } else {
@@ -139,16 +159,27 @@ Future<void> _registerCurrentToken(
       } catch (error) {
         debugPrint(
           '[push-registration] Firebase token fetch failed '
+          'provider=${profile.provider} '
           'attempt=${attempt + 1}: $error',
         );
       }
-      if (attempt < _fcmTokenRetryDelays.length) {
-        await Future<void>.delayed(_fcmTokenRetryDelays[attempt]);
+      if (attempt < _pushTokenRetryDelays.length) {
+        await Future<void>.delayed(_pushTokenRetryDelays[attempt]);
       }
     }
   } catch (error) {
-    debugPrint('FCM pusher registration failed: $error');
+    debugPrint('Matrix pusher registration failed: $error');
   }
+}
+
+Future<String?> _fetchCurrentToken(
+  FirebaseMessaging messaging,
+  MatrixPusherProfile profile,
+) {
+  if (profile == direxioIosApnsPusherProfile) {
+    return messaging.getAPNSToken();
+  }
+  return messaging.getToken();
 }
 
 Future<void> _syncAfterNotificationOpen(

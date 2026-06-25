@@ -28,7 +28,7 @@ bool _sessionExpiredDialogShowing = false;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _configureAndroidPhotoPicker();
-  await _initializeAndroidFcm();
+  await _initializeFirebaseMessaging();
   // Web 上禁用浏览器原生右键菜单（翻译/检查等），让我们自己的
   // chat-ctx / msg-ctx 菜单不被遮挡。
   if (kIsWeb) {
@@ -57,12 +57,14 @@ void _configureAndroidPhotoPicker() {
   }
 }
 
-bool get _androidFcmSupported {
-  return !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+bool get _firebaseMessagingSupported {
+  return !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 }
 
-Future<void> _initializeAndroidFcm() async {
-  if (!_androidFcmSupported) return;
+Future<void> _initializeFirebaseMessaging() async {
+  if (!_firebaseMessagingSupported) return;
   try {
     await Firebase.initializeApp().timeout(const Duration(seconds: 4));
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -80,11 +82,11 @@ Future<void> _initializeAndroidFcm() async {
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  if (_androidFcmSupported) {
+  if (_firebaseMessagingSupported) {
     await Firebase.initializeApp();
   }
   debugPrint(
-    '[push-notification] background FCM data=${message.data} '
+    '[push-notification] background data=${message.data} '
     'has_notification=${message.notification != null}',
   );
 }

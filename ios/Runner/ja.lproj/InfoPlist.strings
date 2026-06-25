@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "Direxioは、セットアップおよび連絡先のQRコードの読み取り、チャット用の写真や動画の撮影、ビデオ通話にカメラを使用します。";
+"NSMicrophoneUsageDescription" = "Direxioは、音声メッセージ、音声通話、ビデオ通話にマイクを使用します。";
+"NSPhotoLibraryAddUsageDescription" = "保存を選択した場合、Direxioは共有された画像、動画、QRコードを写真ライブラリに保存します。";
+"NSPhotoLibraryUsageDescription" = "アバター、チャットメディア、チャンネル画像、通報の証拠を選択する場合、Direxioは写真ライブラリにアクセスします。";

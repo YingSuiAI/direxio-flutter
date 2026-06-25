@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "Direxio uses the camera to scan setup and contact QR codes, take chat photos and videos, and support video calls.";
+"NSMicrophoneUsageDescription" = "Direxio uses the microphone for voice messages, voice calls, and video calls.";
+"NSPhotoLibraryAddUsageDescription" = "Direxio saves shared images, videos, and QR codes to your photo library when you choose to save them.";
+"NSPhotoLibraryUsageDescription" = "Direxio uses your photo library when you choose avatars, chat media, channel images, or report evidence.";

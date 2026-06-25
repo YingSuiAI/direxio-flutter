@@ -1,0 +1,4 @@
+"NSCameraUsageDescription" = "Direxio 使用相机扫描设置和联系人二维码、拍摄聊天照片和视频，并支持视频通话。";
+"NSMicrophoneUsageDescription" = "Direxio 使用麦克风发送语音消息、进行语音通话和视频通话。";
+"NSPhotoLibraryAddUsageDescription" = "当你选择保存时，Direxio 会将分享的图片、视频和二维码保存到照片图库。";
+"NSPhotoLibraryUsageDescription" = "当你选择头像、聊天媒体、频道图片或举报证据时，Direxio 会访问照片图库。";

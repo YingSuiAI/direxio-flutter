@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/glass_list_tile.dart';
 import '../widgets/m3/glass_header.dart';
@@ -105,19 +106,26 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
 
   Future<void> _save() async {
     if (_loading) return;
+    final l10n = _accountL10n(context);
     final oldPassword = _oldCtrl.text.trim();
     final newPassword = _newCtrl.text.trim();
     final confirm = _confirmCtrl.text.trim();
     if (oldPassword.length < 8) {
-      setState(() => _error = '原密码至少 8 位');
+      setState(
+        () => _error = l10n?.changePasswordOldTooShort ?? '原密码至少 8 位',
+      );
       return;
     }
     if (newPassword.length < 8) {
-      setState(() => _error = '新密码至少 8 位');
+      setState(
+        () => _error = l10n?.changePasswordNewTooShort ?? '新密码至少 8 位',
+      );
       return;
     }
     if (newPassword != confirm) {
-      setState(() => _error = '两次输入的密码不一致');
+      setState(
+        () => _error = l10n?.changePasswordMismatch ?? '两次输入的密码不一致',
+      );
       return;
     }
     setState(() {
@@ -131,7 +139,9 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('密码已修改')),
+        SnackBar(
+          content: Text(l10n?.changePasswordSuccess ?? '密码已修改'),
+        ),
       );
       context.go('/settings');
     } catch (e) {
@@ -147,11 +157,12 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _accountL10n(context);
     return Scaffold(
       backgroundColor: t.surfaceHover,
       body: Column(
         children: [
-          GlassHeader.detail(title: '修改密码'),
+          GlassHeader.detail(title: l10n?.settingsChangePassword ?? '修改密码'),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
@@ -164,7 +175,7 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
                       M3InputField(
                         controller: _oldCtrl,
                         icon: Symbols.key,
-                        hint: '原密码',
+                        hint: l10n?.changePasswordOldHint ?? '原密码',
                         obscure: _oldObscure,
                         autofocus: true,
                         onChanged: _clearErrorOnEdit,
@@ -184,7 +195,7 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
                       M3InputField(
                         controller: _newCtrl,
                         icon: Symbols.lock_reset,
-                        hint: '新密码',
+                        hint: l10n?.changePasswordNewHint ?? '新密码',
                         obscure: _newObscure,
                         onChanged: _clearErrorOnEdit,
                         trailing: IconButton(
@@ -203,7 +214,7 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
                       M3InputField(
                         controller: _confirmCtrl,
                         icon: Symbols.check,
-                        hint: '再次输入新密码',
+                        hint: l10n?.changePasswordConfirmHint ?? '再次输入新密码',
                         obscure: _confirmObscure,
                         onChanged: _clearErrorOnEdit,
                         onSubmitted: (_) => _loading ? null : _save(),
@@ -221,7 +232,7 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '密码至少 8 位',
+                        l10n?.changePasswordRule ?? '密码至少 8 位',
                         style: AppTheme.sans(size: 13, color: t.textMute),
                       ),
                       if (_error != null) ...[
@@ -230,7 +241,9 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
                       ],
                       const SizedBox(height: 16),
                       M3PrimaryButton(
-                        label: _loading ? '提交中…' : '提交修改',
+                        label: _loading
+                            ? l10n?.changePasswordSubmitting ?? '提交中…'
+                            : l10n?.changePasswordSubmit ?? '提交修改',
                         onPressed: _loading ? null : _save,
                       ),
                     ],
@@ -243,6 +256,10 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
       ),
     );
   }
+}
+
+AppLocalizations? _accountL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
 }
 
 class _ErrorBanner extends StatelessWidget {

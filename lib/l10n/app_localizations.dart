@@ -244,6 +244,66 @@ abstract class AppLocalizations {
   /// **'修改密码'**
   String get settingsChangePassword;
 
+  /// No description provided for @changePasswordOldHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'原密码'**
+  String get changePasswordOldHint;
+
+  /// No description provided for @changePasswordNewHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'新密码'**
+  String get changePasswordNewHint;
+
+  /// No description provided for @changePasswordConfirmHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'再次输入新密码'**
+  String get changePasswordConfirmHint;
+
+  /// No description provided for @changePasswordRule.
+  ///
+  /// In zh, this message translates to:
+  /// **'密码至少 8 位'**
+  String get changePasswordRule;
+
+  /// No description provided for @changePasswordOldTooShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'原密码至少 8 位'**
+  String get changePasswordOldTooShort;
+
+  /// No description provided for @changePasswordNewTooShort.
+  ///
+  /// In zh, this message translates to:
+  /// **'新密码至少 8 位'**
+  String get changePasswordNewTooShort;
+
+  /// No description provided for @changePasswordMismatch.
+  ///
+  /// In zh, this message translates to:
+  /// **'两次输入的密码不一致'**
+  String get changePasswordMismatch;
+
+  /// No description provided for @changePasswordSuccess.
+  ///
+  /// In zh, this message translates to:
+  /// **'密码已修改'**
+  String get changePasswordSuccess;
+
+  /// No description provided for @changePasswordSubmitting.
+  ///
+  /// In zh, this message translates to:
+  /// **'提交中…'**
+  String get changePasswordSubmitting;
+
+  /// No description provided for @changePasswordSubmit.
+  ///
+  /// In zh, this message translates to:
+  /// **'提交修改'**
+  String get changePasswordSubmit;
+
   /// No description provided for @settingsMessagesNotifications.
   ///
   /// In zh, this message translates to:
@@ -352,6 +412,12 @@ abstract class AppLocalizations {
   /// **'取消'**
   String get commonCancel;
 
+  /// No description provided for @commonSave.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存'**
+  String get commonSave;
+
   /// No description provided for @commonSearch.
   ///
   /// In zh, this message translates to:
@@ -363,6 +429,144 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'分享'**
   String get commonShare;
+
+  /// No description provided for @profileInfoTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'我的信息'**
+  String get profileInfoTitle;
+
+  /// No description provided for @profileInfoAvatarEdit.
+  ///
+  /// In zh, this message translates to:
+  /// **'修改'**
+  String get profileInfoAvatarEdit;
+
+  /// No description provided for @profileInfoMatrixSessionMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前 Matrix 登录态缺失'**
+  String get profileInfoMatrixSessionMissing;
+
+  /// No description provided for @profileInfoAvatarUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'头像更新失败: {error}'**
+  String profileInfoAvatarUpdateFailed(String error);
+
+  /// No description provided for @profileInfoNickname.
+  ///
+  /// In zh, this message translates to:
+  /// **'昵称'**
+  String get profileInfoNickname;
+
+  /// No description provided for @profileInfoDisplayName.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户名'**
+  String get profileInfoDisplayName;
+
+  /// No description provided for @profileInfoGender.
+  ///
+  /// In zh, this message translates to:
+  /// **'性别'**
+  String get profileInfoGender;
+
+  /// No description provided for @profileInfoGenderMale.
+  ///
+  /// In zh, this message translates to:
+  /// **'男'**
+  String get profileInfoGenderMale;
+
+  /// No description provided for @profileInfoGenderFemale.
+  ///
+  /// In zh, this message translates to:
+  /// **'女'**
+  String get profileInfoGenderFemale;
+
+  /// No description provided for @profileInfoGenderUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'性别已更新'**
+  String get profileInfoGenderUpdated;
+
+  /// No description provided for @profileInfoBirthday.
+  ///
+  /// In zh, this message translates to:
+  /// **'生日'**
+  String get profileInfoBirthday;
+
+  /// No description provided for @profileInfoBirthdayPickerTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择生日'**
+  String get profileInfoBirthdayPickerTitle;
+
+  /// No description provided for @profileInfoBirthdayUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'生日已更新'**
+  String get profileInfoBirthdayUpdated;
+
+  /// No description provided for @profileInfoEmail.
+  ///
+  /// In zh, this message translates to:
+  /// **'邮箱'**
+  String get profileInfoEmail;
+
+  /// No description provided for @profileInfoEmailUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'邮箱已更新'**
+  String get profileInfoEmailUpdated;
+
+  /// No description provided for @profileInfoUnset.
+  ///
+  /// In zh, this message translates to:
+  /// **'未设置'**
+  String get profileInfoUnset;
+
+  /// No description provided for @profileInfoUidCopied.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制 UID'**
+  String get profileInfoUidCopied;
+
+  /// No description provided for @profileInfoEditTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'修改{field}'**
+  String profileInfoEditTitle(String field);
+
+  /// No description provided for @profileInfoInputHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'请输入{field}'**
+  String profileInfoInputHint(String field);
+
+  /// No description provided for @profileInfoDisplayNameEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户名不能为空'**
+  String get profileInfoDisplayNameEmpty;
+
+  /// No description provided for @profileInfoDisplayNameSystemName.
+  ///
+  /// In zh, this message translates to:
+  /// **'请设置一个不同于系统账号的用户名'**
+  String get profileInfoDisplayNameSystemName;
+
+  /// No description provided for @profileInfoDisplayNameUpdated.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户名已更新'**
+  String get profileInfoDisplayNameUpdated;
+
+  /// No description provided for @profileInfoFieldUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'{field}更新失败: {error}'**
+  String profileInfoFieldUpdateFailed(String field, String error);
 
   /// No description provided for @aboutWebsite.
   ///

@@ -83,6 +83,36 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsChangePassword => '修改密码';
 
   @override
+  String get changePasswordOldHint => '原密码';
+
+  @override
+  String get changePasswordNewHint => '新密码';
+
+  @override
+  String get changePasswordConfirmHint => '再次输入新密码';
+
+  @override
+  String get changePasswordRule => '密码至少 8 位';
+
+  @override
+  String get changePasswordOldTooShort => '原密码至少 8 位';
+
+  @override
+  String get changePasswordNewTooShort => '新密码至少 8 位';
+
+  @override
+  String get changePasswordMismatch => '两次输入的密码不一致';
+
+  @override
+  String get changePasswordSuccess => '密码已修改';
+
+  @override
+  String get changePasswordSubmitting => '提交中…';
+
+  @override
+  String get changePasswordSubmit => '提交修改';
+
+  @override
   String get settingsMessagesNotifications => '消息与通知';
 
   @override
@@ -138,10 +168,90 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonCancel => '取消';
 
   @override
+  String get commonSave => '保存';
+
+  @override
   String get commonSearch => '搜索';
 
   @override
   String get commonShare => '分享';
+
+  @override
+  String get profileInfoTitle => '我的信息';
+
+  @override
+  String get profileInfoAvatarEdit => '修改';
+
+  @override
+  String get profileInfoMatrixSessionMissing => '当前 Matrix 登录态缺失';
+
+  @override
+  String profileInfoAvatarUpdateFailed(String error) {
+    return '头像更新失败: $error';
+  }
+
+  @override
+  String get profileInfoNickname => '昵称';
+
+  @override
+  String get profileInfoDisplayName => '用户名';
+
+  @override
+  String get profileInfoGender => '性别';
+
+  @override
+  String get profileInfoGenderMale => '男';
+
+  @override
+  String get profileInfoGenderFemale => '女';
+
+  @override
+  String get profileInfoGenderUpdated => '性别已更新';
+
+  @override
+  String get profileInfoBirthday => '生日';
+
+  @override
+  String get profileInfoBirthdayPickerTitle => '选择生日';
+
+  @override
+  String get profileInfoBirthdayUpdated => '生日已更新';
+
+  @override
+  String get profileInfoEmail => '邮箱';
+
+  @override
+  String get profileInfoEmailUpdated => '邮箱已更新';
+
+  @override
+  String get profileInfoUnset => '未设置';
+
+  @override
+  String get profileInfoUidCopied => '已复制 UID';
+
+  @override
+  String profileInfoEditTitle(String field) {
+    return '修改$field';
+  }
+
+  @override
+  String profileInfoInputHint(String field) {
+    return '请输入$field';
+  }
+
+  @override
+  String get profileInfoDisplayNameEmpty => '用户名不能为空';
+
+  @override
+  String get profileInfoDisplayNameSystemName => '请设置一个不同于系统账号的用户名';
+
+  @override
+  String get profileInfoDisplayNameUpdated => '用户名已更新';
+
+  @override
+  String profileInfoFieldUpdateFailed(String field, String error) {
+    return '$field更新失败: $error';
+  }
 
   @override
   String get aboutWebsite => '官网';

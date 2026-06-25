@@ -31,6 +31,16 @@
   },
   "blacklistEmpty": "No blocked contacts",
   "settingsChangePassword": "Change Password",
+  "changePasswordOldHint": "Current password",
+  "changePasswordNewHint": "New password",
+  "changePasswordConfirmHint": "Re-enter new password",
+  "changePasswordRule": "Password must be at least 8 characters",
+  "changePasswordOldTooShort": "Current password must be at least 8 characters",
+  "changePasswordNewTooShort": "New password must be at least 8 characters",
+  "changePasswordMismatch": "The two passwords do not match",
+  "changePasswordSuccess": "Password changed",
+  "changePasswordSubmitting": "Submitting…",
+  "changePasswordSubmit": "Submit changes",
   "settingsMessagesNotifications": "Messages & Notifications",
   "settingsDoNotDisturb": "Do Not Disturb",
   "settingsMessageSound": "New Message Sound",
@@ -49,8 +59,63 @@
   "settingsDeactivateLoginConfirmTitle": "Deactivate Login",
   "settingsDeactivateLoginConfirmMessage": "Within 14 days, logging in once will automatically cancel deactivation.",
   "commonCancel": "Cancel",
+  "commonSave": "Save",
   "commonSearch": "Search",
   "commonShare": "Share",
+  "profileInfoTitle": "My Info",
+  "profileInfoAvatarEdit": "Edit",
+  "profileInfoMatrixSessionMissing": "Current Matrix session is missing",
+  "profileInfoAvatarUpdateFailed": "Failed to update avatar: {error}",
+  "@profileInfoAvatarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileInfoNickname": "Nickname",
+  "profileInfoDisplayName": "Username",
+  "profileInfoGender": "Gender",
+  "profileInfoGenderMale": "Male",
+  "profileInfoGenderFemale": "Female",
+  "profileInfoGenderUpdated": "Gender updated",
+  "profileInfoBirthday": "Birthday",
+  "profileInfoBirthdayPickerTitle": "Select birthday",
+  "profileInfoBirthdayUpdated": "Birthday updated",
+  "profileInfoEmail": "Email",
+  "profileInfoEmailUpdated": "Email updated",
+  "profileInfoUnset": "Not set",
+  "profileInfoUidCopied": "UID copied",
+  "profileInfoEditTitle": "Edit {field}",
+  "@profileInfoEditTitle": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      }
+    }
+  },
+  "profileInfoInputHint": "Enter {field}",
+  "@profileInfoInputHint": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      }
+    }
+  },
+  "profileInfoDisplayNameEmpty": "Username cannot be empty",
+  "profileInfoDisplayNameSystemName": "Set a username that is different from the system account",
+  "profileInfoDisplayNameUpdated": "Username updated",
+  "profileInfoFieldUpdateFailed": "Failed to update {field}: {error}",
+  "@profileInfoFieldUpdateFailed": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "aboutWebsite": "Website",
   "aboutEmail": "Email",
   "aboutVersionUpdates": "Version",

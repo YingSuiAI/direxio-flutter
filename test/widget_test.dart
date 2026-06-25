@@ -18854,6 +18854,61 @@ void main() {
     expect(avatar.imageUrl, isNull);
   });
 
+  testWidgets('profile info page localizes English labels and dialogs',
+      (tester) async {
+    final client = Client('DirexioProfileInfoEnglishTest')
+      ..setUserId('@owner:p2p-im.com');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ProfileInfoPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('My Info'), findsOneWidget);
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Nickname'), findsOneWidget);
+    expect(find.text('Gender'), findsOneWidget);
+    expect(find.text('Birthday'), findsOneWidget);
+    expect(find.text('Email'), findsOneWidget);
+    expect(find.text('Not set'), findsAtLeastNWidgets(1));
+    expect(find.text('我的信息'), findsNothing);
+    expect(find.text('未设置'), findsNothing);
+
+    await tester.tap(find.text('Gender'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Male'), findsOneWidget);
+    expect(find.text('Female'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('男'), findsNothing);
+    expect(find.text('女'), findsNothing);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Nickname'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Nickname'), findsOneWidget);
+    expect(find.text('Enter Nickname'), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('修改昵称'), findsNothing);
+  });
+
   testWidgets('me qr page does not use mock avatar fallback', (tester) async {
     final client = Client('DirexioMeQrNoMockAvatarTest')
       ..setUserId('@owner:p2p-im.com');
@@ -18958,7 +19013,7 @@ void main() {
     expect(find.text('主题'), findsOneWidget);
     expect(find.text('收藏'), findsNothing);
     expect(find.text('隐私与安全'), findsOneWidget);
-    expect(find.text('通讯录黑名单'), findsOneWidget);
+    expect(find.text('通讯录黑名单'), findsNothing);
     expect(find.text('消息与通知'), findsOneWidget);
     expect(find.text('勿扰模式'), findsOneWidget);
     expect(find.text('新消息提示音'), findsOneWidget);
@@ -18970,7 +19025,7 @@ void main() {
     expect(find.text('注销登录'), findsOneWidget);
   });
 
-  testWidgets('settings blacklist row follows app locale', (tester) async {
+  testWidgets('settings blacklist row is hidden', (tester) async {
     final router = GoRouter(
       initialLocation: '/settings',
       routes: [
@@ -18995,7 +19050,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Blocked Contacts'), findsOneWidget);
+    expect(find.text('Blocked Contacts'), findsNothing);
     expect(find.text('通讯录黑名单'), findsNothing);
   });
 
@@ -19064,7 +19119,6 @@ void main() {
       Symbols.language,
       Symbols.contrast,
       Symbols.key,
-      Symbols.person_remove,
       Symbols.do_not_disturb_on,
       Symbols.notifications,
       Symbols.vibration,

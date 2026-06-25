@@ -31,6 +31,16 @@
   },
   "blacklistEmpty": "ブロックした連絡先はありません",
   "settingsChangePassword": "パスワードを変更",
+  "changePasswordOldHint": "現在のパスワード",
+  "changePasswordNewHint": "新しいパスワード",
+  "changePasswordConfirmHint": "新しいパスワードを再入力",
+  "changePasswordRule": "パスワードは8文字以上にしてください",
+  "changePasswordOldTooShort": "現在のパスワードは8文字以上にしてください",
+  "changePasswordNewTooShort": "新しいパスワードは8文字以上にしてください",
+  "changePasswordMismatch": "2回入力したパスワードが一致しません",
+  "changePasswordSuccess": "パスワードを変更しました",
+  "changePasswordSubmitting": "送信中…",
+  "changePasswordSubmit": "変更を送信",
   "settingsMessagesNotifications": "メッセージと通知",
   "settingsDoNotDisturb": "おやすみモード",
   "settingsMessageSound": "新着メッセージ音",
@@ -49,8 +59,63 @@
   "settingsDeactivateLoginConfirmTitle": "ログインを無効化",
   "settingsDeactivateLoginConfirmMessage": "14日以内に一度ログインすると、無効化は自動的にキャンセルされます。",
   "commonCancel": "キャンセル",
+  "commonSave": "保存",
   "commonSearch": "検索",
   "commonShare": "共有",
+  "profileInfoTitle": "自分の情報",
+  "profileInfoAvatarEdit": "編集",
+  "profileInfoMatrixSessionMissing": "現在の Matrix ログイン状態が見つかりません",
+  "profileInfoAvatarUpdateFailed": "アバターの更新に失敗しました: {error}",
+  "@profileInfoAvatarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileInfoNickname": "ニックネーム",
+  "profileInfoDisplayName": "ユーザー名",
+  "profileInfoGender": "性別",
+  "profileInfoGenderMale": "男性",
+  "profileInfoGenderFemale": "女性",
+  "profileInfoGenderUpdated": "性別を更新しました",
+  "profileInfoBirthday": "誕生日",
+  "profileInfoBirthdayPickerTitle": "誕生日を選択",
+  "profileInfoBirthdayUpdated": "誕生日を更新しました",
+  "profileInfoEmail": "メール",
+  "profileInfoEmailUpdated": "メールを更新しました",
+  "profileInfoUnset": "未設定",
+  "profileInfoUidCopied": "UID をコピーしました",
+  "profileInfoEditTitle": "{field}を編集",
+  "@profileInfoEditTitle": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      }
+    }
+  },
+  "profileInfoInputHint": "{field}を入力",
+  "@profileInfoInputHint": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      }
+    }
+  },
+  "profileInfoDisplayNameEmpty": "ユーザー名を入力してください",
+  "profileInfoDisplayNameSystemName": "システムアカウントとは異なるユーザー名を設定してください",
+  "profileInfoDisplayNameUpdated": "ユーザー名を更新しました",
+  "profileInfoFieldUpdateFailed": "{field}の更新に失敗しました: {error}",
+  "@profileInfoFieldUpdateFailed": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "aboutWebsite": "公式サイト",
   "aboutEmail": "メール",
   "aboutVersionUpdates": "バージョン",

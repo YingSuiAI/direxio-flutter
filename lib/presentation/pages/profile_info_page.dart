@@ -12,6 +12,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/app_warmup_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/auth_provider.dart';
@@ -39,6 +40,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     String userId,
     String displayName,
   ) async {
+    final l10n = _profileInfoL10n(context);
     if (_avatarBusy) return;
     setState(() => _avatarBusy = true);
     try {
@@ -59,7 +61,9 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
           final client = ref.read(matrixClientProvider);
           final matrixUserId = client.userID;
           if (matrixUserId == null || matrixUserId.isEmpty) {
-            throw StateError('当前 Matrix 登录态缺失');
+            throw StateError(
+              l10n?.profileInfoMatrixSessionMissing ?? '当前 Matrix 登录态缺失',
+            );
           }
           final avatarMxc = await client.uploadContent(
             adjustedBytes,
@@ -88,7 +92,11 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('头像更新失败: $e')),
+          SnackBar(
+            content: Text(
+              l10n?.profileInfoAvatarUpdateFailed('$e') ?? '头像更新失败: $e',
+            ),
+          ),
         );
       }
     } finally {
@@ -102,25 +110,28 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     required FutureOr<void> Function(String value) onSave,
     TextInputType? keyboardType,
   }) async {
+    final l10n = _profileInfoL10n(context);
     final controller = TextEditingController(text: initialValue);
     final value = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('修改$title'),
+        title: Text(l10n?.profileInfoEditTitle(title) ?? '修改$title'),
         content: TextField(
           controller: controller,
           autofocus: true,
           keyboardType: keyboardType,
-          decoration: InputDecoration(hintText: '请输入$title'),
+          decoration: InputDecoration(
+            hintText: l10n?.profileInfoInputHint(title) ?? '请输入$title',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
+            child: Text(l10n?.commonCancel ?? '取消'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text),
-            child: const Text('保存'),
+            child: Text(l10n?.commonSave ?? '保存'),
           ),
         ],
       ),
@@ -130,6 +141,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
   }
 
   Future<void> _pickGender(PersonalProfileData data, String userId) async {
+    final l10n = _profileInfoL10n(context);
     final selected = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => _GenderPickerSheet(
@@ -141,29 +153,30 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
       data,
       userId: userId,
       gender: selected,
-      successMessage: '性别已更新',
-      failureLabel: '性别',
+      successMessage: l10n?.profileInfoGenderUpdated ?? '性别已更新',
+      failureLabel: l10n?.profileInfoGender ?? '性别',
     );
   }
 
   Future<void> _pickBirthday(PersonalProfileData data, String userId) async {
+    final l10n = _profileInfoL10n(context);
     final initial = _parseBirthday(data.birthday) ?? DateTime(2000);
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
-      helpText: '选择生日',
-      cancelText: '取消',
-      confirmText: '保存',
+      helpText: l10n?.profileInfoBirthdayPickerTitle ?? '选择生日',
+      cancelText: l10n?.commonCancel ?? '取消',
+      confirmText: l10n?.commonSave ?? '保存',
     );
     if (picked == null) return;
     await _updateProfileField(
       data,
       userId: userId,
       birthday: _formatBirthday(picked),
-      successMessage: '生日已更新',
-      failureLabel: '生日',
+      successMessage: l10n?.profileInfoBirthdayUpdated ?? '生日已更新',
+      failureLabel: l10n?.profileInfoBirthday ?? '生日',
     );
   }
 
@@ -241,11 +254,14 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     String? phone,
     String? email,
   }) async {
+    final l10n = _profileInfoL10n(context);
     if (_profileBusy) return;
     final cleanDisplayName = displayName?.trim();
     if (displayName != null && cleanDisplayName!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('用户名不能为空')),
+        SnackBar(
+          content: Text(l10n?.profileInfoDisplayNameEmpty ?? '用户名不能为空'),
+        ),
       );
       return;
     }
@@ -253,7 +269,11 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
         cleanDisplayName.toLowerCase() ==
             _localpartFromMxid(userId).toLowerCase()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请设置一个不同于系统账号的用户名')),
+        SnackBar(
+          content: Text(
+            l10n?.profileInfoDisplayNameSystemName ?? '请设置一个不同于系统账号的用户名',
+          ),
+        ),
       );
       return;
     }
@@ -304,7 +324,12 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$failureLabel更新失败: $e')),
+          SnackBar(
+            content: Text(
+              l10n?.profileInfoFieldUpdateFailed(failureLabel, '$e') ??
+                  '$failureLabel更新失败: $e',
+            ),
+          ),
         );
       }
     } finally {
@@ -315,6 +340,7 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _profileInfoL10n(context);
     final client = ref.watch(matrixClientProvider);
     final profile = ref.watch(currentUserProfileProvider).valueOrNull;
     final data = ref.watch(personalProfileProvider);
@@ -346,23 +372,26 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                     _AvatarEditor(
                       avatarBusy: _avatarBusy,
                       avatarUrl: avatarUrl,
+                      editLabel: l10n?.profileInfoAvatarEdit ?? '修改',
                       seed: userId,
                       onTap: () => _pickAvatar(data, userId, displayName),
                     ),
                     const SizedBox(height: 22),
                     _ProfileInfoCard(
-                      label: '昵称',
+                      label: l10n?.profileInfoNickname ?? '昵称',
                       value: displayName,
+                      unsetLabel: l10n?.profileInfoUnset ?? '未设置',
                       busy: _profileBusy,
                       onTap: () => _editField(
-                        title: '昵称',
+                        title: l10n?.profileInfoNickname ?? '昵称',
                         initialValue: displayName,
                         onSave: (value) => _updateProfileField(
                           data,
                           userId: userId,
                           displayName: value,
-                          successMessage: '用户名已更新',
-                          failureLabel: '用户名',
+                          successMessage:
+                              l10n?.profileInfoDisplayNameUpdated ?? '用户名已更新',
+                          failureLabel: l10n?.profileInfoDisplayName ?? '用户名',
                         ),
                       ),
                     ),
@@ -373,30 +402,34 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
                     ),
                     const SizedBox(height: 16),
                     _ProfileInfoCard(
-                      label: '性别',
-                      value: data.gender,
+                      label: l10n?.profileInfoGender ?? '性别',
+                      value: _profileGenderDisplayValue(data.gender, l10n),
+                      unsetLabel: l10n?.profileInfoUnset ?? '未设置',
                       onTap: () => _pickGender(data, userId),
                     ),
                     const SizedBox(height: 16),
                     _ProfileInfoCard(
-                      label: '生日',
+                      label: l10n?.profileInfoBirthday ?? '生日',
                       value: data.birthday,
+                      unsetLabel: l10n?.profileInfoUnset ?? '未设置',
                       onTap: () => _pickBirthday(data, userId),
                     ),
                     const SizedBox(height: 16),
                     _ProfileInfoCard(
-                      label: '邮箱',
+                      label: l10n?.profileInfoEmail ?? '邮箱',
                       value: data.email,
+                      unsetLabel: l10n?.profileInfoUnset ?? '未设置',
                       onTap: () => _editField(
-                        title: '邮箱',
+                        title: l10n?.profileInfoEmail ?? '邮箱',
                         initialValue: data.email,
                         keyboardType: TextInputType.emailAddress,
                         onSave: (value) => _updateProfileField(
                           data,
                           userId: userId,
                           email: value,
-                          successMessage: '邮箱已更新',
-                          failureLabel: '邮箱',
+                          successMessage:
+                              l10n?.profileInfoEmailUpdated ?? '邮箱已更新',
+                          failureLabel: l10n?.profileInfoEmail ?? '邮箱',
                         ),
                       ),
                     ),
@@ -409,6 +442,10 @@ class _ProfileInfoPageState extends ConsumerState<ProfileInfoPage> {
       ),
     );
   }
+}
+
+AppLocalizations? _profileInfoL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
 }
 
 String _emptyIfUnset(String value) =>
@@ -432,6 +469,15 @@ String _formatBirthday(DateTime value) {
 String _profileDisplayValue(String value) {
   final clean = value.trim();
   return clean.isEmpty ? '未设置' : clean;
+}
+
+String _profileGenderDisplayValue(String value, AppLocalizations? l10n) {
+  final clean = _emptyIfUnset(value).trim();
+  return switch (clean) {
+    '男' => l10n?.profileInfoGenderMale ?? '男',
+    '女' => l10n?.profileInfoGenderFemale ?? '女',
+    _ => clean,
+  };
 }
 
 PersonalProfileData _personalProfileFromOwner(
@@ -465,7 +511,8 @@ String _clientServerName(Client client) {
 Future<void> _copyUidUrl(BuildContext context, String uidUrl) async {
   await Clipboard.setData(ClipboardData(text: uidUrl));
   if (!context.mounted) return;
-  showCenterToast(context, '已复制 UID');
+  final l10n = _profileInfoL10n(context);
+  showCenterToast(context, l10n?.profileInfoUidCopied ?? '已复制 UID');
 }
 
 class _ProfileHeader extends StatelessWidget {
@@ -476,6 +523,7 @@ class _ProfileHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _profileInfoL10n(context);
     return SizedBox(
       height: topInset + 62,
       child: Padding(
@@ -488,7 +536,7 @@ class _ProfileHeader extends StatelessWidget {
               child: _GlassBackButton(onTap: () => context.pop()),
             ),
             Text(
-              '我的信息',
+              l10n?.profileInfoTitle ?? '我的信息',
               style: AppTheme.sans(
                 size: 16,
                 weight: FontWeight.w600,
@@ -547,12 +595,14 @@ class _AvatarEditor extends StatelessWidget {
   const _AvatarEditor({
     required this.avatarBusy,
     required this.avatarUrl,
+    required this.editLabel,
     required this.seed,
     required this.onTap,
   });
 
   final bool avatarBusy;
   final String? avatarUrl;
+  final String editLabel;
   final String seed;
   final VoidCallback onTap;
 
@@ -593,7 +643,7 @@ class _AvatarEditor extends StatelessWidget {
                             ),
                           )
                         : Text(
-                            '修改',
+                            editLabel,
                             style: AppTheme.sans(size: 10, color: t.surface),
                           ),
                   ),
@@ -615,6 +665,7 @@ class _GenderPickerSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _profileInfoL10n(context);
     return SafeArea(
       top: false,
       child: Padding(
@@ -626,7 +677,7 @@ class _GenderPickerSheet extends StatelessWidget {
               children: [
                 Expanded(
                   child: _GenderOptionButton(
-                    label: '男',
+                    label: l10n?.profileInfoGenderMale ?? '男',
                     selected: value == '男',
                     onTap: () => Navigator.of(context).pop('男'),
                   ),
@@ -634,7 +685,7 @@ class _GenderPickerSheet extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _GenderOptionButton(
-                    label: '女',
+                    label: l10n?.profileInfoGenderFemale ?? '女',
                     selected: value == '女',
                     onTap: () => Navigator.of(context).pop('女'),
                   ),
@@ -654,7 +705,7 @@ class _GenderPickerSheet extends StatelessWidget {
                 ),
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(
-                  '取消',
+                  l10n?.commonCancel ?? '取消',
                   style: AppTheme.sans(size: 15, color: t.textMute),
                 ),
               ),
@@ -708,20 +759,23 @@ class _ProfileInfoCard extends StatelessWidget {
   const _ProfileInfoCard({
     required this.label,
     required this.value,
+    required this.unsetLabel,
     required this.onTap,
     this.busy = false,
   });
 
   final String label;
   final String value;
+  final String unsetLabel;
   final VoidCallback onTap;
   final bool busy;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final displayValue = value.trim().isEmpty ? '未设置' : value.trim();
-    final muted = displayValue == '未设置';
+    final cleanValue = _emptyIfUnset(value).trim();
+    final displayValue = cleanValue.isEmpty ? unsetLabel : cleanValue;
+    final muted = displayValue == unsetLabel;
     return Material(
       color: t.surface,
       borderRadius: BorderRadius.circular(12),

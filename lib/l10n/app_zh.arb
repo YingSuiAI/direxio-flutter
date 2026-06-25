@@ -34,6 +34,16 @@
   },
   "blacklistEmpty": "暂无黑名单联系人",
   "settingsChangePassword": "修改密码",
+  "changePasswordOldHint": "原密码",
+  "changePasswordNewHint": "新密码",
+  "changePasswordConfirmHint": "再次输入新密码",
+  "changePasswordRule": "密码至少 8 位",
+  "changePasswordOldTooShort": "原密码至少 8 位",
+  "changePasswordNewTooShort": "新密码至少 8 位",
+  "changePasswordMismatch": "两次输入的密码不一致",
+  "changePasswordSuccess": "密码已修改",
+  "changePasswordSubmitting": "提交中…",
+  "changePasswordSubmit": "提交修改",
   "settingsMessagesNotifications": "消息与通知",
   "settingsDoNotDisturb": "勿扰模式",
   "settingsMessageSound": "新消息提示音",
@@ -52,8 +62,63 @@
   "settingsDeactivateLoginConfirmTitle": "注销登录",
   "settingsDeactivateLoginConfirmMessage": "14天内，只要登录一次账号，注销就会自动取消",
   "commonCancel": "取消",
+  "commonSave": "保存",
   "commonSearch": "搜索",
   "commonShare": "分享",
+  "profileInfoTitle": "我的信息",
+  "profileInfoAvatarEdit": "修改",
+  "profileInfoMatrixSessionMissing": "当前 Matrix 登录态缺失",
+  "profileInfoAvatarUpdateFailed": "头像更新失败: {error}",
+  "@profileInfoAvatarUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "profileInfoNickname": "昵称",
+  "profileInfoDisplayName": "用户名",
+  "profileInfoGender": "性别",
+  "profileInfoGenderMale": "男",
+  "profileInfoGenderFemale": "女",
+  "profileInfoGenderUpdated": "性别已更新",
+  "profileInfoBirthday": "生日",
+  "profileInfoBirthdayPickerTitle": "选择生日",
+  "profileInfoBirthdayUpdated": "生日已更新",
+  "profileInfoEmail": "邮箱",
+  "profileInfoEmailUpdated": "邮箱已更新",
+  "profileInfoUnset": "未设置",
+  "profileInfoUidCopied": "已复制 UID",
+  "profileInfoEditTitle": "修改{field}",
+  "@profileInfoEditTitle": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      }
+    }
+  },
+  "profileInfoInputHint": "请输入{field}",
+  "@profileInfoInputHint": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      }
+    }
+  },
+  "profileInfoDisplayNameEmpty": "用户名不能为空",
+  "profileInfoDisplayNameSystemName": "请设置一个不同于系统账号的用户名",
+  "profileInfoDisplayNameUpdated": "用户名已更新",
+  "profileInfoFieldUpdateFailed": "{field}更新失败: {error}",
+  "@profileInfoFieldUpdateFailed": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "aboutWebsite": "官网",
   "aboutEmail": "邮箱",
   "aboutVersionUpdates": "版本更新",

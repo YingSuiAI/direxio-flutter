@@ -83,6 +83,36 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsChangePassword => 'パスワードを変更';
 
   @override
+  String get changePasswordOldHint => '現在のパスワード';
+
+  @override
+  String get changePasswordNewHint => '新しいパスワード';
+
+  @override
+  String get changePasswordConfirmHint => '新しいパスワードを再入力';
+
+  @override
+  String get changePasswordRule => 'パスワードは8文字以上にしてください';
+
+  @override
+  String get changePasswordOldTooShort => '現在のパスワードは8文字以上にしてください';
+
+  @override
+  String get changePasswordNewTooShort => '新しいパスワードは8文字以上にしてください';
+
+  @override
+  String get changePasswordMismatch => '2回入力したパスワードが一致しません';
+
+  @override
+  String get changePasswordSuccess => 'パスワードを変更しました';
+
+  @override
+  String get changePasswordSubmitting => '送信中…';
+
+  @override
+  String get changePasswordSubmit => '変更を送信';
+
+  @override
   String get settingsMessagesNotifications => 'メッセージと通知';
 
   @override
@@ -140,10 +170,90 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonCancel => 'キャンセル';
 
   @override
+  String get commonSave => '保存';
+
+  @override
   String get commonSearch => '検索';
 
   @override
   String get commonShare => '共有';
+
+  @override
+  String get profileInfoTitle => '自分の情報';
+
+  @override
+  String get profileInfoAvatarEdit => '編集';
+
+  @override
+  String get profileInfoMatrixSessionMissing => '現在の Matrix ログイン状態が見つかりません';
+
+  @override
+  String profileInfoAvatarUpdateFailed(String error) {
+    return 'アバターの更新に失敗しました: $error';
+  }
+
+  @override
+  String get profileInfoNickname => 'ニックネーム';
+
+  @override
+  String get profileInfoDisplayName => 'ユーザー名';
+
+  @override
+  String get profileInfoGender => '性別';
+
+  @override
+  String get profileInfoGenderMale => '男性';
+
+  @override
+  String get profileInfoGenderFemale => '女性';
+
+  @override
+  String get profileInfoGenderUpdated => '性別を更新しました';
+
+  @override
+  String get profileInfoBirthday => '誕生日';
+
+  @override
+  String get profileInfoBirthdayPickerTitle => '誕生日を選択';
+
+  @override
+  String get profileInfoBirthdayUpdated => '誕生日を更新しました';
+
+  @override
+  String get profileInfoEmail => 'メール';
+
+  @override
+  String get profileInfoEmailUpdated => 'メールを更新しました';
+
+  @override
+  String get profileInfoUnset => '未設定';
+
+  @override
+  String get profileInfoUidCopied => 'UID をコピーしました';
+
+  @override
+  String profileInfoEditTitle(String field) {
+    return '$fieldを編集';
+  }
+
+  @override
+  String profileInfoInputHint(String field) {
+    return '$fieldを入力';
+  }
+
+  @override
+  String get profileInfoDisplayNameEmpty => 'ユーザー名を入力してください';
+
+  @override
+  String get profileInfoDisplayNameSystemName => 'システムアカウントとは異なるユーザー名を設定してください';
+
+  @override
+  String get profileInfoDisplayNameUpdated => 'ユーザー名を更新しました';
+
+  @override
+  String profileInfoFieldUpdateFailed(String field, String error) {
+    return '$fieldの更新に失敗しました: $error';
+  }
 
   @override
   String get aboutWebsite => '公式サイト';

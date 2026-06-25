@@ -83,6 +83,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsChangePassword => 'Change Password';
 
   @override
+  String get changePasswordOldHint => 'Current password';
+
+  @override
+  String get changePasswordNewHint => 'New password';
+
+  @override
+  String get changePasswordConfirmHint => 'Re-enter new password';
+
+  @override
+  String get changePasswordRule => 'Password must be at least 8 characters';
+
+  @override
+  String get changePasswordOldTooShort =>
+      'Current password must be at least 8 characters';
+
+  @override
+  String get changePasswordNewTooShort =>
+      'New password must be at least 8 characters';
+
+  @override
+  String get changePasswordMismatch => 'The two passwords do not match';
+
+  @override
+  String get changePasswordSuccess => 'Password changed';
+
+  @override
+  String get changePasswordSubmitting => 'Submitting…';
+
+  @override
+  String get changePasswordSubmit => 'Submit changes';
+
+  @override
   String get settingsMessagesNotifications => 'Messages & Notifications';
 
   @override
@@ -141,10 +173,92 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonCancel => 'Cancel';
 
   @override
+  String get commonSave => 'Save';
+
+  @override
   String get commonSearch => 'Search';
 
   @override
   String get commonShare => 'Share';
+
+  @override
+  String get profileInfoTitle => 'My Info';
+
+  @override
+  String get profileInfoAvatarEdit => 'Edit';
+
+  @override
+  String get profileInfoMatrixSessionMissing =>
+      'Current Matrix session is missing';
+
+  @override
+  String profileInfoAvatarUpdateFailed(String error) {
+    return 'Failed to update avatar: $error';
+  }
+
+  @override
+  String get profileInfoNickname => 'Nickname';
+
+  @override
+  String get profileInfoDisplayName => 'Username';
+
+  @override
+  String get profileInfoGender => 'Gender';
+
+  @override
+  String get profileInfoGenderMale => 'Male';
+
+  @override
+  String get profileInfoGenderFemale => 'Female';
+
+  @override
+  String get profileInfoGenderUpdated => 'Gender updated';
+
+  @override
+  String get profileInfoBirthday => 'Birthday';
+
+  @override
+  String get profileInfoBirthdayPickerTitle => 'Select birthday';
+
+  @override
+  String get profileInfoBirthdayUpdated => 'Birthday updated';
+
+  @override
+  String get profileInfoEmail => 'Email';
+
+  @override
+  String get profileInfoEmailUpdated => 'Email updated';
+
+  @override
+  String get profileInfoUnset => 'Not set';
+
+  @override
+  String get profileInfoUidCopied => 'UID copied';
+
+  @override
+  String profileInfoEditTitle(String field) {
+    return 'Edit $field';
+  }
+
+  @override
+  String profileInfoInputHint(String field) {
+    return 'Enter $field';
+  }
+
+  @override
+  String get profileInfoDisplayNameEmpty => 'Username cannot be empty';
+
+  @override
+  String get profileInfoDisplayNameSystemName =>
+      'Set a username that is different from the system account';
+
+  @override
+  String get profileInfoDisplayNameUpdated => 'Username updated';
+
+  @override
+  String profileInfoFieldUpdateFailed(String field, String error) {
+    return 'Failed to update $field: $error';
+  }
 
   @override
   String get aboutWebsite => 'Website';

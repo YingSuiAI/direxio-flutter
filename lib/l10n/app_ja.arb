@@ -990,7 +990,12 @@
   "meHelpFeedbackBody": "公式メール：liyananinsh@outlook.com\n\nヒント：フィードバックには問題が発生したページ、操作手順、端末モデルを記載してください。",
   "meHelpFeedbackHeadline": "より良い\nDirexio を一緒に",
   "meHelpFeedbackPrompt": "問題や良いアイデアがありますか？",
-  "meHelpFeedbackContactLabel": "お問い合わせ",
+  "meHelpFeedbackContactLine": "お問い合わせ：{email}",
+  "@meHelpFeedbackContactLine": {
+    "placeholders": {
+      "email": {}
+    }
+  },
   "meHelpFeedbackNote": "いただいたフィードバックをもとに改善を続けます。",
   "meHelpFeedbackOk": "了解",
   "meUidCopied": "UID をコピーしました",

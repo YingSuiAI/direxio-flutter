@@ -338,7 +338,8 @@ Future<void> _showHelpFeedback(BuildContext context) {
       return _HelpFeedbackDialog(
         headline: l10n?.meHelpFeedbackHeadline ?? '一起打造更好的\nDirexio',
         prompt: l10n?.meHelpFeedbackPrompt ?? '发现问题或有好想法？',
-        contactLabel: l10n?.meHelpFeedbackContactLabel ?? '联系我们',
+        contactLine: l10n?.meHelpFeedbackContactLine(_feedbackEmail) ??
+            '联系我们：$_feedbackEmail',
         note: l10n?.meHelpFeedbackNote ?? '我们会持续根据你的反馈优化产品。',
         okLabel: l10n?.meHelpFeedbackOk ?? '知道了',
       );
@@ -350,14 +351,14 @@ class _HelpFeedbackDialog extends StatelessWidget {
   const _HelpFeedbackDialog({
     required this.headline,
     required this.prompt,
-    required this.contactLabel,
+    required this.contactLine,
     required this.note,
     required this.okLabel,
   });
 
   final String headline;
   final String prompt;
-  final String contactLabel;
+  final String contactLine;
   final String note;
   final String okLabel;
 
@@ -406,7 +407,7 @@ class _HelpFeedbackDialog extends StatelessWidget {
               ),
               Positioned.fill(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(46, 82, 44, 56),
+                  padding: const EdgeInsets.fromLTRB(46, 76, 44, 48),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -415,12 +416,12 @@ class _HelpFeedbackDialog extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(
-                          size: 28,
+                          size: 26,
                           weight: FontWeight.w800,
                           color: t.text,
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 22),
                       Text(
                         prompt,
                         maxLines: 2,
@@ -429,8 +430,8 @@ class _HelpFeedbackDialog extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '$contactLabel : $_feedbackEmail',
-                        maxLines: 2,
+                        contactLine,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(size: 15, color: t.text),
                       ),
@@ -441,7 +442,7 @@ class _HelpFeedbackDialog extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(size: 15, color: t.text),
                       ),
-                      const Spacer(),
+                      const SizedBox(height: 18),
                       Center(
                         child: SizedBox(
                           width: 148,

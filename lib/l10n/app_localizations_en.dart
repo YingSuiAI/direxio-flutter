@@ -1964,7 +1964,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get meHelpFeedbackPrompt => 'Found an issue or have a great idea?';
 
   @override
-  String get meHelpFeedbackContactLabel => 'Contact Us';
+  String meHelpFeedbackContactLine(Object email) {
+    return 'Contact Us : $email';
+  }
 
   @override
   String get meHelpFeedbackNote =>

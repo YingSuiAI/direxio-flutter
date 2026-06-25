@@ -990,7 +990,12 @@
   "meHelpFeedbackBody": "Official email: liyananinsh@outlook.com\n\nTip: please include the page, steps to reproduce, and device model in your feedback.",
   "meHelpFeedbackHeadline": "Build a Better\nDirexio Together",
   "meHelpFeedbackPrompt": "Found an issue or have a great idea?",
-  "meHelpFeedbackContactLabel": "Contact Us",
+  "meHelpFeedbackContactLine": "Contact Us : {email}",
+  "@meHelpFeedbackContactLine": {
+    "placeholders": {
+      "email": {}
+    }
+  },
   "meHelpFeedbackNote": "We will keep optimizing based on your feedback.",
   "meHelpFeedbackOk": "Got it",
   "meUidCopied": "UID copied",

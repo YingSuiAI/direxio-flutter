@@ -1912,7 +1912,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get meHelpFeedbackPrompt => '問題や良いアイデアがありますか？';
 
   @override
-  String get meHelpFeedbackContactLabel => 'お問い合わせ';
+  String meHelpFeedbackContactLine(Object email) {
+    return 'お問い合わせ：$email';
+  }
 
   @override
   String get meHelpFeedbackNote => 'いただいたフィードバックをもとに改善を続けます。';

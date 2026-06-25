@@ -3665,11 +3665,11 @@ abstract class AppLocalizations {
   /// **'发现问题或有好想法？'**
   String get meHelpFeedbackPrompt;
 
-  /// No description provided for @meHelpFeedbackContactLabel.
+  /// No description provided for @meHelpFeedbackContactLine.
   ///
   /// In zh, this message translates to:
-  /// **'联系我们'**
-  String get meHelpFeedbackContactLabel;
+  /// **'联系我们：{email}'**
+  String meHelpFeedbackContactLine(Object email);
 
   /// No description provided for @meHelpFeedbackNote.
   ///

@@ -1902,7 +1902,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get meHelpFeedbackPrompt => '发现问题或有好想法？';
 
   @override
-  String get meHelpFeedbackContactLabel => '联系我们';
+  String meHelpFeedbackContactLine(Object email) {
+    return '联系我们：$email';
+  }
 
   @override
   String get meHelpFeedbackNote => '我们会持续根据你的反馈优化产品。';

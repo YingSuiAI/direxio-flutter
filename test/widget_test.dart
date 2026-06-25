@@ -18255,6 +18255,40 @@ void main() {
     expect(find.text('退出登录'), findsNothing);
   });
 
+  testWidgets('help feedback dialog localizes copy in English', (tester) async {
+    final client = Client('DirexioTest');
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(body: MePage(client: client)),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Help & Feedback'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Build a Better\nDirexio Together'), findsOneWidget);
+    expect(
+      find.text('Found an issue or have a great idea?'),
+      findsOneWidget,
+    );
+    expect(find.text('Contact Us : liyananinsh@outlook.com'), findsOneWidget);
+    expect(
+      find.text('We will keep optimizing based on your feedback.'),
+      findsOneWidget,
+    );
+    expect(find.text('Got it'), findsOneWidget);
+  });
+
   testWidgets('me page does not render removed dynamic feature',
       (tester) async {
     final client = Client('DirexioTest');

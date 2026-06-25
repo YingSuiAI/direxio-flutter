@@ -21,7 +21,7 @@ Keep `lib/data/as_client.dart` as the interface contract. Update `HttpAsClient`,
 
 Use AS Product API only for product-layer data Matrix does not model cleanly: setup/bootstrap, portal auth, follows, friend requests, group/channel metadata, public profile extensions, calls, Agent/MCP state, and channel/public product search.
 
-Signed IM/BI public endpoints are not AS ProductCore `/_p2p` actions. Keep them in the IM public client boundary with `X-BI-Nonce` / `X-BI-Signature` signing. Public channel directory registration/close, non-room-id public channel list search, BI launch/login events, and user/group/channel report submissions use those signed `/im/*` and `/bi/*` endpoints.
+Signed IM/BI public endpoints are not AS ProductCore `/_p2p` actions. Keep them in the IM public client boundary with `X-BI-Nonce` / `X-BI-Signature` signing. Public channel directory registration/close, non-room-id public channel list search, BI launch/login events, and user/group/channel report submissions use those signed `/im/*` and `/bi/*` endpoints. The public base URL and secret are fixed in code; BI reporting is always enabled. Do not read these settings from dart-define or other runtime configuration.
 
 Report submissions from UI must call `/im/report`: `targetType = 1` for friends, `2` for groups, and `3` for channels. Image evidence is sent as repeated multipart `files` fields; do not send the legacy `images` field for uploaded files.
 

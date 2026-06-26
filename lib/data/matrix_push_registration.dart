@@ -6,10 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const direxioAndroidPackageName = 'com.direxio.ai';
-const direxioPushGatewayUrl = String.fromEnvironment(
-  'DIREXIO_PUSH_GATEWAY_URL',
-  defaultValue: '',
-);
+const direxioPushGatewayUrl = 'https://push.direxio.ai/_matrix/push/v1/notify';
 
 const _storedPushAppIdKey = 'matrix_push.app_id';
 const _storedPushTokenKey = 'matrix_push.token';

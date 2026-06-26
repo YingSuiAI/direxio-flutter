@@ -5,6 +5,7 @@ import PhotosUI
 import QuickLook
 import UIKit
 import UniformTypeIdentifiers
+import UserNotifications
 
 @available(iOS 14, *)
 final class OrderedImagePickerPlugin: NSObject, FlutterPlugin, PHPickerViewControllerDelegate {
@@ -932,6 +933,98 @@ final class SaveImagePlugin: NSObject, FlutterPlugin {
       PHPhotoLibrary.requestAuthorization { status in
         completion(status == .authorized)
       }
+    }
+  }
+}
+
+final class DirexioApnsTokenPlugin: NSObject, FlutterPlugin {
+  static let shared = DirexioApnsTokenPlugin()
+
+  private var pendingResults: [FlutterResult] = []
+  private var cachedToken: String?
+  private var registrationRequested = false
+
+  static func register(with registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(
+      name: "direxio/apns",
+      binaryMessenger: registrar.messenger()
+    )
+    registrar.addMethodCallDelegate(shared, channel: channel)
+  }
+
+  func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard call.method == "requestToken" else {
+      result(FlutterMethodNotImplemented)
+      return
+    }
+    requestToken(result: result)
+  }
+
+  private func requestToken(result: @escaping FlutterResult) {
+    DispatchQueue.main.async {
+      if let cachedToken = self.cachedToken {
+        result(cachedToken)
+        return
+      }
+      self.pendingResults.append(result)
+      guard !self.registrationRequested else { return }
+      self.registrationRequested = true
+
+      UNUserNotificationCenter.current().requestAuthorization(
+        options: [.alert, .badge, .sound]
+      ) { granted, error in
+        DispatchQueue.main.async {
+          if let error = error {
+            self.registrationRequested = false
+            self.finishAll(
+              FlutterError(
+                code: "apns_permission_error",
+                message: error.localizedDescription,
+                details: nil
+              )
+            )
+            return
+          }
+          guard granted else {
+            self.registrationRequested = false
+            self.finishAll(
+              FlutterError(
+                code: "apns_permission_denied",
+                message: "Notification permission was denied.",
+                details: nil
+              )
+            )
+            return
+          }
+          UIApplication.shared.registerForRemoteNotifications()
+        }
+      }
+    }
+  }
+
+  func didRegisterForRemoteNotifications(deviceToken: Data) {
+    let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+    cachedToken = token
+    registrationRequested = false
+    finishAll(token)
+  }
+
+  func didFailToRegisterForRemoteNotifications(error: Error) {
+    registrationRequested = false
+    finishAll(
+      FlutterError(
+        code: "apns_registration_failed",
+        message: error.localizedDescription,
+        details: nil
+      )
+    )
+  }
+
+  private func finishAll(_ value: Any?) {
+    let results = pendingResults
+    pendingResults.removeAll()
+    for result in results {
+      result(value)
     }
   }
 }

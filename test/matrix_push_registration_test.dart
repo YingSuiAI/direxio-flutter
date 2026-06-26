@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:portal_app/data/matrix_push_registration.dart';
+import 'package:portal_app/presentation/providers/push_notification_provider.dart';
 
 void main() {
   final gatewayUri = Uri.parse(
@@ -66,6 +67,48 @@ void main() {
       'matrix_device_id': 'IOSDEVICE',
       'timezone': 'PST',
     });
+  });
+
+  test('resolves iOS push token through native APNs provider', () async {
+    var androidProviderCalled = false;
+    var iosProviderCalled = false;
+
+    final token = await resolveMatrixPushTokenForProfile(
+      profile: direxioIosApnsPusherProfile,
+      androidFcmToken: () async {
+        androidProviderCalled = true;
+        return 'fcm-token';
+      },
+      iosApnsToken: () async {
+        iosProviderCalled = true;
+        return 'apns-token';
+      },
+    );
+
+    expect(token, 'apns-token');
+    expect(iosProviderCalled, isTrue);
+    expect(androidProviderCalled, isFalse);
+  });
+
+  test('resolves Android push token through Firebase FCM provider', () async {
+    var androidProviderCalled = false;
+    var iosProviderCalled = false;
+
+    final token = await resolveMatrixPushTokenForProfile(
+      profile: direxioAndroidFcmPusherProfile,
+      androidFcmToken: () async {
+        androidProviderCalled = true;
+        return 'fcm-token';
+      },
+      iosApnsToken: () async {
+        iosProviderCalled = true;
+        return 'apns-token';
+      },
+    );
+
+    expect(token, 'fcm-token');
+    expect(androidProviderCalled, isTrue);
+    expect(iosProviderCalled, isFalse);
   });
 
   test('push gateway URL allows production HTTPS and local HTTP hosts only',

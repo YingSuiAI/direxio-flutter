@@ -839,6 +839,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactHisChannels => 'His Channels';
 
   @override
+  String get contactChannelsLoading => 'Loading channels';
+
+  @override
+  String get contactChannelsLoadFailed => 'Failed to load channels';
+
+  @override
+  String get contactChannelsEmpty => 'No channels yet';
+
+  @override
+  String get contactChannelsUnnamed => 'Unnamed Channel';
+
+  @override
+  String get contactChannelsPostTag => 'Post';
+
+  @override
+  String get contactChannelsTextTag => 'Text';
+
+  @override
   String get contactAddFriend => 'Add Friend';
 
   @override

@@ -817,6 +817,24 @@ class AppLocalizationsJa extends AppLocalizations {
   String get contactHisChannels => '彼のチャンネル';
 
   @override
+  String get contactChannelsLoading => 'チャンネルを読み込み中';
+
+  @override
+  String get contactChannelsLoadFailed => 'チャンネルを読み込めませんでした';
+
+  @override
+  String get contactChannelsEmpty => 'チャンネルはまだありません';
+
+  @override
+  String get contactChannelsUnnamed => '名称未設定のチャンネル';
+
+  @override
+  String get contactChannelsPostTag => '投稿';
+
+  @override
+  String get contactChannelsTextTag => 'テキスト';
+
+  @override
   String get contactAddFriend => '友だちを追加';
 
   @override

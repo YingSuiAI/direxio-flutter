@@ -36,14 +36,33 @@ DSYM_OUTPUT="${DWARF_DSYM_FOLDER_PATH}/WebRTC.framework.dSYM"
 mkdir -p "${DWARF_DSYM_FOLDER_PATH}"
 rm -rf "${DSYM_OUTPUT}"
 
-xcrun dsymutil "${WEBRTC_BINARY}" -o "${DSYM_OUTPUT}"
+DSYM_TMP="${DWARF_DSYM_FOLDER_PATH}/WebRTC.framework.dSYM.tmp"
+DSYMUTIL_LOG="$(mktemp "${TMPDIR:-/tmp}/webrtc-dsymutil.XXXXXX")"
+rm -rf "${DSYM_TMP}"
 
-binary_uuid="$(xcrun dwarfdump --uuid "${WEBRTC_BINARY}" | awk '/arm64/ { print $2; exit }')"
-dsym_uuid="$(xcrun dwarfdump --uuid "${DSYM_OUTPUT}" | awk '/arm64/ { print $2; exit }')"
-
-if [ -z "${binary_uuid}" ] || [ "${binary_uuid}" != "${dsym_uuid}" ]; then
-  echo "error: Generated WebRTC.framework.dSYM UUID (${dsym_uuid:-missing}) does not match WebRTC.framework UUID (${binary_uuid:-missing})." >&2
+if ! xcrun dsymutil "${WEBRTC_BINARY}" -o "${DSYM_TMP}" 2>"${DSYMUTIL_LOG}"; then
+  cat "${DSYMUTIL_LOG}" >&2
+  rm -f "${DSYMUTIL_LOG}"
+  rm -rf "${DSYM_TMP}"
   exit 1
 fi
 
+if grep -q "no debug symbols in executable" "${DSYMUTIL_LOG}"; then
+  echo "warning: WebRTC.framework has no debug symbols; skipping empty dSYM generation"
+  rm -f "${DSYMUTIL_LOG}"
+  rm -rf "${DSYM_TMP}"
+  exit 0
+fi
+rm -f "${DSYMUTIL_LOG}"
+
+binary_uuid="$(xcrun dwarfdump --uuid "${WEBRTC_BINARY}" | awk '/arm64/ { print $2; exit }')"
+dsym_uuid="$(xcrun dwarfdump --uuid "${DSYM_TMP}" | awk '/arm64/ { print $2; exit }')"
+
+if [ -z "${binary_uuid}" ] || [ "${binary_uuid}" != "${dsym_uuid}" ]; then
+  echo "error: Generated WebRTC.framework.dSYM UUID (${dsym_uuid:-missing}) does not match WebRTC.framework UUID (${binary_uuid:-missing})." >&2
+  rm -rf "${DSYM_TMP}"
+  exit 1
+fi
+
+mv "${DSYM_TMP}" "${DSYM_OUTPUT}"
 echo "Generated ${DSYM_OUTPUT} for WebRTC.framework UUID ${dsym_uuid}"

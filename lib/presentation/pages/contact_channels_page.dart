@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -46,6 +47,10 @@ class ContactChannelsPage extends ConsumerWidget {
       )),
     );
     final t = context.tk;
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Scaffold(
       backgroundColor: t.bg,
       body: SafeArea(
@@ -54,25 +59,28 @@ class ContactChannelsPage extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
           child: Column(
             children: [
-              _ContactChannelsHeader(onBack: () => context.pop()),
+              _ContactChannelsHeader(
+                title: l10n?.contactHisChannels ?? '他的频道',
+                onBack: () => context.pop(),
+              ),
               Expanded(
                 child: channelsValue.when(
                   loading: () => Center(
                     child: Text(
-                      '正在加载频道',
+                      l10n?.contactChannelsLoading ?? '正在加载频道',
                       style: AppTheme.sans(size: 15, color: t.textMute),
                     ),
                   ),
                   error: (_, __) => Center(
                     child: Text(
-                      '频道加载失败',
+                      l10n?.contactChannelsLoadFailed ?? '频道加载失败',
                       style: AppTheme.sans(size: 15, color: t.textMute),
                     ),
                   ),
                   data: (channels) => channels.isEmpty
                       ? Center(
                           child: Text(
-                            '暂无频道',
+                            l10n?.contactChannelsEmpty ?? '暂无频道',
                             style: AppTheme.sans(size: 15, color: t.textMute),
                           ),
                         )
@@ -83,6 +91,7 @@ class ContactChannelsPage extends ConsumerWidget {
                               _ContactChannelListItem(
                                 item: _ContactChannelItem.fromAsChannel(
                                   channels[i],
+                                  l10n: l10n,
                                   joinedChannel: _viewerJoinedChannel(
                                     bootstrap,
                                     channels[i],
@@ -103,8 +112,12 @@ class ContactChannelsPage extends ConsumerWidget {
 }
 
 class _ContactChannelsHeader extends StatelessWidget {
-  const _ContactChannelsHeader({required this.onBack});
+  const _ContactChannelsHeader({
+    required this.title,
+    required this.onBack,
+  });
 
+  final String title;
   final VoidCallback onBack;
 
   @override
@@ -150,7 +163,7 @@ class _ContactChannelsHeader extends StatelessWidget {
             ),
           ),
           Text(
-            '他的频道',
+            title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTheme.sans(
@@ -180,9 +193,12 @@ class _ContactChannelItem {
 
   factory _ContactChannelItem.fromAsChannel(
     AsChannel channel, {
+    required AppLocalizations? l10n,
     required AsSyncRoomSummary? joinedChannel,
   }) {
-    final title = channel.name.trim().isEmpty ? '未命名频道' : channel.name.trim();
+    final title = channel.name.trim().isEmpty
+        ? l10n?.contactChannelsUnnamed ?? '未命名频道'
+        : channel.name.trim();
     final subtitle = channel.description.trim().isEmpty
         ? channel.homeDomain.trim()
         : channel.description.trim();
@@ -204,7 +220,9 @@ class _ContactChannelItem {
       title: title,
       subtitle: subtitle,
       avatarUrl: channel.avatarUrl.trim(),
-      tag: type == asChannelTypePost ? '帖子' : '文字',
+      tag: type == asChannelTypePost
+          ? l10n?.contactChannelsPostTag ?? '帖子'
+          : l10n?.contactChannelsTextTag ?? '文字',
       channelType: type,
       description: channel.description.trim(),
       joined: joined,

@@ -812,6 +812,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get contactHisChannels => '他的频道';
 
   @override
+  String get contactChannelsLoading => '正在加载频道';
+
+  @override
+  String get contactChannelsLoadFailed => '频道加载失败';
+
+  @override
+  String get contactChannelsEmpty => '暂无频道';
+
+  @override
+  String get contactChannelsUnnamed => '未命名频道';
+
+  @override
+  String get contactChannelsPostTag => '帖子';
+
+  @override
+  String get contactChannelsTextTag => '文字';
+
+  @override
   String get contactAddFriend => '添加好友';
 
   @override

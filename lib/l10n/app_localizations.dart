@@ -1643,6 +1643,42 @@ abstract class AppLocalizations {
   /// **'他的频道'**
   String get contactHisChannels;
 
+  /// No description provided for @contactChannelsLoading.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在加载频道'**
+  String get contactChannelsLoading;
+
+  /// No description provided for @contactChannelsLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'频道加载失败'**
+  String get contactChannelsLoadFailed;
+
+  /// No description provided for @contactChannelsEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无频道'**
+  String get contactChannelsEmpty;
+
+  /// No description provided for @contactChannelsUnnamed.
+  ///
+  /// In zh, this message translates to:
+  /// **'未命名频道'**
+  String get contactChannelsUnnamed;
+
+  /// No description provided for @contactChannelsPostTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'帖子'**
+  String get contactChannelsPostTag;
+
+  /// No description provided for @contactChannelsTextTag.
+  ///
+  /// In zh, this message translates to:
+  /// **'文字'**
+  String get contactChannelsTextTag;
+
   /// No description provided for @contactAddFriend.
   ///
   /// In zh, this message translates to:

@@ -10245,6 +10245,93 @@ void main() {
     expect(asClient.requestedUserPublicChannelsBaseUri, remoteNodeBaseUri);
   });
 
+  testWidgets('add contact detail localizes public channel entry',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const AddContactDetailPage(
+            userId: '@remote:portal.local',
+            displayName: 'Alice',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('His Channels'), findsOneWidget);
+    expect(find.text('他的频道'), findsNothing);
+  });
+
+  testWidgets('contact channels page follows app locale', (tester) async {
+    final asClient = _TrackingAsClient();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ContactChannelsPage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('His Channels'), findsOneWidget);
+    expect(find.text('No channels yet'), findsOneWidget);
+    expect(find.text('他的频道'), findsNothing);
+    expect(find.text('暂无频道'), findsNothing);
+  });
+
+  testWidgets('contact channels page localizes list fallback labels',
+      (tester) async {
+    final asClient = _TrackingAsClient()
+      ..userPublicChannels = const [
+        AsChannel(
+          channelId: 'ch_unnamed_post',
+          roomId: '!unnamed-post:portal.local',
+          name: '',
+          channelType: asChannelTypePost,
+        ),
+        AsChannel(
+          channelId: 'ch_text',
+          roomId: '!text:portal.local',
+          name: 'Alice Updates',
+          channelType: asChannelTypeChat,
+        ),
+      ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          asClientProvider.overrideWithValue(asClient),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const ContactChannelsPage(userId: '@alice:portal.local'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unnamed Channel'), findsOneWidget);
+    expect(find.text('Post'), findsOneWidget);
+    expect(find.text('Text'), findsOneWidget);
+    expect(find.text('未命名频道'), findsNothing);
+    expect(find.text('帖子'), findsNothing);
+    expect(find.text('文字'), findsNothing);
+  });
+
   testWidgets('contact channels list opens channel from list item',
       (tester) async {
     final asClient = _TrackingAsClient()

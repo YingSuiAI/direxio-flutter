@@ -7,6 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/auth_provider.dart';
@@ -113,6 +114,10 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
     );
     final publicChannels =
         publicChannelsValue.valueOrNull ?? const <AsChannel>[];
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     final client = ref.watch(matrixClientProvider);
     final profile = _profileForAddContact(
       widget.userId,
@@ -140,7 +145,7 @@ class _AddContactDetailPageState extends ConsumerState<AddContactDetailPage> {
               _ProfileHeader(profile: profile),
               const SizedBox(height: 24),
               _DetailNavigationRow(
-                label: '他的频道',
+                label: l10n?.contactHisChannels ?? '他的频道',
                 previewChannels: publicChannels,
                 onTap: _openChannels,
               ),

@@ -134,8 +134,12 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final domain = domainFromMxid(userId);
     final uidDomain = reportDomainForUserId(userId, acceptedContact?.domain);
     final currentProfileName = currentUserProfile?.displayName?.trim();
-    final peerMember = room?.unsafeGetUserFromMemoryOrFallback(userId);
     final peerMemberName = directPeerMemberDisplayName(room, userId);
+    final peerMemberAvatarUrl = room
+        ?.getState(EventTypes.RoomMember, userId)
+        ?.content
+        .tryGet<String>('avatar_url')
+        ?.trim();
     final displayName = contactDisplayNameFromIdentity(
       mxid: userId,
       displayName: isSelf && currentProfileName?.isNotEmpty == true
@@ -143,7 +147,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
           : _firstNonEmpty([
               acceptedContact?.displayName,
               peerMemberName,
-              room?.getLocalizedDisplayname(),
+              safeRoomDisplayName(room),
             ]),
       domain: acceptedContact?.domain ?? domain,
       fallback: userId,
@@ -152,15 +156,13 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
     final avatarUrl = isSelf
         ? profileAvatarHttpUrl(currentUserProfile, client)
         : _firstNonEmpty([
-            room == null
-                ? null
-                : matrixContentHttpUrl(client, peerMember?.avatarUrl),
+            localRoomMemberAvatarHttpUrl(room, userId),
             avatarHttpUrl(client, acceptedContact?.avatarUrl),
           ]);
     final identityAvatarUrl = isSelf
         ? currentUserProfile?.avatarUrl?.toString()
         : _firstNonEmpty([
-            peerMember?.avatarUrl?.toString(),
+            peerMemberAvatarUrl,
             acceptedContact?.avatarUrl,
           ]);
     final roomId = room?.id;

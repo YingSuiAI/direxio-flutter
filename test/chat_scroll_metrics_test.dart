@@ -108,7 +108,29 @@ void main() {
         shouldRetryLatestInitialAutoScroll(
           hasPosition: true,
           isAtLatest: true,
-          attempt: 1,
+          attempt: 3,
+        ),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'latest initial auto-scroll keeps settling briefly after reaching latest',
+    () {
+      expect(
+        shouldRetryLatestInitialAutoScroll(
+          hasPosition: true,
+          isAtLatest: true,
+          attempt: 0,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldRetryLatestInitialAutoScroll(
+          hasPosition: true,
+          isAtLatest: true,
+          attempt: 3,
         ),
         isFalse,
       );

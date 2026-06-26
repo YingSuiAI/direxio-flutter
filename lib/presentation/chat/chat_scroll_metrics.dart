@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 const chatLatestInitialAutoScrollMaxAttempts = 8;
+const chatLatestInitialAutoScrollSettleAttempts = 3;
 const chatLatestInitialAutoScrollRetryDelay = Duration(milliseconds: 16);
 const chatLatestAutoScrollTolerance = 1.0;
 
@@ -19,5 +20,6 @@ bool shouldRetryLatestInitialAutoScroll({
 }) {
   if (attempt >= maxAttempts) return false;
   if (!hasPosition) return true;
-  return !isAtLatest;
+  if (!isAtLatest) return true;
+  return attempt < chatLatestInitialAutoScrollSettleAttempts;
 }

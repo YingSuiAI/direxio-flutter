@@ -95,6 +95,7 @@ class AgentStatus {
   const AgentStatus({
     required this.connected,
     this.online = false,
+    this.enabled = true,
     this.configured = true,
     this.displayName = '',
     this.agentRoomId = '',
@@ -108,6 +109,7 @@ class AgentStatus {
   /// Owner-token event streams do not set this presence bit.
   final bool connected;
   final bool online;
+  final bool enabled;
   final bool configured;
   final String displayName;
   final String agentRoomId;
@@ -115,18 +117,23 @@ class AgentStatus {
   final int roomsJoined;
   final int messagesToday;
 
-  factory AgentStatus.fromJson(Map<String, dynamic> j) => AgentStatus(
-        connected: j['connected'] as bool? ?? false,
-        online: j['online'] as bool? ?? j['connected'] as bool? ?? false,
-        configured: j['configured'] as bool? ?? true,
-        displayName: j['display_name'] as String? ?? '',
-        agentRoomId: j['agent_room_id'] as String? ?? '',
-        lastSeen: j['last_seen'] != null
-            ? DateTime.parse(j['last_seen'] as String)
-            : null,
-        roomsJoined: j['rooms_joined'] as int? ?? 0,
-        messagesToday: j['messages_today'] as int? ?? 0,
-      );
+  factory AgentStatus.fromJson(Map<String, dynamic> j) {
+    final connected = j['connected'] as bool? ?? false;
+    final enabled = j['enabled'] as bool? ?? true;
+    return AgentStatus(
+      connected: connected,
+      online: j['online'] as bool? ?? (enabled && connected),
+      enabled: enabled,
+      configured: j['configured'] as bool? ?? true,
+      displayName: j['display_name'] as String? ?? '',
+      agentRoomId: j['agent_room_id'] as String? ?? '',
+      lastSeen: j['last_seen'] != null
+          ? DateTime.parse(j['last_seen'] as String)
+          : null,
+      roomsJoined: j['rooms_joined'] as int? ?? 0,
+      messagesToday: j['messages_today'] as int? ?? 0,
+    );
+  }
 }
 
 /// §5.4 关注列表单项

@@ -79,7 +79,7 @@ surfaces and must not be written to or displayed from the home conversation
 summary cache.
 
 User operation buttons and tap targets are covered by the root
-`UserActionDebounce` 500ms pointer debounce. Keep new app entry builders wrapped
+`UserActionDebounce` 200ms pointer debounce. Keep new app entry builders wrapped
 by it instead of adding one-off duplicate request guards to individual buttons.
 
 ## Verification

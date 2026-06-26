@@ -119,6 +119,8 @@ class MockAsClient implements AsClient {
     await Future.delayed(_latency);
     return AgentStatus(
       connected: true,
+      online: true,
+      enabled: true,
       lastSeen: DateTime.now().subtract(const Duration(minutes: 2)),
       roomsJoined: 0,
       messagesToday: 42,

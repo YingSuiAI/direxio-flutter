@@ -1376,7 +1376,7 @@ void main() {
     expect(events.single.payload['reason'], 'call');
   });
 
-  test('streamEvents decodes owner agent presence events', () async {
+  test('streamEvents decodes agent room message events', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
       portalToken: 'portal-token',
@@ -1384,8 +1384,8 @@ void main() {
         return http.Response(
           [
             'id: 45',
-            'event: agent.presence',
-            r'data: {"seq":45,"type":"agent.presence","room_id":"!real:server","payload":{"online":true},"created_at":"2026-06-26T00:00:00Z"}',
+            'event: agent_room.message',
+            r'data: {"seq":45,"type":"agent_room.message","room_id":"!real:server","payload":{"body":"hi"},"created_at":"2026-06-26T00:00:00Z"}',
             '',
           ].join('\n'),
           200,
@@ -1397,9 +1397,9 @@ void main() {
     final events = await client.streamEvents().toList();
 
     expect(events.single.seq, 45);
-    expect(events.single.type, 'agent.presence');
+    expect(events.single.type, 'agent_room.message');
     expect(events.single.roomId, '!real:server');
-    expect(events.single.payload['online'], isTrue);
+    expect(events.single.payload['body'], 'hi');
   });
 
   test('streamEvents bypasses Matrix response stream timeout wrapper',

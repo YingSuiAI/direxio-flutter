@@ -63,6 +63,7 @@ lib/
 - Ordinary message send, media send, history, unread, message search, and recall use Matrix Client-Server APIs.
 - Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both. It hides only the current user's local Matrix read path and is not a redaction.
 - Public remote channel lookup must pass the request-provided `remote_node_base_url` required by the backend. Do not infer a remote P2P URL from a Matrix `room_id` domain.
+- Agent online display is Matrix-native room state: read `io.direxio.agent.status` from the real `agent_room_id`. Do not read or add `sync.bootstrap.agent_online` or `agent.presence` SSE reducers.
 - Channel member status must be normalized through `AsChannel` / `AsChannelMember` helpers:
   - `join`, `joined` -> `joined`
   - `invite`, `invited` -> `invite`

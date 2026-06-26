@@ -5,12 +5,9 @@ import '../chat/chat_unread_policy.dart';
 import '../utils/chat_visibility_policy.dart';
 import '../utils/contact_identity_label.dart';
 
-const Object _unsetAgentOnline = Object();
-
 class AsSyncCacheState {
   const AsSyncCacheState({
     this.bootstrap,
-    this.agentOnline,
     this.localContactStatusesByRoomId = const {},
     this.localContactEntriesByRoomId = const {},
     this.localDeletedEventIdsByRoomId = const {},
@@ -20,7 +17,6 @@ class AsSyncCacheState {
   });
 
   final AsSyncBootstrap? bootstrap;
-  final bool? agentOnline;
   final Map<String, String> localContactStatusesByRoomId;
   final Map<String, ContactEntry> localContactEntriesByRoomId;
   final Map<String, Set<String>> localDeletedEventIdsByRoomId;
@@ -229,7 +225,6 @@ class AsSyncCacheState {
 
   AsSyncCacheState copyWith({
     AsSyncBootstrap? bootstrap,
-    Object? agentOnline = _unsetAgentOnline,
     Map<String, String>? localContactStatusesByRoomId,
     Map<String, ContactEntry>? localContactEntriesByRoomId,
     Map<String, Set<String>>? localDeletedEventIdsByRoomId,
@@ -245,9 +240,6 @@ class AsSyncCacheState {
             bootstrap,
             previousAgentRoomId: this.bootstrap?.agentRoomId,
           );
-    final nextAgentOnline = identical(agentOnline, _unsetAgentOnline)
-        ? effectiveBootstrap?.agentOnline ?? this.agentOnline
-        : agentOnline as bool?;
     final nextBootstrap = effectiveBootstrap == null
         ? this.bootstrap
         : applyLocalReadMarkersToBootstrap(
@@ -304,7 +296,6 @@ class AsSyncCacheState {
     }
     return AsSyncCacheState(
       bootstrap: nextBootstrap,
-      agentOnline: nextAgentOnline,
       localContactStatusesByRoomId: Map.unmodifiable(nextLocalStatuses),
       localContactEntriesByRoomId: Map.unmodifiable(nextLocalEntries),
       localDeletedEventIdsByRoomId: _freezeDeletedMap(
@@ -314,17 +305,6 @@ class AsSyncCacheState {
       localClearedBeforeTs: localClearedBeforeTs ?? this.localClearedBeforeTs,
       localRoomClearedBeforeTs: Map.unmodifiable(
           localRoomClearedBeforeTs ?? this.localRoomClearedBeforeTs),
-    );
-  }
-
-  AsSyncCacheState withAgentOnline(bool online) {
-    final current = bootstrap;
-    final nextBootstrap = current?.copyWith(
-      agentOnline: online,
-    );
-    return copyWith(
-      bootstrap: nextBootstrap,
-      agentOnline: online,
     );
   }
 

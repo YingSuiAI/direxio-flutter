@@ -132,7 +132,6 @@ void main() {
     expect(matrixSyncCalls, 1);
     expect(applied, isNotNull);
     expect(applied!.agentRoomId, '!agent:p2p-im.com');
-    expect(applied!.agentOnline, isFalse);
     expect(applied!.contacts.single.roomId, '!contact:p2p-im.com');
     expect(applied!.groups.single.roomId, '!group:p2p-im.com');
     expect(applied!.channels.single.channelId, 'ch_product');
@@ -589,7 +588,6 @@ AsSyncBootstrap _fullBootstrap() {
     syncedAt: DateTime.parse('2026-06-26T08:00:00Z'),
     user: const AsSyncUser(userId: '@owner:p2p-im.com'),
     agentRoomId: '!agent:p2p-im.com',
-    agentOnline: false,
     rooms: const [],
     contacts: const [
       AsSyncContact(

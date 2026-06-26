@@ -50,11 +50,13 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Public profile/channel extension action: `users.public_channels`. It returns the target user's owned/admin public channels, not channels where the target is only an ordinary member. Cross-node callers pass `remote_node_base_url` so the local AS can forward to the target owner node.
 - Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`. `calls.event` supports `connected`, `ended`, `rejected`, `missed`, and `failed`; `GET /_p2p/events` can push `call.changed` with `payload.call` so active call UI can show the other party rejected or hung up in real time. Outgoing direct calls time out after 60 seconds without connection, write P2P state `missed`, and send an `m.call.hangup` with `reason=invite_timeout` so the chat page shows an unconnected voice-call record and the receiver cannot join that call late.
 - Agent/API actions: `agent.*` and `apis.*`. Agent room header presence uses
-  `sync.bootstrap.agent_online` for the initial value and owner
-  `GET /_p2p/events` events with `type=agent.presence` for live updates.
-  The only owner-facing status field is `online`; typing, thinking, and
-  streaming reply generation are separate chat UI states. `agent.status` and
-  `agents.status` are not current client APIs.
+  native Matrix room state in the real `agent_room_id`: event type
+  `io.direxio.agent.status`, state key `@agent:<server>`, and content field
+  `online`. `sync.bootstrap` only supplies the real `agent_room_id`; it does
+  not mirror the online bit, and `GET /_p2p/events` does not emit
+  `agent.presence`. Typing, thinking, and streaming reply generation are
+  separate chat UI states. `agent.status` and `agents.status` are not current
+  client APIs.
 - Sync strategy: use `sync.bootstrap` only for cold start, login recovery,
   corrupt local cache, unknown event fallback, or confirmed event gaps. Normal
   updates should persist the last handled SSE `seq` and apply typed local
@@ -70,6 +72,8 @@ This document records the current P2P product API / Matrix boundary used by the 
   message send into the real private `agent_room_id`. Agent replies come from
   `@agent:<server>` and may use Matrix edits, stream-fragment content, Markdown,
   or structured card fields. Clients must not depend on pseudo agent room ids.
+  Agent online display reads `io.direxio.agent.status` from this room's Matrix
+  state.
   Flutter slash-command shortcuts are local composer suggestions derived from
   the connect command surface as of `@direxio/connent@1.3.5`; choosing one only
   fills Matrix text and does not execute a local client command.

@@ -66,10 +66,11 @@ ProductCore/Matrix conversation entries are available, use that merged live
 projection for display instead of waiting for the local summary snapshot to be
 reloaded.
 
-Agent chat headers must show bridge/event-stream presence, not typing or
-streaming generation state. Source it from `sync.bootstrap.agent_online` for
-the initial value and owner `GET /_p2p/events` `agent.presence` events for live
-updates. `online` is the only owner-facing status bit. Agent Markdown, cards, Matrix edits including
+Agent chat headers must show Matrix room-state presence, not typing or
+streaming generation state. Source it from the real agent room
+`io.direxio.agent.status` state event located by `sync.bootstrap`
+`agent_room_id`; do not consume `agent.presence` SSE for this state. `online`
+is the only owner-facing status bit. Agent Markdown, cards, Matrix edits including
 SDK-aggregated display events, stream fragments, typewritten appended reply
 updates, and `/` quick-command suggestions belong in the chat UI while actual
 sends remain ordinary Matrix text sends to the real `agent_room_id`.

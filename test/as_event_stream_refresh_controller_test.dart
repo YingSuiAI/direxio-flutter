@@ -107,50 +107,6 @@ void main() {
     await controller.stop();
   });
 
-  test('agent presence events update presence without full refresh', () async {
-    final streams = <StreamController<AsEventStreamEvent>>[];
-    var matrixSyncCalls = 0;
-    var bootstrapCalls = 0;
-    final onlineStates = <bool>[];
-
-    final controller = AsEventStreamRefreshController(
-      openEvents: ({int? since, String? lastEventId}) {
-        final stream = StreamController<AsEventStreamEvent>();
-        streams.add(stream);
-        return stream.stream;
-      },
-      syncMatrixConversations: () async {
-        matrixSyncCalls++;
-      },
-      loadBootstrap: () async {
-        bootstrapCalls++;
-        return _bootstrap();
-      },
-      onBootstrapLoaded: (_) {},
-      onAgentOnlineChanged: onlineStates.add,
-      reconnectDelay: const Duration(milliseconds: 5),
-    );
-
-    controller.start();
-    streams.single.add(AsEventStreamEvent(
-      seq: 13,
-      type: 'agent.presence',
-      roomId: '!agent:example.com',
-      payload: const {
-        'online': false,
-      },
-      createdAt: DateTime.utc(2026, 6, 26),
-    ));
-    await Future<void>.delayed(Duration.zero);
-
-    expect(onlineStates, [false]);
-    expect(matrixSyncCalls, 0);
-    expect(bootstrapCalls, 0);
-    expect(controller.lastSeq, 13);
-
-    await controller.stop();
-  });
-
   test('events queued during refresh run one follow-up refresh', () async {
     final streams = <StreamController<AsEventStreamEvent>>[];
     final syncCompleter = Completer<void>();

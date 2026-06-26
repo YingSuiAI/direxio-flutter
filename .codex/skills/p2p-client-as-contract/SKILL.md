@@ -83,9 +83,11 @@ Public remote channel lookup must use explicitly configured AS remotes or reques
 
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile data is not part of initialization.
 
-Agent header presence comes from `sync.bootstrap.agent_online` initially and
-owner `GET /_p2p/events` events with `type=agent.presence` for live updates.
-The only owner-facing status field is `online`. `agent.status` and
+Agent header presence comes from native Matrix room state in the real
+`agent_room_id`: event type `io.direxio.agent.status`, state key
+`@agent:<server>`, and content field `online`. `sync.bootstrap` only supplies
+the real `agent_room_id`; it must not mirror the online bit, and
+`GET /_p2p/events` must not emit `agent.presence`. `agent.status` and
 `agents.status` are not current Flutter APIs.
 
 Use `sync.bootstrap` only as a baseline for cold start, login recovery, corrupt

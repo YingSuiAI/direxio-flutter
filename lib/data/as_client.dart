@@ -9,8 +9,6 @@
 
 import 'dart:convert';
 
-const Object _unset = Object();
-
 const groupInvitePolicyOwner = 'owner';
 const groupInvitePolicyAllMembers = 'all_members';
 const asCallMediaTypeVoice = 'voice';
@@ -629,13 +627,11 @@ class AsSyncBootstrap {
     required this.channels,
     required this.pending,
     this.agentRoomId = '',
-    this.agentOnline,
   });
 
   final DateTime syncedAt;
   final AsSyncUser user;
   final String agentRoomId;
-  final bool? agentOnline;
   final List<AsSyncRoomSummary> rooms;
   final List<AsSyncContact> contacts;
   final List<AsSyncRoomSummary> groups;
@@ -643,9 +639,6 @@ class AsSyncBootstrap {
   final AsSyncPending pending;
 
   factory AsSyncBootstrap.fromJson(Map<String, dynamic> json) {
-    final agentOnline = json.containsKey('agent_online')
-        ? _parseBool(json['agent_online'])
-        : null;
     final agentRoomId = (json['agent_room_id'] as String? ?? '').trim();
     return AsSyncBootstrap(
       syncedAt: _parseDateTime(json['synced_at']) ?? DateTime.now().toUtc(),
@@ -653,7 +646,6 @@ class AsSyncBootstrap {
         (json['user'] as Map?)?.cast<String, dynamic>() ?? const {},
       ),
       agentRoomId: agentRoomId,
-      agentOnline: agentOnline,
       rooms: _parseList(json['rooms'], AsSyncRoomSummary.fromJson),
       contacts: _parseList(json['contacts'], AsSyncContact.fromJson),
       groups: _parseList(json['groups'], AsSyncRoomSummary.fromJson),
@@ -669,7 +661,6 @@ class AsSyncBootstrap {
       'synced_at': syncedAt.toUtc().toIso8601String(),
       'user': user.toJson(),
       if (agentRoomId.trim().isNotEmpty) 'agent_room_id': agentRoomId.trim(),
-      if (agentOnline != null) 'agent_online': agentOnline,
       'rooms': rooms.map((room) => room.toJson()).toList(),
       'contacts': contacts.map((contact) => contact.toJson()).toList(),
       'groups': groups.map((group) => group.toJson()).toList(),
@@ -682,21 +673,16 @@ class AsSyncBootstrap {
     DateTime? syncedAt,
     AsSyncUser? user,
     String? agentRoomId,
-    Object? agentOnline = _unset,
     List<AsSyncRoomSummary>? rooms,
     List<AsSyncContact>? contacts,
     List<AsSyncRoomSummary>? groups,
     List<AsSyncRoomSummary>? channels,
     AsSyncPending? pending,
   }) {
-    final nextAgentOnline = identical(agentOnline, _unset)
-        ? this.agentOnline
-        : agentOnline as bool?;
     return AsSyncBootstrap(
       syncedAt: syncedAt ?? this.syncedAt,
       user: user ?? this.user,
       agentRoomId: agentRoomId ?? this.agentRoomId,
-      agentOnline: nextAgentOnline,
       rooms: rooms ?? this.rooms,
       contacts: contacts ?? this.contacts,
       groups: groups ?? this.groups,
@@ -2804,8 +2790,6 @@ bool? _parseNullableBool(Object? value) {
   }
   return null;
 }
-
-bool _parseBool(Object? value) => _parseNullableBool(value) ?? false;
 
 String _parseChannelDisplayName(Map<String, dynamic> json) {
   return _firstString(json, const [

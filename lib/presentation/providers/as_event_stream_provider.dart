@@ -21,7 +21,6 @@ typedef AsEventStreamOpener = Stream<AsEventStreamEvent> Function({
 typedef AsBootstrapRefresh = Future<AsSyncBootstrap> Function();
 typedef MatrixConversationRefresh = Future<void> Function();
 typedef AsCallChanged = FutureOr<void> Function(AsCallSession call);
-typedef AsAgentOnlineChanged = FutureOr<void> Function(bool online);
 
 final asEventStreamRefreshProvider =
     Provider<AsEventStreamRefreshController?>((ref) {
@@ -51,11 +50,6 @@ final asEventStreamRefreshProvider =
           );
       ref.invalidate(productConversationsProvider);
     },
-    onAgentOnlineChanged: (online) {
-      ref.read(asSyncCacheProvider.notifier).update(
-            (state) => state.withAgentOnline(online),
-          );
-    },
     onError: (error, stackTrace) {
       debugPrint('P2P event stream refresh failed: $error');
     },
@@ -74,7 +68,6 @@ class AsEventStreamRefreshController {
     required AsBootstrapRefresh loadBootstrap,
     required void Function(AsSyncBootstrap bootstrap) onBootstrapLoaded,
     AsCallChanged? onCallChanged,
-    AsAgentOnlineChanged? onAgentOnlineChanged,
     void Function(Object error, StackTrace stackTrace)? onError,
     Duration reconnectDelay = const Duration(seconds: 3),
   })  : _openEvents = openEvents,
@@ -82,7 +75,6 @@ class AsEventStreamRefreshController {
         _loadBootstrap = loadBootstrap,
         _onBootstrapLoaded = onBootstrapLoaded,
         _onCallChanged = onCallChanged,
-        _onAgentOnlineChanged = onAgentOnlineChanged,
         _onError = onError,
         _reconnectDelay = reconnectDelay;
 
@@ -91,7 +83,6 @@ class AsEventStreamRefreshController {
   final AsBootstrapRefresh _loadBootstrap;
   final void Function(AsSyncBootstrap bootstrap) _onBootstrapLoaded;
   final AsCallChanged? _onCallChanged;
-  final AsAgentOnlineChanged? _onAgentOnlineChanged;
   final void Function(Object error, StackTrace stackTrace)? _onError;
   final Duration _reconnectDelay;
 
@@ -149,11 +140,6 @@ class AsEventStreamRefreshController {
       unawaited(_handleCallChanged(call));
       return;
     }
-    final agentOnline = asAgentOnlineFromEvent(event);
-    if (agentOnline != null) {
-      unawaited(_handleAgentOnlineChanged(agentOnline));
-      return;
-    }
     if (_refreshInFlight) {
       _refreshQueued = true;
       return;
@@ -184,14 +170,6 @@ class AsEventStreamRefreshController {
       _onError?.call(error, stackTrace);
     }
   }
-
-  Future<void> _handleAgentOnlineChanged(bool online) async {
-    try {
-      await _onAgentOnlineChanged?.call(online);
-    } catch (error, stackTrace) {
-      _onError?.call(error, stackTrace);
-    }
-  }
 }
 
 AsCallSession? asCallSessionFromEvent(AsEventStreamEvent event) {
@@ -201,10 +179,4 @@ AsCallSession? asCallSessionFromEvent(AsEventStreamEvent event) {
     return AsCallSession.fromJson(rawCall.cast<String, dynamic>());
   }
   return AsCallSession.fromJson(event.payload);
-}
-
-bool? asAgentOnlineFromEvent(AsEventStreamEvent event) {
-  if (event.type != 'agent.presence') return null;
-  final raw = event.payload['online'];
-  return raw is bool ? raw : null;
 }

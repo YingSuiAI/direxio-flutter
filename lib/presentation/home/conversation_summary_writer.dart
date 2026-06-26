@@ -10,6 +10,7 @@ import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
 import '../utils/agent_identity.dart';
 import '../utils/avatar_url.dart';
+import '../utils/chat_visibility_policy.dart';
 import '../utils/contact_display_name.dart';
 import '../utils/contact_identity_label.dart';
 import '../utils/direct_contact_status.dart';
@@ -571,22 +572,22 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
   final lastEventSortTime = visibleLastEvent == null
       ? null
       : messageOrder.entryForEvent(visibleLastEvent.eventId)?.createdAt;
-  final cleared = visibilityPolicy.clearedBeforeTs > 0 &&
+  final clearCachedPreview = failedOutbox == null &&
       visibleLastEvent == null &&
-      failedOutbox == null;
+      (lastEvent != null || visibilityPolicy.clearedBeforeTs > 0);
   final previewTime = _conversationPreviewTimeForConversation(
     conversation,
     lastEvent: visibleLastEvent,
     latestFailedOutbox: failedOutbox,
     lastEventSortTime: lastEventSortTime,
-    cleared: cleared,
+    cleared: clearCachedPreview,
   );
   final lastMessage = _conversationPreviewTextForConversation(
     conversation,
     lastEvent: visibleLastEvent,
     latestFailedOutbox: failedOutbox,
     lastEventSortTime: lastEventSortTime,
-    cleared: cleared,
+    cleared: clearCachedPreview,
     l10n: l10n,
     agentEmptyPreview: agentEmptyPreview,
   );
@@ -621,6 +622,7 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
           directContact: directContact,
         ) ??
         '',
+    clearCachedPreview: clearCachedPreview,
   );
 }
 
@@ -960,16 +962,30 @@ int conversationUnreadCountForSummary(
   );
   if (matrixUnread > 0) return matrixUnread;
 
-  if (room != null && _lastVisibleChatEventIsUnreadForCurrentUser(room)) {
+  if (room != null &&
+      _lastVisibleChatEventIsUnreadForCurrentUser(
+        room,
+        syncCache.chatVisibilityPolicyForRoom(conversation.roomId),
+      )) {
     return 1;
   }
 
   return 0;
 }
 
-bool _lastVisibleChatEventIsUnreadForCurrentUser(Room room) {
+bool _lastVisibleChatEventIsUnreadForCurrentUser(
+  Room room,
+  ChatVisibilityPolicy visibilityPolicy,
+) {
   final lastEvent = room.lastEvent;
   if (lastEvent == null) return false;
+  if (!visibilityPolicy.allows(
+    eventId: lastEvent.eventId,
+    originServerTs: lastEvent.originServerTs.millisecondsSinceEpoch,
+    redacted: lastEvent.redacted,
+  )) {
+    return false;
+  }
   if (!_isVisibleChatMessageEvent(lastEvent)) return false;
   if (lastEvent.senderId == room.client.userID) return false;
   final readAtMs = room.receiptState.global.latestOwnReceipt?.ts ?? 0;

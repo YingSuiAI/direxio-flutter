@@ -112,6 +112,7 @@ class ConversationSummaryEntry {
     required this.isAgent,
     this.canOpen = true,
     this.avatarUrl = '',
+    this.clearCachedPreview = false,
   });
 
   final String conversationId;
@@ -125,6 +126,7 @@ class ConversationSummaryEntry {
   final bool isAgent;
   final bool canOpen;
   final String avatarUrl;
+  final bool clearCachedPreview;
 
   factory ConversationSummaryEntry.fromJson(Map<String, dynamic> json) {
     return ConversationSummaryEntry(
@@ -173,9 +175,19 @@ class ConversationSummaryEntry {
       name: name.trim().isNotEmpty ? name : previousEntry?.name ?? roomId,
       lastMessage: liveLastMessage.isNotEmpty
           ? lastMessage
-          : previousEntry?.lastMessage ?? lastMessage,
-      previewTs: previewTs > 0 ? previewTs : previousEntry?.previewTs ?? 0,
-      unread: hasDisplaySignal ? unread : previousEntry?.unread ?? unread,
+          : clearCachedPreview
+              ? ''
+              : previousEntry?.lastMessage ?? lastMessage,
+      previewTs: previewTs > 0
+          ? previewTs
+          : clearCachedPreview
+              ? 0
+              : previousEntry?.previewTs ?? 0,
+      unread: clearCachedPreview
+          ? unread
+          : hasDisplaySignal
+              ? unread
+              : previousEntry?.unread ?? unread,
       isGroup: isGroup,
       isAgent: isAgent,
       canOpen: canOpen,
@@ -207,7 +219,8 @@ class ConversationSummaryEntry {
         other.isGroup == isGroup &&
         other.isAgent == isAgent &&
         other.canOpen == canOpen &&
-        other.avatarUrl == avatarUrl;
+        other.avatarUrl == avatarUrl &&
+        other.clearCachedPreview == clearCachedPreview;
   }
 
   @override
@@ -224,6 +237,7 @@ class ConversationSummaryEntry {
       isAgent,
       canOpen,
       avatarUrl,
+      clearCachedPreview,
     );
   }
 }

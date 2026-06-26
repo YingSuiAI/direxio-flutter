@@ -880,6 +880,78 @@ void main() {
     expect(result.shouldWriteStore, isTrue);
   });
 
+  test('clears cached home preview when the latest Matrix event is hidden', () {
+    final client = Client('ConversationSummaryWriterDeletedLastEventTest')
+      ..setUserId('@owner:p2p-im.com');
+    const roomId = '!direct:p2p-im.com';
+    const deletedEventId = r'$deleted-latest';
+    final room = Room(
+      id: roomId,
+      client: client,
+      membership: Membership.join,
+    );
+    client.rooms.add(room);
+    room.lastEvent = Event(
+      room: room,
+      eventId: deletedEventId,
+      senderId: '@alice:p2p-im.com',
+      type: EventTypes.Message,
+      originServerTs: DateTime.utc(2026, 6, 25, 10),
+      content: const {
+        'msgtype': MessageTypes.Text,
+        'body': 'old cached message',
+      },
+    );
+
+    final result = buildHomeConversationSummaryProjection(
+      client: client,
+      rooms: [room],
+      productConversations: [
+        _conversation(
+          id: 'conv_direct',
+          roomId: roomId,
+          kind: asConversationKindDirect,
+          canOpen: true,
+          lastActivityAt: DateTime.utc(2026, 6, 25, 10),
+        ),
+      ],
+      productConversationsLoaded: true,
+      syncCache: const AsSyncCacheState(
+        localDeletedEventIdsByRoomId: {
+          roomId: {deletedEventId},
+        },
+      ),
+      summaryState: const ConversationSummaryState(
+        loaded: true,
+        userId: '@owner:p2p-im.com',
+        entries: [
+          ConversationSummaryEntry(
+            conversationId: 'conv_direct',
+            roomId: roomId,
+            kind: asConversationKindDirect,
+            name: 'Alice',
+            lastMessage: 'old cached message',
+            previewTs: 1782378000000,
+            unread: 1,
+            isGroup: false,
+            isAgent: false,
+          ),
+        ],
+      ),
+      hiddenConversationIds: const {},
+      pinnedConversationIds: const {},
+      outbox: const LocalOutboxState(),
+      messageOrder: const LocalMessageOrderState(),
+      groupRemarkNames: const {},
+      currentUserId: '@owner:p2p-im.com',
+    );
+
+    expect(result.displayEntries.single.lastMessage, isEmpty);
+    expect(result.displayEntries.single.previewTs, 0);
+    expect(result.displayEntries.single.unread, 0);
+    expect(result.storeEntries.single.lastMessage, isEmpty);
+  });
+
   test('counts unread channel share cards even without Matrix notification',
       () {
     final client = Client('ConversationSummaryWriterChannelShareUnreadTest')

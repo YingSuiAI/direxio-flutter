@@ -22,6 +22,7 @@ import 'presentation/providers/auth_provider.dart';
 import 'presentation/providers/bi_analytics_provider.dart';
 import 'presentation/providers/message_sound_provider.dart';
 import 'presentation/providers/push_notification_provider.dart';
+import 'presentation/call/active_call_mini_window.dart';
 import 'presentation/widgets/app_glass_background.dart';
 
 bool _sessionExpiredDialogShowing = false;
@@ -173,7 +174,10 @@ class PortalApp extends ConsumerWidget {
       routerConfig: router,
       builder: (context, child) {
         return StartupSplashOverlay(
-          child: AppGlassBackground(child: child ?? const SizedBox.shrink()),
+          child: ActiveCallMiniWindowOverlay(
+            onRestoreRoute: router.push,
+            child: AppGlassBackground(child: child ?? const SizedBox.shrink()),
+          ),
         );
       },
     );

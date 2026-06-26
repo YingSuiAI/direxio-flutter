@@ -38,6 +38,51 @@ void main() {
     );
   });
 
+  test('restored active group call route does not start or join again', () {
+    const connected = GroupCallUiState(
+      status: GroupCallStatus.connected,
+      roomId: '!group:p2p-im.com',
+      callId: 'group-call-1',
+    );
+
+    expect(
+      groupCallPageShouldStartOrJoinCall(
+        connected,
+        routeRoomId: '!group:p2p-im.com',
+        routeCallId: 'group-call-1',
+        routeIsIncoming: false,
+        routeIsRestore: true,
+        alreadyStarted: false,
+      ),
+      isFalse,
+    );
+    expect(
+      groupCallPageShouldStartOrJoinCall(
+        const GroupCallUiState(
+          status: GroupCallStatus.connected,
+          roomId: '!group:p2p-im.com',
+        ),
+        routeRoomId: '!group:p2p-im.com',
+        routeCallId: 'group-call-1',
+        routeIsIncoming: false,
+        routeIsRestore: true,
+        alreadyStarted: false,
+      ),
+      isFalse,
+    );
+    expect(
+      groupCallPageShouldStartOrJoinCall(
+        GroupCallUiState.idle,
+        routeRoomId: '!group:p2p-im.com',
+        routeCallId: 'group-call-1',
+        routeIsIncoming: false,
+        routeIsRestore: true,
+        alreadyStarted: false,
+      ),
+      isTrue,
+    );
+  });
+
   testWidgets('group voice call page starts room voice call', (tester) async {
     final controller = _FakeGroupCallController(
       initialGroupState: const GroupCallUiState(

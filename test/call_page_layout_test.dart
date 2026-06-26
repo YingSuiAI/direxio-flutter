@@ -355,4 +355,50 @@ void main() {
       isTrue,
     );
   });
+
+  test('restored active call route does not start a new outgoing call', () {
+    const connected = VoiceCallUiState(
+      status: VoiceCallStatus.connected,
+      roomId: '!room:p2p-im.com',
+      callId: 'call-1',
+      connectedAt: null,
+    );
+
+    expect(
+      callPageShouldStartOutgoingCall(
+        connected,
+        routeRoomId: '!room:p2p-im.com',
+        routeCallId: 'call-1',
+        routeIsIncoming: false,
+        routeIsRestore: true,
+        alreadyStartedOutgoing: false,
+      ),
+      isFalse,
+    );
+    expect(
+      callPageShouldStartOutgoingCall(
+        const VoiceCallUiState(
+          status: VoiceCallStatus.connected,
+          roomId: '!room:p2p-im.com',
+        ),
+        routeRoomId: '!room:p2p-im.com',
+        routeCallId: 'call-1',
+        routeIsIncoming: false,
+        routeIsRestore: true,
+        alreadyStartedOutgoing: false,
+      ),
+      isFalse,
+    );
+    expect(
+      callPageShouldStartOutgoingCall(
+        VoiceCallUiState.idle,
+        routeRoomId: '!room:p2p-im.com',
+        routeCallId: 'call-1',
+        routeIsIncoming: false,
+        routeIsRestore: true,
+        alreadyStartedOutgoing: false,
+      ),
+      isTrue,
+    );
+  });
 }

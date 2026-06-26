@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as webrtc;
+import 'package:go_router/go_router.dart';
 import 'package:matrix/matrix.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../call/active_call_mini_window.dart';
 import '../call/voice_call_controller.dart';
 import '../providers/auth_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -33,6 +35,58 @@ bool groupCallRouteShouldAutoAnswer({
   return requestedByRoute && autotestEnabled;
 }
 
+bool groupCallPageStateMatchesRoute(
+  GroupCallUiState state, {
+  required String routeRoomId,
+  String? routeCallId,
+}) {
+  final expectedCallId = routeCallId?.trim();
+  final actualCallId = state.callId?.trim();
+  if (expectedCallId != null && expectedCallId.isNotEmpty) {
+    return actualCallId != null &&
+        actualCallId.isNotEmpty &&
+        actualCallId == expectedCallId;
+  }
+  return state.roomId == routeRoomId;
+}
+
+bool groupCallPageShouldStartOrJoinCall(
+  GroupCallUiState state, {
+  required String routeRoomId,
+  String? routeCallId,
+  required bool routeIsIncoming,
+  required bool routeIsRestore,
+  required bool alreadyStarted,
+}) {
+  if (routeIsIncoming || alreadyStarted) return false;
+  if (routeIsRestore &&
+      state.isActive &&
+      groupCallPageRestoreStateMatchesRoute(
+        state,
+        routeRoomId: routeRoomId,
+        routeCallId: routeCallId,
+      )) {
+    return false;
+  }
+  return true;
+}
+
+bool groupCallPageRestoreStateMatchesRoute(
+  GroupCallUiState state, {
+  required String routeRoomId,
+  String? routeCallId,
+}) {
+  final expectedCallId = routeCallId?.trim();
+  final actualCallId = state.callId?.trim();
+  if (expectedCallId != null &&
+      expectedCallId.isNotEmpty &&
+      actualCallId != null &&
+      actualCallId.isNotEmpty) {
+    return actualCallId == expectedCallId;
+  }
+  return state.roomId == routeRoomId;
+}
+
 class GroupCallPage extends ConsumerStatefulWidget {
   const GroupCallPage({
     super.key,
@@ -43,6 +97,7 @@ class GroupCallPage extends ConsumerStatefulWidget {
     this.isVideo = false,
     this.incoming = false,
     this.autoAnswer = false,
+    this.restore = false,
   });
 
   final String roomId;
@@ -52,6 +107,7 @@ class GroupCallPage extends ConsumerStatefulWidget {
   final bool isVideo;
   final bool incoming;
   final bool autoAnswer;
+  final bool restore;
 
   @override
   ConsumerState<GroupCallPage> createState() => _GroupCallPageState();
@@ -72,11 +128,10 @@ class _GroupCallPageState extends ConsumerState<GroupCallPage> {
   }
 
   Future<void> _prepareGroupCall() async {
-    if (_started) return;
-    _started = true;
     final controller = ref.read(voiceCallControllerProvider);
     await controller.attachClient(ref.read(matrixClientProvider));
     if (widget.incoming) {
+      _started = true;
       if (groupCallRouteShouldAutoAnswer(
         requestedByRoute: widget.autoAnswer,
         autotestEnabled: _groupCallAutotestEnabled,
@@ -85,6 +140,17 @@ class _GroupCallPageState extends ConsumerState<GroupCallPage> {
       }
       return;
     }
+    if (!groupCallPageShouldStartOrJoinCall(
+      controller.currentGroupState,
+      routeRoomId: widget.roomId,
+      routeCallId: widget.callId,
+      routeIsIncoming: widget.incoming,
+      routeIsRestore: widget.restore,
+      alreadyStarted: _started,
+    )) {
+      return;
+    }
+    _started = true;
     await controller.startOrJoinGroupCall(
       roomId: widget.roomId,
       roomName: _roomName,
@@ -101,7 +167,34 @@ class _GroupCallPageState extends ConsumerState<GroupCallPage> {
   Future<void> _leaveAndClose() async {
     _closing = true;
     await ref.read(voiceCallControllerProvider).leaveGroupCall();
+    ref.read(activeCallMiniWindowProvider.notifier).state = null;
     if (mounted) unawaited(Navigator.of(context).maybePop());
+  }
+
+  void _closePage() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      context.go('/home');
+    }
+  }
+
+  void _minimizeGroupCall(GroupCallUiState state, {required bool isVideo}) {
+    if (!state.isActive) {
+      _closePage();
+      return;
+    }
+    ref.read(activeCallMiniWindowProvider.notifier).state =
+        ActiveCallMiniWindow(
+      kind: ActiveCallMiniWindowKind.group,
+      roomId: widget.roomId,
+      isVideo: isVideo,
+      callId: state.callId ?? widget.callId,
+      title: state.roomName ?? _roomName,
+      incoming: widget.incoming || state.isIncoming,
+    );
+    _closePage();
   }
 
   Future<void> _answerIncoming() async {
@@ -174,7 +267,7 @@ class _GroupCallPageState extends ConsumerState<GroupCallPage> {
                   child: _GroupCallHeader(
                     roomName: state.roomName ?? _roomName,
                     isVideo: isVideo,
-                    onClose: () => unawaited(_leaveAndClose()),
+                    onClose: () => _minimizeGroupCall(state, isVideo: isVideo),
                   ),
                 ),
                 Positioned(
@@ -240,13 +333,17 @@ class _GroupCallHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _RoundCallButton(
-          icon: Symbols.arrow_back,
-          label: Localizations.of<AppLocalizations>(context, AppLocalizations)
-                  ?.groupCallBack ??
-              '返回',
-          onTap: onClose,
-        ),
+        Builder(builder: (context) {
+          final l10n = Localizations.of<AppLocalizations>(
+            context,
+            AppLocalizations,
+          );
+          return _RoundCallButton(
+            icon: Symbols.keyboard_arrow_down,
+            label: l10n?.callMinimize ?? '小窗',
+            onTap: onClose,
+          );
+        }),
         const SizedBox(width: 12),
         Expanded(
           child: DecoratedBox(

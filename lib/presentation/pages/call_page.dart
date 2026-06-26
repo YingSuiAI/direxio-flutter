@@ -10,6 +10,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
+import '../call/active_call_mini_window.dart';
 import '../call/voice_call_controller.dart';
 import '../call/voice_call_display_name.dart';
 import '../providers/auth_provider.dart';
@@ -152,6 +153,43 @@ bool callPageShouldInspectInitialStateForClose(
   return state.isActive;
 }
 
+bool callPageShouldStartOutgoingCall(
+  VoiceCallUiState state, {
+  required String routeRoomId,
+  String? routeCallId,
+  required bool routeIsIncoming,
+  required bool routeIsRestore,
+  required bool alreadyStartedOutgoing,
+}) {
+  if (routeIsIncoming || alreadyStartedOutgoing) return false;
+  if (routeIsRestore &&
+      state.isActive &&
+      callPageRestoreStateMatchesRoute(
+        state,
+        routeRoomId: routeRoomId,
+        routeCallId: routeCallId,
+      )) {
+    return false;
+  }
+  return true;
+}
+
+bool callPageRestoreStateMatchesRoute(
+  VoiceCallUiState state, {
+  required String routeRoomId,
+  String? routeCallId,
+}) {
+  final expectedCallId = routeCallId?.trim();
+  final actualCallId = state.callId?.trim();
+  if (expectedCallId != null &&
+      expectedCallId.isNotEmpty &&
+      actualCallId != null &&
+      actualCallId.isNotEmpty) {
+    return actualCallId == expectedCallId;
+  }
+  return state.roomId == routeRoomId;
+}
+
 bool _hasLocalVideoTrack(CallSession? session) {
   final stream = session?.localUserMediaStream?.stream;
   return stream?.getVideoTracks().isNotEmpty ?? false;
@@ -167,6 +205,7 @@ class CallPage extends ConsumerStatefulWidget {
     this.peerDisplayName,
     this.peerAvatarUrl,
     this.incoming = false,
+    this.restore = false,
   });
 
   final String roomId;
@@ -176,6 +215,7 @@ class CallPage extends ConsumerStatefulWidget {
   final String? peerDisplayName;
   final String? peerAvatarUrl;
   final bool incoming;
+  final bool restore;
 
   @override
   ConsumerState<CallPage> createState() => _CallPageState();
@@ -206,7 +246,8 @@ class _CallPageState extends ConsumerState<CallPage> {
     if (oldWidget.roomId != widget.roomId ||
         oldWidget.callId != widget.callId ||
         oldWidget.peerUserId != widget.peerUserId ||
-        oldWidget.incoming != widget.incoming) {
+        oldWidget.incoming != widget.incoming ||
+        oldWidget.restore != widget.restore) {
       _startedOutgoing = false;
       _closingAfterEnd = false;
       _syncedConnectedCallRead = false;
@@ -303,7 +344,16 @@ class _CallPageState extends ConsumerState<CallPage> {
     final client = ref.read(matrixClientProvider);
     await controller.attachClient(client);
 
-    if (widget.incoming || _startedOutgoing) return;
+    if (!callPageShouldStartOutgoingCall(
+      controller.currentState,
+      routeRoomId: widget.roomId,
+      routeCallId: widget.callId,
+      routeIsIncoming: widget.incoming,
+      routeIsRestore: widget.restore,
+      alreadyStartedOutgoing: _startedOutgoing,
+    )) {
+      return;
+    }
 
     _startedOutgoing = true;
     final peerUserId = _resolvePeerUserId(client);
@@ -335,7 +385,32 @@ class _CallPageState extends ConsumerState<CallPage> {
 
   Future<void> _hangupAndClose() async {
     await ref.read(voiceCallControllerProvider).hangup();
+    ref.read(activeCallMiniWindowProvider.notifier).state = null;
     if (!mounted) return;
+    _closePage();
+  }
+
+  void _minimizeCall({
+    required VoiceCallUiState state,
+    required bool isVideo,
+    required String displayName,
+    required String? avatarUrl,
+  }) {
+    if (!state.isActive) {
+      _closePage();
+      return;
+    }
+    ref.read(activeCallMiniWindowProvider.notifier).state =
+        ActiveCallMiniWindow(
+      kind: ActiveCallMiniWindowKind.direct,
+      roomId: widget.roomId,
+      isVideo: isVideo,
+      callId: state.callId ?? widget.callId,
+      peerUserId: state.peerUserId ?? widget.peerUserId,
+      title: displayName,
+      avatarUrl: avatarUrl,
+      incoming: widget.incoming || state.isIncoming,
+    );
     _closePage();
   }
 
@@ -436,7 +511,12 @@ class _CallPageState extends ConsumerState<CallPage> {
               avatarUrl: peerAvatarUrl,
               overrideText: _localError,
               isError: isError,
-              onClose: _hangupAndClose,
+              onClose: () => _minimizeCall(
+                state: state.copyWith(callType: ProductCallType.video),
+                isVideo: true,
+                displayName: displayName,
+                avatarUrl: peerAvatarUrl,
+              ),
               onToggleMute: () => unawaited(_toggleMute(state)),
               onToggleCamera: () => unawaited(_toggleCamera(state)),
               onToggleSpeaker: () => unawaited(_toggleSpeaker(state)),
@@ -463,7 +543,14 @@ class _CallPageState extends ConsumerState<CallPage> {
                     padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
                     child: Row(
                       children: [
-                        _CloseButton(onTap: _hangupAndClose),
+                        _CloseButton(
+                          onTap: () => _minimizeCall(
+                            state: state,
+                            isVideo: isVideoCall,
+                            displayName: displayName,
+                            avatarUrl: peerAvatarUrl,
+                          ),
+                        ),
                         Expanded(
                           child: Center(
                             child: Text(
@@ -1428,15 +1515,22 @@ class _CloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkResponse(
-      onTap: onTap,
-      radius: 24,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Icon(
-          Symbols.keyboard_arrow_down,
-          size: 28,
-          color: _callText.withValues(alpha: 0.6),
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    return Tooltip(
+      message: l10n?.callMinimize ?? '小窗',
+      child: InkResponse(
+        onTap: onTap,
+        radius: 24,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            Symbols.keyboard_arrow_down,
+            size: 28,
+            color: _callText.withValues(alpha: 0.6),
+          ),
         ),
       ),
     );

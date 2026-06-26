@@ -5,20 +5,13 @@ import 'package:portal_app/presentation/providers/agent_bridge_presence_provider
 import 'package:portal_app/presentation/providers/as_sync_cache_provider.dart';
 
 void main() {
-  test('uses bootstrap agent_presence as initial header status', () {
+  test('uses bootstrap agent_online as initial header status', () {
     final container = ProviderContainer(
       overrides: [
         asSyncCacheProvider.overrideWith(
           (ref) => AsSyncCacheState(
             bootstrap: _bootstrap(
-              const AsAgentPresence(
-                online: true,
-                connected: true,
-                configured: true,
-                enabled: true,
-                displayName: 'Agent',
-                agentRoomId: '!agent:example.com',
-              ),
+              true,
             ),
           ),
         ),
@@ -31,22 +24,15 @@ void main() {
     expect(presence.state, AgentBridgePresenceState.online);
     expect(presence.label, '在线');
     expect(presence.bridgeConnected, isTrue);
-    expect(presence.presence?.agentRoomId, '!agent:example.com');
   });
 
-  test('uses online for UI state and keeps connected as bridge fact', () {
+  test('uses online as the only UI state bit', () {
     final container = ProviderContainer(
       overrides: [
         asSyncCacheProvider.overrideWith(
           (ref) => AsSyncCacheState(
             bootstrap: _bootstrap(
-              const AsAgentPresence(
-                online: false,
-                connected: true,
-                configured: true,
-                enabled: false,
-                agentRoomId: '!agent:example.com',
-              ),
+              false,
             ),
           ),
         ),
@@ -58,7 +44,7 @@ void main() {
 
     expect(presence.state, AgentBridgePresenceState.offline);
     expect(presence.label, '离线');
-    expect(presence.bridgeConnected, isTrue);
+    expect(presence.bridgeConnected, isFalse);
   });
 
   test('distinguishes bootstrap loading from missing presence contract', () {
@@ -85,12 +71,12 @@ void main() {
   });
 }
 
-AsSyncBootstrap _bootstrap(AsAgentPresence? presence) {
+AsSyncBootstrap _bootstrap(bool? agentOnline) {
   return AsSyncBootstrap(
     syncedAt: DateTime.utc(2026, 6, 26),
     user: const AsSyncUser(userId: '@owner:example.com'),
-    agentRoomId: presence?.agentRoomId ?? '',
-    agentPresence: presence,
+    agentRoomId: '!agent:example.com',
+    agentOnline: agentOnline,
     rooms: const [],
     contacts: const [],
     groups: const [],

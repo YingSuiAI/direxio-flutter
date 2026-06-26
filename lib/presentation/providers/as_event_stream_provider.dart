@@ -21,9 +21,7 @@ typedef AsEventStreamOpener = Stream<AsEventStreamEvent> Function({
 typedef AsBootstrapRefresh = Future<AsSyncBootstrap> Function();
 typedef MatrixConversationRefresh = Future<void> Function();
 typedef AsCallChanged = FutureOr<void> Function(AsCallSession call);
-typedef AsAgentPresenceChanged = FutureOr<void> Function(
-  AsAgentPresence presence,
-);
+typedef AsAgentOnlineChanged = FutureOr<void> Function(bool online);
 
 final asEventStreamRefreshProvider =
     Provider<AsEventStreamRefreshController?>((ref) {
@@ -53,9 +51,9 @@ final asEventStreamRefreshProvider =
           );
       ref.invalidate(productConversationsProvider);
     },
-    onAgentPresenceChanged: (presence) {
+    onAgentOnlineChanged: (online) {
       ref.read(asSyncCacheProvider.notifier).update(
-            (state) => state.withAgentPresence(presence),
+            (state) => state.withAgentOnline(online),
           );
     },
     onError: (error, stackTrace) {
@@ -76,7 +74,7 @@ class AsEventStreamRefreshController {
     required AsBootstrapRefresh loadBootstrap,
     required void Function(AsSyncBootstrap bootstrap) onBootstrapLoaded,
     AsCallChanged? onCallChanged,
-    AsAgentPresenceChanged? onAgentPresenceChanged,
+    AsAgentOnlineChanged? onAgentOnlineChanged,
     void Function(Object error, StackTrace stackTrace)? onError,
     Duration reconnectDelay = const Duration(seconds: 3),
   })  : _openEvents = openEvents,
@@ -84,7 +82,7 @@ class AsEventStreamRefreshController {
         _loadBootstrap = loadBootstrap,
         _onBootstrapLoaded = onBootstrapLoaded,
         _onCallChanged = onCallChanged,
-        _onAgentPresenceChanged = onAgentPresenceChanged,
+        _onAgentOnlineChanged = onAgentOnlineChanged,
         _onError = onError,
         _reconnectDelay = reconnectDelay;
 
@@ -93,7 +91,7 @@ class AsEventStreamRefreshController {
   final AsBootstrapRefresh _loadBootstrap;
   final void Function(AsSyncBootstrap bootstrap) _onBootstrapLoaded;
   final AsCallChanged? _onCallChanged;
-  final AsAgentPresenceChanged? _onAgentPresenceChanged;
+  final AsAgentOnlineChanged? _onAgentOnlineChanged;
   final void Function(Object error, StackTrace stackTrace)? _onError;
   final Duration _reconnectDelay;
 
@@ -151,9 +149,9 @@ class AsEventStreamRefreshController {
       unawaited(_handleCallChanged(call));
       return;
     }
-    final agentPresence = asAgentPresenceFromEvent(event);
-    if (agentPresence != null) {
-      unawaited(_handleAgentPresenceChanged(agentPresence));
+    final agentOnline = asAgentOnlineFromEvent(event);
+    if (agentOnline != null) {
+      unawaited(_handleAgentOnlineChanged(agentOnline));
       return;
     }
     if (_refreshInFlight) {
@@ -187,9 +185,9 @@ class AsEventStreamRefreshController {
     }
   }
 
-  Future<void> _handleAgentPresenceChanged(AsAgentPresence presence) async {
+  Future<void> _handleAgentOnlineChanged(bool online) async {
     try {
-      await _onAgentPresenceChanged?.call(presence);
+      await _onAgentOnlineChanged?.call(online);
     } catch (error, stackTrace) {
       _onError?.call(error, stackTrace);
     }
@@ -205,15 +203,8 @@ AsCallSession? asCallSessionFromEvent(AsEventStreamEvent event) {
   return AsCallSession.fromJson(event.payload);
 }
 
-AsAgentPresence? asAgentPresenceFromEvent(AsEventStreamEvent event) {
+bool? asAgentOnlineFromEvent(AsEventStreamEvent event) {
   if (event.type != 'agent.presence') return null;
-  final rawPresence = event.payload['agent_presence'];
-  final payload =
-      rawPresence is Map ? rawPresence.cast<String, dynamic>() : event.payload;
-  final presence = AsAgentPresence.fromJson(payload);
-  final eventRoomId = event.roomId.trim();
-  if (presence.agentRoomId.trim().isEmpty && eventRoomId.isNotEmpty) {
-    return presence.copyWith(agentRoomId: eventRoomId);
-  }
-  return presence;
+  final raw = event.payload['online'];
+  return raw is bool ? raw : null;
 }

@@ -67,10 +67,9 @@ projection for display instead of waiting for the local summary snapshot to be
 reloaded.
 
 Agent chat headers must show bridge/event-stream presence, not typing or
-streaming generation state. Source it from `sync.bootstrap.agent_presence` for
+streaming generation state. Source it from `sync.bootstrap.agent_online` for
 the initial value and owner `GET /_p2p/events` `agent.presence` events for live
-updates. `online` is the user-facing online bit; `connected` is only the active
-agent-token SSE connection fact. Agent Markdown, cards, Matrix edits including
+updates. `online` is the only owner-facing status bit. Agent Markdown, cards, Matrix edits including
 SDK-aggregated display events, stream fragments, typewritten appended reply
 updates, and `/` quick-command suggestions belong in the chat UI while actual
 sends remain ordinary Matrix text sends to the real `agent_room_id`.

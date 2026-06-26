@@ -2737,7 +2737,7 @@ void main() {
       AuthStateNotifier.lastLoginHomeserverKey: 'https://example.com',
       AuthStateNotifier.initializedKey: 'true',
     });
-    var legacyAgentStatusRequested = false;
+    var agentConfigRequested = false;
     final client = _NoSyncInitClient(
       'AuthAsSignedInElsewhereExpiresSessionTest',
       httpClient: MockClient((request) async {
@@ -2755,8 +2755,8 @@ void main() {
             200,
           );
         }
-        if (_p2pAction(request, 'agent.status') != null) {
-          legacyAgentStatusRequested = true;
+        if (_p2pAction(request, 'agent.config.get') != null) {
+          agentConfigRequested = true;
           return http.Response(
             '{"error":"账号在其他设备登录，请重新登录"}',
             401,
@@ -2764,7 +2764,7 @@ void main() {
           );
         }
         if (_p2pAction(request, 'portal.auth') != null) {
-          if (legacyAgentStatusRequested) {
+          if (agentConfigRequested) {
             return http.Response(
               '{"error":"账号在其他设备登录，请重新登录"}',
               401,
@@ -2806,7 +2806,7 @@ void main() {
     expect(restored.portalToken, isNotEmpty);
 
     await expectLater(
-      container.read(asClientProvider).getLegacyAgentStatus(),
+      container.read(asClientProvider).getAgentConfig(),
       throwsA(
         isA<AsClientException>().having(
           (error) => error.statusCode,

@@ -33,9 +33,8 @@ void main() {
     expect(loaded.contacts.single.deletedEventIds, [r'$deleted']);
     expect(loaded.rooms.single.name, 'Yanan');
     expect(loaded.pending.friendRequests.single.title, 'Alice');
-    expect(loaded.agentPresence?.online, isTrue);
-    expect(loaded.agentPresence?.connected, isTrue);
-    expect(loaded.agentPresence?.agentRoomId, '!agent:p2p-im.com');
+    expect(loaded.agentOnline, isTrue);
+    expect(loaded.agentRoomId, '!agent:p2p-im.com');
   });
 
   test('write replaces the snapshot instead of appending stale contacts',
@@ -87,18 +86,12 @@ void main() {
     expect(bootstrap.contacts.single.remark, '我是 Bob');
   });
 
-  test('parses bootstrap agent_presence for header status', () {
+  test('parses bootstrap agent_online for header status', () {
     final bootstrap = AsSyncBootstrap.fromJson({
       'synced_at': '2026-06-26T00:00:00Z',
       'user': {'user_id': '@owner:example.com'},
-      'agent_presence': {
-        'online': true,
-        'connected': true,
-        'configured': true,
-        'enabled': true,
-        'display_name': 'Agent',
-        'agent_room_id': '!real:server',
-      },
+      'agent_room_id': '!real:server',
+      'agent_online': true,
       'rooms': [],
       'contacts': [],
       'groups': [],
@@ -107,9 +100,9 @@ void main() {
     });
 
     expect(bootstrap.agentRoomId, '!real:server');
-    expect(bootstrap.agentPresence?.online, isTrue);
-    expect(bootstrap.agentPresence?.connected, isTrue);
-    expect(bootstrap.toJson()['agent_presence'], isA<Map<String, dynamic>>());
+    expect(bootstrap.agentOnline, isTrue);
+    expect(bootstrap.toJson()['agent_online'], isTrue);
+    expect(bootstrap.toJson().containsKey('agent_presence'), isFalse);
   });
 }
 
@@ -122,14 +115,7 @@ AsSyncBootstrap _bootstrap({
     syncedAt: DateTime.parse('2026-05-28T08:00:00Z'),
     user: const AsSyncUser(userId: '@owner:p2p-im.com'),
     agentRoomId: '!agent:p2p-im.com',
-    agentPresence: const AsAgentPresence(
-      online: true,
-      connected: true,
-      configured: true,
-      enabled: true,
-      displayName: 'Agent',
-      agentRoomId: '!agent:p2p-im.com',
-    ),
+    agentOnline: true,
     rooms: const [
       AsSyncRoomSummary(
         roomId: '!agent:p2p-im.com',

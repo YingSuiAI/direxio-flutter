@@ -741,14 +741,6 @@ class _EmptyAsClient implements AsClient {
       const AgentConfig(displayName: '小A', contextWindow: 20);
 
   @override
-  Future<AgentStatus> getLegacyAgentStatus() async => const AgentStatus(
-        connected: false,
-        lastSeen: null,
-        roomsJoined: 0,
-        messagesToday: 0,
-      );
-
-  @override
   Future<List<FollowEntry>> getFollows() async => const [];
 
   @override

@@ -1295,38 +1295,6 @@ void main() {
     expect(status.allHealthy, isFalse);
   });
 
-  test('legacy agent status parses deprecated diagnostic response', () async {
-    final client = HttpAsClient(
-      baseUri: Uri.parse('https://example.com/_p2p'),
-      portalToken: 'portal-token',
-      httpClient: MockClient((request) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/_p2p/query');
-        expect(jsonDecode(request.body), {
-          'action': 'agent.status',
-          'params': <String, Object?>{},
-        });
-        return _jsonResponse({
-          'online': false,
-          'connected': true,
-          'enabled': false,
-          'configured': true,
-          'display_name': 'Ops Agent',
-          'agent_room_id': '!agent:example.com',
-        }, 200);
-      }),
-    );
-
-    final status = await client.getLegacyAgentStatus();
-
-    expect(status.connected, isTrue);
-    expect(status.online, isFalse);
-    expect(status.enabled, isFalse);
-    expect(status.configured, isTrue);
-    expect(status.displayName, 'Ops Agent');
-    expect(status.agentRoomId, '!agent:example.com');
-  });
-
   test('streamEvents uses P2P SSE endpoint with replay cursor', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),
@@ -1417,7 +1385,7 @@ void main() {
           [
             'id: 45',
             'event: agent.presence',
-            r'data: {"seq":45,"type":"agent.presence","room_id":"!real:server","payload":{"online":true,"connected":true,"configured":true,"enabled":true,"display_name":"Agent","agent_room_id":"!real:server"},"created_at":"2026-06-26T00:00:00Z"}',
+            r'data: {"seq":45,"type":"agent.presence","room_id":"!real:server","payload":{"online":true},"created_at":"2026-06-26T00:00:00Z"}',
             '',
           ].join('\n'),
           200,
@@ -1432,7 +1400,6 @@ void main() {
     expect(events.single.type, 'agent.presence');
     expect(events.single.roomId, '!real:server');
     expect(events.single.payload['online'], isTrue);
-    expect(events.single.payload['connected'], isTrue);
   });
 
   test('streamEvents bypasses Matrix response stream timeout wrapper',

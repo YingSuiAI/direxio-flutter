@@ -111,7 +111,7 @@ void main() {
     final streams = <StreamController<AsEventStreamEvent>>[];
     var matrixSyncCalls = 0;
     var bootstrapCalls = 0;
-    final presences = <AsAgentPresence>[];
+    final onlineStates = <bool>[];
 
     final controller = AsEventStreamRefreshController(
       openEvents: ({int? since, String? lastEventId}) {
@@ -127,7 +127,7 @@ void main() {
         return _bootstrap();
       },
       onBootstrapLoaded: (_) {},
-      onAgentPresenceChanged: presences.add,
+      onAgentOnlineChanged: onlineStates.add,
       reconnectDelay: const Duration(milliseconds: 5),
     );
 
@@ -138,19 +138,12 @@ void main() {
       roomId: '!agent:example.com',
       payload: const {
         'online': false,
-        'connected': true,
-        'configured': true,
-        'enabled': false,
-        'display_name': 'Agent',
       },
       createdAt: DateTime.utc(2026, 6, 26),
     ));
     await Future<void>.delayed(Duration.zero);
 
-    expect(presences, hasLength(1));
-    expect(presences.single.online, isFalse);
-    expect(presences.single.connected, isTrue);
-    expect(presences.single.agentRoomId, '!agent:example.com');
+    expect(onlineStates, [false]);
     expect(matrixSyncCalls, 0);
     expect(bootstrapCalls, 0);
     expect(controller.lastSeq, 13);

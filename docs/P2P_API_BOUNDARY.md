@@ -50,12 +50,16 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Public profile/channel extension action: `users.public_channels`. It returns the target user's owned/admin public channels, not channels where the target is only an ordinary member. Cross-node callers pass `remote_node_base_url` so the local AS can forward to the target owner node.
 - Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`. `calls.event` supports `connected`, `ended`, `rejected`, `missed`, and `failed`; `GET /_p2p/events` can push `call.changed` with `payload.call` so active call UI can show the other party rejected or hung up in real time. Outgoing direct calls time out after 60 seconds without connection, write P2P state `missed`, and send an `m.call.hangup` with `reason=invite_timeout` so the chat page shows an unconnected voice-call record and the receiver cannot join that call late.
 - Agent/API actions: `agent.*` and `apis.*`. Agent room header presence uses
-  `sync.bootstrap.agent_presence` for the initial value and owner
+  `sync.bootstrap.agent_online` for the initial value and owner
   `GET /_p2p/events` events with `type=agent.presence` for live updates.
-  `online` controls the UI online/offline state. `connected` is only the
-  active agent-token SSE connection fact and must remain separate from typing,
-  thinking, or streaming reply generation. Legacy `agent.status`/`agents.status`
-  is not a default Flutter header status source.
+  The only owner-facing status field is `online`; typing, thinking, and
+  streaming reply generation are separate chat UI states. `agent.status` and
+  `agents.status` are not current client APIs.
+- Sync strategy: use `sync.bootstrap` only for cold start, login recovery,
+  corrupt local cache, unknown event fallback, or confirmed event gaps. Normal
+  updates should persist the last handled SSE `seq` and apply typed local
+  reducers from `GET /_p2p/events?since=<last_seq>` instead of full bootstrap
+  refreshes.
 
 ## Matrix Responsibilities
 

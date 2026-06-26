@@ -83,12 +83,16 @@ Public remote channel lookup must use explicitly configured AS remotes or reques
 
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile data is not part of initialization.
 
-Agent header presence comes from `sync.bootstrap.agent_presence` initially and
+Agent header presence comes from `sync.bootstrap.agent_online` initially and
 owner `GET /_p2p/events` events with `type=agent.presence` for live updates.
-`online` is the user-facing online bit. `connected` means active agent-token SSE
-presence and is only a bridge diagnostic. Legacy `agent.status`/`agents.status`
-must not be the default Flutter header status source; keep it only as an
-explicit legacy diagnostic/compatibility path if retained.
+The only owner-facing status field is `online`. `agent.status` and
+`agents.status` are not current Flutter APIs.
+
+Use `sync.bootstrap` only as a baseline for cold start, login recovery, corrupt
+local cache, unknown event fallback, or confirmed event gaps. Normal changes
+should persist the last handled SSE `seq` and apply typed local reducers from
+`GET /_p2p/events?since=<last_seq>` instead of refreshing the full bootstrap
+snapshot.
 
 Channel share cards must include `channel_id` and `room_id` and must not create
 invite grants. Owner and ordinary member share buttons both send recommendation

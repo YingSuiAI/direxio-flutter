@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/as_client.dart';
 import 'as_sync_cache_provider.dart';
 
 enum AgentBridgePresenceState { connecting, online, offline, error, unknown }
@@ -8,29 +7,29 @@ enum AgentBridgePresenceState { connecting, online, offline, error, unknown }
 class AgentBridgePresence {
   const AgentBridgePresence({
     required this.state,
-    this.presence,
+    this.online,
     this.error,
     this.source = '',
   });
 
   const AgentBridgePresence.connecting()
       : state = AgentBridgePresenceState.connecting,
-        presence = null,
+        online = null,
         error = null,
         source = '';
 
   const AgentBridgePresence.unknown({
     this.source = 'owner_presence_contract_unavailable',
   })  : state = AgentBridgePresenceState.unknown,
-        presence = null,
+        online = null,
         error = null;
 
   final AgentBridgePresenceState state;
-  final AsAgentPresence? presence;
+  final bool? online;
   final Object? error;
   final String source;
 
-  bool get bridgeConnected => presence?.connected ?? false;
+  bool get bridgeConnected => online ?? false;
 
   String get label {
     return switch (state) {
@@ -44,24 +43,23 @@ class AgentBridgePresence {
 }
 
 /// Agent header presence uses the owner-readable product contract:
-/// `sync.bootstrap.agent_presence` for the initial value and `agent.presence`
+/// `sync.bootstrap.agent_online` for the initial value and `agent.presence`
 /// owner SSE events for live updates through [asSyncCacheProvider].
 final agentBridgePresenceProvider = Provider<AgentBridgePresence>((ref) {
   final syncCache = ref.watch(asSyncCacheProvider);
   final bootstrapLoaded = syncCache.bootstrap != null;
-  final presence =
-      syncCache.agentPresence ?? syncCache.bootstrap?.agentPresence;
-  if (presence == null) {
+  final online = syncCache.agentOnline ?? syncCache.bootstrap?.agentOnline;
+  if (online == null) {
     return bootstrapLoaded
         ? const AgentBridgePresence.unknown()
         : const AgentBridgePresence.connecting();
   }
   return AgentBridgePresence(
-    state: presence.online
+    state: online
         ? AgentBridgePresenceState.online
         : AgentBridgePresenceState.offline,
-    presence: presence,
-    source: 'sync.bootstrap.agent_presence/agent.presence',
+    online: online,
+    source: 'sync.bootstrap.agent_online/agent.presence',
   );
 });
 

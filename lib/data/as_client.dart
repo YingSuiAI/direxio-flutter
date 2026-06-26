@@ -92,112 +92,6 @@ class AgentConfig {
       );
 }
 
-/// Legacy `agent.status` response model.
-///
-/// Current Flutter UI must not use this as bridge presence. The action is a
-/// deprecated diagnostic over agent-token `/_p2p/events` counters, not an
-/// owner-readable online/offline contract.
-class AgentStatus {
-  const AgentStatus({
-    required this.connected,
-    this.online = false,
-    this.enabled = true,
-    this.configured = true,
-    this.displayName = '',
-    this.agentRoomId = '',
-    required this.lastSeen,
-    required this.roomsJoined,
-    required this.messagesToday,
-  });
-
-  /// Active `agent_token` subscription to `GET /_p2p/events`.
-  ///
-  /// Owner-token event streams do not set this presence bit.
-  final bool connected;
-  final bool online;
-  final bool enabled;
-  final bool configured;
-  final String displayName;
-  final String agentRoomId;
-  final DateTime? lastSeen;
-  final int roomsJoined;
-  final int messagesToday;
-
-  factory AgentStatus.fromJson(Map<String, dynamic> j) {
-    final connected = j['connected'] as bool? ?? false;
-    final enabled = j['enabled'] as bool? ?? true;
-    return AgentStatus(
-      connected: connected,
-      online: j['online'] as bool? ?? (enabled && connected),
-      enabled: enabled,
-      configured: j['configured'] as bool? ?? true,
-      displayName: j['display_name'] as String? ?? '',
-      agentRoomId: j['agent_room_id'] as String? ?? '',
-      lastSeen: j['last_seen'] != null
-          ? DateTime.parse(j['last_seen'] as String)
-          : null,
-      roomsJoined: j['rooms_joined'] as int? ?? 0,
-      messagesToday: j['messages_today'] as int? ?? 0,
-    );
-  }
-}
-
-class AsAgentPresence {
-  const AsAgentPresence({
-    required this.online,
-    required this.connected,
-    this.configured = false,
-    this.enabled = false,
-    this.displayName = '',
-    this.agentRoomId = '',
-  });
-
-  final bool online;
-  final bool connected;
-  final bool configured;
-  final bool enabled;
-  final String displayName;
-  final String agentRoomId;
-
-  factory AsAgentPresence.fromJson(Map<String, dynamic> json) {
-    return AsAgentPresence(
-      online: _parseBool(json['online']),
-      connected: _parseBool(json['connected']),
-      configured: _parseBool(json['configured']),
-      enabled: _parseBool(json['enabled']),
-      displayName: json['display_name'] as String? ?? '',
-      agentRoomId: json['agent_room_id'] as String? ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'online': online,
-        'connected': connected,
-        'configured': configured,
-        'enabled': enabled,
-        if (displayName.trim().isNotEmpty) 'display_name': displayName.trim(),
-        if (agentRoomId.trim().isNotEmpty) 'agent_room_id': agentRoomId.trim(),
-      };
-
-  AsAgentPresence copyWith({
-    bool? online,
-    bool? connected,
-    bool? configured,
-    bool? enabled,
-    String? displayName,
-    String? agentRoomId,
-  }) {
-    return AsAgentPresence(
-      online: online ?? this.online,
-      connected: connected ?? this.connected,
-      configured: configured ?? this.configured,
-      enabled: enabled ?? this.enabled,
-      displayName: displayName ?? this.displayName,
-      agentRoomId: agentRoomId ?? this.agentRoomId,
-    );
-  }
-}
-
 /// §5.4 关注列表单项
 class FollowEntry {
   const FollowEntry({
@@ -735,13 +629,13 @@ class AsSyncBootstrap {
     required this.channels,
     required this.pending,
     this.agentRoomId = '',
-    this.agentPresence,
+    this.agentOnline,
   });
 
   final DateTime syncedAt;
   final AsSyncUser user;
   final String agentRoomId;
-  final AsAgentPresence? agentPresence;
+  final bool? agentOnline;
   final List<AsSyncRoomSummary> rooms;
   final List<AsSyncContact> contacts;
   final List<AsSyncRoomSummary> groups;
@@ -749,21 +643,17 @@ class AsSyncBootstrap {
   final AsSyncPending pending;
 
   factory AsSyncBootstrap.fromJson(Map<String, dynamic> json) {
-    final rawAgentPresence =
-        (json['agent_presence'] as Map?)?.cast<String, dynamic>();
-    final agentPresence = rawAgentPresence == null
-        ? null
-        : AsAgentPresence.fromJson(rawAgentPresence);
+    final agentOnline = json.containsKey('agent_online')
+        ? _parseBool(json['agent_online'])
+        : null;
     final agentRoomId = (json['agent_room_id'] as String? ?? '').trim();
     return AsSyncBootstrap(
       syncedAt: _parseDateTime(json['synced_at']) ?? DateTime.now().toUtc(),
       user: AsSyncUser.fromJson(
         (json['user'] as Map?)?.cast<String, dynamic>() ?? const {},
       ),
-      agentRoomId: agentRoomId.isNotEmpty
-          ? agentRoomId
-          : agentPresence?.agentRoomId ?? '',
-      agentPresence: agentPresence,
+      agentRoomId: agentRoomId,
+      agentOnline: agentOnline,
       rooms: _parseList(json['rooms'], AsSyncRoomSummary.fromJson),
       contacts: _parseList(json['contacts'], AsSyncContact.fromJson),
       groups: _parseList(json['groups'], AsSyncRoomSummary.fromJson),
@@ -779,7 +669,7 @@ class AsSyncBootstrap {
       'synced_at': syncedAt.toUtc().toIso8601String(),
       'user': user.toJson(),
       if (agentRoomId.trim().isNotEmpty) 'agent_room_id': agentRoomId.trim(),
-      if (agentPresence != null) 'agent_presence': agentPresence!.toJson(),
+      if (agentOnline != null) 'agent_online': agentOnline,
       'rooms': rooms.map((room) => room.toJson()).toList(),
       'contacts': contacts.map((contact) => contact.toJson()).toList(),
       'groups': groups.map((group) => group.toJson()).toList(),
@@ -792,21 +682,21 @@ class AsSyncBootstrap {
     DateTime? syncedAt,
     AsSyncUser? user,
     String? agentRoomId,
-    Object? agentPresence = _unset,
+    Object? agentOnline = _unset,
     List<AsSyncRoomSummary>? rooms,
     List<AsSyncContact>? contacts,
     List<AsSyncRoomSummary>? groups,
     List<AsSyncRoomSummary>? channels,
     AsSyncPending? pending,
   }) {
-    final nextAgentPresence = identical(agentPresence, _unset)
-        ? this.agentPresence
-        : agentPresence as AsAgentPresence?;
+    final nextAgentOnline = identical(agentOnline, _unset)
+        ? this.agentOnline
+        : agentOnline as bool?;
     return AsSyncBootstrap(
       syncedAt: syncedAt ?? this.syncedAt,
       user: user ?? this.user,
       agentRoomId: agentRoomId ?? this.agentRoomId,
-      agentPresence: nextAgentPresence,
+      agentOnline: nextAgentOnline,
       rooms: rooms ?? this.rooms,
       contacts: contacts ?? this.contacts,
       groups: groups ?? this.groups,
@@ -2471,13 +2361,6 @@ abstract class AsClient {
 
   /// P2P product API action.
   Future<AgentConfig> updateAgentConfig(AgentConfig config);
-
-  /// Legacy P2P product API action.
-  ///
-  /// Do not use this for the agent conversation header; current server builds
-  /// need an owner-readable bridge presence contract before Flutter can show
-  /// real online/offline state.
-  Future<AgentStatus> getLegacyAgentStatus();
 
   /// P2P product API action.
   Future<List<FollowEntry>> getFollows();

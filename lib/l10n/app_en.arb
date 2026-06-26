@@ -267,6 +267,22 @@
   "loginButtonLoading": "Logging in…",
   "loginGettingStartedGuide": "Getting Started Guide",
   "loginProductOverview": "Product Overview",
+  "loginLocalMatrixApiPortHint": "For local three-node tests, use {recommendedAuthority}",
+  "@loginLocalMatrixApiPortHint": {
+    "placeholders": {
+      "recommendedAuthority": {
+        "type": "String"
+      }
+    }
+  },
+  "loginLocalMatrixApiPortError": "For local three-node tests, use {recommendedAuthority}; do not enter the 127.0.0.1 Matrix API port.",
+  "@loginLocalMatrixApiPortError": {
+    "placeholders": {
+      "recommendedAuthority": {
+        "type": "String"
+      }
+    }
+  },
   "loginGuideIntroPrimary": "Before your first use, prepare a functional AI Agent (such as Codex, OpenClaw, Hermes), along with cloud accounts and a domain name required for deployment.\nSend your Agent the repository address for the Direxio deployment skill:https://github.com/YingSuiAI/direxio-deployer",
   "loginGuideIntroSecondary": "so it can automatically complete installation, deployment, domain binding and plugin configuration following the standard workflow.\nOnce deployment succeeds, your Agent will return your IM access URL, initial account and password.\nAfter receiving these details, return to this App and enter the server address and password to sign in.\nOfficial Website: direxio.ai",
   "loginTermsOpenFailed": "Unable to open the Terms and Privacy Policy",

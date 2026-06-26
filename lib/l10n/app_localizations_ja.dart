@@ -573,10 +573,20 @@ class AppLocalizationsJa extends AppLocalizations {
   String get loginButtonLoading => 'ログイン中…';
 
   @override
-  String get loginGettingStartedGuide => 'Getting Started Guide';
+  String get loginGettingStartedGuide => 'はじめに';
 
   @override
-  String get loginProductOverview => 'Product Overview';
+  String get loginProductOverview => '製品概要';
+
+  @override
+  String loginLocalMatrixApiPortHint(String recommendedAuthority) {
+    return 'ローカル3ノードテストでは $recommendedAuthority を使用してください';
+  }
+
+  @override
+  String loginLocalMatrixApiPortError(String recommendedAuthority) {
+    return 'ローカル3ノードテストでは $recommendedAuthority を使用してください。127.0.0.1 の Matrix API ポートは入力しないでください。';
+  }
 
   @override
   String get loginGuideIntroPrimary =>

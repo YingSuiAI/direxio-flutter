@@ -265,8 +265,24 @@
   "loginPasswordHint": "パスワード",
   "loginButton": "ログイン",
   "loginButtonLoading": "ログイン中…",
-  "loginGettingStartedGuide": "Getting Started Guide",
-  "loginProductOverview": "Product Overview",
+  "loginGettingStartedGuide": "はじめに",
+  "loginProductOverview": "製品概要",
+  "loginLocalMatrixApiPortHint": "ローカル3ノードテストでは {recommendedAuthority} を使用してください",
+  "@loginLocalMatrixApiPortHint": {
+    "placeholders": {
+      "recommendedAuthority": {
+        "type": "String"
+      }
+    }
+  },
+  "loginLocalMatrixApiPortError": "ローカル3ノードテストでは {recommendedAuthority} を使用してください。127.0.0.1 の Matrix API ポートは入力しないでください。",
+  "@loginLocalMatrixApiPortError": {
+    "placeholders": {
+      "recommendedAuthority": {
+        "type": "String"
+      }
+    }
+  },
   "loginGuideIntroPrimary": "初回利用前に、利用可能な AI Agent（Codex、OpenClaw、Hermes など）と、デプロイに必要なクラウドアカウントおよびドメイン名を準備してください。\nDirexio デプロイスキルのリポジトリアドレスを Agent に送信します：https://github.com/YingSuiAI/direxio-deployer",
   "loginGuideIntroSecondary": "Agent は標準ワークフローに沿って、インストール、デプロイ、ドメイン紐付け、プラグイン設定を自動で完了します。\nデプロイが成功すると、Agent は IM アクセス URL、初期アカウント、パスワードを返します。\nこれらを受け取ったら、この App に戻ってサーバーアドレスとパスワードを入力してログインしてください。\n公式サイト：direxio.ai",
   "loginTermsOpenFailed": "利用規約とプライバシーポリシーを開けません",

@@ -570,10 +570,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginButtonLoading => '登录中…';
 
   @override
-  String get loginGettingStartedGuide => 'Getting Started Guide';
+  String get loginGettingStartedGuide => '入门指南';
 
   @override
-  String get loginProductOverview => 'Product Overview';
+  String get loginProductOverview => '产品概览';
+
+  @override
+  String loginLocalMatrixApiPortHint(String recommendedAuthority) {
+    return '本地三节点测试请填写 $recommendedAuthority';
+  }
+
+  @override
+  String loginLocalMatrixApiPortError(String recommendedAuthority) {
+    return '本地三节点测试请使用 $recommendedAuthority，不要填写 127.0.0.1 的 Matrix API 端口。';
+  }
 
   @override
   String get loginGuideIntroPrimary =>

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -71,12 +72,15 @@ class PortalAvatar extends StatelessWidget {
               errorBuilder: (_, error, ___) => _imageError(letter, fg, error),
             )
           : imageUrl != null
-              ? Image.network(
+              ? Image(
                   key: ValueKey(
                     Object.hash(imageUrl, imageHeaders?['authorization']),
                   ),
-                  imageUrl!,
-                  headers: imageHeaders,
+                  image: CachedNetworkImageProvider(
+                    imageUrl!,
+                    cacheKey: imageUrl!,
+                    headers: imageHeaders,
+                  ),
                   width: size,
                   height: size,
                   fit: BoxFit.cover,

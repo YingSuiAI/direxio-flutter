@@ -592,6 +592,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loginProductOverview => 'Product Overview';
 
   @override
+  String loginLocalMatrixApiPortHint(String recommendedAuthority) {
+    return 'For local three-node tests, use $recommendedAuthority';
+  }
+
+  @override
+  String loginLocalMatrixApiPortError(String recommendedAuthority) {
+    return 'For local three-node tests, use $recommendedAuthority; do not enter the 127.0.0.1 Matrix API port.';
+  }
+
+  @override
   String get loginGuideIntroPrimary =>
       'Before your first use, prepare a functional AI Agent (such as Codex, OpenClaw, Hermes), along with cloud accounts and a domain name required for deployment.\nSend your Agent the repository address for the Direxio deployment skill:https://github.com/YingSuiAI/direxio-deployer';
 

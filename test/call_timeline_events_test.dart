@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:portal_app/data/as_client.dart';
+import 'package:portal_app/l10n/app_localizations_en.dart';
 import 'package:portal_app/presentation/chat/call_timeline_events.dart';
 import 'package:portal_app/presentation/utils/chat_visibility_policy.dart';
 
@@ -81,6 +82,41 @@ void main() {
       '0:27',
     );
     expect(callRecordText(missed, [invite, missed]), '未接通');
+  });
+
+  test('localizes missed and rejected call record text', () {
+    final client = Client('CallTimelineLocalizedRecordTextTest')
+      ..setUserId('@me:p2p-im.com');
+    final room = Room(id: '!room:p2p-im.com', client: client);
+    final invite = _event(
+      room,
+      eventId: r'$invite',
+      type: EventTypes.CallInvite,
+      at: DateTime.utc(2026, 5, 30, 1),
+    );
+    final missed = _event(
+      room,
+      eventId: r'$missed',
+      type: EventTypes.CallHangup,
+      at: DateTime.utc(2026, 5, 30, 1, 2),
+      reason: 'userHangup',
+    );
+    final rejected = _event(
+      room,
+      eventId: r'$rejected',
+      type: EventTypes.CallReject,
+      at: DateTime.utc(2026, 5, 30, 1, 3),
+    );
+    final l10n = AppLocalizationsEn();
+
+    expect(
+      callRecordText(missed, [invite, missed], l10n: l10n),
+      'Missed call',
+    );
+    expect(
+      callRecordText(rejected, [invite, rejected], l10n: l10n),
+      'Call declined',
+    );
   });
 
   test('formats completed call records from hangup duration without answer',
@@ -219,6 +255,7 @@ void main() {
   });
 
   test('formats standalone AS call session snapshots', () {
+    final l10n = AppLocalizationsEn();
     final session = AsCallSession(
       callId: 'group-call-1',
       roomId: '!group:p2p-im.com',
@@ -249,8 +286,9 @@ void main() {
           endReason: 'rejected',
           durationMs: 42000,
         ),
+        l10n: l10n,
       ),
-      '已拒绝',
+      'Call declined',
     );
     expect(
       asCallSessionRecordText(
@@ -264,8 +302,9 @@ void main() {
           createdAt: DateTime.utc(2026, 6, 2, 10),
           endedAt: DateTime.utc(2026, 6, 2, 10, 0, 45),
         ),
+        l10n: l10n,
       ),
-      '未接通',
+      'Missed call',
     );
     expect(
       asCallSessionRecordText(
@@ -278,8 +317,9 @@ void main() {
           state: asCallStateMissed,
           createdAt: DateTime.utc(2026, 6, 2, 10),
         ),
+        l10n: l10n,
       ),
-      '未接通',
+      'Missed call',
     );
   });
 

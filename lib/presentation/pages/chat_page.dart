@@ -3154,7 +3154,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 'duration_ms=${session.durationMs} '
                                 'answered_at=${session.answeredAt?.toIso8601String() ?? ""} '
                                 'ended_at=${session.endedAt?.toIso8601String() ?? ""} '
-                                'text=${asCallSessionRecordText(session)}',
+                                'text=${asCallSessionRecordText(session, l10n: l10n)}',
                               );
                               final callerId = session.createdByMxid.trim();
                               final isMe = authUserId != null &&
@@ -3183,7 +3183,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 _SChatCallRecordBubble(
                                   isMe: isMe,
                                   isVideo: asCallSessionRecordIsVideo(session),
-                                  text: asCallSessionRecordText(session),
+                                  text: asCallSessionRecordText(
+                                    session,
+                                    l10n: l10n,
+                                  ),
                                   time: _formatMsgTime(
                                     asCallSessionStableTimestamp(session),
                                   ),
@@ -3260,6 +3263,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       asCallSession: asCallSession,
                                       asCallSessionPending: asCallId != null &&
                                           asCallSession == null,
+                                      l10n: l10n,
                                     ),
                                     time: _formatMsgTime(e.originServerTs),
                                     showRead: false,

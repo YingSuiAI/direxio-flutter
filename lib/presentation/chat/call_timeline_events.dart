@@ -114,25 +114,27 @@ String callRecordText(
   Iterable<Event> roomEvents, {
   AsCallSession? asCallSession,
   bool asCallSessionPending = false,
+  AppLocalizations? l10n,
 }) {
   final isGroupCall = isProductGroupCallEvent(event);
   final asText = _callRecordTextFromAsSession(
     asCallSession,
     isGroupCall: isGroupCall || asCallSession?.roomType == 'group',
+    l10n: l10n,
   );
   if (asText != null) return asText;
-  if (asCallSessionPending) return '同步中';
-  if (isGroupCall) return _groupCallRecordText(event, roomEvents);
+  if (asCallSessionPending) return _callSyncingText(l10n);
+  if (isGroupCall) return _groupCallRecordText(event, roomEvents, l10n: l10n);
 
   final reason = _reason(event);
-  if (event.type == EventTypes.CallReject) return '已拒绝';
-  if (reason == _missedReason) return '未接通';
+  if (event.type == EventTypes.CallReject) return _callRejectedText(l10n);
+  if (reason == _missedReason) return _callMissedText(l10n);
 
   final answer = _matchingAnswer(event, roomEvents);
   final duration = answer == null
       ? _callRecordEventDuration(event)
       : event.originServerTs.difference(answer.originServerTs);
-  if (duration == null) return '未接通';
+  if (duration == null) return _callMissedText(l10n);
   return _formatCallDuration(duration);
 }
 
@@ -150,12 +152,14 @@ bool callRecordIsVideo(
   return _callRecordIsVideo(event, roomEvents);
 }
 
-String asCallSessionRecordText(AsCallSession session) {
+String asCallSessionRecordText(AsCallSession session,
+    {AppLocalizations? l10n}) {
   return _callRecordTextFromAsSession(
         session,
         isGroupCall: session.roomType == 'group',
+        l10n: l10n,
       ) ??
-      '同步中';
+      _callSyncingText(l10n);
 }
 
 bool asCallSessionRecordIsVideo(AsCallSession session) {
@@ -322,18 +326,19 @@ Event? _matchingProductCallIntent(Event invite, Iterable<Event> events) {
 String? _callRecordTextFromAsSession(
   AsCallSession? session, {
   required bool isGroupCall,
+  AppLocalizations? l10n,
 }) {
   if (session == null) return null;
-  if (_asSessionWasRejected(session)) return '已拒绝';
+  if (_asSessionWasRejected(session)) return _callRejectedText(l10n);
   if (session.state == asCallStateMissed ||
       session.state == asCallStateFailed) {
-    return '未接通';
+    return _callMissedText(l10n);
   }
   if (session.state != asCallStateEnded &&
       session.state != asCallStateConnected) {
     return null;
   }
-  if (session.answeredAt == null) return '未接通';
+  if (session.answeredAt == null) return _callMissedText(l10n);
   final duration = _asSessionDuration(session);
   if (session.state == asCallStateEnded && session.endedAt != null) {
     return _formatCallDuration(duration);
@@ -341,13 +346,23 @@ String? _callRecordTextFromAsSession(
   return _formatCallDuration(duration);
 }
 
-String _groupCallRecordText(Event event, Iterable<Event> events) {
+String _groupCallRecordText(
+  Event event,
+  Iterable<Event> events, {
+  AppLocalizations? l10n,
+}) {
   final connectedAt = _groupCallConnectedAt(event, events);
-  if (connectedAt == null) return '未接通';
+  if (connectedAt == null) return _callMissedText(l10n);
   final endAt = _groupCallEndedAt(event, events) ?? event.originServerTs;
   final duration = endAt.difference(connectedAt);
   return _formatCallDuration(duration);
 }
+
+String _callMissedText(AppLocalizations? l10n) => l10n?.callMissed ?? '未接通';
+
+String _callRejectedText(AppLocalizations? l10n) => l10n?.callRejected ?? '已拒绝';
+
+String _callSyncingText(AppLocalizations? l10n) => l10n?.callStarting ?? '同步中';
 
 bool _groupCallIsVideo(Event event, Iterable<Event> events) {
   final invite = _matchingGroupCallInvite(event, events);

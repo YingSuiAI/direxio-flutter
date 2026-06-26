@@ -112,9 +112,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _login() async {
     final localDomainHint = localLoginDomainHintFor(_domainCtrl.text);
     if (localDomainHint != null) {
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      final recommendedAuthority = localDomainHint.recommendedAuthority;
       setState(() {
-        _error =
-            '本地三节点测试请使用 ${localDomainHint.recommendedAuthority}，不要填写 127.0.0.1 的 Matrix API 端口。';
+        _error = l10n?.loginLocalMatrixApiPortError(recommendedAuthority) ??
+            '本地三节点测试请使用 $recommendedAuthority，'
+                '不要填写 127.0.0.1 的 Matrix API 端口。';
       });
       return;
     }
@@ -241,7 +247,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     if (_domainHint != null) ...[
                       const SizedBox(height: 8),
                       _LocalDomainHintBanner(
-                        recommendedAuthority: _domainHint!,
+                        message: l10n?.loginLocalMatrixApiPortHint(
+                              _domainHint!,
+                            ) ??
+                            '本地三节点测试请填写 ${_domainHint!}',
                       ),
                     ],
                     const SizedBox(height: 15),
@@ -674,9 +683,9 @@ class _LoginPillInputField extends StatelessWidget {
 }
 
 class _LocalDomainHintBanner extends StatelessWidget {
-  const _LocalDomainHintBanner({required this.recommendedAuthority});
+  const _LocalDomainHintBanner({required this.message});
 
-  final String recommendedAuthority;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -696,7 +705,7 @@ class _LocalDomainHintBanner extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '本地三节点测试请填写 $recommendedAuthority',
+              message,
               style: AppTheme.sans(size: 13, color: t.text),
             ),
           ),

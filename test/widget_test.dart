@@ -21417,6 +21417,31 @@ void main() {
     );
   });
 
+  testWidgets('login page localizes local Matrix API port warning',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField).first, '127.0.0.1:28008');
+    await tester.pump();
+
+    expect(
+      find.text('For local three-node tests, use host.docker.internal:28448'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('本地三节点测试'), findsNothing);
+  });
+
   testWidgets('login page leaves password empty after session expiration',
       (tester) async {
     FlutterSecureStorage.setMockInitialValues({
@@ -21459,5 +21484,55 @@ void main() {
     expect(find.text('Terms of Service'), findsOneWidget);
     expect(find.text('Privacy Policy'), findsOneWidget);
     expect(find.text('登录'), findsNothing);
+  });
+
+  testWidgets('login page uses localized guide labels in Chinese',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          home: const LoginPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('入门指南'), findsOneWidget);
+    expect(find.text('Getting Started Guide'), findsNothing);
+  });
+
+  testWidgets('init page follows app locale', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(375, 812));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider.overrideWith(_FakeAuthStateNotifier.new),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          theme: AppTheme.light,
+          home: const InitPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Confirm'), findsOneWidget);
+    expect(find.text('Display name'), findsOneWidget);
+    expect(find.text('Already have an account? Log in'), findsOneWidget);
+
+    await tester.tap(find.text('Confirm'));
+    await tester.pump();
+
+    expect(find.text('Please set an avatar'), findsOneWidget);
+    expect(find.text('请设置头像'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 1200));
   });
 }

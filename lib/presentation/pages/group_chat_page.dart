@@ -3013,7 +3013,10 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                     senderName,
                                   ),
                                   isVideo: asCallSessionRecordIsVideo(session),
-                                  text: asCallSessionRecordText(session),
+                                  text: asCallSessionRecordText(
+                                    session,
+                                    l10n: l10n,
+                                  ),
                                   time: DateFormat('HH:mm').format(
                                     asCallSessionStableTimestamp(session)
                                         .toLocal(),
@@ -3106,6 +3109,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                                       e,
                                       callRecordContextEvents,
                                       asCallSessionPending: pendingAsGroupCall,
+                                      l10n: l10n,
                                     ),
                                     senderName: callerName,
                                     senderAvatarUrl: _avatarUrlForMxid(

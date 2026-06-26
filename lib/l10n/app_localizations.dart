@@ -1178,14 +1178,26 @@ abstract class AppLocalizations {
   /// No description provided for @loginGettingStartedGuide.
   ///
   /// In zh, this message translates to:
-  /// **'Getting Started Guide'**
+  /// **'入门指南'**
   String get loginGettingStartedGuide;
 
   /// No description provided for @loginProductOverview.
   ///
   /// In zh, this message translates to:
-  /// **'Product Overview'**
+  /// **'产品概览'**
   String get loginProductOverview;
+
+  /// No description provided for @loginLocalMatrixApiPortHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地三节点测试请填写 {recommendedAuthority}'**
+  String loginLocalMatrixApiPortHint(String recommendedAuthority);
+
+  /// No description provided for @loginLocalMatrixApiPortError.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地三节点测试请使用 {recommendedAuthority}，不要填写 127.0.0.1 的 Matrix API 端口。'**
+  String loginLocalMatrixApiPortError(String recommendedAuthority);
 
   /// No description provided for @loginGuideIntroPrimary.
   ///

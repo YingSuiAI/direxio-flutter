@@ -355,6 +355,62 @@ void main() {
     expect(container.read(asClientProvider), isA<HttpAsClient>());
   });
 
+  test('as client provider prefers rotated Matrix token for channel posts',
+      () async {
+    final authorizations = <String>[];
+    final client = Client(
+      'AuthAsClientProviderRotatedTokenTest',
+      httpClient: MockClient((request) async {
+        final action = _p2pAction(request, 'channels.posts.list');
+        if (action != null) {
+          authorizations.add(request.headers['Authorization'] ?? '');
+          if (request.headers['Authorization'] != 'Bearer new-access-token') {
+            return http.Response('{"error":"M_UNKNOWN_TOKEN"}', 401);
+          }
+          return http.Response(
+            '{"posts":[{'
+            '"post_id":"post1",'
+            '"channel_id":"ch1",'
+            '"room_id":"!channel:example.com",'
+            '"event_id":"\$post1",'
+            '"author_mxid":"@owner:example.com",'
+            '"body":"hello",'
+            '"message_type":"text",'
+            '"origin_server_ts":1780730000000'
+            '}]}',
+            200,
+          );
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    client.homeserver = Uri.parse('https://example.com');
+    client.accessToken = 'new-access-token';
+    final container = ProviderContainer(
+      overrides: [
+        matrixClientProvider.overrideWithValue(client),
+        authStateNotifierProvider.overrideWith(
+          () => _StaticAuthStateNotifier(
+            const AuthState(
+              isLoggedIn: true,
+              userId: '@owner:example.com',
+              homeserver: 'https://example.com',
+              portalToken: 'old-access-token',
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    addTearDown(client.clear);
+    await container.read(authStateNotifierProvider.future);
+
+    final posts = await container.read(asClientProvider).getChannelPosts('ch1');
+
+    expect(posts.single.postId, 'post1');
+    expect(authorizations, ['Bearer new-access-token']);
+  });
+
   test('fresh iOS install clears stale secure session only for new app state',
       () {
     expect(

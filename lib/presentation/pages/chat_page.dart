@@ -2815,18 +2815,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final agentStatus =
         isAgent ? ref.watch(agentStatusProvider).valueOrNull : null;
     final agentIsOnline = agentStatus?.connected ?? false;
+    final onlineLabel = l10n?.commonOnline ?? '在线';
+    final offlineLabel = l10n?.commonOffline ?? '离线';
     final headerSubtitle = isWaitingForAccept
         ? '等待对方接受'
         : isAgent
             ? agentIsOnline
-                ? '在线'
-                : '离线'
+                ? onlineLabel
+                : offlineLabel
             : peerIsTyping
                 ? '在想'
                 : peerIsOnline
-                    ? '在线'
+                    ? onlineLabel
                     : peerIsOffline
-                        ? '离线'
+                        ? offlineLabel
                         : null;
     final headerSubtitleStatus = isAgent
         ? agentIsOnline

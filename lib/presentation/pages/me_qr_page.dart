@@ -1,6 +1,8 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -199,31 +201,64 @@ class _QrCard extends StatefulWidget {
 
 class _QrCardState extends State<_QrCard> {
   bool _saving = false;
+  bool _sharing = false;
+  final _shareExportKey = GlobalKey();
+
+  Future<Uint8List> _renderShareCardPng() async {
+    final pixelRatio = View.of(context).devicePixelRatio;
+    var boundary = _shareExportKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null || boundary.debugNeedsPaint) {
+      WidgetsBinding.instance.scheduleFrame();
+      await WidgetsBinding.instance.endOfFrame;
+      boundary = _shareExportKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+    }
+    if (boundary == null) {
+      throw const SaveImageToGalleryException('Failed to find QR share card.');
+    }
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
+    final data = await image.toByteData(format: ImageByteFormat.png);
+    final bytes = data?.buffer.asUint8List();
+    if (bytes == null || bytes.isEmpty) {
+      throw const SaveImageToGalleryException(
+          'Failed to render QR share card.');
+    }
+    return bytes;
+  }
+
+  Future<void> _shareCard() async {
+    if (_sharing) return;
+    _sharing = true;
+    final l10n = AppLocalizations.of(context);
+    try {
+      final bytes = await _renderShareCardPng();
+      if (mounted) setState(() {});
+      await Share.shareXFiles([
+        XFile.fromData(
+          bytes,
+          mimeType: 'image/png',
+          name: 'p2p_im_qr_${_safeFileName(widget.uid)}.png',
+        ),
+      ]);
+    } catch (err) {
+      if (kDebugMode) debugPrint('share QR card failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.meQrSaveFailed)),
+      );
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
 
   Future<void> _saveToAlbum() async {
     if (_saving) return;
-    setState(() => _saving = true);
+    _saving = true;
     final l10n = AppLocalizations.of(context);
     try {
-      final imageData = await QrPainter(
-        data: widget.payload,
-        version: QrVersions.auto,
-        gapless: true,
-        // ignore: deprecated_member_use
-        emptyColor: Colors.white,
-        eyeStyle: const QrEyeStyle(
-          eyeShape: QrEyeShape.square,
-          color: Colors.black,
-        ),
-        dataModuleStyle: const QrDataModuleStyle(
-          dataModuleShape: QrDataModuleShape.square,
-          color: Colors.black,
-        ),
-      ).toImageData(1024);
-      final bytes = imageData?.buffer.asUint8List();
-      if (bytes == null || bytes.isEmpty) {
-        throw const SaveImageToGalleryException('Failed to render QR image.');
-      }
+      final bytes = await _renderShareCardPng();
+      if (mounted) setState(() {});
       await savePngImageToGallery(
         bytes: bytes,
         fileName: 'p2p_im_qr_${_safeFileName(widget.uid)}.png',
@@ -232,7 +267,8 @@ class _QrCardState extends State<_QrCard> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.meQrSaveSuccess)),
       );
-    } catch (_) {
+    } catch (err) {
+      if (kDebugMode) debugPrint('save QR card failed: $err');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.meQrSaveFailed)),
@@ -246,114 +282,297 @@ class _QrCardState extends State<_QrCard> {
   Widget build(BuildContext context) {
     final t = context.tk;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: t.surface,
-      shadowColor: t.text.withValues(alpha: isDark ? 0.28 : 0.08),
-      elevation: isDark ? 2 : 0,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IgnorePointer(
+          child: RepaintBoundary(
+            key: _shareExportKey,
+            child: _QrShareExportCard(
+              displayName: widget.displayName,
+              uid: widget.uid,
+              userId: widget.userId,
+              avatarUrl: widget.avatarUrl,
+              payload: widget.payload,
+            ),
+          ),
+        ),
+        Material(
+          color: t.surface,
+          shadowColor: t.text.withValues(alpha: isDark ? 0.28 : 0.08),
+          elevation: isDark ? 2 : 0,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                PortalAvatar(
-                  seed: widget.userId,
-                  size: 60,
-                  imageUrl: widget.avatarUrl,
-                  shape: AvatarShape.squircle,
+                Row(
+                  children: [
+                    PortalAvatar(
+                      seed: widget.userId,
+                      size: 60,
+                      imageUrl: widget.avatarUrl,
+                      shape: AvatarShape.squircle,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.sans(
+                              size: 16,
+                              weight: FontWeight.w600,
+                              color: t.text,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'UID ${widget.uid}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.sans(size: 14, color: t.textMute),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('me_qr_share_action'),
+                      tooltip: AppLocalizations.of(context).commonShare,
+                      onPressed: _sharing ? null : _shareCard,
+                      icon: Icon(Symbols.ios_share, size: 24, color: t.text),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(
-                          size: 16,
-                          weight: FontWeight.w600,
-                          color: t.text,
-                        ),
+                const SizedBox(height: 24),
+                _QrCodeWithLogo(
+                  payload: widget.payload,
+                  boxKey: const ValueKey('me_qr_display_qr_box'),
+                  qrKey: const ValueKey('me_qr_display_qr_image'),
+                  showContainerChrome: true,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  AppLocalizations.of(context).meQrHint,
+                  textAlign: TextAlign.center,
+                  style: AppTheme.sans(size: 14, color: t.textMute),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 44,
+                  child: FilledButton(
+                    key: const ValueKey('me_qr_save_action'),
+                    onPressed: _saving ? null : _saveToAlbum,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: t.accent,
+                      foregroundColor: t.onAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'UID ${widget.uid}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTheme.sans(size: 14, color: t.textMute),
+                    ),
+                    child: Text(
+                      _saving
+                          ? AppLocalizations.of(context).meQrSaving
+                          : AppLocalizations.of(context).meQrSaveToAlbum,
+                      style: AppTheme.sans(
+                        size: 14,
+                        weight: FontWeight.w500,
+                        color: t.onAccent,
                       ),
-                    ],
+                    ),
                   ),
-                ),
-                IconButton(
-                  tooltip: AppLocalizations.of(context).commonShare,
-                  onPressed: () => Share.share(widget.payload),
-                  icon: Icon(Symbols.ios_share, size: 24, color: t.text),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            Center(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: QrImageView(
-                    data: widget.payload,
-                    version: QrVersions.auto,
-                    size: 150,
-                    backgroundColor: Colors.white,
-                    eyeStyle: const QrEyeStyle(
-                      eyeShape: QrEyeShape.square,
-                      color: Colors.black,
-                    ),
-                    dataModuleStyle: const QrDataModuleStyle(
-                      dataModuleShape: QrDataModuleShape.square,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              AppLocalizations.of(context).meQrHint,
-              textAlign: TextAlign.center,
-              style: AppTheme.sans(size: 14, color: t.textMute),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 44,
-              child: FilledButton(
-                onPressed: _saving ? null : _saveToAlbum,
-                style: FilledButton.styleFrom(
-                  backgroundColor: t.accent,
-                  foregroundColor: t.onAccent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  _saving
-                      ? AppLocalizations.of(context).meQrSaving
-                      : AppLocalizations.of(context).meQrSaveToAlbum,
-                  style: AppTheme.sans(
-                    size: 14,
-                    weight: FontWeight.w500,
-                    color: t.onAccent,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
+      ],
+    );
+  }
+}
+
+class _QrShareExportCard extends StatelessWidget {
+  const _QrShareExportCard({
+    required this.displayName,
+    required this.uid,
+    required this.userId,
+    required this.avatarUrl,
+    required this.payload,
+  });
+
+  final String displayName;
+  final String uid;
+  final String userId;
+  final String? avatarUrl;
+  final String payload;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tk;
+    return Material(
+      key: const ValueKey('me_qr_share_export_card'),
+      color: Colors.transparent,
+      child: SizedBox(
+        width: 343,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    PortalAvatar(
+                      seed: userId,
+                      size: 60,
+                      imageUrl: avatarUrl,
+                      shape: AvatarShape.squircle,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.sans(
+                              size: 16,
+                              weight: FontWeight.w600,
+                              color: t.text,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'UID $uid',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTheme.sans(size: 14, color: t.textMute),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                _QrCodeWithLogo(
+                  payload: payload,
+                  boxKey: const ValueKey('me_qr_export_qr_box'),
+                  qrKey: const ValueKey('me_qr_export_qr_image'),
+                  showContainerChrome: false,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  AppLocalizations.of(context).meQrHint,
+                  textAlign: TextAlign.center,
+                  style: AppTheme.sans(size: 14, color: t.textMute),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QrCodeWithLogo extends StatelessWidget {
+  const _QrCodeWithLogo({
+    required this.payload,
+    required this.boxKey,
+    required this.qrKey,
+    required this.showContainerChrome,
+  });
+
+  final String payload;
+  final Key boxKey;
+  final Key qrKey;
+  final bool showContainerChrome;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final boxColor = showContainerChrome && isDark
+        ? Colors.black.withValues(alpha: 0.78)
+        : Colors.white;
+    final box = SizedBox(
+      key: boxKey,
+      width: 196,
+      height: 196,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          QrImageView(
+            key: qrKey,
+            data: payload,
+            version: QrVersions.auto,
+            size: 126,
+            backgroundColor: Colors.white,
+            eyeStyle: const QrEyeStyle(
+              eyeShape: QrEyeShape.square,
+              color: Colors.black,
+            ),
+            dataModuleStyle: const QrDataModuleStyle(
+              dataModuleShape: QrDataModuleShape.square,
+              color: Colors.black,
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const SizedBox(
+              width: 32,
+              height: 32,
+              child: Center(
+                child: Image(
+                  image: AssetImage('assets/images/logo.png'),
+                  width: 24,
+                  height: 24,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Center(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: boxColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: showContainerChrome
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 18,
+                    offset: const Offset(0, 7),
+                  ),
+                ]
+              : null,
+        ),
+        child: box,
       ),
     );
   }

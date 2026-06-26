@@ -312,6 +312,7 @@ Future<bool> showAndShareChannel(
   required String currentRoomId,
   required String currentRoomName,
 }) async {
+  final matrixClient = ref.read(matrixClientProvider);
   final targets = chatRecordForwardTargets(
     ref.read(asSyncCacheProvider),
     currentRoomId: currentRoomId,
@@ -320,9 +321,10 @@ Future<bool> showAndShareChannel(
   )
       .where(
           (target) => target.roomType == 'direct' || target.roomType == 'group')
+      .where((target) => matrixClient.getRoomById(target.roomId) != null)
       .toList(growable: false);
   if (targets.isEmpty) {
-    throw StateError('暂无可分享的私聊或群聊');
+    throw StateError('暂无已同步的可分享私聊或群聊，请先打开目标会话完成同步');
   }
   final target = await showModalBottomSheet<ChatRecordForwardTarget>(
     context: context,
@@ -348,10 +350,13 @@ Future<bool> showAndShareChannel(
     'join_policy=${_logChannelShareValue(payload.joinPolicy)} '
     'visibility=${_logChannelShareValue(payload.visibility)}',
   );
-  final matrixClient = ref.read(matrixClientProvider);
-  final room = matrixClient.getRoomById(target.roomId);
+  var room = matrixClient.getRoomById(target.roomId);
   if (room == null) {
-    throw StateError('目标会话未同步到本地');
+    await _refreshMatrixRoomsForChannelShare(matrixClient);
+    room = matrixClient.getRoomById(target.roomId);
+  }
+  if (room == null) {
+    throw StateError('目标会话尚未同步到本地，请先打开该会话完成同步');
   }
   await room.sendEvent({
     'msgtype': MessageTypes.Text,
@@ -362,6 +367,14 @@ Future<bool> showAndShareChannel(
   });
   await matrixClient.oneShotSync();
   return true;
+}
+
+Future<void> _refreshMatrixRoomsForChannelShare(Client matrixClient) async {
+  try {
+    await matrixClient.oneShotSync();
+  } on Object catch (error) {
+    debugPrint('[channel.share.sync] Matrix room refresh failed: $error');
+  }
 }
 
 ChannelSharePayload channelSharePayloadWithInviteGrant(

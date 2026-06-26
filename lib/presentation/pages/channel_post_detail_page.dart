@@ -224,7 +224,7 @@ class _ChannelPostDetailPageState extends ConsumerState<ChannelPostDetailPage> {
       final loaded = await _fetchComments(detail, page: 1, pageSize: 5);
       if (!mounted || expectedKey != _commentsKey) return;
       setState(() {
-        _comments = loaded;
+        _comments = _dedupeComments(loaded);
         _commentsHasMore = loaded.length >= 5;
         _commentsPage = 1;
         _commentsLoading = false;
@@ -1062,20 +1062,27 @@ List<_PostComment> _withOptimisticComments(
 ) {
   if (optimistic == null) return comments;
   if (comments.any((item) => item.body == optimistic.body)) return comments;
-  return [optimistic, ...comments];
+  return _dedupeComments([optimistic, ...comments]);
 }
 
 List<_PostComment> _dedupeComments(List<_PostComment> comments) {
   final seen = <String>{};
-  final result = <_PostComment>[];
-  for (final comment in comments) {
+  final result = <MapEntry<int, _PostComment>>[];
+  for (var index = 0; index < comments.length; index++) {
+    final comment = comments[index];
     final key = comment.commentId.trim().isNotEmpty
         ? comment.commentId.trim()
         : '${comment.authorName}|${comment.originServerTs}|${comment.body}';
     if (!seen.add(key)) continue;
-    result.add(comment);
+    result.add(MapEntry(index, comment));
   }
-  return result;
+  result.sort((a, b) {
+    final byTimestamp =
+        b.value.originServerTs.compareTo(a.value.originServerTs);
+    if (byTimestamp != 0) return byTimestamp;
+    return a.key.compareTo(b.key);
+  });
+  return [for (final entry in result) entry.value];
 }
 
 ChannelInboxItem? _findRealChannel(WidgetRef ref, String channelId) {

@@ -508,18 +508,6 @@ class ChatAttachmentPanel extends ConsumerWidget {
         canSend ? () => _pickVideo(context, ref) : null,
       ),
       (
-        ChatAttachmentAction.location,
-        Symbols.location_on,
-        l10n?.chatAttachmentLocation ?? '位置',
-        null
-      ),
-      (
-        ChatAttachmentAction.contact,
-        Symbols.contact_page,
-        l10n?.chatAttachmentContactCard ?? '个人名片',
-        null
-      ),
-      (
         ChatAttachmentAction.file,
         Symbols.folder_open,
         l10n?.chatAttachmentFile ?? '文件',

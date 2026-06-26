@@ -132,18 +132,25 @@ class _ChangePortalTokenPageState extends ConsumerState<ChangePortalTokenPage> {
       _loading = true;
       _error = null;
     });
+    final navigator = Navigator.of(context);
+    final router = GoRouter.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(authStateNotifierProvider.notifier).changePortalPassword(
             oldPassword: oldPassword,
             newPassword: newPassword,
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text(l10n?.changePasswordSuccess ?? '密码已修改'),
         ),
       );
-      context.go('/settings');
+      if (navigator.canPop()) {
+        navigator.pop();
+      } else {
+        router.go('/settings');
+      }
     } catch (e) {
       if (mounted) {
         setState(

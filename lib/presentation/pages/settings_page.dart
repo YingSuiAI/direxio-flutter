@@ -116,10 +116,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(l10n?.settingsDeactivateLoginConfirmTitle ?? '注销登录'),
+        title: Text(l10n?.settingsDeactivateLoginConfirmTitle ?? '注销账号'),
         content: Text(
           l10n?.settingsDeactivateLoginConfirmMessage ??
-              '14天内，只要登录一次账号，注销就会自动取消',
+              '14天内，只要登录一次账号，账号注销就会自动取消',
         ),
         actions: [
           TextButton(
@@ -341,7 +341,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ),
                     const SizedBox(height: 12),
                     _LogoutButton(
-                      label: l10n?.settingsDeactivateLogin ?? '注销登录',
+                      label: l10n?.settingsDeactivateLogin ?? '注销账号',
                       onTap: _deactivateLogin,
                     ),
                   ],

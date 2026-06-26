@@ -170,11 +170,13 @@ class _AddContactProfile {
   const _AddContactProfile({
     required this.name,
     required this.uid,
+    required this.displayUid,
     this.avatarUrl,
   });
 
   final String name;
   final String uid;
+  final String displayUid;
   final String? avatarUrl;
 }
 
@@ -193,6 +195,7 @@ _AddContactProfile _profileForAddContact(
   return _AddContactProfile(
     name: name,
     uid: userId.trim(),
+    displayUid: displayUidFromMxid(userId),
     avatarUrl: avatarUrl?.trim().isNotEmpty == true ? avatarUrl!.trim() : null,
   );
 }
@@ -282,7 +285,7 @@ class _ProfileHeader extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        profile.uid,
+                        profile.displayUid,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTheme.sans(size: 13, color: t.textMute),

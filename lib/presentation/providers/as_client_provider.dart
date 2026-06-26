@@ -17,7 +17,7 @@ final asClientProvider = Provider<AsClient>((ref) {
   final authToken = auth?.portalToken?.trim() ?? '';
   final clientToken =
       auth?.isLoggedIn == true ? client.accessToken?.trim() ?? '' : '';
-  final portalToken = authToken.isNotEmpty ? authToken : clientToken;
+  final portalToken = clientToken.isNotEmpty ? clientToken : authToken;
   if (portalToken.isNotEmpty) {
     final homeserver =
         client.homeserver ?? Uri.tryParse(auth?.homeserver ?? '');

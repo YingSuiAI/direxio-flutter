@@ -160,14 +160,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Are you sure you want to log out?';
 
   @override
-  String get settingsDeactivateLogin => 'Deactivate Login';
+  String get settingsDeactivateLogin => 'Delete Account';
 
   @override
-  String get settingsDeactivateLoginConfirmTitle => 'Deactivate Login';
+  String get settingsDeactivateLoginConfirmTitle => 'Delete Account';
 
   @override
   String get settingsDeactivateLoginConfirmMessage =>
-      'Within 14 days, logging in once will automatically cancel deactivation.';
+      'Within 14 days, logging in once will automatically cancel account deletion.';
 
   @override
   String get commonCancel => 'Cancel';
@@ -180,6 +180,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonShare => 'Share';
+
+  @override
+  String get commonOnline => 'Online';
+
+  @override
+  String get commonOffline => 'Offline';
 
   @override
   String get avatarAdjustTitle => 'Adjust avatar';
@@ -2420,6 +2426,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelPostNewTextPreview => 'New text post';
+
+  @override
+  String get channelPostNewImagePreview => 'New image post';
 
   @override
   String get channelPostDefaultTitle => 'My post';

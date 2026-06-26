@@ -190,6 +190,34 @@ class _FakeAuthStateNotifier extends AuthStateNotifier {
   Future<AuthState> build() async => const AuthState(isLoggedIn: false);
 }
 
+class _PasswordChangeAuthStateNotifier extends AuthStateNotifier {
+  static int changePasswordCalls = 0;
+
+  @override
+  Future<AuthState> build() async => const AuthState(
+        isLoggedIn: true,
+        userId: '@owner:p2p-im.com',
+        homeserver: 'https://p2p-im.com',
+        portalToken: 'access-token',
+      );
+
+  @override
+  Future<void> changePortalPassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    changePasswordCalls++;
+    state = const AsyncData(
+      AuthState(
+        isLoggedIn: true,
+        userId: '@owner:p2p-im.com',
+        homeserver: 'https://p2p-im.com',
+        portalToken: 'rotated-token',
+      ),
+    );
+  }
+}
+
 class _RecordingLogoutAuthStateNotifier extends AuthStateNotifier {
   static int logoutCalls = 0;
 
@@ -6329,11 +6357,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('owner'), findsOneWidget);
-    expect(find.text(peerMxid), findsOneWidget);
     expect(find.text('推荐给朋友'), findsNothing);
     expect(find.textContaining('Group with'), findsNothing);
 
-    await tester.tap(find.text(peerMxid));
+    expect(find.text('p2p-liyanan.com'), findsOneWidget);
+    expect(find.text(peerMxid), findsNothing);
+
+    await tester.tap(find.text('p2p-liyanan.com'));
     await tester.pump();
     expect(find.text('已复制 UID'), findsOneWidget);
     expect(find.byType(SnackBar), findsNothing);
@@ -14706,6 +14736,7 @@ void main() {
       expect(find.text(label), findsNothing);
     }
     expect(asClient.listCallsCount, 0);
+    await tester.pump(const Duration(seconds: 13));
   });
 
   testWidgets('group chat @ mention picker inserts member and sends metadata',
@@ -15111,6 +15142,81 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('$roomId as-group-call-1 null'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 13));
+  });
+
+  testWidgets('group chat hides voice and video call entry buttons',
+      (tester) async {
+    const roomId = '!group-hide-calls:p2p-im.com';
+    final client = Client(
+      'DirexioGroupHideCallButtonsTest',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )..setUserId('@owner:p2p-im.com');
+    client.homeserver = Uri.parse('https://p2p-im.com');
+    client.accessToken = 'test-token';
+    _addNamedGroupRoom(
+      client,
+      roomId: roomId,
+      name: '真实群',
+      creatorMxid: '@owner:p2p-im.com',
+      members: const {'@alice:p2p-im.com': 'Alice'},
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.utc(2026, 6, 26, 10),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [
+        AsSyncRoomSummary(
+          roomId: roomId,
+          name: '真实群',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: null,
+        ),
+      ],
+      channels: const [],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          asClientProvider.overrideWithValue(_TrackingAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+          localOutboxStoreProvider.overrideWith(
+            (ref) async => _MemoryLocalOutboxStore(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const GroupChatPage(roomId: roomId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('语音通话'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('chat_input_plus_circle')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('相册'), findsOneWidget);
+    expect(find.text('拍摄'), findsOneWidget);
+    expect(find.text('视频'), findsOneWidget);
+    expect(find.text('文件'), findsOneWidget);
+    expect(find.text('语音通话'), findsNothing);
+    expect(find.text('视频通话'), findsNothing);
+    await tester.pump(const Duration(seconds: 13));
   });
 
   testWidgets('group chat renders group local media outbox items',
@@ -16358,7 +16464,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('新文字帖'), findsNWidgets(2));
+    expect(find.text('新文字帖'), findsOneWidget);
+    expect(find.text('新图片帖'), findsOneWidget);
     expect(find.text('空频道简介'), findsOneWidget);
     expect(find.text('评论频道简介'), findsOneWidget);
     expect(find.text('点赞频道简介'), findsOneWidget);
@@ -18843,7 +18950,7 @@ void main() {
     expect(find.text('消息与通知'), findsOneWidget);
     expect(find.text('其他'), findsOneWidget);
     expect(find.text('退出登录'), findsOneWidget);
-    expect(find.text('注销登录'), findsOneWidget);
+    expect(find.text('注销账号'), findsOneWidget);
   });
 
   testWidgets('me favorites page renders AS favorite messages', (tester) async {
@@ -19873,11 +19980,101 @@ void main() {
     );
     await tester.pump();
 
-    final avatar = tester
+    final avatars = tester
         .widgetList<PortalAvatar>(find.byType(PortalAvatar))
         .where((item) => item.size == 60)
-        .single;
-    expect(avatar.imageUrl, isNull);
+        .toList(growable: false);
+    expect(avatars, isNotEmpty);
+    expect(avatars.every((avatar) => avatar.imageUrl == null), isTrue);
+  });
+
+  testWidgets('me qr share export card matches iOS image-only format',
+      (tester) async {
+    final client = Client('DirexioMeQrShareCardTest')
+      ..setUserId('@owner:p2p-im.com');
+    final savedImages = <Map<dynamic, dynamic>>[];
+    const saveImageChannel = MethodChannel('p2p_im/save_image');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      saveImageChannel,
+      (call) async {
+        if (call.method == 'savePng') {
+          savedImages.add(call.arguments as Map<dynamic, dynamic>);
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        saveImageChannel,
+        null,
+      );
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          authStateNotifierProvider
+              .overrideWith(_LoggedInAuthStateNotifier.new),
+          currentUserProfileProvider.overrideWith((ref) async => null),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          locale: const Locale('zh'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const MeQrPage(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final exportCard = find.byKey(const ValueKey('me_qr_share_export_card'));
+    expect(exportCard, findsOneWidget);
+    expect(
+      find.descendant(
+        of: exportCard,
+        matching: find.byKey(const ValueKey('me_qr_share_action')),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: exportCard,
+        matching: find.byKey(const ValueKey('me_qr_save_action')),
+      ),
+      findsNothing,
+    );
+
+    final exportQrBox = tester.getSize(
+      find.descendant(
+        of: exportCard,
+        matching: find.byKey(const ValueKey('me_qr_export_qr_box')),
+      ),
+    );
+    final exportQrImage = tester.getSize(
+      find.descendant(
+        of: exportCard,
+        matching: find.byKey(const ValueKey('me_qr_export_qr_image')),
+      ),
+    );
+    expect(exportQrBox, const Size(196, 196));
+    expect(exportQrImage, const Size(126, 126));
+
+    await tester.ensureVisible(find.text('保存到相册'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存到相册'));
+    await tester.pump();
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pumpAndSettle();
+
+    expect(savedImages, hasLength(1));
+    expect(savedImages.single['fileName'], 'p2p_im_qr_https_p2p-im.com.png');
+    expect(savedImages.single['bytes'], isA<Uint8List>());
+    expect(savedImages.single['bytes'], isNotEmpty);
   });
 
   test('me qr payload includes current avatar url', () {
@@ -19981,7 +20178,104 @@ void main() {
     expect(find.text('关于我们'), findsOneWidget);
     expect(find.text('清空聊天记录'), findsOneWidget);
     expect(find.text('退出登录'), findsOneWidget);
-    expect(find.text('注销登录'), findsOneWidget);
+    expect(find.text('注销账号'), findsOneWidget);
+  });
+
+  testWidgets('settings back still works after password change success',
+      (tester) async {
+    _PasswordChangeAuthStateNotifier.changePasswordCalls = 0;
+    final router = GoRouter(
+      initialLocation: '/home',
+      routes: [
+        GoRoute(
+          path: '/home',
+          builder: (_, __) => const Scaffold(body: Text('home-root')),
+        ),
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+        GoRoute(
+          path: '/me/account/password',
+          builder: (_, __) => const ChangePortalTokenPage(),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_PasswordChangeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    router.push('/settings');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('修改密码'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).at(0), '11111111');
+    await tester.enterText(find.byType(TextField).at(1), '12345678');
+    await tester.enterText(find.byType(TextField).at(2), '12345678');
+    await tester.tap(find.text('提交修改'));
+    await tester.pumpAndSettle();
+
+    expect(_PasswordChangeAuthStateNotifier.changePasswordCalls, 1);
+    expect(find.text('设置'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Symbols.arrow_back));
+    await tester.pumpAndSettle();
+
+    expect(find.text('home-root'), findsOneWidget);
+  });
+
+  testWidgets('password change pops back to account security source page',
+      (tester) async {
+    _PasswordChangeAuthStateNotifier.changePasswordCalls = 0;
+    final router = GoRouter(
+      initialLocation: '/me/account',
+      routes: [
+        GoRoute(path: '/me/account', builder: (_, __) => const MeAccountPage()),
+        GoRoute(
+          path: '/me/account/password',
+          builder: (_, __) => const ChangePortalTokenPage(),
+        ),
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateNotifierProvider
+              .overrideWith(_PasswordChangeAuthStateNotifier.new),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('修改密码'));
+    await tester.pumpAndSettle();
+    expect(find.text('密码至少 8 位'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).at(0), '11111111');
+    await tester.enterText(find.byType(TextField).at(1), '12345678');
+    await tester.enterText(find.byType(TextField).at(2), '12345678');
+    await tester.tap(find.text('提交修改'));
+    await tester.pumpAndSettle();
+
+    expect(_PasswordChangeAuthStateNotifier.changePasswordCalls, 1);
+    expect(find.text('账号与安全'), findsOneWidget);
+    expect(find.text('生物识别解锁'), findsOneWidget);
+    expect(find.text('密码至少 8 位'), findsNothing);
   });
 
   testWidgets('settings blacklist row is hidden', (tester) async {
@@ -20037,12 +20331,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('注销登录'));
-    await tester.tap(find.text('注销登录'));
+    await tester.ensureVisible(find.text('注销账号'));
+    await tester.tap(find.text('注销账号'));
     await tester.pumpAndSettle();
 
-    expect(find.text('注销登录'), findsWidgets);
-    expect(find.text('14天内，只要登录一次账号，注销就会自动取消'), findsOneWidget);
+    expect(find.text('注销账号'), findsWidgets);
+    expect(find.text('14天内，只要登录一次账号，账号注销就会自动取消'), findsOneWidget);
     expect(find.text('取消'), findsOneWidget);
     expect(find.text('确认'), findsOneWidget);
 
@@ -20222,6 +20516,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChatPage(roomId: '!agent-room:p2p-im.com'),
         ),
       ),
@@ -20230,7 +20527,9 @@ void main() {
 
     expect(find.text('Direxio AI'), findsOneWidget);
     expect(find.text('Agent'), findsNothing);
-    expect(find.text('离线'), findsOneWidget);
+    expect(find.text('Offline'), findsOneWidget);
+    expect(find.text('Online'), findsNothing);
+    expect(find.text('离线'), findsNothing);
     expect(find.text('在线'), findsNothing);
   });
 
@@ -20300,6 +20599,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChatPage(roomId: roomId),
         ),
       ),
@@ -20372,6 +20674,9 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.light,
+          locale: const Locale('en'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: const ChatPage(roomId: roomId),
         ),
       ),
@@ -20379,6 +20684,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Offline'), findsNothing);
+    expect(find.text('Online'), findsNothing);
     expect(find.text('离线'), findsNothing);
     expect(find.text('在线'), findsNothing);
 
@@ -20401,7 +20708,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('在线'), findsOneWidget);
+    expect(find.text('Online'), findsOneWidget);
+    expect(find.text('Offline'), findsNothing);
+    expect(find.text('在线'), findsNothing);
     expect(find.text('离线'), findsNothing);
 
     await client.handleSync(
@@ -20426,6 +20735,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('在想'), findsOneWidget);
+    expect(find.text('Offline'), findsNothing);
     expect(find.text('离线'), findsNothing);
     await tester.pump(const Duration(seconds: 31));
   });

@@ -43,6 +43,20 @@ void main() {
     });
   });
 
+  group('displayUidFromMxid', () {
+    test('hides owner localpart for owner node user ids', () {
+      expect(displayUidFromMxid('@owner:p2p-im.com'), 'p2p-im.com');
+    });
+
+    test('keeps owner node server names with ports intact', () {
+      expect(displayUidFromMxid('@owner:dendrite-b:8448'), 'dendrite-b:8448');
+    });
+
+    test('keeps non-owner Matrix ids unchanged', () {
+      expect(displayUidFromMxid('@alice:p2p-im.com'), '@alice:p2p-im.com');
+    });
+  });
+
   group('serverNameFromMxid', () {
     test('keeps server names with ports intact', () {
       expect(serverNameFromMxid('@owner:dendrite-a:8448'), 'dendrite-a:8448');

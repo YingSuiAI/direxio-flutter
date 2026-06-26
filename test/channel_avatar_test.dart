@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,23 +19,25 @@ import 'package:portal_app/presentation/widgets/portal_avatar.dart';
 import 'support/mock_as_client.dart';
 
 void main() {
-  testWidgets('channel inbox tile renders uploaded channel avatar',
+  testWidgets('channel inbox tile does not fetch cold network avatar',
       (tester) async {
     final client = Client('ChannelAvatarTest');
+    final avatarUrl =
+        'https://cdn.example.com/channel-cold-${DateTime.now().microsecondsSinceEpoch}.png';
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [matrixClientProvider.overrideWithValue(client)],
         child: MaterialApp(
           theme: AppTheme.light,
-          home: const Scaffold(
+          home: Scaffold(
             body: ChannelInboxTile(
               channel: ChannelInboxItem(
                 id: 'ch_avatar',
                 roomId: '!avatar:p2p-im.com',
                 name: '产品公告',
                 domain: 'p2p-im.com',
-                avatarUrl: 'https://cdn.example.com/channel.png',
+                avatarUrl: avatarUrl,
                 latestPreview: '频道介绍',
                 latestAt: null,
                 unreadCount: 0,
@@ -45,9 +50,192 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widgetList<PortalAvatar>(find.byType(PortalAvatar))
+          .where((avatar) => avatar.imageUrl == avatarUrl),
+      isEmpty,
+    );
+    expect(find.text('产'), findsOneWidget);
+  });
+
+  testWidgets('channel inbox tile renders cached avatar bytes after restart',
+      (tester) async {
+    final client = Client('ChannelCachedAvatarTest');
+    final avatarUrl =
+        'https://cdn.example.com/channel-cached-${DateTime.now().microsecondsSinceEpoch}.png';
+    final bytes = Uint8List.fromList(_transparentPngBytes);
+    setChannelAvatarCacheReaderForTesting(
+      (url) async => url == avatarUrl ? bytes : null,
+    );
+    addTearDown(() {
+      setChannelAvatarCacheReaderForTesting(null);
+      clearChannelAvatarMemoryCacheForTesting();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [matrixClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: Scaffold(
+            body: ChannelInboxTile(
+              channel: ChannelInboxItem(
+                id: 'ch_avatar_cached',
+                roomId: '!avatar-cached:p2p-im.com',
+                name: '产品公告',
+                domain: 'p2p-im.com',
+                avatarUrl: avatarUrl,
+                latestPreview: '频道介绍',
+                latestAt: null,
+                unreadCount: 0,
+                isOwned: true,
+                tags: const ['文字'],
+              ),
+              showDivider: false,
+            ),
+          ),
+        ),
+      ),
+    );
+    for (var i = 0;
+        i < 10 && find.byType(PortalAvatar).evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
 
     final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
-    expect(avatar.imageUrl, 'https://cdn.example.com/channel.png');
+    expect(avatar.imageUrl, isNull);
+    expect(avatar.imageBytes, bytes);
+    expect(avatar.shape, AvatarShape.squircle);
+  });
+
+  testWidgets('channel inbox tile keeps cached avatar stable after tab rebuild',
+      (tester) async {
+    final client = Client('ChannelStableAvatarTest');
+    final avatarUrl =
+        'https://cdn.example.com/channel-stable-${DateTime.now().microsecondsSinceEpoch}.png';
+    final bytes = Uint8List.fromList(_transparentPngBytes);
+    setChannelAvatarCacheReaderForTesting(
+      (url) async => url == avatarUrl ? bytes : null,
+    );
+    addTearDown(() {
+      setChannelAvatarCacheReaderForTesting(null);
+      clearChannelAvatarMemoryCacheForTesting();
+    });
+
+    Widget buildTile() => ProviderScope(
+          overrides: [matrixClientProvider.overrideWithValue(client)],
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: Scaffold(
+              body: ChannelInboxTile(
+                channel: ChannelInboxItem(
+                  id: 'ch_avatar_stable',
+                  roomId: '!avatar-stable:p2p-im.com',
+                  name: '产品公告',
+                  domain: 'p2p-im.com',
+                  avatarUrl: avatarUrl,
+                  latestPreview: '频道介绍',
+                  latestAt: null,
+                  unreadCount: 0,
+                  isOwned: true,
+                  tags: const ['文字'],
+                ),
+                showDivider: false,
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(buildTile());
+    for (var i = 0;
+        i < 10 && find.byType(PortalAvatar).evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    final firstAvatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    expect(firstAvatar.imageBytes, bytes);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    final pendingRead = Completer<Uint8List?>();
+    setChannelAvatarCacheReaderForTesting((_) => pendingRead.future);
+
+    await tester.pumpWidget(buildTile());
+
+    expect(find.text('产'), findsNothing);
+    final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    expect(avatar.imageBytes, bytes);
+    expect(avatar.shape, AvatarShape.squircle);
+  });
+
+  testWidgets(
+      'channel inbox tile keeps avatar stable when refreshed url changes',
+      (tester) async {
+    final client = Client('ChannelStableAvatarUrlChangeTest');
+    final firstAvatarUrl =
+        'https://cdn.example.com/channel-stable-a-${DateTime.now().microsecondsSinceEpoch}.png';
+    final refreshedAvatarUrl =
+        'https://cdn.example.com/channel-stable-b-${DateTime.now().microsecondsSinceEpoch}.png';
+    final bytes = Uint8List.fromList(_transparentPngBytes);
+    setChannelAvatarCacheReaderForTesting(
+      (url) async => url == firstAvatarUrl ? bytes : null,
+    );
+    addTearDown(() {
+      setChannelAvatarCacheReaderForTesting(null);
+      clearChannelAvatarMemoryCacheForTesting();
+    });
+
+    Widget buildTile(String avatarUrl) => ProviderScope(
+          overrides: [matrixClientProvider.overrideWithValue(client)],
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: Scaffold(
+              body: ChannelInboxTile(
+                channel: ChannelInboxItem(
+                  id: 'ch_avatar_stable_url',
+                  roomId: '!avatar-stable-url:p2p-im.com',
+                  name: '产品公告',
+                  domain: 'p2p-im.com',
+                  avatarUrl: avatarUrl,
+                  latestPreview: '频道介绍',
+                  latestAt: null,
+                  unreadCount: 0,
+                  isOwned: true,
+                  tags: const ['文字'],
+                ),
+                showDivider: false,
+              ),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(buildTile(firstAvatarUrl));
+    for (var i = 0;
+        i < 10 && find.byType(PortalAvatar).evaluate().isEmpty;
+        i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    final firstAvatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    expect(firstAvatar.imageBytes, bytes);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    final pendingRead = Completer<Uint8List?>();
+    setChannelAvatarCacheReaderForTesting(
+      (url) => url == refreshedAvatarUrl ? pendingRead.future : Future.value(),
+    );
+
+    await tester.pumpWidget(buildTile(refreshedAvatarUrl));
+
+    expect(find.text('产'), findsNothing);
+    final avatar = tester.widget<PortalAvatar>(find.byType(PortalAvatar));
+    expect(avatar.imageBytes, bytes);
     expect(avatar.shape, AvatarShape.squircle);
   });
 
@@ -717,3 +905,73 @@ class _ChannelMemberAvatarAsClient extends MockAsClient {
     ];
   }
 }
+
+const _transparentPngBytes = <int>[
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0A,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x63,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
+];

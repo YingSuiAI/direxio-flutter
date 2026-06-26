@@ -156,13 +156,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsLogoutConfirmMessage => '确定要退出登录吗？';
 
   @override
-  String get settingsDeactivateLogin => '注销登录';
+  String get settingsDeactivateLogin => '注销账号';
 
   @override
-  String get settingsDeactivateLoginConfirmTitle => '注销登录';
+  String get settingsDeactivateLoginConfirmTitle => '注销账号';
 
   @override
-  String get settingsDeactivateLoginConfirmMessage => '14天内，只要登录一次账号，注销就会自动取消';
+  String get settingsDeactivateLoginConfirmMessage =>
+      '14天内，只要登录一次账号，账号注销就会自动取消';
 
   @override
   String get commonCancel => '取消';
@@ -175,6 +176,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get commonShare => '分享';
+
+  @override
+  String get commonOnline => '在线';
+
+  @override
+  String get commonOffline => '离线';
 
   @override
   String get avatarAdjustTitle => '调整头像';
@@ -2349,6 +2356,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get channelPostNewTextPreview => '新文字帖';
+
+  @override
+  String get channelPostNewImagePreview => '新图片帖';
 
   @override
   String get channelPostDefaultTitle => '我发布的帖子';

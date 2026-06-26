@@ -391,19 +391,19 @@ abstract class AppLocalizations {
   /// No description provided for @settingsDeactivateLogin.
   ///
   /// In zh, this message translates to:
-  /// **'注销登录'**
+  /// **'注销账号'**
   String get settingsDeactivateLogin;
 
   /// No description provided for @settingsDeactivateLoginConfirmTitle.
   ///
   /// In zh, this message translates to:
-  /// **'注销登录'**
+  /// **'注销账号'**
   String get settingsDeactivateLoginConfirmTitle;
 
   /// No description provided for @settingsDeactivateLoginConfirmMessage.
   ///
   /// In zh, this message translates to:
-  /// **'14天内，只要登录一次账号，注销就会自动取消'**
+  /// **'14天内，只要登录一次账号，账号注销就会自动取消'**
   String get settingsDeactivateLoginConfirmMessage;
 
   /// No description provided for @commonCancel.
@@ -429,6 +429,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'分享'**
   String get commonShare;
+
+  /// No description provided for @commonOnline.
+  ///
+  /// In zh, this message translates to:
+  /// **'在线'**
+  String get commonOnline;
+
+  /// No description provided for @commonOffline.
+  ///
+  /// In zh, this message translates to:
+  /// **'离线'**
+  String get commonOffline;
 
   /// No description provided for @avatarAdjustTitle.
   ///
@@ -4468,6 +4480,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'新文字帖'**
   String get channelPostNewTextPreview;
+
+  /// No description provided for @channelPostNewImagePreview.
+  ///
+  /// In zh, this message translates to:
+  /// **'新图片帖'**
+  String get channelPostNewImagePreview;
 
   /// No description provided for @channelPostDefaultTitle.
   ///

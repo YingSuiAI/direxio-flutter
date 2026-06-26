@@ -157,14 +157,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsLogoutConfirmMessage => 'ログアウトしてもよろしいですか？';
 
   @override
-  String get settingsDeactivateLogin => 'ログインを無効化';
+  String get settingsDeactivateLogin => 'アカウントを削除';
 
   @override
-  String get settingsDeactivateLoginConfirmTitle => 'ログインを無効化';
+  String get settingsDeactivateLoginConfirmTitle => 'アカウントを削除';
 
   @override
   String get settingsDeactivateLoginConfirmMessage =>
-      '14日以内に一度ログインすると、無効化は自動的にキャンセルされます。';
+      '14日以内に一度ログインすると、アカウント削除は自動的にキャンセルされます。';
 
   @override
   String get commonCancel => 'キャンセル';
@@ -177,6 +177,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get commonShare => '共有';
+
+  @override
+  String get commonOnline => 'オンライン';
+
+  @override
+  String get commonOffline => 'オフライン';
 
   @override
   String get avatarAdjustTitle => 'アバターを調整';
@@ -2359,6 +2365,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get channelPostNewTextPreview => '新しいテキスト投稿';
+
+  @override
+  String get channelPostNewImagePreview => '新しい画像投稿';
 
   @override
   String get channelPostDefaultTitle => '自分の投稿';

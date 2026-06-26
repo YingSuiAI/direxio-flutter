@@ -34,6 +34,19 @@ String domainFromMxid(String mxid) {
   return serverNameFromMatrixId(trimmed);
 }
 
+String displayUidFromMxid(String uid) {
+  final trimmed = uid.trim();
+  final separator = trimmed.indexOf(':');
+  if (trimmed.startsWith('@') && separator > 1) {
+    final localpart = trimmed.substring(1, separator).trim();
+    final serverName = trimmed.substring(separator + 1).trim();
+    if (localpart.toLowerCase() == 'owner' && serverName.isNotEmpty) {
+      return serverName;
+    }
+  }
+  return trimmed;
+}
+
 String serverNameFromMatrixId(String id) {
   final trimmed = id.trim();
   final separator = trimmed.indexOf(':');

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1581,6 +1582,100 @@ void main() {
     expect(find.textContaining('评论 6'), findsOneWidget);
   });
 
+  testWidgets(
+      'channel post detail shows newest comments first when API is unordered',
+      (tester) async {
+    final asClient = _PostingChannelAsClient(
+      sortComments: false,
+      comments: const [
+        AsChannelComment(
+          commentId: 'old-comment',
+          postId: 'post1',
+          channelId: 'ch_real',
+          eventId: r'$old-comment',
+          authorId: '@old:p2p-im.com',
+          authorName: 'Old',
+          messageType: 'text',
+          body: '旧评论',
+          originServerTs: 1000,
+        ),
+        AsChannelComment(
+          commentId: 'new-comment',
+          postId: 'post1',
+          channelId: 'ch_real',
+          eventId: r'$new-comment',
+          authorId: '@new:p2p-im.com',
+          authorName: 'New',
+          messageType: 'text',
+          body: '新评论',
+          originServerTs: 3000,
+        ),
+        AsChannelComment(
+          commentId: 'middle-comment',
+          postId: 'post1',
+          channelId: 'ch_real',
+          eventId: r'$middle-comment',
+          authorId: '@middle:p2p-im.com',
+          authorName: 'Middle',
+          messageType: 'text',
+          body: '中间评论',
+          originServerTs: 2000,
+        ),
+      ],
+    );
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@owner:p2p-im.com'),
+      rooms: const [],
+      contacts: const [],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          description: '只发布重要产品更新',
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          tags: const ['产品'],
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          _channelPostStoreOverride(),
+          asClientProvider.overrideWithValue(asClient),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelPostDetailPage(
+            channelId: 'ch_real',
+            postId: 'post1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final newestTop = tester.getTopLeft(find.text('新评论')).dy;
+    final middleTop = tester.getTopLeft(find.text('中间评论')).dy;
+    final oldestTop = tester.getTopLeft(find.text('旧评论')).dy;
+
+    expect(newestTop, lessThan(middleTop));
+    expect(middleTop, lessThan(oldestTop));
+  });
+
   testWidgets('channel post detail renders comments without row reactions',
       (tester) async {
     final asClient = _PostingChannelAsClient(
@@ -2234,7 +2329,8 @@ void main() {
         find.byKey(const ValueKey('channel_remove_member_tile')), findsNothing);
 
     await tester.tap(find.text('分享频道'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('分享频道到'), findsOneWidget);
     await tester.tap(find.text('Carol'));
@@ -2250,6 +2346,92 @@ void main() {
     expect(payload['room_id'], '!real:p2p-im.com');
     expect(payload, isNot(contains('grant_id')));
     expect(payload, isNot(contains('share_room_id')));
+  });
+
+  testWidgets('channel share hides AS targets missing local Matrix rooms',
+      (tester) async {
+    final sentMatrixContents = <Map<String, dynamic>>[];
+    final matrixClient = Client(
+      'ChannelInfoMissingShareRoomTest',
+      httpClient: MockClient((request) async {
+        if (request.url.path.contains('/send/m.room.message')) {
+          sentMatrixContents.add(
+            (jsonDecode(request.body) as Map).cast<String, dynamic>(),
+          );
+          return http.Response(
+            r'{"event_id":"$channel-share-card"}',
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"next_batch":"s1","rooms":{}}',
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    )
+      ..setUserId('@alex:p2p-liyanan.com')
+      ..homeserver = Uri.parse('https://p2p-im.com')
+      ..accessToken = 'matrix-token';
+    final bootstrap = AsSyncBootstrap(
+      syncedAt: DateTime.parse('2026-06-06T10:30:00Z'),
+      user: const AsSyncUser(userId: '@alex:p2p-liyanan.com'),
+      rooms: const [],
+      contacts: const [
+        AsSyncContact(
+          userId: '@carol:p2p-carol.com',
+          displayName: 'Carol',
+          avatarUrl: '',
+          roomId: '!carol:p2p-im.com',
+          domain: 'p2p-carol.com',
+          status: 'accepted',
+        ),
+      ],
+      groups: const [],
+      channels: [
+        AsSyncRoomSummary(
+          channelId: 'ch_real',
+          roomId: '!real:p2p-im.com',
+          homeDomain: 'p2p-im.com',
+          name: '产品公告',
+          description: '频道介绍',
+          avatarUrl: '',
+          unreadCount: 0,
+          lastActivityAt: DateTime.parse('2026-06-06T10:20:00Z'),
+          isOwned: false,
+          role: asChannelRoleMember,
+          memberStatus: asChannelMemberStatusJoined,
+          memberCount: 3,
+        ),
+      ],
+      pending: const AsSyncPending.empty(),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          matrixClientProvider.overrideWithValue(matrixClient),
+          asClientProvider.overrideWithValue(_ChannelInfoMembersAsClient()),
+          asSyncCacheProvider.overrideWith(
+            (ref) => AsSyncCacheState(bootstrap: bootstrap),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: const ChannelInfoPage(channelId: 'ch_real'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('分享频道'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('分享频道到'), findsNothing);
+    expect(find.text('Carol'), findsNothing);
+    expect(find.textContaining('暂无已同步的可分享私聊或群聊'), findsOneWidget);
+    expect(sentMatrixContents, isEmpty);
   });
 
   testWidgets('channel info title omits member count when members are empty',
@@ -3017,7 +3199,7 @@ void main() {
       ),
     );
     expect(
-      (avatarImage.image as NetworkImage).url,
+      (avatarImage.image as CachedNetworkImageProvider).url,
       contains('/download/p2p-im.com/channel-avatar'),
     );
     expect(find.text('每周产品更新和频道公告'), findsOneWidget);
@@ -3057,7 +3239,7 @@ void main() {
         matching: find.byType(Image),
       ),
     );
-    expect((avatarImage.image as NetworkImage).url, avatarUrl);
+    expect((avatarImage.image as CachedNetworkImageProvider).url, avatarUrl);
   });
 
   testWidgets('channel detail info uses Matrix room name instead of room id',
@@ -3961,6 +4143,7 @@ class _PostingChannelAsClient extends MockAsClient {
     this.createdAuthorAvatarUrl = '',
     this.comments = const [],
     this.commentReactionCount = 1,
+    this.sortComments = true,
   });
 
   final String? postBody;
@@ -3974,6 +4157,7 @@ class _PostingChannelAsClient extends MockAsClient {
   final String createdAuthorAvatarUrl;
   final List<AsChannelComment> comments;
   final int commentReactionCount;
+  final bool sortComments;
   final List<int> requestedCommentPages = [];
   final List<int> requestedCommentPageSizes = [];
   final List<AsChannelComment> createdComments = [];
@@ -4063,8 +4247,10 @@ class _PostingChannelAsClient extends MockAsClient {
   }) async {
     requestedCommentPages.add(page);
     requestedCommentPageSizes.add(pageSize);
-    final sorted = [...comments, ...createdComments]
-      ..sort((a, b) => b.originServerTs.compareTo(a.originServerTs));
+    final sorted = [...comments, ...createdComments];
+    if (sortComments) {
+      sorted.sort((a, b) => b.originServerTs.compareTo(a.originServerTs));
+    }
     final start = (page <= 1 ? 0 : page - 1) * pageSize;
     return sorted.skip(start).take(pageSize).toList(growable: false);
   }

@@ -20,6 +20,7 @@ import '../providers/conversation_preferences_provider.dart';
 import '../providers/im_public_client_provider.dart';
 import '../providers/matrix_message_clients_provider.dart';
 import '../utils/contact_display_name.dart';
+import '../utils/contact_identity_label.dart';
 import '../utils/avatar_url.dart';
 import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
@@ -112,7 +113,7 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                     alignment: Alignment.centerLeft,
                     child: _PeerIdentityHeader(
                       name: name,
-                      uid: peerId ?? widget.roomId,
+                      uid: displayUidFromMxid(peerId ?? widget.roomId),
                       avatarUrl: avatarUrl,
                       onAvatarTap: canUseContactActions
                           ? () => context.push(

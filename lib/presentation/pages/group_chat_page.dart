@@ -2776,7 +2776,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     );
     final canSendMessages = !removedFromGroup && capabilityPolicy.canSendText;
     final canSendMedia = !removedFromGroup && capabilityPolicy.canSendMedia;
-    final canStartCall = !removedFromGroup && capabilityPolicy.canCall;
     final canQueueChannelTextFailure = !removedFromGroup &&
         !canSendMessages &&
         _isJoinedChannelConversation(room, syncCache);
@@ -2861,21 +2860,6 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                       onBack: () => unawaited(_popGroupChatOrHome(context)),
                       showEncryptionIcon: true,
                       actions: [
-                        if (!isChannelConversation)
-                          ChatCapsuleAction(
-                            icon: Symbols.call,
-                            tooltip: l10n.groupChatVoiceCall,
-                            color: t.accent,
-                            onTap: canStartCall
-                                ? () => context.push(
-                                      groupCallInviteRoute(
-                                        roomId: activeRoomId,
-                                        roomName: name,
-                                        callType: ProductCallType.voice,
-                                      ),
-                                    )
-                                : () => _showGroupCannotSendToast(context),
-                          ),
                         ChatCapsuleAction(
                           icon: Symbols.more_vert,
                           tooltip: l10n.groupChatDetails,
@@ -3529,14 +3513,12 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
                   onVideoUploadFailed: _failPendingMediaUpload,
                   onVoiceCall: null,
                   onVideoCall: null,
-                  visibleActions: _isChannelConversation
-                      ? const {
-                          ChatAttachmentAction.album,
-                          ChatAttachmentAction.camera,
-                          ChatAttachmentAction.video,
-                          ChatAttachmentAction.file,
-                        }
-                      : null,
+                  visibleActions: const {
+                    ChatAttachmentAction.album,
+                    ChatAttachmentAction.camera,
+                    ChatAttachmentAction.video,
+                    ChatAttachmentAction.file,
+                  },
                 ),
               if (showEmojiPanelContent)
                 ChatEmojiPanel(

@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +28,7 @@ import '../utils/product_conversation_navigation.dart';
 import '../widgets/m3/glass_header.dart';
 import '../widgets/portal_avatar.dart';
 import 'channel_inbox_data.dart';
+import 'channel_post_media.dart';
 import 'create_channel_sheet.dart';
 
 const _channelBg = Color(0xFFFAFAFA);
@@ -1423,13 +1427,40 @@ class _ChannelAvatar extends ConsumerWidget {
       channel.avatarUrl,
     );
     if (imageUrl != null) {
-      return PortalAvatar(
-        seed: channel.name,
-        size: size,
-        imageUrl: imageUrl,
-        shape: AvatarShape.squircle,
+      final stableKey = _channelAvatarStableCacheKey(channel);
+      final memoryBytes = _cachedChannelAvatarBytes(imageUrl, stableKey);
+      return FutureBuilder<Uint8List?>(
+        initialData: memoryBytes,
+        future: _loadCachedChannelAvatarBytes(
+          imageUrl,
+          stableKey: stableKey,
+        ),
+        builder: (context, snapshot) {
+          final bytes = snapshot.data;
+          if (bytes != null && bytes.isNotEmpty) {
+            return PortalAvatar(
+              seed: channel.name,
+              size: size,
+              imageBytes: bytes,
+              shape: AvatarShape.squircle,
+            );
+          }
+          return _ChannelAvatarFallback(channel: channel, size: size);
+        },
       );
     }
+    return _ChannelAvatarFallback(channel: channel, size: size);
+  }
+}
+
+class _ChannelAvatarFallback extends StatelessWidget {
+  const _ChannelAvatarFallback({required this.channel, required this.size});
+
+  final ChannelInboxItem channel;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = Localizations.of<AppLocalizations>(
       context,
       AppLocalizations,
@@ -1452,6 +1483,100 @@ class _ChannelAvatar extends ConsumerWidget {
         ).copyWith(height: 19 / 15),
       ),
     );
+  }
+}
+
+typedef ChannelAvatarCacheReader = Future<Uint8List?> Function(String imageUrl);
+
+const _channelAvatarMemoryCacheLimit = 256;
+
+ChannelAvatarCacheReader _channelAvatarCacheReader =
+    _readCachedChannelAvatarBytes;
+final _channelAvatarMemoryBytes = <String, Uint8List>{};
+final _channelAvatarMemoryLoads = <String, Future<Uint8List?>>{};
+
+@visibleForTesting
+void setChannelAvatarCacheReaderForTesting(
+  ChannelAvatarCacheReader? reader,
+) {
+  _channelAvatarCacheReader = reader ?? _readCachedChannelAvatarBytes;
+}
+
+@visibleForTesting
+void clearChannelAvatarMemoryCacheForTesting() {
+  _channelAvatarMemoryBytes.clear();
+  _channelAvatarMemoryLoads.clear();
+}
+
+Uint8List? _cachedChannelAvatarBytes(String imageUrl, String? stableKey) {
+  final memoryBytes = _channelAvatarMemoryBytes[imageUrl];
+  if (memoryBytes != null && memoryBytes.isNotEmpty) {
+    return memoryBytes;
+  }
+  if (stableKey == null) return null;
+  final stableBytes = _channelAvatarMemoryBytes[stableKey];
+  if (stableBytes != null && stableBytes.isNotEmpty) {
+    return stableBytes;
+  }
+  return null;
+}
+
+Future<Uint8List?> _loadCachedChannelAvatarBytes(
+  String imageUrl, {
+  required String? stableKey,
+}) {
+  final urlBytes = _channelAvatarMemoryBytes[imageUrl];
+  if (urlBytes != null && urlBytes.isNotEmpty) {
+    return Future.value(urlBytes);
+  }
+
+  final pending = _channelAvatarMemoryLoads[imageUrl];
+  if (pending != null) return pending;
+
+  final load = _channelAvatarCacheReader(imageUrl).then<Uint8List?>((bytes) {
+    if (bytes == null || bytes.isEmpty) {
+      return _cachedChannelAvatarBytes(imageUrl, stableKey);
+    }
+    _rememberChannelAvatarBytes(imageUrl, bytes);
+    if (stableKey != null) {
+      _rememberChannelAvatarBytes(stableKey, bytes);
+    }
+    return bytes;
+  }, onError: (_) {
+    return _cachedChannelAvatarBytes(imageUrl, stableKey);
+  }).whenComplete(() {
+    _channelAvatarMemoryLoads.remove(imageUrl);
+  });
+  _channelAvatarMemoryLoads[imageUrl] = load;
+  return load;
+}
+
+void _rememberChannelAvatarBytes(String imageUrl, Uint8List bytes) {
+  _channelAvatarMemoryBytes.remove(imageUrl);
+  _channelAvatarMemoryBytes[imageUrl] = bytes;
+  while (_channelAvatarMemoryBytes.length > _channelAvatarMemoryCacheLimit) {
+    _channelAvatarMemoryBytes.remove(_channelAvatarMemoryBytes.keys.first);
+  }
+}
+
+String? _channelAvatarStableCacheKey(ChannelInboxItem channel) {
+  final id = channel.id.trim();
+  if (id.isNotEmpty) return 'channel:$id';
+  final roomId = channel.roomId.trim();
+  if (roomId.isNotEmpty) return 'channel-room:$roomId';
+  return null;
+}
+
+Future<Uint8List?> _readCachedChannelAvatarBytes(String imageUrl) async {
+  try {
+    final cached = await CachedNetworkImageProvider.defaultCacheManager
+        .getFileFromCache(imageUrl);
+    final file = cached?.file;
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    return bytes.isEmpty ? null : bytes;
+  } catch (_) {
+    return null;
   }
 }
 
@@ -2334,7 +2459,7 @@ String _matrixRoomLatestPreview(
   final event = client.getRoomById(roomId.trim())?.lastEvent;
   if (normalizeAsChannelType(channelType) == asChannelTypePost) {
     if (!_matrixEventLooksLikeChannelPost(event)) return '';
-    return l10n?.channelPostNewTextPreview ?? 'New text post';
+    return channelPostPreviewForMessageContent(event!.content, l10n);
   }
   final preview = roomEventPreviewText(
     event,
@@ -2342,6 +2467,42 @@ String _matrixRoomLatestPreview(
     l10n: l10n,
   ).trim();
   return preview;
+}
+
+@visibleForTesting
+String channelPostPreviewForMessageType(
+  String msgType,
+  AppLocalizations? l10n,
+) {
+  if (msgType == MessageTypes.Image) {
+    return l10n?.channelPostNewImagePreview ?? 'New image post';
+  }
+  return l10n?.channelPostNewTextPreview ?? 'New text post';
+}
+
+@visibleForTesting
+String channelPostPreviewForMessageContent(
+  Map<String, Object?> content,
+  AppLocalizations? l10n,
+) {
+  if (_channelPostContentHasImageMedia(content)) {
+    return l10n?.channelPostNewImagePreview ?? 'New image post';
+  }
+  final msgType = (content['msgtype'] as String? ?? '').trim();
+  return channelPostPreviewForMessageType(msgType, l10n);
+}
+
+bool _channelPostContentHasImageMedia(Map<String, Object?> content) {
+  final media = _mapContentValue(content, 'media');
+  if (media.isNotEmpty && channelPostImagesFromMedia(media).isNotEmpty) {
+    return true;
+  }
+  final mediaJson = _mapContentValue(content, 'media_json');
+  if (mediaJson.isNotEmpty &&
+      channelPostImagesFromMedia(mediaJson).isNotEmpty) {
+    return true;
+  }
+  return false;
 }
 
 bool _matrixEventLooksLikeChannelPost(Event? event) {
@@ -2373,6 +2534,24 @@ bool _matrixEventLooksLikeChannelCommentOrReaction(Event event) {
 String _stringContentValue(Event event, String key) {
   final value = event.content[key];
   return value is String ? value.trim() : '';
+}
+
+Map<String, Object?> _mapContentValue(
+  Map<String, Object?> content,
+  String key,
+) {
+  final value = content[key];
+  if (value is Map<String, Object?>) return value;
+  if (value is Map) return value.cast<String, Object?>();
+  if (value is String) {
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is Map) return decoded.cast<String, Object?>();
+    } catch (_) {
+      return const {};
+    }
+  }
+  return const {};
 }
 
 DateTime? _matrixRoomLatestAt(Client client, String roomId) {

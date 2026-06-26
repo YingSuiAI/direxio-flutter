@@ -256,7 +256,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
                     _UserHeader(
                       name: displayName,
                       badge: _roleBadge(acceptedContact?.domain, l10n),
-                      uid: userId,
+                      uid: displayUidFromMxid(userId),
                       onUidTap: () => _copyUid(context, userId),
                       avatarUrl: avatarUrl,
                       seed: avatarSeed,
@@ -431,7 +431,7 @@ class _ContactDetailPageState extends ConsumerState<ContactDetailPage> {
               const SizedBox(height: 24),
               _AvatarProfileHeader(
                 name: displayName,
-                uid: widget.userId,
+                uid: displayUidFromMxid(widget.userId),
                 avatarUrl: avatarUrl,
                 seed: seed,
                 onUidTap: () => _copyUid(context, widget.userId),

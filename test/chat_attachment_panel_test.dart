@@ -64,12 +64,12 @@ void main() {
       'Voice call',
       'Video Call',
       'Video',
-      'Location',
-      'Contact card',
       'File',
     ]) {
       expect(find.text(label), findsOneWidget);
     }
+    expect(find.text('Location'), findsNothing);
+    expect(find.text('Contact card'), findsNothing);
     expect(find.text('相册'), findsNothing);
     expect(find.text('拍摄'), findsNothing);
   });

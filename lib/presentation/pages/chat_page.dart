@@ -46,6 +46,7 @@ import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/group_call_history_merge.dart';
 import '../chat/chat_scroll_metrics.dart';
+import '../chat/chat_scroll_to_latest.dart';
 import '../chat/chat_media_warmup.dart';
 import '../chat/chat_media_send_flow.dart';
 import '../chat/chat_timeline_items.dart';
@@ -365,8 +366,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   final ChatInitialEntranceRegistry _initialTimelineEntrances =
       ChatInitialEntranceRegistry();
   final ScrollController _messageScrollCtrl = ScrollController();
-  Object? _lastAutoScrolledTimelineItemKey;
-  Object? _pendingAutoScrollTimelineItemKey;
+  final ChatScrollToLatestCoordinator _scrollToLatestCoordinator =
+      ChatScrollToLatestCoordinator();
+  Timer? _scrollToLatestRetryTimer;
   bool _pendingViewportScrollToBottom = false;
   double _lastKeyboardInsetBottom = 0;
   double _emojiPanelHeight = chatEmojiPanelDefaultHeight;
@@ -595,22 +597,48 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   void _scheduleScrollToLatest(Object? newestItemKey) {
-    if ((_pendingTargetEventId?.trim() ?? '').isNotEmpty) return;
-    if (newestItemKey == null) return;
-    if (_lastAutoScrolledTimelineItemKey == newestItemKey ||
-        _pendingAutoScrollTimelineItemKey == newestItemKey) {
+    final targetEventPending = (_pendingTargetEventId?.trim() ?? '').isNotEmpty;
+    if (!_scrollToLatestCoordinator.request(
+      newestItemKey,
+      targetEventPending: targetEventPending,
+    )) {
       return;
     }
-    _pendingAutoScrollTimelineItemKey = newestItemKey;
+    _runScheduledScrollToLatest(newestItemKey!);
+  }
+
+  void _runScheduledScrollToLatest(Object newestItemKey) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_pendingAutoScrollTimelineItemKey != newestItemKey) return;
-      _pendingAutoScrollTimelineItemKey = null;
+      final targetEventPending =
+          (_pendingTargetEventId?.trim() ?? '').isNotEmpty;
+      if (!_scrollToLatestCoordinator.shouldRun(
+        newestItemKey,
+        targetEventPending: targetEventPending,
+      )) {
+        return;
+      }
       final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
-      if (position == null) return;
+      if (position == null) {
+        if (_scrollToLatestCoordinator.retry(newestItemKey)) {
+          _scrollToLatestRetryTimer?.cancel();
+          _scrollToLatestRetryTimer = Timer(
+            const Duration(milliseconds: 16),
+            () {
+              if (mounted) _runScheduledScrollToLatest(newestItemKey);
+            },
+          );
+        }
+        return;
+      }
       final target = position.maxScrollExtent;
-      _lastAutoScrolledTimelineItemKey = newestItemKey;
+      final shouldJump = _scrollToLatestCoordinator.shouldJump;
+      _scrollToLatestCoordinator.complete(newestItemKey);
       if ((position.pixels - target).abs() < 1) return;
+      if (shouldJump) {
+        _messageScrollCtrl.jumpTo(target);
+        return;
+      }
       unawaited(
         _messageScrollCtrl.animateTo(
           target,
@@ -1062,6 +1090,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   @override
   void dispose() {
     _roomSyncSub?.cancel();
+    _scrollToLatestRetryTimer?.cancel();
     _targetEventScrollTimer?.cancel();
     _initialTimelineEntranceTimer?.cancel();
     _asCallHistoryReloadTimer?.cancel();
@@ -2646,8 +2675,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ? projectAgentMessageEvents<Event>(
             messageEvents,
             eventId: (event) => event.eventId,
-            content: (event) => Map<String, Object?>.from(event.content),
-            fallbackBody: _messageDisplayText,
+            content: (event) => agentDisplayContentForEvent(event, _timeline),
+            fallbackBody: (event) =>
+                agentDisplayFallbackBodyForEvent(event, _timeline),
             timestampMs: (event) => event.originServerTs.millisecondsSinceEpoch,
           )
         : null;
@@ -4304,6 +4334,7 @@ class _SChatBubble extends StatelessWidget {
                   selectable: false,
                   cards: agentContent!.cards,
                   isGenerating: agentContent!.isGenerating,
+                  animateUpdates: true,
                 )
               else
                 Text(

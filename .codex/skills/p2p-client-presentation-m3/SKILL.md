@@ -68,10 +68,11 @@ reloaded.
 
 Agent chat headers must show bridge/event-stream presence, not typing or
 streaming generation state. Source it from the current Agent status contract
-where `connected` means active agent-token `/_p2p/events` presence. Agent
-Markdown, cards, Matrix edits, stream fragments, and `/` quick-command
-suggestions belong in the chat UI while actual sends remain ordinary Matrix
-text sends to the real `agent_room_id`.
+where `online` is the user-facing online bit and `connected` means active
+agent-token `/_p2p/events` presence. Agent Markdown, cards, Matrix edits
+including SDK-aggregated display events, stream fragments, typewritten appended
+reply updates, and `/` quick-command suggestions belong in the chat UI while
+actual sends remain ordinary Matrix text sends to the real `agent_room_id`.
 
 The logged-in home conversation list is for direct, group, and Agent
 conversations. Channel conversations belong under the channel tab/detail

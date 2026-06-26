@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // AI Bot / Agent 消息体：渲染 Markdown
 // 用户自己的消息走纯文本，不进这个组件
 import 'package:flutter/material.dart';
@@ -8,23 +10,86 @@ import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../chat/agent_message_content.dart';
 
-class AgentMessageBody extends StatelessWidget {
+class AgentMessageBody extends StatefulWidget {
   const AgentMessageBody(
     this.text, {
     super.key,
     this.selectable = true,
     this.cards = const [],
     this.isGenerating = false,
+    this.animateUpdates = false,
   });
 
   final String text;
   final bool selectable;
   final List<AgentMessageCard> cards;
   final bool isGenerating;
+  final bool animateUpdates;
+
+  @override
+  State<AgentMessageBody> createState() => _AgentMessageBodyState();
+}
+
+class _AgentMessageBodyState extends State<AgentMessageBody> {
+  static const _typewriterTick = Duration(milliseconds: 16);
+  static const _typewriterCharsPerTick = 6;
+
+  Timer? _typewriterTimer;
+  late String _visibleText;
+  late String _targetText;
+
+  @override
+  void initState() {
+    super.initState();
+    _visibleText = widget.text;
+    _targetText = widget.text;
+  }
+
+  @override
+  void didUpdateWidget(covariant AgentMessageBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.text == _targetText) return;
+    if (!widget.animateUpdates ||
+        !widget.text.startsWith(_visibleText) ||
+        widget.text.length <= _visibleText.length) {
+      _typewriterTimer?.cancel();
+      _targetText = widget.text;
+      _visibleText = widget.text;
+      return;
+    }
+    _targetText = widget.text;
+    _startTypewriter();
+  }
+
+  @override
+  void dispose() {
+    _typewriterTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startTypewriter() {
+    _typewriterTimer?.cancel();
+    _typewriterTimer = Timer.periodic(_typewriterTick, (_) {
+      if (!mounted) return;
+      if (_visibleText.length >= _targetText.length) {
+        _typewriterTimer?.cancel();
+        return;
+      }
+      setState(() {
+        final nextLength =
+            (_visibleText.length + _typewriterCharsPerTick).clamp(
+          0,
+          _targetText.length,
+        );
+        _visibleText = _targetText.substring(0, nextLength);
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final text = _visibleText;
     final baseStyle = AppTheme.sans(
       size: 14,
       color: t.text,
@@ -59,13 +124,13 @@ class AgentMessageBody extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (text.trim().isNotEmpty)
-          selectable ? SelectionArea(child: themed) : themed,
-        for (final card in cards) ...[
-          if (text.trim().isNotEmpty || cards.indexOf(card) > 0)
+          widget.selectable ? SelectionArea(child: themed) : themed,
+        for (final card in widget.cards) ...[
+          if (text.trim().isNotEmpty || widget.cards.indexOf(card) > 0)
             const SizedBox(height: 8),
           _AgentStructuredCard(card: card),
         ],
-        if (isGenerating) ...[
+        if (widget.isGenerating) ...[
           const SizedBox(height: 8),
           Row(
             mainAxisSize: MainAxisSize.min,

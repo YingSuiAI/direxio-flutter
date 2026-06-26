@@ -51,9 +51,11 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`. `calls.event` supports `connected`, `ended`, `rejected`, `missed`, and `failed`; `GET /_p2p/events` can push `call.changed` with `payload.call` so active call UI can show the other party rejected or hung up in real time. Outgoing direct calls time out after 60 seconds without connection, write P2P state `missed`, and send an `m.call.hangup` with `reason=invite_timeout` so the chat page shows an unconnected voice-call record and the receiver cannot join that call late.
 - Agent/API actions: `agent.*` and `apis.*`. `agent.status.connected`
   means active agent-token `GET /_p2p/events` presence, not enabled
-  configuration. The UI may derive bridge presence from `connected`,
-  `online`, `configured`, and `agent_room_id`; disconnected configured agents
-  are offline, while unconfigured/no-room responses are unknown.
+  configuration. `agent.status.online` is the user-facing online bit
+  (`enabled && connected`). The UI must show online from `online`, keep
+  `connected` as bridge/event-stream diagnostics, treat configured but not
+  online agents as offline, and treat unconfigured/no-room responses as
+  unknown.
 
 ## Matrix Responsibilities
 

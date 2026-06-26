@@ -84,9 +84,11 @@ Public remote channel lookup must use explicitly configured AS remotes or reques
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile data is not part of initialization.
 
 `agent.status.connected` means active agent-token `GET /_p2p/events`
-presence. It is not the same as Agent enabled/configured state. UI/provider
-code should name this as bridge/event-stream presence and keep online/offline
-separate from typing, thinking, or streaming reply generation.
+presence. It is not the same as Agent enabled/configured state.
+`agent.status.online` is the user-facing online bit (`enabled && connected`).
+UI/provider code should show online from `online`, name `connected` as
+bridge/event-stream diagnostics, and keep both separate from typing, thinking,
+or streaming reply generation.
 
 Channel share cards must include `channel_id` and `room_id` and must not create
 invite grants. Owner and ordinary member share buttons both send recommendation

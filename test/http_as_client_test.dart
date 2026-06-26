@@ -1295,6 +1295,39 @@ void main() {
     expect(status.allHealthy, isFalse);
   });
 
+  test('agent status parses online separately from event stream connection',
+      () async {
+    final client = HttpAsClient(
+      baseUri: Uri.parse('https://example.com/_p2p'),
+      portalToken: 'portal-token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/_p2p/query');
+        expect(jsonDecode(request.body), {
+          'action': 'agent.status',
+          'params': <String, Object?>{},
+        });
+        return _jsonResponse({
+          'online': false,
+          'connected': true,
+          'enabled': false,
+          'configured': true,
+          'display_name': 'Ops Agent',
+          'agent_room_id': '!agent:example.com',
+        }, 200);
+      }),
+    );
+
+    final status = await client.getAgentStatus();
+
+    expect(status.connected, isTrue);
+    expect(status.online, isFalse);
+    expect(status.enabled, isFalse);
+    expect(status.configured, isTrue);
+    expect(status.displayName, 'Ops Agent');
+    expect(status.agentRoomId, '!agent:example.com');
+  });
+
   test('streamEvents uses P2P SSE endpoint with replay cursor', () async {
     final client = HttpAsClient(
       baseUri: Uri.parse('https://example.com/_p2p'),

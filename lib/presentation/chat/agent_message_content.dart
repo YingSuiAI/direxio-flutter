@@ -1,3 +1,5 @@
+import 'package:matrix/matrix.dart';
+
 class AgentMessageContent {
   const AgentMessageContent({
     required this.markdown,
@@ -8,6 +10,19 @@ class AgentMessageContent {
   final String markdown;
   final List<AgentMessageCard> cards;
   final bool isGenerating;
+}
+
+Map<String, Object?> agentDisplayContentForEvent(
+    Event event, Timeline? timeline) {
+  final displayEvent =
+      timeline == null ? event : event.getDisplayEvent(timeline);
+  return Map<String, Object?>.from(displayEvent.content);
+}
+
+String agentDisplayFallbackBodyForEvent(Event event, Timeline? timeline) {
+  final displayEvent =
+      timeline == null ? event : event.getDisplayEvent(timeline);
+  return displayEvent.calcUnlocalizedBody(hideEdit: true).trim();
 }
 
 class AgentMessageCard {

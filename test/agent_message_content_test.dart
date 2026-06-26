@@ -1,4 +1,8 @@
+// ignore_for_file: implementation_imports
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
+import 'package:matrix/src/models/timeline_chunk.dart';
 import 'package:portal_app/presentation/chat/agent_message_content.dart';
 
 void main() {
@@ -32,6 +36,42 @@ void main() {
       projection.contentForEvent(projection.visibleEvents.single)!.markdown,
       '**final**',
     );
+  });
+
+  test('agent matrix aggregated edit uses the display event content', () {
+    final client = Client('agent-message-content-test');
+    final room = Room(id: '!agent:example.org', client: client);
+    final original = Event(
+      content: {'msgtype': 'm.text', 'body': 'draft'},
+      type: EventTypes.Message,
+      eventId: r'$preview',
+      senderId: '@agent:example.org',
+      originServerTs: DateTime.fromMillisecondsSinceEpoch(1),
+      room: room,
+    );
+    final edit = Event(
+      content: {
+        'msgtype': 'm.text',
+        'body': '* updated',
+        'm.new_content': {'msgtype': 'm.text', 'body': 'updated'},
+        'm.relates_to': {'rel_type': 'm.replace', 'event_id': r'$preview'},
+      },
+      type: EventTypes.Message,
+      eventId: r'$edit',
+      senderId: '@agent:example.org',
+      originServerTs: DateTime.fromMillisecondsSinceEpoch(2),
+      room: room,
+    );
+    final timeline = Timeline(
+      room: room,
+      chunk: TimelineChunk(events: [original, edit]),
+    );
+    addTearDown(timeline.cancelSubscriptions);
+
+    final content = agentDisplayContentForEvent(original, timeline);
+
+    expect(content['body'], 'updated');
+    expect(content.containsKey('m.relates_to'), isFalse);
   });
 
   test('agent stream fragments merge into one generating message', () {

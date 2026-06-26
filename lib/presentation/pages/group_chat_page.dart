@@ -50,6 +50,7 @@ import '../chat/chat_record_detail_page.dart';
 import '../chat/chat_record_forwarding.dart';
 import '../chat/chat_media_send_flow.dart';
 import '../chat/chat_scroll_metrics.dart';
+import '../chat/chat_scroll_to_latest.dart';
 import '../chat/chat_timeline_items.dart';
 import '../chat/chat_video_preview_page.dart';
 import '../chat/chat_voice_player.dart';
@@ -345,8 +346,9 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   final Map<String, GlobalKey> _messageAnchorKeys = {};
   final Map<String, int> _messageListIndexes = {};
   final ScrollController _messageScrollCtrl = ScrollController();
-  Object? _lastAutoScrolledTimelineItemKey;
-  Object? _pendingAutoScrollTimelineItemKey;
+  final ChatScrollToLatestCoordinator _scrollToLatestCoordinator =
+      ChatScrollToLatestCoordinator();
+  Timer? _scrollToLatestRetryTimer;
   bool _pendingViewportScrollToBottom = false;
   double _lastKeyboardInsetBottom = 0;
   double _emojiPanelHeight = chatEmojiPanelDefaultHeight;
@@ -813,22 +815,48 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
   }
 
   void _scheduleScrollToLatest(Object? newestItemKey) {
-    if ((_pendingTargetEventId?.trim() ?? '').isNotEmpty) return;
-    if (newestItemKey == null) return;
-    if (_lastAutoScrolledTimelineItemKey == newestItemKey ||
-        _pendingAutoScrollTimelineItemKey == newestItemKey) {
+    final targetEventPending = (_pendingTargetEventId?.trim() ?? '').isNotEmpty;
+    if (!_scrollToLatestCoordinator.request(
+      newestItemKey,
+      targetEventPending: targetEventPending,
+    )) {
       return;
     }
-    _pendingAutoScrollTimelineItemKey = newestItemKey;
+    _runScheduledScrollToLatest(newestItemKey!);
+  }
+
+  void _runScheduledScrollToLatest(Object newestItemKey) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_pendingAutoScrollTimelineItemKey != newestItemKey) return;
-      _pendingAutoScrollTimelineItemKey = null;
+      final targetEventPending =
+          (_pendingTargetEventId?.trim() ?? '').isNotEmpty;
+      if (!_scrollToLatestCoordinator.shouldRun(
+        newestItemKey,
+        targetEventPending: targetEventPending,
+      )) {
+        return;
+      }
       final position = chatScrollPositionWithDimensions(_messageScrollCtrl);
-      if (position == null) return;
+      if (position == null) {
+        if (_scrollToLatestCoordinator.retry(newestItemKey)) {
+          _scrollToLatestRetryTimer?.cancel();
+          _scrollToLatestRetryTimer = Timer(
+            const Duration(milliseconds: 16),
+            () {
+              if (mounted) _runScheduledScrollToLatest(newestItemKey);
+            },
+          );
+        }
+        return;
+      }
       final target = position.maxScrollExtent;
-      _lastAutoScrolledTimelineItemKey = newestItemKey;
+      final shouldJump = _scrollToLatestCoordinator.shouldJump;
+      _scrollToLatestCoordinator.complete(newestItemKey);
       if ((position.pixels - target).abs() < 1) return;
+      if (shouldJump) {
+        _messageScrollCtrl.jumpTo(target);
+        return;
+      }
       unawaited(
         _messageScrollCtrl.animateTo(
           target,
@@ -1480,6 +1508,7 @@ class _GroupChatPageState extends ConsumerState<GroupChatPage> {
     unawaited(_matrixSyncSub?.cancel());
     _timeline?.cancelSubscriptions();
     _initialTimelineEntranceTimer?.cancel();
+    _scrollToLatestRetryTimer?.cancel();
     _targetEventScrollTimer?.cancel();
     _asCallHistoryReloadTimer?.cancel();
     _flashingMessageTimer?.cancel();

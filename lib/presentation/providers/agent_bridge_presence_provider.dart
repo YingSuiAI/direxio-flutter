@@ -74,7 +74,7 @@ AgentBridgePresence agentBridgePresenceFromStatus(AgentStatus status) {
     );
   }
   return AgentBridgePresence(
-    state: status.connected
+    state: status.online
         ? AgentBridgePresenceState.online
         : AgentBridgePresenceState.offline,
     status: status,

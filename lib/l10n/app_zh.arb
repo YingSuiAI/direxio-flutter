@@ -155,6 +155,45 @@
   "channelManageMyChannels": "我的频道",
   "channelManageCreateChannel": "创建新频道",
   "channelManageCreateChannelValue": "名称、头像、简介",
+  "createChannelTitle": "创建频道",
+  "createChannelNameTitle": "频道名称",
+  "createChannelNameHint": "请输入",
+  "createChannelAvatarTitle": "上传频道头像",
+  "createChannelAvatarSubtitle": "支持图片上传，作为频道展示头像",
+  "createChannelTypeTitle": "选择频道类型",
+  "createChannelTypeText": "文字",
+  "createChannelTypeTextSubtitle": "成员自由发言",
+  "createChannelTypePosts": "帖子",
+  "createChannelTypePostsSubtitle": "帖子与评论",
+  "createChannelPermissionsTitle": "频道权限",
+  "createChannelPublicTitle": "是否公开",
+  "createChannelPublicSubtitle": "关闭后仅通过邀请加入",
+  "createChannelApprovalTitle": "加入是否需要审核",
+  "createChannelApprovalSubtitle": "开启后新成员加入前需要频道审核",
+  "createChannelIntroTitle": "频道介绍",
+  "createChannelIntroHint": "输入频道介绍...",
+  "createChannelSubmit": "创建频道",
+  "createChannelAvatarUploading": "频道头像上传中，请稍候",
+  "createChannelNameRequired": "频道名称不能为空",
+  "createChannelAvatarRequired": "请上传频道头像",
+  "createChannelIntroRequired": "频道介绍不能为空",
+  "createChannelAvatarUploadFailed": "频道头像上传失败：{error}",
+  "@createChannelAvatarUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "createChannelCreated": "频道已创建",
+  "createChannelFailed": "创建频道失败：{error}",
+  "@createChannelFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "channelManageInviteLinks": "频道邀请链接",
   "channelManageInviteLinksValue": "{count} 个有效",
   "@channelManageInviteLinksValue": {
@@ -318,6 +357,102 @@
   "contactRoomMissingBlock": "拉黑用户失败: 缺少联系人房间信息",
   "contactRoomMissingDelete": "删除好友失败: 缺少联系人房间信息",
   "contactRoomMissingRemark": "缺少联系人房间信息，无法保存备注",
+  "chatInfoTitle": "聊天信息",
+  "chatInfoMissingConversation": "会话不存在",
+  "chatInfoSearchRecords": "搜索聊天记录",
+  "chatInfoContactMissingRemark": "缺少联系人信息，无法设置备注",
+  "chatInfoSelfBlockDisabled": "当前用户无法拉黑",
+  "chatInfoSelfReportDisabled": "当前用户无法举报",
+  "chatInfoClearHistory": "清空聊天记录",
+  "chatInfoClearHistoryConfirm": "确定清空所有聊天记录？该操作不可恢复。",
+  "chatInfoClearHistoryAction": "清空",
+  "chatInfoClearHistoryCleared": "聊天记录已清空",
+  "chatInfoClearHistoryFailed": "清空聊天记录失败: {error}",
+  "@chatInfoClearHistoryFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInfoUidCopied": "已复制 UID",
+  "chatInfoContactSyncing": "正在同步联系人信息",
+  "groupInfoTitle": "聊天信息({count})",
+  "@groupInfoTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupInfoInvite": "邀请",
+  "groupInfoRemove": "移除",
+  "groupInfoManagement": "群管理",
+  "groupInfoSearchRecords": "查找聊天记录",
+  "groupInfoPinChat": "置顶聊天",
+  "groupInfoMyNickname": "我在本群昵称",
+  "groupInfoShowMemberNicknames": "显示群成员昵称",
+  "groupInfoReportGroup": "举报群聊",
+  "groupInfoDissolveGroup": "解散群聊",
+  "groupInfoLeaveGroup": "退出群聊",
+  "groupInfoNoRemovableMembers": "暂无可移除成员",
+  "groupInfoRemoveMemberTitle": "移除成员",
+  "groupInfoRemoveMemberConfirm": "确定将 {name} 移出群聊吗？",
+  "@groupInfoRemoveMemberConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoMemberRemoved": "已移除{name}",
+  "@groupInfoMemberRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoRemoveMemberFailed": "移除成员失败: {error}",
+  "@groupInfoRemoveMemberFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoRemarkTitle": "备注",
+  "groupInfoRemarkHint": "输入群聊备注",
+  "groupInfoRemarkCleared": "已清除群聊备注",
+  "groupInfoRemarkUpdated": "群聊备注已更新",
+  "groupInfoNicknameHint": "输入群昵称",
+  "groupInfoNicknameEmpty": "群昵称不能为空",
+  "groupInfoCurrentUserMissing": "缺少当前用户信息",
+  "groupInfoNicknameUpdated": "群昵称已更新",
+  "groupInfoNicknameUpdateFailed": "设置群昵称失败: {error}",
+  "@groupInfoNicknameUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoClearHistoryConfirm": "确定清空当前群聊的所有聊天记录？该操作不可恢复。",
+  "groupInfoDissolveConfirm": "确定要解散该群聊吗？",
+  "groupInfoLeaveConfirm": "确定要退出该群聊吗？",
+  "groupInfoDissolveAction": "解散",
+  "groupInfoLeaveAction": "退出",
+  "groupInfoLeaveFailed": "{action}群聊失败: {error}",
+  "@groupInfoLeaveFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "contactFriendRequestRestored": "已恢复旧会话，可以继续聊天。",
   "contactFriendRequestSent": "好友请求已发送，等待对方接受。",
   "contactDeleteConfirmTitle": "删除好友",
@@ -353,6 +488,32 @@
       }
     }
   },
+  "reportReasonDialogTitle": "请选择举报原因",
+  "reportReasonHarassment": "骚扰/辱骂",
+  "reportReasonSpam": "垃圾信息/广告",
+  "reportReasonSexual": "色情/不当内容",
+  "reportReasonViolence": "暴力内容",
+  "reportReasonFraud": "欺诈",
+  "reportReasonOther": "其他",
+  "reportReasonOtherHint": "请填写举报原因",
+  "reportReasonPickImages": "上传图片",
+  "reportReasonImagesSelected": "已选择{count}张图片",
+  "@reportReasonImagesSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reportReasonPickImageFailed": "图片选择失败: {error}",
+  "@reportReasonPickImageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "reportReasonSubmit": "提交",
   "contactRemarkEmpty": "备注不能为空",
   "contactRemarkUpdateFailed": "备注更新失败: {error}",
   "@contactRemarkUpdateFailed": {
@@ -648,6 +809,8 @@
   "messagePreviewVoiceBracket": "[语音]",
   "messagePreviewChatRecordBracket": "[聊天记录]",
   "messagePreviewChannelBracket": "[频道]",
+  "messagePreviewChannelShare": "频道分享",
+  "messagePreviewGroupInvite": "邀请加入群聊",
   "messagePreviewMessage": "消息",
   "messagePreviewSendFailed": "发送失败",
   "messagePreviewCallRejected": "已拒绝通话",
@@ -833,6 +996,7 @@
   "groupChatRemovedCannotSend": "无法在已退出的群聊中发送消息",
   "commonOk": "确定",
   "commonRetry": "重试",
+  "commonUser": "用户",
   "sessionExpiredTitle": "账号在其他设备登录",
   "sessionExpiredMessage": "当前账号已在其他设备登录。点击确定后请重新手动输入密码登录。",
   "chatRecordForwarded": "已转发聊天记录",
@@ -851,6 +1015,150 @@
   "channelNoPublicContentSubtitle": "加入频道后可以查看后续发布内容",
   "channelEmptyTitle": "还没有频道",
   "channelEmptySubtitle": "加入或创建频道后会显示在这里",
+  "channelSyncingTitle": "正在同步频道",
+  "channelSyncingSubtitle": "请稍候",
+  "channelMyChannelsTitle": "我的频道",
+  "channelJoinedSection": "已加入",
+  "channelCreatedSection": "我创建",
+  "channelCreatedEmptyTitle": "暂无我创建的频道",
+  "channelJoinedEmptyTitle": "暂无已加入频道",
+  "channelCreatedEmptySubtitle": "创建的频道会显示在这里",
+  "channelJoinedEmptySubtitle": "加入的频道会显示在这里",
+  "channelOpenSyncing": "频道正在同步，请稍后重试",
+  "channelDissolved": "频道已经解散",
+  "channelKindText": "文字",
+  "channelKindPost": "帖子",
+  "channelAvatarFallback": "频",
+  "channelMenuPin": "置顶",
+  "channelMenuUnpin": "取消置顶",
+  "channelMenuPinned": "已置顶「{name}」",
+  "@channelMenuPinned": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelMenuUnpinned": "已取消置顶「{name}」",
+  "@channelMenuUnpinned": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelMenuHide": "不显示",
+  "channelMenuHidden": "已隐藏「{name}」",
+  "@channelMenuHidden": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelMenuDelete": "删除频道",
+  "channelMenuDeleted": "已删除「{name}」",
+  "@channelMenuDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelTimeMonday": "周一",
+  "channelTimeTuesday": "周二",
+  "channelTimeWednesday": "周三",
+  "channelTimeThursday": "周四",
+  "channelTimeFriday": "周五",
+  "channelTimeSaturday": "周六",
+  "channelTimeSunday": "周日",
+  "channelInfoTitle": "频道信息",
+  "channelInfoDetailAction": "频道详情",
+  "channelInfoShareAction": "分享频道",
+  "channelInfoReportAction": "举报频道",
+  "channelInfoLeaveAction": "退出频道",
+  "channelInfoDissolveAction": "解散频道",
+  "channelInfoNoRemovableMembers": "暂无可移除成员",
+  "channelInfoRemoveMembersTitle": "移除频道成员",
+  "channelInfoConfirmRemove": "确认移除{name}",
+  "@channelInfoConfirmRemove": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoMemberRemoved": "已移除成员",
+  "channelInfoRemoveFailed": "移除失败：{error}",
+  "@channelInfoRemoveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoMuteAll": "全员禁言",
+  "channelInfoMuteEnabled": "已开启全员禁言",
+  "channelInfoMuteDisabled": "已解除全员禁言",
+  "channelInfoMuteEnableFailed": "开启全员禁言失败：{error}",
+  "@channelInfoMuteEnableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoMuteDisableFailed": "解除全员禁言失败：{error}",
+  "@channelInfoMuteDisableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoReportMissingRoom": "举报提交失败: 缺少频道房间ID",
+  "channelInfoReportSubmitted": "举报已提交",
+  "channelInfoReportFailed": "举报提交失败: {error}",
+  "@channelInfoReportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoShared": "已分享频道",
+  "channelInfoShareFailed": "分享频道失败：{error}",
+  "@channelInfoShareFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoLeaveConfirm": "确定退出？",
+  "channelInfoLeft": "已退出频道",
+  "channelInfoLeaveFailed": "退出频道失败：{error}",
+  "@channelInfoLeaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoDissolveConfirm": "确定解散？",
+  "channelInfoDissolved": "已解散频道",
+  "channelInfoDissolveFailed": "解散频道失败：{error}",
+  "@channelInfoDissolveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelDetailIntroTitle": "频道介绍",
+  "channelDetailTitle": "频道详情",
+  "channelDetailCopiedId": "已复制频道 ID",
+  "channelDetailNoIntro": "暂无频道介绍",
   "channelJoinFailed": "加入频道失败：{error}",
   "@channelJoinFailed": {
     "placeholders": {

@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:matrix/matrix.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/app_localizations_zh.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/as_client.dart';
@@ -30,6 +32,13 @@ import '../widgets/m3/m3_card.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/info_rows.dart';
 import '../widgets/report_reason_dialog.dart';
+
+final AppLocalizations _fallbackGroupInfoL10n = AppLocalizationsZh();
+
+AppLocalizations _groupInfoL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations) ??
+      _fallbackGroupInfoL10n;
+}
 
 class GroupInfoPage extends ConsumerStatefulWidget {
   const GroupInfoPage({super.key, required this.roomId});
@@ -70,6 +79,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _groupInfoL10n(context);
     final client = ref.watch(matrixClientProvider);
     final room = client.getRoomById(widget.roomId);
     final pinnedConversationIds = ref.watch(pinnedConversationIdsProvider);
@@ -174,7 +184,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
         child: Column(
           children: [
             GlassHeader.detail(
-              title: '聊天信息($memberCount)',
+              title: l10n.groupInfoTitle(memberCount),
             ),
             Expanded(
               child: ListView(
@@ -209,6 +219,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                           ),
                         _InviteChip(
                           key: const ValueKey('group_info_invite_member'),
+                          label: l10n.groupInfoInvite,
                           onTap: () => showInviteGroupMembersFlow(
                             context,
                             ref,
@@ -218,6 +229,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                         ),
                         if (canManageGroup)
                           _RemoveMemberChip(
+                            label: l10n.groupInfoRemove,
                             onTap: _removingMember
                                 ? null
                                 : () => _showRemoveMemberSheet(
@@ -237,7 +249,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                       children: [
                         if (canManageGroup) ...[
                           InfoNavRow(
-                            label: '群管理',
+                            label: l10n.groupInfoManagement,
                             onTap: () => context.push(
                               '/group-manage/${Uri.encodeComponent(widget.roomId)}',
                             ),
@@ -245,7 +257,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                           const InfoDivider(),
                         ],
                         InfoNavRow(
-                          label: '设置备注',
+                          label: l10n.contactSetRemark,
                           value: groupRemark.isEmpty ? null : groupRemark,
                           onTap: () => _showGroupRemarkDialog(
                             context,
@@ -262,7 +274,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                   M3Card(
                     padding: EdgeInsets.zero,
                     child: InfoNavRow(
-                      label: '查找聊天记录',
+                      label: l10n.groupInfoSearchRecords,
                       onTap: () => context.push(
                         '/room-search/${Uri.encodeComponent(widget.roomId)}',
                       ),
@@ -275,14 +287,14 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                     child: Column(
                       children: [
                         InfoSwitchRow(
-                          label: '消息免打扰',
+                          label: l10n.contactMuteMessages,
                           value: mutedConversationIds.contains(widget.roomId),
                           onChanged: (v) =>
                               setConversationMuted(ref, widget.roomId, v),
                         ),
                         const InfoDivider(),
                         InfoSwitchRow(
-                          label: '置顶聊天',
+                          label: l10n.groupInfoPinChat,
                           value: pinnedConversationIds.contains(widget.roomId),
                           onChanged: (_) {
                             toggleConversationPin(ref, widget.roomId);
@@ -290,7 +302,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                         ),
                         const InfoDivider(),
                         InfoNavRow(
-                          label: '我在本群昵称',
+                          label: l10n.groupInfoMyNickname,
                           value:
                               currentNickname.isEmpty ? null : currentNickname,
                           onTap: room == null
@@ -303,7 +315,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                         ),
                         const InfoDivider(),
                         InfoSwitchRow(
-                          label: '显示群成员昵称',
+                          label: l10n.groupInfoShowMemberNicknames,
                           value: _showMemberNick,
                           onChanged: (v) => setState(() => _showMemberNick = v),
                         ),
@@ -317,14 +329,14 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                     child: Column(
                       children: [
                         InfoNavRow(
-                          label: '清空聊天记录',
+                          label: l10n.chatInfoClearHistory,
                           onTap: _clearing
                               ? null
                               : () => _confirmClearChatHistory(context),
                         ),
                         const InfoDivider(),
                         InfoNavRow(
-                          label: '举报群聊',
+                          label: l10n.groupInfoReportGroup,
                           onTap: () => _showReportDialog(context),
                         ),
                       ],
@@ -335,7 +347,9 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                   M3Card(
                     padding: EdgeInsets.zero,
                     child: InfoCenterRow(
-                      label: canDissolveGroup ? '解散群聊' : '退出群聊',
+                      label: canDissolveGroup
+                          ? l10n.groupInfoDissolveGroup
+                          : l10n.groupInfoLeaveGroup,
                       danger: true,
                       onTap: () => _confirmLeave(
                         context,
@@ -401,7 +415,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     }).toList();
 
     if (removableMembers.isEmpty) {
-      _toast(context, '暂无可移除成员');
+      _toast(context, _groupInfoL10n(context).groupInfoNoRemovableMembers);
       return;
     }
 
@@ -421,7 +435,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
-                    '移除成员',
+                    _groupInfoL10n(sheetContext).groupInfoRemoveMemberTitle,
                     style: AppTheme.sans(
                       size: 17,
                       weight: FontWeight.w600,
@@ -492,6 +506,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
 
   Future<void> _confirmRemoveMember(BuildContext context, User member) async {
     if (_removingMember) return;
+    final l10n = _groupInfoL10n(context);
     final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
     final displayName = _groupMemberDisplayName(
       room: room,
@@ -501,25 +516,25 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          '移除成员',
+          l10n.groupInfoRemoveMemberTitle,
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '确定将 $displayName 移出群聊吗？',
+          l10n.groupInfoRemoveMemberConfirm(displayName),
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
-              '取消',
+              l10n.commonCancel,
               style: AppTheme.sans(size: 15, color: context.tk.textMute),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(
-              '移除',
+              l10n.groupInfoRemove,
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -537,6 +552,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   Future<void> _removeGroupMember(User member) async {
     final peerMxid = member.id.trim();
     if (_removingMember || peerMxid.isEmpty) return;
+    final l10n = _groupInfoL10n(context);
     final messenger = ScaffoldMessenger.of(context);
     final room = ref.read(matrixClientProvider).getRoomById(widget.roomId);
     final displayName = _groupMemberDisplayName(
@@ -567,11 +583,15 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
           ),
         ),
       );
-      messenger.showSnackBar(SnackBar(content: Text('已移除$displayName')));
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.groupInfoMemberRemoved(displayName))),
+      );
       await _fetchMembers();
     } on Object catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('移除成员失败: $e')));
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.groupInfoRemoveMemberFailed('$e'))),
+      );
     } finally {
       if (mounted) setState(() => _removingMember = false);
     }
@@ -581,15 +601,21 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     BuildContext context, {
     required String currentName,
   }) async {
+    final l10n = _groupInfoL10n(context);
     final next = await _showTextEditDialog(
       context,
-      title: '备注',
+      title: l10n.groupInfoRemarkTitle,
       initialValue: currentName,
-      hintText: '输入群聊备注',
+      hintText: l10n.groupInfoRemarkHint,
     );
     if (!context.mounted || next == null) return;
     setGroupRemarkName(ref, widget.roomId, next);
-    _toast(context, next.trim().isEmpty ? '已清除群聊备注' : '群聊备注已更新');
+    _toast(
+      context,
+      next.trim().isEmpty
+          ? l10n.groupInfoRemarkCleared
+          : l10n.groupInfoRemarkUpdated,
+    );
   }
 
   Future<void> _showMyGroupNicknameDialog(
@@ -597,22 +623,23 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     required Room room,
     required String currentName,
   }) async {
+    final l10n = _groupInfoL10n(context);
     final next = await _showTextEditDialog(
       context,
-      title: '我在本群昵称',
+      title: l10n.groupInfoMyNickname,
       initialValue: currentName,
-      hintText: '输入群昵称',
+      hintText: l10n.groupInfoNicknameHint,
     );
     if (!context.mounted || next == null) return;
     final nickname = next.trim();
     if (nickname.isEmpty) {
-      _toast(context, '群昵称不能为空');
+      _toast(context, l10n.groupInfoNicknameEmpty);
       return;
     }
     try {
       final userId = room.client.userID;
       if (userId == null || userId.isEmpty) {
-        throw StateError('缺少当前用户信息');
+        throw StateError(l10n.groupInfoCurrentUserMissing);
       }
       final content =
           room.getState(EventTypes.RoomMember, userId)?.content.copy() ?? {};
@@ -634,37 +661,38 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
       );
       if (!mounted) return;
       setState(() {});
-      _toast(this.context, '群昵称已更新');
+      _toast(this.context, l10n.groupInfoNicknameUpdated);
     } on Object catch (e) {
       if (!context.mounted) return;
-      _toast(context, '设置群昵称失败: $e');
+      _toast(context, l10n.groupInfoNicknameUpdateFailed('$e'));
     }
   }
 
   Future<void> _confirmClearChatHistory(BuildContext context) async {
+    final l10n = _groupInfoL10n(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          '清空聊天记录',
+          l10n.chatInfoClearHistory,
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '确定清空当前群聊的所有聊天记录？该操作不可恢复。',
+          l10n.groupInfoClearHistoryConfirm,
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
-              '取消',
+              l10n.commonCancel,
               style: AppTheme.sans(size: 15, color: context.tk.textMute),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(
-              '清空',
+              l10n.chatInfoClearHistoryAction,
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -687,10 +715,10 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
             clearedBeforeTs: clearedBeforeTs,
           );
       if (!context.mounted) return;
-      _toast(context, '聊天记录已清空');
+      _toast(context, l10n.chatInfoClearHistoryCleared);
     } on Object catch (e) {
       if (!context.mounted) return;
-      _toast(context, '清空聊天记录失败: $e');
+      _toast(context, l10n.chatInfoClearHistoryFailed('$e'));
     } finally {
       if (mounted) setState(() => _clearing = false);
     }
@@ -701,29 +729,34 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     required bool dissolve,
   }) async {
     if (_leaving) return;
+    final l10n = _groupInfoL10n(context);
+    final title =
+        dissolve ? l10n.groupInfoDissolveGroup : l10n.groupInfoLeaveGroup;
+    final action =
+        dissolve ? l10n.groupInfoDissolveAction : l10n.groupInfoLeaveAction;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          dissolve ? '解散群聊' : '退出群聊',
+          title,
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          dissolve ? '确定要解散该群聊吗？' : '确定要退出该群聊吗？',
+          dissolve ? l10n.groupInfoDissolveConfirm : l10n.groupInfoLeaveConfirm,
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
-              '取消',
+              l10n.commonCancel,
               style: AppTheme.sans(size: 15, color: context.tk.textMute),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(
-              dissolve ? '解散' : '退出',
+              action,
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -746,7 +779,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
     } on Object catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${dissolve ? '解散' : '退出'}群聊失败: $e')),
+        SnackBar(content: Text(l10n.groupInfoLeaveFailed(action, '$e'))),
       );
     } finally {
       if (mounted) setState(() => _leaving = false);
@@ -754,6 +787,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
   }
 
   Future<void> _showReportDialog(BuildContext context) async {
+    final l10n = _groupInfoL10n(context);
     final result = await showDialog<ReportReasonResult>(
       context: context,
       barrierColor: context.tk.text.withValues(alpha: 0.7),
@@ -775,10 +809,10 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
             files: result.toImPublicFiles(),
           );
       if (!context.mounted) return;
-      _toast(context, '举报已提交');
+      _toast(context, l10n.contactReportSubmitted);
     } catch (error) {
       if (!context.mounted) return;
-      _toast(context, '举报提交失败: $error');
+      _toast(context, l10n.contactReportSubmitFailed('$error'));
     }
   }
 }
@@ -786,7 +820,7 @@ class _GroupInfoPageState extends ConsumerState<GroupInfoPage> {
 Future<void> _copyGroupUid(BuildContext context, String uid) async {
   await Clipboard.setData(ClipboardData(text: uid));
   if (!context.mounted) return;
-  _toast(context, '已复制 UID');
+  _toast(context, _groupInfoL10n(context).chatInfoUidCopied);
 }
 
 String _groupDisplayName({
@@ -1093,6 +1127,7 @@ class _GroupTextEditDialogState extends State<_GroupTextEditDialog> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _groupInfoL10n(context);
     return AlertDialog(
       title: Text(
         widget.title,
@@ -1112,14 +1147,14 @@ class _GroupTextEditDialogState extends State<_GroupTextEditDialog> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
-            '取消',
+            l10n.commonCancel,
             style: AppTheme.sans(size: 15, color: t.textMute),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
           child: Text(
-            '保存',
+            l10n.commonSave,
             style: AppTheme.sans(
               size: 15,
               weight: FontWeight.w600,
@@ -1230,7 +1265,8 @@ class _MemberChip extends StatelessWidget {
 }
 
 class _InviteChip extends StatelessWidget {
-  const _InviteChip({super.key, required this.onTap});
+  const _InviteChip({super.key, required this.label, required this.onTap});
+  final String label;
   final VoidCallback onTap;
 
   @override
@@ -1256,7 +1292,7 @@ class _InviteChip extends StatelessWidget {
                 child: Icon(Symbols.add, size: 22, color: t.textMute),
               ),
               const SizedBox(height: 4),
-              Text('邀请', style: AppTheme.sans(size: 10, color: t.textMute)),
+              Text(label, style: AppTheme.sans(size: 10, color: t.textMute)),
             ],
           ),
         ),
@@ -1266,7 +1302,8 @@ class _InviteChip extends StatelessWidget {
 }
 
 class _RemoveMemberChip extends StatelessWidget {
-  const _RemoveMemberChip({required this.onTap});
+  const _RemoveMemberChip({required this.label, required this.onTap});
+  final String label;
   final VoidCallback? onTap;
 
   @override
@@ -1297,7 +1334,7 @@ class _RemoveMemberChip extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '移除',
+                label,
                 style: AppTheme.sans(
                   size: 10,
                   color: t.textMute,

@@ -10,6 +10,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../chat/chat_glass_background.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
@@ -23,6 +24,10 @@ import '../utils/avatar_url.dart';
 import '../widgets/center_toast.dart';
 import '../widgets/portal_avatar.dart';
 import '../widgets/report_reason_dialog.dart';
+
+AppLocalizations? _chatInfoL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
+}
 
 /// `s-chat-info` — 单聊聊天信息 (index.html L597-675)
 ///
@@ -48,14 +53,17 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _chatInfoL10n(context);
     final client = ref.read(matrixClientProvider);
     final syncCache = ref.watch(asSyncCacheProvider);
     final room = client.getRoomById(widget.roomId);
     if (room == null) {
       return Scaffold(
         backgroundColor: chatPageBackgroundColor(context),
-        body: const ChatGlassBackground(
-          child: Center(child: Text('会话不存在')),
+        body: ChatGlassBackground(
+          child: Center(
+            child: Text(l10n?.chatInfoMissingConversation ?? '会话不存在'),
+          ),
         ),
       );
     }
@@ -67,6 +75,7 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
       acceptedContact: acceptedContact,
       peerId: peerId,
       roomId: widget.roomId,
+      l10n: l10n,
     );
     final peerMember =
         peerId == null ? null : room.unsafeGetUserFromMemoryOrFallback(peerId);
@@ -116,7 +125,7 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                   ),
                   const SizedBox(height: 24),
                   _ChatInfoRow(
-                    label: '搜索聊天记录',
+                    label: l10n?.chatInfoSearchRecords ?? '搜索聊天记录',
                     onTap: () => context.push(
                       '/room-search/${Uri.encodeComponent(widget.roomId)}',
                     ),
@@ -124,7 +133,7 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                   if (peerId != null && !isSelf) ...[
                     const SizedBox(height: 12),
                     _ChatInfoRow(
-                      label: '他的频道',
+                      label: l10n?.contactHisChannels ?? '他的频道',
                       onTap: () => context.push(
                         '/contact-channels/${Uri.encodeComponent(peerId)}',
                       ),
@@ -133,9 +142,13 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                   ],
                   const SizedBox(height: 12),
                   _ChatInfoRow(
-                    label: '设置备注',
+                    label: l10n?.contactSetRemark ?? '设置备注',
                     onTap: peerId == null
-                        ? () => _toast(context, '缺少联系人信息，无法设置备注')
+                        ? () => _toast(
+                              context,
+                              l10n?.chatInfoContactMissingRemark ??
+                                  '缺少联系人信息，无法设置备注',
+                            )
                         : () => _showRemarkDialog(
                               context,
                               userId: peerId,
@@ -146,7 +159,7 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                   ),
                   const SizedBox(height: 12),
                   _ChatInfoSwitchRow(
-                    label: '消息免打扰',
+                    label: l10n?.contactMuteMessages ?? '消息免打扰',
                     value: muted,
                     onChanged: (value) => setConversationMuted(
                       ref,
@@ -156,21 +169,27 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
                   ),
                   const SizedBox(height: 12),
                   _ChatInfoRow(
-                    label: '清空聊天记录',
+                    label: l10n?.chatInfoClearHistory ?? '清空聊天记录',
                     onTap: () => _confirmClear(context),
                   ),
                   const SizedBox(height: 12),
                   _ChatInfoRow(
-                    label: '拉黑用户',
+                    label: l10n?.contactBlockUserDetail ?? '拉黑用户',
                     onTap: isSelf
-                        ? () => _toast(context, '当前用户无法拉黑')
+                        ? () => _toast(
+                              context,
+                              l10n?.chatInfoSelfBlockDisabled ?? '当前用户无法拉黑',
+                            )
                         : () => _confirmBlockContact(context, room.id),
                   ),
                   const SizedBox(height: 12),
                   _ChatInfoRow(
-                    label: '举报用户',
+                    label: l10n?.contactReportUser ?? '举报用户',
                     onTap: peerId == null || isSelf
-                        ? () => _toast(context, '当前用户无法举报')
+                        ? () => _toast(
+                              context,
+                              l10n?.chatInfoSelfReportDisabled ?? '当前用户无法举报',
+                            )
                         : () => _showReportDialog(
                               context,
                               reportedDomain: peerDomain,
@@ -200,18 +219,19 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     required String domain,
     required String currentName,
   }) async {
+    final l10n = _chatInfoL10n(context);
     final next = await showDialog<String>(
       context: context,
       builder: (_) => _RemarkDialog(initialValue: currentName),
     );
     if (!context.mounted || next == null) return;
     if (next.trim().isEmpty) {
-      _toast(context, '备注不能为空');
+      _toast(context, l10n?.contactRemarkEmpty ?? '备注不能为空');
       return;
     }
     final cleanRoomId = roomId.trim();
     if (cleanRoomId.isEmpty) {
-      _toast(context, '缺少联系人房间信息，无法保存备注');
+      _toast(context, l10n?.contactRoomMissingRemark ?? '缺少联系人房间信息，无法保存备注');
       return;
     }
     ContactEntry updated;
@@ -223,7 +243,10 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
           );
     } catch (error) {
       if (!context.mounted) return;
-      _toast(context, '备注更新失败: $error');
+      _toast(
+        context,
+        l10n?.contactRemarkUpdateFailed('$error') ?? '备注更新失败: $error',
+      );
       return;
     }
     if (!context.mounted) return;
@@ -245,13 +268,14 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
         }),
       );
     }
-    _toast(context, '备注已更新');
+    _toast(context, l10n?.contactRemarkUpdated ?? '备注已更新');
   }
 
   Future<void> _showReportDialog(
     BuildContext context, {
     required String reportedDomain,
   }) async {
+    final l10n = _chatInfoL10n(context);
     final result = await showDialog<ReportReasonResult>(
       context: context,
       barrierColor: context.tk.text.withValues(alpha: 0.7),
@@ -274,10 +298,13 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
             files: result.toImPublicFiles(),
           );
       if (!context.mounted) return;
-      _toast(context, '举报已提交');
+      _toast(context, l10n?.contactReportSubmitted ?? '举报已提交');
     } catch (error) {
       if (!context.mounted) return;
-      _toast(context, '举报提交失败: $error');
+      _toast(
+        context,
+        l10n?.contactReportSubmitFailed('$error') ?? '举报提交失败: $error',
+      );
     }
   }
 
@@ -286,29 +313,30 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     String roomId,
   ) async {
     if (_deleting) return;
+    final l10n = _chatInfoL10n(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-          '删除好友',
+          l10n?.contactDeleteConfirmTitle ?? '删除好友',
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '删除后将不再显示该联系人，会话关系也会同步更新。',
+          l10n?.contactDeleteConfirmBody ?? '删除后将不再显示该联系人，会话关系也会同步更新。',
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: Text(
-              '取消',
+              l10n?.commonCancel ?? '取消',
               style: AppTheme.sans(size: 15, color: context.tk.textMute),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
-              '删除',
+              l10n?.contactDeleteAction ?? '删除',
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -325,8 +353,9 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
       await _removeContact(
         context,
         roomId,
-        successMessage: '已删除好友',
-        failurePrefix: '删除好友失败',
+        successMessage: l10n?.contactDeleted ?? '已删除好友',
+        failureMessage: (error) =>
+            l10n?.contactDeleteFailed(error) ?? '删除好友失败: $error',
       );
     } finally {
       if (mounted) setState(() => _deleting = false);
@@ -338,29 +367,30 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     String roomId,
   ) async {
     if (_blocking) return;
+    final l10n = _chatInfoL10n(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-          '拉黑用户',
+          l10n?.contactBlockConfirmTitle ?? '拉黑用户',
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '拉黑后将移除该联系人和会话关系。',
+          l10n?.contactBlockConfirmBody ?? '拉黑后将移除该联系人和会话关系。',
           style: AppTheme.sans(size: 15, color: context.tk.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: Text(
-              '取消',
+              l10n?.commonCancel ?? '取消',
               style: AppTheme.sans(size: 15, color: context.tk.textMute),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: Text(
-              '拉黑',
+              l10n?.contactBlockAction ?? '拉黑',
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -377,8 +407,9 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
       await _removeContact(
         context,
         roomId,
-        successMessage: '已拉黑用户',
-        failurePrefix: '拉黑用户失败',
+        successMessage: l10n?.contactBlocked ?? '已拉黑用户',
+        failureMessage: (error) =>
+            l10n?.contactBlockFailed(error) ?? '拉黑用户失败: $error',
       );
     } finally {
       if (mounted) setState(() => _blocking = false);
@@ -389,7 +420,7 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
     BuildContext context,
     String roomId, {
     required String successMessage,
-    required String failurePrefix,
+    required String Function(String error) failureMessage,
   }) async {
     final client = ref.read(matrixClientProvider);
     try {
@@ -413,35 +444,36 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
       context.go('/home');
     } catch (e) {
       if (!context.mounted) return;
-      _toast(context, '$failurePrefix: $e');
+      _toast(context, failureMessage('$e'));
     }
   }
 
   Future<void> _confirmClear(BuildContext context) async {
     final t = context.tk;
+    final l10n = _chatInfoL10n(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: Text(
-          '清空聊天记录',
+          l10n?.chatInfoClearHistory ?? '清空聊天记录',
           style: AppTheme.sans(size: 17, weight: FontWeight.w600),
         ),
         content: Text(
-          '确定清空所有聊天记录？该操作不可恢复。',
+          l10n?.chatInfoClearHistoryConfirm ?? '确定清空所有聊天记录？该操作不可恢复。',
           style: AppTheme.sans(size: 15, color: t.textMute),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(c).pop(false),
             child: Text(
-              '取消',
+              l10n?.commonCancel ?? '取消',
               style: AppTheme.sans(size: 15, color: t.textMute),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.of(c).pop(true),
             child: Text(
-              '清空',
+              l10n?.chatInfoClearHistoryAction ?? '清空',
               style: AppTheme.sans(
                 size: 15,
                 weight: FontWeight.w600,
@@ -464,13 +496,19 @@ class _ChatInfoPageState extends ConsumerState<ChatInfoPage> {
           );
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('聊天记录已清空')),
+        SnackBar(
+          content: Text(l10n?.chatInfoClearHistoryCleared ?? '聊天记录已清空'),
+        ),
       );
       Navigator.of(context).maybePop();
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('清空聊天记录失败: $e')),
+        SnackBar(
+          content: Text(
+            l10n?.chatInfoClearHistoryFailed('$e') ?? '清空聊天记录失败: $e',
+          ),
+        ),
       );
     }
   }
@@ -483,7 +521,8 @@ void _toast(BuildContext context, String message) {
 Future<void> _copyUid(BuildContext context, String uid) async {
   await Clipboard.setData(ClipboardData(text: uid));
   if (!context.mounted) return;
-  _toast(context, '已复制 UID');
+  final l10n = _chatInfoL10n(context);
+  _toast(context, l10n?.chatInfoUidCopied ?? '已复制 UID');
 }
 
 String _chatInfoDisplayName({
@@ -491,12 +530,13 @@ String _chatInfoDisplayName({
   required AsSyncContact? acceptedContact,
   required String? peerId,
   required String roomId,
+  AppLocalizations? l10n,
 }) {
   if (room != null && acceptedContact != null) {
     return directContactDisplayName(acceptedContact, room);
   }
   if (room != null && !room.isDirectChat) {
-    return '正在同步联系人信息';
+    return l10n?.chatInfoContactSyncing ?? '正在同步联系人信息';
   }
   return room?.getLocalizedDisplayname() ?? peerId ?? roomId;
 }
@@ -509,6 +549,7 @@ class _ChatInfoHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _chatInfoL10n(context);
     return SizedBox(
       height: 48,
       child: Stack(
@@ -549,7 +590,7 @@ class _ChatInfoHeader extends StatelessWidget {
             ),
           ),
           Text(
-            '聊天信息',
+            l10n?.chatInfoTitle ?? '聊天信息',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTheme.sans(
@@ -797,6 +838,7 @@ class _DeleteFriendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _chatInfoL10n(context);
     return SafeArea(
       top: false,
       child: Padding(
@@ -824,7 +866,7 @@ class _DeleteFriendButton extends StatelessWidget {
                       ),
                     )
                   : Text(
-                      '删除好友',
+                      l10n?.contactDeleteFriend ?? '删除好友',
                       style: AppTheme.sans(
                         size: 14,
                         weight: FontWeight.w500,
@@ -861,9 +903,10 @@ class _RemarkDialogState extends State<_RemarkDialog> {
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
+    final l10n = _chatInfoL10n(context);
     return AlertDialog(
       title: Text(
-        '设置备注',
+        l10n?.contactSetRemark ?? '设置备注',
         style: AppTheme.sans(size: 17, weight: FontWeight.w600),
       ),
       content: TextField(
@@ -871,7 +914,7 @@ class _RemarkDialogState extends State<_RemarkDialog> {
         autofocus: true,
         maxLength: 32,
         decoration: InputDecoration(
-          hintText: '输入备注名',
+          hintText: l10n?.contactRemarkHint ?? '输入备注名',
           hintStyle: AppTheme.sans(size: 15, color: t.textMute),
         ),
         style: AppTheme.sans(size: 15, color: t.text),
@@ -880,14 +923,14 @@ class _RemarkDialogState extends State<_RemarkDialog> {
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(
-            '取消',
+            l10n?.commonCancel ?? '取消',
             style: AppTheme.sans(size: 15, color: t.textMute),
           ),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
           child: Text(
-            '保存',
+            l10n?.contactRemarkSave ?? '保存',
             style: AppTheme.sans(
               size: 15,
               weight: FontWeight.w600,

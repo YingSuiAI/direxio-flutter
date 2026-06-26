@@ -5,6 +5,7 @@ import 'contact_identity_label.dart';
 import 'direct_contact_status.dart';
 
 const defaultAgentDisplayName = 'Agent';
+const agentAvatarAsset = 'assets/images/ai_icon.png';
 
 String agentDisplayNameForRoom(
   Room? room, {

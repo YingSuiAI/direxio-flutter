@@ -29,6 +29,10 @@ Do not add or restore P2P ordinary message/search/backup action clients. These a
 
 Ordinary message send, media send, history, unread, message search, and recall must use Matrix Client-Server APIs. Local delete/clear uses `POST /_matrix/client/v1/io.direxio/rooms/{roomID}/local_delete` with either `event_ids` or `clear`, never both.
 
+Agent room text and `/` commands are ordinary Matrix message sends into the
+real private `agent_room_id`. Do not add P2P command facades for chat text, and
+do not depend on legacy pseudo agent room ids.
+
 Do not add duplicate list APIs or duplicate client flows. If data already arrives through `/_p2p/query` action `sync.bootstrap`, prefer extending that contract and the client model.
 
 Keep `sync.bootstrap` metadata-only. Do not add historical read message bodies, `last_message`, or other message content fields.
@@ -78,6 +82,11 @@ Public remote channel lookup must use explicitly configured AS remotes or reques
 `users.public_channels` returns only the target user's owned/admin public channels. Cross-node profile/add-contact entry points must pass `remote_node_base_url` through `getUserPublicChannels(remoteNodeBaseUri:)` so the local AS can forward to the target owner node.
 
 `portal.status` may use the unified shape: `initialized`, `user_id`, `homeserver`, `store_mode`, `projector_started`. `initialized` means the generated initial password has been changed; owner profile data is not part of initialization.
+
+`agent.status.connected` means active agent-token `GET /_p2p/events`
+presence. It is not the same as Agent enabled/configured state. UI/provider
+code should name this as bridge/event-stream presence and keep online/offline
+separate from typing, thinking, or streaming reply generation.
 
 Channel share cards must include `channel_id` and `room_id` and must not create
 invite grants. Owner and ordinary member share buttons both send recommendation

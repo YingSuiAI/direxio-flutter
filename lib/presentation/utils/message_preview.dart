@@ -4,6 +4,7 @@ import '../../data/local_outbox_store.dart';
 import '../../l10n/app_localizations.dart';
 import '../chat/call_timeline_events.dart';
 import '../chat/chat_record_forwarding.dart';
+import '../groups/group_invite_content.dart';
 
 const _channelShareMessageType = 'channel_share';
 const defaultAgentConversationPreview = '开始我们的聊天吧';
@@ -23,6 +24,12 @@ String roomEventPreviewText(
   final callText = callPreviewText(event, l10n: l10n);
   if (callText.isNotEmpty) return callText;
   if (event.type != EventTypes.Message && event.text.isEmpty) return fallback;
+  if (isChannelShareEvent(event)) {
+    return l10n?.messagePreviewChannelShare ?? '频道分享';
+  }
+  if (isGroupInviteEvent(event)) {
+    return l10n?.messagePreviewGroupInvite ?? '邀请加入群聊';
+  }
   if (event.type == EventTypes.Message &&
       event.messageType == MessageTypes.Image) {
     return event.senderId == event.room.client.userID
@@ -53,13 +60,18 @@ String roomEventPreviewText(
 
 bool isChannelShareEvent(Event? event) {
   if (event == null || event.type != EventTypes.Message) return false;
-  final content = event.content.map(
-    (key, value) => MapEntry(key.toString(), value),
-  );
-  final productType = (content[chatRecordMatrixMarkerKey] as String?) ??
-      (content['message_type'] as String?) ??
-      '';
+  final productType = _productMessageType(event);
   return productType == _channelShareMessageType;
+}
+
+bool isGroupInviteEvent(Event? event) {
+  if (event == null || event.type != EventTypes.Message) return false;
+  final productType = _productMessageType(event);
+  if (productType == GroupInviteContent.msgTypeV1 ||
+      productType == GroupInviteContent.legacyMsgType) {
+    return true;
+  }
+  return GroupInviteContent.tryParse(event.content) != null;
 }
 
 String conversationPreviewText({
@@ -93,10 +105,7 @@ String quotedEventPreviewText(Event? event, {AppLocalizations? l10n}) {
   if (event.type != EventTypes.Message && event.text.isEmpty) {
     return l10n?.messagePreviewMessage ?? '消息';
   }
-  final content = event.content.map(
-    (key, value) => MapEntry(key.toString(), value),
-  );
-  final productType = (content[chatRecordMatrixMarkerKey] as String?) ?? '';
+  final productType = _productMessageType(event);
   if (productType == chatRecordMessageType) {
     return l10n?.messagePreviewChatRecordBracket ?? '[聊天记录]';
   }
@@ -119,6 +128,16 @@ String quotedEventPreviewText(Event? event, {AppLocalizations? l10n}) {
     }
   }
   return previewText(_stripMatrixReplyFallback(event.plaintextBody));
+}
+
+String _productMessageType(Event event) {
+  final content = event.content.map(
+    (key, value) => MapEntry(key.toString(), value),
+  );
+  return (content[chatRecordMatrixMarkerKey] as String?) ??
+      (content['message_type'] as String?) ??
+      (content['msgtype'] as String?) ??
+      '';
 }
 
 int conversationUnreadCount({

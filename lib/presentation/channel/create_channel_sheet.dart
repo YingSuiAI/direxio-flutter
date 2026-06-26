@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/api_logger.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_bootstrap_store_provider.dart';
 import '../providers/as_client_provider.dart';
 import '../providers/as_sync_cache_provider.dart';
@@ -40,8 +41,11 @@ Future<void> showCreateChannelDialog(
 }
 
 String _channelTypeForDraft(String type) {
-  return type.trim() == '帖子' ? 'post' : 'chat';
+  return type.trim() == _createChannelTypePostsValue ? 'post' : 'chat';
 }
+
+const _createChannelTypeTextValue = '文字';
+const _createChannelTypePostsValue = '帖子';
 
 String createChannelJoinPolicyForApproval(bool needsApproval) {
   return needsApproval ? asChannelJoinPolicyApproval : asChannelJoinPolicyOpen;
@@ -78,7 +82,7 @@ class _CreateChannelSheet extends ConsumerStatefulWidget {
 class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
   final _nameCtrl = TextEditingController();
   final _introCtrl = TextEditingController();
-  String _type = '文字';
+  String _type = _createChannelTypeTextValue;
   String _avatarUrl = '';
   Uint8List? _avatarPreviewBytes;
   bool _avatarUploading = false;
@@ -95,6 +99,7 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
 
   Future<void> _pickAvatar() async {
     if (_avatarUploading) return;
+    final l10n = _createChannelL10n(context);
     setState(() => _avatarUploading = true);
     try {
       final file = await ImagePicker().pickImage(
@@ -119,7 +124,11 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('频道头像上传失败：$e')),
+        SnackBar(
+          content: Text(
+            l10n?.createChannelAvatarUploadFailed('$e') ?? '频道头像上传失败：$e',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _avatarUploading = false);
@@ -128,21 +137,34 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
 
   Future<void> _submit() async {
     if (_creating) return;
+    final l10n = _createChannelL10n(context);
     if (_avatarUploading) {
-      _showCenterWeakHint(context, '频道头像上传中，请稍候');
+      _showCenterWeakHint(
+        context,
+        l10n?.createChannelAvatarUploading ?? '频道头像上传中，请稍候',
+      );
       return;
     }
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      _showCenterWeakHint(context, '频道名称不能为空');
+      _showCenterWeakHint(
+        context,
+        l10n?.createChannelNameRequired ?? '频道名称不能为空',
+      );
       return;
     }
     if (_avatarUrl.trim().isEmpty) {
-      _showCenterWeakHint(context, '请上传频道头像');
+      _showCenterWeakHint(
+        context,
+        l10n?.createChannelAvatarRequired ?? '请上传频道头像',
+      );
       return;
     }
     if (_introCtrl.text.trim().isEmpty) {
-      _showCenterWeakHint(context, '频道介绍不能为空');
+      _showCenterWeakHint(
+        context,
+        l10n?.createChannelIntroRequired ?? '频道介绍不能为空',
+      );
       return;
     }
 
@@ -206,7 +228,10 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
       const duration = Duration(milliseconds: 700);
       final messenger = ScaffoldMessenger.of(context);
       messenger.showSnackBar(
-        const SnackBar(content: Text('频道已创建'), duration: duration),
+        SnackBar(
+          content: Text(l10n?.createChannelCreated ?? '频道已创建'),
+          duration: duration,
+        ),
       );
       await Future<void>.delayed(duration);
       if (!mounted) return;
@@ -216,13 +241,16 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
       if (!mounted) return;
       setState(() => _creating = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('创建频道失败：$e')),
+        SnackBar(
+          content: Text(l10n?.createChannelFailed('$e') ?? '创建频道失败：$e'),
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _createChannelL10n(context);
     final topInset = MediaQuery.of(context).padding.top;
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     return Scaffold(
@@ -261,52 +289,61 @@ class _CreateChannelSheetState extends ConsumerState<_CreateChannelSheet> {
                   ),
                   const SizedBox(height: 24),
                   _CreateChannelSection(
-                    title: '选择频道类型',
+                    title: l10n?.createChannelTypeTitle ?? '选择频道类型',
                     gap: 5,
                     child: Row(
                       children: [
                         Expanded(
                           child: _CreateChannelTypeTile(
                             assetName: 'assets/images/icon_edit.png',
-                            title: '文字',
-                            subtitle: '成员自由发言',
-                            selected: _type == '文字',
-                            onTap: () => setState(() => _type = '文字'),
+                            title: l10n?.createChannelTypeText ?? '文字',
+                            subtitle:
+                                l10n?.createChannelTypeTextSubtitle ?? '成员自由发言',
+                            selected: _type == _createChannelTypeTextValue,
+                            onTap: () => setState(
+                              () => _type = _createChannelTypeTextValue,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _CreateChannelTypeTile(
                             assetName: 'assets/images/icon_pencil.png',
-                            title: '帖子',
-                            subtitle: '帖子与评论',
-                            selected: _type == '帖子',
-                            onTap: () => setState(() => _type = '帖子'),
+                            title: l10n?.createChannelTypePosts ?? '帖子',
+                            subtitle:
+                                l10n?.createChannelTypePostsSubtitle ?? '帖子与评论',
+                            selected: _type == _createChannelTypePostsValue,
+                            onTap: () => setState(
+                              () => _type = _createChannelTypePostsValue,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 23),
-                  const _CreateChannelSectionHeader(title: '频道权限'),
+                  _CreateChannelSectionHeader(
+                    title: l10n?.createChannelPermissionsTitle ?? '频道权限',
+                  ),
                   const SizedBox(height: 10),
                   _CreateChannelSwitchRow(
-                    title: '是否公开',
-                    subtitle: '关闭后仅通过邀请加入',
+                    title: l10n?.createChannelPublicTitle ?? '是否公开',
+                    subtitle: l10n?.createChannelPublicSubtitle ?? '关闭后仅通过邀请加入',
                     value: _isPublic,
                     onChanged: (value) => setState(() => _isPublic = value),
                   ),
                   const SizedBox(height: 10),
                   _CreateChannelSwitchRow(
-                    title: '加入是否需要审核',
-                    subtitle: '开启后新成员加入前需要频道审核',
+                    title: l10n?.createChannelApprovalTitle ?? '加入是否需要审核',
+                    subtitle: l10n?.createChannelApprovalSubtitle ??
+                        '开启后新成员加入前需要频道审核',
                     value: _needsApproval,
                     onChanged: (value) =>
                         setState(() => _needsApproval = value),
                   ),
                   const SizedBox(height: 24),
                   _CreateChannelSection(
-                    title: '频道介绍',
+                    title: l10n?.createChannelIntroTitle ?? '频道介绍',
                     meta: '',
                     gap: 5,
                     child: _CreateChannelIntroField(controller: _introCtrl),
@@ -429,6 +466,7 @@ class _CreateChannelTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _createChannelL10n(context);
     return SizedBox(
       height: topInset + 70,
       child: Padding(
@@ -447,7 +485,7 @@ class _CreateChannelTopBar extends StatelessWidget {
               ),
             ),
             Text(
-              '创建频道',
+              l10n?.createChannelTitle ?? '创建频道',
               style: AppTheme.sans(
                 size: 18,
                 weight: FontWeight.w600,
@@ -494,10 +532,14 @@ class _CreateChannelNameSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _createChannelL10n(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _CreateChannelSectionHeader(title: '频道名称', meta: ''),
+        _CreateChannelSectionHeader(
+          title: l10n?.createChannelNameTitle ?? '频道名称',
+          meta: '',
+        ),
         const SizedBox(height: 4),
         _CreateChannelNameField(controller: controller),
       ],
@@ -518,16 +560,19 @@ class _CreateChannelAvatarRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _createChannelL10n(context);
     return Row(
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _CreateChannelSectionHeader(title: '上传频道头像'),
+              _CreateChannelSectionHeader(
+                title: l10n?.createChannelAvatarTitle ?? '上传频道头像',
+              ),
               const SizedBox(height: 8),
               Text(
-                '支持图片上传，作为频道展示头像',
+                l10n?.createChannelAvatarSubtitle ?? '支持图片上传，作为频道展示头像',
                 style: AppTheme.sans(
                   size: 12,
                   weight: FontWeight.w500,
@@ -588,6 +633,7 @@ class _CreateChannelNameField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _createChannelL10n(context);
     return Container(
       height: 36,
       decoration: BoxDecoration(
@@ -607,7 +653,7 @@ class _CreateChannelNameField extends StatelessWidget {
           disabledBorder: InputBorder.none,
           errorBorder: InputBorder.none,
           focusedErrorBorder: InputBorder.none,
-          hintText: '请输入',
+          hintText: l10n?.createChannelNameHint ?? '请输入',
           hintStyle: AppTheme.sans(
             size: 12,
             weight: FontWeight.w500,
@@ -873,6 +919,7 @@ class _CreateChannelIntroField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _createChannelL10n(context);
     return Container(
       height: 89,
       decoration: BoxDecoration(
@@ -893,7 +940,7 @@ class _CreateChannelIntroField extends StatelessWidget {
           errorBorder: InputBorder.none,
           focusedErrorBorder: InputBorder.none,
           contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-          hintText: '输入频道介绍...',
+          hintText: l10n?.createChannelIntroHint ?? '输入频道介绍...',
           hintStyle: AppTheme.sans(
             size: 12,
             weight: FontWeight.w500,
@@ -921,6 +968,7 @@ class _CreateChannelSubmitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _createChannelL10n(context);
     return Material(
       color: context.tk.accent,
       borderRadius: BorderRadius.circular(12),
@@ -940,7 +988,7 @@ class _CreateChannelSubmitButton extends StatelessWidget {
                     ),
                   )
                 : Text(
-                    '创建频道',
+                    l10n?.createChannelSubmit ?? '创建频道',
                     style: AppTheme.sans(
                       size: 18,
                       weight: FontWeight.w600,
@@ -952,6 +1000,10 @@ class _CreateChannelSubmitButton extends StatelessWidget {
       ),
     );
   }
+}
+
+AppLocalizations? _createChannelL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
 }
 
 void _showCenterWeakHint(BuildContext context, String message) {

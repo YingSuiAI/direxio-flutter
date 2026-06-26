@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 import '../../data/as_client.dart';
 import '../../data/conversation_summary_store.dart';
 import '../../data/local_outbox_store.dart';
+import '../../l10n/app_localizations.dart';
 import '../providers/as_sync_cache_provider.dart';
 import '../providers/local_message_order_provider.dart';
 import '../providers/local_outbox_provider.dart';
@@ -109,6 +110,7 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
   required LocalMessageOrderState messageOrder,
   required Map<String, String> groupRemarkNames,
   required String? currentUserId,
+  AppLocalizations? l10n,
   String? agentEmptyPreview,
   bool includeDefaultAgentConversation = false,
 }) {
@@ -158,6 +160,7 @@ HomeConversationSummaryResult buildHomeConversationSummaryProjection({
           messageOrder: messageOrder,
           groupRemarkNames: groupRemarkNames,
           conversation: conversation,
+          l10n: l10n,
           agentEmptyPreview: resolvedAgentEmptyPreview,
         ),
   ];
@@ -545,6 +548,7 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
   required LocalMessageOrderState messageOrder,
   required Map<String, String> groupRemarkNames,
   required VisibleHomeConversation conversation,
+  AppLocalizations? l10n,
   String? agentEmptyPreview,
 }) {
   final room = conversation.room;
@@ -583,6 +587,7 @@ ConversationSummaryEntry summaryEntryForVisibleConversation({
     latestFailedOutbox: failedOutbox,
     lastEventSortTime: lastEventSortTime,
     cleared: cleared,
+    l10n: l10n,
     agentEmptyPreview: agentEmptyPreview,
   );
   final displayName = conversationDisplayName(
@@ -894,6 +899,7 @@ String _conversationPreviewTextForConversation(
   required LocalOutboxItem? latestFailedOutbox,
   DateTime? lastEventSortTime,
   bool cleared = false,
+  AppLocalizations? l10n,
   String? agentEmptyPreview,
 }) {
   if (cleared) return '';
@@ -905,6 +911,7 @@ String _conversationPreviewTextForConversation(
     lastEventSortTime: lastEventSortTime,
     isAgent: conversation.isAgent,
     agentFallback: resolvedAgentEmptyPreview,
+    l10n: l10n,
   );
   if (text.isNotEmpty) return text;
   final productLastMessage = conversation.product?.lastMessage.trim() ?? '';

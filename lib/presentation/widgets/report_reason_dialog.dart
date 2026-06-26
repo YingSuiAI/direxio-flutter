@@ -5,6 +5,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/im_public_client.dart';
+import '../../l10n/app_localizations.dart';
 
 class ReportReasonResult {
   const ReportReasonResult({
@@ -51,16 +52,9 @@ class ReportReasonDialog extends StatefulWidget {
 }
 
 class _ReportReasonDialogState extends State<ReportReasonDialog> {
-  static const _reasons = [
-    '骚扰/辱骂',
-    '垃圾信息/广告',
-    '色情/不当内容',
-    '暴力内容',
-    '欺诈',
-    '其他',
-  ];
+  static const _otherReasonValue = '其他';
 
-  String _selected = '其他';
+  String _selected = _otherReasonValue;
   final TextEditingController _otherController = TextEditingController();
   final List<ReportImageAttachment> _images = [];
   bool _pickingImages = false;
@@ -72,13 +66,14 @@ class _ReportReasonDialogState extends State<ReportReasonDialog> {
   }
 
   String get _reason {
-    if (_selected != '其他') return _selected;
+    if (_selected != _otherReasonValue) return _selected;
     final other = _otherController.text.trim();
-    return other.isEmpty ? '其他' : other;
+    return other.isEmpty ? _otherReasonValue : other;
   }
 
   Future<void> _pickImages() async {
     if (_pickingImages) return;
+    final l10n = _reportReasonL10n(context);
     setState(() => _pickingImages = true);
     try {
       final picker = widget.pickImages ?? _defaultPickImages;
@@ -92,7 +87,11 @@ class _ReportReasonDialogState extends State<ReportReasonDialog> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(content: Text('图片选择失败: $error')),
+        SnackBar(
+          content: Text(
+            l10n?.reportReasonPickImageFailed('$error') ?? '图片选择失败: $error',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _pickingImages = false);
@@ -101,8 +100,35 @@ class _ReportReasonDialogState extends State<ReportReasonDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = _reportReasonL10n(context);
     final t = context.tk;
     final maxDialogHeight = MediaQuery.sizeOf(context).height * 0.88;
+    final reasons = [
+      _ReportReasonOption(
+        value: '骚扰/辱骂',
+        label: l10n?.reportReasonHarassment ?? '骚扰/辱骂',
+      ),
+      _ReportReasonOption(
+        value: '垃圾信息/广告',
+        label: l10n?.reportReasonSpam ?? '垃圾信息/广告',
+      ),
+      _ReportReasonOption(
+        value: '色情/不当内容',
+        label: l10n?.reportReasonSexual ?? '色情/不当内容',
+      ),
+      _ReportReasonOption(
+        value: '暴力内容',
+        label: l10n?.reportReasonViolence ?? '暴力内容',
+      ),
+      _ReportReasonOption(
+        value: '欺诈',
+        label: l10n?.reportReasonFraud ?? '欺诈',
+      ),
+      _ReportReasonOption(
+        value: _otherReasonValue,
+        label: l10n?.reportReasonOther ?? '其他',
+      ),
+    ];
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16),
       backgroundColor: t.surface.withValues(alpha: 0),
@@ -127,7 +153,7 @@ class _ReportReasonDialogState extends State<ReportReasonDialog> {
                 children: [
                   Expanded(
                     child: Text(
-                      '请选择举报原因',
+                      l10n?.reportReasonDialogTitle ?? '请选择举报原因',
                       style: AppTheme.sans(
                         size: 16,
                         weight: FontWeight.w500,
@@ -151,24 +177,29 @@ class _ReportReasonDialogState extends State<ReportReasonDialog> {
                 ],
               ),
               const SizedBox(height: 14),
-              for (final reason in _reasons) ...[
-                if (reason == '其他')
+              for (final reason in reasons) ...[
+                if (reason.value == _otherReasonValue)
                   _OtherReasonTile(
-                    selected: _selected == reason,
+                    label: reason.label,
+                    hintText: l10n?.reportReasonOtherHint ?? '请填写举报原因',
+                    selected: _selected == reason.value,
                     controller: _otherController,
-                    onTap: () => setState(() => _selected = reason),
+                    onTap: () => setState(() => _selected = reason.value),
                   )
                 else
                   _ReportReasonTile(
-                    label: reason,
-                    selected: _selected == reason,
-                    onTap: () => setState(() => _selected = reason),
+                    label: reason.label,
+                    selected: _selected == reason.value,
+                    onTap: () => setState(() => _selected = reason.value),
                   ),
-                if (reason != _reasons.last) const SizedBox(height: 12),
+                if (reason != reasons.last) const SizedBox(height: 12),
               ],
               const SizedBox(height: 16),
               _ReportImagePickerRow(
-                count: _images.length,
+                label: _images.isEmpty
+                    ? l10n?.reportReasonPickImages ?? '上传图片'
+                    : l10n?.reportReasonImagesSelected(_images.length) ??
+                        '已选择${_images.length}张图片',
                 picking: _pickingImages,
                 onTap: _pickImages,
               ),
@@ -189,7 +220,7 @@ class _ReportReasonDialogState extends State<ReportReasonDialog> {
                     ),
                   ),
                   child: Text(
-                    '提交',
+                    l10n?.reportReasonSubmit ?? '提交',
                     style: AppTheme.sans(
                       size: 14,
                       weight: FontWeight.w500,
@@ -204,6 +235,20 @@ class _ReportReasonDialogState extends State<ReportReasonDialog> {
       ),
     );
   }
+}
+
+AppLocalizations? _reportReasonL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
+}
+
+class _ReportReasonOption {
+  const _ReportReasonOption({
+    required this.value,
+    required this.label,
+  });
+
+  final String value;
+  final String label;
 }
 
 Future<List<ReportImageAttachment>> _defaultPickImages() async {
@@ -238,19 +283,18 @@ String _imageMimeTypeForName(String name) {
 
 class _ReportImagePickerRow extends StatelessWidget {
   const _ReportImagePickerRow({
-    required this.count,
+    required this.label,
     required this.picking,
     required this.onTap,
   });
 
-  final int count;
+  final String label;
   final bool picking;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tk;
-    final label = count == 0 ? '上传图片' : '已选择$count张图片';
     return Material(
       color: t.surface,
       borderRadius: BorderRadius.circular(12),
@@ -347,11 +391,15 @@ class _ReportReasonTile extends StatelessWidget {
 
 class _OtherReasonTile extends StatelessWidget {
   const _OtherReasonTile({
+    required this.label,
+    required this.hintText,
     required this.selected,
     required this.controller,
     required this.onTap,
   });
 
+  final String label;
+  final String hintText;
   final bool selected;
   final TextEditingController controller;
   final VoidCallback onTap;
@@ -373,7 +421,7 @@ class _OtherReasonTile extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      '其他',
+                      label,
                       style: AppTheme.sans(
                         size: 14,
                         weight: FontWeight.w500,
@@ -402,7 +450,7 @@ class _OtherReasonTile extends StatelessWidget {
                       color: t.text,
                     ).copyWith(letterSpacing: -0.4),
                     decoration: InputDecoration(
-                      hintText: '请填写举报原因',
+                      hintText: hintText,
                       hintStyle: AppTheme.sans(
                         size: 12,
                         color: t.textMute.withValues(alpha: 0.68),

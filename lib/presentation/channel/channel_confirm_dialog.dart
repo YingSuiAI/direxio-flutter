@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
+import '../../l10n/app_localizations.dart';
 
 Future<bool> showChannelConfirmDialog(
   BuildContext context, {
@@ -62,6 +63,10 @@ class _ConfirmPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Material(
       color: context.tk.accent,
       borderRadius: BorderRadius.circular(12),
@@ -73,7 +78,7 @@ class _ConfirmPrimaryButton extends StatelessWidget {
           height: 38,
           child: Center(
             child: Text(
-              '确定',
+              l10n?.commonOk ?? '确定',
               style: AppTheme.sans(
                 size: 18,
                 weight: FontWeight.w600,
@@ -94,6 +99,10 @@ class _ConfirmCancelButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: onTap,
@@ -102,7 +111,7 @@ class _ConfirmCancelButton extends StatelessWidget {
         height: 32,
         child: Center(
           child: Text(
-            '取消',
+            l10n?.commonCancel ?? '取消',
             style: AppTheme.sans(
               size: 16,
               weight: FontWeight.w400,

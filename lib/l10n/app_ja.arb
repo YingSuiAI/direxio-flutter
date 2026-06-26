@@ -152,6 +152,45 @@
   "channelManageMyChannels": "自分のチャンネル",
   "channelManageCreateChannel": "新しいチャンネルを作成",
   "channelManageCreateChannelValue": "名前、アバター、紹介",
+  "createChannelTitle": "チャンネルを作成",
+  "createChannelNameTitle": "チャンネル名",
+  "createChannelNameHint": "入力してください",
+  "createChannelAvatarTitle": "チャンネルアバターをアップロード",
+  "createChannelAvatarSubtitle": "チャンネル表示用の画像をアップロードできます",
+  "createChannelTypeTitle": "チャンネルタイプを選択",
+  "createChannelTypeText": "テキスト",
+  "createChannelTypeTextSubtitle": "メンバーが自由に発言",
+  "createChannelTypePosts": "投稿",
+  "createChannelTypePostsSubtitle": "投稿とコメント",
+  "createChannelPermissionsTitle": "チャンネル権限",
+  "createChannelPublicTitle": "公開する",
+  "createChannelPublicSubtitle": "オフの場合は招待からのみ参加できます",
+  "createChannelApprovalTitle": "参加に承認が必要",
+  "createChannelApprovalSubtitle": "オンの場合、新メンバーの参加前に承認が必要です",
+  "createChannelIntroTitle": "チャンネル紹介",
+  "createChannelIntroHint": "チャンネル紹介を入力...",
+  "createChannelSubmit": "チャンネルを作成",
+  "createChannelAvatarUploading": "チャンネルアバターをアップロード中です。お待ちください",
+  "createChannelNameRequired": "チャンネル名は必須です",
+  "createChannelAvatarRequired": "チャンネルアバターをアップロードしてください",
+  "createChannelIntroRequired": "チャンネル紹介は必須です",
+  "createChannelAvatarUploadFailed": "チャンネルアバターのアップロードに失敗しました: {error}",
+  "@createChannelAvatarUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "createChannelCreated": "チャンネルを作成しました",
+  "createChannelFailed": "チャンネルの作成に失敗しました: {error}",
+  "@createChannelFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "channelManageInviteLinks": "招待リンク",
   "channelManageInviteLinksValue": "{count} 件有効",
   "@channelManageInviteLinksValue": {
@@ -315,6 +354,102 @@
   "contactRoomMissingBlock": "ユーザーのブロックに失敗しました: 連絡先のルーム情報がありません",
   "contactRoomMissingDelete": "友だちの削除に失敗しました: 連絡先のルーム情報がありません",
   "contactRoomMissingRemark": "連絡先のルーム情報がないため、備考を保存できません",
+  "chatInfoTitle": "チャット情報",
+  "chatInfoMissingConversation": "会話が見つかりません",
+  "chatInfoSearchRecords": "チャット履歴を検索",
+  "chatInfoContactMissingRemark": "連絡先情報がないため、備考を設定できません",
+  "chatInfoSelfBlockDisabled": "現在のユーザーはブロックできません",
+  "chatInfoSelfReportDisabled": "現在のユーザーは報告できません",
+  "chatInfoClearHistory": "チャット履歴を消去",
+  "chatInfoClearHistoryConfirm": "すべてのチャット履歴を消去しますか？この操作は元に戻せません。",
+  "chatInfoClearHistoryAction": "消去",
+  "chatInfoClearHistoryCleared": "チャット履歴を消去しました",
+  "chatInfoClearHistoryFailed": "チャット履歴の消去に失敗しました: {error}",
+  "@chatInfoClearHistoryFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatInfoUidCopied": "UID をコピーしました",
+  "chatInfoContactSyncing": "連絡先情報を同期中",
+  "groupInfoTitle": "チャット情報（{count}）",
+  "@groupInfoTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "groupInfoInvite": "招待",
+  "groupInfoRemove": "削除",
+  "groupInfoManagement": "グループ管理",
+  "groupInfoSearchRecords": "チャットを検索",
+  "groupInfoPinChat": "チャットをピン留め",
+  "groupInfoMyNickname": "このグループでのニックネーム",
+  "groupInfoShowMemberNicknames": "メンバーのニックネームを表示",
+  "groupInfoReportGroup": "グループを報告",
+  "groupInfoDissolveGroup": "グループを解散",
+  "groupInfoLeaveGroup": "グループを退出",
+  "groupInfoNoRemovableMembers": "削除できるメンバーはいません",
+  "groupInfoRemoveMemberTitle": "メンバーを削除",
+  "groupInfoRemoveMemberConfirm": "{name}をグループから削除しますか？",
+  "@groupInfoRemoveMemberConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoMemberRemoved": "{name}を削除しました",
+  "@groupInfoMemberRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoRemoveMemberFailed": "メンバーの削除に失敗しました: {error}",
+  "@groupInfoRemoveMemberFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoRemarkTitle": "備考",
+  "groupInfoRemarkHint": "グループの備考を入力",
+  "groupInfoRemarkCleared": "グループの備考を消去しました",
+  "groupInfoRemarkUpdated": "グループの備考を更新しました",
+  "groupInfoNicknameHint": "グループでのニックネームを入力",
+  "groupInfoNicknameEmpty": "グループでのニックネームは空にできません",
+  "groupInfoCurrentUserMissing": "現在のユーザー情報がありません",
+  "groupInfoNicknameUpdated": "グループでのニックネームを更新しました",
+  "groupInfoNicknameUpdateFailed": "グループでのニックネーム設定に失敗しました: {error}",
+  "@groupInfoNicknameUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "groupInfoClearHistoryConfirm": "このグループのすべてのチャット履歴を消去しますか？この操作は元に戻せません。",
+  "groupInfoDissolveConfirm": "このグループを解散しますか？",
+  "groupInfoLeaveConfirm": "このグループを退出しますか？",
+  "groupInfoDissolveAction": "解散",
+  "groupInfoLeaveAction": "退出",
+  "groupInfoLeaveFailed": "グループの{action}に失敗しました: {error}",
+  "@groupInfoLeaveFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "contactFriendRequestRestored": "以前の会話を復元しました。続けてチャットできます。",
   "contactFriendRequestSent": "友だち申請を送信しました。承認を待っています。",
   "contactDeleteConfirmTitle": "友だちを削除",
@@ -350,6 +485,32 @@
       }
     }
   },
+  "reportReasonDialogTitle": "報告理由を選択",
+  "reportReasonHarassment": "嫌がらせ / 暴言",
+  "reportReasonSpam": "スパム / 広告",
+  "reportReasonSexual": "性的 / 不適切な内容",
+  "reportReasonViolence": "暴力的な内容",
+  "reportReasonFraud": "詐欺",
+  "reportReasonOther": "その他",
+  "reportReasonOtherHint": "報告理由を入力してください",
+  "reportReasonPickImages": "画像をアップロード",
+  "reportReasonImagesSelected": "{count} 枚の画像を選択済み",
+  "@reportReasonImagesSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reportReasonPickImageFailed": "画像の選択に失敗しました: {error}",
+  "@reportReasonPickImageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "reportReasonSubmit": "送信",
   "contactRemarkEmpty": "備考は空にできません",
   "contactRemarkUpdateFailed": "備考の更新に失敗しました: {error}",
   "@contactRemarkUpdateFailed": {
@@ -645,6 +806,8 @@
   "messagePreviewVoiceBracket": "[音声]",
   "messagePreviewChatRecordBracket": "[チャット履歴]",
   "messagePreviewChannelBracket": "[チャンネル]",
+  "messagePreviewChannelShare": "チャンネル共有",
+  "messagePreviewGroupInvite": "グループ招待",
   "messagePreviewMessage": "メッセージ",
   "messagePreviewSendFailed": "送信に失敗しました",
   "messagePreviewCallRejected": "通話を拒否しました",
@@ -830,6 +993,7 @@
   "groupChatRemovedCannotSend": "退出済みのグループではメッセージを送信できません",
   "commonOk": "OK",
   "commonRetry": "再試行",
+  "commonUser": "ユーザー",
   "sessionExpiredTitle": "別の端末でログインされました",
   "sessionExpiredMessage": "このアカウントは別の端末でログインされました。OKをタップしてから、パスワードを手動で入力して再ログインしてください。",
   "chatRecordForwarded": "チャット履歴を転送しました",
@@ -848,6 +1012,150 @@
   "channelNoPublicContentSubtitle": "チャンネルに参加すると今後の投稿を確認できます。",
   "channelEmptyTitle": "チャンネルはまだありません",
   "channelEmptySubtitle": "参加または作成したチャンネルがここに表示されます。",
+  "channelSyncingTitle": "チャンネルを同期中",
+  "channelSyncingSubtitle": "しばらくお待ちください",
+  "channelMyChannelsTitle": "自分のチャンネル",
+  "channelJoinedSection": "参加済み",
+  "channelCreatedSection": "作成済み",
+  "channelCreatedEmptyTitle": "作成したチャンネルはまだありません",
+  "channelJoinedEmptyTitle": "参加中のチャンネルはまだありません",
+  "channelCreatedEmptySubtitle": "作成したチャンネルがここに表示されます。",
+  "channelJoinedEmptySubtitle": "参加したチャンネルがここに表示されます。",
+  "channelOpenSyncing": "チャンネルを同期中です。しばらくしてから再試行してください",
+  "channelDissolved": "チャンネルは解散済みです",
+  "channelKindText": "テキスト",
+  "channelKindPost": "投稿",
+  "channelAvatarFallback": "チ",
+  "channelMenuPin": "ピン留め",
+  "channelMenuUnpin": "ピン留めを解除",
+  "channelMenuPinned": "「{name}」をピン留めしました",
+  "@channelMenuPinned": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelMenuUnpinned": "「{name}」のピン留めを解除しました",
+  "@channelMenuUnpinned": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelMenuHide": "非表示",
+  "channelMenuHidden": "「{name}」を非表示にしました",
+  "@channelMenuHidden": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelMenuDelete": "チャンネルを削除",
+  "channelMenuDeleted": "「{name}」を削除しました",
+  "@channelMenuDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelTimeMonday": "月",
+  "channelTimeTuesday": "火",
+  "channelTimeWednesday": "水",
+  "channelTimeThursday": "木",
+  "channelTimeFriday": "金",
+  "channelTimeSaturday": "土",
+  "channelTimeSunday": "日",
+  "channelInfoTitle": "チャンネル情報",
+  "channelInfoDetailAction": "チャンネル詳細",
+  "channelInfoShareAction": "チャンネルを共有",
+  "channelInfoReportAction": "チャンネルを報告",
+  "channelInfoLeaveAction": "チャンネルを退出",
+  "channelInfoDissolveAction": "チャンネルを解散",
+  "channelInfoNoRemovableMembers": "削除できるメンバーはいません",
+  "channelInfoRemoveMembersTitle": "チャンネルメンバーを削除",
+  "channelInfoConfirmRemove": "{name} を削除しますか？",
+  "@channelInfoConfirmRemove": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoMemberRemoved": "メンバーを削除しました",
+  "channelInfoRemoveFailed": "削除に失敗しました：{error}",
+  "@channelInfoRemoveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoMuteAll": "全員をミュート",
+  "channelInfoMuteEnabled": "全員ミュートを有効にしました",
+  "channelInfoMuteDisabled": "全員ミュートを解除しました",
+  "channelInfoMuteEnableFailed": "全員ミュートの有効化に失敗しました：{error}",
+  "@channelInfoMuteEnableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoMuteDisableFailed": "全員ミュートの解除に失敗しました：{error}",
+  "@channelInfoMuteDisableFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoReportMissingRoom": "報告に失敗しました：チャンネルルームIDがありません",
+  "channelInfoReportSubmitted": "報告を送信しました",
+  "channelInfoReportFailed": "報告に失敗しました：{error}",
+  "@channelInfoReportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoShared": "チャンネルを共有しました",
+  "channelInfoShareFailed": "チャンネルの共有に失敗しました：{error}",
+  "@channelInfoShareFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoLeaveConfirm": "このチャンネルを退出しますか？",
+  "channelInfoLeft": "チャンネルを退出しました",
+  "channelInfoLeaveFailed": "チャンネルの退出に失敗しました：{error}",
+  "@channelInfoLeaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelInfoDissolveConfirm": "このチャンネルを解散しますか？",
+  "channelInfoDissolved": "チャンネルを解散しました",
+  "channelInfoDissolveFailed": "チャンネルの解散に失敗しました：{error}",
+  "@channelInfoDissolveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "channelDetailIntroTitle": "チャンネル紹介",
+  "channelDetailTitle": "チャンネル詳細",
+  "channelDetailCopiedId": "チャンネルIDをコピーしました",
+  "channelDetailNoIntro": "チャンネル紹介はまだありません",
   "channelJoinFailed": "チャンネルへの参加に失敗しました：{error}",
   "@channelJoinFailed": {
     "placeholders": {

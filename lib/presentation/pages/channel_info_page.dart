@@ -10,6 +10,7 @@ import 'package:matrix/matrix.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../data/as_client.dart';
+import '../../l10n/app_localizations.dart';
 import '../channel/channel_confirm_dialog.dart';
 import '../channel/channel_info_data.dart';
 import '../channel/channel_leave_flow.dart';
@@ -357,6 +358,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   @override
   Widget build(BuildContext context) {
     final channel = resolveChannelInfoData(ref, widget.channelId);
+    final l10n = _channelInfoL10n(context);
     return Scaffold(
       backgroundColor: context.tk.bg,
       body: SafeArea(
@@ -367,7 +369,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
               children: [
                 _InfoTopBar(
-                  title: '频道信息',
+                  title: l10n?.channelInfoTitle ?? '频道信息',
                   onBack: () => context.pop(),
                 ),
                 if (channel.isOwned)
@@ -383,6 +385,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
   }
 
   List<Widget> _memberContent(BuildContext context, ChannelInfoData channel) {
+    final l10n = _channelInfoL10n(context);
     return [
       const SizedBox(height: 24),
       _ChannelInfoHeader(
@@ -391,30 +394,31 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       ),
       const SizedBox(height: 26),
       _InfoActionRow(
-        label: '频道详情',
+        label: l10n?.channelInfoDetailAction ?? '频道详情',
         onTap: () => context.push(
           '/channel/${Uri.encodeComponent(channel.id)}/detail',
         ),
       ),
       const SizedBox(height: 14),
       _InfoActionRow(
-        label: '分享频道',
+        label: l10n?.channelInfoShareAction ?? '分享频道',
         onTap: () => _shareChannel(context, ref, channel),
       ),
       const SizedBox(height: 14),
       _InfoActionRow(
-        label: '举报频道',
+        label: l10n?.channelInfoReportAction ?? '举报频道',
         onTap: () => _showReportDialog(context, channel),
       ),
       const SizedBox(height: 26),
       _DangerCenterRow(
-        label: '退出频道',
+        label: l10n?.channelInfoLeaveAction ?? '退出频道',
         onTap: () => _confirmLeaveChannel(context, ref, channel),
       ),
     ];
   }
 
   List<Widget> _ownerContent(BuildContext context, ChannelInfoData channel) {
+    final l10n = _channelInfoL10n(context);
     final displayMembers =
         _members.where(_isJoinedChannelMember).toList(growable: false);
     final visibleMemberCount = displayMembers.isEmpty
@@ -449,14 +453,14 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       ),
       const SizedBox(height: 21),
       _InfoActionRow(
-        label: '频道详情',
+        label: l10n?.channelInfoDetailAction ?? '频道详情',
         onTap: () => context.push(
           '/channel/${Uri.encodeComponent(channel.id)}/detail',
         ),
       ),
       const SizedBox(height: 14),
       _InfoActionRow(
-        label: '分享频道',
+        label: l10n?.channelInfoShareAction ?? '分享频道',
         onTap: () => _shareChannel(context, ref, channel),
       ),
       const SizedBox(height: 14),
@@ -467,7 +471,7 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       ),
       const SizedBox(height: 26),
       _DangerCenterRow(
-        label: '解散频道',
+        label: l10n?.channelInfoDissolveAction ?? '解散频道',
         onTap: () => _confirmDissolveChannel(context, ref, channel),
       ),
     ];
@@ -503,7 +507,8 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       return member.role != asChannelRoleOwner;
     }).toList(growable: false);
     if (candidates.isEmpty) {
-      _showSnack(context, '暂无可移除成员');
+      final l10n = _channelInfoL10n(context);
+      _showSnack(context, l10n?.channelInfoNoRemovableMembers ?? '暂无可移除成员');
       return;
     }
     await showModalBottomSheet<void>(
@@ -521,7 +526,9 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '移除频道成员',
+                  _channelInfoL10n(sheetContext)
+                          ?.channelInfoRemoveMembersTitle ??
+                      '移除频道成员',
                   style: AppTheme.sans(
                     size: 18,
                     weight: FontWeight.w600,
@@ -631,9 +638,10 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
     AsChannelMember member,
     String name,
   ) async {
+    final l10n = _channelInfoL10n(context);
     final confirmed = await showChannelConfirmDialog(
       context,
-      title: '确认移除$name',
+      title: l10n?.channelInfoConfirmRemove(name) ?? '确认移除$name',
     );
     if (!confirmed || !mounted) return;
     setState(() => _removingMember = true);
@@ -648,10 +656,10 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             .toList(growable: false);
         _membersFuture = Future.value(_members);
       });
-      _showSnack(context, '已移除成员');
+      _showSnack(context, l10n?.channelInfoMemberRemoved ?? '已移除成员');
     } catch (err) {
       if (!mounted) return;
-      _showSnack(context, '移除失败：$err');
+      _showSnack(context, l10n?.channelInfoRemoveFailed('$err') ?? '移除失败：$err');
     } finally {
       if (mounted) {
         setState(() => _removingMember = false);
@@ -678,11 +686,23 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       }
       if (!mounted) return;
       _updateCachedChannelMuted(channel, muted: muted);
-      _showSnack(context, muted ? '已开启全员禁言' : '已解除全员禁言');
+      final l10n = _channelInfoL10n(context);
+      _showSnack(
+        context,
+        muted
+            ? l10n?.channelInfoMuteEnabled ?? '已开启全员禁言'
+            : l10n?.channelInfoMuteDisabled ?? '已解除全员禁言',
+      );
     } catch (err) {
       if (!mounted) return;
       setState(() => _muted = previous);
-      _showSnack(context, muted ? '开启全员禁言失败：$err' : '解除全员禁言失败：$err');
+      final l10n = _channelInfoL10n(context);
+      _showSnack(
+        context,
+        muted
+            ? l10n?.channelInfoMuteEnableFailed('$err') ?? '开启全员禁言失败：$err'
+            : l10n?.channelInfoMuteDisableFailed('$err') ?? '解除全员禁言失败：$err',
+      );
     } finally {
       if (mounted) setState(() => _muteChanging = false);
     }
@@ -727,8 +747,12 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
       null,
     );
     final reportedDomain = channel.roomId.trim();
+    final l10n = _channelInfoL10n(context);
     if (reportedDomain.isEmpty) {
-      _showSnack(context, '举报提交失败: 缺少频道房间ID');
+      _showSnack(
+        context,
+        l10n?.channelInfoReportMissingRoom ?? '举报提交失败: 缺少频道房间ID',
+      );
       return;
     }
     try {
@@ -740,10 +764,13 @@ class _ChannelInfoPageState extends ConsumerState<ChannelInfoPage>
             files: result.toImPublicFiles(),
           );
       if (!context.mounted) return;
-      _showSnack(context, '举报已提交');
+      _showSnack(context, l10n?.channelInfoReportSubmitted ?? '举报已提交');
     } catch (error) {
       if (!context.mounted) return;
-      _showSnack(context, '举报提交失败: $error');
+      _showSnack(
+        context,
+        l10n?.channelInfoReportFailed('$error') ?? '举报提交失败: $error',
+      );
     }
   }
 }
@@ -1162,7 +1189,7 @@ class _MuteRow extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '全员禁言',
+                  _channelInfoL10n(context)?.channelInfoMuteAll ?? '全员禁言',
                   style: AppTheme.sans(
                     size: 16,
                     weight: FontWeight.w500,
@@ -1260,10 +1287,15 @@ Future<void> _shareChannel(
       currentRoomName: channel.name,
     );
     if (!context.mounted || !sent) return;
-    _showSnack(context, '已分享频道');
+    final l10n = _channelInfoL10n(context);
+    _showSnack(context, l10n?.channelInfoShared ?? 'Channel shared');
   } catch (err) {
     if (!context.mounted) return;
-    _showSnack(context, '分享频道失败：$err');
+    final l10n = _channelInfoL10n(context);
+    _showSnack(
+      context,
+      l10n?.channelInfoShareFailed('$err') ?? 'Failed to share channel: $err',
+    );
   }
 }
 
@@ -1278,19 +1310,23 @@ Future<void> _confirmLeaveChannel(
   WidgetRef ref,
   ChannelInfoData channel,
 ) async {
+  final l10n = _channelInfoL10n(context);
   final confirmed = await showChannelConfirmDialog(
     context,
-    title: '确定退出？',
+    title: l10n?.channelInfoLeaveConfirm ?? 'Leave this channel?',
   );
   if (!context.mounted || !confirmed) return;
   try {
     await leaveChannelThroughAs(ref, channel.id);
     if (!context.mounted) return;
-    _showSnack(context, '已退出频道');
+    _showSnack(context, l10n?.channelInfoLeft ?? 'Left channel');
     _returnToChannelTab(context);
   } catch (err) {
     if (!context.mounted) return;
-    _showSnack(context, '退出频道失败：$err');
+    _showSnack(
+      context,
+      l10n?.channelInfoLeaveFailed('$err') ?? 'Failed to leave channel: $err',
+    );
   }
 }
 
@@ -1299,19 +1335,24 @@ Future<void> _confirmDissolveChannel(
   WidgetRef ref,
   ChannelInfoData channel,
 ) async {
+  final l10n = _channelInfoL10n(context);
   final confirmed = await showChannelConfirmDialog(
     context,
-    title: '确定解散？',
+    title: l10n?.channelInfoDissolveConfirm ?? 'Dissolve this channel?',
   );
   if (!context.mounted || !confirmed) return;
   try {
     await dissolveChannelThroughAs(ref, channel.id);
     if (!context.mounted) return;
-    _showSnack(context, '已解散频道');
+    _showSnack(context, l10n?.channelInfoDissolved ?? 'Channel dissolved');
     _returnToChannelTab(context);
   } catch (err) {
     if (!context.mounted) return;
-    _showSnack(context, '解散频道失败：$err');
+    _showSnack(
+      context,
+      l10n?.channelInfoDissolveFailed('$err') ??
+          'Failed to dissolve channel: $err',
+    );
   }
 }
 
@@ -1326,4 +1367,8 @@ void _returnToChannelTab(BuildContext context) {
   if (navigator.canPop()) {
     navigator.pop();
   }
+}
+
+AppLocalizations? _channelInfoL10n(BuildContext context) {
+  return Localizations.of<AppLocalizations>(context, AppLocalizations);
 }

@@ -233,12 +233,12 @@ class _ChannelExplorePageState extends ConsumerState<ChannelExplorePage> {
         bootstrap == null &&
         listedChannels == null &&
         publicChannels == null) {
-      return const _ChannelFrame(
+      return _ChannelFrame(
         child: Center(
           child: _ChannelEmpty(
             icon: Symbols.sync,
-            title: '正在同步频道',
-            subtitle: '请稍候',
+            title: l10n?.channelSyncingTitle ?? 'Syncing channels',
+            subtitle: l10n?.channelSyncingSubtitle ?? 'Please wait',
           ),
         ),
       );
@@ -380,7 +380,7 @@ class MeChannelsPage extends ConsumerStatefulWidget {
 }
 
 class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
-  String _section = '我创建';
+  _MeChannelSection _section = _MeChannelSection.created;
 
   @override
   Widget build(BuildContext context) {
@@ -452,7 +452,9 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
       final hidden = _channelHiddenKeysContain(hiddenChannelKeys, channel) ||
           _channelHiddenKeysContain(syncHiddenChannelKeys, channel);
       if (hidden) return false;
-      return _section == '我创建' ? channel.isOwned : !channel.isOwned;
+      return _section == _MeChannelSection.created
+          ? channel.isOwned
+          : !channel.isOwned;
     }).toList(growable: false);
     final visibleChannels = _sortPinnedChannels(
       filteredChannels,
@@ -463,7 +465,9 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
       backgroundColor: _channelBgColor(context),
       body: Column(
         children: [
-          GlassHeader.detail(title: '我的频道'),
+          GlassHeader.detail(
+            title: l10n?.channelMyChannelsTitle ?? 'My Channels',
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
             child: _MeChannelSectionSwitch(
@@ -473,17 +477,24 @@ class _MeChannelsPageState extends ConsumerState<MeChannelsPage> {
           ),
           Expanded(
             child: bootstrap == null
-                ? const _ChannelEmpty(
+                ? _ChannelEmpty(
                     icon: Symbols.sync,
-                    title: '正在同步频道',
-                    subtitle: '请稍候',
+                    title: l10n?.channelSyncingTitle ?? 'Syncing channels',
+                    subtitle: l10n?.channelSyncingSubtitle ?? 'Please wait',
                   )
                 : visibleChannels.isEmpty
                     ? _ChannelEmpty(
                         icon: Symbols.forum,
-                        title: _section == '我创建' ? '暂无我创建的频道' : '暂无已加入频道',
-                        subtitle:
-                            _section == '我创建' ? '创建的频道会显示在这里' : '加入的频道会显示在这里',
+                        title: _section == _MeChannelSection.created
+                            ? l10n?.channelCreatedEmptyTitle ??
+                                'No channels created yet'
+                            : l10n?.channelJoinedEmptyTitle ??
+                                'No joined channels yet',
+                        subtitle: _section == _MeChannelSection.created
+                            ? l10n?.channelCreatedEmptySubtitle ??
+                                'Channels you create will appear here.'
+                            : l10n?.channelJoinedEmptySubtitle ??
+                                'Channels you join will appear here.',
                       )
                     : ChannelInboxList(
                         storageKey: const PageStorageKey('me_channels'),
@@ -604,7 +615,7 @@ class _ChannelReviewPageState extends ConsumerState<ChannelReviewPage> {
                 if (_items.isEmpty) {
                   return _ChannelEmpty(
                     icon: Symbols.check_circle,
-                    title: l10n?.channelReviewEmptyTitle ?? '暂无加入申请',
+                    title: l10n?.channelReviewEmptyTitle ?? 'No join requests',
                     subtitle:
                         l10n?.channelReviewEmptySubtitle ?? '新的频道加入申请会显示在这里',
                   );
@@ -937,8 +948,8 @@ class _MeChannelSectionSwitch extends StatelessWidget {
     required this.onChanged,
   });
 
-  final String value;
-  final ValueChanged<String> onChanged;
+  final _MeChannelSection value;
+  final ValueChanged<_MeChannelSection> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -951,14 +962,14 @@ class _MeChannelSectionSwitch extends StatelessWidget {
       ),
       child: Row(
         children: [
-          for (final label in _meChannelSections)
+          for (final section in _MeChannelSection.values)
             Expanded(
               child: _MeChannelSectionSegment(
-                label: label,
-                selected: label == value,
+                label: _meChannelSectionLabel(context, section),
+                selected: section == value,
                 onTap: () {
-                  if (label == value) return;
-                  onChanged(label);
+                  if (section == value) return;
+                  onChanged(section);
                 },
               ),
             ),
@@ -1197,6 +1208,10 @@ class ChannelInboxTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final channelId = channel.id.trim();
     final subtitle = _channelInboxSubtitle(channel);
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     Offset menuPosition = Offset.zero;
     return GestureDetector(
       onSecondaryTapDown: (details) => menuPosition = details.globalPosition,
@@ -1231,7 +1246,11 @@ class ChannelInboxTile extends StatelessWidget {
                   if (handler == null) {
                     final route = _channelRoute(channel);
                     if (route == null) {
-                      _toast(context, '频道正在同步，请稍后重试');
+                      _toast(
+                        context,
+                        l10n?.channelOpenSyncing ??
+                            'Channel is syncing. Try again later.',
+                      );
                       return;
                     }
                     context.push(route);
@@ -1285,8 +1304,8 @@ class ChannelInboxTile extends StatelessWidget {
                                       const SizedBox(width: 6),
                                       _ChannelKindBadge(
                                         label: _channelIsTextType(channel)
-                                            ? '文字'
-                                            : '帖子',
+                                            ? l10n?.channelKindText ?? 'Text'
+                                            : l10n?.channelKindPost ?? 'Post',
                                       ),
                                     ],
                                     if (isPinned) ...[
@@ -1327,7 +1346,7 @@ class ChannelInboxTile extends StatelessWidget {
                               children: [
                                 if (showTime)
                                   Text(
-                                    _formatChannelTime(channel.latestAt),
+                                    _formatChannelTime(l10n, channel.latestAt),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.right,
@@ -1411,7 +1430,11 @@ class _ChannelAvatar extends ConsumerWidget {
         shape: AvatarShape.squircle,
       );
     }
-    final label = _avatarLabel(channel.name);
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    final label = _avatarLabel(channel.name, l10n);
     return Container(
       width: size,
       height: size,
@@ -1564,7 +1587,7 @@ class _ReviewStatusPill extends StatelessWidget {
           _channelStatusTextColor(context, _ReviewStatus.joining),
         ),
       _ReviewStatus.joined => (
-          l10n?.channelReviewStatusJoined ?? '已加入',
+          l10n?.channelReviewStatusJoined ?? 'Joined',
           _channelStatusBgColor(context, _ReviewStatus.joined),
           _channelStatusTextColor(context, _ReviewStatus.joined),
         ),
@@ -1719,7 +1742,21 @@ class _ReviewItem {
   }
 }
 
-const _meChannelSections = ['已加入', '我创建'];
+enum _MeChannelSection { joined, created }
+
+String _meChannelSectionLabel(
+  BuildContext context,
+  _MeChannelSection section,
+) {
+  final l10n = Localizations.of<AppLocalizations>(
+    context,
+    AppLocalizations,
+  );
+  return switch (section) {
+    _MeChannelSection.joined => l10n?.channelJoinedSection ?? 'Joined',
+    _MeChannelSection.created => l10n?.channelCreatedSection ?? 'Created',
+  };
+}
 
 bool _channelIsTextType(ChannelInboxItem channel) {
   return normalizeAsChannelType(channel.channelType) == asChannelTypeChat;
@@ -1830,6 +1867,10 @@ class _ChannelInboxMenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -1851,13 +1892,19 @@ class _ChannelInboxMenuCard extends StatelessWidget {
             _row(
               context,
               isPinned ? Symbols.keep_off : Symbols.push_pin,
-              isPinned ? '取消置顶' : '置顶',
+              isPinned
+                  ? l10n?.channelMenuUnpin ?? 'Unpin'
+                  : l10n?.channelMenuPin ?? 'Pin',
               () {
                 Navigator.of(context).pop();
                 onTogglePin?.call(channel);
                 _toast(
                   scaffoldContext,
-                  isPinned ? '已取消置顶「${channel.name}」' : '已置顶「${channel.name}」',
+                  isPinned
+                      ? l10n?.channelMenuUnpinned(channel.name) ??
+                          'Unpinned "${channel.name}"'
+                      : l10n?.channelMenuPinned(channel.name) ??
+                          'Pinned "${channel.name}"',
                 );
               },
             ),
@@ -1867,22 +1914,41 @@ class _ChannelInboxMenuCard extends StatelessWidget {
               indent: 16,
               endIndent: 16,
             ),
-            _row(context, Symbols.visibility_off, '不显示', () {
-              Navigator.of(context).pop();
-              onHide?.call(channel);
-              _toast(scaffoldContext, '已隐藏「${channel.name}」');
-            }),
+            _row(
+              context,
+              Symbols.visibility_off,
+              l10n?.channelMenuHide ?? 'Hide',
+              () {
+                Navigator.of(context).pop();
+                onHide?.call(channel);
+                _toast(
+                  scaffoldContext,
+                  l10n?.channelMenuHidden(channel.name) ??
+                      'Hidden "${channel.name}"',
+                );
+              },
+            ),
             const Divider(
               height: 1,
               color: _divider,
               indent: 16,
               endIndent: 16,
             ),
-            _row(context, Symbols.delete, '删除频道', () {
-              Navigator.of(context).pop();
-              onDelete?.call(channel);
-              _toast(scaffoldContext, '已删除「${channel.name}」');
-            }, danger: true),
+            _row(
+              context,
+              Symbols.delete,
+              l10n?.channelMenuDelete ?? 'Delete channel',
+              () {
+                Navigator.of(context).pop();
+                onDelete?.call(channel);
+                _toast(
+                  scaffoldContext,
+                  l10n?.channelMenuDeleted(channel.name) ??
+                      'Deleted "${channel.name}"',
+                );
+              },
+              danger: true,
+            ),
           ],
         ),
       ),
@@ -1906,7 +1972,14 @@ class _ChannelInboxMenuCard extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: iconColor),
             const SizedBox(width: 12),
-            Text(label, style: AppTheme.sans(size: 15, color: color)),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTheme.sans(size: 15, color: color),
+              ),
+            ),
           ],
         ),
       ),
@@ -1929,16 +2002,36 @@ void _openChannelInboxItem(
   if (_channelIsTerminal(channel) ||
       (validateExists &&
           !_activeChannelKeysContain(activeChannelKeys, channel))) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('频道已经解散')));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n?.channelDissolved ?? 'Channel has been dissolved',
+          ),
+        ),
+      );
     return;
   }
   final route = _channelRoute(channel);
   if (route == null) {
+    final l10n = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('频道正在同步，请稍后重试')));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n?.channelOpenSyncing ?? 'Channel is syncing. Try again later.',
+          ),
+        ),
+      );
     return;
   }
   context.push(route);
@@ -2112,10 +2205,10 @@ String _channelInboxDisplayName(ChannelInboxItem channel) {
   return name;
 }
 
-String _avatarLabel(String name) {
+String _avatarLabel(String name, AppLocalizations? l10n) {
   if (name.toLowerCase().contains('agent')) return 'AI';
   final trimmed = name.trim();
-  if (trimmed.isEmpty) return '频';
+  if (trimmed.isEmpty) return l10n?.channelAvatarFallback ?? 'C';
   return trimmed.characters.first;
 }
 
@@ -2131,7 +2224,7 @@ Color _channelAvatarColor(BuildContext context, ChannelInboxItem channel) {
   return const Color(0xFFDDF0FA);
 }
 
-String _formatChannelTime(DateTime? value) {
+String _formatChannelTime(AppLocalizations? l10n, DateTime? value) {
   if (value == null) return '';
   final now = DateTime.now();
   final local = value.toLocal();
@@ -2141,11 +2234,26 @@ String _formatChannelTime(DateTime? value) {
     return '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
   }
-  if (date == today.subtract(const Duration(days: 1))) return '昨天';
+  if (date == today.subtract(const Duration(days: 1))) {
+    return l10n?.channelReviewTimeYesterday ?? 'Yesterday';
+  }
   if (now.difference(local).inDays < 7) {
-    return const ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][local.weekday - 1];
+    return _localizedWeekday(l10n, local.weekday);
   }
   return '${local.month}/${local.day}';
+}
+
+String _localizedWeekday(AppLocalizations? l10n, int weekday) {
+  return switch (weekday) {
+    DateTime.monday => l10n?.channelTimeMonday ?? 'Mon',
+    DateTime.tuesday => l10n?.channelTimeTuesday ?? 'Tue',
+    DateTime.wednesday => l10n?.channelTimeWednesday ?? 'Wed',
+    DateTime.thursday => l10n?.channelTimeThursday ?? 'Thu',
+    DateTime.friday => l10n?.channelTimeFriday ?? 'Fri',
+    DateTime.saturday => l10n?.channelTimeSaturday ?? 'Sat',
+    DateTime.sunday => l10n?.channelTimeSunday ?? 'Sun',
+    _ => '',
+  };
 }
 
 String _formatBadgeCount(int count) => count > 99 ? '99+' : '$count';
@@ -2161,7 +2269,7 @@ String _formatReviewTime(AppLocalizations? l10n, int millis) {
         '${local.minute.toString().padLeft(2, '0')}';
   }
   if (date == today.subtract(const Duration(days: 1))) {
-    return l10n?.channelReviewTimeYesterday ?? '昨天';
+    return l10n?.channelReviewTimeYesterday ?? 'Yesterday';
   }
   return '${local.month}/${local.day}';
 }
@@ -2226,7 +2334,7 @@ String _matrixRoomLatestPreview(
   final event = client.getRoomById(roomId.trim())?.lastEvent;
   if (normalizeAsChannelType(channelType) == asChannelTypePost) {
     if (!_matrixEventLooksLikeChannelPost(event)) return '';
-    return l10n?.channelPostNewTextPreview ?? '新文字帖';
+    return l10n?.channelPostNewTextPreview ?? 'New text post';
   }
   final preview = roomEventPreviewText(
     event,

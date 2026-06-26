@@ -1,6 +1,6 @@
 # Direxio Client API Boundary
 
-Last verified from current code: 2026-06-24
+Last verified from current code: 2026-06-26
 
 This document records the current P2P product API / Matrix boundary used by the Flutter client. It intentionally omits historical change logs.
 
@@ -49,13 +49,24 @@ This document records the current P2P product API / Matrix boundary used by the 
 - Channel join-request review actions return a top-level status with the same approval/join states. The client must preserve that top-level status; approving a request is not a successful join unless the returned status is `joined`.
 - Public profile/channel extension action: `users.public_channels`. It returns the target user's owned/admin public channels, not channels where the target is only an ordinary member. Cross-node callers pass `remote_node_base_url` so the local AS can forward to the target owner node.
 - Call actions: `calls.create`, `calls.incoming`, `calls.get`, `calls.event`, `calls.active`, `calls.list`. `calls.event` supports `connected`, `ended`, `rejected`, `missed`, and `failed`; `GET /_p2p/events` can push `call.changed` with `payload.call` so active call UI can show the other party rejected or hung up in real time. Outgoing direct calls time out after 60 seconds without connection, write P2P state `missed`, and send an `m.call.hangup` with `reason=invite_timeout` so the chat page shows an unconnected voice-call record and the receiver cannot join that call late.
-- Agent/API actions: `agent.*` and `apis.*`.
+- Agent/API actions: `agent.*` and `apis.*`. `agent.status.connected`
+  means active agent-token `GET /_p2p/events` presence, not enabled
+  configuration. The UI may derive bridge presence from `connected`,
+  `online`, `configured`, and `agent_room_id`; disconnected configured agents
+  are offline, while unconfigured/no-room responses are unknown.
 
 ## Matrix Responsibilities
 
 - Login session and Matrix account identity.
 - Room membership and timeline state.
 - Ordinary text/media message send.
+- Agent room conversation text, including `/` commands, uses ordinary Matrix
+  message send into the real private `agent_room_id`. Agent replies come from
+  `@agent:<server>` and may use Matrix edits, stream-fragment content, Markdown,
+  or structured card fields. Clients must not depend on pseudo agent room ids.
+  Flutter slash-command shortcuts are local composer suggestions derived from
+  the connect command surface as of `@direxio/connent@1.3.5`; choosing one only
+  fills Matrix text and does not execute a local client command.
 - Media upload/download.
 - Message history via Matrix room messages.
 - Message search via Matrix search.
